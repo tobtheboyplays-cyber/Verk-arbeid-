@@ -24,9 +24,18 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // ---- Konfigurasjon ---------------------------------------------------------
 
 const PORT = process.env.PORT || 8787;
-const MODEL = process.env.MODEL || "claude-opus-4-8";
+const MODEL = process.env.MODEL || "claude-opus-5";
+// Modeller brukeren kan velge mellom i utvidelsen (validert på serveren).
+const TILLATTE_MODELLER = [
+  "claude-opus-5",
+  "claude-opus-4-8",
+  "claude-sonnet-5",
+  "claude-haiku-4-5-20251001"
+];
 const JWT_SECRET = process.env.JWT_SECRET;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+// Enkel modus: ett felles passord. Settes den, slipper man brukernavn + users.json.
+const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
 const TOKEN_TTL = process.env.TOKEN_TTL || "12h";
 // Maks lengde på artikkelteksten (tegn) – hindrer utilsiktet store kall.
 const MAX_TEXT_LENGTH = Number(process.env.MAX_TEXT_LENGTH || 60000);
@@ -62,7 +71,8 @@ function lastBrukere() {
   process.exit(1);
 }
 
-const BRUKERE = lastBrukere();
+// I passord-modus (ACCESS_PASSWORD satt) trengs ingen users.json.
+const BRUKERE = ACCESS_PASSWORD ? [] : lastBrukere();
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 // ---- App -------------------------------------------------------------------
@@ -76,15 +86,29 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const reviewLimiter = rateLimit({ windowMs: 60 * 1000, max: 20 });
 
 app.get("/", (_req, res) => {
-  res.json({ ok: true, tjeneste: "redaktor-assistent", modell: MODEL });
+  res.json({ ok: true, tjeneste: "redaktor-assistent", modell: MODEL, modeller: TILLATTE_MODELLER });
 });
 
 // ---- Innlogging ------------------------------------------------------------
 
 app.post("/login", loginLimiter, async (req, res) => {
   const { brukernavn, passord } = req.body || {};
-  if (!brukernavn || !passord) {
-    return res.status(400).json({ feil: "Mangler brukernavn eller passord." });
+  if (!passord) {
+    return res.status(400).json({ feil: "Mangler passord." });
+  }
+
+  // Enkel modus: bare ett felles passord.
+  if (ACCESS_PASSWORD) {
+    if (passord !== ACCESS_PASSWORD) {
+      return res.status(401).json({ feil: "Feil passord." });
+    }
+    const token = jwt.sign({ sub: brukernavn || "bruker" }, JWT_SECRET, { expiresIn: TOKEN_TTL });
+    return res.json({ token, brukernavn: brukernavn || "bruker" });
+  }
+
+  // Ellers: brukernavn + passord fra users.json.
+  if (!brukernavn) {
+    return res.status(400).json({ feil: "Mangler brukernavn." });
   }
   const bruker = BRUKERE.find((b) => b.brukernavn === brukernavn);
   // Sammenlign alltid mot en hash for å unngå timing-lekkasje om brukeren finnes.
@@ -123,11 +147,15 @@ app.post("/review", reviewLimiter, krevToken, async (req, res) => {
     });
   }
 
+  // Modell kan velges i utvidelsen; valideres mot allowlist, ellers standard.
+  const ønsket = (req.body?.model || "").toString();
+  const valgtModell = TILLATTE_MODELLER.includes(ønsket) ? ønsket : MODEL;
+
   try {
     // Streamer internt for å unngå HTTP-timeout på lange svar; nettleseren
     // får hele JSON-resultatet i én respons.
     const stream = anthropic.messages.stream({
-      model: MODEL,
+      model: valgtModell,
       max_tokens: 32000,
       thinking: { type: "adaptive" },
       output_config: {

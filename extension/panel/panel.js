@@ -41,11 +41,15 @@ function hoppTilSitat(sitat) {
 }
 
 async function init() {
-  const { proxyUrl, token } = await lagret();
+  const { proxyUrl, token, modell } = await chrome.storage.local.get(["proxyUrl", "token", "modell"]);
+  if (modell && $("modell")) $("modell").value = modell;
   if (!proxyUrl) return visView("oppsett");
   if (!token) return visView("login");
   visView("hoved");
 }
+
+// Husk valgt modell.
+$("modell").addEventListener("change", () => chrome.storage.local.set({ modell: $("modell").value }));
 
 // --- Oppsett / innstillinger ------------------------------------------------
 $("åpneInnstillinger").addEventListener("click", () => chrome.runtime.openOptionsPage());
@@ -57,24 +61,23 @@ $("passord").addEventListener("keydown", (e) => e.key === "Enter" && loggInn());
 async function loggInn() {
   $("loginFeil").textContent = "";
   const { proxyUrl } = await lagret();
-  const brukernavn = $("brukernavn").value.trim();
   const passord = $("passord").value;
-  if (!brukernavn || !passord) {
-    $("loginFeil").textContent = "Fyll inn brukernavn og passord.";
+  if (!passord) {
+    $("loginFeil").textContent = "Skriv inn passordet.";
     return;
   }
   try {
     const res = await fetch(`${proxyUrl.replace(/\/$/, "")}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ brukernavn, passord })
+      body: JSON.stringify({ passord })
     });
     const data = await res.json();
     if (!res.ok) {
       $("loginFeil").textContent = data.feil || "Innlogging feilet.";
       return;
     }
-    await chrome.storage.local.set({ token: data.token, brukernavn: data.brukernavn });
+    await chrome.storage.local.set({ token: data.token });
     $("passord").value = "";
     visView("hoved");
   } catch {
@@ -173,7 +176,7 @@ async function kjør({ fraSide, tekst }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ text: artikkeltekst })
+        body: JSON.stringify({ text: artikkeltekst, model: $("modell") ? $("modell").value : undefined })
       });
     } finally {
       stoppTeller();

@@ -53,13 +53,28 @@ label {
   font-weight: 600;
 }
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   padding: 8px;
   margin-top: 4px;
   border: 1px solid var(--kant);
   border-radius: 6px;
   font: inherit;
+  background: var(--bg);
+  color: var(--tekst);
+}
+.modellvelger {
+  font-size: 12px;
+  color: var(--dempet);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.modellvelger select {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+  color: var(--tekst);
 }
 
 button {

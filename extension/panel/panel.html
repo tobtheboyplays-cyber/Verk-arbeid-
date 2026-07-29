@@ -21,7 +21,6 @@
     <!-- Innlogging -->
     <section id="viewLogin" class="visning skjult">
       <h2>Logg inn</h2>
-      <label>Brukernavn<input id="brukernavn" type="text" autocomplete="username" /></label>
       <label>Passord<input id="passord" type="password" autocomplete="current-password" /></label>
       <button id="loggInn" class="primær">Logg inn</button>
       <p id="loginFeil" class="feil"></p>
@@ -29,6 +28,14 @@
 
     <!-- Hovedvisning -->
     <section id="viewHoved" class="visning skjult">
+      <label class="modellvelger">Modell
+        <select id="modell">
+          <option value="claude-opus-5">Opus 5 (best)</option>
+          <option value="claude-opus-4-8">Opus 4.8</option>
+          <option value="claude-sonnet-5">Sonnet 5 (raskere/billigere)</option>
+          <option value="claude-haiku-4-5-20251001">Haiku 4.5 (billigst)</option>
+        </select>
+      </label>
       <button id="sjekk" class="primær stor">Sjekk artikkel</button>
       <p id="status" class="status"></p>
 
