@@ -199,8 +199,11 @@ suite_client() {
 
 suite_visual() {
     mkdir -p "$RUN_DIR"
+    # D-H3: readers glob both the old flat layout (qa/reports/artifacts/<TS>/)
+    # and the new scenario-keyed layout (qa/reports/artifacts/<scenario>/<TS>/shots/).
     if ls "$RUN_DIR"/screenshot-*.png >/dev/null 2>&1 \
-        || ls "$ARTIFACTS"/*/screenshot-*.png >/dev/null 2>&1; then
+        || ls "$ARTIFACTS"/*/screenshot-*.png >/dev/null 2>&1 \
+        || ls "$ARTIFACTS"/*/*/shots/*.png >/dev/null 2>&1; then
         record visual PASS "screenshots present; inspect them before scoring UI"
     else
         record visual BLOCKED "no screenshots captured yet; client suite must produce them, then a human/model must inspect"; return 0
@@ -237,12 +240,16 @@ cmd_gate() {
         sed 's/^/  | /' "$REPORTS/BLOCKED"
         return 0
     fi
+    # AC-12: single-suite commands (doctor, dedicated, ...) never write
+    # latest.json or clear .stale — only a full-scope `full` run may. So a
+    # red/stale state with no latest.json means literally that: no
+    # full-scope run exists yet, regardless of how many single suites ran.
     if [ -f "$REPORTS/.stale" ] && [ ! -f "$REPORTS/latest.json" ]; then
-        echo "GATE: FAIL — QA marked stale and no manifest exists. Run: tools/hearthstead-qa full"; return 2
+        echo "GATE: FAIL — no full-scope run exists yet (QA marked stale, no manifest). Run: tools/hearthstead-qa full"; return 2
     fi
     if [ ! -f "$REPORTS/latest.json" ]; then
         if [ -f "$REPORTS/.stale" ]; then
-            echo "GATE: FAIL — stale, no manifest. Run: tools/hearthstead-qa full"; return 2
+            echo "GATE: FAIL — no full-scope run exists yet (stale, no manifest). Run: tools/hearthstead-qa full"; return 2
         fi
         echo "GATE: PASS (no Hearthstead QA state and no Hearthstead edits this session)"; return 0
     fi
@@ -296,22 +303,64 @@ cmd_reproduce() {
     suite_behavior
 }
 
+suite_playtest() {
+    mkdir -p "$RUN_DIR"
+    if ! command -v Xvfb >/dev/null; then
+        record playtest BLOCKED "Xvfb unavailable"; return 0
+    fi
+    if bash "$QA/scripts/playtest.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/playtest.log" 2>&1; then
+        record playtest PASS "$(tail -1 "$RUN_DIR/playtest.log")"
+    else
+        record playtest FAIL "$(tail -6 "$RUN_DIR/playtest.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+cmd_provision() { # AC-10: rebuild the shared install from scratch, prove it with playtest
+    local install_dir="${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install}"
+    local backup="${install_dir}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+    if [ -d "$install_dir" ]; then
+        mv "$install_dir" "$backup"
+        echo "provision: moved existing install aside to $backup"
+    fi
+    if ! bash "$QA/scripts/server_install.sh" "$MOD" --force; then
+        echo "provision: FAIL — reinstall failed"
+        [ -d "$backup" ] && { rm -rf "$install_dir"; mv "$backup" "$install_dir"; echo "provision: restored backup (install could not be verified)"; }
+        return 1
+    fi
+    suite_playtest
+    if [ "${SUITE_STATUS[playtest]:-}" = "PASS" ]; then
+        [ -d "$backup" ] && rm -rf "$backup"
+        echo "provision: PASS — rebuilt install verified by a passing playtest; backup deleted"
+        return 0
+    else
+        echo "provision: FAIL — rebuilt install did not pass playtest; backup kept at $backup for comparison"
+        return 1
+    fi
+}
+
 export HSQA_REPORTS="$REPORTS" HSQA_PROTO="$PROTOCOL_VERSION"
 
 case "${1:-help}" in
     # Every single-suite command must EXIT NON-ZERO on failure: a caller that
     # checks $? (CI, a wrapper script, a human) must never read a red suite as
-    # success just because the manifest write succeeded.
-    doctor)      suite_doctor; s="${SUITE_STATUS[doctor]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
+    # success just because it ran. AC-12: single-suite commands NEVER write
+    # qa/reports/latest.json or clear .stale — that would let `doctor` alone
+    # turn a red gate green. ONLY `full` (a full-scope run) may do that; its
+    # green_streak only increments on a full-scope PASS.
+    doctor)      suite_doctor; [ "${SUITE_STATUS[doctor]}" = PASS ];;
     changed)     cmd_changed;;
     validate)    suite_assets;;
     animation)   suite_animation;;
-    gametest)    suite_gametest; s="${SUITE_STATUS[gametest]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
-    behavior)    suite_behavior; s="${SUITE_STATUS[behavior]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
-    dedicated)   suite_dedicated; s="${SUITE_STATUS[dedicated]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
-    performance) suite_performance; s="${SUITE_STATUS[performance]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
-    client)      suite_client; s="${SUITE_STATUS[client]}"; write_manifest "$([ "$s" != FAIL ] && echo PASS || echo FAIL)"; [ "$s" != FAIL ];;
-    visual)      suite_visual; s="${SUITE_STATUS[visual]}"; write_manifest "$([ "$s" != FAIL ] && echo PASS || echo FAIL)"; [ "$s" != FAIL ];;
+    gametest)    suite_gametest; [ "${SUITE_STATUS[gametest]}" = PASS ];;
+    behavior)    suite_behavior; [ "${SUITE_STATUS[behavior]}" = PASS ];;
+    dedicated)   suite_dedicated; [ "${SUITE_STATUS[dedicated]}" = PASS ];;
+    performance) suite_performance; [ "${SUITE_STATUS[performance]}" = PASS ];;
+    client)      suite_client; [ "${SUITE_STATUS[client]}" != FAIL ];;
+    playtest)    suite_playtest; [ "${SUITE_STATUS[playtest]}" != FAIL ];;
+    visual)      suite_visual; [ "${SUITE_STATUS[visual]}" != FAIL ];;
+    live)        shift; bash "$QA/scripts/live.sh" "$@";;
+    reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
+    provision)   cmd_provision;;
     full)
         rm -f "$REPORTS/BLOCKED"   # a full run supersedes any documented blocker
         overall=PASS
@@ -324,6 +373,7 @@ case "${1:-help}" in
         suite_dedicated   || overall=FAIL
         suite_performance || overall=FAIL
         suite_client      || overall=FAIL
+        suite_playtest    || overall=FAIL
         suite_visual      || true   # BLOCKED allowed, FAIL not
         [ "${SUITE_STATUS[visual]}" = FAIL ] && overall=FAIL
         write_manifest "$overall"
@@ -331,5 +381,5 @@ case "${1:-help}" in
     gate)        cmd_gate;;
     status)      cmd_status;;
     reproduce)   shift; cmd_reproduce "${1:-}";;
-    *) sed -n '1,3p' "$0"; echo "commands: doctor changed validate animation gametest behavior dedicated performance client visual full gate status reproduce";;
+    *) sed -n '1,3p' "$0"; echo "commands: doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap full gate status reproduce";;
 esac

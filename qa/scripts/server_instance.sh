@@ -23,6 +23,14 @@ ln -s "$INSTALL_DIR/libraries" "$INST/libraries"
 cp "$INSTALL_DIR/run.sh" "$INST/run.sh"; chmod +x "$INST/run.sh"
 [ -f "$INSTALL_DIR/run.bat" ] && cp "$INSTALL_DIR/run.bat" "$INST/run.bat"
 [ -f "$INSTALL_DIR/user_jvm_args.txt" ] && cp "$INSTALL_DIR/user_jvm_args.txt" "$INST/user_jvm_args.txt"
+# A real JVM arg (shows up in `ps -eo args` for the actual java process, not
+# just a wrapper shell) so reap.sh's pattern fallback can find and kill a
+# leaked server even when a pidfile was never written (crash before launch
+# finished registering it).
+# A leading newline matters: the shared file's last line has no trailing
+# newline, so a bare >> would otherwise glue this onto the end of a comment
+# line (silently making the marker arg part of that comment, and inert).
+printf '\n-Dhsqa.instanceDir=%s\n' "$INST" >> "$INST/user_jvm_args.txt"
 cp "$JAR" "$INST/mods/"
 
 echo "eula=true" > "$INST/eula.txt"

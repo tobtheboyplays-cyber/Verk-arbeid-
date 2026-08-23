@@ -1,8 +1,9 @@
 # Default playtest. quickPlay drops us straight into the world with NO screen
 # open, so an Escape here would OPEN the pause menu, not dismiss one.
-# Directives: wait N | key K | type T | cmd C | scmd C | click [left|right] | move dx dy | shot NAME
+# See qa/scripts/playtest.sh for the full directive language (AC-14).
 wait 5
 shot playtest-01-inworld
+expect_shot playtest-01-inworld
 
 # Clear conditions so the screenshots show the art rather than mud and rain.
 scmd gamemode creative @a
@@ -11,20 +12,55 @@ scmd weather clear
 scmd gamerule doDaylightCycle false
 wait 3
 shot playtest-02-daylight
+expect_shot playtest-02-daylight
 
 # The mod's own starter kit: hearth, writs, handbook, settler eggs.
 cmd hearthstead demo
 wait 3
+
+# --- INPUT CLASS 1/4: cmd. broadcastToAdmins=true so the console log gets
+# the resolved feedback text regardless of who issued it (AC-2).
+cmd hearthstead recruit
+expect_server Recruitment timers advanced
+
+# --- INPUT CLASS 2/4: key. Switching hotbar slots must visibly move the
+# selection highlight in the lower third of the screen (AC-2).
+key 2
+wait 1
+shot before-key
 key 1
 wait 1
+shot after-key
+expect_pixel_change before-key after-key 2.0 lower-third
 shot playtest-03-hotbar
 
-# Look slightly down at the ground, then place the hearth to found a village.
+# --- INPUT CLASS 3/4: click. Look down, right-click to place the hearth,
+# then have the server itself confirm the block landed (AC-2).
 move 0 120
 wait 2
 click right
+wait 2
+scmd execute at $PLAYER run execute if block ~ ~-1 ~ hearthstead:hearth run say HS_CLICK_OK
+expect_server HS_CLICK_OK
 wait 12
-shot playtest-04-settlement
+shot 04-settlement
+expect_shot 04-settlement
+
+# AC-4: the settlement screenshot corroborated server-side — population >=3
+# plus a settler-entity echo, both independent of the screenshot itself.
+scmd hearthstead info
+expect_server population 3
+scmd execute if entity @e[type=hearthstead:settler] run say HS_SETTLER_PRESENT
+expect_server HS_SETTLER_PRESENT
+
+# --- INPUT CLASS 4/4: look. Server-side Rotation must change by more than
+# 30 degrees of yaw (AC-2) — never trust the client's own idea of where it's
+# facing.
+scmd data get entity $PLAYER Rotation
+move 300 0
+wait 1
+scmd data get entity $PLAYER Rotation
+expect_rotation_change 30
 
 # Settlers spawn at the hearth: pan across them.
 move 200 -60

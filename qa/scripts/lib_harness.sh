@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Shared helpers sourced by every launching QA script: preflight port checks
+# (AC-13), pidfile registration for reap.sh (AC-7), and the one evidence
+# layout (AC-11): qa/reports/artifacts/<scenario-id>/<TS>/{manifest.json,
+# result.json,reproduction.md,logs/,shots/,film/}.
+#
+# Source, don't execute: `. "$(dirname "$0")/lib_harness.sh"`
+
+HSQA_REPO="${HSQA_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+HSQA_ARTIFACTS="$HSQA_REPO/qa/reports/artifacts"
+HSQA_PIDDIR="${HSQA_PIDDIR:-/tmp/claude-0/hsqa-pids}"
+mkdir -p "$HSQA_ARTIFACTS" "$HSQA_PIDDIR"
+
+# D-H3: a repo-root symlink so the contract's `artifacts/qa/...` path
+# resolves literally, without forking the canonical store.
+if [ ! -e "$HSQA_REPO/artifacts" ]; then
+    mkdir -p "$HSQA_REPO/artifacts"
+    ln -sfn "../qa/reports/artifacts" "$HSQA_REPO/artifacts/qa"
+fi
+
+# ---- evidence scaffold (AC-11) --------------------------------------------
+ev_init() { # <scenario-id> -> sets EV_DIR/EV_LOGS/EV_SHOTS/EV_FILM/EV_TS
+    local scenario="$1"
+    EV_TS="$(date -u +%Y%m%dT%H%M%SZ)"
+    EV_DIR="$HSQA_ARTIFACTS/$scenario/$EV_TS"
+    EV_LOGS="$EV_DIR/logs"
+    EV_SHOTS="$EV_DIR/shots"
+    EV_FILM="$EV_DIR/film"
+    mkdir -p "$EV_LOGS" "$EV_SHOTS" "$EV_FILM"
+    python3 - "$scenario" "$EV_DIR" <<'PYEOF'
+import json, os, subprocess, sys, time
+scenario, ev_dir = sys.argv[1], sys.argv[2]
+def sh(cmd):
+    try: return subprocess.check_output(cmd, text=True).strip()
+    except Exception: return "unknown"
+manifest = {
+    "scenario": scenario,
+    "started": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
+    "git_commit": sh(["git", "-C", os.environ.get("HSQA_REPO", "."), "rev-parse", "HEAD"]),
+}
+json.dump(manifest, open(os.path.join(ev_dir, "manifest.json"), "w"), indent=2)
+PYEOF
+    export EV_DIR EV_LOGS EV_SHOTS EV_FILM EV_TS
+}
+
+# ---- port preflight (AC-13, AC-8/N1) ---------------------------------------
+port_holder() { # <port> -> "PID CMD..." or empty
+    local port="$1" line pid
+    line=$(ss -ltnp 2>/dev/null | awk -v p=":$port" '$4 ~ p"$"')
+    [ -z "$line" ] && return 0
+    pid=$(printf '%s' "$line" | grep -oP 'pid=\K[0-9]+' | head -1)
+    if [ -n "$pid" ]; then
+        printf '%s %s\n' "$pid" "$(ps -o args= -p "$pid" 2>/dev/null)"
+    else
+        printf '?  %s\n' "$line"
+    fi
+}
+
+# preflight_port <port> <role> — echoes a FAIL line and returns 1 if held,
+# naming the holder's PID/cmdline; says nothing about the mod. Silent+0 if free.
+preflight_port() {
+    local port="$1" role="$2" holder
+    holder=$(port_holder "$port")
+    if [ -n "$holder" ]; then
+        echo "FAIL: port $port needed for '$role' is already in use — held by pid $holder"
+        return 1
+    fi
+    return 0
+}
+
+# ---- pidfile registration for reap.sh (AC-7) -------------------------------
+register_pid() { # <role> <pid>
+    echo "$2" >> "$HSQA_PIDDIR/$1.pids"
+}
+clear_pidfile() { # <role>
+    rm -f "$HSQA_PIDDIR/$1.pids"
+}
+
+# ---- structured per-directive checks (AC-14) and result.json (AC-11) ------
+# Each check is appended as one JSONL line, independent of bash quoting
+# concerns — no need to reconstruct a bash-side data structure. A directive
+# that silently did nothing simply never appends a line, which is itself
+# visible when result.json is inspected (AC-14).
+check_pass() { # <name> <evidence>
+    python3 -c 'import json,sys; print(json.dumps({"name":sys.argv[1],"status":"PASS","evidence":sys.argv[2]}))' \
+        "$1" "$2" >> "$EV_DIR/.checks.jsonl"
+    echo "PASS: $1 -- $2"
+}
+check_fail() { # <name> <evidence>  (records only; caller decides whether to exit)
+    python3 -c 'import json,sys; print(json.dumps({"name":sys.argv[1],"status":"FAIL","evidence":sys.argv[2]}))' \
+        "$1" "$2" >> "$EV_DIR/.checks.jsonl"
+    echo "FAIL: $1 -- $2"
+}
+
+# finish_result <status> — aggregates .checks.jsonl into result.json.
+finish_result() {
+    local status="$1"
+    python3 - "$status" "$EV_DIR" <<'PYEOF'
+import json, os, sys, time
+status, ev_dir = sys.argv[1], sys.argv[2]
+checks = {}
+jsonl = os.path.join(ev_dir, ".checks.jsonl")
+if os.path.exists(jsonl):
+    for line in open(jsonl):
+        line = line.strip()
+        if not line:
+            continue
+        c = json.loads(line)
+        checks[c["name"]] = {"status": c["status"], "evidence": c["evidence"]}
+result = {
+    "overall": status,
+    "finished": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
+    "checks": checks,
+}
+json.dump(result, open(os.path.join(ev_dir, "result.json"), "w"), indent=2)
+PYEOF
+}
+
+write_reproduction() { # <text>
+    printf '%s\n' "$1" > "$EV_DIR/reproduction.md"
+}
+
+# die <check-name> <message> — records the check as FAIL, finishes result.json
+# as FAIL, prints "FAIL: <message>" (the ordered-fact-ladder line callers grep
+# for) and exits 1. Use for the first-wrong-fact in an ordered fact ladder.
+die() {
+    check_fail "$1" "$2"
+    finish_result FAIL
+    echo "FAIL: $2"
+    exit 1
+}
