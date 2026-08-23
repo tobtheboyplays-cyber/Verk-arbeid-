@@ -94,6 +94,10 @@ suite_doctor() {
     [ -f "$QA/PROTOCOL.md" ] || problems+="protocol-missing "
     python3 -c "import PIL" 2>/dev/null || problems+="pillow-missing "
     command -v Xvfb >/dev/null || problems+="xvfb-missing(client-suite-blocked) "
+    command -v tmux >/dev/null || problems+="tmux-missing(live-suite-blocked) "
+    command -v ffmpeg >/dev/null || problems+="ffmpeg-missing(film-blocked) "
+    python3 "$QA/hooks/test_bash_guard.py" >/dev/null 2>&1 || problems+="bash_guard-selftest-failed "
+    bash "$QA/scripts/reap.sh" selftest >/dev/null 2>&1 || problems+="reap-matcher-selftest-failed "
     if [ -z "$problems" ]; then record doctor PASS "toolchain ok"
     else record doctor FAIL "$problems"; return 1; fi
 }
