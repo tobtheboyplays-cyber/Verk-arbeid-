@@ -63,27 +63,31 @@ alive as PID 1273 well over an hour later). The harness does not guarantee
 teardown, and a leaked server silently breaks every later suite that needs the
 port.
 
-**This belongs to HARNESS-1** (scenario HARNESS-7, clean shutdown). Required:
-teardown that actually runs on every exit path; a pre-flight check that the
-port is free, with a clear message naming the holder; and the E2E asserting
-"the server reached Done (" *before* asserting anything about settlers, so the
-next failure of this kind names itself.
+**This belonged to HARNESS-1** (scenario HARNESS-7, clean shutdown) — DONE.
+`dedicated_e2e.sh` now: preflights the port and names the holder if it's
+held (driven negative test N1, `tools/hearthstead-qa negative n1`); asserts
+"the server reached Done(" before anything about settlers; runs its own
+isolated instance on port 25571; and every exit path (success, `die`, an
+aborted invocation) tears down through a trap, verified clean by `reap
+check` after each of two consecutive cold-start PASSes. Re-measured: PASS,
+twice, with population 3 and zero classloading errors both times.
 
 ---
 
 ## KF-003 — Performance probe could not stand up 25+ settlers
 
-**Status:** almost certainly the same cause as KF-002 (LIKELY, not yet
-re-measured). **Severity:** medium.
+**Status:** RESOLVED — same cause as KF-002, confirmed. **Severity:** was
+medium; not a mod defect.
 
-**Evidence:** `performance.log` — "could not stand up 25+ settlers". The probe
-boots its own dedicated server on the same port, so a leaked server would have
-blocked it identically.
-
-**Next step:** re-run `tools/hearthstead-qa performance` once the harness
-guarantees a free port. Do not investigate a performance defect until the
-measurement is known to have actually run. The MSPT parser itself is fixed and
-verified (it extracted 1.3/1.2/1.2 ms from a real run).
+**Re-measured (HARNESS-1):** with the harness fixed (isolated port 25572,
+own instance, preflight, ordered fact ladder), `tools/hearthstead-qa
+performance` PASSes repeatably — two consecutive cold-start runs, ~27
+settlers, avg MSPT ≈1.1ms (budget 45.0). See
+`qa/reports/artifacts/performance/*/result.json`. Confirms KF-002's
+diagnosis: this was harness port contention the whole time, never a
+performance regression. `performance.log`'s "could not stand up 25+
+settlers" was the same downstream-symptom-before-first-cause pattern as
+KF-002 — fixed by the same ordered-fact-ladder discipline (AC-13).
 
 ---
 
@@ -118,22 +122,53 @@ signal is a product requirement, not decoration.
 
 ## KF-006 — Playtest harness reaches the world only sometimes
 
-**Status:** partially diagnosed; this is the current slice (HARNESS-1).
+**Status:** RESOLVED (HARNESS-1). Two consecutive cold-start `playtest`
+PASSes with identical check sets; server-side `joined the game` proven every
+time.
 
-**Fixed and verified:** the client's game directory is `run/`, not
-`run/client` (options written elsewhere were ignored, leaving the
-accessibility onboarding screen up, which blocks quickPlay entirely); the
-dedicated server opened a Swing GUI on the same X display, stealing synthetic
-input and being what root-window screenshots captured (now `nogui` plus
-window-targeted capture); a scenario opening with `Escape` *opened* the pause
-menu, because quickPlay drops straight into the world.
+**Root causes found and fixed, in the end:**
+- The original "player never joined the world" incident (PLAN_GATE) turned
+  out to be a real client **compile error** — the harness was reporting a
+  downstream symptom of a build failure it never checked for. Fixed by AC-13's
+  ordered fact ladder plus a driven build-failure check (N2).
+- Client boot under software GL behind this environment's proxy can
+  genuinely take several minutes (an authlib session-server HTTPS call
+  stalls) even while progressing normally — old fixed timeouts read this as
+  a hang. Budgets widened; readiness for the title screen is judged by
+  actually screenshotting and checking for real rendered content
+  (`check_screenshot.py`), not a specific log line (sound is off, and the
+  Realms-notification line depends on that same stalling network call).
+- `overrideWidth`/`overrideHeight` in `options.txt` do **not** set the
+  initial window size on this launch path — it opened at vanilla's 854×480
+  default regardless. Fixed with explicit `--width 1280 --height 720`
+  program arguments on the client run (`build.gradle`).
+- **GLFW does not grab the mouse for relative look until the first real
+  click into the window** — quickPlay never provides one. `move`/`look`
+  directives now click immediately before every relative-motion send.
+- A bare console `tp <target> ~ ~ ~ ...` resolves `~` against the
+  **console's own position**, not the target's — needs `execute at
+  <target> run tp <target> ~ ~ ~ ...`.
+- `execute at ... run fill ...` (and likely other `execute ... run` wraps)
+  silently drops ALL feedback — the effect happens, nothing is logged. Use
+  bare, absolute-coordinate commands for anything whose feedback must be
+  observed.
+- `fill <box> X replace X` (self-replace, meant as a non-destructive
+  existence probe) is a no-op the game never counts, even when X is
+  genuinely present — this makes fill-based existence probing impossible;
+  removed in favour of querying mod-authoritative state (`hearthstead info`).
 
-**Still unknown:** a later run failed with "player never joined the world" and
-the cause was never established.
+**Fixed and verified earlier, still holds:** the client's game directory is
+`run/`, not `run/client`; `nogui` plus window-targeted capture (never root);
+quickPlay drops straight into the world so `Escape` opens the pause menu,
+not dismisses one.
 
-**Also unresolved:** `live.sh`'s persistent-session design assumes the X
-display, the server, its FIFO writer and the client all survive between
-separate shell invocations. Unproven.
+**No longer unresolved:** `live.sh`'s persistent tmux session (D-H1)
+survives separate shell invocations — proven directly: `start`, `status`
+(twice, same server PID and player both times), `cmd`, `shot`, `film`,
+`stop` each as its own Bash call against one session (HARNESS-6). One
+teardown gap was found and fixed along the way: **Xvfb ignores SIGHUP**, so
+`tmux kill-session` alone left it running; `live.sh` now sends it an
+explicit SIGKILL on both `start`'s pre-cleanup and `stop`.
 
 ---
 

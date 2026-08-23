@@ -217,6 +217,7 @@ cmd_changed() {
     { git -C "$REPO" diff --name-only "$base" 2>/dev/null; git -C "$REPO" status --porcelain | awk '{print $2}'; } | sort -u | while read -r f; do
         [ -z "$f" ] && continue
         case "$f" in
+            qa/scenarios/*|qa/scripts/playtest.sh|qa/scripts/live.sh|qa/scripts/check_screenshot.py|qa/scripts/pixel_diff.py|qa/scripts/build_contact_sheet.py) echo "$f -> playtest full";;
             hearthstead-neoforge/src/main/java/com/hearthstead/entity/*|hearthstead-neoforge/src/main/java/com/hearthstead/settlement/*|hearthstead-neoforge/src/main/java/com/hearthstead/event/*) echo "$f -> behavior gametest dedicated";;
             hearthstead-neoforge/src/main/java/com/hearthstead/client/*) echo "$f -> build client visual animation";;
             hearthstead-neoforge/src/main/java/com/hearthstead/menu/*) echo "$f -> gametest client visual";;

@@ -114,7 +114,14 @@ cmd_reap() {
             kill -9 "$pid" 2>/dev/null && echo "  killed pid $pid ($rest)"
         done
     fi
-    tmux kill-session -t hsqa-live 2>/dev/null && echo "  killed tmux session hsqa-live"
+    # tmux's own session kill is the proven-reliable cascade to a pane's
+    # descendants (a plain kill -9 of the pane's shell PID alone does not
+    # reliably reach a java process several forks deep in the pipeline) —
+    # explicit per session name, not just the pattern-matched PIDs above.
+    for s in hsqa-live hsqa-playtest; do
+        tmux has-session -t "$s" 2>/dev/null && tmux kill-session -t "$s" 2>/dev/null \
+            && echo "  killed tmux session $s"
+    done
     sleep 1
     echo "reap: verifying"
     cmd_check

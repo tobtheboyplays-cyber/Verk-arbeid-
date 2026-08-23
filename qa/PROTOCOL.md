@@ -11,15 +11,15 @@ Gradle build is never sufficient proof of anything.
 
 INV-1  Settlers never construct buildings autonomously. They repair and
        upgrade player-built structures only.
-INV-2  Building REGISTRATION is automatic room detection (RoomScanner +
-       BuildingManager) — the TekTopia model the owner confirmed: scan the
-       room, and if it meets the requirements it works. Nothing may gate
-       registration behind a player-placed marker.
-       The Building Plaque (reinstated by the owner's spec, superseding the
-       earlier removal) is an ACCESS POINT on top of that, never a second
-       source of truth: it links to an existing building, and it manages
-       resident occupancy through the authoritative building/citizen API. It
-       must never maintain its own building registry or resident list.
+INV-2  The plaque is the surveyor. A building exists because a player hung a
+       plaque and the room around it satisfied that plaque's requirements —
+       the TekTopia model the owner confirmed: scan the room, and if it meets
+       the requirements it works. No plaque, no building; and no inserted
+       Build Plan means no plaque UI (DECISIONS D-005, D-006).
+       The plaque remains an ACCESS POINT, never a second source of truth: it
+       stores its type, state, revision and a building id, and reads
+       everything else from the settlement. It must never maintain its own
+       building registry or resident list.
 INV-3  Every item is physically real: chest/warehouse contents are the truth;
        no item may be created or destroyed by logistics logic (conservation).
 INV-4  All world scans and per-tick work are budgeted (bounded visits per
@@ -50,9 +50,37 @@ INV-10 Tests are never deleted, skipped, loosened, or timeout-inflated to
 | dedicated   | `tools/hearthstead-qa dedicated`| real NeoForge server: boot, found settlement via console, restart persistence, no client classloading |
 | performance | `tools/hearthstead-qa performance` | 30 settlers on dedicated server, MSPT budget via /tick query |
 | client      | `tools/hearthstead-qa client`   | real client boots under Xvfb (software GL) |
+| playtest    | `tools/hearthstead-qa playtest` | scripted client+server session: join proven server-side, all 4 input classes (cmd/key/click/look), screenshots validated (AC-3), mod content in-world (AC-4) |
 | visual      | `tools/hearthstead-qa visual`   | screenshots captured and inspected |
 | full        | `tools/hearthstead-qa full`     | all of the above + manifest |
 | gate        | `tools/hearthstead-qa gate`     | freshness + completeness check (fast, no MC launch) |
+| live        | `tools/hearthstead-qa live <start\|status\|shot\|key\|hold\|type\|cmd\|scmd\|click\|look\|film\|stop>` | a persistent, drivable session across separate invocations (HARNESS-6) — not part of `full`, driven by hand or by an agent |
+| reap        | `tools/hearthstead-qa reap [check\|dry-run\|selftest\|reap]` | unconditional teardown of anything the harness might have leaked; never touches the Gradle daemon |
+| provision   | `tools/hearthstead-qa provision` | rebuilds the shared NeoForge install from scratch and proves it with a passing `playtest` (AC-10) |
+| negative    | `tools/hearthstead-qa negative [n1\|n2\|n3\|n4\|all]` | drives the four required negative tests (port held, client build broken, server never `Done(`, client up but no join) through the real controller and asserts on the real failure message |
+
+Single-suite commands (everything except `full`) never write
+`qa/reports/latest.json` or clear `qa/reports/.stale` — only a full-scope
+`full` run may. This is deliberate (see Gate integrity below): running
+`doctor` or `dedicated` alone must never turn a red gate green.
+
+### Isolation (D-H2)
+
+`dedicated`, `performance`, `playtest`, and `live` each get their own
+NeoForge server instance and port, materialised fresh per run by
+`qa/scripts/server_instance.sh` from one shared, idempotently-cached install
+(`qa/scripts/server_install.sh`) — so they never contend for a world or a
+port, and a leaked one can't poison the others. Ports: dedicated 25571,
+performance 25572, playtest 25573, live 25574.
+
+### No live streaming (D-H5)
+
+Like sound, live video streaming is unavailable in this environment (no
+`x11vnc` or equivalent). `live status`/`live shot` refresh a still PNG at a
+stable path instead, and `live film` records a short clip plus a labelled
+contact sheet — that is the closest this environment gets to "watching it
+happen," and it is enough to judge motion (HARNESS-5) even though it isn't
+a live feed.
 
 ## Suite routing by changed path (machine-readable)
 
@@ -76,6 +104,12 @@ hearthstead-neoforge/src/main/java/com/hearthstead/gametest/**    -> gametest
 qa/**                                                             -> full
 ```
 
+`changed` additionally recognises `qa/scenarios/**` and `qa/scripts/{playtest,live,check_screenshot,pixel_diff,build_contact_sheet}*` as
+`-> playtest` on top of `full` (they change what the in-game session actually
+asserts, so re-running it is the direct feedback, even though `qa/**` still
+means the fingerprint invalidates and a completion claim ultimately needs
+`full`).
+
 ## Completion criteria
 
 A task may be reported complete only when ALL of the following hold:
@@ -91,6 +125,29 @@ A task may be reported complete only when ALL of the following hold:
    source changes (`green_streak >= 2` in the manifest chain).
 5. The quality ledger (`hearthstead-neoforge/docs/HEARTHSTEAD_QUALITY_LEDGER.md`)
    is updated with evidence for every touched requirement.
+
+### Gate integrity
+
+`doctor`, `dedicated`, `client`, and every other single-suite command are
+useful for fast iteration, but NONE of them may turn the gate green —
+only a full-scope `full` run writes `qa/reports/latest.json` or clears
+`qa/reports/.stale`, and `green_streak` increments only on a full-scope
+PASS. Running ten single suites in a row, all green, still leaves `gate`
+reporting "no full-scope run exists yet" if `full` has never run since the
+last change. This is deliberate: a single suite proves that one thing
+works, not that the gate is green.
+
+## Evidence store (D-H3)
+
+One canonical store: `qa/reports/artifacts/<scenario-id>/<TS>/`, each with
+`manifest.json`, `result.json`, `reproduction.md`, `logs/`, `shots/` (and
+`film/` for scenarios that record motion) — always all five, pass or fail.
+A repo-root symlink `artifacts/qa -> qa/reports/artifacts` makes that path
+resolve literally for anything written against the older contract wording.
+Some suites (`build`, `assets`, `animation`, `gametest`, `behavior`,
+`doctor`) still use the older flat `qa/reports/artifacts/<TS>/` layout from
+before this slice — both shapes coexist, and any reader (`visual`,
+`reproduce`) globs both rather than assuming one.
 
 ## Behavior decision traces
 

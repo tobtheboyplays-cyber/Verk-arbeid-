@@ -147,6 +147,15 @@ write_reproduction() { # <text>
 die() {
     check_fail "$1" "$2"
     finish_result FAIL
+    # AC-11: every scenario dir has all five elements unconditionally, pass
+    # or fail — a caller-supplied write_reproduction never runs on a die()
+    # exit, so write a fallback here rather than leave it missing.
+    [ -f "$EV_DIR/reproduction.md" ] || write_reproduction "# Reproduce: $1 failed
+tools/hearthstead-qa <suite>
+First-cause check: $1
+Evidence: $2
+See logs/ and result.json in this directory for the full record.
+"
     echo "FAIL: $2"
     exit 1
 }

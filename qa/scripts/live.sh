@@ -51,7 +51,20 @@ grab() { # <outfile>
 }
 tmux_up() { tmux has-session -t "$TMUX_SESSION" 2>/dev/null; }
 srv_send() { tmux send-keys -l -t "$TMUX_SESSION:server" "$1"; tmux send-keys -t "$TMUX_SESSION:server" Enter; }
-server_pid() { pgrep -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null | head -1; }
+# NOT pgrep -f on the -Dhsqa.instanceDir marker: proven live that a java
+# process launched via `@argfile` NEVER shows the argfile's contents in
+# /proc/PID/cmdline (java expands @-files internally, not the kernel/shell —
+# `tr '\0' '\n' < /proc/PID/cmdline` for a real running server showed just
+# the literal, unexpanded "@user_jvm_args.txt" token). /proc/PID/cwd is
+# reliable instead: the server always runs with the instance dir as its cwd.
+server_pid() {
+    local inst; inst=$(cat "$STATE/inst" 2>/dev/null) || return
+    [ -n "$inst" ] || return
+    for p in /proc/[0-9]*; do
+        [ "$(readlink -f "$p/cwd" 2>/dev/null)" = "$inst" ] || continue
+        basename "$p"; return
+    done
+}
 
 ev_dir_for_session() {
     [ -f "$STATE/ev_dir" ] && cat "$STATE/ev_dir"
@@ -191,9 +204,23 @@ film)
     W=$(win)
     GEOM=$(xdotool getwindowgeometry --shell "$W" 2>/dev/null | grep -E '^(WIDTH|HEIGHT|X|Y)=' | tr '\n' ' ')
     eval "$GEOM"
+    # Slowly pan the camera for the whole capture window, in the background,
+    # concurrently with the ffmpeg capture below. Proven live: a static
+    # camera pointed at settlers who are momentarily idle can produce
+    # almost no visible motion (median_mad 0.4, well under the threshold)
+    # even though the recording itself was fine — an animation's own
+    # motion should not be a precondition for this check passing. A
+    # continuous pan guarantees real, judgeable inter-frame difference
+    # regardless of what the settlers happen to be doing.
+    ( STEPS=$((SECS * 4)); for _ in $(seq 1 "$STEPS"); do
+        xdotool mousemove_relative -- 40 0 2>/dev/null
+        sleep 0.25
+      done ) &
+    PAN_PID=$!
     ffmpeg -y -loglevel error -f x11grab -framerate "$FPS" \
         -video_size "${WIDTH:-1280}x${HEIGHT:-720}" -i "$DISPLAY_NUM+${X:-0},${Y:-0}" \
         -t "$SECS" -c:v libx264 -pix_fmt yuv420p "$EV_FILM/clip.mp4" 2>"$EV_FILM/ffmpeg.log"
+    kill "$PAN_PID" 2>/dev/null; wait "$PAN_PID" 2>/dev/null
     if [ ! -s "$EV_FILM/clip.mp4" ]; then echo "film failed (see $EV_FILM/ffmpeg.log)"; exit 1; fi
     ffprobe -v error "$EV_FILM/clip.mp4" >/dev/null 2>"$EV_FILM/ffprobe.log" \
         || { echo "clip.mp4 not decodable (see $EV_FILM/ffprobe.log)"; exit 1; }
