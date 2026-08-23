@@ -1,0 +1,33 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved"
+issueTrackerURL="https://github.com/tobtheboyplays-cyber/verk-arbeid-/issues"
+
+[[mods]]
+modId="hearthstead"
+version="${file.jarVersion}"
+displayName="Hearthstead"
+logoFile="hearthstead_logo.png"
+authors="Hearthstead Team"
+displayURL=""
+description='''
+Found a hearth. Welcome settlers. Watch a living medieval settlement grow.
+
+A settlement vertical slice: place the Settlement Hearth, welcome your first
+settlers, hand them a profession writ, and keep the communal stores full while
+they farm, fell timber, and stand guard through day and night.
+'''
+
+[[dependencies.hearthstead]]
+    modId="forge"
+    mandatory=true
+    versionRange="[47,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.hearthstead]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.20.1,1.21)"
+    ordering="NONE"
+    side="BOTH"
