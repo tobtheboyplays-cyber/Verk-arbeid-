@@ -21,7 +21,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 MOD="$REPO/hearthstead-neoforge"
 CTL="$REPO/tools/hearthstead-qa"
-OUT="${1:-/tmp/claude-0/hsqa-negative}"
+# NOT "${1:-...}": $1 is the subcommand (n1/n2/n3/n4/all) — defaulting OUT
+# from it was a real bug, caught live: it silently set OUT to the literal
+# string "n1"/"n2"/etc (a relative path), scattering stray n1/ n2/ n3/ n4/
+# directories in the repo root instead of writing anywhere near the
+# canonical evidence store. Fixed default, override only via env var.
+OUT="${HSQA_NEGATIVE_OUT:-/tmp/claude-0/hsqa-negative}"
 mkdir -p "$OUT"
 
 pass=0; fail=0
