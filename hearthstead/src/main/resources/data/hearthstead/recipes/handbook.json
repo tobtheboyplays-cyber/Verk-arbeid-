@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "minecraft:book" },
+    { "item": "minecraft:oak_sapling" }
+  ],
+  "result": {
+    "item": "hearthstead:handbook"
+  }
+}

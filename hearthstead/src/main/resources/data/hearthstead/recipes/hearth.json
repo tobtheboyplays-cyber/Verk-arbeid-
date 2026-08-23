@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "LLL",
+    "SCS",
+    "SSS"
+  ],
+  "key": {
+    "L": { "tag": "minecraft:logs" },
+    "S": { "item": "minecraft:cobblestone" },
+    "C": { "item": "minecraft:campfire" }
+  },
+  "result": {
+    "item": "hearthstead:hearth"
+  }
+}
