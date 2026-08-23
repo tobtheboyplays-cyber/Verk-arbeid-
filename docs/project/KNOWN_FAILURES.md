@@ -33,30 +33,57 @@ its second candidate — the mounted-outside case it was written for.
 
 ---
 
-## KF-002 — Dedicated-server E2E: settlers did not spawn
+## KF-002 — Dedicated-server E2E failed: **port already in use, not a mod bug**
 
-**Status:** NOT diagnosed. **Severity:** high.
+**Status:** ROOT-CAUSED and corrected. **Severity:** was recorded as high;
+the mod defect does not exist.
 
-**Evidence:** `dedicated.log` in the run above — "settlers did not spawn on
-dedicated server". This suite passed earlier the same session (boot, found,
-restart persistence all verified), so it is a **regression** introduced by the
-plaque conversion, not an inherited failure.
+**Correction of an earlier entry.** This was first written up as a suspected
+regression from the `BuildingManager` rewrite. That was wrong, and the wrong
+diagnosis is left visible here rather than quietly deleted, because it is
+exactly the kind of plausible-but-false lead that costs a correction cycle.
 
-**Suspected (LIKELY, unverified):** the founding flow spawns settlers, but the
-E2E asserts on population via a path affected by the `BuildingManager` rewrite
-— or the reused `/tmp` server world carries stale state. Reproduce before
-theorising further: `tools/hearthstead-qa dedicated`.
+**Evidence (PROVEN).** `dedicated-first.log` never reaches `Done (`. It ends
+in a startup crash:
+
+    **** FAILED TO BIND TO PORT!
+    io.netty.channel.unix.Errors$NativeIoException: bind(..) failed:
+    Address already in use
+    java.lang.IllegalStateException: Failed to initialize server
+
+The server never started, so of course no settlers spawned and no settlement
+info was printed. "settlers did not spawn" was the E2E's assertion firing on a
+server that was already dead — a **misleading failure message**, since the
+first thing the script checks is a symptom rather than whether the server came
+up at all.
+
+**Actual root cause.** A dedicated server leaked from an aborted
+`qa/scripts/live.sh start` was still running and holding port 25565 (found
+alive as PID 1273 well over an hour later). The harness does not guarantee
+teardown, and a leaked server silently breaks every later suite that needs the
+port.
+
+**This belongs to HARNESS-1** (scenario HARNESS-7, clean shutdown). Required:
+teardown that actually runs on every exit path; a pre-flight check that the
+port is free, with a clear message naming the holder; and the E2E asserting
+"the server reached Done (" *before* asserting anything about settlers, so the
+next failure of this kind names itself.
 
 ---
 
 ## KF-003 — Performance probe could not stand up 25+ settlers
 
-**Status:** NOT diagnosed. **Severity:** medium.
+**Status:** almost certainly the same cause as KF-002 (LIKELY, not yet
+re-measured). **Severity:** medium.
 
-**Evidence:** `performance.log` — "could not stand up 25+ settlers". Almost
-certainly the same underlying cause as KF-002 (the probe summons settlers via
-the same path). Fix KF-002 first, then re-measure. The MSPT parser itself is
-fixed and verified (extracted 1.3/1.2/1.2 ms from a real run).
+**Evidence:** `performance.log` — "could not stand up 25+ settlers". The probe
+boots its own dedicated server on the same port, so a leaked server would have
+blocked it identically.
+
+**Next step:** re-run `tools/hearthstead-qa performance` once the harness
+guarantees a free port. Do not investigate a performance defect until the
+measurement is known to have actually run. The MSPT parser itself is fixed and
+verified (it extracted 1.3/1.2/1.2 ms from a real run).
 
 ---
 
