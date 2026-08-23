@@ -28,6 +28,14 @@
 #                                          `data get entity $PLAYER Rotation` results
 #                                          (bracket a `look` with two such scmd calls)
 #                                          differ in yaw by more than min-degrees
+#     expect_block_near_player <block-id> <radius>
+#                                          issues a BARE `fill` (not `execute at
+#                                          ... run fill` — proven to swallow all
+#                                          feedback, silently) over a box of the
+#                                          given radius around the most recent
+#                                          `data get entity $PLAYER Pos`, replacing
+#                                          <block-id> with itself; FAILs unless it
+#                                          reports replacing >=1 block
 #   $PLAYER in any directive's arguments is substituted with the joined player's name.
 set -u
 MOD="$1"; OUT="$2"; SCENARIO="${3:-}"
@@ -270,6 +278,36 @@ while read -r verb rest; do
                 check_pass "expect_pixel_change:$BEFORE->$AFTER" "$RES"
             else
                 die "expect_pixel_change:$BEFORE->$AFTER" "key input produced no visible change: $RES"
+            fi
+            ;;
+
+        expect_block_near_player)
+            set -- $rest
+            BLOCKID="$1"; RADIUS="${2:-6}"
+            # Absolute coords, bare `fill` — deliberate: `execute at <player>
+            # run fill ...` was proven live to execute (the block landed) but
+            # emit NO feedback at all, silently, so a wrapped fill can never
+            # satisfy expect_server. Bare fill with absolute coordinates does
+            # report normally.
+            POSLINE=$(grep -oP 'has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d' "$EV_LOGS/playtest-server.log" | tail -1)
+            if [ -z "$POSLINE" ]; then
+                die "expect_block_near_player:$BLOCKID" "no prior 'data get entity \$PLAYER Pos' result to compute a box from"
+            fi
+            read -r PX PY PZ <<< "$(echo "$POSLINE" | tr -d 'd,')"
+            BOX=$(python3 -c "
+px,py,pz,r = $PX,$PY,$PZ,$RADIUS
+print(int(px-r), int(py-r), int(pz-r), int(px+r), int(py+r), int(pz+r))
+")
+            scmd "fill $BOX $BLOCKID replace $BLOCKID"
+            FOUND=0
+            for _ in $(seq 1 10); do
+                grep -qE "Successfully (filled|replaced) [1-9][0-9]* block" "$EV_LOGS/playtest-server.log" 2>/dev/null && { FOUND=1; break; }
+                sleep 1
+            done
+            if [ "$FOUND" = 1 ]; then
+                check_pass "expect_block_near_player:$BLOCKID" "$(grep -m1 -E 'Successfully (filled|replaced) [1-9]' "$EV_LOGS/playtest-server.log")"
+            else
+                die "expect_block_near_player:$BLOCKID" "no $BLOCKID found within $RADIUS blocks of the player"
             fi
             ;;
 

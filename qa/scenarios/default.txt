@@ -38,17 +38,17 @@ shot playtest-03-hotbar
 # then have the server itself confirm the block landed (AC-2). Exactly where
 # the crosshair lands depends on pitch/FOV math we don't want to hand-derive,
 # so instead of guessing a relative cell, count hearth blocks in a generous
-# reach-distance box around the player with a `fill ... replace` of hearth
-# with itself — deterministic and non-destructive (idempotent when it
-# matches), and correct regardless of the exact placement cell.
+# reach-distance box around the player's own position — deterministic and
+# non-destructive (fill replaces hearth with itself, a no-op where it
+# matches), correct regardless of the exact placement cell.
 # 400 (not a smaller value) is deliberate: proven live that small relative
 # mouse deltas can round to near-zero rotation change under non-raw input.
 move 0 400
 wait 2
 click right
 wait 2
-scmd execute at $PLAYER run fill ~-6 ~-6 ~-6 ~6 ~2 ~6 hearthstead:hearth replace hearthstead:hearth
-expect_server Successfully (filled|replaced) [1-9][0-9]* block
+scmd data get entity $PLAYER Pos
+expect_block_near_player hearthstead:hearth 6
 wait 12
 shot 04-settlement
 expect_shot 04-settlement
