@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "hearthstead:block/hearth" }
+  }
+}

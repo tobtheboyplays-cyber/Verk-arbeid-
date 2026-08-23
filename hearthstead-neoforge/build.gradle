@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.144'
+}
+
+group = 'com.hearthstead'
+version = mod_version
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neoforge_version
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        hearthstead {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes(
+            'Specification-Title'   : 'hearthstead',
+            'Specification-Vendor'  : 'Hearthstead',
+            'Specification-Version' : '1',
+            'Implementation-Title'  : 'Hearthstead',
+            'Implementation-Version': mod_version,
+            'Implementation-Vendor' : 'Hearthstead'
+        )
+    }
+}
