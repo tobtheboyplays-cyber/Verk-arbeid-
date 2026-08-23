@@ -66,16 +66,29 @@ system:
 ## Mandatory multi-model implementation gate
 
 All non-trivial repository changes MUST go through the **`premium-build-loop`**
-skill *before any editing begins*: Claude Opus 5 plans, Claude Sonnet 5
-implements and verifies, and a fresh Claude Opus 5 reviewer returns PASS,
-REVISE or BLOCKED. Revisions resume the same builder; every review round uses
-a new reviewer. At most three revision rounds, then BLOCKED — never a claimed
-success.
+skill *before any editing begins*. The loop is: recover state → baseline →
+spec → `opus-planner` → `sonnet-builder` → automated verification → **two
+clean `minecraft-qa` passes from separate launches** → fresh
+`opus-quality-gate` → verdict. Revisions resume the same builder; every review
+round uses a new reviewer. `fable-escalation` is dormant with budget 0 and may
+never be invoked without explicit per-invocation approval.
 
-This covers implementation, debugging, behaviour, UI, animation,
+This covers implementation, debugging, behaviour, AI, UI, animation,
 asset-integration and feature work. It does not cover questions, explanations
 or read-only inspection.
 
 Implementing outside this loop is prohibited unless the user explicitly says
 to skip the quality pipeline. Deciding mid-task that the work "turned out to
 be simple" is not an exemption — triviality is judged before starting.
+
+**Session state lives in `docs/project/`** — `CURRENT_STATE.md`,
+`DECISIONS.md`, `KNOWN_FAILURES.md`, `QUALITY_STANDARD.md`, `QA_MATRIX.md`,
+`NEXT_ACTION.md`. Read them after any restart or context compaction and
+recover from them rather than guessing; update them after every phase. Only
+**LOCKED** means finished (`QUALITY_STANDARD.md`) — compilation is not
+completion, a green test is not visual quality, and a working runtime is not
+sound architecture.
+
+**Loader:** this mod targets **NeoForge 1.21.1**, not Fabric. Where any
+instruction says "Fabric", read "the repository's actual loader" — see
+`docs/project/DECISIONS.md` D-002.

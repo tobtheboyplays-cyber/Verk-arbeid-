@@ -55,6 +55,25 @@ the builder does.
   save/load persistence, multiplayer/dedicated-server relevance, and
   regression of neighbouring systems.
 
+## Label your confidence
+
+Every material claim in the plan carries one of:
+
+- **PROVEN** — you verified it yourself this session (you ran it, or read the
+  code that decides it).
+- **LIKELY** — strong evidence, not directly verified.
+- **ASSUMED** — you are choosing an interpretation; say which and why.
+- **UNKNOWN** — nobody knows yet, and the plan must find out.
+
+An unlabelled assumption presented as fact is the single most expensive thing
+a planner can produce, because everything downstream inherits it.
+
+## Scope discipline
+
+Plan **one vertical slice**. The roadmap is long — farmer, warehouse, guards,
+raids, tech tree — and none of it belongs in this plan unless the slice needs
+it. State explicitly what is out of scope so the builder does not drift.
+
 ## Return
 
 End with exactly one of:

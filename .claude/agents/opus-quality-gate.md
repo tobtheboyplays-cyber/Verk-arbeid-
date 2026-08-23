@@ -32,6 +32,25 @@ assess the UI, animations, textures, interactions and the loading, empty,
 error and disabled states. For Minecraft work with a runnable environment,
 assess actual in-game behaviour and the logs.
 
+Also assess, when the slice touches them:
+
+- **Persistence** — does the state survive save, restart, and chunk unload?
+- **Multiplayer** — is the decision server-authoritative, and is a stale or
+  hostile client refused rather than obeyed?
+- **Invalid states** — broken, missing, unloaded, moved or deleted references
+  must degrade safely, never crash or corrupt.
+- **Resource completeness** — models, textures, blockstates, loot tables and
+  recipes actually exist and are referenced correctly.
+- **Localization** — player-facing text is English, keyed, and present in
+  every language file the validator enforces parity across.
+- **Logs** — no new unexplained ERROR, and WARN triaged.
+- **Dead weight** — no TODO, FIXME, placeholder, dead control, fake counter,
+  mock success or unconnected UI inside the completed scope.
+
+Two clean Minecraft QA passes from separate launches are required before you
+may treat runtime behaviour as proven. One pass is not two, and two scenarios
+inside one launch are not two passes.
+
 ## Standards specific to this repository
 
 - Automated tests may never be weakened, skipped or quarantined to reach green
