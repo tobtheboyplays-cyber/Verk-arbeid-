@@ -128,6 +128,7 @@ cmd_selftest() {
 12345 /usr/bin/java -cp hsqa-server/... net.minecraft.server.Main nogui
 12346 Xvfb :98 -screen 0 1280x720x24
 12347 /usr/bin/tmux new-session -s hsqa-live
+12349 /usr/bin/tmux new-session -s hsqa-playtest
 12348 /usr/local/bin/python3 /home/user/Verk-arbeid-/qa/scripts/analyze_trace.py
 22375 java ... org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.14.3
 22999 /usr/bin/java -jar /tmp/claude-0/hsqa-inst/dedicated/... server
@@ -139,6 +140,7 @@ EOF
     echo "$matched" | grep -q '^12345' || { echo "FAIL: should match hsqa-server line 12345"; ok=0; }
     echo "$matched" | grep -q '^12346' || { echo "FAIL: should match Xvfb :98 line 12346"; ok=0; }
     echo "$matched" | grep -q '^12347' || { echo "FAIL: should match tmux hsqa-live line 12347"; ok=0; }
+    echo "$matched" | grep -q '^12349' || { echo "FAIL: should match tmux hsqa-playtest line 12349"; ok=0; }
     echo "$matched" | grep -q '^22999' || { echo "FAIL: should match hsqa-inst line 22999"; ok=0; }
     echo "$matched" | grep -q '^22375' && { echo "FAIL: must NEVER match the GradleDaemon line 22375"; ok=0; }
     echo "$matched" | grep -q '^12348' && { echo "FAIL: should not match an unrelated python process"; ok=0; }
