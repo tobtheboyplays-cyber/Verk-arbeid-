@@ -27,7 +27,11 @@ PORTS="25571 25572 25573 25574"
 # Restricted fallback pattern — anything broader risks catching the Gradle
 # daemon or an unrelated process. GradleDaemon is excluded unconditionally,
 # regardless of what else a line matches.
-PATTERN='hsqa-inst|hsqa-server|Xvfb :9[5-9]|tmux.*hsqa-live'
+# Extended beyond the plan's original literal pattern (hsqa-inst|hsqa-server|
+# Xvfb :9[5-9]|tmux.*hsqa-live) to also match playtest.sh's own tmux session
+# (hsqa-playtest) — added when playtest.sh moved its server console from a
+# FIFO to tmux for the same reliability reasons as live.sh (D-H1).
+PATTERN='hsqa-inst|hsqa-server|Xvfb :9[5-9]|tmux.*hsqa-(live|playtest)'
 EXCLUDE='GradleDaemon'
 
 mkdir -p "$PIDDIR"
@@ -37,22 +41,17 @@ matching_procs() { # prints "PID CMD..." lines that match PATTERN and not EXCLUD
     # argv (which literally contains this pattern text) never self-matches —
     # the classic pgrep self-exclusion trick. Real process lines don't have
     # brackets, so [h]sqa-inst still matches a literal "hsqa-inst" in them.
-    local self_safe='[h]sqa-inst|[h]sqa-server|[X]vfb :9[5-9]|tmux.*[h]sqa-live'
+    local self_safe='[h]sqa-inst|[h]sqa-server|[X]vfb :9[5-9]|tmux.*[h]sqa-(live|playtest)'
     ps -eo pid=,args= 2>/dev/null | grep -E "$self_safe" | grep -v -E "$EXCLUDE"
 }
 
 port_holder() { # <port> -> "PID CMD" if held, empty if free
-    local port="$1"
-    local line
-    line=$(ss -ltnp 2>/dev/null | awk -v p=":$port" '$4 ~ p"$"')
-    [ -z "$line" ] && return 0
-    local pid
-    pid=$(printf '%s' "$line" | grep -oP 'pid=\K[0-9]+' | head -1)
-    if [ -n "$pid" ]; then
-        printf '%s %s\n' "$pid" "$(ps -o args= -p "$pid" 2>/dev/null)"
-    else
-        printf '?  %s\n' "$line"
-    fi
+    # `ss -ltnp` proved unreliable in this environment (see lib_harness.sh) —
+    # lsof is the trustworthy source here.
+    local port="$1" pid
+    pid=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null | head -1)
+    [ -z "$pid" ] && return 0
+    printf '%s %s\n' "$pid" "$(ps -o args= -p "$pid" 2>/dev/null)"
 }
 
 cmd_check() {

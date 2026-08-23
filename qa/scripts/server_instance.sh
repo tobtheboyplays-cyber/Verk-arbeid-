@@ -33,7 +33,15 @@ cp "$INSTALL_DIR/run.sh" "$INST/run.sh"; chmod +x "$INST/run.sh"
 printf '\n-Dhsqa.instanceDir=%s\n' "$INST" >> "$INST/user_jvm_args.txt"
 cp "$JAR" "$INST/mods/"
 
-echo "eula=true" > "$INST/eula.txt"
+# HSQA_TEST_BAD_EULA is a test-only hook (AC-8/N3): forces a real, distinct
+# "server never reaches Done(" failure — a clean early exit, not a bind
+# error — so the harness's ordered fact ladder can be proven against a
+# second real cause, not just the port-contention one (N1).
+if [ "${HSQA_TEST_BAD_EULA:-}" = "1" ]; then
+    echo "eula=false" > "$INST/eula.txt"
+else
+    echo "eula=true" > "$INST/eula.txt"
+fi
 cat > "$INST/server.properties" <<EOF
 server-port=$PORT
 online-mode=false

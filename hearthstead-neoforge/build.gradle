@@ -43,6 +43,17 @@ neoForge {
                 programArgument '--quickPlayMultiplayer'
                 programArgument System.getenv('HSQA_JOIN')
             }
+            // The QA harness's fixed resolution (qa/PROTOCOL.md) is 1280x720
+            // so screenshots are comparable run to run. options.txt's
+            // overrideWidth/overrideHeight do NOT control the initial GLFW
+            // window size on this launch path — the window still opened at
+            // vanilla's hardcoded 854x480 default even with those options
+            // set, which is what --width/--height (read directly by
+            // Main.java) actually control.
+            programArgument '--width'
+            programArgument '1280'
+            programArgument '--height'
+            programArgument '720'
         }
     }
 

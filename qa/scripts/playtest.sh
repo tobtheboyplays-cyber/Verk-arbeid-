@@ -48,14 +48,14 @@ ev_init "$ROLE"
 command -v xdotool >/dev/null || { echo "FAIL: xdotool missing"; exit 1; }
 [ -f "$SCENARIO" ] || { echo "FAIL: scenario not found: $SCENARIO"; exit 1; }
 
+TMUX_PT="hsqa-playtest"
 TEARDOWN_DONE=0
 teardown() {
     [ "$TEARDOWN_DONE" = 1 ] && return
     TEARDOWN_DONE=1
     [ -n "${GRADLE_PID:-}" ] && kill -9 -- "-$GRADLE_PID" 2>/dev/null
     pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    exec 9>&- 2>/dev/null || true
-    [ -n "${SERVER_PID:-}" ] && kill -9 -- "-$SERVER_PID" 2>/dev/null
+    tmux has-session -t "$TMUX_PT" 2>/dev/null && tmux kill-session -t "$TMUX_PT" 2>/dev/null
     pkill -9 -f "hsqa.instanceDir=.*/$ROLE" 2>/dev/null || true
     [ -n "${XVFB_PID:-}" ] && kill -9 "$XVFB_PID" 2>/dev/null
     clear_pidfile "$ROLE"
@@ -92,6 +92,14 @@ check_pass xvfb "Xvfb :98 up (pid $XVFB_PID)"
 # quickPlay entirely (KF-006). Written deterministically every run so the
 # window is always exactly 1280x720 (regression risk: the client rewrites
 # this file on its own exit).
+# rawMouseInput:false matters more than it looks: with it true (the
+# default), GLFW reads camera look from XInput2 raw motion events, which
+# xdotool's XTest-synthesized motion never generates — `look`/`move`
+# directives silently produce zero rotation change with it on (proven: a
+# live diagnostic session showed the mouse's X11 pointer position moving
+# correctly while server-side Rotation stayed exactly [0.0f, 0.0f]). With it
+# false, GLFW falls back to ordinary pointer-motion deltas, which XTest does
+# drive.
 RUN_DIR="$MOD/run"
 mkdir -p "$RUN_DIR"
 cat > "$RUN_DIR/options.txt" <<'OPTS'
@@ -103,28 +111,35 @@ fullscreen:false
 overrideWidth:1280
 overrideHeight:720
 tutorialStep:none
+rawMouseInput:false
 OPTS
 
-# Drive the server through a FIFO so scenarios can issue console commands
-# (op, gamemode, summon, data get) without needing an already-privileged
-# player. 'nogui' matters: with DISPLAY set, the dedicated server would
-# otherwise open its Swing console on the same virtual screen and steal
-# synthetic input meant for the game.
-CONSOLE="$EV_DIR/server-console.fifo"
-rm -f "$CONSOLE"; mkfifo "$CONSOLE"
-set -m
-(cd "$INST" && timeout 900 ./run.sh nogui < "$CONSOLE") > "$EV_LOGS/playtest-server.log" 2>&1 &
-SERVER_PID=$!
-set +m
-register_pid "$ROLE" "-$SERVER_PID"
-exec 9>"$CONSOLE"   # hold the write end open so the server never sees EOF
-scmd() { echo "$1" >&9; sleep 2; }
+# Drive the server through a tmux window (same mechanism as live.sh's D-H1
+# design) so scenarios can issue console commands (op, gamemode, summon,
+# data get, fill) without needing an already-privileged player, with a real
+# TTY. A plain FIFO was tried first and proved unreliable for this — a
+# console command sent minutes into an otherwise-healthy session sometimes
+# never reached the server's command processor at all, no error, nothing in
+# the log, reproduced directly against an isolated instance. tmux is already
+# a hard dependency (live.sh) and has been proven reliable here once given a
+# wide pane (see the -x/-y note below). 'nogui' matters: with DISPLAY set,
+# the dedicated server would otherwise open its Swing console on the same
+# virtual screen and steal synthetic input meant for the game.
+# Idempotent: in case a previous invocation's session leaked.
+tmux has-session -t "$TMUX_PT" 2>/dev/null && tmux kill-session -t "$TMUX_PT" 2>/dev/null
+# -x/-y: a detached tmux session defaults to a narrow (~80-column) terminal;
+# a Minecraft command longer than the pane width gets corrupted by the
+# console's line-wrap redraw (proven live: a `fill` command arrived with an
+# ANSI cursor-move escape spliced into its middle). A wide pane avoids it.
+tmux new-session -d -s "$TMUX_PT" -n server -x 500 -y 50 \
+    "cd '$INST' && timeout --foreground 900 ./run.sh nogui 2>&1 | tee '$EV_LOGS/playtest-server.log'"
+scmd() { tmux send-keys -l -t "$TMUX_PT:server" "$1"; tmux send-keys -t "$TMUX_PT:server" Enter; sleep 2; }
 
 SERVER_UP=0
 for _ in $(seq 1 90); do
     sleep 2
     grep -q 'Done (' "$EV_LOGS/playtest-server.log" 2>/dev/null && { SERVER_UP=1; break; }
-    kill -0 "$SERVER_PID" 2>/dev/null || break
+    tmux has-session -t "$TMUX_PT" 2>/dev/null || break
 done
 if [ "$SERVER_UP" != 1 ]; then
     REASON=$(grep -m1 -E 'FAILED TO BIND|Address already in use|Exception|Error' "$EV_LOGS/playtest-server.log" 2>/dev/null || echo "no Done( line — see logs/playtest-server.log")
@@ -133,8 +148,13 @@ fi
 check_pass server_started "$(grep -m1 'Done (' "$EV_LOGS/playtest-server.log")"
 
 cd "$MOD"
+# HSQA_TEST_BAD_JOIN_PORT is a test-only hook (AC-8/N4): points the client at
+# a port nothing is listening on, so the server comes up fine but the client
+# can never join — proving the harness reports THAT, with a diagnostic
+# screenshot, rather than misreporting it as a server or build problem.
+JOIN_PORT="${HSQA_TEST_BAD_JOIN_PORT:-$PORT}"
 set -m
-HSQA_JOIN="127.0.0.1:$PORT" timeout 900 ./gradlew runClient > "$EV_LOGS/playtest-client.log" 2>&1 &
+HSQA_JOIN="127.0.0.1:$JOIN_PORT" timeout --foreground 900 ./gradlew runClient > "$EV_LOGS/playtest-client.log" 2>&1 &
 GRADLE_PID=$!
 set +m
 register_pid "$ROLE" "-$GRADLE_PID"
@@ -144,7 +164,13 @@ register_pid "$ROLE" "-$GRADLE_PID"
 # be caught and named, not left to time out and misreport as "never joined".
 READY=0
 BUILD_FAILED=0
-for i in $(seq 1 150); do
+# Budget: minutes, not a hang. An outbound HTTPS call in authlib (session
+# server) can stall for a long time behind this environment's proxy before
+# the client falls through and proceeds — observed up to ~9 minutes to reach
+# a usable window even though the client is genuinely progressing throughout
+# (high CPU, not deadlocked). The server-side join line remains the only
+# thing that actually decides READY (AC-1).
+for i in $(seq 1 250); do
     sleep 3
     if grep -qE "joined the game|logged in with entity id" "$EV_LOGS/playtest-server.log" 2>/dev/null; then
         READY=1; sleep 10; break

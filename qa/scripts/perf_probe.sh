@@ -72,7 +72,7 @@ set -m
   while IFS= read -r line; do
       case "$line" in SLEEP*) sleep "${line#SLEEP }";; *) echo "$line";; esac
   done < "$INST/perf_cmds.txt"
-  sleep 5; echo "stop" ) | (cd "$INST" && timeout 180 ./run.sh nogui) > "$EV_LOGS/perf-boot.out" 2>&1 &
+  sleep 5; echo "stop" ) | (cd "$INST" && timeout --foreground 180 ./run.sh nogui) > "$EV_LOGS/perf-boot.out" 2>&1 &
 SERVER_PID=$!
 set +m
 register_pid "$ROLE" "-$SERVER_PID"

@@ -95,6 +95,7 @@ suite_doctor() {
     python3 -c "import PIL" 2>/dev/null || problems+="pillow-missing "
     command -v Xvfb >/dev/null || problems+="xvfb-missing(client-suite-blocked) "
     command -v tmux >/dev/null || problems+="tmux-missing(live-suite-blocked) "
+    command -v lsof >/dev/null || problems+="lsof-missing(port-detection-unreliable) "
     command -v ffmpeg >/dev/null || problems+="ffmpeg-missing(film-blocked) "
     python3 "$QA/hooks/test_bash_guard.py" >/dev/null 2>&1 || problems+="bash_guard-selftest-failed "
     bash "$QA/scripts/reap.sh" selftest >/dev/null 2>&1 || problems+="reap-matcher-selftest-failed "
@@ -360,6 +361,7 @@ case "${1:-help}" in
     visual)      suite_visual; [ "${SUITE_STATUS[visual]}" != FAIL ];;
     live)        shift; bash "$QA/scripts/live.sh" "$@";;
     reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
+    negative)    shift; bash "$QA/scripts/negative_tests.sh" "$@";;
     provision)   cmd_provision;;
     full)
         rm -f "$REPORTS/BLOCKED"   # a full run supersedes any documented blocker

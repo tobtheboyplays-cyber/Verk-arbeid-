@@ -35,50 +35,56 @@ check_pass xvfb "Xvfb :97 up (pid $XVFB_PID)"
 
 cd "$MOD"
 set -m
-DISPLAY="$DISPLAY_NUM" timeout 420 ./gradlew runClient > "$EV_LOGS/client-run.log" 2>&1 &
+DISPLAY="$DISPLAY_NUM" timeout --foreground 700 ./gradlew runClient > "$EV_LOGS/client-run.log" 2>&1 &
 GRADLE_PID=$!
 set +m
 register_pid "$ROLE" "-$GRADLE_PID"
 
+# Title-screen readiness: neither a specific log string nor mere window
+# existence is reliable here. "Sound engine started" never appears (sound is
+# unavailable in this environment) and "Realms Notification" depends on an
+# outbound HTTPS call that can stall for minutes behind this environment's
+# proxy. Window existence is worse: GLFW creates the window immediately on
+# backend init, minutes before any content is actually rendered (proven: a
+# screenshot taken right after window-appears was a 156-colour near-blank
+# frame that correctly failed AC-3). So readiness IS AC-3 itself: poll by
+# actually screenshotting and asking check_screenshot.py whether it looks
+# like real rendered content yet. Budget is minutes, not a hang.
 TITLE_SEEN=0
 BUILD_FAILED=0
-for i in $(seq 1 130); do
-    sleep 3
+for i in $(seq 1 70); do
+    sleep 10
     if grep -qE "BUILD FAILED|FAILURE: Build failed" "$EV_LOGS/client-run.log" 2>/dev/null; then
         BUILD_FAILED=1; break
     fi
-    if grep -qE "Realms Notification|Sound engine started" "$EV_LOGS/client-run.log" 2>/dev/null; then
-        sleep 12   # let the title screen actually render
-        TITLE_SEEN=1
-        break
+    if DISPLAY="$DISPLAY_NUM" xdotool search --name "Minecraft" >/dev/null 2>&1; then
+        DISPLAY="$DISPLAY_NUM" import -window root "$EV_SHOTS/.probe.png" 2>/dev/null || true
+        if [ -s "$EV_SHOTS/.probe.png" ] && python3 "$HERE/check_screenshot.py" "$EV_SHOTS/.probe.png" >/dev/null 2>&1; then
+            mv "$EV_SHOTS/.probe.png" "$EV_SHOTS/screenshot-title.png"
+            TITLE_SEEN=1
+            break
+        fi
     fi
     kill -0 "$GRADLE_PID" 2>/dev/null || break
 done
+rm -f "$EV_SHOTS/.probe.png"
 
 if [ "$BUILD_FAILED" = 1 ]; then
     FIRST_ERROR=$(grep -m1 -E 'error:' "$EV_LOGS/client-run.log" 2>/dev/null || echo "(no 'error:' line — see logs/client-run.log)")
     die client_build "client build failed: $FIRST_ERROR"
 fi
 
-if command -v import >/dev/null; then
-    DISPLAY="$DISPLAY_NUM" import -window root "$EV_SHOTS/screenshot-title.png" 2>/dev/null || true
-fi
-
 if grep -qE "Exception in thread|Failed to start|crash-report" "$EV_LOGS/client-run.log"; then
     die client_crash "client crashed during boot"
 fi
 if [ "$TITLE_SEEN" != 1 ]; then
-    die title_reached "client never reached resource load / sound engine"
+    die title_reached "client never produced a real rendered frame (window/build/crash all inconclusive) — see logs/client-run.log"
 fi
-check_pass title_reached "sound engine / resource reload seen in client-run.log"
+check_pass title_reached "Minecraft window rendered real content (passed AC-3) within budget"
 
 if [ -s "$EV_SHOTS/screenshot-title.png" ]; then
     RES=$(python3 "$HERE/check_screenshot.py" "$EV_SHOTS/screenshot-title.png" 2>&1)
-    if echo "$RES" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("pass") else 1)' 2>/dev/null; then
-        check_pass screenshot_valid "$RES"
-    else
-        die screenshot_valid "title screenshot failed AC-3: $RES"
-    fi
+    check_pass screenshot_valid "$RES"
 else
     die screenshot_captured "no screenshot captured (install imagemagick or xwd)"
 fi

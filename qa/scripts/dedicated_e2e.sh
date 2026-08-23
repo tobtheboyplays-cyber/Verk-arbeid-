@@ -54,7 +54,7 @@ boot() { # duration commands-file tag
       [ -f "$cmds" ] && while IFS= read -r line; do
             case "$line" in SLEEP*) sleep "${line#SLEEP }";; *) echo "$line";; esac
         done < "$cmds"
-      sleep 5; echo "stop" ) | (cd "$INST" && timeout "$dur" ./run.sh nogui) > "$EV_LOGS/boot-$tag.out" 2>&1 &
+      sleep 5; echo "stop" ) | (cd "$INST" && timeout --foreground "$dur" ./run.sh nogui) > "$EV_LOGS/boot-$tag.out" 2>&1 &
     SERVER_PID=$!
     set +m
     register_pid "$ROLE" "-$SERVER_PID"

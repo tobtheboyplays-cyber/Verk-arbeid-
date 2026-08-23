@@ -44,28 +44,49 @@ PYEOF
 }
 
 # ---- port preflight (AC-13, AC-8/N1) ---------------------------------------
+# `ss -ltnp` is UNRELIABLE in this sandboxed environment — proven empirically
+# (a real leaked listener on a test port was invisible to `ss -tan` in every
+# mode, including state time-wait, while `lsof -i` found it immediately and
+# a direct bind() confirmed the port was genuinely held). Use lsof, with a
+# raw-bind-attempt fallback if lsof itself is ever unavailable, so preflight
+# and reap.sh never again report a leaked/held port as free.
 port_holder() { # <port> -> "PID CMD..." or empty
-    local port="$1" line pid
-    line=$(ss -ltnp 2>/dev/null | awk -v p=":$port" '$4 ~ p"$"')
-    [ -z "$line" ] && return 0
-    pid=$(printf '%s' "$line" | grep -oP 'pid=\K[0-9]+' | head -1)
-    if [ -n "$pid" ]; then
+    local port="$1" pid
+    if command -v lsof >/dev/null; then
+        pid=$(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null | head -1)
+        [ -z "$pid" ] && return 0
         printf '%s %s\n' "$pid" "$(ps -o args= -p "$pid" 2>/dev/null)"
-    else
-        printf '?  %s\n' "$line"
+        return 0
+    fi
+    # Fallback: try to bind it ourselves. Not a substitute for lsof (can't
+    # name the holder), but still correctly detects held vs free.
+    if ! python3 -c "
+import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    s.bind(('0.0.0.0', $port)); sys.exit(0)
+except OSError:
+    sys.exit(1)
+" 2>/dev/null; then
+        printf '?  (lsof unavailable; direct bind failed, holder unidentified)\n'
     fi
 }
 
 # preflight_port <port> <role> — echoes a FAIL line and returns 1 if held,
-# naming the holder's PID/cmdline; says nothing about the mod. Silent+0 if free.
+# naming the holder's PID/cmdline; says nothing about the mod. Silent+0 if
+# free. Retries briefly first: a port a previous run's server just released
+# can sit in a kernel-level release delay for a second or two after the
+# process is killed — genuine transient, not a real conflict — so this
+# waits up to 5s for it to clear before reporting a holder.
 preflight_port() {
     local port="$1" role="$2" holder
-    holder=$(port_holder "$port")
-    if [ -n "$holder" ]; then
-        echo "FAIL: port $port needed for '$role' is already in use — held by pid $holder"
-        return 1
-    fi
-    return 0
+    for _ in 1 2 3 4 5; do
+        holder=$(port_holder "$port")
+        [ -z "$holder" ] && return 0
+        sleep 1
+    done
+    echo "FAIL: port $port needed for '$role' is already in use — held by pid $holder"
+    return 1
 }
 
 # ---- pidfile registration for reap.sh (AC-7) -------------------------------

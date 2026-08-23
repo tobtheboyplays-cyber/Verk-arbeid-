@@ -50,7 +50,7 @@ grab() { # <outfile>
     if [ -n "$w" ]; then import -window "$w" "$1" 2>/dev/null; else import -window root "$1" 2>/dev/null; fi
 }
 tmux_up() { tmux has-session -t "$TMUX_SESSION" 2>/dev/null; }
-srv_send() { tmux send-keys -t "$TMUX_SESSION:server" "$1" Enter; }
+srv_send() { tmux send-keys -l -t "$TMUX_SESSION:server" "$1"; tmux send-keys -t "$TMUX_SESSION:server" Enter; }
 server_pid() { pgrep -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null | head -1; }
 
 ev_dir_for_session() {
@@ -62,10 +62,15 @@ case "${1:-help}" in
 start)
     # Idempotent: tear down any previous session first so a stale one from an
     # earlier aborted start (the exact PID-1273 shape) can never linger and
-    # collide with this one.
+    # collide with this one. Xvfb specifically IGNORES the SIGHUP that
+    # `tmux kill-session` sends its pane (X servers do this deliberately, to
+    # survive a terminal disconnect) — proven: it survived `live stop`
+    # unkilled and collided with the next `start`'s own Xvfb on the same
+    # display. So it needs an explicit SIGKILL, not just the session kill.
     tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
     pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
     pkill -9 -f "neoforge.*client" 2>/dev/null || true
+    pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true
     sleep 1
 
     ev_init "$ROLE"
@@ -89,10 +94,20 @@ start)
     check_pass instance "$INST"
 
     RUN_DIR="$MOD/run"; mkdir -p "$RUN_DIR"
-    printf 'onboardAccessibility:false\nskipMultiplayerWarning:true\npauseOnLostFocus:false\nguiScale:3\nfullscreen:false\noverrideWidth:1280\noverrideHeight:720\ntutorialStep:none\n' \
+    # rawMouseInput:false: with it true (default), GLFW reads camera look
+    # from XInput2 raw motion, which xdotool's XTest-synthesized motion
+    # never generates (see playtest.sh for the diagnostic that found this).
+    printf 'onboardAccessibility:false\nskipMultiplayerWarning:true\npauseOnLostFocus:false\nguiScale:3\nfullscreen:false\noverrideWidth:1280\noverrideHeight:720\ntutorialStep:none\nrawMouseInput:false\n' \
         > "$RUN_DIR/options.txt"
 
-    tmux new-session -d -s "$TMUX_SESSION" -n xvfb \
+    # -x/-y: a DETACHED tmux session with no client attached otherwise
+    # defaults to a narrow (~80-column) terminal. Proven live: the dedicated
+    # server's console is a real readline-style editor, and a Minecraft
+    # command longer than the pane width gets corrupted by its line-wrap
+    # redraw (a `fill ...` command literally arrived at the server with its
+    # middle sliced out and an ANSI cursor-move escape spliced in). A wide
+    # pane avoids wrapping for any command this harness sends.
+    tmux new-session -d -s "$TMUX_SESSION" -n xvfb -x 500 -y 50 \
         "Xvfb $DISPLAY_NUM -screen 0 1280x720x24 > '$EV_LOGS/xvfb.log' 2>&1"
     tmux new-window -d -t "$TMUX_SESSION" -n server \
         "cd '$INST' && ./run.sh nogui 2>&1 | tee '$EV_LOGS/live-server.log'"
@@ -112,7 +127,8 @@ start)
     fi
     check_pass server_started "$(grep -m1 'Done (' "$EV_LOGS/live-server.log")"
 
-    for _ in $(seq 1 150); do
+    # Same network-stall budget as playtest.sh: minutes, not a hang.
+    for _ in $(seq 1 250); do
         sleep 3
         grep -qE "joined the game" "$EV_LOGS/live-server.log" 2>/dev/null && break
     done
@@ -187,6 +203,7 @@ stop)
     pkill -9 -f "neoforge.*client" 2>/dev/null || true
     pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
     tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
+    pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true   # Xvfb ignores SIGHUP
     sleep 1
     if [ -n "$EV_DIR" ]; then
         EV_DIR="$EV_DIR" python3 -c "
