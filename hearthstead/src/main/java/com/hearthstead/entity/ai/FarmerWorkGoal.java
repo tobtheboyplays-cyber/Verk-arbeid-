@@ -215,7 +215,12 @@ public class FarmerWorkGoal extends Goal {
                 seedKept = true;
             }
         }
-        serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
+        if (serverLevel.getBlockState(target.below())
+            .is(net.minecraft.world.level.block.Blocks.FARMLAND)) {
+            serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
+        } else {
+            serverLevel.removeBlock(target, false);
+        }
         serverLevel.playSound(null, target, state.getSoundType().getBreakSound(),
             SoundSource.BLOCKS, 0.8F, 1.0F);
 

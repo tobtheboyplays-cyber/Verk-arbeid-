@@ -144,6 +144,12 @@ public class HearthBlockEntity extends BlockEntity implements net.minecraft.worl
         return settlementId;
     }
 
+    /** Direct binding for tests and admin tools; skips the founding flow. */
+    public void bindSettlement(@Nullable UUID id) {
+        this.settlementId = id;
+        setChanged();
+    }
+
     public String settlementNameForMenu() {
         if (level instanceof ServerLevel serverLevel && settlementId != null) {
             Settlement s = SettlementManager.byId(serverLevel, settlementId);

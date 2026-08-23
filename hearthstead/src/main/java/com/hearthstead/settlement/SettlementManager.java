@@ -24,6 +24,9 @@ import java.util.UUID;
 
 /** All server-side settlement operations. Everything goes through here. */
 public final class SettlementManager {
+    /** GameTests found settlements in cramped test structures; the spacing
+     *  rule would make every test after the first fail. Never true in play. */
+    public static boolean ignoreFoundingDistance = false;
 
     public static SettlementSavedData data(ServerLevel level) {
         return SettlementSavedData.get(level);
@@ -58,7 +61,8 @@ public final class SettlementManager {
                 return other;
             }
             double minDist = other.radius + Settlement.DEFAULT_RADIUS;
-            if (other.center.distSqr(hearthPos) < minDist * minDist) {
+            if (!ignoreFoundingDistance
+                && other.center.distSqr(hearthPos) < minDist * minDist) {
                 return null;
             }
         }
