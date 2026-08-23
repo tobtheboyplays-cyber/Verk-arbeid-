@@ -36,14 +36,16 @@ system:
 
 ## Permanent product invariants
 
-- **Building registration is automatic room detection** (`RoomScanner` +
-  `BuildingManager`) — scan the room; if it meets the requirements, it works.
-  Registration must never be gated behind a player-placed marker.
-- The **Building Plaque** (reinstated by the owner's spec, superseding the
-  earlier removal directive) is a per-building ACCESS POINT layered on top of
-  that detection: it links to an already-registered building and manages
-  resident occupancy through the authoritative building/citizen API. It must
-  never keep its own building registry or its own resident list.
+- **The plaque is the surveyor.** A building exists because a player hung a
+  plaque and the room around it satisfied that plaque's requirements — scan the
+  room, and if it meets them, it works (`RoomScanner` + `PlaqueBlockEntity`).
+  No plaque, no building, and no inserted Build Plan means no plaque UI
+  (`docs/project/DECISIONS.md` D-005, D-006).
+- The plaque is an ACCESS POINT, never a second source of truth: it stores its
+  type, state, revision and a building id, and reads everything else from the
+  settlement. It must never keep its own building registry or resident list.
+- Scanning stays bounded: only a hung plaque can cause a scan, and every scan
+  is a capped flood fill.
 - **Settlers never construct buildings autonomously.** They repair raid
   damage and upgrade player-built structures only.
 - Every item is physically real (chest truth); logistics must conserve items.
@@ -63,29 +65,37 @@ system:
 - GameTests build their own arenas via `buildArena`/`buildFarmArena`
   (structure templates only reserve bounds).
 
-## Mandatory multi-model implementation gate
+## Mandatory multi-model implementation gate (resource-governed)
 
 All non-trivial repository changes MUST go through the **`premium-build-loop`**
-skill *before any editing begins*. The loop is: recover state → baseline →
-spec → `opus-planner` → `sonnet-builder` → automated verification → **two
-clean `minecraft-qa` passes from separate launches** → fresh
-`opus-quality-gate` → verdict. Revisions resume the same builder; every review
-round uses a new reviewer. `fable-escalation` is dormant with budget 0 and may
-never be invoked without explicit per-invocation approval.
+skill *before any editing begins*.
 
-This covers implementation, debugging, behaviour, AI, UI, animation,
-asset-integration and feature work. It does not cover questions, explanations
-or read-only inspection.
+**Sonnet 5 is the continuous worker** — implementation, fixing, refactoring,
+builds, unit tests, GameTests, Minecraft/UI/animation/sound testing, docs and
+ordinary technical decisions. Medium effort by default, low for mechanical
+work.
 
-Implementing outside this loop is prohibited unless the user explicitly says
-to skip the quality pipeline. Deciding mid-task that the work "turned out to
-be simple" is not an exemption — triviality is judged before starting.
+**Opus 5 is used only at gates:** one `PLAN_GATE` (a plan of at most 1000
+words, no code), one `RELEASE_GATE` on the finished candidate, and a
+`BLOCKER_GATE` only when the same documented defect has survived three real
+and different attempts. Normal maximum two Opus calls per task, absolute
+maximum three. Never bounce between models per phase, test or failure — Sonnet
+finishes the whole implement-and-fix loop first. After a failed RELEASE_GATE,
+Opus gets exactly one short re-review of the changed areas.
 
-**Session state lives in `docs/project/`** — `CURRENT_STATE.md`,
-`DECISIONS.md`, `KNOWN_FAILURES.md`, `QUALITY_STANDARD.md`, `QA_MATRIX.md`,
-`NEXT_ACTION.md`. Read them after any restart or context compaction and
-recover from them rather than guessing; update them after every phase. Only
-**LOCKED** means finished (`QUALITY_STANDARD.md`) — compilation is not
+**One worker, no parallel model instances by default.** Helper agents are
+short, scoped and ended immediately. `fable-escalation` is dormant at budget 0
+and is invoked only if the user explicitly asks — never as a watcher.
+
+Testing follows the pyramid in the skill: cheap checks after code changes,
+self-play in-game verification when a feature is complete, a full play test
+before RELEASE_GATE. A successful build is never a successful play test, and
+all test execution routes through `tools/hearthstead-qa`.
+
+Keep `.claude/WORK_STATE.md` compact and current (~120 lines, not a diary).
+Session state lives in `docs/project/` — read it after any restart or
+compaction and recover from it rather than guessing. Only **LOCKED**
+(`docs/project/QUALITY_STANDARD.md`) means finished: compilation is not
 completion, a green test is not visual quality, and a working runtime is not
 sound architecture.
 

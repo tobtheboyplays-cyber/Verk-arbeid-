@@ -1,104 +1,110 @@
 ---
 name: premium-build-loop
-description: The mandatory vertical-slice loop for this repository — recover state, baseline, spec, Opus plan, Sonnet build, automated verification, two clean Minecraft QA passes, fresh Opus review, verdict handling. Use for ANY implementation, debugging, behaviour, AI, UI, animation, asset-integration or feature work before editing begins. Not for questions, explanations, or read-only inspection.
+description: The mandatory delivery loop for this repository under the resource governor — one Opus PLAN_GATE, then a single continuous Sonnet worker implementing, fixing and testing to a release candidate, then one Opus RELEASE_GATE. Use for ANY implementation, debugging, behaviour, AI, UI, animation, asset-integration or feature work. Not for questions, explanations, or read-only inspection.
 ---
 
-# Premium build loop
+# Premium build loop (governed)
 
-One vertical slice at a time, carried from specification to LOCKED. The agent
-that writes the code is never the agent that decides it is good, and nothing
-is called finished on the strength of a summary.
+Maximum quality per token. The saving comes from **fewer model switches, less
+context and batched fixes** — never from skipping tests or acceptance criteria.
 
-| phase | who | may edit? |
+## Model policy
+
+**Sonnet 5 is the continuous worker.** It owns implementation, coding, fixing,
+refactoring, building, unit tests, GameTests, Minecraft testing, UI, animation
+and sound testing, documentation, and ordinary technical decisions. Medium
+effort by default; low effort for mechanical work (search, moves, formatting,
+trivial fixes).
+
+**Opus 5 is used only at gates:**
+
+| gate | when | what |
 |---|---|---|
-| 0 recover · 1 baseline · 2 spec | you (orchestrator) | yes |
-| 3 plan | `opus-planner` (claude-opus-5) | no |
-| 4 build | `sonnet-builder` (claude-sonnet-5) | yes |
-| 5 automated verification | `sonnet-builder` | yes |
-| 6–7 two clean runtime passes | `minecraft-qa` (claude-sonnet-5) | harness only |
-| 8 review | `opus-quality-gate` (claude-opus-5) | no |
-| escalation | `fable-escalation` (claude-fable-5) | **dormant, budget 0** |
+| PLAN_GATE | once, before implementation | ≤1000-word plan: goal, acceptance criteria, key technical decisions, likely failure areas, implementation order, test strategy. No code, no full-repo exploration. |
+| RELEASE_GATE | once, on the finished candidate | Find real defects and regressions; rank BLOCKER / HIGH / MEDIUM / LOW; short concrete fix instructions. No rewrites, no optional polish. |
+| BLOCKER_GATE | only if the *same documented* defect survives **three real and different** Sonnet attempts | Adjudicate that one defect. |
 
-## When it applies
+Normal maximum **two** Opus calls per task; absolute maximum **three**.
 
-Implementation, debugging, behaviour changes, AI, UI, animation, asset
-integration, features. **Not** questions, explanations, or read-only
-inspection. Judge triviality *before* starting: once implementation has begun,
-a task that turns out easy is exactly when a skipped review costs most.
+Never bounce between Opus and Sonnet per phase, per test, or per failure.
+Sonnet finishes the entire implement-and-fix loop before Opus is involved
+again.
 
-## The loop
+**Fable is dormant.** It is not a watcher, coordinator or periodic checker, and
+is invoked only if the user explicitly asks. Budget 0.
 
-**Phase 0 — recover context.** Read the user's request, `CLAUDE.md`, and
-`docs/project/`: `CURRENT_STATE.md`, `DECISIONS.md`, `KNOWN_FAILURES.md`,
-`QUALITY_STANDARD.md`, `QA_MATRIX.md`, `NEXT_ACTION.md`. Read `git status` and
-`git diff`. **Never assume the tree is clean**, and preserve unrelated changes.
+**One worker.** No agent teams or parallel model instances by default. Helper
+agents must be short, tightly scoped, and finished immediately.
 
-**Phase 1 — baseline.** Build, run the existing tests, and confirm the QA
-harness can still launch, act, capture and exit. Record pre-existing failures
-*separately* — attributing an inherited failure to the new work wastes a whole
-correction cycle.
+## Sonnet's loop (no model switching inside it)
 
-**Phase 2 — specification.** Write `REQ-*`, `AC-*` and scenario ids
-(`PLAQUE-*`, `CITIZEN-*`, `AI-*`, `HARNESS-*`). Every criterion states an
-observable completion condition.
+1. Read only the files the next sub-goal needs.
+2. Implement one coherent change package.
+3. Run the cheapest relevant verification first.
+4. Analyse the concrete failures.
+5. Fix all related failures **together**.
+6. Re-run.
+7. Repeat until the sub-goal is proven done.
 
-**Phase 3 — plan.** `opus-planner`. Wait for it; never implement in parallel
-with planning. On `BLOCKED_FOR_REQUIREMENT`, ask the user **one** focused
-question — only for a genuine product decision. Otherwise take the most
-conservative interpretation consistent with the architecture and record it in
-`DECISIONS.md`.
+Never escalate ordinary compiler, test, import or API errors — investigate
+them. Never repeat a failed fix: record what was tried, why it failed, and
+what the next attempt does differently.
 
-**Phase 4 — build.** `sonnet-builder`, with the verbatim request, the
-acceptance criteria, the repository state and the whole plan. This slice only.
+## Test pyramid
 
-**Phase 5 — automated verification.** Compilation, formatting, static checks,
-GameTests, data/resource/model/texture/translation validation, regression
-tests — through `tools/hearthstead-qa`. **Never** delete a failing test,
-weaken an expectation, silence an error, or disable the harness to reach
-green.
+**Level A — after code changes.** Compile, static checks, unit tests, relevant
+GameTests, resource and data validation.
 
-**Phase 6 — runtime pass one.** `minecraft-qa`, from a clean launch. Evidence
-to `artifacts/qa/`. Shut down completely.
+**Level B — when a feature is complete.** Launch Minecraft via the established
+self-play harness (`qa/scripts/playtest.sh`, `qa/scripts/live.sh`), exercise
+the changed feature, check real behaviour, UI, animation, sound and error
+states. Only the screenshots and logs actually needed.
 
-**Phase 7 — runtime pass two.** A second clean launch. Two consecutive clean
-passes are required, and FLAKY is not PASS.
+**Level C — before RELEASE_GATE.** Full play test: coherent user flow,
+regression, UI at relevant resolutions, AI behaviour, animation, textures,
+sound, save/load, multiplayer where affected, performance, error logs.
 
-**Phase 8 — review.** A **fresh** `opus-quality-gate`. Never reuse a reviewer
-between rounds; never let the builder review itself.
+Do not run a full visual play test after every small text, config or code
+change — batch related changes and test them as one functional package.
+**A successful build is never a successful play test.** All test execution
+routes through `tools/hearthstead-qa`.
 
-**Phase 9 — verdict.**
-- **PASS** → update `docs/project/`, mark `OPUS_APPROVED`, and mark `LOCKED`
-  only when every definition-of-done item in `QUALITY_STANDARD.md` is met.
-  Then stop editing that slice.
-- **REVISE** → resume the **same** `sonnet-builder` (SendMessage to its agent
-  id) with the complete numbered findings. Fix every critical and high item,
-  re-run phase 5, re-run **both** runtime passes, then a **fresh** reviewer.
-- **BLOCKED** → preserve progress, record the blocker, reproduction and
-  evidence, and stop claiming completion.
+## Context budget
 
-If the same root problem survives **two** full correction cycles, prepare the
-Fable escalation packet, show the user why, and **ask permission**. Do not
-invoke Fable. Budget is zero.
+Targeted search over whole-file reads; never re-read an unchanged file without
+a reason; prefer `git diff` and symbol navigation. Surface test failures,
+stack traces and the relevant log lines — not whole build logs (cap ordinary
+output at ~100 relevant lines). Don't restate the plan or the requirements in
+every status. No model calls as a waiting mechanism or a periodic "are we done
+yet" check.
 
-## Hard rules
+Keep `.claude/WORK_STATE.md` current and **compressed** (~120 lines): goal,
+acceptance criteria, key decisions, changed files, passing tests, failing
+tests, known problems, next action. It is a working file, not a diary.
 
-- Dependent phases never run in parallel; independent read-only investigation
-  may.
-- Never two code-writing agents on the same files.
-- The builder never approves its own work; QA never edits production code to
-  pass.
-- Compilation is not completion; a green test is not visual quality; a working
-  runtime is not sound architecture.
-- Do not push, publish, release, spend money, invoke Fable, or perform
-  destructive source-control operations without explicit user authorisation.
-  Local builds, tests, game launches, evidence collection and safe edits are
-  authorised within the current task.
+## Handoff to RELEASE_GATE
 
-## Reporting
+A compact review package: the original goal; acceptance criteria; a short
+architecture note; `git diff --stat`; the actual diff or the changed files;
+test results; self-play results; known limitations; and the points Sonnet is
+unsure about. Not the whole conversation, not all logs, not the repository.
 
-After baseline, plan, implementation, QA, review, locking, and any blocker:
-say what changed, what was tested, what evidence proves it, what is still
-uncertain, and what happens next. Label claims **PROVEN / LIKELY / ASSUMED /
-UNKNOWN / BLOCKED**. Keep logs and screenshots out of the conversation — cite
-their paths. After a major milestone, mark `HUMAN_PLAYTEST_RECOMMENDED`:
-automation cannot prove that the mod feels alive.
+If RELEASE_GATE fails: Sonnet receives **all** findings at once, fixes them in
+one coordinated round, re-runs every affected test, and Opus gets **one** short
+re-review of the changed areas only. After that single re-review Sonnet
+continues alone on ordinary defects, unless a documented BLOCKER meets
+BLOCKER_GATE.
+
+## Status messages
+
+Only on: a completed milestone, an important test passing, a real blocker,
+RELEASE_GATE starting, and task completion. Not a running commentary of every
+search, file or command.
+
+## Quality rule
+
+Low usage does not mean a lower bar. Nothing here permits skipping tests,
+acceptance criteria, or real in-game verification. Compilation is not
+completion; a green test is not visual quality; a working runtime is not sound
+architecture. Only **LOCKED** (see `docs/project/QUALITY_STANDARD.md`) means
+finished.
