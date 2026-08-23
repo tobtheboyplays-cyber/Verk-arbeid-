@@ -45,12 +45,33 @@ shot playtest-03-hotbar
 # still not hand-derived: count hearth blocks in a generous reach-distance
 # box around the player's own position — deterministic and non-destructive
 # (fill replaces hearth with itself, a no-op where it matches).
-scmd tp $PLAYER ~ ~ ~ 0 60
-wait 1
+# NOT a bare `tp $PLAYER ~ ~ ~ ...` — a console-issued command's `~`
+# resolves against the CONSOLE's own position context, not the target
+# entity's (proven live: it teleported the player to the console's default
+# origin instead of keeping their position). `execute at` anchors the
+# position context to the player first. Pitch 45 (not steeper) is
+# deliberate: proven live that 60 places the target too close to the
+# player's own feet/hitbox for the placement to succeed; 45 reliably lands
+# a few blocks out on open ground and actually founds the settlement.
+scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 45
+# The server-side rotation change from tp needs time to reach the client
+# over the network before its LOCAL camera (what the click raycasts
+# against) actually matches it — 1s was not always enough in the scripted
+# run even though manual testing (with longer gaps between tool
+# invocations) never showed this. Give it a real margin.
+wait 3
+shot before-hearth-click
 click right
 wait 2
-scmd data get entity $PLAYER Pos
-expect_block_near_player hearthstead:hearth 6
+shot after-hearth-click
+# NOT expect_block_near_player: proven live that `fill <box> hearthstead:hearth
+# replace hearthstead:hearth` is a no-op the game never counts, even when the
+# block is right there (self-replace changes nothing, so nothing is
+# reported "filled") — it would report FAIL unconditionally regardless of
+# truth. A settlement can only exist if the hearth placement actually
+# succeeded, so that is the real, authoritative, non-destructive proof.
+scmd hearthstead info
+expect_server population
 wait 12
 shot 04-settlement
 expect_shot 04-settlement
