@@ -7,3 +7,6 @@ server/users.json
 # Python bytecode from the asset generators
 __pycache__/
 *.pyc
+qa/reports/artifacts/
+qa/reports/latest.json
+qa/reports/.stale

@@ -926,7 +926,7 @@ def gen_materials():
                 c = shade(c, 0.88)              # tarnish speck
             # One restrained catch-light: a single pixel on the upper-left rim
             # of roughly every third dimple.
-            if d <= 2.4 and k <= -1.6 and (cellx + row) % 3 == 0 and dx <= -1:
+            if d <= 2.4 and k <= -1.6 and (cellx + row) % 4 == 0 and dx <= -1:
                 c = BRASS[4]
             put(img, i, j, c)
     save(img, f"{ASSETS}/textures/block/plaque_brass.png")
@@ -938,8 +938,8 @@ def gen_materials():
     for j in range(64):
         for i in range(64):
             idx = 2
-            if (i % 8) < 5:                     # 5px dashes, held for 3 rows
-                phase = (i // 8 + j // 3) % 5
+            if (i % 8) < 5:                     # 5px dashes, held for 4 rows
+                phase = ((i // 8) % 8 + (j // 4) % 4) % 5
                 if phase == 0:
                     idx = 3
                 elif phase == 2:
