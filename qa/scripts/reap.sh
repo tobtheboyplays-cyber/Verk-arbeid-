@@ -31,7 +31,14 @@ PORTS="25571 25572 25573 25574"
 # Xvfb :9[5-9]|tmux.*hsqa-live) to also match playtest.sh's own tmux session
 # (hsqa-playtest) — added when playtest.sh moved its server console from a
 # FIFO to tmux for the same reliability reasons as live.sh (D-H1).
-PATTERN='hsqa-inst|hsqa-server|Xvfb :9[5-9]|tmux.*hsqa-(live|playtest)'
+# hsqa-inst/ (with the trailing slash) NOT bare hsqa-inst — proven live:
+# "hsqa-inst" is a literal substring of "hsqa-install" (the shared,
+# never-torn-down install cache dir), so the bare form false-matched a
+# harmless diagnostic command that merely echoed an hsqa-install path,
+# which `reap reap` would then have tried to kill. The trailing slash
+# still matches every real "/tmp/.../hsqa-inst/<role>/..." instance path
+# and no longer matches "hsqa-install".
+PATTERN='hsqa-inst/|hsqa-server|Xvfb :9[5-9]|tmux.*hsqa-(live|playtest)'
 EXCLUDE='GradleDaemon'
 
 mkdir -p "$PIDDIR"
@@ -41,7 +48,7 @@ matching_procs() { # prints "PID CMD..." lines that match PATTERN and not EXCLUD
     # argv (which literally contains this pattern text) never self-matches —
     # the classic pgrep self-exclusion trick. Real process lines don't have
     # brackets, so [h]sqa-inst still matches a literal "hsqa-inst" in them.
-    local self_safe='[h]sqa-inst|[h]sqa-server|[X]vfb :9[5-9]|tmux.*[h]sqa-(live|playtest)'
+    local self_safe='[h]sqa-inst/|[h]sqa-server|[X]vfb :9[5-9]|tmux.*[h]sqa-(live|playtest)'
     ps -eo pid=,args= 2>/dev/null | grep -E "$self_safe" | grep -v -E "$EXCLUDE"
 }
 
@@ -139,6 +146,7 @@ cmd_selftest() {
 12348 /usr/local/bin/python3 /home/user/Verk-arbeid-/qa/scripts/analyze_trace.py
 22375 java ... org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.14.3
 22999 /usr/bin/java -jar /tmp/claude-0/hsqa-inst/dedicated/... server
+23001 /bin/bash -c echo hsqa-install backup moved aside
 EOF
 )
     local matched
@@ -149,6 +157,7 @@ EOF
     echo "$matched" | grep -q '^12347' || { echo "FAIL: should match tmux hsqa-live line 12347"; ok=0; }
     echo "$matched" | grep -q '^12349' || { echo "FAIL: should match tmux hsqa-playtest line 12349"; ok=0; }
     echo "$matched" | grep -q '^22999' || { echo "FAIL: should match hsqa-inst line 22999"; ok=0; }
+    echo "$matched" | grep -q '^23001' && { echo "FAIL: must NEVER match a bare 'hsqa-install' mention (substring false-positive, proven live)"; ok=0; }
     echo "$matched" | grep -q '^22375' && { echo "FAIL: must NEVER match the GradleDaemon line 22375"; ok=0; }
     echo "$matched" | grep -q '^12348' && { echo "FAIL: should not match an unrelated python process"; ok=0; }
     if [ "$ok" = 1 ]; then echo "reap selftest: PASS (GradleDaemon excluded, harness processes matched)"; return 0
