@@ -22,9 +22,27 @@ neoForge {
         gameTestServer {
             type = 'gameTestServer'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // Decision tracing for the QA behaviour suite. The game runs in a
+            // forked JVM, so a -D on the Gradle command line never reaches it;
+            // it has to be declared on the run itself. Off unless the QA
+            // controller asks for it, and the trace path is passed explicitly
+            // so the controller never has to guess the run directory.
+            systemProperty 'hearthstead.qa.trace',
+                System.getenv('HSQA_TRACE') ? 'true' : 'false'
+            if (System.getenv('HSQA_TRACE_FILE')) {
+                systemProperty 'hearthstead.qa.traceFile', System.getenv('HSQA_TRACE_FILE')
+            }
         }
         configureEach {
             logLevel = org.slf4j.event.Level.INFO
+        }
+        // QA playtest: jump the client straight into a prepared save instead
+        // of driving the world-creation menus with synthetic clicks.
+        client {
+            if (System.getenv('HSQA_JOIN')) {
+                programArgument '--quickPlayMultiplayer'
+                programArgument System.getenv('HSQA_JOIN')
+            }
         }
     }
 

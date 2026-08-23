@@ -20,6 +20,20 @@ public final class ClientHooks {
         }
     }
 
+    /**
+     * A plaque snapshot arrived. If its screen is already open this refreshes
+     * it in place — an assignment should visibly land, not reopen the window
+     * and lose the player's place in the list.
+     */
+    public static void showPlaque(com.hearthstead.network.PlaqueSnapshot snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen instanceof com.hearthstead.client.screen.PlaqueScreen open) {
+            open.update(snapshot);
+        } else {
+            mc.setScreen(new com.hearthstead.client.screen.PlaqueScreen(snapshot));
+        }
+    }
+
     private ClientHooks() {
     }
 }

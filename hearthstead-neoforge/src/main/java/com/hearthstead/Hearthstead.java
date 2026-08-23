@@ -2,6 +2,7 @@ package com.hearthstead;
 
 import com.hearthstead.registry.ModBlockEntities;
 import com.hearthstead.registry.ModBlocks;
+import com.hearthstead.registry.ModComponents;
 import com.hearthstead.registry.ModCreativeTabs;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModItems;
@@ -20,6 +21,7 @@ public class Hearthstead {
 
     public Hearthstead(IEventBus modBus) {
         ModBlocks.register(modBus);
+        ModComponents.register(modBus);
         ModItems.register(modBus);
         ModBlockEntities.register(modBus);
         ModEntities.register(modBus);

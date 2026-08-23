@@ -34,6 +34,17 @@ public final class ModBusEvents {
         registrar.playToClient(OpenSettlerScreenPayload.TYPE, OpenSettlerScreenPayload.CODEC,
             (payload, context) -> context.enqueueWork(
                 () -> ClientHooks.openSettlerScreen(payload.entityId())));
+        registrar.playToClient(com.hearthstead.network.PlaqueSnapshot.TYPE,
+            com.hearthstead.network.PlaqueSnapshot.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showPlaque(payload)));
+        registrar.playToServer(com.hearthstead.network.PlaqueAction.TYPE,
+            com.hearthstead.network.PlaqueAction.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.PlaqueNetwork.handle(player, payload);
+                }
+            }));
     }
 
     private ModBusEvents() {

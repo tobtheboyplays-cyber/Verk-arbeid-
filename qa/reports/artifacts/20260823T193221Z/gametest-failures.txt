@@ -1,0 +1,2 @@
+[19:32:36] [Server thread/ERROR] [minecraft/LogTestReporter]: leakyroomrejected failed at -10192367, -60, -4654843! leaky room must not register, got 1
+[19:32:36] [Server thread/ERROR] [minecraft/LogTestReporter]: homeinvalidatedwhenwallbroken failed at -10192315, -60, -4654843! home should invalidate after roof breach, homes=1

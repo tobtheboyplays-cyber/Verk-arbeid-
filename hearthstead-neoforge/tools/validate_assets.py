@@ -43,7 +43,7 @@ DATA = RES_ROOT / "data"
 MOD_ASSETS = ASSETS / MODID
 MOD_DATA = DATA / MODID
 
-EXPECTED_PACK_FORMAT = 15  # Minecraft 1.20.1
+EXPECTED_PACK_FORMAT = 34  # Minecraft 1.20.1
 
 # Blocks that intentionally have NO loot table (e.g. technical/creative-only
 # blocks). Anything listed here downgrades the missing-loot-table error to a
@@ -374,7 +374,7 @@ def check_blocks(blocks: dict[str, str], langs: dict) -> None:
                           f"model '{ref}' from blockstate '{name}' -> {rel(mf)}")
             # parse errors are reported by the JSON integrity check
 
-        lt = MOD_DATA / "loot_tables" / "blocks" / f"{name}.json"
+        lt = MOD_DATA / "loot_table" / "blocks" / f"{name}.json"
         check("Blocks", lt.is_file(),
               f"loot table {rel(lt)} (block '{name}')",
               warn_only=name in LOOT_TABLE_ALLOWLIST)
@@ -654,6 +654,12 @@ def check_textures() -> None:
         w, h = size
         if category in ("block", "item"):
             meta = png.parent / (png.name + ".mcmeta")
+            # Minecraft accepts any power-of-two texture. The project standard
+            # is 16x16 so the world stays visually of a piece with vanilla,
+            # with 32/64 reserved for SIGNATURE pieces the player studies up
+            # close (the owner's call). Anything not a power of two, or a
+            # non-square that is not a valid animation strip, is a mistake.
+            SIGNATURE_SIZES = (32, 64)
             if w == 16 and h == 16:
                 check("Textures", True, f"{rel(png)} is 16x16")
                 if meta.is_file():
@@ -662,9 +668,11 @@ def check_textures() -> None:
                         check("Textures", isinstance(mdata, dict) and "animation" in mdata,
                               f"{rel(meta)} declares an 'animation' section",
                               warn_only=True)
-            elif w == 16 and h % 16 == 0 and h > 16:
+            elif w == h and w in SIGNATURE_SIZES:
+                check("Textures", True, f"{rel(png)} is {w}x{h} (signature piece)")
+            elif w in (16,) + SIGNATURE_SIZES and h % w == 0 and h > w:
                 if check("Textures", meta.is_file(),
-                         f"animated texture {rel(png)} (16x{h}) has an accompanying .mcmeta"):
+                         f"animated texture {rel(png)} ({w}x{h}) has an accompanying .mcmeta"):
                     mdata, merr = load_json(meta)
                     if merr is None:
                         check("Textures", isinstance(mdata, dict) and "animation" in mdata,
@@ -672,8 +680,8 @@ def check_textures() -> None:
                               warn_only=True)
             else:
                 check("Textures", False,
-                      f"{rel(png)} is {w}x{h} — block/item textures must be 16x16 "
-                      f"or 16xN (N a multiple of 16, animated)")
+                      f"{rel(png)} is {w}x{h} — block/item textures must be 16x16, "
+                      f"32x32 or 64x64 (signature), or WxN animated (N a multiple of W)")
         elif category == "entity":
             tex_root = ASSETS / MODID / "textures" / "entity"
             try:
@@ -704,6 +712,8 @@ def _walk_recipe_ids(node, out_items: list, out_tags: list) -> None:
                 out_tags.append(v)
             elif k == "result" and isinstance(v, str):
                 out_items.append(v)  # smelting/stonecutting style
+            elif k == "id" and isinstance(v, str) and ":" in v:
+                out_items.append(v)  # 1.20.5+ result {"id": ...} form
             else:
                 _walk_recipe_ids(v, out_items, out_tags)
     elif isinstance(node, list):
@@ -712,7 +722,7 @@ def _walk_recipe_ids(node, out_items: list, out_tags: list) -> None:
 
 
 def check_recipes(blocks: dict, items: dict) -> None:
-    recipes_dir = MOD_DATA / "recipes"
+    recipes_dir = MOD_DATA / "recipe"
     if not recipes_dir.is_dir():
         info("Recipes", "no recipes directory — skipped")
         return
@@ -747,7 +757,7 @@ def check_recipes(blocks: dict, items: dict) -> None:
             if ns in KNOWN_TAG_NAMESPACES:
                 continue
             if ns == MODID:
-                tag_file = MOD_DATA / "tags" / "items" / (name + ".json")
+                tag_file = MOD_DATA / "tags" / "item" / (name + ".json")
                 check("Recipes", tag_file.is_file(),
                       f"{rel(path)}: tag '{tid}' has a tag file at {rel(tag_file)}")
             else:
@@ -770,6 +780,10 @@ def check_tags(registries: dict) -> None:
         "blocks": set(registries["blocks"]),
         "items": set(registries["items"]) | set(registries["blocks"]),  # BlockItems
         "entity_types": set(registries["entities"]),
+        # 1.21 singular datapack folders
+        "block": set(registries["blocks"]),
+        "item": set(registries["items"]) | set(registries["blocks"]),
+        "entity_type": set(registries["entities"]),
     }
     for path in files:
         data, err = load_json(path)
@@ -813,7 +827,7 @@ def check_meta() -> None:
             check("Meta", fmt == EXPECTED_PACK_FORMAT,
                   f"pack_format is {fmt} (expected {EXPECTED_PACK_FORMAT})")
 
-    toml_path = RES_ROOT / "META-INF" / "mods.toml"
+    toml_path = RES_ROOT / "META-INF" / "neoforge.mods.toml"
     if not check("Meta", toml_path.is_file(), f"{rel(toml_path)} exists"):
         return
 
@@ -850,7 +864,7 @@ def check_meta() -> None:
 # --------------------------------------------------------------------------
 
 def check_structures() -> None:
-    struct_dir = MOD_DATA / "structures"
+    struct_dir = MOD_DATA / "structure"
     if not struct_dir.is_dir():
         info("Structures", "no structures directory — skipped")
         return

@@ -16,6 +16,8 @@ public class SettlementSavedData extends SavedData {
     private static final String DATA_NAME = "hearthstead_settlements";
 
     public final Map<UUID, Settlement> settlements = new HashMap<>();
+    /** Transient scan/revalidation driver; state rebuilds from events. */
+    public final BuildingManager buildingManager = new BuildingManager();
 
     private static final Factory<SettlementSavedData> FACTORY =
         new Factory<>(SettlementSavedData::new, SettlementSavedData::load, null);

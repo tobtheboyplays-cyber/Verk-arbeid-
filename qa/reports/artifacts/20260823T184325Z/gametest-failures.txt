@@ -1,0 +1,1 @@
+[18:43:42] [Server thread/ERROR] [minecraft/LogTestReporter]: settlersleepsinclaimedbed failed at 10594244, -60, 10642373! settler should claim the bed (act=RESTING)

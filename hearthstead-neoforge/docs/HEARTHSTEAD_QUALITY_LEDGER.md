@@ -20,6 +20,20 @@ and therefore IN scope.
   ambiguous rooms become a real problem, a non-plaque override UI (via
   Tingboka) is the sanctioned future path.
 - Loop directive: no completion claims until 2 consecutive green rounds.
+- **Room detection = TekTopia model (user, this session):** "scan the room; if it
+  meets all the requirements, it works." That is exactly the current engine:
+  automatic seeded flood fill, requirements = enclosed + roofed + bed + door +
+  light. Confirmed by the user, so it stays automatic.
+- **DEFERRED — how the player is told what a room still needs.** The user has
+  reopened the question ("maybe a plaque system or similar — we can fix that
+  later"). Nothing is being built for it now, and the plaque removal stands
+  until the user decides. `RoomScanner.Result.missing()` already produces the
+  exact text ("not enclosed; no bed; no door; no light; open to the sky"), so
+  whichever surface wins later — Tingboka entry, HUD toast, held-tool overlay,
+  or a plaque-like marker — it only needs a presenter, not new detection work.
+- **BACKLOG — cloak/armour texture pack** (user, long-term): a full cosmetic
+  layer for cloaks and armour progression. Slots into A1d's appearance layering
+  and the guard equipment progression in B1; not in scope now.
 
 ## Iteration log
 
@@ -42,3 +56,39 @@ and therefore IN scope.
 | 14 | Deprecation warnings triage | OPEN | non-removal deprecations remain; list & fix or justify |
 
 Green streak: 0. Next: A1c room detection, A1d visuals, then full round re-run.
+
+### Iteration 2 (in progress) — QA enforcement installed + A1c verification
+
+Permanent QA system installed per directive: `qa/PROTOCOL.md` (v1.0.0),
+`tools/hearthstead-qa` controller (sole approved test entry point),
+`.claude/settings.json` hooks (bash guard blocks direct `runGameTestServer`/
+`runClient`/`runServer` — validated exit 2; post-edit hook marks
+`qa/reports/.stale` — validated; Stop-gate hook blocks completion while red —
+validated exit 2), freshness manifests with source fingerprints, decision-trace
+detectors (`qa/scripts/analyze_trace.py`), seeded reproduction, documented
+`qa/reports/BLOCKED` escape (cleared automatically by every full run).
+
+| Finding | Root cause | Fix | Evidence |
+|---|---|---|---|
+| GameTests 12/13: `settlersleepsinclaimedbed` — settler IDLE at hut doorway rel (8,1,6), bed claimed but never reached | Settlers had door-capable *pathfinding* (`setCanOpenDoors/PassDoors`) but no goal that physically opens doors — pathed to the closed oak door and pushed against it forever | Reference check (user directive): TekTopia + MineColonies villagers both open doors; TekTopia closes them behind. Adopted: `OpenDoorGoal(this, true)` at priority 1 (flag-free, runs beside move goals; closing keeps homes enclosed + raid-defensible) | artifacts/20260823T183955Z/gametest-failures.txt; fix in SettlerEntity.registerGoals |
+| Stale-settlement purge regression (concurrent day-batch neighbors deleted each other) | first purge version removed any settlement <40 blocks unconditionally | replaced distance heuristic with exact ARENA-BOUNDS purge (`helper.getBounds()`): can only remove settlements standing in the space this test owns | in HearthsteadGameTests.makeSettlement(GameTestHelper,…) |
+| **Breached/leaky room still registered** (found only after the fix above, and deterministic — the old suite had been passing this case by luck) | The GameTest arena is capped by a **barrier ceiling** (`y9=Barrier`, measured). So when the fill escapes a breached hut it spreads under that ceiling and comes back *enclosed and roofed* — `enc=true sky=false vol=1856` versus the intact hut's `vol=27`. Enclosure and roofing were both answering correctly; the missing rule was that a dwelling must be a bounded ROOM. | Added `MAX_HOME_VOLUME = 512` to `validHome()` — already a 16x16 hall with a 2-high ceiling, so no real cottage is affected, while a fill that has escaped into a cave/courtyard/outdoors is rejected. This is what makes a raid breach genuinely un-home a house. | `leakyroomrejected` + `homeinvalidatedwhenwallbroken` green |
+| Housing was poll-driven: a homeless settler waited up to 40 ticks after a home appeared | settlers polled for a free bed; nothing pushed an assignment when a house registered | `BuildingManager.assignFreeBeds` hands a new home's free beds to loaded settlers without one, the moment it validates | in `processScan` |
+| **Room registration flaky: 1/5 to 2/5 runs green** — `settlersleepsinclaimedbed` + `homeinvalidatedwhenwallbroken` intermittently saw `homes=0 buildings=0` | Diagnosed from evidence, not intent. Census diagnostics proved: the room was VALID (`liveScan enc=true beds=1 doors=1 lights=1`), the settlement DID hold it (`d=9.2 holds=true`), and the scan WAS processed (`requested=5 processed=5 pending=0`). Therefore the scan was rejected *at the time it ran*: `RoomScanner` gated validity on `level.canSeeSky`, which reads the heightmap that the **light engine settles asynchronously** after the arena's ~1300 block writes. One rejected scan was final — nothing ever re-scanned. | **(1)** The roof test is now **geometric**: for every cell at the top of its column, look upward for a block with a collision shape (`hasCoverAbove`). Deterministic, independent of the light engine, and it accepts glass and slab roofs that `canSeeSky` wrongly rejected. (An intermediate attempt simply dropped the sky gate — that was wrong and is recorded here rather than quietly reverted: it let a breached room register, which is how the barrier-ceiling finding above was uncovered.) **(2)** `BuildingManager` re-checks a failed scan 4x at 100-tick spacing, so a room that just missed — or a world that has not settled — still registers, matching how the reference colony sims re-check rather than decide once. **(3)** Added `Result.missing()`, the player-facing "why isn't this a home yet" string that inherits the job the removed plaque used to do. | stability sweep below |
+
+**Stability evidence (this is the point of the exercise).** A single green run
+proved nothing here: the suite passed once at 13/13 while carrying a defect
+that failed 4 runs out of 5. Repeat-run measurement is therefore the standard,
+recorded before and after every fix:
+
+| stage | result |
+|---|---|
+| after the door fix | 2/5 green — flake still present, "green" was luck |
+| after the arena-bounds purge | 1/5 green — hypothesis wrong, discarded |
+| after the geometric roof test | 0/5 but **deterministic** (leaky room registered) — a better state than flaky |
+| after `MAX_HOME_VOLUME` | **5/5 green** |
+| with 2 new regression tests added (15 tests) | **3/3 green** |
+
+New regression locks: `unlitRoomRegistersOnceLit` (a failed scan must be
+re-checked, not written off) and `glassRoofCountsAsRoofed` (roofing is
+geometric and must not consult the light engine).

@@ -42,12 +42,31 @@ public class HearthsteadGameTests {
      * generous radius lets idle settlers stroll off the edge to their doom.
      */
     private static Settlement makeSettlement(ServerLevel level, BlockPos center, int radius) {
+        SettlementSavedData data = SettlementSavedData.get(level);
         Settlement s = new Settlement(UUID.randomUUID(), "Testholm", center);
         s.radius = radius;
-        SettlementSavedData data = SettlementSavedData.get(level);
         data.settlements.put(s.id, s);
         data.setDirty();
         return s;
+    }
+
+    /**
+     * Arena-scoped settlement: the gametest world is one shared level whose
+     * structure columns are recycled between batches, so a finished test's
+     * settlement can still sit in this arena and swallow our room
+     * registrations. Purging by ARENA BOUNDS (not by distance) is exact — it
+     * can only ever remove settlements standing in the space this test now
+     * owns, never a neighbouring test running concurrently.
+     */
+    private static Settlement makeSettlement(GameTestHelper helper, BlockPos centerRel,
+                                             int radius) {
+        ServerLevel level = helper.getLevel();
+        net.minecraft.world.phys.AABB arena = helper.getBounds();
+        SettlementSavedData data = SettlementSavedData.get(level);
+        data.settlements.values().removeIf(old ->
+            arena.contains(old.center.getX() + 0.5, old.center.getY() + 0.5,
+                old.center.getZ() + 0.5));
+        return makeSettlement(level, helper.absolutePos(centerRel), radius);
     }
 
     /**
@@ -113,8 +132,7 @@ public class HearthsteadGameTests {
 
     @GameTest(template = "empty5", timeoutTicks = 200)
     public void professionAssignmentEquipsTool(GameTestHelper helper) {
-        Settlement s = makeSettlement(helper.getLevel(),
-            helper.absolutePos(new BlockPos(2, 1, 2)), 2);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 2);
         SettlerEntity settler = boundSettler(helper, s, new BlockPos(2, 1, 2));
         settler.assignProfession(Profession.FARMER);
         helper.succeedWhen(() -> {
@@ -129,7 +147,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "farm9", timeoutTicks = 1600)
+    @GameTest(template = "farm9", timeoutTicks = 1600, batch = "day")
     public void farmerHarvestsAndDeposits(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildFarmArena(helper, 9);
@@ -138,7 +156,7 @@ public class HearthsteadGameTests {
         BlockPos hearthRel = new BlockPos(4, 1, 4);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
         BlockPos hearthAbs = helper.absolutePos(hearthRel);
-        Settlement s = makeSettlement(helper.getLevel(), hearthAbs, 5);
+        Settlement s = makeSettlement(helper, hearthRel, 5);
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
@@ -190,14 +208,14 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 1600)
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
     public void lumbererFellsTreeCleanly(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);
         BlockPos hearthRel = new BlockPos(8, 1, 8);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
         BlockPos hearthAbs = helper.absolutePos(hearthRel);
-        Settlement s = makeSettlement(helper.getLevel(), hearthAbs, 5);
+        Settlement s = makeSettlement(helper, hearthRel, 5);
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
@@ -245,8 +263,7 @@ public class HearthsteadGameTests {
     @GameTest(template = "empty16", timeoutTicks = 800)
     public void guardEngagesThreat(GameTestHelper helper) {
         buildArena(helper, 16, 16);
-        Settlement s = makeSettlement(helper.getLevel(),
-            helper.absolutePos(new BlockPos(8, 1, 8)), 6);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8), 6);
         SettlerEntity guard = boundSettler(helper, s, new BlockPos(6, 1, 8));
         guard.assignProfession(Profession.GUARD);
         Zombie zombie = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE,
@@ -261,14 +278,14 @@ public class HearthsteadGameTests {
                 + ", target=" + (guard.getTarget() != null) + ")"));
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "day")
     public void hungrySettlerEatsFromHearth(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);
         BlockPos hearthRel = new BlockPos(8, 1, 8);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
         BlockPos hearthAbs = helper.absolutePos(hearthRel);
-        Settlement s = makeSettlement(helper.getLevel(), hearthAbs, 5);
+        Settlement s = makeSettlement(helper, hearthRel, 5);
         HearthBlockEntity hearth =
             (HearthBlockEntity) helper.getLevel().getBlockEntity(hearthAbs);
         hearth.bindSettlement(s.id);
@@ -282,14 +299,14 @@ public class HearthsteadGameTests {
                 + ", food=" + hearth.countFoodUnits() + ")"));
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
     public void civilianFleesAndAlarmSounds(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);
         BlockPos hearthRel = new BlockPos(8, 1, 8);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
         BlockPos hearthAbs = helper.absolutePos(hearthRel);
-        Settlement s = makeSettlement(helper.getLevel(), hearthAbs, 6);
+        Settlement s = makeSettlement(helper, hearthRel, 6);
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
@@ -366,6 +383,297 @@ public class HearthsteadGameTests {
             helper.assertTrue(loaded.population() == 2, "records survive");
             helper.assertTrue(loaded.employed() == 1, "professions survive");
             helper.assertTrue(loaded.recruitProgress == 55, "recruit progress survives");
+        });
+    }
+
+    // ================================================== room detection ===
+
+    /**
+     * Builds a 5x5 hut on the arena floor at {@code o} (rel): stone walls
+     * y1..3, full roof at y4, oak door, bed, torch. Returns the bed HEAD rel
+     * position.
+     */
+    private static BlockPos buildHut(GameTestHelper helper, BlockPos o) {
+        for (int x = 0; x <= 4; x++) {
+            for (int z = 0; z <= 4; z++) {
+                boolean wall = x == 0 || z == 0 || x == 4 || z == 4;
+                for (int y = 1; y <= 3; y++) {
+                    if (wall) {
+                        helper.setBlock(o.offset(x, y, z), Blocks.STONE_BRICKS);
+                    }
+                }
+                helper.setBlock(o.offset(x, 4, z), Blocks.STONE_BRICKS);
+                helper.setBlock(o.offset(x, 0, z), Blocks.STONE_BRICKS);
+            }
+        }
+        // Door in the south wall (z=0), lower + upper half.
+        helper.setBlock(o.offset(2, 1, 0), Blocks.OAK_DOOR.defaultBlockState());
+        helper.setBlock(o.offset(2, 2, 0), Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER));
+        // Bed: foot at (2,1,2) facing north, head at (2,1,3).
+        helper.setBlock(o.offset(2, 1, 2), Blocks.RED_BED.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.BedBlock.FACING,
+                net.minecraft.core.Direction.NORTH)
+            .setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.FOOT));
+        helper.setBlock(o.offset(2, 1, 3), Blocks.RED_BED.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.BedBlock.FACING,
+                net.minecraft.core.Direction.NORTH)
+            .setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+        helper.setBlock(o.offset(1, 2, 1), Blocks.TORCH);
+        return o.offset(2, 1, 3);
+    }
+
+
+    /**
+     * Hangs a plaque of {@code type} on the hut's outside south wall, beside
+     * the door — the way the reference image shows it and the way players
+     * naturally do it. Returns the plaque position.
+     *
+     * <p>Placed through {@code setBlock} plus an explicit survey rather than
+     * through item use, because the harness has no player: the block entity
+     * receives exactly the same calls either way.
+     */
+    private static BlockPos hangPlaque(GameTestHelper helper, BlockPos hutOrigin,
+                                       com.hearthstead.building.BuildingType type) {
+        // South wall is z = hutOrigin.z; the door is at x+2, so hang at x+1.
+        BlockPos plaqueRel = hutOrigin.offset(1, 2, 0);
+        helper.setBlock(plaqueRel, com.hearthstead.registry.ModBlocks.PLAQUE.get()
+            .defaultBlockState()
+            .setValue(com.hearthstead.block.PlaqueBlock.FACING,
+                net.minecraft.core.Direction.SOUTH));
+        BlockPos abs = helper.absolutePos(plaqueRel);
+        if (helper.getLevel().getBlockEntity(abs)
+            instanceof com.hearthstead.block.PlaqueBlockEntity plaque) {
+            plaque.setType(type);
+            plaque.survey(helper.getLevel());
+        }
+        return plaqueRel;
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void roomDetectedAsHome(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.succeedWhen(() -> {
+            com.hearthstead.settlement.RoomScanner.Result diag =
+                com.hearthstead.settlement.RoomScanner.scan(helper.getLevel(),
+                    helper.absolutePos(bedRel));
+            helper.assertTrue(s.validHomeCount() == 1,
+                "expected 1 valid home, got " + s.validHomeCount()
+                    + " diag=" + (diag == null ? "null-seed"
+                        : "enc=" + diag.enclosed() + " sky=" + diag.skyLeak()
+                        + " beds=" + diag.beds().size() + " doors=" + diag.doors()
+                        + " lights=" + diag.lights() + " vol=" + diag.volume()));
+            helper.assertTrue(s.validBedCount() == 1,
+                "expected 1 bed, got " + s.validBedCount());
+            helper.assertTrue(s.capacity() == 4,
+                "capacity should be 3 founders + 1 bed, got " + s.capacity());
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void leakyRoomRejected(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        helper.setBlock(hutOrigin.offset(2, 4, 2), Blocks.AIR); // roof hole
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.runAfterDelay(100, () -> {
+            com.hearthstead.settlement.RoomScanner.Result r =
+                com.hearthstead.settlement.RoomScanner.scan(helper.getLevel(),
+                    helper.absolutePos(bedRel));
+            StringBuilder col = new StringBuilder();
+            for (int y = 3; y <= 9; y++) {
+                col.append(" y").append(y).append('=')
+                   .append(helper.getBlockState(new BlockPos(8, y, 8))
+                       .getBlock().getName().getString());
+            }
+            helper.assertTrue(s.validHomeCount() == 0,
+                "leaky room must not register, got " + s.validHomeCount()
+                    + " scan=" + (r == null ? "null" : "(enc=" + r.enclosed()
+                        + " sky=" + r.skyLeak() + " vol=" + r.volume()
+                        + " valid=" + r.validHome() + ")")
+                    + " columnAboveHole:" + col);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Failure-message diagnostics: what the settlement believes about its
+     * homes right now, plus a live rescan at the settler's own anchor. Keeps
+     * housing failures self-explaining instead of "assert false".
+     */
+    private static String homeDiag(GameTestHelper helper, Settlement s,
+                                   SettlerEntity settler) {
+        StringBuilder sb = new StringBuilder("homes=" + s.validHomeCount()
+            + " buildings=" + s.buildings.size());
+        // Census of every settlement that could have swallowed this room, and
+        // a live rescan of the bed — tells us whether the room is invalid or
+        // simply registered somewhere else.
+        BlockPos bedAbs = settler.getClaimedBed() != null ? settler.getClaimedBed()
+            : helper.absolutePos(new BlockPos(8, 1, 9));
+        com.hearthstead.settlement.RoomScanner.Result live =
+            com.hearthstead.settlement.RoomScanner.scan(helper.getLevel(), bedAbs);
+        sb.append(" liveScan=").append(live == null ? "null-seed"
+            : "(enc=" + live.enclosed() + " sky=" + live.skyLeak()
+                + " beds=" + live.beds().size() + " doors=" + live.doors()
+                + " lights=" + live.lights() + " vol=" + live.volume()
+                + " valid=" + live.validHome() + ")");
+        SettlementSavedData all = SettlementSavedData.get(helper.getLevel());
+        sb.append(" buildingMgr[").append(all.buildingManager.stats()).append("]");
+        sb.append(" settlements=").append(all.settlements.size());
+        for (Settlement other : all.settlements.values()) {
+            sb.append(other.id.equals(s.id) ? " MINE" : " other")
+              .append("{c=").append(other.center)
+              .append(" r=").append(other.radius)
+              .append(" d=").append(String.format("%.1f",
+                    Math.sqrt(other.center.distSqr(bedAbs))))
+              .append(" holds=").append(other.inside(bedAbs))
+              .append(" blds=").append(other.buildings.size()).append("}");
+        }
+        for (com.hearthstead.settlement.Building b : s.buildings) {
+            sb.append(" [valid=").append(b.valid)
+              .append(" beds=").append(b.beds.size())
+              .append(" doors=").append(b.doorCount)
+              .append(" lights=").append(b.lightSources)
+              .append(" lastVal=").append(b.lastValidatedGameTime).append("]");
+            com.hearthstead.settlement.RoomScanner.Result r =
+                com.hearthstead.settlement.RoomScanner.scan(helper.getLevel(), b.anchor);
+            sb.append(r == null ? " rescan=null-seed"
+                : " rescan(enc=" + r.enclosed() + " sky=" + r.skyLeak()
+                    + " beds=" + r.beds().size() + " doors=" + r.doors()
+                    + " lights=" + r.lights() + " vol=" + r.volume() + ")");
+        }
+        sb.append(" gameTime=").append(helper.getLevel().getGameTime())
+          .append(" dayTime=").append(helper.getLevel().getDayTime())
+          .append(" energy=").append(settler.getEnergy());
+        return sb.toString();
+    }
+
+    /**
+     * Regression lock: a room that fails its scan must be re-checked, not
+     * written off. The hut is scanned while it is still dark, then lit — with
+     * no further scan request — and must register on a retry. (Placing the
+     * torch through the helper fires no block event, so only the retry path
+     * can save it.) Guards the class of bug where a single unlucky scan left
+     * a finished house permanently unregistered.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 900)
+    public void unlitRoomRegistersOnceLit(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        BlockPos torchRel = hutOrigin.offset(1, 2, 1);
+        helper.setBlock(torchRel, Blocks.AIR);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+
+        final boolean[] lit = {false};
+        helper.succeedWhen(() -> {
+            if (!lit[0]) {
+                helper.assertTrue(s.validHomeCount() == 0,
+                    "a dark room must not register as a home");
+                helper.setBlock(torchRel, Blocks.TORCH);
+                lit[0] = true;
+                helper.fail("waiting for the retry scan to notice the light");
+            }
+            helper.assertTrue(s.validHomeCount() == 1,
+                "lighting the room must register it on a retry, got "
+                    + s.validHomeCount());
+        });
+    }
+
+    /**
+     * Regression lock: roofs are judged geometrically, so anything with a
+     * collision shape roofs a room. A glass roof is a real build people make;
+     * it also proves the check does not consult the light engine.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void glassRoofCountsAsRoofed(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        for (int x = 0; x <= 4; x++) {
+            for (int z = 0; z <= 4; z++) {
+                helper.setBlock(hutOrigin.offset(x, 4, z), Blocks.GLASS);
+            }
+        }
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.succeedWhen(() -> helper.assertTrue(s.validHomeCount() == 1,
+            "a glass-roofed room is roofed, got " + s.validHomeCount()));
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "night")
+    public void settlerSleepsInClaimedBed(GameTestHelper helper) {
+        helper.getLevel().setDayTime(16000); // deep night: REST phase
+        buildArena(helper, 16, 16);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        Settlement s = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+        SettlerEntity settler = boundSettler(helper, s, new BlockPos(4, 1, 3));
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(settler.getClaimedBed() != null,
+                "settler should claim the bed (act=" + settler.getActivity()
+                    + " " + homeDiag(helper, s, settler) + ")");
+            helper.assertTrue(settler.isSleeping(),
+                "settler should sleep in the bed (act=" + settler.getActivity()
+                    + " pos=" + settler.blockPosition()
+                    + " " + homeDiag(helper, s, settler) + ")");
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 600)
+    public void homeInvalidatedWhenWallBroken(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+
+        final boolean[] broke = {false};
+        helper.succeedWhen(() -> {
+            if (!broke[0]) {
+                helper.assertTrue(s.validHomeCount() == 1, "waiting for registration");
+                // Tear a hole in the roof, then poke the manager the same way
+                // the block-break event does.
+                helper.setBlock(hutOrigin.offset(2, 4, 2), Blocks.AIR);
+                // Exactly what a block change does in play: tell the plaques
+                // near enough to care.
+                data.buildingManager.nudgeNear(helper.getLevel(),
+                    helper.absolutePos(hutOrigin.offset(2, 4, 2)));
+                broke[0] = true;
+                helper.assertTrue(false, "hole torn, waiting for invalidation");
+            }
+            helper.assertTrue(s.validHomeCount() == 0,
+                "home should invalidate after roof breach, homes="
+                    + s.validHomeCount());
+            helper.assertTrue(s.capacity() == 3,
+                "capacity should fall back to founders, got " + s.capacity());
         });
     }
 }

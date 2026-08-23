@@ -1,0 +1,1 @@
+behavior analysis clean: 28 samples, 6 settlers, 0 findings

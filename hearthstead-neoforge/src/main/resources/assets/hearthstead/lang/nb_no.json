@@ -1,10 +1,8 @@
 {
   "itemGroup.hearthstead": "Hearthstead",
-
   "block.hearthstead.hearth": "Bosetningsarne",
   "item.hearthstead.hearth.tooltip1": "Plasser for å grunnlegge en bosetning",
   "item.hearthstead.hearth.tooltip2": "Tre nybyggere vil samles ved ilden",
-
   "item.hearthstead.writ_farmer": "Bondebrev",
   "item.hearthstead.writ_lumberer": "Tømmerhoggerbrev",
   "item.hearthstead.writ_guard": "Vaktbrev",
@@ -14,16 +12,12 @@
   "item.hearthstead.handbook": "Nybyggerens håndbok",
   "item.hearthstead.handbook.tooltip": "En kort veiledning i å grunnlegge og stelle en bosetning",
   "item.hearthstead.settler_spawn_egg": "Nybygger-spawnegg",
-
   "entity.hearthstead.settler": "Nybygger",
-
   "container.hearthstead.hearth": "Bosetningsarne",
-
   "hearthstead.profession.none": "Uten yrke",
   "hearthstead.profession.farmer": "Bonde",
   "hearthstead.profession.lumberer": "Tømmerhogger",
   "hearthstead.profession.guard": "Vakt",
-
   "hearthstead.activity.idle": "Slaraffenliv",
   "hearthstead.activity.work_farm": "Steller åkeren",
   "hearthstead.activity.work_chop": "Feller tømmer",
@@ -34,12 +28,10 @@
   "hearthstead.activity.fleeing": "Flykter",
   "hearthstead.activity.traveling": "På vandring",
   "hearthstead.activity.celebrating": "Feirer",
-
   "hearthstead.morale.miserable": "Elendig",
   "hearthstead.morale.uneasy": "Urolig",
   "hearthstead.morale.content": "Tilfreds",
   "hearthstead.morale.joyful": "Lykkelig",
-
   "hearthstead.gui.stores": "Felleslager",
   "hearthstead.gui.morale": "Moral",
   "hearthstead.gui.alert": "⚠ Bosetningen er truet!",
@@ -47,7 +39,6 @@
   "hearthstead.gui.doing": "Nå: %s",
   "hearthstead.gui.hunger": "Sult",
   "hearthstead.gui.energy": "Energi",
-
   "hearthstead.gui.tooltip.population": "Befolkning",
   "hearthstead.gui.tooltip.population.desc": "Nybyggere som bor her, av plassene arnen kan varme",
   "hearthstead.gui.tooltip.employed": "I arbeid",
@@ -59,7 +50,6 @@
   "hearthstead.gui.tooltip.morale": "Moral",
   "hearthstead.gui.tooltip.morale.desc": "Mette og uthvilte nybyggere trives. God moral lokker nykommere.",
   "hearthstead.gui.tooltip.recruit": "En vandrer er %s %% på vei til å slutte seg til",
-
   "hearthstead.message.founded": "Bosetningen %s er grunnlagt!",
   "hearthstead.message.disbanded": "Arnen i %s har sloknet. Bosetningen oppløses.",
   "hearthstead.message.recruited": "%s har sluttet seg til %s!",
@@ -70,14 +60,12 @@
   "hearthstead.message.writ_cleared": "%s er fritatt fra tjeneste",
   "hearthstead.message.writ_already": "%s tjener allerede som %s",
   "hearthstead.message.writ_assigned": "%s tjener nå som %s",
-
   "hearthstead.command.player_only": "Bare en spiller kan motta demo-utstyret",
   "hearthstead.command.demo_given": "Hearthstead-demoutstyr utdelt: arne, yrkesbrev, brød, frø og håndbok.",
   "hearthstead.command.demo_hint": "Plasser arnen på åpen mark, og les håndboken.",
   "hearthstead.command.no_settlement": "Ingen bosetning er grunnlagt i denne verdenen ennå",
   "hearthstead.command.info": "%s — befolkning %s/%s, i arbeid %s, mat %s, moral %s, radius %s",
   "hearthstead.command.recruit_forced": "Rekrutteringstiden er fremskyndet",
-
   "hearthstead.guide.title": "Nybyggerens håndbok",
   "hearthstead.guide.page1.title": "Grunnleggelse",
   "hearthstead.guide.page1.body": "Lag en bosetningsarne av tømmerstokker, brostein og et leirbål. Plasser den på åpen mark og hold området trygt. Om kort tid samles tre nybyggere ved ilden — bosetningen din er født, med eget navn og en arbeidsradius rundt arnen.",
@@ -91,12 +79,15 @@
   "hearthstead.guide.page5.body": "Når et monster angriper, ringer alarmklokken. Sivile løper mot arnen mens vaktene trekker stål og jager trusselen. Nybyggere kan dø — hold vakter i tjeneste og nettene opplyst, så sørger bosetningen sjeldnere.",
   "hearthstead.guide.page6.title": "Vekst",
   "hearthstead.guide.page6.body": "En velforsynt bosetning får ord på seg. Hold minst 8 mat i lageret og moralen tilfreds eller bedre, så dukker en vandrer opp i utkanten av landet ditt og går mot arnen for å slutte seg til. Vekst koster litt mat — en billig pris for nye hender.",
-
   "subtitles.hearthstead.settlement_founded": "Bosetning grunnlagt",
   "subtitles.hearthstead.profession_assigned": "Brev beseglet",
   "subtitles.hearthstead.settler_recruited": "Nybygger slutter seg til",
   "subtitles.hearthstead.farmer_work": "Åkeren rasler",
   "subtitles.hearthstead.chop": "Øks hogger i tre",
   "subtitles.hearthstead.guard_alert": "Alarmklokken ringer",
-  "subtitles.hearthstead.settler_hm": "Nybygger nynner"
+  "subtitles.hearthstead.settler_hm": "Nybygger nynner",
+  "hearthstead.message.home_registered": "Et hjem er registrert i %s (%s seng(er), kvalitet %s)",
+  "hearthstead.message.home_lost": "Et hjem i %s er ikke lenger beboelig — sengene står kalde",
+  "hearthstead.command.info_homes": "Hjem: %s registrert, %s senger",
+  "hearthstead.command.scan_queued": "Romskann satt i kø ved %s %s %s"
 }

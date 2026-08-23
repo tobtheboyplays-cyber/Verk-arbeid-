@@ -1,0 +1,331 @@
+#!/usr/bin/env bash
+# Hearthstead QA controller — the only approved entry point for testing.
+# See qa/PROTOCOL.md (PROTOCOL_VERSION 1.0.0).
+set -u
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MOD="$REPO/hearthstead-neoforge"
+QA="$REPO/qa"
+REPORTS="$QA/reports"
+ARTIFACTS="$REPORTS/artifacts"
+PROTOCOL_VERSION="1.0.0"
+mkdir -p "$REPORTS" "$ARTIFACTS"
+export HSQA_ACTIVE=1   # lets the pre-tool hook distinguish controller runs
+
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_DIR="$ARTIFACTS/$TS"
+
+fingerprint() {
+    { find "$MOD/src" "$MOD/tools" -type f 2>/dev/null | sort | xargs sha256sum 2>/dev/null
+      sha256sum "$MOD/build.gradle" "$MOD/gradle.properties" "$MOD/settings.gradle" \
+                "$QA/PROTOCOL.md" 2>/dev/null
+    } | sha256sum | cut -d' ' -f1
+}
+
+git_state() {
+    git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown
+}
+
+dirty_hash() {
+    git -C "$REPO" status --porcelain 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
+json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
+declare -A SUITE_STATUS
+declare -A SUITE_NOTE
+
+record() { # suite status note
+    SUITE_STATUS["$1"]="$2"
+    SUITE_NOTE["$1"]="${3:-}"
+    echo "[$1] $2 ${3:-}"
+}
+
+write_manifest() { # overall
+    local overall="$1"
+    local fp; fp="$(fingerprint)"
+    local prev_streak=0
+    if [ -f "$REPORTS/latest.json" ]; then
+        prev_streak=$(python3 -c "
+import json
+try:
+    m=json.load(open('$REPORTS/latest.json'))
+    print(m.get('green_streak',0) if m.get('fingerprint')=='$fp' and m.get('overall')=='PASS' else 0)
+except Exception: print(0)")
+    fi
+    local streak=0
+    [ "$overall" = "PASS" ] && streak=$((prev_streak + 1))
+    python3 - "$overall" "$fp" "$streak" <<PYEOF
+import json, sys, os, subprocess, time
+overall, fp, streak = sys.argv[1], sys.argv[2], int(sys.argv[3])
+suites = {}
+$(for s in "${!SUITE_STATUS[@]}"; do
+    printf 'suites["%s"] = {"status": "%s", "note": %s}\n' \
+        "$s" "${SUITE_STATUS[$s]}" "$(printf '%s' "${SUITE_NOTE[$s]}" | json_escape)"
+done)
+manifest = {
+    "protocol_version": "$PROTOCOL_VERSION",
+    "fingerprint": fp,
+    "git_commit": "$(git_state)",
+    "dirty_hash": "$(dirty_hash)",
+    "minecraft": "1.21.1",
+    "neoforge": "$(grep -oP 'neoforge_version=\K.*' "$MOD/gradle.properties")",
+    "java": "$(java -version 2>&1 | head -1 | tr -d '"')",
+    "mod_version": "$(grep -oP 'mod_version=\K.*' "$MOD/gradle.properties")",
+    "started": "$TS",
+    "finished": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
+    "suites": suites,
+    "overall": overall,
+    "green_streak": streak,
+    "artifacts": "$RUN_DIR",
+}
+os.makedirs("$RUN_DIR", exist_ok=True)
+path = os.path.join("$RUN_DIR", "manifest.json")
+json.dump(manifest, open(path, "w"), indent=2)
+json.dump(manifest, open("$REPORTS/latest.json", "w"), indent=2)
+print("manifest:", path, "overall:", overall, "green_streak:", streak)
+PYEOF
+    if [ "$overall" = "PASS" ]; then rm -f "$REPORTS/.stale"; fi
+}
+
+suite_doctor() {
+    local problems=""
+    java -version 2>&1 | grep -q 'version "21' || problems+="java21-missing "
+    [ -x "$MOD/gradlew" ] || problems+="gradlew-missing "
+    [ -f "$QA/PROTOCOL.md" ] || problems+="protocol-missing "
+    python3 -c "import PIL" 2>/dev/null || problems+="pillow-missing "
+    command -v Xvfb >/dev/null || problems+="xvfb-missing(client-suite-blocked) "
+    if [ -z "$problems" ]; then record doctor PASS "toolchain ok"
+    else record doctor FAIL "$problems"; return 1; fi
+}
+
+suite_assets() {
+    mkdir -p "$RUN_DIR"
+    if (cd "$MOD" && python3 tools/validate_assets.py --quiet > "$RUN_DIR/assets.log" 2>&1); then
+        record assets PASS "$(tail -1 "$RUN_DIR/assets.log")"
+    else
+        record assets FAIL "$(tail -3 "$RUN_DIR/assets.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_animation() {
+    mkdir -p "$RUN_DIR"
+    if (cd "$MOD/tools" && python3 anim_check.py > "$RUN_DIR/animation.log" 2>&1); then
+        record animation PASS "$(tail -1 "$RUN_DIR/animation.log")"
+    else
+        record animation FAIL "$(tail -3 "$RUN_DIR/animation.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_build() {
+    mkdir -p "$RUN_DIR"
+    if (cd "$MOD" && ./gradlew --quiet clean build > "$RUN_DIR/build.log" 2>&1); then
+        record build PASS "jar: $(ls "$MOD"/build/libs/*.jar 2>/dev/null | head -1)"
+    else
+        record build FAIL "$(grep -m3 -E 'error|FAILURE' "$RUN_DIR/build.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+run_gametests() { # extra JVM props via $1
+    (cd "$MOD" && ./gradlew runGameTestServer > "$RUN_DIR/gametest.log" 2>&1)
+}
+
+suite_gametest() {
+    mkdir -p "$RUN_DIR"
+    run_gametests ""
+    if grep -q "required tests passed" "$RUN_DIR/gametest.log"; then
+        record gametest PASS "$(grep -o 'All [0-9]* required tests passed' "$RUN_DIR/gametest.log" | tail -1)"
+    else
+        local fails; fails=$(grep -c "failed at" "$RUN_DIR/gametest.log" 2>/dev/null || echo "?")
+        grep "failed at" "$RUN_DIR/gametest.log" | head -5 > "$RUN_DIR/gametest-failures.txt"
+        record gametest FAIL "failures=$fails see gametest-failures.txt"; return 1
+    fi
+}
+
+suite_behavior() {
+    mkdir -p "$RUN_DIR"
+    local trace="$RUN_DIR/trace-raw.jsonl"
+    rm -f "$trace"
+    (cd "$MOD" && HSQA_TRACE=1 HSQA_TRACE_FILE="$trace" ./gradlew runGameTestServer \
+        > "$RUN_DIR/behavior.log" 2>&1)
+    if ! grep -q "required tests passed" "$RUN_DIR/behavior.log"; then
+        grep "failed at" "$RUN_DIR/behavior.log" | head -5 > "$RUN_DIR/behavior-failures.txt"
+        record behavior FAIL "gametests failed under trace"; return 1
+    fi
+    if [ ! -s "$trace" ]; then
+        record behavior FAIL "no decision trace produced"; return 1
+    fi
+    cp "$trace" "$RUN_DIR/trace.jsonl"
+    if python3 "$QA/scripts/analyze_trace.py" "$RUN_DIR/trace.jsonl" \
+        > "$RUN_DIR/behavior-analysis.txt" 2>&1; then
+        record behavior PASS "$(tail -1 "$RUN_DIR/behavior-analysis.txt")"
+    else
+        record behavior FAIL "$(tail -3 "$RUN_DIR/behavior-analysis.txt" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_dedicated() {
+    mkdir -p "$RUN_DIR"
+    if bash "$QA/scripts/dedicated_e2e.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/dedicated.log" 2>&1; then
+        record dedicated PASS "$(tail -1 "$RUN_DIR/dedicated.log")"
+    else
+        record dedicated FAIL "$(tail -4 "$RUN_DIR/dedicated.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_performance() {
+    mkdir -p "$RUN_DIR"
+    if bash "$QA/scripts/perf_probe.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/performance.log" 2>&1; then
+        record performance PASS "$(tail -1 "$RUN_DIR/performance.log")"
+    else
+        record performance FAIL "$(tail -4 "$RUN_DIR/performance.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_client() {
+    mkdir -p "$RUN_DIR"
+    if ! command -v Xvfb >/dev/null; then
+        record client BLOCKED "Xvfb unavailable; run 'tools/hearthstead-qa client' on a desktop"; return 0
+    fi
+    if bash "$QA/scripts/client_boot.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/client.log" 2>&1; then
+        record client PASS "$(tail -1 "$RUN_DIR/client.log")"
+    else
+        record client FAIL "$(tail -4 "$RUN_DIR/client.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_visual() {
+    mkdir -p "$RUN_DIR"
+    if ls "$RUN_DIR"/screenshot-*.png >/dev/null 2>&1 \
+        || ls "$ARTIFACTS"/*/screenshot-*.png >/dev/null 2>&1; then
+        record visual PASS "screenshots present; inspect them before scoring UI"
+    else
+        record visual BLOCKED "no screenshots captured yet; client suite must produce them, then a human/model must inspect"; return 0
+    fi
+}
+
+cmd_changed() {
+    local base="HEAD"
+    [ -f "$REPORTS/latest.json" ] && base=$(python3 -c "import json;print(json.load(open('$REPORTS/latest.json')).get('git_commit','HEAD'))")
+    { git -C "$REPO" diff --name-only "$base" 2>/dev/null; git -C "$REPO" status --porcelain | awk '{print $2}'; } | sort -u | while read -r f; do
+        [ -z "$f" ] && continue
+        case "$f" in
+            hearthstead-neoforge/src/main/java/com/hearthstead/entity/*|hearthstead-neoforge/src/main/java/com/hearthstead/settlement/*|hearthstead-neoforge/src/main/java/com/hearthstead/event/*) echo "$f -> behavior gametest dedicated";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/client/*) echo "$f -> build client visual animation";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/menu/*) echo "$f -> gametest client visual";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/registry/*|hearthstead-neoforge/build.gradle|hearthstead-neoforge/gradle.properties|hearthstead-neoforge/src/main/resources/META-INF/*|qa/*) echo "$f -> full";;
+            hearthstead-neoforge/src/main/resources/assets/*) echo "$f -> assets animation client visual";;
+            hearthstead-neoforge/src/main/resources/data/*) echo "$f -> assets gametest";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/gametest/*) echo "$f -> gametest";;
+            hearthstead-neoforge/*) echo "$f -> gametest";;
+        esac
+    done
+}
+
+cmd_gate() {
+    local fp; fp="$(fingerprint)"
+    # Documented-blocker escape: qa/reports/BLOCKED must contain the failing
+    # command, error evidence, work completed and the exact resume action.
+    # It permits stopping with an honest "NOT READY — BLOCKED" only; it is
+    # deleted by the next full run so it cannot linger past the blocker.
+    if [ -s "$REPORTS/BLOCKED" ]; then
+        echo "GATE: BLOCKED — external blocker documented in qa/reports/BLOCKED."
+        echo "Completion status is NOT READY — BLOCKED (never PASS). Contents:"
+        sed 's/^/  | /' "$REPORTS/BLOCKED"
+        return 0
+    fi
+    if [ -f "$REPORTS/.stale" ] && [ ! -f "$REPORTS/latest.json" ]; then
+        echo "GATE: FAIL — QA marked stale and no manifest exists. Run: tools/hearthstead-qa full"; return 2
+    fi
+    if [ ! -f "$REPORTS/latest.json" ]; then
+        if [ -f "$REPORTS/.stale" ]; then
+            echo "GATE: FAIL — stale, no manifest. Run: tools/hearthstead-qa full"; return 2
+        fi
+        echo "GATE: PASS (no Hearthstead QA state and no Hearthstead edits this session)"; return 0
+    fi
+    python3 - "$fp" <<'PYEOF'
+import json, sys, os
+fp = sys.argv[1]
+m = json.load(open(os.path.join(os.environ["HSQA_REPORTS"], "latest.json")))
+problems = []
+if m.get("fingerprint") != fp:
+    problems.append("STALE: source changed since last QA run")
+if m.get("protocol_version") != os.environ["HSQA_PROTO"]:
+    problems.append("protocol version mismatch")
+if m.get("overall") != "PASS":
+    problems.append("last run overall=" + str(m.get("overall")))
+for name, s in m.get("suites", {}).items():
+    if s.get("status") == "FAIL":
+        problems.append(f"suite {name} FAIL: {s.get('note','')[:120]}")
+if problems:
+    print("GATE: FAIL")
+    for p in problems: print(" -", p)
+    print("Next: tools/hearthstead-qa full")
+    sys.exit(2)
+streak = m.get("green_streak", 0)
+print(f"GATE: PASS (green_streak={streak})")
+if streak < 2:
+    print("NOTE: completion claims need green_streak >= 2 "
+          "(run tools/hearthstead-qa full again with no changes)")
+PYEOF
+    local rc=$?
+    if [ -f "$REPORTS/.stale" ] && [ $rc -eq 0 ]; then
+        echo "GATE: FAIL — post-edit hook marked QA stale after the last run. Run: tools/hearthstead-qa full"
+        return 2
+    fi
+    return $rc
+}
+
+cmd_status() {
+    [ -f "$REPORTS/latest.json" ] || { echo "no QA runs recorded"; return 0; }
+    python3 -m json.tool "$REPORTS/latest.json"
+}
+
+cmd_reproduce() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "usage: hearthstead-qa reproduce <failure-id>"; return 1; }
+    local hit
+    hit=$(grep -rl "$id" "$ARTIFACTS" 2>/dev/null | head -1)
+    [ -n "$hit" ] || { echo "failure id $id not found in $ARTIFACTS"; return 1; }
+    echo "failure $id recorded in: $hit"
+    sed -n "/$id/,+8p" "$hit"
+    echo "--- re-running originating suite (behavior) ---"
+    suite_behavior
+}
+
+export HSQA_REPORTS="$REPORTS" HSQA_PROTO="$PROTOCOL_VERSION"
+
+case "${1:-help}" in
+    # Every single-suite command must EXIT NON-ZERO on failure: a caller that
+    # checks $? (CI, a wrapper script, a human) must never read a red suite as
+    # success just because the manifest write succeeded.
+    doctor)      suite_doctor; s="${SUITE_STATUS[doctor]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
+    changed)     cmd_changed;;
+    validate)    suite_assets;;
+    animation)   suite_animation;;
+    gametest)    suite_gametest; s="${SUITE_STATUS[gametest]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
+    behavior)    suite_behavior; s="${SUITE_STATUS[behavior]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
+    dedicated)   suite_dedicated; s="${SUITE_STATUS[dedicated]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
+    performance) suite_performance; s="${SUITE_STATUS[performance]}"; write_manifest "$([ "$s" = PASS ] && echo PASS || echo FAIL)"; [ "$s" = PASS ];;
+    client)      suite_client; s="${SUITE_STATUS[client]}"; write_manifest "$([ "$s" != FAIL ] && echo PASS || echo FAIL)"; [ "$s" != FAIL ];;
+    visual)      suite_visual; s="${SUITE_STATUS[visual]}"; write_manifest "$([ "$s" != FAIL ] && echo PASS || echo FAIL)"; [ "$s" != FAIL ];;
+    full)
+        rm -f "$REPORTS/BLOCKED"   # a full run supersedes any documented blocker
+        overall=PASS
+        suite_doctor      || overall=FAIL
+        suite_assets      || overall=FAIL
+        suite_animation   || overall=FAIL
+        suite_build       || overall=FAIL
+        suite_gametest    || overall=FAIL
+        suite_behavior    || overall=FAIL
+        suite_dedicated   || overall=FAIL
+        suite_performance || overall=FAIL
+        suite_client      || overall=FAIL
+        suite_visual      || true   # BLOCKED allowed, FAIL not
+        [ "${SUITE_STATUS[visual]}" = FAIL ] && overall=FAIL
+        write_manifest "$overall"
+        [ "$overall" = PASS ];;
+    gate)        cmd_gate;;
+    status)      cmd_status;;
+    reproduce)   shift; cmd_reproduce "${1:-}";;
+    *) sed -n '1,3p' "$0"; echo "commands: doctor changed validate animation gametest behavior dedicated performance client visual full gate status reproduce";;
+esac

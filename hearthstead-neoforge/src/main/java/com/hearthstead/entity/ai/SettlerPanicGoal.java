@@ -37,6 +37,9 @@ public class SettlerPanicGoal extends Goal {
 
     @Override
     public void start() {
+        if (settler.isSleeping()) {
+            settler.stopSleeping();
+        }
         BlockPos hearth = settler.getHearthPos();
         settler.getNavigation().moveTo(hearth.getX() + 0.5, hearth.getY() + 1,
             hearth.getZ() + 0.5, 1.25);

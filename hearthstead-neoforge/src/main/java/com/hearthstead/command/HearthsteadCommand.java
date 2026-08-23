@@ -20,7 +20,13 @@ public final class HearthsteadCommand {
             .then(Commands.literal("demo").executes(ctx -> demo(ctx.getSource())))
             .then(Commands.literal("info").executes(ctx -> info(ctx.getSource())))
             .then(Commands.literal("recruit").requires(src -> src.hasPermission(2))
-                .executes(ctx -> recruit(ctx.getSource()))));
+                .executes(ctx -> recruit(ctx.getSource())))
+            .then(Commands.literal("scan").requires(src -> src.hasPermission(2))
+                .then(Commands.argument("pos",
+                        net.minecraft.commands.arguments.coordinates.BlockPosArgument.blockPos())
+                    .executes(ctx -> scan(ctx.getSource(),
+                        net.minecraft.commands.arguments.coordinates.BlockPosArgument
+                            .getLoadedBlockPos(ctx, "pos"))))));
     }
 
     /** Everything needed to try the whole loop in five minutes. */
@@ -74,6 +80,24 @@ public final class HearthsteadCommand {
         source.sendSuccess(() -> Component.translatable("hearthstead.command.info",
             s.name, s.population(), s.capacity(), s.employed(), s.foodCache,
             s.moraleCache, s.radius), false);
+        source.sendSuccess(() -> Component.translatable("hearthstead.command.info_homes",
+            s.validHomeCount(), s.validBedCount()), false);
+        return 1;
+    }
+
+    /** Re-surveys the plaque at a position — the admin/testing hook. */
+    private static int scan(CommandSourceStack source, net.minecraft.core.BlockPos pos) {
+        ServerLevel level = source.getLevel();
+        if (!(level.getBlockEntity(pos)
+            instanceof com.hearthstead.block.PlaqueBlockEntity plaque)) {
+            source.sendFailure(Component.translatable("hearthstead.command.no_plaque",
+                pos.getX(), pos.getY(), pos.getZ()));
+            return 0;
+        }
+        plaque.survey(level);
+        source.sendSuccess(() -> Component.translatable("hearthstead.command.scan_done",
+            plaque.type().displayName(),
+            Component.translatable("hearthstead.plaque.state." + plaque.state().id())), true);
         return 1;
     }
 

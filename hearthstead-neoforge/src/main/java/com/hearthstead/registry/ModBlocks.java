@@ -2,6 +2,7 @@ package com.hearthstead.registry;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlock;
+import com.hearthstead.block.PlaqueBlock;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -23,6 +24,19 @@ public final class ModBlocks {
             .sound(SoundType.STONE)
             .lightLevel(state -> 13)
             .noOcclusion()));
+
+    public static final DeferredHolder<Block, PlaqueBlock> PLAQUE = BLOCKS.register("plaque",
+        () -> new PlaqueBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.WOOD)
+            .strength(1.5F)
+            .sound(SoundType.WOOD)
+            // The plaque's own glow is its status light, not a lamp: bright
+            // enough to read across a square, too dim to light a room (which
+            // would let a plaque satisfy its own light requirement).
+            .lightLevel(state -> state.getValue(PlaqueBlock.GLOW)
+                == PlaqueBlock.Glow.GREEN ? 5 : 3)
+            .noOcclusion()
+            .noCollission()));
 
     public static void register(IEventBus bus) {
         BLOCKS.register(bus);

@@ -1,0 +1,1 @@
+[19:02:35] [Server thread/ERROR] [minecraft/LogTestReporter]: settlersleepsinclaimedbed failed at -184601, -60, -8081450! settler should claim the bed (act=RESTING homes=0 buildings=0 gameTime=1046 dayTime=16901 energy=100.0)

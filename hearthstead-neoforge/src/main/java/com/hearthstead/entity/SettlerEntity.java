@@ -45,6 +45,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
 import net.minecraft.world.entity.ai.goal.LookAtPlayerGoal;
+import net.minecraft.world.entity.ai.goal.OpenDoorGoal;
 import net.minecraft.world.entity.ai.goal.RandomLookAroundGoal;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.entity.monster.Enemy;
@@ -79,6 +80,8 @@ public class SettlerEntity extends PathfinderMob {
     private UUID targetSettlementId;
     @Nullable
     private BlockPos hearthPos;
+    @Nullable
+    private BlockPos claimedBed;
     private boolean traveler;
     public final SimpleContainer bag = new SimpleContainer(BAG_SIZE);
     private int voiceCooldown;
@@ -123,6 +126,9 @@ public class SettlerEntity extends PathfinderMob {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
+        // Flag-free: runs alongside any move goal, opens doors on the path
+        // and closes them again behind (keeps homes enclosed and defensible).
+        goalSelector.addGoal(1, new OpenDoorGoal(this, true));
         goalSelector.addGoal(1, new SettlerPanicGoal(this));
         goalSelector.addGoal(2, new TravelerJoinGoal(this));
         goalSelector.addGoal(2, new GuardMeleeGoal(this));
@@ -205,6 +211,22 @@ public class SettlerEntity extends PathfinderMob {
         return hearthPos;
     }
 
+    @Nullable
+    public BlockPos getClaimedBed() {
+        return claimedBed;
+    }
+
+    public void claimBed(@Nullable BlockPos bed) {
+        this.claimedBed = bed;
+    }
+
+    public void releaseBed() {
+        if (isSleeping()) {
+            stopSleeping();
+        }
+        this.claimedBed = null;
+    }
+
     public String getSettlerName() {
         Component custom = getCustomName();
         return custom != null ? custom.getString() : "Settler";
@@ -231,6 +253,7 @@ public class SettlerEntity extends PathfinderMob {
     }
 
     public void unbind() {
+        releaseBed();
         this.settlementId = null;
         this.targetSettlementId = null;
         this.hearthPos = null;
@@ -326,6 +349,11 @@ public class SettlerEntity extends PathfinderMob {
             target += 5;
         }
         Settlement s = settlement();
+        if (s != null) {
+            int homeQuality = com.hearthstead.settlement.BuildingManager
+                .homeQualityFor(s, claimedBed);
+            target += claimedBed != null ? 5 + homeQuality : -5;
+        }
         if (s != null && s.alertActive(level().getGameTime())) {
             target -= 20;
         }
@@ -352,6 +380,7 @@ public class SettlerEntity extends PathfinderMob {
         if (!level().isClientSide) {
             if (tickCount % 20 == 0) {
                 tickNeeds();
+                com.hearthstead.util.QaTrace.record(this);
             }
             if (voiceCooldown > 0) {
                 voiceCooldown--;
@@ -369,7 +398,8 @@ public class SettlerEntity extends PathfinderMob {
         farmState.animateWhen(activity == SettlerActivity.WORK_FARM && !moving, tickCount);
         chopState.animateWhen(activity == SettlerActivity.WORK_CHOP && !moving, tickCount);
         eatState.animateWhen(activity == SettlerActivity.EATING, tickCount);
-        restState.animateWhen(activity == SettlerActivity.RESTING, tickCount);
+        restState.animateWhen(activity == SettlerActivity.RESTING && !isSleeping(),
+            tickCount);
         stanceState.animateWhen((activity == SettlerActivity.PATROLLING
             || activity == SettlerActivity.COMBAT) && !moving, tickCount);
 
@@ -474,6 +504,9 @@ public class SettlerEntity extends PathfinderMob {
         if (hearthPos != null) {
             tag.put("HearthPos", NbtUtils.writeBlockPos(hearthPos));
         }
+        if (claimedBed != null) {
+            tag.put("ClaimedBed", NbtUtils.writeBlockPos(claimedBed));
+        }
         tag.put("Bag", bag.createTag(registryAccess()));
     }
 
@@ -490,6 +523,7 @@ public class SettlerEntity extends PathfinderMob {
         targetSettlementId = tag.hasUUID("TargetSettlementId")
             ? tag.getUUID("TargetSettlementId") : null;
         hearthPos = NbtUtils.readBlockPos(tag, "HearthPos").orElse(null);
+        claimedBed = NbtUtils.readBlockPos(tag, "ClaimedBed").orElse(null);
         bag.fromTag(tag.getList("Bag", 10), registryAccess());
     }
 

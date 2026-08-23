@@ -1,0 +1,2 @@
+[19:34:06] [Server thread/ERROR] [minecraft/LogTestReporter]: leakyroomrejected failed at 12849622, -60, -12728434! leaky room must not register, got 1 scan=(enc=true sky=false vol=1856 valid=true) columnAboveHole: y3=Air y4=Air y5=Air y6=Air y7=Air y8=Air y9=Barrier
+[19:34:06] [Server thread/ERROR] [minecraft/LogTestReporter]: homeinvalidatedwhenwallbroken failed at 12849674, -60, -12728434! home should invalidate after roof breach, homes=1

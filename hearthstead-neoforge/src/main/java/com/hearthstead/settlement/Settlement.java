@@ -25,6 +25,8 @@ public class Settlement {
     public BlockPos center;
     public int radius = DEFAULT_RADIUS;
     public final List<SettlerRecord> settlers = new ArrayList<>();
+    /** Automatically detected buildings (homes first; more types later). */
+    public final List<Building> buildings = new ArrayList<>();
 
     public int recruitProgress;
     public int recruitTarget;
@@ -45,8 +47,29 @@ public class Settlement {
         this.center = center;
     }
 
+    /** Three founders shelter at the hearth; growth beyond that needs beds. */
     public int capacity() {
-        return BASE_CAPACITY;
+        return 3 + validBedCount();
+    }
+
+    public int validBedCount() {
+        int beds = 0;
+        for (Building b : buildings) {
+            if (b.valid && b.type.housesResidents()) {
+                beds += b.beds.size();
+            }
+        }
+        return beds;
+    }
+
+    public int validHomeCount() {
+        int homes = 0;
+        for (Building b : buildings) {
+            if (b.valid && b.type.housesResidents()) {
+                homes++;
+            }
+        }
+        return homes;
     }
 
     public int population() {
@@ -120,6 +143,11 @@ public class Settlement {
             list.add(rt);
         }
         tag.put("Settlers", list);
+        ListTag buildingList = new ListTag();
+        for (Building b : buildings) {
+            buildingList.add(b.writeNbt());
+        }
+        tag.put("Buildings", buildingList);
         return tag;
     }
 
@@ -145,6 +173,10 @@ public class Settlement {
             CompoundTag rt = list.getCompound(i);
             s.settlers.add(new SettlerRecord(rt.getUUID("EntityId"), rt.getString("Name"),
                 Profession.byId(rt.getByte("Profession"))));
+        }
+        ListTag buildingList = tag.getList("Buildings", Tag.TAG_COMPOUND);
+        for (int i = 0; i < buildingList.size(); i++) {
+            s.buildings.add(Building.readNbt(buildingList.getCompound(i)));
         }
         return s;
     }

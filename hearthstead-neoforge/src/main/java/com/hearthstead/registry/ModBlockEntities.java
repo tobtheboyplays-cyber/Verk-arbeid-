@@ -2,6 +2,7 @@ package com.hearthstead.registry;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.block.PlaqueBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.bus.api.IEventBus;
@@ -15,6 +16,11 @@ public final class ModBlockEntities {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<HearthBlockEntity>>
         HEARTH = BLOCK_ENTITIES.register("hearth",
             () -> BlockEntityType.Builder.of(HearthBlockEntity::new, ModBlocks.HEARTH.get())
+                .build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PlaqueBlockEntity>>
+        PLAQUE = BLOCK_ENTITIES.register("plaque",
+            () -> BlockEntityType.Builder.of(PlaqueBlockEntity::new, ModBlocks.PLAQUE.get())
                 .build(null));
 
     public static void register(IEventBus bus) {

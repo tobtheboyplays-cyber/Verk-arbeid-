@@ -34,6 +34,14 @@ PALETTES = {
     "straw":     ["#7d6222", "#9c7d2c", "#b89536", "#cfab45", "#e0be5c"],
     "parchment": ["#a8946a", "#c2ad7f", "#d6c294", "#e5d3a8", "#efe0bd"],
     "ink":       ["#241c12", "#3f3024", "#54432f", "#69573c", "#7d6a4a"],
+    # --- carved-oak / iron / brass UI set (building plaque + dark screens) ---
+    "oak_carved":  ["#241a0e", "#3a2a18", "#4a3421", "#5a4229", "#6b5137"],
+    "iron_forged": ["#1c1c20", "#2b2b30", "#3b3b42", "#48484f", "#55555c"],
+    "brass":       ["#5c4715", "#8a6c22", "#b8912f", "#c6a043", "#d4af5a"],
+    "charcoal":    ["#121212", "#1a1a1a", "#1e1e1e", "#242424", "#2e2e2e"],
+    "bone":        ["#6f6a5e", "#8a8578", "#a8a294", "#c8c0ae", "#e8e0d0"],
+    "emerald":     ["#22401e", "#33612e", "#458440", "#5fa860", "#84c184"],
+    "crimson":     ["#3d1512", "#5c211b", "#8a3a35", "#c0392b", "#d9584a"],
 }
 
 

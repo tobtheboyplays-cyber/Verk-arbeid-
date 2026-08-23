@@ -1,0 +1,50 @@
+# Default playtest. quickPlay drops us straight into the world with NO screen
+# open, so an Escape here would OPEN the pause menu, not dismiss one.
+# Directives: wait N | key K | type T | cmd C | scmd C | click [left|right] | move dx dy | shot NAME
+wait 5
+shot playtest-01-inworld
+
+# Clear conditions so the screenshots show the art rather than mud and rain.
+scmd gamemode creative @a
+scmd time set 1000
+scmd weather clear
+scmd gamerule doDaylightCycle false
+wait 3
+shot playtest-02-daylight
+
+# The mod's own starter kit: hearth, writs, handbook, settler eggs.
+cmd hearthstead demo
+wait 3
+key 1
+wait 1
+shot playtest-03-hotbar
+
+# Look slightly down at the ground, then place the hearth to found a village.
+move 0 120
+wait 2
+click right
+wait 12
+shot playtest-04-settlement
+
+# Settlers spawn at the hearth: pan across them.
+move 200 -60
+wait 3
+shot playtest-05-settlers-right
+move -400 0
+wait 3
+shot playtest-06-settlers-left
+move 200 0
+wait 2
+
+# The settlement report, then the handbook UI (the premium-UI gate reads these).
+cmd hearthstead info
+wait 3
+shot playtest-07-info
+key 5
+wait 1
+click right
+wait 4
+shot playtest-08-handbook-ui
+key Escape
+wait 2
+shot playtest-09-back-in-world
