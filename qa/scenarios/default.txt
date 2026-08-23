@@ -34,17 +34,19 @@ shot after-key
 expect_pixel_change before-key after-key 2.0 lower-third
 shot playtest-03-hotbar
 
-# --- INPUT CLASS 3/4: click. Look down, right-click to place the hearth,
-# then have the server itself confirm the block landed (AC-2). Exactly where
-# the crosshair lands depends on pitch/FOV math we don't want to hand-derive,
-# so instead of guessing a relative cell, count hearth blocks in a generous
-# reach-distance box around the player's own position — deterministic and
-# non-destructive (fill replaces hearth with itself, a no-op where it
-# matches), correct regardless of the exact placement cell.
-# 400 (not a smaller value) is deliberate: proven live that small relative
-# mouse deltas can round to near-zero rotation change under non-raw input.
-move 0 400
-wait 2
+# --- INPUT CLASS 3/4: click. Aim down and right-click to place the hearth,
+# then have the server itself confirm the block landed (AC-2). The input
+# class under test here is the BUTTON PRESS, proven live to be 100%
+# reliable (it reliably broke a known test block) independent of the mouse
+# camera-look reliability problem documented in the `move`/`look` handlers —
+# so the aim itself is set deterministically via console `tp <player> ~ ~ ~
+# <yaw> <pitch>` rather than through synthetic mouse motion, isolating this
+# check to what it actually tests. Exactly where the crosshair then lands is
+# still not hand-derived: count hearth blocks in a generous reach-distance
+# box around the player's own position — deterministic and non-destructive
+# (fill replaces hearth with itself, a no-op where it matches).
+scmd tp $PLAYER ~ ~ ~ 0 60
+wait 1
 click right
 wait 2
 scmd data get entity $PLAYER Pos

@@ -230,6 +230,16 @@ shot() { # <name>
 
 shot playtest-00-title
 
+# GLFW does not grab the mouse for relative look until the FIRST real click
+# into the window — proven live: `look`/`move` silently produce zero
+# rotation change before any click has happened, on every attempt, and
+# start working immediately after one. quickPlay drops the player straight
+# into the world with no menu to click through, so nothing else establishes
+# this grab. One harmless click here (empty air, before any scenario
+# directive) means every scenario's look/move directives actually work
+# regardless of what order it does things in.
+focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+
 while read -r verb rest; do
     rest="${rest//\$PLAYER/$PLAYER}"
     case "${verb:-}" in
@@ -240,11 +250,34 @@ while read -r verb rest; do
         cmd)   focus
                xdotool key --clearmodifiers t; sleep 1
                xdotool type --delay 35 -- "/$rest"; sleep 1
-               xdotool key --clearmodifiers Return; sleep 2;;
+               xdotool key --clearmodifiers Return; sleep 2
+               # Opening chat releases the mouse grab (needed so chat text
+               # can be clicked/selected); closing it does not reliably
+               # re-establish relative-look capture on its own — proven
+               # live: a `move`/`look` right after a `cmd` silently produced
+               # zero rotation change until an explicit click. A harmless
+               # left-click on empty space restores it so every later
+               # move/look/click directive keeps working regardless of how
+               # many chat commands ran before it.
+               focus; xdotool mousemove 640 360; xdotool click 1; sleep 1;;
         click) focus
                xdotool mousemove 640 360
                xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2;;
-        move)  focus; xdotool mousemove_relative -- $rest; sleep 1;;
+        move)  focus
+               # A prior grab-establishing click does not reliably survive
+               # to a LATER `move` several directives on — proven live,
+               # exact cause not fully isolated (not simply "any key press"
+               # or "any chat", since some sequences of those did survive
+               # while others with an apparently identical shape did not).
+               # Belt and braces: click-then-send TWICE. Harmless in
+               # creative (at worst breaks a grass block, and a second
+               # identical relative send just doubles an already-adequate
+               # rotation change), and empirically far more reliable than
+               # either a single click or a single send alone.
+               xdotool mousemove 640 360; xdotool click 1; sleep 2
+               xdotool mousemove_relative -- $rest; sleep 1
+               xdotool mousemove 640 360; xdotool click 1; sleep 1
+               xdotool mousemove_relative -- $rest; sleep 1;;
         scmd)  scmd "$rest";;
         shot)  sleep 1; shot "$rest"; echo "captured $rest.png";;
 

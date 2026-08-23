@@ -138,6 +138,12 @@ start)
         srv_send "op $PLAYER"
         sleep 2
         check_pass player_joined "$(grep -m1 'joined the game' "$EV_LOGS/live-server.log")"
+        # GLFW does not grab the mouse for relative look until the FIRST
+        # real click into the window (proven live: look/move silently do
+        # nothing before any click, every time). One harmless click here
+        # means every later `look`/`move` invocation across this whole
+        # session actually works, in any order.
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         finish_result PASS
         echo "LIVE: $PLAYER is in the world. Session held open in tmux ($TMUX_SESSION)."
     else
@@ -158,11 +164,26 @@ cmd)    focus; shift
         xdotool key --clearmodifiers t; sleep 1
         xdotool type --delay 30 -- "/$*"; sleep 1
         xdotool key --clearmodifiers Return; sleep 1
+        # Chat releases the mouse grab and closing it doesn't reliably
+        # restore relative-look capture on its own (see playtest.sh) — a
+        # harmless click restores it for subsequent look/move calls.
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         echo "ran as player: /$*";;
 scmd)   shift; srv_send "$*"; echo "ran on server: $*";;
 click)  focus; xdotool mousemove 640 360
         xdotool click "$([ "${2:-left}" = right ] && echo 3 || echo 1)"; echo "clicked ${2:-left}";;
-look)   focus; xdotool mousemove_relative -- "${2:-0}" "${3:-0}"; echo "looked $2 $3";;
+look)   focus
+        # See playtest.sh's `move` handler: a prior grab-click does not
+        # reliably survive to a later `look` several commands on, and even
+        # an immediately-preceding click doesn't always take. Click-then-
+        # send twice: harmless (a second identical relative send just adds
+        # to an already-adequate rotation change) and empirically far more
+        # reliable.
+        xdotool mousemove 640 360; xdotool click 1; sleep 2
+        xdotool mousemove_relative -- "${2:-0}" "${3:-0}"; sleep 1
+        xdotool mousemove 640 360; xdotool click 1; sleep 1
+        xdotool mousemove_relative -- "${2:-0}" "${3:-0}"
+        echo "looked $2 $3";;
 
 film)
     EV_DIR=$(ev_dir_for_session); EV_FILM="$EV_DIR/film"; mkdir -p "$EV_FILM"
