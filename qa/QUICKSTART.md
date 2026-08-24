@@ -13,12 +13,19 @@ approved test entry point — never invoke `gradlew runGameTestServer`,
 | when | command | cost |
 |---|---|---|
 | after any code/asset change | `tools/hearthstead-qa quick` | ~15 s |
-| before claiming a task done | `tools/hearthstead-qa full` (twice, back to back) | ~10–15 min each |
+| before moving on from a feature | `tools/hearthstead-qa fast` | ~50 s |
+| before claiming a task done | `tools/hearthstead-qa full` (twice, back to back) | ~10 min each |
 | to check whether the gate is already satisfied | `tools/hearthstead-qa gate` | instant |
 
 - `quick` = compile + asset validators + animation contract checker + an
   advisory listing which heavier suites your changed files map to. Green
   `quick` is iteration feedback only — it is NEVER completion evidence.
+- `fast` = everything that does not boot a Minecraft **client**: the above
+  plus the full GameTest suite and the decision-trace behaviour analysis,
+  both of which run the mod in a real server. ~50 s. This is the normal
+  "am I still green?" check while building. It cannot see rendering,
+  animation-in-motion, UI, sound, world interaction, restart persistence
+  or MSPT — that is what `full` is for.
 - `full` = every suite in order, writes the evidence manifest. Completion
   requires `full` to PASS **twice consecutively with no source changes in
   between** (green_streak ≥ 2, one fingerprint). `gate` verifies that

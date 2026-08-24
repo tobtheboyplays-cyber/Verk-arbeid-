@@ -71,7 +71,13 @@ fill -6 -54 -6 6 -52 -6 minecraft:stone_bricks
 fill -6 -54 6 6 -52 6 minecraft:stone_bricks
 SLEEP 2
 setblock 0 -54 0 hearthstead:hearth
-SLEEP 90
+# 20s, not 90s. What this waits for is founding, and founding is
+# SYNCHRONOUS: SettlementManager.tryFound() spawns all 3 settlers inside
+# the setblock tick, so `population 3` and E2E_SETTLERS_ALIVE are both
+# true within a tick or two. The remaining margin is for chunk/entity
+# settle and slow I/O on a loaded machine, not for the mod's own work.
+# Cutting the other 70s off every dedicated run costs no assertion.
+SLEEP 20
 hearthstead info
 execute if entity @e[type=hearthstead:settler] run say E2E_SETTLERS_ALIVE
 EOF

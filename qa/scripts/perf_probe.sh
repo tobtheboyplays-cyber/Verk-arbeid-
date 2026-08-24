@@ -50,20 +50,26 @@ fill 12 -54 -12 12 -50 12 minecraft:stone_bricks
 fill -12 -54 -12 12 -50 -12 minecraft:stone_bricks
 fill -12 -54 12 12 -50 12 minecraft:stone_bricks
 setblock 0 -54 0 hearthstead:hearth
-SLEEP 30
+# Founding is synchronous (tryFound spawns inside the setblock tick), so
+# this is settle margin, not a wait for the mod. 30s -> 10s.
+SLEEP 10
 execute positioned 0 -54 0 run summon hearthstead:settler ~2 ~ ~1
 EOF
 for i in $(seq 1 26); do
     echo "execute positioned 0 -54 0 run summon hearthstead:settler ~$((i % 9 - 4)) ~ ~$((i / 9 - 1))" >> "$INST/perf_cmds.txt"
 done
 cat >> "$INST/perf_cmds.txt" <<'EOF'
-SLEEP 40
+# Settle window before measuring: long enough for 27 settlers' goals to
+# engage and the tick cost to reach steady state, which is what the MSPT
+# budget is meant to judge. 40s -> 20s; the three samples below are then
+# spaced 6s apart (was 10) and still cover ~18s of steady-state running.
+SLEEP 20
 tick query
-SLEEP 10
+SLEEP 6
 tick query
-SLEEP 10
+SLEEP 6
 tick query
-SLEEP 10
+SLEEP 6
 scoreboard objectives add hsqa_pop dummy
 execute store result score hsqa_count hsqa_pop if entity @e[type=hearthstead:settler]
 execute if score hsqa_count hsqa_pop matches 25.. run say PERF_POPULATION_OK

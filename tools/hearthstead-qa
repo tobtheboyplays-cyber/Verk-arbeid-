@@ -405,6 +405,33 @@ case "${1:-help}" in
     reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
     negative)    shift; bash "$QA/scripts/negative_tests.sh" "$@";;
     provision)   cmd_provision;;
+    fast)
+        # The iteration gate: every check that does NOT boot a Minecraft
+        # client, in one command. Measured on this machine: doctor+assets+
+        # animation ~5s, build ~5s, gametest ~21s, behavior ~20s -- about a
+        # minute, against ~13 for `full`. That gap is entirely the four
+        # client/server-booting suites (dedicated ~2m33, performance ~2m06,
+        # client ~24s, playtest ~5m29), which is why they are NOT here.
+        #
+        # `fast` runs REAL tests: the whole GameTest suite and the
+        # decision-trace behaviour analysis both execute the mod in a real
+        # server. What it cannot see is anything that only exists on the
+        # client or in a live world -- rendering, animation-in-motion, UI,
+        # sound, chunk/world interaction, restart persistence, MSPT budget.
+        #
+        # Like every non-`full` command it NEVER writes latest.json and
+        # NEVER clears .stale (AC-12): a green `fast` is iteration
+        # confidence, never completion evidence. Completion still requires
+        # `full` twice at one fingerprint.
+        overall=PASS
+        suite_doctor    || overall=FAIL
+        suite_assets    || overall=FAIL
+        suite_animation || overall=FAIL
+        suite_build     || overall=FAIL
+        suite_gametest  || overall=FAIL
+        suite_behavior  || overall=FAIL
+        echo "FAST: $overall (no client boot — completion still requires 'full' x2 + 'gate')"
+        [ "$overall" = "PASS" ];;
     quick)
         # The one-command iteration check: compile, asset validators, the
         # animation contract checker, then the changed-file advisory. Runs
@@ -438,5 +465,5 @@ case "${1:-help}" in
     gate)        cmd_gate;;
     status)      cmd_status;;
     reproduce)   shift; cmd_reproduce "${1:-}";;
-    *) sed -n '1,3p' "$0"; echo "commands: quick doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
+    *) sed -n '1,3p' "$0"; echo "commands: quick fast doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
 esac
