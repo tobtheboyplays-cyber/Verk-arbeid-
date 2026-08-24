@@ -2,6 +2,7 @@ package com.hearthstead.entity;
 
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.entity.ai.BoundedStrollGoal;
+import com.hearthstead.entity.ai.CourierWorkGoal;
 import com.hearthstead.entity.ai.EatFromHearthGoal;
 import com.hearthstead.entity.ai.FarmerWorkGoal;
 import com.hearthstead.entity.ai.GuardMeleeGoal;
@@ -133,6 +134,9 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState sleepState = new AnimationState();
     public final AnimationState wakeState = new AnimationState();
     public final AnimationState climbState = new AnimationState();
+    // SLICE A2a additions (clips land with the courier piece).
+    public final AnimationState carryState = new AnimationState();
+    public final AnimationState sortState = new AnimationState();
 
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -185,6 +189,7 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(5, new RestAtNightGoal(this));
         goalSelector.addGoal(6, new FarmerWorkGoal(this));
         goalSelector.addGoal(6, new LumbererWorkGoal(this));
+        goalSelector.addGoal(6, new CourierWorkGoal(this));
         goalSelector.addGoal(6, new GuardPatrolGoal(this));
         goalSelector.addGoal(7, new ReturnToSettlementGoal(this));
         goalSelector.addGoal(8, new BoundedStrollGoal(this));
@@ -490,6 +495,8 @@ public class SettlerEntity extends PathfinderMob {
         patrolState.animateWhen(activity == SettlerActivity.PATROLLING && moving, tickCount);
         sleepState.animateWhen(activity == SettlerActivity.SLEEPING, tickCount);
         climbState.animateWhen(onClimbable(), tickCount);
+        carryState.animateWhen(activity == SettlerActivity.CARRYING, tickCount);
+        sortState.animateWhen(activity == SettlerActivity.SORTING && !moving, tickCount);
 
         // One-shots expire on their own clock.
         if (meleeState.isStarted() && meleeState.getAccumulatedTime() > 500L) {
@@ -645,8 +652,20 @@ public class SettlerEntity extends PathfinderMob {
     @Override
     public void die(DamageSource cause) {
         super.die(cause);
-        if (level() instanceof ServerLevel serverLevel && settlementId != null) {
-            SettlementManager.onSettlerDied(serverLevel, this);
+        if (level() instanceof ServerLevel serverLevel) {
+            // Item conservation: the carried bag is physically real. Before
+            // couriers, losing ~8 wheat on death was cosmetic; once couriers
+            // haul real goods it becomes a raid-driven item sink -- drop it.
+            for (int i = 0; i < bag.getContainerSize(); i++) {
+                ItemStack stack = bag.removeItemNoUpdate(i);
+                if (!stack.isEmpty()) {
+                    serverLevel.addFreshEntity(new net.minecraft.world.entity.item.ItemEntity(
+                        serverLevel, getX(), getY() + 0.3, getZ(), stack));
+                }
+            }
+            if (settlementId != null) {
+                SettlementManager.onSettlerDied(serverLevel, this);
+            }
         }
     }
 

@@ -5,6 +5,40 @@ affects, and any migration concern.
 
 ---
 
+## D-007 — A courier's load is visible, and carry capacity is a real mechanic
+
+**Decision** (owner directive, A2a). The courier wears a visible load sack.
+What they are carrying, and how much they *can* carry, is a real gameplay
+quantity — not flavour. Capacity is a property of the carrying rig, so it
+is upgradeable: the sack is tier 1, and a **cart** is the intended later
+upgrade (bigger capacity, likely slower, possibly path-constrained).
+
+**Reason.** Logistics is the flagship system (`DESIGN.md`) and its whole
+appeal is that goods are physically real and physically moved. A hauler
+whose load you cannot see, and whose limit you cannot feel, turns that back
+into invisible bookkeeping — exactly what the mod exists not to be. Making
+capacity visible on the body also gives the upgrade path a silhouette the
+player reads at a glance across the settlement.
+
+**Consequences.**
+- `SettlerEntity.bag` (8 slots today) becomes the courier's capacity budget
+  rather than a fixed constant; the carrying rig determines the limit.
+- The pack's fill state should read visually (A2b or later — at minimum the
+  courier's carry animation already differs laden vs. empty).
+- Bag contents drop on death (implemented in this seam) — a lost load is a
+  real loss, which only makes sense if the load was real to begin with.
+- The cart upgrade is NOT in A2a. Recorded here so the capacity plumbing is
+  not hard-coded in a way that blocks it.
+
+**Rejected.** A fixed invisible capacity constant shared by all settlers,
+which would have been simpler but makes the upgrade path meaningless.
+
+**Affects.** `Profession.COURIER`, `outfit_courier` layer (load sack painted
+in `gen_settler.py`), `CourierWorkGoal`, `SettlerEntity.bag`, and the
+future cart work.
+
+---
+
 ## D-006 — Build Plan is a separate item; the plaque does not carry the type
 
 **Decision.** A plaque is placed blank. A **House Plan** item is inserted into

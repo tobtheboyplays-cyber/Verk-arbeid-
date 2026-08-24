@@ -29,6 +29,10 @@ public final class ModItems {
         ITEMS.register("writ_lumberer",
             () -> new ProfessionWritItem(Profession.LUMBERER, new Item.Properties()));
 
+    public static final DeferredHolder<Item, ProfessionWritItem> WRIT_COURIER =
+        ITEMS.register("writ_courier",
+            () -> new ProfessionWritItem(Profession.COURIER, new Item.Properties()));
+
     public static final DeferredHolder<Item, ProfessionWritItem> WRIT_GUARD =
         ITEMS.register("writ_guard",
             () -> new ProfessionWritItem(Profession.GUARD, new Item.Properties()));

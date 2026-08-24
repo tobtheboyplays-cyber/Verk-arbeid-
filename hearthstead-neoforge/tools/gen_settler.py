@@ -26,7 +26,7 @@ import os
 import zlib
 
 sys.path.insert(0, os.path.dirname(__file__))
-from texlib import ramp, shade, new_image, put, box_faces, FACE_LIGHT, save
+from texlib import ramp, shade, mix, new_image, put, box_faces, FACE_LIGHT, save
 
 SEED_BASE = 1420
 
@@ -81,6 +81,9 @@ PROFESSION_OUTFITS = {
     "farmer":   dict(headgear="straw_hat", apron=True),
     "lumberer": dict(headgear="bare", bracers=True),
     "guard":    dict(headgear="helm", gambeson=True, gauntlets=True),
+    # A2a: a courier reads by the carrying rig, not headgear -- hands and
+    # head stay free so the carry animations own the silhouette.
+    "courier":  dict(headgear="bare", satchel_rig=True),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed
@@ -132,9 +135,21 @@ def build_base(skin_idx):
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
         for j in range(fh):
+            # Subtle vertical modelling: brow/forehead catches light, the
+            # jaw falls into shadow -- a flat speckle read as a mask before.
+            if face == "front":
+                base = 4 if j <= 1 else (3 if j <= 5 else 2)
+            else:
+                base = 3
             for i in range(fw):
-                idx = 3 if rng.random() > 0.22 else 2
+                idx = base if rng.random() > 0.22 else max(0, base - 1)
                 put(img, x + i, y + j, lit(skin[idx], face))
+        if face == "front":
+            # Temple/cheekbone highlight at the outermost columns -- clear
+            # of the eye whites (cols 1,6), brow (cols 1,2,5,6) and
+            # nose/mouth (cols 3,4) painted by later layers.
+            put(img, x, y + 2, lit(skin[4], "front"))
+            put(img, x + fw - 1, y + 2, lit(skin[4], "front"))
 
     # Nose + mouth shading: skin-tone dependent, so it lives here, not in
     # the face layer (which only owns eye color).
@@ -145,6 +160,10 @@ def build_base(skin_idx):
     mouth = shade(skin[1], 0.9)
     put(img, x + 3, y + 5, lit(mouth, "front"))
     put(img, x + 4, y + 5, lit(mouth, "front"))
+    # Jaw/chin AO -- one dark row grounding the chin against the neck.
+    jaw = shade(skin[1], 0.92)
+    for i in range(fw):
+        put(img, x + i, y + fh - 1, lit(jaw, "front"))
 
     for part in ("right_arm", "left_arm"):
         u, v, w, h, d = UV[part]
@@ -175,23 +194,35 @@ def build_hair(style_idx, color_idx):
     u, v, w, h, d = UV["head"]
     faces = box_faces(u, v, w, h, d)
 
+    # Strand suggestion: 2px-wide combed bands (not per-pixel noise) with a
+    # sparse brighter glint where a strand catches the key light, so hair
+    # reads as directional locks instead of a flat speckled blob.
+    def strand_idx(i, j, dark=1, light=2, glint=3, glint_mod=7):
+        idx = dark if ((i // 2) + (j // 2)) % 2 == 0 else light
+        if (i * 5 + j * 3) % glint_mod == 0:
+            idx = glint
+        return idx
+
     x, y, fw, fh = faces["top"]
     for j in range(fh):
         for i in range(fw):
-            idx = 2 if rng.random() > 0.3 else 1
-            put(img, x + i, y + j, lit(hair[idx], "top"))
+            put(img, x + i, y + j, lit(hair[strand_idx(i, j)], "top"))
+    # Center parting groove: a single darker column breaking the crown so
+    # the top face isn't one uniform mass.
+    part_col = x + fw // 2
+    for j in range(fh):
+        put(img, part_col, y + j, lit(shade(hair[1], 0.82), "top"))
 
     x, y, fw, fh = faces["back"]
     for j in range(min(style["back_rows"], fh)):
         for i in range(fw):
-            idx = 2 if (i * 3 + j) % 4 else 1
-            put(img, x + i, y + j, lit(hair[idx], "back"))
+            put(img, x + i, y + j, lit(hair[strand_idx(i, j, glint_mod=9)], "back"))
 
     for side in ("right", "left"):
         x, y, fw, fh = faces[side]
         for j in range(min(style["side_rows"], fh)):
             for i in range(fw):
-                put(img, x + i, y + j, lit(hair[2 if (i + j) % 3 else 1], side))
+                put(img, x + i, y + j, lit(hair[strand_idx(i, j, glint_mod=8)], side))
         # Contiguous only if the side hair itself reaches row 3 (or ends
         # right at it); a short style like "buzzed" (side_rows=1) would
         # otherwise leave this dot floating on bare skin two rows below
@@ -204,7 +235,7 @@ def build_hair(style_idx, color_idx):
         for i in range(fw):
             if j == style["fringe_rows"] - 1 and i in (2, 5):
                 continue  # broken fringe line
-            put(img, x + i, y + j, lit(hair[2 if (i + j) % 3 else 1], "front"))
+            put(img, x + i, y + j, lit(hair[strand_idx(i, j, glint_mod=8)], "front"))
 
     brow = shade(hair[1], 1.05)
     for i in (1, 2, 5, 6):
@@ -261,7 +292,14 @@ def build_clothing(variant_idx):
     for face, (x, y, fw, fh) in faces.items():
         woven(img, x, y, fw, fh, tunic, rng, face)
         if face in ("front", "back", "right", "left"):
+            # Shoulder catch-light, then a fold crease where the tunic
+            # bunches above the belt line, then the hem trim -- three
+            # dedicated tones instead of one flat woven block.
             for i in range(fw):
+                put(img, x + i, y, lit(shade(tunic[4], 1.05), face))
+            crease = shade(tunic[1], 0.88)
+            for i in range(fw):
+                put(img, x + i, y + fh - 2, lit(crease, face))
                 put(img, x + i, y + fh - 1, lit(trim[2], face))
     x, y, fw, fh = faces["front"]
     neck = shade(tunic[1], 0.9)
@@ -297,6 +335,8 @@ def build_clothing(variant_idx):
                 for i in range(fw):
                     if j in (7, 8):
                         color = shade(tunic[4], 1.02)  # rolled cuff
+                    elif j == 6:
+                        color = shade(tunic[1], 0.85)  # crease before the cuff
                     else:
                         color = tunic[3]
                         r = rng.random()
@@ -322,9 +362,16 @@ def build_clothing(variant_idx):
             for j in range(fh):
                 for i in range(fw):
                     if j >= 8:
-                        idx = 3 if j != 8 else 4
-                        if j == fh - 1:
+                        # boot: cuff highlight -> body -> welt line -> sole,
+                        # four dedicated tones instead of a flat block.
+                        if j == 8:
+                            idx = 4
+                        elif j == fh - 1:
                             idx = 1
+                        elif j == fh - 2:
+                            idx = 2
+                        else:
+                            idx = 3
                         color = leather[idx]
                     else:
                         color = legs_wool[3]
@@ -333,6 +380,8 @@ def build_clothing(variant_idx):
                             color = legs_wool[2]
                         elif r < 0.24:
                             color = legs_wool[4]
+                        if j == 4:
+                            color = shade(color, 0.85)  # knee crease shadow
                     put(img, x + i, y + j, lit(color, face))
 
     # cloak
@@ -341,6 +390,13 @@ def build_clothing(variant_idx):
     for face, (x, y, fw, fh) in faces.items():
         woven(img, x, y, fw, fh, cloak_wool, rng, face)
         if face in ("front", "back", "right", "left"):
+            # Draped fold lines: a structured vertical crease every 3rd
+            # column reads as fabric hanging in folds, distinct from the
+            # random weave noise underneath.
+            fold = shade(cloak_wool[1], 0.9)
+            for i in range(1, fw, 3):
+                for j in range(fh - 1):
+                    put(img, x + i, y + j, lit(fold, face))
             for i in range(fw):
                 put(img, x + i, y + fh - 1, lit(cloak_wool[1], face))
     x, y, fw, fh = faces["front"]
@@ -373,6 +429,12 @@ def build_clothing(variant_idx):
                 put(img, x + i, y + j, lit(leather[idx], face))
     x, y, fw, fh = faces["front"]
     buckle = ramp("iron")
+    # Dark frame pixels either side of the buckle so its square reads as
+    # a distinct fitting against the leather, not a soft smear.
+    put(img, x + fw // 2 - 2, y, lit(buckle[0], "front"))
+    put(img, x + fw // 2 + 1, y, lit(buckle[0], "front"))
+    put(img, x + fw // 2 - 2, y + 1, lit(buckle[0], "front"))
+    put(img, x + fw // 2 + 1, y + 1, lit(buckle[0], "front"))
     put(img, x + fw // 2 - 1, y, lit(buckle[4], "front"))
     put(img, x + fw // 2, y, lit(buckle[3], "front"))
     put(img, x + fw // 2 - 1, y + 1, lit(buckle[3], "front"))
@@ -431,6 +493,7 @@ def _paint_headgear_shell(img, o, rng):
     if o.get("headgear") == "straw_hat":
         u, v, w, h, d = UV["hat_brim"]
         straw = ramp("straw")
+        leather = ramp("leather")
         for face, (x, y, fw, fh) in box_faces(u, v, w, h, d).items():
             for j in range(fh):
                 for i in range(fw):
@@ -439,6 +502,12 @@ def _paint_headgear_shell(img, o, rng):
                         cy = j - (fh - 1) / 2
                         r = max(abs(cx), abs(cy))
                         if r < 2.5:
+                            continue
+                        if r < 3.3:
+                            # Leather hatband ring at the crown base --
+                            # sharp contrast against the straw brim so the
+                            # crown reads as a distinct piece, not a blur.
+                            put(img, x + i, y + j, lit(leather[2], face))
                             continue
                         idx = 3 if (i + j * 2) % 3 else 2
                         if r > 5:
@@ -483,6 +552,62 @@ def _paint_apron(img):
         put(img, x + i, y + 8, lit(leather[1], "front"))
 
 
+def _paint_satchel_rig(img):
+    """Courier: a cross-body strap over the torso plus a shoulder pad, so
+    the load-bearing read is on the body rather than in the hands."""
+    u, v, w, h, d = UV["torso"]
+    faces = box_faces(u, v, w, h, d)
+    leather = ramp("leather")
+    iron = ramp("iron")
+
+    x, y, fw, fh = faces["front"]
+    # Diagonal strap, right shoulder down to left hip.
+    for j in range(1, fh - 1):
+        i = 2 + (j * (fw - 5)) // max(fh - 2, 1)
+        put(img, x + i, y + j, lit(leather[3], "front"))
+        put(img, x + i + 1, y + j, lit(leather[2], "front"))
+        if j % 3 == 0:  # stitch highlights along the strap
+            put(img, x + i, y + j, lit(leather[4], "front"))
+    # Buckle where the strap crosses the belt line.
+    bj = fh - 3
+    bi = 2 + (bj * (fw - 5)) // max(fh - 2, 1)
+    put(img, x + bi, y + bj, lit(iron[3], "front"))
+    put(img, x + bi + 1, y + bj, lit(iron[2], "front"))
+
+    # Matching strap on the back, mirrored, plus a shoulder pad.
+    bx, by, bw, bh = faces["back"]
+    for j in range(1, bh - 1):
+        i = bw - 3 - (j * (bw - 5)) // max(bh - 2, 1)
+        put(img, bx + i, by + j, lit(leather[3], "back"))
+        put(img, bx + i - 1, by + j, lit(leather[2], "back"))
+
+    tx, ty, tw, th = faces["top"]
+    for i in range(1, tw - 1):
+        put(img, tx + i, ty + th // 2, lit(leather[3], "top"))
+
+    # The load sack itself: a courier is read by what they are carrying, so
+    # the pack gets canvas over the default leather, lashing cord and a
+    # buckled flap. Capacity is a real mechanic (D-A2a-6) -- this is its
+    # silhouette.
+    u2, v2, w2, h2, d2 = UV["backpack"]
+    pack = box_faces(u2, v2, w2, h2, d2)
+    canvas = ramp("parchment")
+    for face, (px, py, pw, ph) in pack.items():
+        for j in range(ph):
+            for i in range(pw):
+                idx = 3 if (i * 7 + j * 3) % 5 else 2
+                put(img, px + i, py + j, lit(canvas[idx], face))
+    for face in ("back", "front"):
+        px, py, pw, ph = pack[face]
+        for i in range(pw):  # flap edge across the top
+            put(img, px + i, py + 1, lit(leather[2], face))
+            put(img, px + i, py + 2, lit(leather[3], face))
+        for j in range(3, ph):  # vertical lashing cords
+            put(img, px + 1, py + j, lit(leather[1], face))
+            put(img, px + pw - 2, py + j, lit(leather[1], face))
+        put(img, px + pw // 2, py + 2, lit(iron[4], face))  # flap buckle
+
+
 def _paint_gambeson(img):
     """Quilted gambeson fully replaces the clothing layer's torso weave
     (opaque over every pixel) and adds a mail collar on the front."""
@@ -516,7 +641,10 @@ def _paint_bracers(img):
                 continue
             for j in range(4, 7):
                 for i in range(fw):
-                    put(img, x + i, y + j, lit(leather[3 if j != 5 else 1], face))
+                    idx = 3 if j != 5 else 1
+                    if j == 5 and i % 2 == 0:
+                        idx = 4  # lace stitch catching the light
+                    put(img, x + i, y + j, lit(leather[idx], face))
 
 
 def _paint_gauntlets(img):
@@ -547,6 +675,8 @@ def build_outfit(prof_key):
         _paint_bracers(img)
     if o.get("gauntlets"):
         _paint_gauntlets(img)
+    if o.get("satchel_rig"):
+        _paint_satchel_rig(img)
     return img
 
 

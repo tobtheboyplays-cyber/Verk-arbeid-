@@ -136,13 +136,16 @@ def writ(seal_color_ramp, glyph):
 
 
 def gen_writs():
-    # tiny glyphs drawn in ink: hoe, axe, sword strokes
+    # tiny glyphs drawn in ink: hoe, axe, sword, crate strokes
     hoe = [(6, 4), (7, 4), (8, 4), (6, 5), (6, 6)]
     axe = [(6, 4), (7, 4), (7, 5), (6, 5), (8, 6), (5, 4)]
     sword = [(7, 3), (7, 4), (7, 5), (6, 6), (8, 6), (7, 6)]
+    # A2a courier: a small crate outline
+    crate = [(6, 4), (7, 4), (8, 4), (6, 5), (8, 5), (6, 6), (7, 6), (8, 6)]
     save(writ("forest", hoe), f"{ASSETS}/textures/item/writ_farmer.png")
     save(writ("burgundy", axe), f"{ASSETS}/textures/item/writ_lumberer.png")
     save(writ("iron", sword), f"{ASSETS}/textures/item/writ_guard.png")
+    save(writ("leather", crate), f"{ASSETS}/textures/item/writ_courier.png")
 
 
 def gen_handbook():

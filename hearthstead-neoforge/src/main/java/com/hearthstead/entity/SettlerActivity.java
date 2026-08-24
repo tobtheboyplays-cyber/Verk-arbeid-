@@ -20,7 +20,10 @@ public enum SettlerActivity {
     WORK_WATER("work_water"),
     WORK_LIMB("work_limb"),
     HAULING_LOG("hauling_log"),
-    SLEEPING("sleeping");
+    SLEEPING("sleeping"),
+    // Appended for SLICE A2a (catalogue §0.7) -- same wire-format rule.
+    CARRYING("carrying"),
+    SORTING("sorting");
 
     public static final SettlerActivity[] BY_ID = values();
 

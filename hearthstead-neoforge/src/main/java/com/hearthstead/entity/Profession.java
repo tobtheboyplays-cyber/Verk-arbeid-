@@ -10,7 +10,9 @@ public enum Profession {
     NONE(0, "none", () -> ItemStack.EMPTY, 0xC9B28A),
     FARMER(1, "farmer", () -> new ItemStack(Items.IRON_HOE), 0x5B7A50),
     LUMBERER(2, "lumberer", () -> new ItemStack(Items.IRON_AXE), 0x93494E),
-    GUARD(3, "guard", () -> new ItemStack(Items.IRON_SWORD), 0x57575E);
+    GUARD(3, "guard", () -> new ItemStack(Items.IRON_SWORD), 0x57575E),
+    // A2a: hands stay free for crates -- the carry animations own them.
+    COURIER(4, "courier", () -> ItemStack.EMPTY, 0x8A6D3B);
 
     public static final Profession[] BY_ID = values();
 
