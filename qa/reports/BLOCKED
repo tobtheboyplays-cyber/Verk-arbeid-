@@ -1,60 +1,57 @@
-SLICE ANIM-1 — REVISE-fix round in progress, not yet ready for `full`.
+SLICE ANIM-1 — REVISE-fix round essentially complete; final visual-quality
+pass in flight before requesting the RELEASE_GATE re-review.
 
-Failing command: `tools/hearthstead-qa full` (would fail at the `validate`
-step right now).
+Failing command: none currently known to fail — `tools/hearthstead-qa quick`
+was last green. This BLOCKED file exists because two parallel Sonnet workers
+are mid-edit on SettlerAnimations.java / gen_settler.py+textures; running
+`full` while they edit would either race a build against in-flight source
+changes or need re-running once they land. Not a defect, a coordination
+state.
 
-Error evidence (from `tools/hearthstead-qa quick`, 2026-08-24):
-  [assets] FAIL
-    - SoundEvent 'cheer' registered at ModSounds.java:51 has no entry in sounds.json
-    - SoundEvent 'settler_panic' registered at ModSounds.java:47 has no entry in sounds.json
-    - SoundEvent 'shield_thud' registered at ModSounds.java:49 has no entry in sounds.json
-  [build] PASS, [animation] PASS (9 warnings, expected mid-round)
+Completed and verified this round (part 1: commit b4d4650, part 2: commit
+0a18f40, both pushed to claude/hearthstead-settlement-mod-vbdb9n):
+  - BLOCKER-1 fixed + regression-tested (KF-011): sleeping settlers recover
+    energy and wake at dawn.
+  - HIGH-1 (HAUL_LOG additive stacking), HIGH-2 (lang keys + validator
+    guard), HIGH-4 (sound-contract completeness + doc correction), all
+    MEDIUM and most LOW findings: fixed. See docs/HEARTHSTEAD_QUALITY_LEDGER.md
+    Iteration 5/6 and docs/project/KNOWN_FAILURES.md KF-011 for detail.
+  - HIGH-3 (real visual evidence): two long in-game films captured and sent
+    to the user (90s and 100s, camera tracking a lumberer through felling
+    and the haul home) after restarting the live session on the rebuilt
+    jar. User feedback from watching: tool-impact animations (CHOP etc.)
+    lack "weight" -- real, valid craft feedback, now being addressed (see
+    below). The "settler holds no tool" observation in that same feedback
+    was a test-harness artifact (professions were force-set via raw NBT
+    merge, which skips assignProfession()'s tool-equip step) -- confirmed
+    by manually equipping an axe and re-screenshotting; not a code defect.
+  - tools/blockbench/: a new headless Blockbench bridge (real Blockbench
+    engine, built from source, served locally, driven via Playwright under
+    the preinstalled headless Chromium) exports the settler model + all 23
+    clips to .bbmodel and renders posed frames for visual review without a
+    desktop. Documented in tools/blockbench/README.md; mandated for
+    model/animation/texture work in .claude/skills/sonnet-driver/SKILL.md.
 
-Work completed this round (compiles clean, gametest 25/25 green including a
-new regression test):
-  - BLOCKER-1 fixed + verified: SettlerEntity.tickNeeds() now recovers
-    energy for SLEEPING (not just RESTING); new GameTest
-    settlerWakesAtDawnWithRecoveredEnergy proves a settler sleeps, gains
-    energy, and wakes past dawn. See docs/project/KNOWN_FAILURES.md KF-011.
-  - Sound-sync contract constants + server-side accent scheduling landed in
-    SettlerEntity (tickAccents), SettlerPanicGoal (yelp), EatFromHearthGoal
-    (bite accents), ModSounds (3 new registered constants).
-  - MEDIUM-3 fixed: FarmerWorkGoal withheld seed now returned/dropped on
-    every exit path (returnWithheldSeed()), never silently destroyed.
-  - MEDIUM-4 fixed: FarmerWorkGoal tilling now anchored within 3 blocks of
-    an existing crop (hasNearbyCropAnchor) — can no longer cascade-till the
-    whole settlement.
-  - MEDIUM-5 fixed: the 5 new work activities added to tickNeeds()'s
-    `working` set (correct hunger/energy drain rate).
-  - LOW-5 fixed: LumbererWorkGoal's full-bag resume path now sets
-    HAULING_LOG so the walk-home animation matches the strain sound.
-  - MEDIUM-6 (part) + doc corrections recorded in
-    hearthstead-neoforge/docs/HEARTHSTEAD_QUALITY_LEDGER.md Iteration 5/6.
-  - Harness speed: playtest/live now run at renderDistance/simulationDistance
-    6 (was 12); client_boot polls every 3s (was 10s). qa/QUICKSTART.md and
-    a new `tools/hearthstead-qa quick` command added. Own commit already
-    pushed (9839460).
-
-Still in flight — two parallel sonnet-builder agents, each owns a disjoint
-file set, neither has reported back yet:
-  - agent a4a7d57c5670804c7: owns SettlerModel.java + SettlerAnimations.java.
-    Fixing HIGH-1 (HAUL_LOG additive-stacking over WALK — arms must be
-    resetPose()'d before the carry clip applies), MEDIUM-1 (SHIELD_BLOCK
-    impact react), MEDIUM-2 model-side (one-shot phase offset removal),
-    LOW-4 (GUARD_PATROL gate mismatch), LOW-2 (doc-comment drift), HIGH-4
-    doc part (class-header sound-contract list correction).
-  - agent a9ff5656e24e21579: owns gen_sounds.py, sounds.json, anim_check.py,
-    validate_assets.py, both lang files. Adding the 3 new sound assets
-    (settler_panic, shield_thud, cheer — the exact cause of the current
-    [assets] FAIL above), HIGH-2 lang keys for the 6 new SettlerActivity
-    values + a validator guard rule, LOW-3 Ogg determinism fix, HIGH-4
-    checker part (SOUND_CONTRACTS completeness).
+In flight now (two parallel sonnet-builder agents, disjoint file ownership):
+  - agent a89304b88aca96ecb: owns SettlerAnimations.java only. Applying
+    researched animation-weight principles (see new
+    .claude/skills/animation-quality/SKILL.md: anticipation acceleration,
+    an impact-frame hold, follow-through overshoot, torso leading the arm,
+    secondary motion) to CHOP, FARM_TILL, LIMB_BRANCHES, MELEE -- using the
+    Blockbench bridge to visually verify before/after, and preserving every
+    existing sound-contract accent timestamp untouched.
+  - agent aaadf36ce8c30d2ff: owns tools/gen_settler.py + the regenerated
+    settler texture PNGs only. Raising shading/detail quality per the
+    user's "premium textures" directive, verified visually via the same
+    Blockbench bridge, with a determinism proof (two consecutive generator
+    runs byte-identical) before finishing.
 
 Exact resume action: wait for both agents' completion notifications (no
-polling — they arrive automatically), verify their diffs compile and pass
-`tools/hearthstead-qa quick` clean, address anything either reports as
-deferred/needing a decision, then run `tools/hearthstead-qa full` twice
-back-to-back (green_streak >= 2, no source edits between runs), request the
-one remaining ANIM-1 RELEASE_GATE re-review scoped to changed areas, update
-.claude/WORK_STATE.md, commit and push. This file is deleted automatically
-by the next `full` run.
+polling), verify each compiles/validates/passes its own tool's checks,
+reconcile if either reports a needed cross-file change, run
+`tools/hearthstead-qa quick` once more, then `tools/hearthstead-qa full`
+twice back-to-back (green_streak >= 2, no source edits between runs),
+capture one more short confirmation film of the improved CHOP/texture,
+request the ANIM-1 RELEASE_GATE re-review (the last permitted Opus call
+under the normal budget), update .claude/WORK_STATE.md, commit and push.
+This file is deleted automatically by the next `full` run.
