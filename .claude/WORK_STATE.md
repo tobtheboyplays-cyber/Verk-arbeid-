@@ -157,16 +157,36 @@ visually inspected.
   each new clip -- honest, uses existing infra, arguably stronger
   evidence. Documented as a scoping substitution, not a silent skip.
 
+**Implementation done, QA gate green twice** (commits `9a1ce02`,
+`6d472bf`), fingerprint `ae8f6d8673d6c76137b70bf3bafc65b0e3bd6dcf02ed431
+e074ab8d7443acab8`, green_streak 2, all 11 suites PASS both times
+(confirmed by reading `qa/reports/latest.json` directly). Real in-game
+evidence beyond the suite: a `tools/hearthstead-qa live` session founded
+a settlement, and a 10s video was captured and sent to the user
+(`subject_mad: 7.167`, genuine motion, not a static shot) --
+`qa/reports/artifacts/live/20260824T185134Z/film/take-01/clip.mp4`.
+
+One real bug found and fixed mid-slice by the gate itself, not assumed
+away: `farmerHarvestsAndDeposits` failed on the FIRST full run with "at
+least one crop should be replanted, saw 0" -- genuine RNG flakiness this
+time (wheat's own loot table can legitimately drop 0 seeds per crop,
+~25% chance; the old code replanted unconditionally regardless, a latent
+chest-truth-conservation violation; the new seed-gated replant is
+correct but needed a larger crop sample -- 3 -> 8 -- to make the ~1.6%
+chance of an all-zero sample negligible instead of removing the
+assertion). Root-caused from the actual failure log, not guessed at.
+
 ## Next concrete action
 
-Implementation order: (1) SettlerActivity 7 new values -> (2) gen_sounds.py
-8 new sounds + regenerate -> (3) ModSounds registration -> (4)
-SettlerAnimations.java all 23 clips -> (5) SettlerEntity new
-AnimationState fields + wiring -> (6) SettlerModel.setupAnim locomotion
-selection + layering + damping table -> (7) Goal classes (Farmer/Lumberer/
-GuardPatrol/RestAtNight) -> (8) anim_check.py rewrite (§17 checks) -> (9)
-lang keys for new sounds -> (10) GameTests -> (11) full verification +
-in-game visual inspection -> (12) RELEASE_GATE.
+**Run RELEASE_GATE (Opus, 1 call) on the whole ANIM-1 slice** -- ANIM-1's
+own fresh 2-3 call budget (0 spent so far; no PLAN_GATE call was needed,
+see above). Package: the 23-clip scope, the goal-wiring decisions, the
+anim_check.py rewrite and what it caught, the QA gate evidence, the video,
+and the explicitly-documented scope limits (pose-sampler substitution,
+deferred sounds, deferred 4-slot refactor). If PASS: mark ANIM-1 complete
+-- it is the last slice in the recorded order (HARNESS-1 -> PLAQUE-1 ->
+VISUAL-1 -> ANIM-1) -- and report full closure. If REVISE: fix in one
+coordinated round per the standing rule, one re-review only.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
