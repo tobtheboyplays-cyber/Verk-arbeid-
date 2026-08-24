@@ -498,11 +498,30 @@ land next, which means `safe_regrab` can grep a **stale** position or
 rotation, and any step depending on the command having actually completed
 proceeds too early.
 
-**How it failed, concretely.** A real `tools/hearthstead-qa playtest` run
-failed at scenario step 283: `cmd hearthstead scan ...` followed by
-`expect_server:Registered` — the server log never matched, because the
-preceding interaction had been driven from position data read before the
-command it was supposed to follow. Reverted immediately.
+**How it appeared to fail, and the correction.** A real
+`tools/hearthstead-qa playtest` run failed at scenario step 283:
+`cmd hearthstead scan ...` followed by `expect_server:Registered`. That
+was attributed to this change and it was reverted.
+
+**That attribution was WRONG, and is corrected here rather than quietly
+deleted.** A later `full` run, with the change fully reverted and
+`scmd()` byte-identical to its original form, failed at **exactly the
+same step 283 in exactly the same way**. So the change cannot have been
+the cause. Evidence from that run's own server log
+(`qa/reports/artifacts/playtest/20260824T215724Z/logs/`): the Build Plan
+was given at 22:04:57, the following safe_regrab/click cycles produced no
+plaque state change at all, and no `Surveyed the House` line ever
+appeared for the step-283 scan — i.e. the plan was never inserted and the
+later `cmd` produced no server output, which is the KF-009 family of
+click-raycast / open-screen timing problems, not a wait-length problem.
+Two full runs immediately before this one (20:37 and 21:12) passed the
+same scenario, so it is intermittent.
+
+**The reasoning below still stands on its own merits** — polling a shared,
+noisy log for "my command answered" IS a race, and the byte-growth version
+should not be revived. But it was not what broke step 283, and recording
+it as the cause would have left a false lead for the next reader. This is
+the same discipline as KF-002's correction.
 
 **The lesson worth keeping.** A "wait for the system to respond" that
 polls a *shared, noisy* signal is not equivalent to a fixed sleep — it is
