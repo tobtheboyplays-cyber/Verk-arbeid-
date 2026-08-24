@@ -1,58 +1,52 @@
-NOT READY — work in progress (HARNESS-1 correction round)
+NOT READY — HARNESS-1 awaiting re-review; `full` is red on PLAQUE-1's items
 
-Written 2026-08-24, and true as of writing. Deleted automatically by the next
-full run, so it cannot outlive the condition it describes.
+Written 2026-08-24 (rewritten at correction-round close). Deleted
+automatically by the next full run, so it cannot outlive what it describes.
+This is NOT READY, never PASS.
 
 WHY THE GATE IS RED
-  tools/hearthstead-qa gate -> FAIL, "no full-scope run exists yet"
+  tools/hearthstead-qa gate -> "no full-scope run exists yet"
 
-That is correct and expected. Two independent reasons:
+That is correct and expected. `full` includes `gametest` and `assets`, which
+are red on three PRE-EXISTING items owned by the NEXT slice (PLAQUE-1), not
+by this one:
+  KF-001  a GameTest helper hangs a plaque by replacing a wall block, so the
+          room's flood fill escapes (1856 cells where a hut is 27)
+  KF-004  plaque localisation keys missing — exact verified list of 39 in
+          hearthstead-neoforge/docs/plaque_missing_keys.txt
+  KF-005  blockstate references plaque_red|amber|green models that do not exist
+All three are documented with evidence in docs/project/KNOWN_FAILURES.md and
+are covered by docs/project/PLAN_PLAQUE-1.md (W6, W7, W9). Running `full` now
+would report them as this slice's failures, which they are not.
 
-1. A full-scope run has deliberately NOT been made a completion claim during
-   this slice. `full` includes `gametest` and `assets`, which are red on three
-   PRE-EXISTING items owned by the next slice (PLAQUE-1), not by this one:
-     KF-001  a GameTest helper hangs a plaque by replacing a wall block, so
-             the room's flood fill escapes (1856 cells where a hut is 27)
-     KF-004  plaque localisation keys missing from en_us/nb_no
-     KF-005  blockstate references plaque_red|amber|green models that do not
-             exist
-   Running `full` now would report those as this slice's failures. They are
-   documented with evidence in docs/project/KNOWN_FAILURES.md.
-
-2. HARNESS-1 is mid-correction. RELEASE_GATE returned REVISE with 13 findings
-   (3 HIGH). A builder is fixing all of them in one coordinated round.
-
-THE FINDINGS THAT MATTER (full list in the review handoff)
-  HIGH-1  expect_server greps a log the tmux pane echoes the TYPED COMMAND
-          into, so an assertion is satisfied before the server acts — it
-          would pass with zero settlers. A check that cannot fail.
-  HIGH-2  the client suite's only green evidence predates the current source,
-          and its window was really 854x480; it read 1280x720 only because the
-          capture took the whole Xvfb screen instead of the game window.
-  HIGH-3  live film forces a camera pan for the whole capture, so motion_ok
-          can never fail for a frozen animation — the one thing it exists to
-          detect.
-
-ALREADY FIXED THIS ROUND (were the coordinator's own, not the builder's)
-  - Stale qa/reports/BLOCKED was making `gate` exit 0, green-lighting the very
-    gate this slice hardened. Removed; gate correctly returns 2 again.
-  - INV-2 had been edited quietly instead of recording a specification
-    correction in the quality ledger, which is what CLAUDE.md requires. The
-    correction is now recorded there, sourced to DECISIONS D-005/D-006.
-
-WHAT IS ALREADY PROVEN (do not redo)
-  Two consecutive cold-start playtest runs at 18/18 identical checks; join
-  confirmed by a server-side position query; teardown verified in three trials
-  including a deliberately aborted live start; dedicated and performance
-  back-to-back without a port clash; the gate integrity hole closed and
-  reproduced in isolation; reap proven not to touch the Gradle daemon.
+WHAT THE CORRECTION ROUND PROVED (do not redo)
+  All 14 review findings closed with stored evidence. At one fingerprint
+  (d26bbe2f8a...), with `reap check` clean before and after each:
+    dedicated x2, performance x2, client x2, playtest x2 (70 identical checks
+    both runs), live x2 cold starts driving the full command set,
+    `negative all` 4/4 PASS in a single invocation, `provision` PASS
+    (install rebuilt from scratch, verified by a passing playtest).
+  Finding 3 proven in BOTH directions on one framing: settlers walking score
+  subject_mad 19.79 and PASS; the identical shot with the server tick-frozen
+  scores 0.26 and FAILS.
+  Four further defects were found while proving that and are fixed: the motion
+  check could no longer pass at all; each film take overwrote the previous;
+  `live stop` recorded a hard-coded verdict that hid failed checks; and
+  `live start` could leave a session that looked up but stood in a frozen
+  world after the player was killed.
+  Details and evidence paths: .claude/WORK_STATE.md.
 
 EXACT RESUME ACTION
-  1. Let the correction round finish (findings 1-5, 8-13).
-  2. Produce the missing repeat runs: dedicated, performance, client, playtest
-     and live green twice from cold starts for the CURRENT source.
-  3. One short re-review of the changed areas only (fresh opus-quality-gate).
-  4. Then PLAQUE-1, which clears KF-001/004/005 and is what finally lets
-     `tools/hearthstead-qa full` go green.
+  1. Read the opus-quality-gate re-review verdict (one short re-review of the
+     changed areas — the governor's third and final Opus call for this task).
+  2. If PASS: start PLAQUE-1 from docs/project/PLAN_PLAQUE-1.md. Its `full`
+     run is what finally clears this file.
+     If REVISE: fix what it names; do not open new scope.
+
+OPEN QUESTION RAISED FOR THE REVIEW, NOT DECIDED UNILATERALLY
+  The freshness fingerprint covers qa/PROTOCOL.md but not qa/scripts/, though
+  those scripts decide what every suite asserts — so test behaviour changed
+  mid-round without invalidating earlier evidence. Widening it invalidates the
+  matrix above and forces a re-run.
 
 Branch claude/hearthstead-settlement-mod-vbdb9n, all work committed and pushed.
