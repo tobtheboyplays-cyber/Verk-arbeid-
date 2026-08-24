@@ -371,9 +371,19 @@ focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
 # a typo'd or silently-no-op directive must be visible in result.json, not
 # just an "unknown directive" line nobody greps. DIR_IDX makes each entry's
 # check name unique (the same verb can appear many times in one scenario).
+#
+# CAPTURED_VARS backs `capture_pos`: a scenario can freeze the player's
+# CURRENT position (before any regrab-teleport churn has a chance to drift
+# it) into named integer coordinates, then reference them later by name
+# (e.g. `$PLAQUE_X`) instead of a live `~`-relative offset. See capture_pos
+# below for why this exists.
+declare -A CAPTURED_VARS
 DIR_IDX=0
 while read -r verb rest; do
     rest="${rest//\$PLAYER/$PLAYER}"
+    for _cv in "${!CAPTURED_VARS[@]}"; do
+        rest="${rest//\$$_cv/${CAPTURED_VARS[$_cv]}}"
+    done
     DIR_IDX=$((DIR_IDX + 1))
     case "${verb:-}" in
         # '#'* not '#': only a bare '#' matched before, so a comment written
@@ -423,6 +433,40 @@ while read -r verb rest; do
                xdotool mousemove_relative -- $rest; sleep 1
                check_pass "$DIR_IDX:move" "moved $rest";;
         scmd)  scmd "$rest"; check_pass "$DIR_IDX:scmd" "issued on console: $rest";;
+        # `capture_pos NAME dx dy dz`: freezes the player's CURRENT position
+        # (floored, plus the given integer offset) into $NAME_X/$NAME_Y/$NAME_Z
+        # for later directives to reference by name. Exists because a chain of
+        # regrab-teleport round trips (safe_regrab, potentially several
+        # before a later directive runs) was proven live to leave the
+        # player's true position drifted by up to ~0.4 blocks from where it
+        # was moments earlier (20260824T103155Z, 20260824T111340Z) --
+        # apparently residual client movement packets trickling in and
+        # getting accepted after the round trip's own restore already ran.
+        # A LATER `~`-relative offset computed from that drifted position can
+        # floor to a different integer block than intended. Capturing once,
+        # right after a position is established and before any further
+        # regrab churn can touch it, then using the frozen integers from then
+        # on, makes a later command's targeting immune to that drift entirely.
+        capture_pos)
+               set -- $rest
+               cp_name=$1; cp_dx=$2; cp_dy=$3; cp_dz=$4
+               scmd "data get entity $PLAYER Pos"
+               sleep 1
+               cp_pos=$(grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d" "$SRV_LOG" 2>/dev/null | tail -1)
+               cp_x=$(echo "$cp_pos" | cut -d',' -f1 | tr -d 'd ')
+               cp_y=$(echo "$cp_pos" | cut -d',' -f2 | tr -d 'd ')
+               cp_z=$(echo "$cp_pos" | cut -d',' -f3 | tr -d 'd ')
+               if [ -z "$cp_x" ] || [ -z "$cp_y" ] || [ -z "$cp_z" ]; then
+                   check_fail "$DIR_IDX:capture_pos" "could not read $PLAYER's position"
+               else
+                   cp_ix=$(python3 -c "import math; print(math.floor($cp_x)+$cp_dx)")
+                   cp_iy=$(python3 -c "import math; print(math.floor($cp_y)+$cp_dy)")
+                   cp_iz=$(python3 -c "import math; print(math.floor($cp_z)+$cp_dz)")
+                   CAPTURED_VARS["${cp_name}_X"]="$cp_ix"
+                   CAPTURED_VARS["${cp_name}_Y"]="$cp_iy"
+                   CAPTURED_VARS["${cp_name}_Z"]="$cp_iz"
+                   check_pass "$DIR_IDX:capture_pos" "captured $cp_name = ($cp_ix, $cp_iy, $cp_iz)"
+               fi;;
         shot)  sleep 1; shot "$rest"
                if [ -s "$EV_SHOTS/$rest.png" ]; then
                    check_pass "$DIR_IDX:shot" "captured shots/$rest.png"
