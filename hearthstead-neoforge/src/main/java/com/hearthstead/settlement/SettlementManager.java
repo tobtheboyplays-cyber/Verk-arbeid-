@@ -125,6 +125,7 @@ public final class SettlementManager {
         settler.setSettlerName(name);
         settler.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos),
             MobSpawnType.MOB_SUMMONED, null);
+        settler.setAppearanceSeed(level.random.nextInt());
         if (traveler) {
             settler.markTraveler(s.id, s.center);
             s.travelerId = settler.getUUID();

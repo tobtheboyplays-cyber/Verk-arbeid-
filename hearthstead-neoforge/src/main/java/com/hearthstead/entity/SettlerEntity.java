@@ -67,6 +67,8 @@ public class SettlerEntity extends PathfinderMob {
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> DATA_MORALE =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Integer> DATA_APPEARANCE_SEED =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
 
     public static final byte EV_CELEBRATE = 64;
     public static final byte EV_MELEE = 65;
@@ -121,6 +123,7 @@ public class SettlerEntity extends PathfinderMob {
         builder.define(DATA_HUNGER, 80.0F);
         builder.define(DATA_ENERGY, 90.0F);
         builder.define(DATA_MORALE, 60.0F);
+        builder.define(DATA_APPEARANCE_SEED, 0);
     }
 
     @Override
@@ -184,6 +187,21 @@ public class SettlerEntity extends PathfinderMob {
 
     public void addMorale(float delta) {
         entityData.set(DATA_MORALE, Mth.clamp(getMorale() + delta, 0.0F, 100.0F));
+    }
+
+    public int getAppearanceSeed() {
+        return entityData.get(DATA_APPEARANCE_SEED);
+    }
+
+    /** Rolled once at spawn by SettlementManager (INV-5); never call this
+     *  after the settler has joined a settlement -- the look must stay
+     *  stable for a given settler across their whole life. */
+    public void setAppearanceSeed(int seed) {
+        entityData.set(DATA_APPEARANCE_SEED, seed);
+    }
+
+    public SettlerAppearance getAppearance() {
+        return SettlerAppearance.decode(getAppearanceSeed());
     }
 
     // -------------------------------------------------------- membership ---
@@ -494,6 +512,7 @@ public class SettlerEntity extends PathfinderMob {
         tag.putFloat("Hunger", getHunger());
         tag.putFloat("Energy", getEnergy());
         tag.putFloat("Morale", getMorale());
+        tag.putInt("Appearance", getAppearanceSeed());
         tag.putBoolean("Traveler", traveler);
         if (settlementId != null) {
             tag.putUUID("SettlementId", settlementId);
@@ -518,6 +537,12 @@ public class SettlerEntity extends PathfinderMob {
         setHunger(tag.getFloat("Hunger"));
         setEnergy(tag.getFloat("Energy"));
         entityData.set(DATA_MORALE, Mth.clamp(tag.getFloat("Morale"), 0.0F, 100.0F));
+        // Pre-VISUAL-1 saves have no "Appearance" key; fall back to a seed
+        // derived from the settler's own UUID (deterministic, not salted --
+        // unlike Python's hash(), UUID.hashCode() is a pure function of the
+        // UUID bits) rather than leaving every such settler at seed 0.
+        entityData.set(DATA_APPEARANCE_SEED,
+            tag.contains("Appearance") ? tag.getInt("Appearance") : getUUID().hashCode());
         traveler = tag.getBoolean("Traveler");
         settlementId = tag.hasUUID("SettlementId") ? tag.getUUID("SettlementId") : null;
         targetSettlementId = tag.hasUUID("TargetSettlementId")

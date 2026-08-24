@@ -361,6 +361,45 @@ public class HearthsteadGameTests {
     }
 
     @GameTest(template = "empty5", timeoutTicks = 100)
+    public void settlerAppearanceSurvivesNbtRoundTrip(GameTestHelper helper) {
+        SettlerEntity original = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(2, 1, 2));
+        original.setAppearanceSeed(123456789);
+
+        CompoundTag tag = new CompoundTag();
+        original.addAdditionalSaveData(tag);
+
+        SettlerEntity copy = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(3, 1, 3));
+        copy.readAdditionalSaveData(tag);
+
+        com.hearthstead.entity.SettlerAppearance originalLook = original.getAppearance();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(copy.getAppearanceSeed() == 123456789,
+                "appearance seed survives NBT");
+            helper.assertTrue(copy.getAppearance().equals(originalLook),
+                "decoded appearance survives NBT unchanged");
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void spawnedSettlersHaveVariedAppearance(GameTestHelper helper) {
+        SettlementManager.ignoreFoundingDistance = true;
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8), 8);
+        List<com.hearthstead.entity.SettlerAppearance> looks = new java.util.ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            SettlerEntity settler = SettlementManager.spawnSettler(helper.getLevel(), s, false);
+            helper.assertTrue(settler != null, "spawnSettler should return a settler");
+            looks.add(settler.getAppearance());
+        }
+        long distinct = looks.stream().distinct().count();
+        helper.succeedWhen(() -> helper.assertTrue(distinct > 1,
+            "8 spawned settlers should not all share one identical appearance, got "
+                + distinct + " distinct look(s)"));
+    }
+
+    @GameTest(template = "empty5", timeoutTicks = 100)
     public void savedDataRoundTrip(GameTestHelper helper) {
         Settlement s = new Settlement(UUID.randomUUID(), "Ashford",
             helper.absolutePos(new BlockPos(2, 1, 2)));
