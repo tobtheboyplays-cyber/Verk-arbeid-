@@ -386,3 +386,43 @@ via a synthetic legacy tag), the asset validator (230/230, closing
 KF-004 and KF-005), and `playtest` itself — green end to end, twice
 consecutively at one fingerprint — all confirm it. See
 `.claude/WORK_STATE.md` for the exact evidence and the next slice.
+
+---
+
+## KF-010 — settlers created outside `SettlementManager` stayed permanently
+locked to a degenerate, identical appearance
+
+**Status: RESOLVED** (SLICE VISUAL-1). **Severity:** was high.
+
+**Found by:** the VISUAL-1 RELEASE_GATE (Opus), not by the GameTest suite —
+worth recording because it shows the suite passing does not by itself rule
+out a real defect on an untested path.
+
+**Original defect:** `SettlerEntity`'s synced appearance seed
+(`DATA_APPEARANCE_SEED`) defaulted to `0` in `defineSynchedData`, and the
+only place that ever rolled a real value was `SettlementManager
+.spawnSettler`. Any settler created by a different path — a spawn egg
+(player-reachable, registered in the creative tab, and handed out four at
+a time by `/hearthstead demo`), `/summon`, or a mob spawner — kept seed
+`0` forever. `SettlerAppearance.decode(0)` composites to exactly the
+legacy `settler_none.png` pixels, so this read as "normal" in every
+screenshot and log; nothing about it looked broken until someone asked
+"what happens on a path other than the one I tested." Once saved, the
+degenerate value is written unconditionally by `addAdditionalSaveData`,
+so it became permanent.
+
+**Fix:** the appearance seed is now rolled directly in the
+`SettlerEntity` constructor (`entityData.set(DATA_APPEARANCE_SEED,
+random.nextInt())`, right after `super(type, level)`), the one point
+every creation path passes through, regardless of loader mechanism.
+`SettlementManager`'s own explicit roll became redundant and was removed.
+
+**Verified, not assumed:** new GameTest
+`settlerSpawnedOutsideSettlementManagerGetsRealAppearance` spawns 6
+settlers via a raw `helper.spawn` (bypassing `SettlementManager` entirely,
+the same shape as a spawn egg or `/summon`) and asserts none has seed `0`
+and they are not all identical. The RELEASE_GATE re-review additionally
+re-decompiled `Entity`/`LivingEntity` from the real 1.21.1 sources to
+confirm `random` and `entityData` are both initialized before the roll
+runs, and that `entityData.set` on this key cannot trigger any
+`onSyncedDataUpdated` side effect on a partially-constructed entity.

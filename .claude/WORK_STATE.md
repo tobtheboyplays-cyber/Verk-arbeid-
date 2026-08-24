@@ -84,16 +84,32 @@ directly). Fixes:
   painted contiguous with real side hair. 4 affected `hair_2_*` PNGs
   regenerated.
 
+**RELEASE_GATE re-review (Opus call 3 of 3): PASS.** Independently
+re-verified all 4 fixes with real experiments, not just diff-reading —
+re-decompiled Entity/LivingEntity to confirm no constructor-ordering or
+`onSyncedDataUpdated` hazard for HIGH-1; re-broke a generator and
+re-deleted/renamed a layer file to confirm MEDIUM-2/3 genuinely fail
+(not just reworded skips); decoded committed pixels for all 4 hair
+styles to confirm MEDIUM-4's `>= 3` threshold is correct, not just
+correct for the one broken case; re-ran `tools/hearthstead-qa gate`
+itself against current HEAD (`f34d16c`): `GATE: PASS (green_streak=2)`.
+4 non-blocking observations recorded (astronomically-unlikely seed-0
+collision cosmetic edge case; two GameTest spawn positions sit just
+outside a template's nominal bounds but not a real leak; a pre-existing
+one-row gap in style 3; Pillow-absent texture checks stay warn-only
+outside MEDIUM-2's scope) — none block, none need action this slice.
+
+**SLICE VISUAL-1 — DONE.** All 3 Opus calls used (1 PLAN_GATE, 1
+RELEASE_GATE, 1 re-review) — exhausted, per the resource governor.
+SLICE ANIM-1 starts Sonnet-only.
+
 ## Next concrete action
 
-**Run the one short Opus re-review of just the changed areas** (per
-premium-build-loop's post-REVISE rule -- Opus call 3 of the 3-call
-absolute max for this slice). Package: the 4 findings + fixes above,
-`git diff --stat` for commit `9d4f830`, the fresh green-twice evidence.
-If PASS: mark VISUAL-1 complete, move to SLICE ANIM-1 (A1 animation set,
-23 clips), Sonnet-only (all 3 Opus calls will be spent). If findings
-remain: Sonnet fixes ordinary defects alone from here — no more Opus
-calls permitted for this slice.
+**Start SLICE ANIM-1** (A1 animation set, 23 clips) per the recorded
+slice order (HARNESS-1 -> PLAQUE-1 -> VISUAL-1 -> ANIM-1). Sonnet-only
+implementation; a fresh PLAN_GATE (Opus, 1 call) before editing begins,
+per the mandatory multi-model gate in the repo's CLAUDE.md — ANIM-1 gets
+its own fresh 2-3 call budget, separate from VISUAL-1's now-exhausted one.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
