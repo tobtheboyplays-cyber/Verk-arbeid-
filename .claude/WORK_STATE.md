@@ -2,191 +2,90 @@
 
 Compact working file. Max ~120 lines. Not a diary — compress, don't append.
 
-## Current goal
+## Closed slices (full history in docs/, not here)
 
-**SLICE PLAQUE-1 — DONE.** 9 work items (blank plaque, Build Plan item,
-5-state machine, save-compat, lamp art, recipes) plus KF-009's 8 harness
-bugs, all fixed and verified. Full history: `docs/project/KNOWN_FAILURES.md`
-KF-009.
+- **HARNESS-1, PLAQUE-1 — DONE.** KF-009 (8 harness bugs) in KNOWN_FAILURES.
+- **VISUAL-1 — DONE, RELEASE_GATE PASS** (all 3 Opus calls spent). Modular
+  appearance (seed → 5 composited layer sheets, client `SettlerTextureCache`),
+  KF-007 determinism fix + `check_pipeline()`, KF-010 constructor-seed fix.
+- **FIX-1 — DONE** (dedicated-server + performance regressions).
 
-**SLICE VISUAL-1 — implementation DONE, gate green twice; RELEASE_GATE
-next.** Sonnet-only (PLAQUE-1 spent all 3 of its Opus calls; VISUAL-1 got
-its own fresh budget: 1 PLAN_GATE call used so far).
-- KF-007 fixed (commit `83a0408`): `gen_settler.py` seeded with Python's
-  salted `hash()`, so two runs emitted different pixels for the same key.
-  Now `zlib.crc32`. Added `check_pipeline()` to `validate_assets.py` (runs
-  every deterministic generator twice under different `PYTHONHASHSEED`,
-  asserts byte-identity + match to committed tree) so this class of bug
-  can't silently regress again.
-- V2a data model (commit `d04f935`): `SettlerAppearance` record (seed ->
-  skinTone/hairStyle/hairColor/faceVariant/clothingVariant, cardinalities
-  4x4x4x3x4). `SettlerEntity` syncs+saves the seed; `SettlementManager
-  .spawnSettler` rolls it once (INV-5); legacy saves fall back to a
-  UUID-derived seed, never 0-for-all. 2 new GameTests (persistence +
-  8-spawn variety).
-- V2b generator (commit `b99cf87`): `gen_settler.py` rewritten into 5
-  independent 128x64 layer sheets (base/hair/face/clothing/outfit; outfit
-  is the only profession-tied axis) composited by plain alpha-over. 31
-  new layer PNGs + 4 regenerated legacy fallbacks. `preview_settler.py`
-  rewritten: 18-combo x 3-view contact sheet, visually inspected — real
-  variety, no corruption.
-- V2c client rendering (commit `b539823`): new `SettlerTextureCache`
-  (client-only, INV-6) composites the 5 layers via `NativeImage
-  .blendPixel` into one `DynamicTexture`, name built directly from the
-  appearance/profession fields (not a hashCode — rules out two settlers
-  colliding and overwriting each other's texture); bounded 256-entry
-  cache releasing the GPU texture on eviction; cleared on resource-pack
-  reload. `SettlerRenderer.getTextureLocation` falls back to the static
-  legacy texture on any failure. One-per-key WARN on failure + a
-  once-per-session INFO on first success (silence alone can't tell
-  "never ran" from "ran and failed" from "working" apart). **Proven with
-  direct log evidence**: a real `playtest` client log shows `first
-  composed settler texture registered: hearthstead:settler/
-  composed_3_1_3_2_1_none` with zero failure warnings anywhere
-  (`qa/reports/artifacts/playtest/20260824T154714Z/logs/
-  playtest-client.log`).
+## SLICE ANIM-1 — REVISE round nearly closed; re-review is the next gate
 
-**RELEASE_GATE (Opus call 2) ran: REVISE.** Findings: HIGH-1 (settlers
-created outside `SettlementManager.spawnSettler` -- spawn egg, `/summon`,
-mob spawner -- stayed permanently stuck at appearance seed 0, a
-player-reachable path via `/hearthstead demo`'s spawn eggs); MEDIUM-2
-(`check_pipeline()`'s new determinism guard degraded generator-execution
-failures and missing Pillow to a warning/info instead of failing, and
-`gen_structures.py` was listed but never actually compared since it
-emits `.nbt` not `.png`); MEDIUM-3 (nothing bound Java's
-`SettlerAppearance`/`SettlerTextureCache` cardinalities and key arrays to
-the layer files `gen_settler.py` actually produces); MEDIUM-4 (hair style
-2 "buzzed" painted a sideburn dot disconnected from its own hair, on
-~25% of settlers). Full findings in the RELEASE_GATE transcript.
+All 23 A1 clips implemented (commits `9a1ce02`, `6d472bf`, `db98ae6`),
+gate was green twice, first in-game video sent. **RELEASE_GATE (Opus call
+1) returned REVISE**: 1 BLOCKER, 4 HIGH, 6 MEDIUM, 6 LOW.
 
-**All 4 fixed in one round (commit `9d4f830`), Level A verified, then
-`tools/hearthstead-qa full` PASS twice consecutively again:**
-`green_streak: 2`, fingerprint
-`635407d14b4b329fb9be48ba42c7d3b50fa9be872d29affa8a1d1cbf663f3b7b`,
-commit `9d4f83034c15d0c76fb5e93a3dde611c15fd50d3`, clean tree, all 11
-suites PASS both times (confirmed by reading `qa/reports/latest.json`
-directly). Fixes:
-- HIGH-1: appearance seed now rolled in the `SettlerEntity` constructor
-  itself (the one point every creation path passes through), not just
-  by `SettlementManager`. New GameTest
-  `settlerSpawnedOutsideSettlementManagerGetsRealAppearance`.
-- MEDIUM-2: generator-execution failure is now a real `check()` failure;
-  comparison covers `.nbt` alongside `.png` so `gen_structures.py` gets
-  real coverage. Verified by deliberately breaking a generator (now
-  fails with the real traceback) and confirming `gen_structures.py` is
-  no longer silently skipped.
-- MEDIUM-3: new `check_appearance_binding()` in `validate_assets.py`
-  parses the Java constants/key arrays/profession keys, computes the
-  exact cross product `SettlerTextureCache` will request, and asserts it
-  matches `layers/` exactly. Verified by deleting a layer file and
-  confirming it's caught.
-- MEDIUM-4: sideburn dot now gated on `side_rows >= 3` so it's only ever
-  painted contiguous with real side hair. 4 affected `hair_2_*` PNGs
-  regenerated.
+**Fix round complete (commits `b4d4650`, `0a18f40`, `ad4a20b`, `7500e22`),
+all Level A checks green** (`quick` PASS: build + 418/418 assets + anim;
+gametest 25/25 including the new regression test):
 
-**RELEASE_GATE re-review (Opus call 3 of 3): PASS.** Independently
-re-verified all 4 fixes with real experiments, not just diff-reading —
-re-decompiled Entity/LivingEntity to confirm no constructor-ordering or
-`onSyncedDataUpdated` hazard for HIGH-1; re-broke a generator and
-re-deleted/renamed a layer file to confirm MEDIUM-2/3 genuinely fail
-(not just reworded skips); decoded committed pixels for all 4 hair
-styles to confirm MEDIUM-4's `>= 3` threshold is correct, not just
-correct for the one broken case; re-ran `tools/hearthstead-qa gate`
-itself against current HEAD (`f34d16c`): `GATE: PASS (green_streak=2)`.
-4 non-blocking observations recorded (astronomically-unlikely seed-0
-collision cosmetic edge case; two GameTest spawn positions sit just
-outside a template's nominal bounds but not a real leak; a pre-existing
-one-row gap in style 3; Pillow-absent texture checks stay warn-only
-outside MEDIUM-2's scope) — none block, none need action this slice.
+- BLOCKER-1 → KF-011: `tickNeeds()` now restores energy for SLEEPING
+  (faster than RESTING — a bed must beat rough rest); new GameTest
+  `settlerWakesAtDawnWithRecoveredEnergy` drives night→dawn.
+- HIGH-1: HAUL_LOG fully replaces WALK in `setupAnim` (own gait, like
+  climbing) — carry arms genuinely locked; checker now enforces it
+  (CARRY_LAYER_CLIPS).
+- HIGH-2: lang keys for all 6 new activities (en+nb) + validator rule
+  parsing the enum (`check_settler_activities`).
+- HIGH-4: all 7 missing accent contracts WIRED for real (yawn, ladder
+  creak, settler_eat bites, panic yelp, shield thud, cheer, limp grunt) via
+  a server-side accent scheduler in `SettlerEntity.tickAccents()` + goal
+  hooks; 3 new generated sounds (settler_panic/shield_thud/cheer, 8 oggs);
+  `anim_check.py` ENTITY_SOUND_CONTRACTS greps the named constants from the
+  owning Java files — gaps can no longer hide. Header doc now truthful.
+- MEDIUM-1..6: SHIELD_BLOCK resets all shared parts before the react;
+  one-shot stagger moved server-side to trigger tick (id-based delays);
+  withheld seed returned on every farmer exit path; tilling crop-anchored
+  (no cascade terraforming); 5 new work activities in the needs model;
+  spec corrections recorded in quality ledger Iterations 5/6.
+- LOW: GUARD_PATROL gate uses patrolState.isStarted(); lumberer full-bag
+  resume sets HAULING_LOG; OGG encode now bitexact-deterministic (proven
+  by identical double-run); doc drift fixed.
+- Harness: playtest/live renderDistance 12→6 (playtest was ~62% of full
+  runtime, chunk-gen-bound), client_boot polls 3s, contact-sheet
+  end-frame crash fixed (verified against the real failing clip).
 
-**SLICE VISUAL-1 — DONE.** All 3 Opus calls used (1 PLAN_GATE, 1
-RELEASE_GATE, 1 re-review) — exhausted, per the resource governor.
-SLICE ANIM-1 starts Sonnet-only.
+**HIGH-3 evidence**: live session restarted on the fixed jar; two long
+films (90s, 100s — camera tracking a lumberer through felling + haul)
+captured and sent to the user. User's verdict on watching: swings lack
+WEIGHT (valid craft feedback → in flight below). "No tool in hand" in
+that film was a harness artifact: raw-NBT Profession merge skips
+`assignProfession()`'s tool equip — confirmed by manual `item replace`
++ screenshot; not a code defect. Film real settlers via the writ flow.
 
-## SLICE ANIM-1 — in progress. No PLAN_GATE call spent (plan already
-complete, PLAQUE-1 precedent)
-
-`hearthstead-neoforge/docs/ANIMATION_CATALOGUE.md` already specifies all 23
-A1 clips down to exact bone keyframes, sound contracts and QA assertions
-(§0-§17) -- more detailed than a PLAN_GATE would produce. Reusing it
-without a second Opus call, same as PLAQUE-1 reused `PLAN_PLAQUE-1.md`.
-ANIM-1's Opus budget (2-3 calls) stays fully unspent, for RELEASE_GATE
-(+BLOCKER_GATE if needed) only.
-
-**A1 exit criterion (catalogue's own words):** `anim_check.py` green with
-new §17 assertions, `tools/hearthstead-qa animation` PASS, every clip
-visually inspected.
-
-**Scoping decisions made (real, not deferred without saying so):**
-- Farmer: split the existing single WORKING phase into real HARVEST-then-
-  PLANT beats (both already happen in one `harvest()` call -- splitting is
-  re-sequencing, not new gameplay). Added a small genuine TILL/WATER field-
-  maintenance pass (till bare dirt next to farmland; water dry farmland)
-  so all 4 farm clips have live triggers, not just 2.
-- Lumberer: add a LIMBING phase after felling, before hauling; HAUL_LOG
-  plays while carrying logs home.
-- Locomotion (WALK/WALK_HURRIED/RUN_PANIC/WALK_LIMP/CREEP_NIGHT) are
-  mutually exclusive alternatives picked once per frame in `setupAnim`,
-  priority: onClimbable() > FLEEING > health<40% > night+dark+unarmed >
-  TRAVELING > default WALK. CLIMB_LADDER bypasses `animateWalk` entirely
-  (hand-over-hand cadence isn't swing-amount-driven).
-- GUARD_PATROL layers arms+head over WALK's legs/torso/cloak by calling
-  `rightArm.resetPose()`/`leftArm.resetPose()` before applying its own
-  channels -- vanilla's `animate()` is additive, so this is the only way
-  to get a genuine override instead of arm-swing-plus-lock garbage.
-- SHIELD_BLOCK wired to its "reflexive block after taking a hit" trigger
-  (real, live) -- the command-wheel "hold" trigger doesn't exist yet
-  (A3), documented as deferred, not silently dropped.
-- WAKE_STRETCH fires from `RestAtNightGoal.stop()` when the settler was
-  sleeping; per-entity phase offset via `entityId % N` satisfies §17.4
-  check 25. Village-wide 60-tick dawn window is NOT implemented (needs a
-  settlement-wide scheduler that doesn't exist) -- documented deferred.
-- New sounds: seed_press, crop_pull, bag_stow, water_pour, blade_hit,
-  yawn, ladder_creak, settler_eat (8 new `render_*` in `gen_sounds.py`,
-  reusing its existing DSP toolkit). limb_snap reuses `chop`'s render at
-  higher pitch via `SoundEvent` pitch param (catalogue's own suggestion,
-  no new asset). haul_strain reuses `settler_hm` pitched down, same
-  reason. CELEBRATE's cheer accent reuses `settler_hm` (a real, honest
-  simplification, not silence) -- a bespoke "cheer" mumble is deferred.
-  `SLEEP_IN_BED`'s optional breath sound and `GUARD_STANCE`'s optional
-  armour clink are both explicitly optional in the catalogue -- deferred.
-- Pose-sampler contact sheet (§17.5) is NOT built as an offline Python
-  renderer (would mean reimplementing keyframe interpolation + forward
-  kinematics from scratch in Python for one QA artifact). Substituting
-  REAL in-game screenshots via `tools/hearthstead-qa playtest`/`live` of
-  each new clip -- honest, uses existing infra, arguably stronger
-  evidence. Documented as a scoping substitution, not a silent skip.
-
-**Implementation done, QA gate green twice** (commits `9a1ce02`,
-`6d472bf`), fingerprint `ae8f6d8673d6c76137b70bf3bafc65b0e3bd6dcf02ed431
-e074ab8d7443acab8`, green_streak 2, all 11 suites PASS both times
-(confirmed by reading `qa/reports/latest.json` directly). Real in-game
-evidence beyond the suite: a `tools/hearthstead-qa live` session founded
-a settlement, and a 10s video was captured and sent to the user
-(`subject_mad: 7.167`, genuine motion, not a static shot) --
-`qa/reports/artifacts/live/20260824T185134Z/film/take-01/clip.mp4`.
-
-One real bug found and fixed mid-slice by the gate itself, not assumed
-away: `farmerHarvestsAndDeposits` failed on the FIRST full run with "at
-least one crop should be replanted, saw 0" -- genuine RNG flakiness this
-time (wheat's own loot table can legitimately drop 0 seeds per crop,
-~25% chance; the old code replanted unconditionally regardless, a latent
-chest-truth-conservation violation; the new seed-gated replant is
-correct but needed a larger crop sample -- 3 -> 8 -- to make the ~1.6%
-chance of an all-zero sample negligible instead of removing the
-assertion). Root-caused from the actual failure log, not guessed at.
+**In flight (2 parallel sonnet-builders, disjoint files):**
+1. SettlerAnimations.java only: weight/impact pass on CHOP, FARM_TILL,
+   LIMB_BRANCHES, MELEE per `.claude/skills/animation-quality/SKILL.md`
+   (impact hold, follow-through overshoot, torso lead, secondary motion),
+   accent timestamps untouched, visually iterated via Blockbench bridge.
+2. gen_settler.py + regenerated PNGs only: premium texture pass (shading/
+   AO/cloth folds), determinism double-run proof, validate_assets green.
 
 ## Next concrete action
 
-**Run RELEASE_GATE (Opus, 1 call) on the whole ANIM-1 slice** -- ANIM-1's
-own fresh 2-3 call budget (0 spent so far; no PLAN_GATE call was needed,
-see above). Package: the 23-clip scope, the goal-wiring decisions, the
-anim_check.py rewrite and what it caught, the QA gate evidence, the video,
-and the explicitly-documented scope limits (pose-sampler substitution,
-deferred sounds, deferred 4-slot refactor). If PASS: mark ANIM-1 complete
--- it is the last slice in the recorded order (HARNESS-1 -> PLAQUE-1 ->
-VISUAL-1 -> ANIM-1) -- and report full closure. If REVISE: fix in one
-coordinated round per the standing rule, one re-review only.
+When both workers land: reconcile → `quick` → `full` twice (green_streak
+≥ 2, hands off the tree during runs) → one short confirmation film of the
+improved CHOP → **RELEASE_GATE re-review (Opus call 2, the last normal
+one)** scoped to changed areas → close ANIM-1 → then SLICE A2a per the
+PLAN_GATE output (warehouse/courier; seam-then-fan-out plan already
+delivered by opus-planner).
+
+## Standing infrastructure (new this session — use it)
+
+- **Fast-quality mode** (CLAUDE.md + premium-build-loop skill): parallel
+  Sonnet workers under strict file ownership, seam-then-fan-out, Opus only
+  at gates, full QA rarely (slice end ×2), video evidence per finished task.
+- **`tools/hearthstead-qa quick`** — the after-every-change check (~15s).
+  `qa/QUICKSTART.md` — whole workflow on one page.
+- **`sonnet-driver` skill** — session-start recovery + escalation table
+  (agent defs are model-pinned; a Sonnet main session gets Opus at gates).
+- **Blockbench bridge** (`tools/blockbench/README.md`): real Blockbench
+  web build served locally, driven headless via playwright-core +
+  preinstalled Chromium; `export_bbmodel.py` (model + all 23 clips),
+  `bb_render.mjs` (static/posed viewport renders). Mandated for art work.
+- **`animation-quality` skill** — researched weight/impact principles +
+  the CHOP diagnosis template.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
@@ -194,55 +93,33 @@ coordinated round per the standing rule, one re-review only.
 - GNU `timeout` needs `--foreground`, else killing the PGID misses java.
 - Xvfb ignores SIGHUP — explicit `pkill -9 -f "Xvfb :NN"`.
 - GLFW needs a real click before relative look works; quickPlay never gives one.
-- Console `tp <t> ~ ~ ~` and any `~`-relative command resolves against the
-  CONSOLE's own position/context, not a target entity's — use `execute at`,
-  or better, ask as the player (`cmd`) when the check needs the PLAYER's
-  own position/nearest-settlement resolution.
-- A player's position can drift measurably even from PASSIVE waiting (not
-  just regrab-teleport churn) — any `~`-relative command issued after a
-  long wait or several regrab cycles needs a `capture_pos` freeze; it is
-  never safe to assume unless deliberately checked (KF-009, full detail in
-  KNOWN_FAILURES.md).
+- Console `~`-relative commands resolve against the console's context —
+  use `execute at`, or `cmd` when the check needs the player's position.
+- Player position drifts even from passive waiting — `capture_pos` before
+  any `~`-relative command after a wait (KF-009).
 - `execute at ... run <anything>` suppresses ALL feedback silently.
 - `fill <box> X replace X` is a no-op the game never counts.
-- A `PlaqueScreen` (or any screen) left open silently absorbs later clicks
-  as UI interaction — always `key Escape` between manual test iterations.
-- Never nest `nohup cmd &` inside a `run_in_background: true` Bash call —
-  pass the real command directly to a single-layer backgrounded call. Made
-  this exact mistake again in VISUAL-1 (double-backgrounded a playtest
-  run); recovered by finding the real PID via `ps` and blocking on it.
-- `@e[...,limit=N]` bounds a selector, does not require a minimum.
-- Never run two suites at once — every one launches a client and a server.
-- Client boot under software GL / this proxy can take minutes while
-  genuinely progressing — never treat slowness as a hang.
-- A jar sitting in `build/libs/` can be arbitrarily stale — `playtest.sh`
-  hard-fails if any source file is newer than the selected jar (proved
-  itself useful again in VISUAL-1: caught a compile-only, not-yet-built
-  jar before it could produce a false result).
-- `expect_server` searches only the log since the last action-producing
-  directive (`LOG_ANCHOR`), not the whole file.
-- `sendSuccess(msg, broadcastToAdmins)` — `false` means a PLAYER-issued
-  command produces NO server console/log trace at all, only client-side
-  chat. Check this flag before adding a log-based `expect_server` check.
-- Before writing down "environmental flakiness" for ANY repeated failure:
-  read the client log AND look at the actual failing screenshot(s) first.
-- **Silence in a log is not proof a code path ran and succeeded** — it is
-  equally consistent with "never called" and "failed but nothing logs
-  failure." A try/catch that swallows exceptions to provide a fallback
-  needs its own explicit success/failure logging, or in-game verification
-  of that specific path stays impossible from evidence alone (this is why
-  V2c got the WARN/INFO logging above, not just a `null`-on-catch).
+- A screen left open absorbs later clicks — `key Escape` between iterations.
+- Never nest `nohup cmd &` inside a backgrounded Bash call.
+- Never run two suites at once (KF-002/KF-003); never edit/compile source
+  while a `full` run executes (false "stale jar" in its playtest step).
+- Client boot under software GL can take minutes while genuinely
+  progressing — never treat slowness as a hang.
+- `playtest.sh` hard-fails on a stale jar — that check has caught real
+  staleness twice; don't fight it, rebuild.
+- `sendSuccess(msg, false)` leaves NO server-log trace for player-issued
+  commands — check the flag before adding log-based expectations.
+- Silence in a log is not proof a path ran — swallowed exceptions need
+  explicit success/failure logging before evidence-based verification.
+- Raw NBT `Profession` merge on a settler skips `assignProfession()` (no
+  tool equip, no records) — fine for animation smoke checks, NOT for
+  filming "real" behavior; use the writ/demo flow for user-facing video.
+- `data merge` CAN set persisted fields (Profession) on a live entity;
+  synced-only state (Activity) it cannot.
 
 ## Known problems (pre-existing, other slices' scope)
 
-None currently open outside the standing slice backlog (ANIM-1 etc).
-
-## Architecture note for later (not blocking, not urgent)
-
-`safe_regrab()`'s Y=300 round trip (used by every `cmd`/`move`) generates
-`moved too quickly!` warnings and measurable position drift in this
-environment. `capture_pos` covers this only for the specific positions it
-has been deliberately applied to — it does NOT generically cover every
-`~`-relative command in a scenario. A regrab mechanism that never moves
-the player would retire this whole class; not worth redesigning now,
-worth remembering if a similar symptom reappears elsewhere.
+- `safe_regrab()`'s Y=300 round trip causes drift warnings (architecture
+  note; a non-moving regrab would retire the class — not now).
+- Village-wide dawn wake window (settlement scheduler) — deferred, noted
+  in catalogue decisions.
