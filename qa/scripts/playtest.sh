@@ -268,6 +268,50 @@ focus() {
         xdotool windowfocus --sync "$WIN" 2>/dev/null || true
     fi
 }
+
+# KF-009's actual root cause (opus review, 2026-08-24): `cmd` and `move`
+# each end with a click to re-establish GLFW's relative-mouse grab, and
+# that click landed at WHATEVER the crosshair was already pointing at --
+# the comment here used to call it "a harmless left-click on empty space",
+# which was never actually verified. In CREATIVE MODE (what every scenario
+# uses) a left-click is an INSTANT block break regardless of what is under
+# it. This destroyed the plaque scenario's own plaque immediately after a
+# successful survey, deterministically, and was misdiagnosed for hours as
+# unexplained input-delivery flakiness before the evidence (the block
+# actually vanishing between two screenshots) was read correctly.
+#
+# Fix: never click at whatever the player currently has in view. Capture
+# the exact current rotation server-side, point the camera straight up
+# (open sky above wherever this harness builds test structures -- never a
+# ceiling), click there, then restore the captured rotation exactly. A
+# relative mouse round-trip (send N up, send N back down) cannot be
+# trusted for the restore: once the up-look clamps at pitch -90, the
+# "excess" of the first move is not stored anywhere to cancel out the
+# second, so a symmetric round-trip does not reliably return to the
+# original pitch. An absolute server-side `tp` does not have that problem.
+safe_regrab() {
+    scmd "data get entity $PLAYER Rotation"
+    sleep 1
+    local rot yaw pitch
+    rot=$(grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+f, [-0-9.]+f" "$SRV_LOG" 2>/dev/null | tail -1)
+    yaw=$(echo "$rot" | cut -d',' -f1 | tr -d 'f ')
+    pitch=$(echo "$rot" | cut -d',' -f2 | tr -d 'f ')
+    if [ -z "$yaw" ] || [ -z "$pitch" ]; then
+        # Could not read rotation back -- fall back to the old unsafe click
+        # rather than silently skipping regrab (which broke move/look
+        # entirely, the original failure mode this workaround exists for).
+        # This should not happen in practice; if it does, it is itself
+        # worth seeing in the transcript rather than hiding.
+        echo "safe_regrab: could not read $PLAYER's rotation, falling back to a direct click" >&2
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+        return
+    fi
+    scmd "execute at $PLAYER run tp $PLAYER ~ ~ ~ $yaw -90"
+    sleep 1
+    focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+    scmd "execute at $PLAYER run tp $PLAYER ~ ~ ~ $yaw $pitch"
+    sleep 1
+}
 shot() { # <name>
     focus
     if [ -n "$WIN" ]; then
@@ -317,11 +361,11 @@ while read -r verb rest; do
                # can be clicked/selected); closing it does not reliably
                # re-establish relative-look capture on its own — proven
                # live: a `move`/`look` right after a `cmd` silently produced
-               # zero rotation change until an explicit click. A harmless
-               # left-click on empty space restores it so every later
-               # move/look/click directive keeps working regardless of how
-               # many chat commands ran before it.
-               focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+               # zero rotation change until an explicit click. `safe_regrab`
+               # (see its own comment, above the directive loop) restores
+               # grab the same way every later move/look/click directive
+               # needs, WITHOUT the crosshair's current target paying for it.
+               safe_regrab
                check_pass "$DIR_IDX:cmd" "ran as player: /$rest";;
         click) focus
                xdotool mousemove 640 360
@@ -333,14 +377,15 @@ while read -r verb rest; do
                # exact cause not fully isolated (not simply "any key press"
                # or "any chat", since some sequences of those did survive
                # while others with an apparently identical shape did not).
-               # Belt and braces: click-then-send TWICE. Harmless in
-               # creative (at worst breaks a grass block, and a second
-               # identical relative send just doubles an already-adequate
-               # rotation change), and empirically far more reliable than
-               # either a single click or a single send alone.
-               xdotool mousemove 640 360; xdotool click 1; sleep 2
+               # Belt and braces: regrab-then-send TWICE, empirically more
+               # reliable than either a single regrab or a single send
+               # alone. `safe_regrab` (see its own comment, above the
+               # directive loop) replaces the old bare click here — that
+               # click fired at whatever the crosshair already held, which
+               # in creative mode is an instant block break, not "harmless".
+               safe_regrab
                xdotool mousemove_relative -- $rest; sleep 1
-               xdotool mousemove 640 360; xdotool click 1; sleep 1
+               safe_regrab
                xdotool mousemove_relative -- $rest; sleep 1
                check_pass "$DIR_IDX:move" "moved $rest";;
         scmd)  scmd "$rest"; check_pass "$DIR_IDX:scmd" "issued on console: $rest";;
