@@ -12,7 +12,15 @@ public enum SettlerActivity {
     COMBAT("combat"),
     FLEEING("fleeing"),
     TRAVELING("traveling"),
-    CELEBRATING("celebrating");
+    CELEBRATING("celebrating"),
+    // Appended for SLICE ANIM-1 -- ordinals of the values above must never
+    // shift, this is the wire format (SettlerEntity.DATA_ACTIVITY).
+    WORK_PLANT("work_plant"),
+    WORK_HARVEST("work_harvest"),
+    WORK_WATER("work_water"),
+    WORK_LIMB("work_limb"),
+    HAULING_LOG("hauling_log"),
+    SLEEPING("sleeping");
 
     public static final SettlerActivity[] BY_ID = values();
 

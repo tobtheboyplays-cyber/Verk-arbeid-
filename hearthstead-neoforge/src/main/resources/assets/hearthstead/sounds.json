@@ -81,5 +81,81 @@
       }
     ],
     "subtitle": "subtitles.hearthstead.settler_hm"
+  },
+  "seed_press": {
+    "sounds": [
+      {
+        "name": "hearthstead:seed_press",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.seed_press"
+  },
+  "crop_pull": {
+    "sounds": [
+      {
+        "name": "hearthstead:crop_pull",
+        "volume": 0.65
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.crop_pull"
+  },
+  "bag_stow": {
+    "sounds": [
+      {
+        "name": "hearthstead:bag_stow",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.bag_stow"
+  },
+  "water_pour": {
+    "sounds": [
+      {
+        "name": "hearthstead:water_pour",
+        "volume": 0.5
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.water_pour"
+  },
+  "blade_hit": {
+    "sounds": [
+      {
+        "name": "hearthstead:blade_hit",
+        "volume": 0.7
+      },
+      {
+        "name": "hearthstead:blade_hit2",
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.blade_hit"
+  },
+  "yawn": {
+    "sounds": [
+      {
+        "name": "hearthstead:yawn",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.yawn"
+  },
+  "ladder_creak": {
+    "sounds": [
+      {
+        "name": "hearthstead:ladder_creak",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.ladder_creak"
+  },
+  "settler_eat": {
+    "sounds": [
+      {
+        "name": "hearthstead:settler_eat",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.settler_eat"
   }
 }

@@ -37,6 +37,7 @@ public class LumbererWorkGoal extends Goal {
     private static final int MAX_DRIFT = 8;
     private static final int MIN_LEAVES = 4;
     private static final int TICKS_PER_LOG = 60;
+    private static final int LIMB_DURATION = 26;
     private static final int BAG_TRIGGER = 12;
 
     private static final Map<Block, Block> SAPLING_FOR_LOG = new HashMap<>();
@@ -52,7 +53,7 @@ public class LumbererWorkGoal extends Goal {
         SAPLING_FOR_LOG.put(Blocks.MANGROVE_LOG, Blocks.MANGROVE_PROPAGULE);
     }
 
-    private enum Mode { TO_TREE, CHOPPING, TO_HEARTH }
+    private enum Mode { TO_TREE, CHOPPING, LIMBING, TO_HEARTH }
 
     private final SettlerEntity settler;
     private final WorkScanner scanner = new WorkScanner();
@@ -61,6 +62,8 @@ public class LumbererWorkGoal extends Goal {
     private List<BlockPos> treeLogs = List.of();
     private Block treeLogBlock;
     private int chopTicks;
+    private int limbTicks;
+    private int haulTicks;
     private int scanCooldown;
     private int repathTimer;
     private int stuckChecks;
@@ -220,6 +223,7 @@ public class LumbererWorkGoal extends Goal {
         switch (mode) {
             case TO_TREE -> tickTravel();
             case CHOPPING -> tickChop();
+            case LIMBING -> tickLimb();
             case TO_HEARTH -> tickDeposit();
         }
     }
@@ -248,7 +252,7 @@ public class LumbererWorkGoal extends Goal {
 
     private void tickChop() {
         if (treeLogs.isEmpty()) {
-            finishTree();
+            startLimbing();
             return;
         }
         BlockPos topLog = treeLogs.get(0);
@@ -275,9 +279,36 @@ public class LumbererWorkGoal extends Goal {
             }
             treeLogs = treeLogs.subList(1, treeLogs.size());
             if (treeLogs.isEmpty()) {
-                finishTree();
+                startLimbing();
             }
         }
+    }
+
+    /** Trimming the felled trunk: a short beat between the last strike and
+     *  the sapling/hearth wrap-up, per docs/ANIMATION_CATALOGUE.md §3.2 --
+     *  the goal already implicitly "limbs" the tree by only chopping the log
+     *  column, it just had no clip for that step. */
+    private void tickLimb() {
+        limbTicks++;
+        if (settler.level() instanceof ServerLevel serverLevel) {
+            if (limbTicks % LIMB_DURATION == 6 || limbTicks % LIMB_DURATION == 19) {
+                // Reuses CHOP's synthesis at higher pitch/shorter tail per
+                // the catalogue's own suggestion -- no new sound asset.
+                serverLevel.playSound(null, treeBase, ModSounds.CHOP.get(),
+                    SoundSource.NEUTRAL, 0.6F, 1.35F + settler.getRandom().nextFloat() * 0.1F);
+            }
+        }
+        if (limbTicks >= LIMB_DURATION) {
+            limbTicks = 0;
+            finishTree();
+        }
+    }
+
+    private void startLimbing() {
+        mode = Mode.LIMBING;
+        limbTicks = 0;
+        settler.getNavigation().stop();
+        settler.setActivity(SettlerActivity.WORK_LIMB);
     }
 
     private void finishTree() {
@@ -290,11 +321,12 @@ public class LumbererWorkGoal extends Goal {
             }
         }
         treeBase = null;
-        settler.setActivity(SettlerActivity.IDLE);
         if (bagCount() > 0) {
             mode = Mode.TO_HEARTH;
+            settler.setActivity(SettlerActivity.HAULING_LOG);
             pathToHearth();
         } else {
+            settler.setActivity(SettlerActivity.IDLE);
             done = true;
         }
     }
@@ -307,6 +339,14 @@ public class LumbererWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(hearthPos.getX() + 0.5, hearthPos.getY() + 0.6,
             hearthPos.getZ() + 0.5);
+        // HAUL_LOG's strain accent: t=1.20s of its 2.4s loop -> tick 24 of 48.
+        // Reuses settler_hm (an exhale-shaped voice sound) pitched down --
+        // the catalogue's own suggested reuse for this accent, no new asset.
+        haulTicks++;
+        if (haulTicks % 48 == 24 && settler.level() instanceof ServerLevel serverLevel) {
+            serverLevel.playSound(null, settler.blockPosition(), ModSounds.SETTLER_HM.get(),
+                SoundSource.NEUTRAL, 0.35F, 0.6F + settler.getRandom().nextFloat() * 0.05F);
+        }
         if (settler.blockPosition().distSqr(hearthPos) <= 6.25) {
             HearthBlockEntity hearth = settler.hearth();
             if (hearth != null) {

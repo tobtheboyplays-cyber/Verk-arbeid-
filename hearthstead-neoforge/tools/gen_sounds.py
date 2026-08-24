@@ -524,6 +524,123 @@ def render_settler_hm(rng, dur, variant=0):
     return out
 
 
+def render_seed_press(rng, dur):
+    """Soft soil pat: a low dull thump plus a short damp puff. No metal."""
+    mix = []
+    thud = one_pole_lp(white_noise(rng, 0.09), 380)
+    te = env_exp(len(thud), attack=0.004, tau=0.05)
+    mix_at(mix, [thud[i] * te[i] for i in range(len(thud))], 0.01, 0.75)
+    puff = one_pole_lp(white_noise(rng, 0.05), 900)
+    pe = env_exp(len(puff), attack=0.002, tau=0.02)
+    mix_at(mix, [puff[i] * pe[i] for i in range(len(puff))], 0.015, 0.35)
+    return mix
+
+
+def render_crop_pull(rng, dur):
+    """Dry stalk rustle ending in a short snap."""
+    mix = []
+    mix_at(mix, noise_burst(rng, 0.14, 3600 * rng.uniform(0.95, 1.05), 1.2,
+                            flutter_rate=90.0, flutter_depth=0.7), 0.0, 0.75)
+    t_snap = 0.13 + rng.uniform(0.0, 0.01)
+    snap = one_pole_hp(white_noise(rng, 0.02), 2800)
+    se = env_exp(len(snap), attack=0.0005, tau=0.008)
+    mix_at(mix, [snap[i] * se[i] for i in range(len(snap))], t_snap, 0.6)
+    return mix
+
+
+def render_bag_stow(rng, dur):
+    """Soft cloth rustle and a small thump as the item settles in the bag."""
+    mix = []
+    mix_at(mix, noise_burst(rng, 0.10, 1800 * rng.uniform(0.9, 1.1), 0.9,
+                            flutter_rate=60.0, flutter_depth=0.6), 0.0, 0.5)
+    thud = one_pole_lp(white_noise(rng, 0.06), 500)
+    te = env_exp(len(thud), attack=0.003, tau=0.03)
+    mix_at(mix, [thud[i] * te[i] for i in range(len(thud))], 0.03, 0.4)
+    return mix
+
+
+def render_water_pour(rng, dur):
+    """A steady trickle: filtered noise with slow flutter, swelling in and out."""
+    n = n_samples(dur)
+    x = biquad_bp(white_noise(rng, dur), 5200, 0.7)
+    fl = flutter_env(n, rng, rate=18.0, depth=0.5)
+    out = []
+    for i in range(n):
+        t = i / SR
+        g = min(1.0, t / 0.15) * min(1.0, (dur - t) / 0.25)
+        out.append(x[i] * fl[i] * g)
+    return out
+
+
+BLADE_VARIANTS = (
+    {"f0": 2600.0, "tau": 0.050},
+    {"f0": 3050.0, "tau": 0.045},
+)
+
+
+def render_blade_hit(rng, dur, variant=0):
+    """Metallic contact: a sharp noise click plus a short high ring."""
+    p = BLADE_VARIANTS[variant]
+    mix = []
+    click = one_pole_hp(white_noise(rng, 0.01), 3500)
+    ce = env_exp(len(click), attack=0.0003, tau=0.004)
+    mix_at(mix, [click[i] * ce[i] for i in range(len(click))], 0.0, 1.0)
+    n = n_samples(p["tau"] * 4)
+    ph = rng.uniform(0.0, TWO_PI)
+    ring = [math.exp(-(i / SR) / p["tau"]) * math.sin(TWO_PI * p["f0"] * (i / SR) + ph)
+            for i in range(n)]
+    mix_at(mix, ring, 0.001, 0.55)
+    return soft_clip(mix, 1.3)
+
+
+def render_yawn(rng, dur):
+    """A slow, swelling mumble-voice yawn: a low downward glide, then a soft trail."""
+    n = n_samples(dur)
+    f0 = 150.0
+    ph = 0.0
+    src = []
+    ap = src.append
+    for i in range(n):
+        t = i / SR
+        f = f0 * (1.0 - 0.25 * min(1.0, t / dur))
+        ph += TWO_PI * f / SR
+        ap(math.sin(ph) - math.sin(3 * ph) / 9.0 + math.sin(5 * ph) / 25.0)
+    f1 = biquad_bp(src, 350.0, 4.0)
+    out = []
+    for i in range(n):
+        t = i / SR
+        e = min(1.0, t / (0.35 * dur))
+        rel = 0.3 * dur
+        if t > dur - rel:
+            e *= max(0.0, (dur - t) / rel)
+        out.append((0.6 * src[i] + 1.1 * f1[i]) * e)
+    return out
+
+
+def render_ladder_creak(rng, dur):
+    """A short wooden creak: swept band-pass noise, pitch-jittered per call."""
+    n = n_samples(dur)
+    x = white_noise(rng, dur)
+    f0 = rng.uniform(320.0, 420.0)
+    f1 = f0 * rng.uniform(0.75, 0.9)
+    x = biquad_bp(x, (f0 + f1) / 2.0, 3.0)
+    x = lp_sweep(x, f0 * 3.0, f1 * 1.5)
+    e = env_exp(n, attack=0.01, tau=dur * 0.4)
+    return [x[i] * e[i] for i in range(n)]
+
+
+def render_settler_eat(rng, dur):
+    """A soft, wet chew: a damp noise burst plus a tiny mouth-click."""
+    mix = []
+    chew = one_pole_lp(white_noise(rng, 0.08), 700)
+    ce = env_exp(len(chew), attack=0.005, tau=0.04)
+    mix_at(mix, [chew[i] * ce[i] for i in range(len(chew))], 0.0, 0.6)
+    click = one_pole_hp(white_noise(rng, 0.008), 2000)
+    cke = env_exp(len(click), attack=0.001, tau=0.006)
+    mix_at(mix, [click[i] * cke[i] for i in range(len(click))], 0.05, 0.3)
+    return mix
+
+
 # ---------------------------------------------------------------------------
 # Sound registry / sounds.json
 # ---------------------------------------------------------------------------
@@ -542,6 +659,16 @@ SOUND_SPECS = [
     ("guard_alert",         2.0, render_guard_alert,        {}, 0.70),
     ("settler_hm",          0.7, render_settler_hm, {"variant": 0}, 0.35),
     ("settler_hm2",         0.7, render_settler_hm, {"variant": 1}, 0.35),
+    # SLICE ANIM-1 additions.
+    ("seed_press",          0.15, render_seed_press,   {}, 0.55),
+    ("crop_pull",           0.20, render_crop_pull,    {}, 0.60),
+    ("bag_stow",            0.14, render_bag_stow,     {}, 0.55),
+    ("water_pour",          1.20, render_water_pour,   {}, 0.45),
+    ("blade_hit",           0.20, render_blade_hit, {"variant": 0}, 0.65),
+    ("blade_hit2",          0.20, render_blade_hit, {"variant": 1}, 0.65),
+    ("yawn",                0.90, render_yawn,         {}, 0.35),
+    ("ladder_creak",        0.30, render_ladder_creak, {}, 0.40),
+    ("settler_eat",         0.20, render_settler_eat,  {}, 0.55),
 ]
 
 SOUNDS_JSON_DATA = {
@@ -583,6 +710,41 @@ SOUNDS_JSON_DATA = {
             {"name": "hearthstead:settler_hm2", "volume": 0.6},
         ],
         "subtitle": "subtitles.hearthstead.settler_hm",
+    },
+    "seed_press": {
+        "sounds": [{"name": "hearthstead:seed_press", "volume": 0.6}],
+        "subtitle": "subtitles.hearthstead.seed_press",
+    },
+    "crop_pull": {
+        "sounds": [{"name": "hearthstead:crop_pull", "volume": 0.65}],
+        "subtitle": "subtitles.hearthstead.crop_pull",
+    },
+    "bag_stow": {
+        "sounds": [{"name": "hearthstead:bag_stow", "volume": 0.6}],
+        "subtitle": "subtitles.hearthstead.bag_stow",
+    },
+    "water_pour": {
+        "sounds": [{"name": "hearthstead:water_pour", "volume": 0.5}],
+        "subtitle": "subtitles.hearthstead.water_pour",
+    },
+    "blade_hit": {
+        "sounds": [
+            {"name": "hearthstead:blade_hit", "volume": 0.7},
+            {"name": "hearthstead:blade_hit2", "volume": 0.7},
+        ],
+        "subtitle": "subtitles.hearthstead.blade_hit",
+    },
+    "yawn": {
+        "sounds": [{"name": "hearthstead:yawn", "volume": 0.45}],
+        "subtitle": "subtitles.hearthstead.yawn",
+    },
+    "ladder_creak": {
+        "sounds": [{"name": "hearthstead:ladder_creak", "volume": 0.45}],
+        "subtitle": "subtitles.hearthstead.ladder_creak",
+    },
+    "settler_eat": {
+        "sounds": [{"name": "hearthstead:settler_eat", "volume": 0.6}],
+        "subtitle": "subtitles.hearthstead.settler_eat",
     },
 }
 

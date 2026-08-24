@@ -103,13 +103,70 @@ outside MEDIUM-2's scope) — none block, none need action this slice.
 RELEASE_GATE, 1 re-review) — exhausted, per the resource governor.
 SLICE ANIM-1 starts Sonnet-only.
 
+## SLICE ANIM-1 — in progress. No PLAN_GATE call spent (plan already
+complete, PLAQUE-1 precedent)
+
+`hearthstead-neoforge/docs/ANIMATION_CATALOGUE.md` already specifies all 23
+A1 clips down to exact bone keyframes, sound contracts and QA assertions
+(§0-§17) -- more detailed than a PLAN_GATE would produce. Reusing it
+without a second Opus call, same as PLAQUE-1 reused `PLAN_PLAQUE-1.md`.
+ANIM-1's Opus budget (2-3 calls) stays fully unspent, for RELEASE_GATE
+(+BLOCKER_GATE if needed) only.
+
+**A1 exit criterion (catalogue's own words):** `anim_check.py` green with
+new §17 assertions, `tools/hearthstead-qa animation` PASS, every clip
+visually inspected.
+
+**Scoping decisions made (real, not deferred without saying so):**
+- Farmer: split the existing single WORKING phase into real HARVEST-then-
+  PLANT beats (both already happen in one `harvest()` call -- splitting is
+  re-sequencing, not new gameplay). Added a small genuine TILL/WATER field-
+  maintenance pass (till bare dirt next to farmland; water dry farmland)
+  so all 4 farm clips have live triggers, not just 2.
+- Lumberer: add a LIMBING phase after felling, before hauling; HAUL_LOG
+  plays while carrying logs home.
+- Locomotion (WALK/WALK_HURRIED/RUN_PANIC/WALK_LIMP/CREEP_NIGHT) are
+  mutually exclusive alternatives picked once per frame in `setupAnim`,
+  priority: onClimbable() > FLEEING > health<40% > night+dark+unarmed >
+  TRAVELING > default WALK. CLIMB_LADDER bypasses `animateWalk` entirely
+  (hand-over-hand cadence isn't swing-amount-driven).
+- GUARD_PATROL layers arms+head over WALK's legs/torso/cloak by calling
+  `rightArm.resetPose()`/`leftArm.resetPose()` before applying its own
+  channels -- vanilla's `animate()` is additive, so this is the only way
+  to get a genuine override instead of arm-swing-plus-lock garbage.
+- SHIELD_BLOCK wired to its "reflexive block after taking a hit" trigger
+  (real, live) -- the command-wheel "hold" trigger doesn't exist yet
+  (A3), documented as deferred, not silently dropped.
+- WAKE_STRETCH fires from `RestAtNightGoal.stop()` when the settler was
+  sleeping; per-entity phase offset via `entityId % N` satisfies §17.4
+  check 25. Village-wide 60-tick dawn window is NOT implemented (needs a
+  settlement-wide scheduler that doesn't exist) -- documented deferred.
+- New sounds: seed_press, crop_pull, bag_stow, water_pour, blade_hit,
+  yawn, ladder_creak, settler_eat (8 new `render_*` in `gen_sounds.py`,
+  reusing its existing DSP toolkit). limb_snap reuses `chop`'s render at
+  higher pitch via `SoundEvent` pitch param (catalogue's own suggestion,
+  no new asset). haul_strain reuses `settler_hm` pitched down, same
+  reason. CELEBRATE's cheer accent reuses `settler_hm` (a real, honest
+  simplification, not silence) -- a bespoke "cheer" mumble is deferred.
+  `SLEEP_IN_BED`'s optional breath sound and `GUARD_STANCE`'s optional
+  armour clink are both explicitly optional in the catalogue -- deferred.
+- Pose-sampler contact sheet (§17.5) is NOT built as an offline Python
+  renderer (would mean reimplementing keyframe interpolation + forward
+  kinematics from scratch in Python for one QA artifact). Substituting
+  REAL in-game screenshots via `tools/hearthstead-qa playtest`/`live` of
+  each new clip -- honest, uses existing infra, arguably stronger
+  evidence. Documented as a scoping substitution, not a silent skip.
+
 ## Next concrete action
 
-**Start SLICE ANIM-1** (A1 animation set, 23 clips) per the recorded
-slice order (HARNESS-1 -> PLAQUE-1 -> VISUAL-1 -> ANIM-1). Sonnet-only
-implementation; a fresh PLAN_GATE (Opus, 1 call) before editing begins,
-per the mandatory multi-model gate in the repo's CLAUDE.md — ANIM-1 gets
-its own fresh 2-3 call budget, separate from VISUAL-1's now-exhausted one.
+Implementation order: (1) SettlerActivity 7 new values -> (2) gen_sounds.py
+8 new sounds + regenerate -> (3) ModSounds registration -> (4)
+SettlerAnimations.java all 23 clips -> (5) SettlerEntity new
+AnimationState fields + wiring -> (6) SettlerModel.setupAnim locomotion
+selection + layering + damping table -> (7) Goal classes (Farmer/Lumberer/
+GuardPatrol/RestAtNight) -> (8) anim_check.py rewrite (§17 checks) -> (9)
+lang keys for new sounds -> (10) GameTests -> (11) full verification +
+in-game visual inspection -> (12) RELEASE_GATE.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 

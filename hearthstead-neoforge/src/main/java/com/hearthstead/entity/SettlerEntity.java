@@ -72,6 +72,8 @@ public class SettlerEntity extends PathfinderMob {
 
     public static final byte EV_CELEBRATE = 64;
     public static final byte EV_MELEE = 65;
+    public static final byte EV_SHIELD_BLOCK = 66;
+    public static final byte EV_WAKE = 67;
 
     /** Bag capacity: harvested goods carried before a hearth deposit run. */
     public static final int BAG_SIZE = 8;
@@ -97,6 +99,17 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState stanceState = new AnimationState();
     public final AnimationState meleeState = new AnimationState();
     public final AnimationState celebrateState = new AnimationState();
+    // SLICE ANIM-1 additions.
+    public final AnimationState plantState = new AnimationState();
+    public final AnimationState harvestState = new AnimationState();
+    public final AnimationState waterState = new AnimationState();
+    public final AnimationState limbState = new AnimationState();
+    public final AnimationState haulState = new AnimationState();
+    public final AnimationState patrolState = new AnimationState();
+    public final AnimationState shieldState = new AnimationState();
+    public final AnimationState sleepState = new AnimationState();
+    public final AnimationState wakeState = new AnimationState();
+    public final AnimationState climbState = new AnimationState();
 
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -432,12 +445,29 @@ public class SettlerEntity extends PathfinderMob {
         stanceState.animateWhen((activity == SettlerActivity.PATROLLING
             || activity == SettlerActivity.COMBAT) && !moving, tickCount);
 
+        // SLICE ANIM-1 additions.
+        plantState.animateWhen(activity == SettlerActivity.WORK_PLANT && !moving, tickCount);
+        harvestState.animateWhen(activity == SettlerActivity.WORK_HARVEST && !moving, tickCount);
+        waterState.animateWhen(activity == SettlerActivity.WORK_WATER && !moving, tickCount);
+        limbState.animateWhen(activity == SettlerActivity.WORK_LIMB && !moving, tickCount);
+        haulState.animateWhen(activity == SettlerActivity.HAULING_LOG && moving, tickCount);
+        patrolState.animateWhen(activity == SettlerActivity.PATROLLING && moving, tickCount);
+        sleepState.animateWhen(activity == SettlerActivity.SLEEPING, tickCount);
+        climbState.animateWhen(onClimbable(), tickCount);
+
         // One-shots expire on their own clock.
         if (meleeState.isStarted() && meleeState.getAccumulatedTime() > 500L) {
             meleeState.stop();
         }
         if (celebrateState.isStarted() && celebrateState.getAccumulatedTime() > 2100L) {
             celebrateState.stop();
+        }
+        // Reflexive block: only the impact portion of the loop plays.
+        if (shieldState.isStarted() && shieldState.getAccumulatedTime() > 300L) {
+            shieldState.stop();
+        }
+        if (wakeState.isStarted() && wakeState.getAccumulatedTime() > 2600L) {
+            wakeState.stop();
         }
     }
 
@@ -447,6 +477,10 @@ public class SettlerEntity extends PathfinderMob {
             celebrateState.start(tickCount);
         } else if (id == EV_MELEE) {
             meleeState.start(tickCount);
+        } else if (id == EV_SHIELD_BLOCK) {
+            shieldState.start(tickCount);
+        } else if (id == EV_WAKE) {
+            wakeState.start(tickCount);
         } else {
             super.handleEntityEvent(id);
         }
@@ -455,7 +489,22 @@ public class SettlerEntity extends PathfinderMob {
     @Override
     public boolean doHurtTarget(net.minecraft.world.entity.Entity target) {
         level().broadcastEntityEvent(this, EV_MELEE);
-        return super.doHurtTarget(target);
+        boolean hit = super.doHurtTarget(target);
+        if (hit && !level().isClientSide) {
+            // MELEE's contact accent -- damage is applied synchronously in
+            // vanilla's doHurtTarget, so "the same tick the server applies
+            // damage" per the catalogue is literally this tick.
+            level().playSound(null, blockPosition(), ModSounds.BLADE_HIT.get(),
+                SoundSource.NEUTRAL, 0.85F, 0.95F + random.nextFloat() * 0.1F);
+        }
+        return hit;
+    }
+
+    /** Fired from RestAtNightGoal when a sleeping settler naturally wakes. */
+    public void triggerWakeStretch() {
+        if (!level().isClientSide) {
+            level().broadcastEntityEvent(this, EV_WAKE);
+        }
     }
 
     // ------------------------------------------------------- interaction ---
@@ -491,6 +540,12 @@ public class SettlerEntity extends PathfinderMob {
                 settlementId != null ? settlementId : targetSettlementId);
             if (s != null) {
                 SettlementManager.raiseAlert(serverLevel, s, attacker.blockPosition());
+            }
+            // SHIELD_BLOCK's reflexive-hit-react: a guard mid-combat flinches
+            // behind the shield for the impact. The "hold" trigger (command
+            // wheel) doesn't exist yet -- A3.
+            if (getProfession() == Profession.GUARD && getActivity() == SettlerActivity.COMBAT) {
+                level().broadcastEntityEvent(this, EV_SHIELD_BLOCK);
             }
         }
         return result;

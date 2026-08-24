@@ -26,6 +26,24 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_HM =
         register("settler_hm");
 
+    // SLICE ANIM-1 additions.
+    public static final DeferredHolder<SoundEvent, SoundEvent> SEED_PRESS =
+        register("seed_press");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CROP_PULL =
+        register("crop_pull");
+    public static final DeferredHolder<SoundEvent, SoundEvent> BAG_STOW =
+        register("bag_stow");
+    public static final DeferredHolder<SoundEvent, SoundEvent> WATER_POUR =
+        register("water_pour");
+    public static final DeferredHolder<SoundEvent, SoundEvent> BLADE_HIT =
+        register("blade_hit");
+    public static final DeferredHolder<SoundEvent, SoundEvent> YAWN =
+        register("yawn");
+    public static final DeferredHolder<SoundEvent, SoundEvent> LADDER_CREAK =
+        register("ladder_creak");
+    public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_EAT =
+        register("settler_eat");
+
     private static DeferredHolder<SoundEvent, SoundEvent> register(String name) {
         return SOUND_EVENTS.register(name,
             () -> SoundEvent.createVariableRangeEvent(Hearthstead.id(name)));

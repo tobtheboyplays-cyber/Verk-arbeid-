@@ -114,22 +114,78 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         hood.visible = profession == Profession.NONE || profession == Profession.GUARD;
         hatBrim.visible = profession == Profession.FARMER;
 
-        animateWalk(SettlerAnimations.WALK, limbSwing, limbSwingAmount, 2.0F, 2.5F);
+        SettlerActivity activity = entity.getActivity();
+        boolean climbing = entity.onClimbable();
+        boolean lowHealth = entity.getHealth() < entity.getMaxHealth() * 0.4F;
+        boolean night = entity.dayPhase() == SettlerEntity.DayPhase.REST;
+        boolean dark = entity.level().getRawBrightness(entity.blockPosition(), 0) <= 4;
 
-        animate(entity.idleState, SettlerAnimations.IDLE, ageInTicks);
-        animate(entity.farmState, SettlerAnimations.FARM, ageInTicks);
+        if (climbing) {
+            animate(entity.climbState, SettlerAnimations.CLIMB_LADDER, ageInTicks);
+        } else {
+            // Locomotion: mutually exclusive alternatives to WALK, picked by
+            // priority since animateWalk always writes legs+arms+torso+cloak
+            // and vanilla's animate() is additive -- only one may run.
+            var locomotion = SettlerAnimations.WALK;
+            if (activity == SettlerActivity.FLEEING) {
+                locomotion = SettlerAnimations.RUN_PANIC;
+            } else if (lowHealth) {
+                locomotion = SettlerAnimations.WALK_LIMP;
+            } else if (night && dark && profession != Profession.GUARD
+                && activity != SettlerActivity.RESTING && activity != SettlerActivity.SLEEPING) {
+                locomotion = SettlerAnimations.CREEP_NIGHT;
+            } else if (activity == SettlerActivity.TRAVELING) {
+                locomotion = SettlerAnimations.WALK_HURRIED;
+            }
+            animateWalk(locomotion, limbSwing, limbSwingAmount, 2.0F, 2.5F);
+
+            if (activity == SettlerActivity.PATROLLING && limbSwingAmount > 0.01F) {
+                // GUARD_PATROL overrides WALK's arm swing with a locked
+                // pommel-hand pose -- reset the two arm parts first, since
+                // vanilla's animate() adds onto the current pose rather than
+                // replacing it.
+                rightArm.resetPose();
+                leftArm.resetPose();
+                animate(entity.patrolState, SettlerAnimations.GUARD_PATROL, ageInTicks);
+            }
+        }
+
+        // Per-entity phase offsets so a crowd never moves in unison
+        // (§17.4 check 25 -- CELEBRATE, SLEEP_IN_BED, WAKE_STRETCH, IDLE).
+        int id = entity.getId();
+        animate(entity.idleState, SettlerAnimations.IDLE, ageInTicks + (id % 80));
+        animate(entity.farmState, SettlerAnimations.FARM_TILL, ageInTicks);
         animate(entity.chopState, SettlerAnimations.CHOP, ageInTicks);
         animate(entity.eatState, SettlerAnimations.EAT, ageInTicks);
         animate(entity.restState, SettlerAnimations.REST, ageInTicks);
         animate(entity.stanceState, SettlerAnimations.GUARD_STANCE, ageInTicks);
         animate(entity.meleeState, SettlerAnimations.MELEE, ageInTicks);
-        animate(entity.celebrateState, SettlerAnimations.CELEBRATE, ageInTicks);
+        animate(entity.celebrateState, SettlerAnimations.CELEBRATE, ageInTicks + (id % 7));
+        animate(entity.plantState, SettlerAnimations.FARM_PLANT, ageInTicks);
+        animate(entity.harvestState, SettlerAnimations.FARM_HARVEST, ageInTicks);
+        animate(entity.waterState, SettlerAnimations.FARM_WATER, ageInTicks);
+        animate(entity.limbState, SettlerAnimations.LIMB_BRANCHES, ageInTicks);
+        animate(entity.haulState, SettlerAnimations.HAUL_LOG, ageInTicks);
+        animate(entity.shieldState, SettlerAnimations.SHIELD_BLOCK, ageInTicks);
+        animate(entity.sleepState, SettlerAnimations.SLEEP_IN_BED, ageInTicks + (id % 160));
+        animate(entity.wakeState, SettlerAnimations.WAKE_STRETCH, ageInTicks + (id % 60));
 
-        // Head tracking layers additively over the keyframes, damped while
-        // the settler is absorbed in a meal or dozing at the fire.
-        SettlerActivity activity = entity.getActivity();
-        float damp = activity == SettlerActivity.RESTING
-            || activity == SettlerActivity.EATING ? 0.25F : 1.0F;
+        // Head tracking layers additively over the keyframes, damped per the
+        // catalogue's damping table (§17.4 check 24) -- most-specific first.
+        float damp;
+        if (activity == SettlerActivity.SLEEPING) {
+            damp = 0.0F;
+        } else if (entity.shieldState.isStarted()) {
+            damp = 0.15F;
+        } else if (climbing) {
+            damp = 0.3F;
+        } else if (activity == SettlerActivity.FLEEING) {
+            damp = 0.4F;
+        } else if (activity == SettlerActivity.RESTING || activity == SettlerActivity.EATING) {
+            damp = 0.25F;
+        } else {
+            damp = 1.0F;
+        }
         head.yRot += Mth.clamp(netHeadYaw, -60.0F, 60.0F) * ((float) Math.PI / 180F) * damp;
         head.xRot += headPitch * ((float) Math.PI / 180F) * damp;
 

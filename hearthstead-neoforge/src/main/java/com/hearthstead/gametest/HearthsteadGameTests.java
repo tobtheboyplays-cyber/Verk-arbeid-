@@ -211,6 +211,40 @@ public class HearthsteadGameTests {
         });
     }
 
+    /** ANIM-1: the single WORKING phase is now a real HARVEST-then-PLANT
+     *  sequence, each with its own activity/clip. */
+    @GameTest(template = "farm9", timeoutTicks = 1600, batch = "day")
+    public void farmerActivityProgressesThroughHarvestAndPlant(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildFarmArena(helper, 9);
+        BlockPos hearthRel = new BlockPos(4, 1, 4);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        Settlement s = makeSettlement(helper, hearthRel, 5);
+        if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+        helper.setBlock(new BlockPos(2, 1, 2),
+            Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        SettlerEntity farmer = boundSettler(helper, s, new BlockPos(4, 1, 2));
+        farmer.assignProfession(Profession.FARMER);
+
+        final boolean[] sawHarvest = {false};
+        final boolean[] sawPlant = {false};
+        helper.succeedWhen(() -> {
+            if (farmer.getActivity() == SettlerActivity.WORK_HARVEST) {
+                sawHarvest[0] = true;
+            }
+            if (farmer.getActivity() == SettlerActivity.WORK_PLANT) {
+                sawPlant[0] = true;
+            }
+            helper.assertTrue(sawHarvest[0], "farmer should pass through WORK_HARVEST "
+                + "(act=" + farmer.getActivity() + " planted=" + sawPlant[0] + ")");
+            helper.assertTrue(sawPlant[0], "farmer should pass through WORK_PLANT after "
+                + "harvesting (act=" + farmer.getActivity() + ")");
+        });
+    }
+
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
     public void lumbererFellsTreeCleanly(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
@@ -754,6 +788,64 @@ public class HearthsteadGameTests {
                 "settler should sleep in the bed (act=" + settler.getActivity()
                     + " pos=" + settler.blockPosition()
                     + " " + homeDiag(helper, s, settler) + ")");
+            helper.assertTrue(settler.getActivity() == SettlerActivity.SLEEPING,
+                "a settler asleep in a bed should carry SLEEPING, not RESTING "
+                    + "(SLEEP_IN_BED vs REST are different clips), got "
+                    + settler.getActivity());
+        });
+    }
+
+    /** ANIM-1: LumbererWorkGoal now inserts a WORK_LIMB beat between the
+     *  last strike and the trip home, and hauls logs under HAULING_LOG. */
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    public void lumbererLimbsThenHaulsAfterFelling(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16, 16);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        Settlement s = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+        BlockPos dirtRel = new BlockPos(8, 1, 8);
+        helper.setBlock(dirtRel, Blocks.DIRT);
+        BlockPos baseRel = dirtRel.above();
+        for (int i = 0; i < 4; i++) {
+            helper.setBlock(baseRel.above(i), Blocks.OAK_LOG);
+        }
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                helper.setBlock(baseRel.above(4).offset(dx, 0, dz), Blocks.OAK_LEAVES);
+            }
+        }
+        SettlerEntity lumberer = boundSettler(helper, s, new BlockPos(4, 1, 4));
+        lumberer.assignProfession(Profession.LUMBERER);
+
+        final boolean[] sawLimbing = {false};
+        final boolean[] sawHauling = {false};
+        helper.succeedWhen(() -> {
+            if (lumberer.getActivity() == SettlerActivity.WORK_LIMB) {
+                sawLimbing[0] = true;
+            }
+            if (lumberer.getActivity() == SettlerActivity.HAULING_LOG) {
+                sawHauling[0] = true;
+            }
+            int logs = 0;
+            if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
+                for (int i = 0; i < hearth.getInventory().getSlots(); i++) {
+                    if (hearth.getInventory().getStackInSlot(i).is(Items.OAK_LOG)) {
+                        logs += hearth.getInventory().getStackInSlot(i).getCount();
+                    }
+                }
+            }
+            helper.assertTrue(logs >= 1, "hearth should hold >= 1 oak log by now, has " + logs
+                + " (act=" + lumberer.getActivity() + " limbed=" + sawLimbing[0]
+                + " hauled=" + sawHauling[0] + ")");
+            helper.assertTrue(sawLimbing[0], "lumberer should pass through WORK_LIMB "
+                + "after felling and before the trip home");
+            helper.assertTrue(sawHauling[0], "lumberer should carry HAULING_LOG on the "
+                + "walk home, not plain WALK");
         });
     }
 

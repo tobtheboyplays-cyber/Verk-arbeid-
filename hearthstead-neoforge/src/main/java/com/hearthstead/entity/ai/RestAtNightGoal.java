@@ -131,7 +131,7 @@ public class RestAtNightGoal extends Goal {
             if (settler.blockPosition().distSqr(bed) <= 4.5) {
                 settler.getNavigation().stop();
                 settler.startSleeping(bed);
-                settler.setActivity(SettlerActivity.RESTING);
+                settler.setActivity(SettlerActivity.SLEEPING);
                 return;
             }
         } else if (settler.blockPosition().distSqr(target) <= 20) {
@@ -154,6 +154,9 @@ public class RestAtNightGoal extends Goal {
     public void stop() {
         if (settler.isSleeping()) {
             settler.stopSleeping();
+            // WAKE_STRETCH: only for a genuine bed-wake, not every goal stop
+            // (e.g. being attacked mid-rest at the hearth).
+            settler.triggerWakeStretch();
         }
         resting = false;
         settler.setActivity(SettlerActivity.IDLE);
