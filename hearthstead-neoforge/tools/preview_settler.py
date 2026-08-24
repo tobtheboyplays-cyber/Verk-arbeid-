@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from PIL import Image
-from gen_settler import UV, PROFILES, generate
+from gen_settler import UV, PROFILES, build
 from texlib import box_faces
 
 SCALE = 6
@@ -86,7 +86,7 @@ def main():
                                CH * SCALE + 20), (38, 34, 30, 255))
     x = 10
     for prof in profs:
-        skin = generate(prof)
+        skin = build(prof)
         for view_fn in (front_view, side_view, back_view):
             v = view_fn(skin, prof)
             v = v.resize((CW * SCALE, CH * SCALE), Image.NEAREST)

@@ -19,8 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from collections import OrderedDict
 from pathlib import Path
 
@@ -883,12 +887,112 @@ def check_structures() -> None:
 
 
 # --------------------------------------------------------------------------
+# 13. Pipeline determinism
+# --------------------------------------------------------------------------
+
+# Generators that only write PNGs deterministically from constant seeds and
+# are cheap enough to run twice per validate_assets invocation. gen_sounds is
+# excluded: it shells out to ffmpeg and is not byte-reproducible across
+# encoder builds.
+PIPELINE_GENERATORS = [
+    "gen_settler.py",
+    "gen_blocks_items.py",
+    "gen_gui.py",
+    "gen_plaque.py",
+    "gen_structures.py",
+]
+
+
+def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tuple[Path, str | None]:
+    """Copy tools/ into a temp dir, run `script` there with PYTHONHASHSEED set,
+    and return (dir-containing-generated-assets, error-or-None). The generator
+    writes into ../src relative to its own location, same as it does in-repo,
+    so the temp tree must mirror tools/ sitting next to src/."""
+    tmp = Path(tempfile.mkdtemp(prefix="hearthstead_pipeline_"))
+    tools_dst = tmp / "tools"
+    shutil.copytree(tools_src, tools_dst)
+    env = dict(os.environ, PYTHONHASHSEED=hashseed)
+    try:
+        proc = subprocess.run(
+            [sys.executable, script], cwd=tools_dst, env=env,
+            capture_output=True, text=True, timeout=120)
+    except Exception as exc:  # pragma: no cover - defensive
+        return tmp, str(exc)
+    if proc.returncode != 0:
+        return tmp, (proc.stderr or proc.stdout or "non-zero exit").strip()[:400]
+    return tmp, None
+
+
+def check_pipeline() -> None:
+    tools_src = PROJECT_ROOT / "tools"
+    if not tools_src.is_dir():
+        info("Pipeline", "no tools/ directory — skipped")
+        return
+
+    for script in PIPELINE_GENERATORS:
+        if not (tools_src / script).is_file():
+            continue
+        try:
+            import PIL  # noqa: F401
+        except ImportError:
+            info("Pipeline", f"{script}: Pillow not installed — determinism check skipped")
+            continue
+
+        tmp_a, err_a = _run_generator_isolated(tools_src, script, "0")
+        tmp_b, err_b = _run_generator_isolated(tools_src, script, "1")
+        try:
+            if err_a or err_b:
+                check("Pipeline", False,
+                      f"{script}: generator failed under isolated run "
+                      f"(PYTHONHASHSEED=0: {err_a or 'ok'} / PYTHONHASHSEED=1: {err_b or 'ok'})",
+                      warn_only=True)
+                continue
+
+            res_a = tmp_a / "src"
+            res_b = tmp_b / "src"
+            pngs_a = sorted(p.relative_to(res_a) for p in res_a.rglob("*.png")) if res_a.is_dir() else []
+            pngs_b = sorted(p.relative_to(res_b) for p in res_b.rglob("*.png")) if res_b.is_dir() else []
+            if not pngs_a and not pngs_b:
+                info("Pipeline", f"{script}: produced no PNGs to compare — skipped")
+                continue
+
+            check("Pipeline", pngs_a == pngs_b,
+                  f"{script}: PYTHONHASHSEED=0 and PYTHONHASHSEED=1 runs produced the same file set")
+
+            mismatched = []
+            for rel_png in pngs_a:
+                pb = res_b / rel_png
+                if not pb.is_file() or (res_a / rel_png).read_bytes() != pb.read_bytes():
+                    mismatched.append(str(rel_png))
+            check("Pipeline", not mismatched,
+                  f"{script}: byte-identical output across PYTHONHASHSEED=0 and PYTHONHASHSEED=1"
+                  if not mismatched
+                  else f"{script}: non-deterministic — differs across process-salted hash() runs: "
+                       f"{', '.join(mismatched)}")
+
+            src_root = PROJECT_ROOT / "src"
+            committed_mismatch = []
+            for rel_png in pngs_a:
+                committed = src_root / rel_png
+                if not committed.is_file() or (res_a / rel_png).read_bytes() != committed.read_bytes():
+                    committed_mismatch.append(str(rel_png))
+            check("Pipeline", not committed_mismatch,
+                  f"{script}: committed assets match a fresh deterministic run"
+                  if not committed_mismatch
+                  else f"{script}: committed assets are stale vs. the generator — re-run and commit: "
+                       f"{', '.join(committed_mismatch)}")
+        finally:
+            shutil.rmtree(tmp_a, ignore_errors=True)
+            shutil.rmtree(tmp_b, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
 # Reporting / main
 # --------------------------------------------------------------------------
 
 CATEGORY_ORDER = ["Registry", "Meta", "Blocks", "Items", "Entities", "Lang",
                   "JSON", "Textures", "Sounds", "Recipes", "Tags",
-                  "Structures", "Info"]
+                  "Structures", "Pipeline", "Info"]
 
 
 def print_report(quiet: bool) -> None:
@@ -951,6 +1055,7 @@ def main(argv: list[str] | None = None) -> int:
     check_recipes(registries["blocks"], registries["items"])
     check_tags(registries)
     check_structures()
+    check_pipeline()
 
     # 13. Menus / BlockEntities: no resource requirement — informational.
     info("Info", f"menus registered: {len(registries['menus'])}")

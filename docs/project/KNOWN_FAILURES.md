@@ -196,15 +196,36 @@ explicit SIGKILL on both `start`'s pre-cleanup and `stop`.
 
 ## KF-007 — `gen_settler.py` is not reproducible
 
-**Status:** confirmed independently by two agents. **Severity:** medium.
+**Status: RESOLVED** (SLICE VISUAL-1, task 1). **Severity:** was medium.
 
-**Evidence:** it seeds with `random.Random(hash(prof_key) & 0xFFFF | 1420)`.
-Python salts `hash()` on strings per process, so consecutive runs emit
-different skins and the committed PNGs match neither.
+**Original defect:** `gen_settler.py:464` seeded with
+`random.Random(hash(prof_key) & 0xFFFF | 1420)`. Python salts `hash()` on
+strings per process (`PYTHONHASHSEED`), so consecutive runs emitted different
+skins and the committed PNGs matched neither.
 
-**Expected fix:** seed with an explicit integer constant, regenerate, and add
-a validator check so the pipeline's "run twice, identical bytes" rule is
-actually enforced rather than assumed.
+**Fix:** seed is now `zlib.crc32(prof_key.encode("utf-8")) & 0xFFFF |
+SEED_BASE` (`SEED_BASE = 1420`, an explicit module constant) — stable across
+processes, unlike Python's salted `hash()`. `generate()` was also split into
+a pure `build(prof_key)` (paints, returns the image, no I/O) and `generate()`
+(`build` + `save`); `preview_settler.py` now calls `build` so previewing no
+longer mutates committed assets as a side effect.
+
+**Verified, not assumed:** ran `gen_settler.py` twice in separate,
+fully-isolated temp trees with `PYTHONHASHSEED=0` and `PYTHONHASHSEED=1` —
+the four output PNGs were byte-identical across both runs. All four
+committed `settler_*.png` were regenerated and committed. A new
+`check_pipeline()` in `tools/validate_assets.py` (category `Pipeline`, part
+of the `assets` suite) now enforces this permanently: for each of
+`gen_settler.py`, `gen_blocks_items.py`, `gen_gui.py`, `gen_plaque.py`,
+`gen_structures.py`, it runs the generator twice as separate subprocesses
+under `PYTHONHASHSEED=0`/`=1` in isolated temp copies of `tools/`, and checks
+(a) both runs produce the same file set, (b) the bytes are identical between
+runs, (c) the bytes match the committed tree — so a stale or newly
+non-deterministic generator fails `tools/hearthstead-qa assets` outright
+instead of being discovered by accident. Confirmed: `python3
+tools/validate_assets.py` now reports `PASS: 242/242`, with all 13 new
+Pipeline checks green (`gen_structures.py` has no PNGs to compare and is
+correctly skipped, not silently passed).
 
 
 ---

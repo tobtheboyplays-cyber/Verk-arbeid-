@@ -11,10 +11,17 @@ UV table (must mirror SettlerModel.createBodyLayer):
 import random
 import sys
 import os
+import zlib
 
 sys.path.insert(0, os.path.dirname(__file__))
 from texlib import (ramp, hx, shade, mix, new_image, fill, put, box_faces,
                     FACE_LIGHT, save, cloth)
+
+# Explicit integer seeds only -- never Python's salted hash() (it is re-salted
+# per process via PYTHONHASHSEED, so two runs of this script would emit
+# different pixels for the same key). zlib.crc32 on the key's utf-8 bytes is
+# stable across processes and interpreter versions.
+SEED_BASE = 1420
 
 OUT = os.path.join(os.path.dirname(__file__), "..",
                    "src/main/resources/assets/hearthstead/textures/entity/settler")
@@ -459,9 +466,11 @@ def paint_hat_brim(img, p, rng):
                 put(img, x + i, y + j, lit(straw[idx], face))
 
 
-def generate(prof_key):
+def build(prof_key):
+    """Paint and return the settler skin for prof_key. Pure -- no I/O."""
     p = PROFILES[prof_key]
-    rng = random.Random(hash(prof_key) & 0xFFFF | 1420)
+    seed = zlib.crc32(prof_key.encode("utf-8")) & 0xFFFF | SEED_BASE
+    rng = random.Random(seed)
     img = new_image(128, 64)
     paint_head(img, p, rng)
     paint_hood(img, p, rng)
@@ -474,6 +483,11 @@ def generate(prof_key):
     paint_backpack(img, p, rng)
     paint_belt(img, p, rng)
     paint_hat_brim(img, p, rng)
+    return img
+
+
+def generate(prof_key):
+    img = build(prof_key)
     save(img, os.path.join(OUT, f"settler_{prof_key}.png"))
     return img
 
