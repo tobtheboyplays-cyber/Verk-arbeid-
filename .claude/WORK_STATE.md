@@ -4,12 +4,16 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
 
 ## Current goal
 
-**SLICE PLAQUE-1 — code done, KF-009's 8th cause just fixed (a scenario
-edit, so the fingerprint changed). Re-verification (2 consecutive clean
-`full` runs at the new fingerprint) has NOT started yet — that is the
-next concrete action, not a completed step.** All 3 of 3 Opus calls for
-this slice are now spent (1 RELEASE_GATE, 1 BLOCKER_GATE, 1 RELEASE_GATE
-re-review) — the rest of this slice is Sonnet-only, no more gate calls.
+**SLICE PLAQUE-1 — DONE.** `tools/hearthstead-qa full` PASS twice
+consecutively at fingerprint `ba754b936aba...`, commit `c47acfe`, clean
+tree (`dirty_hash` = empty-tree hash), all 11 suites green both times
+(doctor, assets, animation, build, gametest, behavior, dedicated,
+performance, client, playtest, visual). See
+`qa/reports/artifacts/20260824T143441Z/manifest.json` for the closing
+manifest. All 3 of 3 Opus calls for this slice were used (1 RELEASE_GATE,
+1 BLOCKER_GATE, 1 RELEASE_GATE re-review) and are exhausted — SLICE
+VISUAL-1 starts Sonnet-only, per the recorded order (HARNESS-1 ->
+PLAQUE-1 -> VISUAL-1 -> ANIM-1).
 
 ## What's done and evidenced
 
@@ -23,9 +27,9 @@ re-review) — the rest of this slice is Sonnet-only, no more gate calls.
 - **`assets` PASS 230/230** — closes KF-004, KF-005.
 - **`gametest` PASS 19/19** (re-verified after the `info()` source fix) —
   closes KF-001. Includes `legacyPlaqueStateLoadsWithoutLosingBuilding`.
-- **`playtest` — see KF-009.** 2 of 4 `full` runs at the pre-cause-8
-  fingerprint passed clean (green_streak reached 2 there); the other 2
-  failed on cause 8 (now fixed, unverified at the new fingerprint).
+- **`playtest` — see KF-009. Now genuinely green, twice consecutively,
+  at the current fingerprint** (`ba754b936aba...`, commit `c47acfe`) —
+  the 8th and final cause fixed, then verified, not just fixed.
 
 ## KF-009 — 8 real bugs found, 8th just fixed — read the full entry (docs/project/KNOWN_FAILURES.md) before touching this area again
 
@@ -67,18 +71,15 @@ describes not having looked yet, not a diagnosis.
 
 ## Next concrete action
 
-1. `qa/scenarios/default.txt` changed (cause 8's fix) — this changes the
-   fingerprint. Run `tools/hearthstead-qa full` twice, consecutively, no
-   changes in between, and confirm `green_streak: 2` in
-   `qa/reports/latest.json` at the NEW fingerprint before claiming
-   anything. Do not assume the pre-cause-8 green streak still counts.
-2. If a run fails: read the actual evidence (server log, client log,
-   screenshot) for THAT specific failure before writing any explanation
-   down — do not default to "flakiness" a third time.
-3. Once genuinely done (green_streak >= 2 at the current fingerprint):
-   SLICE VISUAL-1 next (fix KF-007's `gen_settler.py` non-determinism
-   first, then modular settler visuals). No Opus budget remains for
-   PLAQUE-1 — do not call another gate on this slice.
+**SLICE VISUAL-1: fix KF-007's `gen_settler.py` non-determinism first**
+(it seeds with `random.Random(hash(prof_key) & 0xFFFF | 1420)`; Python
+salts `hash()` on strings per process, so two runs emit different skins
+and the committed PNGs match neither — seed with an explicit integer
+constant, regenerate, add a validator check enforcing "run twice,
+identical bytes"), **then modular settler visuals** (skin×hair×face×
+clothing + profession outfits, per DESIGN.md). Sonnet-only for
+implementation; PLAN_GATE (Opus) before editing begins, per the
+mandatory multi-model gate in the repo's CLAUDE.md.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 

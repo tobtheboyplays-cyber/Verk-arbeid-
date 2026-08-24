@@ -226,14 +226,15 @@ The first `full` that can honestly go green is PLAQUE-1's.
 
 ## KF-009 — Playtest's plaque section repeatedly failed; eight real, distinct harness bugs, no mod defect
 
-**Status:** eight genuine root causes found and corrected across three
-review cycles. The 8th was found by a RELEASE_GATE re-review AFTER this
-entry had already (wrongly, a second time — see "What this cost,
-honestly" below) attributed two failing `full` runs to unspecified
-"environmental input-delivery flakiness." Re-verification (two more
-consecutive clean `full` runs) is pending as of the 8th fix landing —
-check `.claude/WORK_STATE.md` and `qa/reports/latest.json` for the
-current state rather than trusting a status line here that can go stale.
+**Status: RESOLVED.** Eight genuine root causes found and corrected
+across three review cycles; the 8th (found by a RELEASE_GATE re-review
+after this entry had already, wrongly, a second time — see "What this
+cost, honestly" below — attributed two failing `full` runs to
+unspecified "environmental input-delivery flakiness") was fixed and then
+independently re-verified: `tools/hearthstead-qa full` PASSED twice
+consecutively at fingerprint `ba754b936aba...`, commit `c47acfe`, clean
+tree, all 11 suites green both times. Manifest:
+`qa/reports/artifacts/20260824T143441Z/manifest.json`.
 **Severity:** was blocking `playtest`'s PLAQUE-1 section entirely; **never**
 indicated any defect in the mod itself — confirmed at every stage by
 GameTest (deterministic, no client input) and, for the trickiest causes,
@@ -358,11 +359,9 @@ look at the actual evidence (the client log, the screenshot, the exact
 mechanism) before reaching for "flakiness" — that word is a description
 of not having looked yet, not a diagnosis.**
 
-**PLAQUE-1's nine work items are implemented and independently verified**
-regardless of this entry's own status: GameTest (room detection,
-save-compat via a synthetic legacy tag) and the asset validator (230/230,
-closing KF-004 and KF-005) are unaffected by any of the eight causes
-above. Whether `playtest` itself is currently green end to end, twice
-consecutively at one fingerprint, is exactly what cause 8's fix needs to
-re-establish — see `.claude/WORK_STATE.md`'s "Next concrete action" for
-the live state; do not infer it from this paragraph.
+**PLAQUE-1's nine work items are implemented and independently
+verified, and PLAQUE-1 is done.** GameTest (room detection, save-compat
+via a synthetic legacy tag), the asset validator (230/230, closing
+KF-004 and KF-005), and `playtest` itself — green end to end, twice
+consecutively at one fingerprint — all confirm it. See
+`.claude/WORK_STATE.md` for the exact evidence and the next slice.
