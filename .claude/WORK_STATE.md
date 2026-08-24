@@ -54,22 +54,42 @@ that film was a harness artifact: raw-NBT Profession merge skips
 `assignProfession()`'s tool equip — confirmed by manual `item replace`
 + screenshot; not a code defect. Film real settlers via the writ flow.
 
-**In flight (2 parallel sonnet-builders, disjoint files):**
-1. SettlerAnimations.java only: weight/impact pass on CHOP, FARM_TILL,
-   LIMB_BRANCHES, MELEE per `.claude/skills/animation-quality/SKILL.md`
-   (impact hold, follow-through overshoot, torso lead, secondary motion),
-   accent timestamps untouched, visually iterated via Blockbench bridge.
-2. gen_settler.py + regenerated PNGs only: premium texture pass (shading/
-   AO/cloth folds), determinism double-run proof, validate_assets green.
+**Weight + texture passes landed** (worker-built, verified): CHOP,
+FARM_TILL, LIMB_BRANCHES, MELEE gained impact holds, follow-through
+overshoot and a leading torso per `.claude/skills/animation-quality`;
+`gen_settler.py` gained hair strands, face gradient, cloth creases,
+4-tone boots. Both verified visually through the Blockbench bridge.
 
-## Next concrete action
+**RELEASE_GATE re-review (Opus call 2 of 2): REVISE.** Its BLOCKER was a
+process error of mine -- I kept editing (A2a) while the review ran, so the
+tree moved under it. Findings and their fixes (all landed):
+- MEDIUM-1 (gate-breaking): `export_bbmodel.py` used `uuid4()`, so every
+  Blockbench render invalidated the fingerprint. UUIDs now SHA-1-derived;
+  byte-identical across three exports.
+- HIGH-1 (dead control): the Courier's Writ shipped craftable and
+  described, while `CourierWorkGoal.canUse()` returned false. Implemented
+  the goal for real instead of hiding the item.
+- LOW-3: the farmer's replant seed lived in a goal field (destroyed on
+  unload). It now stays in the persisted bag and is taken back out only
+  after every placement guard passes.
+- MEDIUM-2/LOW-1: CLIMB_LADDER and WALK_LIMP were claimed as phase-locked
+  sound contracts, which they cannot be (one samples accumulated state
+  time, the other is driven by limbSwing). Both now honestly documented as
+  frequency-only, in the header and in `anim_check`.
+- HIGH-2: fresh evidence captured on the current jar -- a 45s tracked
+  close-up (`live/20260824T214537Z/film/take-04-chop-clean/`) plus
+  Blockbench frames of CHOP's anticipation (0.20s) and impact (0.55s).
 
-When both workers land: reconcile → `quick` → `full` twice (green_streak
-≥ 2, hands off the tree during runs) → one short confirmation film of the
-improved CHOP → **RELEASE_GATE re-review (Opus call 2, the last normal
-one)** scoped to changed areas → close ANIM-1 → then SLICE A2a per the
-PLAN_GATE output (warehouse/courier; seam-then-fan-out plan already
-delivered by opus-planner).
+**A2a is underway** (piece 1, 2 and 5 done, seam already landed):
+- `WarehouseStorage` -- derived, revisioned, never persisted, insert()
+  destination-first with a true leftover. 3 GameTests.
+- `CourierWorkGoal` -- hearth to warehouse, deliberately one-directional
+  so it cannot deadlock like MineColonies #5333; food never leaves the
+  hearth; idles visibly with no warehouse. 3 GameTests.
+- Storage view -- payloads + `StorageScreen`, sneak-use the handbook,
+  read-only on purpose.
+- Multi-`@GameTestHolder` discovery PROVEN (suite 25 -> 31 tests), which
+  was the A2a plan's one recorded unknown.
 
 ## Standing infrastructure (new this session — use it)
 
