@@ -66,3 +66,33 @@ guard**
 are older dynamic prefixes from the handbook and settler screens. They are out
 of scope here; noted only so a future sweep does not mistake them for a
 regression introduced by the plaque.
+
+---
+
+## Verified against source (2026-08-24, HARNESS-1 close-out)
+
+Re-derived mechanically rather than by hand: every string literal passed to
+`Component.translatable(` under `src/main` was extracted and diffed against
+`en_us.json`.
+
+- **39 keys must be added, to BOTH `en_us.json` and `nb_no.json`.** The exact
+  list is `docs/plaque_missing_keys.txt` — 19 referenced literally, 20 produced
+  by concatenated prefixes that the extractor can only see as a stem.
+- **Key parity between the two lang files is currently intact (0 breaks)**, so
+  W7 must add to both or it breaks the validator's parity rule.
+- Only three prefix families are genuinely empty: `hearthstead.building.*`,
+  `hearthstead.plaque.state.*` and `hearthstead.requirement.*`. The other
+  families the extractor flags as stems — `activity` (10 keys), `gui.tooltip`
+  (11), `morale` (4), `profession` (4), `guide.pageN` (13) — are all fully
+  populated. An earlier reading of this audit suggested the Hearth UI and
+  handbook were also missing localisation; that was wrong, and checking it is
+  what showed KF-004 really is plaque-scoped.
+- The `plaque.state.*` ids in the list follow **PLAQUE-1's new state machine**
+  (`empty`, `plan_inserted_unlinked`, `linked_incomplete`, `linked_valid`,
+  `orphaned`), not the current four — W2 and W7 have to land together.
+
+**Worth building in W7:** the validator derives keys from the registry, so it
+sees exactly two of these 39. A check that every `translatable(` literal in
+`src/` resolves in `en_us.json` would have caught all of them, and would keep
+catching them. The extractor above is ~15 lines and belongs in
+`tools/validate_assets.py`.
