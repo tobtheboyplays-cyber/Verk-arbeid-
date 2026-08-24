@@ -398,9 +398,21 @@ while read -r verb rest; do
         type)  focus; xdotool type --delay 40 -- "$rest"; sleep 1
                check_pass "$DIR_IDX:type" "typed: $rest";;
         cmd)   focus
-               xdotool key --clearmodifiers t; sleep 1
-               xdotool type --delay 35 -- "/$rest"; sleep 1
-               xdotool key --clearmodifiers Return; sleep 2
+               # Exit codes captured, not discarded: a "promising unexplored
+               # direction" from the original KF-009 investigation, revived
+               # because the LAST `cmd hearthstead info` in the PLAQUE-1
+               # section was proven live (20260824T113853Z, 114931Z, 120106Z)
+               # to consistently produce zero server-log trace at all, even
+               # after two independent, previously-unrelated root causes were
+               # fixed -- if xdotool itself is failing to deliver these
+               # keystrokes this late in a long scenario, its own exit code
+               # is the fastest way to see that instead of guessing further.
+               xdotool key --clearmodifiers t; _kt=$?; sleep 1
+               xdotool type --delay 35 -- "/$rest"; _kty=$?; sleep 1
+               xdotool key --clearmodifiers Return; _kr=$?; sleep 2
+               if [ "$_kt" -ne 0 ] || [ "$_kty" -ne 0 ] || [ "$_kr" -ne 0 ]; then
+                   echo "cmd: xdotool exit codes key-t=$_kt type=$_kty key-Return=$_kr (non-zero!)" >&2
+               fi
                # Opening chat releases the mouse grab (needed so chat text
                # can be clicked/selected); closing it does not reliably
                # re-establish relative-look capture on its own — proven

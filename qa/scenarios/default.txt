@@ -293,6 +293,12 @@ expect_server Registered
 # already named for click/chat) produces an "unknown command" error that is
 # player-only feedback, never logged. info() is a pure read with no side
 # effects, so a second identical send costs nothing.
+#
+# Diagnostic, not a real assertion: three straight runs (113853Z, 114931Z,
+# 120106Z) show BOTH sends below producing zero server-log trace, unchanged
+# by two independently-real, already-fixed root causes -- capture what the
+# screen actually looks like right here, since nothing else has explained it.
+shot plaque-05-before-final-info
 cmd hearthstead info
 wait 2
 cmd hearthstead info
