@@ -33,8 +33,37 @@ again.
 **Fable is dormant.** It is not a watcher, coordinator or periodic checker, and
 is invoked only if the user explicitly asks. Budget 0.
 
-**One worker.** No agent teams or parallel model instances by default. Helper
-agents must be short, tightly scoped, and finished immediately.
+**Parallel Sonnet workers (fast-quality mode — user-authorized 2026-08-24).**
+The single-worker default is replaced by *seam-then-fan-out*: as many parallel
+Sonnet workers as the work supports, under strict file ownership. Fable remains
+budget 0 as a worker/watcher (it is only ever the coordinating main loop), and
+the Opus gate budget above is unchanged — parallelism never adds Opus calls.
+
+Rules that make parallel safe here:
+
+1. **Ownership table first.** Every fan-out starts from an explicit table:
+   which worker owns which files. Shared files (registries, `SettlerEntity`,
+   lang JSONs, `sounds.json`, `ModBusEvents`, gametest holders) are landed by
+   a sequential SEAM step before workers start, or owned by exactly one
+   worker. A worker that needs a change in a file it does not own *reports*
+   the need; it never patches.
+2. **Cross-file contracts are fixed in the prompts.** Constant names, tick
+   values, key names and file paths that two workers must agree on are
+   written once by the coordinator into every affected prompt — workers
+   conform, they do not negotiate.
+3. **Only the coordinator runs `tools/hearthstead-qa`.** Never two suites
+   concurrently (KF-002/KF-003), and never compile or touch source while a
+   `full` run is executing. Workers verify with `compileJava` and the direct
+   python checkers only.
+4. **QA cadence: full runs are rare.** Cheap targeted checks continuously
+   (compile, `anim_check.py`, `validate_assets.py`, the `changed` suite
+   advisory); `tools/hearthstead-qa full` only at integration/slice end,
+   twice consecutively for green_streak ≥ 2. No mid-slice full runs.
+5. **Integration is sequential.** One reconciliation step reads every
+   worker's report, resolves reported cross-file needs, compiles once, then
+   runs the gate cycle.
+6. **Evidence per finished task.** Every completed task/slice produces a
+   real in-game video (`live` + `film`) with a short summary for the user.
 
 ## Sonnet's loop (no model switching inside it)
 

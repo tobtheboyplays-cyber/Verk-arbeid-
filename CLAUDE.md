@@ -15,9 +15,11 @@ networking, performance, or release readiness MUST use the Hearthstead QA
 system:
 
 - **Only approved test entry point:** `tools/hearthstead-qa` (see
-  `qa/PROTOCOL.md`, the canonical QA source of truth). Never invoke
+  `qa/PROTOCOL.md`, the canonical QA source of truth; `qa/QUICKSTART.md` is
+  the one-page operator guide — read it first). Never invoke
   `gradlew runGameTestServer|runServer|runClient` directly — the controller
   wraps them and produces the evidence manifests the gate requires.
+  `tools/hearthstead-qa quick` is the standard after-every-change check.
 - **An ordinary successful Gradle build is never sufficient proof** of
   anything. Compile checks are fine during iteration; claims require suite
   evidence.
@@ -67,6 +69,11 @@ system:
 
 ## Mandatory multi-model implementation gate (resource-governed)
 
+**Sonnet 5 is the intended main-session model for this repository.** Every
+session starts by following the **`sonnet-driver`** skill (session recovery,
+build loop, test cadence, Opus escalation table, user communication). Fable
+is never required and never spawned unless the user explicitly asks.
+
 All non-trivial repository changes MUST go through the **`premium-build-loop`**
 skill *before any editing begins*.
 
@@ -83,9 +90,17 @@ maximum three. Never bounce between models per phase, test or failure — Sonnet
 finishes the whole implement-and-fix loop first. After a failed RELEASE_GATE,
 Opus gets exactly one short re-review of the changed areas.
 
-**One worker, no parallel model instances by default.** Helper agents are
-short, scoped and ended immediately. `fable-escalation` is dormant at budget 0
-and is invoked only if the user explicitly asks — never as a watcher.
+**Parallel Sonnet workers under strict file ownership (fast-quality mode,
+user-authorized 2026-08-24).** One coordinator plans the fan-out: a sequential
+SEAM step lands all shared files first, then any number of parallel Sonnet
+workers each own a disjoint file set; cross-file contracts (constant names,
+tick values, keys) are fixed in the prompts up front; a sequential integration
+step reconciles. Only the coordinator runs `tools/hearthstead-qa`, never two
+suites at once, and never while sources are being edited. Full QA runs happen
+rarely — at integration/slice end only, twice for green_streak ≥ 2 — with
+cheap targeted checks (compile, python validators, the `changed` suite)
+continuously in between. `fable-escalation` stays dormant at budget 0 and is
+invoked only if the user explicitly asks — never as a watcher.
 
 Testing follows the pyramid in the skill: cheap checks after code changes,
 self-play in-game verification when a feature is complete, a full play test

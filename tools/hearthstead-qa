@@ -405,6 +405,19 @@ case "${1:-help}" in
     reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
     negative)    shift; bash "$QA/scripts/negative_tests.sh" "$@";;
     provision)   cmd_provision;;
+    quick)
+        # The one-command iteration check: compile, asset validators, the
+        # animation contract checker, then the changed-file advisory. Runs
+        # no game and never writes latest.json (AC-12) — a green `quick` is
+        # iteration feedback, NEVER completion evidence (the gate needs
+        # `full` twice at one fingerprint).
+        overall=PASS
+        suite_build     || overall=FAIL
+        suite_assets    || overall=FAIL
+        suite_animation || overall=FAIL
+        cmd_changed || true
+        echo "QUICK: $overall (cheap checks only — completion still requires 'full' x2 + 'gate')"
+        [ "$overall" = PASS ];;
     full)
         rm -f "$REPORTS/BLOCKED"   # a full run supersedes any documented blocker
         overall=PASS
@@ -425,5 +438,5 @@ case "${1:-help}" in
     gate)        cmd_gate;;
     status)      cmd_status;;
     reproduce)   shift; cmd_reproduce "${1:-}";;
-    *) sed -n '1,3p' "$0"; echo "commands: doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce";;
+    *) sed -n '1,3p' "$0"; echo "commands: quick doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
 esac

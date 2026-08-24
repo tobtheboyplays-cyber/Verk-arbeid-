@@ -78,8 +78,8 @@ register_pid "$ROLE" "-$GRADLE_PID"
 TITLE_SEEN=0
 BUILD_FAILED=0
 WIN=""
-for i in $(seq 1 70); do
-    sleep 10
+for i in $(seq 1 234); do
+    sleep 3
     if grep -qE "BUILD FAILED|FAILURE: Build failed" "$EV_LOGS/client-run.log" 2>/dev/null; then
         BUILD_FAILED=1; break
     fi

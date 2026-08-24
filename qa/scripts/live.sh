@@ -176,7 +176,7 @@ start)
     # rawMouseInput:false: with it true (default), GLFW reads camera look
     # from XInput2 raw motion, which xdotool's XTest-synthesized motion
     # never generates (see playtest.sh for the diagnostic that found this).
-    printf 'onboardAccessibility:false\nskipMultiplayerWarning:true\npauseOnLostFocus:false\nguiScale:3\nfullscreen:false\noverrideWidth:1280\noverrideHeight:720\ntutorialStep:none\nrawMouseInput:false\n' \
+    printf 'onboardAccessibility:false\nskipMultiplayerWarning:true\npauseOnLostFocus:false\nguiScale:3\nfullscreen:false\noverrideWidth:1280\noverrideHeight:720\ntutorialStep:none\nrawMouseInput:false\nrenderDistance:6\nsimulationDistance:6\n' \
         > "$RUN_DIR/options.txt"
 
     # -x/-y: a DETACHED tmux session with no client attached otherwise

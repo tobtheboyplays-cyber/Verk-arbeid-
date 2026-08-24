@@ -163,6 +163,8 @@ overrideWidth:1280
 overrideHeight:720
 tutorialStep:none
 rawMouseInput:false
+renderDistance:6
+simulationDistance:6
 OPTS
 
 # Drive the server through a tmux window (same mechanism as live.sh's D-H1
