@@ -1,0 +1,6 @@
+{
+  "parent": "hearthstead:block/plaque_base",
+  "textures": {
+    "lamp": "hearthstead:block/plaque_lamp_green"
+  }
+}

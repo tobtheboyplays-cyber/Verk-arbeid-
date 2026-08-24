@@ -51,6 +51,16 @@ per-face shading supplies the large-scale lighting.
   plaque_plan.png        recessed well, plan FITTED. Parchment over the whole
                          face, no frame -- the frame is real geometry now.
 
+  plaque_lamp_{off,red,amber,green}.png (block/, 64x64, FOUR not three)
+                         The status lamp element added to block/plaque_base:
+                         a small domed glass jewel in a dark hammered-iron
+                         bezel, lit top-left. off is unlit glass -- a blank
+                         board must never glow a warning colour at a player
+                         who has not slipped a plan in yet (D-006). The other
+                         three glow their signal colour: bright core fading
+                         to a saturated rim, the way real coloured glass
+                         catches light. Full-face like the other materials.
+
 ===========================================================================
  GUI COORDINATE CONTRACT  --  the Java screen code reads these rectangles
 ===========================================================================
@@ -157,6 +167,10 @@ SEED_MAT_BRASS = 4111
 SEED_MAT_IRON = 4112
 SEED_MAT_SOCKET = 4113
 SEED_MAT_PLAN = 4114
+SEED_MAT_LAMP_OFF = 4115
+SEED_MAT_LAMP_RED = 4116
+SEED_MAT_LAMP_AMBER = 4117
+SEED_MAT_LAMP_GREEN = 4118
 
 
 def cell_noise(i, j, m=31):
@@ -1018,6 +1032,55 @@ def gen_materials():
     save(img, f"{ASSETS}/textures/block/plaque_plan.png")
 
 
+LAMP_VARIANTS = (
+    # name,   glow ramp, seed
+    ("off",   None,  SEED_MAT_LAMP_OFF),
+    ("red",   CRIM,  SEED_MAT_LAMP_RED),
+    ("amber", AMBER, SEED_MAT_LAMP_AMBER),
+    ("green", EMER,  SEED_MAT_LAMP_GREEN),
+)
+
+
+def gen_lamp_textures():
+    """Status lamp bead: a small domed glass jewel in a dark hammered-iron
+    bezel, set into block/plaque_base's #lamp element (W6). Four variants,
+    not three -- off is unlit glass, near-black, so a blank plaque never
+    glows a warning colour at a player who has not fitted a plan (D-006).
+    Full-face like the other material textures, lit top-left.
+    """
+    for name, tones, seed in LAMP_VARIANTS:
+        rng = random.Random(seed)
+        lit = tones is not None
+        glow = tones if lit else COAL
+        img = new_image(64, 64)
+        for j in range(64):
+            for i in range(64):
+                put(img, i, j, shade(COAL[0], 0.35))          # dark ground
+        # Hammered-iron bezel ring.
+        for (px, py) in disc(32, 32, 27) - disc(32, 32, 22):
+            k = (px - 32) + (py - 32)
+            idx = peen(px + py, 1, 3 if k <= -10 else (2 if k <= 6 else 0))
+            put(img, px, py, shade(IRON[idx], 1.0))
+        # The glass bead: lit top-left, saturating toward the rim, a fleck
+        # of texture in the glass rather than a flat fill.
+        for (px, py) in disc(32, 32, 21):
+            d = math.hypot(px - 31.5, py - 31.5) / 21.0
+            k = (px - 32) + (py - 32)
+            if lit:
+                idx = 4 if k <= -8 else (3 if k <= 2 else (2 if k <= 10 else 1))
+                c = shade(glow[idx], 1.30 - 0.40 * d)
+            else:
+                idx = 1 if k <= -6 else 0
+                c = shade(COAL[idx], 0.9 - 0.3 * d)
+            if rng.random() < 0.05:
+                c = shade(c, 1.18)                              # glass fleck
+            put(img, px, py, c)
+        # Catch-light, upper-left -- the difference between paint and glass.
+        for (px, py) in disc(25, 24, 3):
+            put(img, px, py, shade(BONE[3] if lit else COAL[2], 1.0))
+        save(img, f"{ASSETS}/textures/block/plaque_lamp_{name}.png")
+
+
 # ============================================================== gui sheets ===
 
 def oak_panel(img, x, y, w, h, rng, border=16, centre_sample=None):
@@ -1527,6 +1590,14 @@ MATERIALS = [
      "banded cast shadow top/left"),
     ("plaque_plan", "recessed well, plan fitted", "full-face; no frame — the "
      "frame is real geometry now"),
+    ("plaque_lamp_off", "status lamp, EMPTY", "full-face; unlit glass, dark "
+     "iron bezel — never a warning colour on a blank board"),
+    ("plaque_lamp_red", "status lamp, unlinked/orphaned", "full-face; same "
+     "bezel, red glass"),
+    ("plaque_lamp_amber", "status lamp, incomplete", "full-face; same bezel, "
+     "amber glass"),
+    ("plaque_lamp_green", "status lamp, registered", "full-face; same bezel, "
+     "green glass"),
 ]
 
 
@@ -1542,6 +1613,7 @@ if __name__ == "__main__":
     gen_item_plaque()
     gen_item_build_plan()
     gen_materials()
+    gen_lamp_textures()
     gen_plaque_screen()
     gen_plaque_assign()
     print("\nbuilding plaque art done  "

@@ -6,6 +6,7 @@
     "brass": "hearthstead:block/plaque_brass",
     "iron": "hearthstead:block/plaque_iron",
     "panel": "hearthstead:block/plaque_socket",
+    "lamp": "hearthstead:block/plaque_lamp_off",
     "particle": "hearthstead:block/plaque_board"
   },
   "elements": [
@@ -132,6 +133,18 @@
         "west":  {"uv": [0, 0, 6, 5], "texture": "#iron"},
         "up":    {"uv": [11, 0, 16, 5], "texture": "#iron"},
         "down":  {"uv": [11, 0, 16, 5], "texture": "#iron"}
+      }
+    },
+    {
+      "__comment": "Status lamp: a small domed glass jewel set into the board beneath the frame, between the two lower corner brackets. Swapped per glow state via #lamp in the three-line child models (block/plaque_empty|red|amber|green.json) -- this base element and its geometry never change.",
+      "from": [7.1, 2.6, 12.7],
+      "to": [8.9, 4.4, 13.9],
+      "faces": {
+        "north": {"uv": [0, 0, 16, 16], "texture": "#lamp"},
+        "east":  {"uv": [0, 0, 3, 16], "texture": "#lamp"},
+        "west":  {"uv": [0, 0, 3, 16], "texture": "#lamp"},
+        "up":    {"uv": [0, 0, 16, 3], "texture": "#lamp"},
+        "down":  {"uv": [0, 0, 16, 3], "texture": "#lamp"}
       }
     }
   ]
