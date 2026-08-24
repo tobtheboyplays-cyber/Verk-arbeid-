@@ -32,6 +32,10 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
 
     @Override
     public ResourceLocation getTextureLocation(SettlerEntity entity) {
+        ResourceLocation composed = SettlerTextureCache.getOrCreate(entity);
+        if (composed != null) {
+            return composed;
+        }
         return switch (entity.getProfession()) {
             case FARMER -> TEXTURE_FARMER;
             case LUMBERER -> TEXTURE_LUMBERER;
