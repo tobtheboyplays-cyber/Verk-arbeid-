@@ -4,9 +4,12 @@ whether it shows real motion (median inter-frame mean-absolute-difference)
 rather than a frozen or black recording.
 
 Usage: build_contact_sheet.py <clip.mp4> <out_sheet.png> [--frames N]
-Prints JSON: {"motion_ok":.., "median_mad":.., "frame_count":.., "fps":..,
-"duration":..} to stdout. Exit 0 if motion_ok and clip meets AC-5's
-duration/fps floor, else 1.
+Prints JSON: {"motion_ok":.., "duration_ok":.., "fps_ok":.., "ac5_ok":..,
+"median_mad":.., "frame_count":.., "fps":.., "duration":..} to stdout.
+Exit 0 only if motion_ok AND the clip actually meets AC-5's >=3s/>=20fps
+floor (duration_ok and fps_ok), else 1 — motion_ok alone used to be both
+the field name and the entire exit-code decision, so a clip that failed the
+duration/fps floor could still report success.
 """
 import argparse
 import json
@@ -99,15 +102,23 @@ def main() -> int:
         sheet.save(args.out_sheet)
 
     motion_ok = median_mad > MOTION_THRESHOLD
+    # AC-5's own floor: clip.mp4 >= 3s at >= 20fps. Small float slop (1e-6)
+    # so an exactly-3.000s/exactly-20.0fps clip isn't rejected by rounding.
+    duration_ok = duration >= 3.0 - 1e-6
+    fps_ok = fps >= 20.0 - 1e-6
+    ac5_ok = motion_ok and duration_ok and fps_ok
     result = {
         "motion_ok": motion_ok,
+        "duration_ok": duration_ok,
+        "fps_ok": fps_ok,
+        "ac5_ok": ac5_ok,
         "median_mad": round(median_mad, 3),
         "frame_count": len(imgs),
         "fps": round(fps, 2),
         "duration": round(duration, 2),
     }
     print(json.dumps(result))
-    return 0 if motion_ok else 1
+    return 0 if ac5_ok else 1
 
 
 if __name__ == "__main__":

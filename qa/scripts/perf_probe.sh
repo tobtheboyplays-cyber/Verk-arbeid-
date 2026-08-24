@@ -64,7 +64,9 @@ tick query
 SLEEP 10
 tick query
 SLEEP 10
-execute if entity @e[type=hearthstead:settler,limit=25] run say PERF_POPULATION_OK
+scoreboard objectives add hsqa_pop dummy
+execute store result score hsqa_count hsqa_pop if entity @e[type=hearthstead:settler]
+execute if score hsqa_count hsqa_pop matches 25.. run say PERF_POPULATION_OK
 EOF
 
 set -m
@@ -88,7 +90,7 @@ check_pass server_started "$(grep -m1 'Done (' "$EV_LOGS/performance.server.log"
 
 grep -q "PERF_POPULATION_OK" "$EV_LOGS/performance.server.log" \
     || die population "could not stand up 25+ settlers"
-check_pass population "PERF_POPULATION_OK echoed (>=25 settlers alive)"
+check_pass population "PERF_POPULATION_OK echoed (real count via scoreboard >=25 settlers alive; a bare @e[...,limit=25] cannot fail this check — limit CAPS results, it is not a minimum)"
 
 # 1.21.1 reports "Average time per tick: 1.3ms (Target: 50.0ms)". Accept the
 # older "average of X" phrasing too so the probe survives a version bump.

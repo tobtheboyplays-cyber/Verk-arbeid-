@@ -10,6 +10,9 @@ ARTIFACTS="$REPORTS/artifacts"
 PROTOCOL_VERSION="1.0.0"
 mkdir -p "$REPORTS" "$ARTIFACTS"
 export HSQA_ACTIVE=1   # lets the pre-tool hook distinguish controller runs
+# Finding 5: durable evidence (ev_init/check_pass/finish_result/
+# write_reproduction) for cmd_provision below.
+. "$QA/scripts/lib_harness.sh"
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="$ARTIFACTS/$TS"
@@ -318,24 +321,47 @@ suite_playtest() {
 }
 
 cmd_provision() { # AC-10: rebuild the shared install from scratch, prove it with playtest
+    # Finding 5: durable transcript + verdict, same evidence layout as every
+    # other scenario — this used to be stored nowhere once the invoking
+    # process exited.
+    ev_init "provision"
     local install_dir="${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install}"
     local backup="${install_dir}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
     if [ -d "$install_dir" ]; then
         mv "$install_dir" "$backup"
-        echo "provision: moved existing install aside to $backup"
+        echo "provision: moved existing install aside to $backup" | tee -a "$EV_LOGS/provision.log"
     fi
-    if ! bash "$QA/scripts/server_install.sh" "$MOD" --force; then
-        echo "provision: FAIL — reinstall failed"
-        [ -d "$backup" ] && { rm -rf "$install_dir"; mv "$backup" "$install_dir"; echo "provision: restored backup (install could not be verified)"; }
+    if ! bash "$QA/scripts/server_install.sh" "$MOD" --force > "$EV_LOGS/install.log" 2>&1; then
+        echo "provision: FAIL — reinstall failed" | tee -a "$EV_LOGS/provision.log"
+        [ -d "$backup" ] && { rm -rf "$install_dir"; mv "$backup" "$install_dir"; echo "provision: restored backup (install could not be verified)" | tee -a "$EV_LOGS/provision.log"; }
+        check_fail provision "reinstall failed — see logs/install.log"
+        finish_result FAIL
+        write_reproduction "# Reproduce: provision
+tools/hearthstead-qa provision
+Verdict: FAIL — reinstall failed. See logs/install.log
+"
         return 1
     fi
+    check_pass reinstall "shared install rebuilt from scratch — see logs/install.log"
     suite_playtest
     if [ "${SUITE_STATUS[playtest]:-}" = "PASS" ]; then
         [ -d "$backup" ] && rm -rf "$backup"
-        echo "provision: PASS — rebuilt install verified by a passing playtest; backup deleted"
+        echo "provision: PASS — rebuilt install verified by a passing playtest; backup deleted" | tee -a "$EV_LOGS/provision.log"
+        check_pass verify_playtest "playtest PASSED against the rebuilt install — see $RUN_DIR/playtest.log"
+        finish_result PASS
+        write_reproduction "# Reproduce: provision
+tools/hearthstead-qa provision
+Verdict: PASS — rebuilt install verified by playtest ($RUN_DIR)
+"
         return 0
     else
-        echo "provision: FAIL — rebuilt install did not pass playtest; backup kept at $backup for comparison"
+        echo "provision: FAIL — rebuilt install did not pass playtest; backup kept at $backup for comparison" | tee -a "$EV_LOGS/provision.log"
+        check_fail verify_playtest "playtest did not PASS against the rebuilt install — see $RUN_DIR/playtest.log; backup kept at $backup"
+        finish_result FAIL
+        write_reproduction "# Reproduce: provision
+tools/hearthstead-qa provision
+Verdict: FAIL — rebuilt install did not pass playtest. Backup kept at $backup
+"
         return 1
     fi
 }

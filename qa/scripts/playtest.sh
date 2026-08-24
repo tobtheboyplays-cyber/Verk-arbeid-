@@ -18,7 +18,12 @@
 #     click [left|right]                  click at screen centre
 #     move <dx> <dy>                      move the mouse (look around)
 #     shot <name>                         capture shots/<name>.png
-#     expect_server <regex>               FAIL unless regex is in the server log (AC-14)
+#     expect_server <regex>               FAIL unless regex is in the server's
+#                                          OWN Log4j output (logs/latest.log,
+#                                          never the tmux pane transcript,
+#                                          which echoes back a scmd's typed
+#                                          text before the server ever runs
+#                                          it — see the SRV_LOG note below)
 #     expect_shot <name>                  FAIL unless shots/<name>.png passes AC-3
 #     expect_pixel_change <before> <after> <min-pct> [region]
 #                                          FAIL unless the two named shots differ by
@@ -29,6 +34,10 @@
 #                                          (bracket a `look` with two such scmd calls)
 #                                          differ in yaw by more than min-degrees
 #   $PLAYER in any directive's arguments is substituted with the joined player's name.
+#   Every directive (not only expect_*) records its own outcome in
+#   result.json (AC-14) — an unrecognised directive (a typo) is a hard FAIL,
+#   not a silently-ignored line, because a typo'd directive would otherwise
+#   remove an assertion invisibly.
 #
 # No `expect_block_near_player` directive: a non-destructive existence check
 # via `fill <box> <block> replace <block>` was tried and rejected — proven

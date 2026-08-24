@@ -21,8 +21,12 @@
 #   live.sh scmd <command>        run a command on the server console (real TTY)
 #   live.sh click [left|right]    click at the centre of the screen
 #   live.sh look <dx> <dy>        turn the view
-#   live.sh film <secs> [fps]     record motion (AC-5): clip.mp4 + labelled
-#                                  contact sheet + motion_ok verdict
+#   live.sh film <secs> [fps] [pan]  record motion (AC-5): clip.mp4 + labelled
+#                                  contact sheet + motion_ok verdict. `pan` is
+#                                  OPT-IN (default: static camera, so a truly
+#                                  frozen subject genuinely FAILS motion_ok —
+#                                  see the `film)` case for why a forced pan
+#                                  was rejected as a default).
 #   live.sh stop                  shut everything down (AC-7, always run this)
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -206,27 +210,34 @@ look)   focus
 
 film)
     EV_DIR=$(ev_dir_for_session); EV_FILM="$EV_DIR/film"; mkdir -p "$EV_FILM"
-    SECS="${2:-6}"; FPS="${3:-24}"
+    SECS="${2:-6}"; FPS="${3:-24}"; PAN="${4:-}"
     W=$(win)
     GEOM=$(xdotool getwindowgeometry --shell "$W" 2>/dev/null | grep -E '^(WIDTH|HEIGHT|X|Y)=' | tr '\n' ' ')
     eval "$GEOM"
-    # Slowly pan the camera for the whole capture window, in the background,
-    # concurrently with the ffmpeg capture below. Proven live: a static
-    # camera pointed at settlers who are momentarily idle can produce
-    # almost no visible motion (median_mad 0.4, well under the threshold)
-    # even though the recording itself was fine — an animation's own
-    # motion should not be a precondition for this check passing. A
-    # continuous pan guarantees real, judgeable inter-frame difference
-    # regardless of what the settlers happen to be doing.
-    ( STEPS=$((SECS * 4)); for _ in $(seq 1 "$STEPS"); do
-        xdotool mousemove_relative -- 40 0 2>/dev/null
-        sleep 0.25
-      done ) &
-    PAN_PID=$!
+    # Finding 3: pan is OPT-IN (pass `pan` as the 4th arg), default OFF. A
+    # continuous camera pan alone guarantees inter-frame difference — that
+    # makes motion_ok pass unconditionally, even for a completely frozen
+    # subject, which defeats the actual point of this capability (judging
+    # whether an animation moves). Judging animation means pointing a STATIC
+    # camera at a settler that is actually idling/walking near the hearth
+    # and letting motion_ok reflect the settler's own motion, not the
+    # camera's. Kept available (not deleted) because a previous pass DID
+    # find a real case — momentarily idle settlers giving median_mad 0.4 —
+    # where an operator may deliberately want to prove the CAPTURE pipeline
+    # itself works independent of subject motion; that is now an explicit,
+    # visible choice instead of a silent default.
+    PAN_PID=""
+    if [ "$PAN" = "pan" ]; then
+        ( STEPS=$((SECS * 4)); for _ in $(seq 1 "$STEPS"); do
+            xdotool mousemove_relative -- 40 0 2>/dev/null
+            sleep 0.25
+          done ) &
+        PAN_PID=$!
+    fi
     ffmpeg -y -loglevel error -f x11grab -framerate "$FPS" \
         -video_size "${WIDTH:-1280}x${HEIGHT:-720}" -i "$DISPLAY_NUM+${X:-0},${Y:-0}" \
         -t "$SECS" -c:v libx264 -pix_fmt yuv420p "$EV_FILM/clip.mp4" 2>"$EV_FILM/ffmpeg.log"
-    kill "$PAN_PID" 2>/dev/null; wait "$PAN_PID" 2>/dev/null
+    [ -n "$PAN_PID" ] && { kill "$PAN_PID" 2>/dev/null; wait "$PAN_PID" 2>/dev/null; }
     if [ ! -s "$EV_FILM/clip.mp4" ]; then echo "film failed (see $EV_FILM/ffmpeg.log)"; exit 1; fi
     ffprobe -v error "$EV_FILM/clip.mp4" >/dev/null 2>"$EV_FILM/ffprobe.log" \
         || { echo "clip.mp4 not decodable (see $EV_FILM/ffprobe.log)"; exit 1; }

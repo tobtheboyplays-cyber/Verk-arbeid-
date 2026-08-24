@@ -149,6 +149,19 @@ Some suites (`build`, `assets`, `animation`, `gametest`, `behavior`,
 before this slice — both shapes coexist, and any reader (`visual`,
 `reproduce`) globs both rather than assuming one.
 
+`negative` (scenario `negative`), `reap check`/`dry-run`/`reap` (scenario
+`reap`) and `provision` (scenario `provision`) all write into this same
+store too — each invocation's transcript and per-item verdict (N1..N4 for
+`negative`; the check/dry-run/reap transcript for `reap`; reinstall +
+verify-playtest for `provision`) land under their own `<TS>/`, not only in
+`/tmp` (which does not survive a container restart).
+
+Every scenario manifest additionally records `fingerprint` and `dirty_hash`
+computed the same way the controller computes them for `latest.json` — so a
+piece of evidence can be checked directly against what source state actually
+produced it, instead of trusting only the manifest's own `git_commit` (the
+last commit, not the working tree).
+
 ## Behavior decision traces
 
 When `behavior` runs, the mod records (system property
