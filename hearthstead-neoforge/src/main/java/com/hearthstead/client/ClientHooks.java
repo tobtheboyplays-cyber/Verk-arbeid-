@@ -34,6 +34,19 @@ public final class ClientHooks {
         }
     }
 
+    /**
+     * A storage snapshot arrived. Refreshes in place if the view is already
+     * open, so a second sneak-use updates rather than reopening.
+     */
+    public static void showStorage(com.hearthstead.network.StorageIndexPayload payload) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen instanceof com.hearthstead.client.screen.StorageScreen open) {
+            open.update(payload);
+        } else {
+            mc.setScreen(new com.hearthstead.client.screen.StorageScreen(payload));
+        }
+    }
+
     private ClientHooks() {
     }
 }

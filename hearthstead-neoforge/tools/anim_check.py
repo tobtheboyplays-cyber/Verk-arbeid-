@@ -103,10 +103,16 @@ SOUND_CONTRACTS = [
 #  sound_field, java_file relative to src/main/java/com/hearthstead,
 #  [(tick_constant_name, expected_value), ...])
 ENTITY_SOUND_CONTRACTS = [
-    ("CLIMB_LADDER", [0.25, 0.75], "LADDER_CREAK", "entity/SettlerEntity.java",
+    # FREQUENCY-ONLY accents (no accent_seconds): these two cannot be
+    # phase-locked to their clip and must not claim to be. CLIMB_LADDER is
+    # sampled from climbState's accumulated time, whose phase depends on
+    # when the state started; WALK_LIMP is driven by animateWalk() from
+    # limbSwing, i.e. distance travelled, so it has no time phase at all.
+    # The constants are still checked -- the RATE is the contract.
+    ("CLIMB_LADDER", [], "LADDER_CREAK", "entity/SettlerEntity.java",
      [("LADDER_CREAK_TICK_A", 5), ("LADDER_CREAK_TICK_B", 15),
       ("LADDER_CREAK_PERIOD", 20)]),
-    ("WALK_LIMP", [0.40], "SETTLER_HM", "entity/SettlerEntity.java",
+    ("WALK_LIMP", [], "SETTLER_HM", "entity/SettlerEntity.java",
      [("LIMP_GRUNT_TICK", 8)]),
     ("RUN_PANIC", [0.15], "SETTLER_PANIC", "entity/ai/SettlerPanicGoal.java",
      [("PANIC_YELP_TICK", 3)]),

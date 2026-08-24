@@ -29,13 +29,20 @@ import static net.minecraft.client.animation.AnimationChannel.Targets.SCALE;
  *  LIMB_BRANCHES: t=0.30s -> tick 6 of 26; t=0.95s -> tick 19 of 26
  *  HAUL_LOG: t=1.20s -> tick 24 of 48
  *  MELEE: t=0.20s -> tick 4 of 10 (damage tick, SettlerEntity.doHurtTarget)
- *  CLIMB_LADDER: t=0.25s/0.75s -> ticks 5/15 of 20 (SettlerEntity.tickAccents,
- *    ladder_creak, gated on vertical movement so it is silent while merely
- *    standing on a ladder)
- *  WALK_LIMP: t=0.40s -> tick 8, throttled to one grunt per 3rd cycle (an 84
- *    -tick super-cycle) -- SettlerEntity.tickAccents, settler_hm pitched 0.8x
- *  RUN_PANIC: t=0.1375s -> tick 3, first cycle only, then throttled to one
- *    vocal per 2s -- SettlerPanicGoal.tick(), settler_panic
+ *  CLIMB_LADDER: ladder_creak, twice per 20 ticks (SettlerEntity.tickAccents,
+ *    gated on real vertical movement so it is silent while merely standing
+ *    on a ladder). NOT phase-locked to the clip: the clip is sampled from
+ *    climbState's accumulated time, whose phase depends on when the state
+ *    started, while the accent runs off the world tick. This is a
+ *    FREQUENCY accent -- the right rate, deliberately not a synced frame.
+ *  WALK_LIMP: settler_hm pitched 0.8x, once per three 28-tick cycles (an
+ *    84-tick super-cycle) -- SettlerEntity.tickAccents. Also FREQUENCY
+ *    only, and necessarily so: WALK_LIMP is driven by animateWalk() from
+ *    limbSwing, i.e. distance travelled, so the clip has no time-based
+ *    phase for a sound to lock to at all.
+ *  RUN_PANIC: t=0.15s -> tick 3 of the 12-tick cycle, first cycle only,
+ *    then throttled to one vocal per 2s -- SettlerPanicGoal.tick(),
+ *    settler_panic
  *  SHIELD_BLOCK: t=0.10s (2 ticks after the block event is registered) --
  *    SettlerEntity.hurt(), shield_thud
  *  EAT: t=0.25s/0.70s -> ticks 5/14 of 24 -- EatFromHearthGoal.tick(),

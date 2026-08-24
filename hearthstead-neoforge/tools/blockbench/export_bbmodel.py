@@ -13,11 +13,28 @@ Animation channels (verified visually against the in-game renderer):
   rotation -> (-x, -y, z) degrees; position -> (-x, y, z); scale unchanged.
 """
 import base64
+import hashlib
 import importlib.util
 import json
 import os
 import sys
-import uuid as uuidlib
+
+def stable_uuid(*parts):
+    """Deterministic UUID derived from the thing being identified.
+
+    Blockbench only needs these to be unique and stable within one file.
+    Using uuid4() made every export byte-different, and since
+    hearthstead-neoforge/tools is inside the QA fingerprint, merely
+    RENDERING a preview invalidated every stored green run and marked QA
+    stale -- while the repo's own convention is that generated artifacts
+    come from a deterministic pipeline. Derived from a SHA-1 of the
+    identifying strings instead, so re-exporting an unchanged model
+    produces an unchanged file.
+    """
+    digest = hashlib.sha1("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
+    return (f"{digest[0:8]}-{digest[8:12]}-{digest[12:16]}"
+            f"-{digest[16:20]}-{digest[20:32]}")
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLS = os.path.dirname(HERE)
@@ -57,12 +74,12 @@ def build():
     origins = {n: [-x, 24 - y, z] for n, (x, y, z) in abs_java.items()}
 
     elements = []
-    group_uuid = {n: str(uuidlib.uuid4()) for n, *_ in BONES}
+    group_uuid = {n: stable_uuid("group", n) for n, *_ in BONES}
     cubes_of = {n: [] for n, *_ in BONES}
     for name, _parent, _off, cubes in BONES:
         ox, oy, oz = origins[name]
         for (u, v, bx, by, bz, w, h, d, inflate, mirror) in cubes:
-            cu = str(uuidlib.uuid4())
+            cu = stable_uuid("cube", name, u, v, bx, by, bz, w, h, d)
             frm = [ox - bx - w, oy - by - h, oz + bz]
             elements.append({
                 "name": name, "box_uv": True, "rescale": False,
@@ -111,13 +128,13 @@ def build():
                 animators[gu]["keyframes"].append({
                     "channel": channel,
                     "data_points": [dp],
-                    "uuid": str(uuidlib.uuid4()),
+                    "uuid": stable_uuid("kf", clip, bone, channel, t),
                     "time": round(t, 4),
                     "color": -1,
                     "interpolation": "catmullrom" if interp == "CATMULLROM" else "linear",
                 })
         animations.append({
-            "uuid": str(uuidlib.uuid4()),
+            "uuid": stable_uuid("anim", clip),
             "name": f"animation.settler.{clip.lower()}",
             "loop": "loop" if d["looping"] else "once",
             "override": False,
@@ -149,7 +166,7 @@ def build():
             "sync_to_project": "", "render_mode": "default",
             "render_sides": "auto", "frame_time": 1, "frame_order_type": "loop",
             "frame_order": "", "frame_interpolate": False, "visible": True,
-            "internal": True, "saved": True, "uuid": str(uuidlib.uuid4()),
+            "internal": True, "saved": True, "uuid": stable_uuid("tex", "settler_none"),
             "source": "data:image/png;base64," + tex_b64,
         }],
         "animations": animations,

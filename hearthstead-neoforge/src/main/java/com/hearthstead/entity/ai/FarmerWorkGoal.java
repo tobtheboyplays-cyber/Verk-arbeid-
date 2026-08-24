@@ -52,7 +52,6 @@ public class FarmerWorkGoal extends Goal {
     private BlockPos maintainTarget;
     private boolean maintainIsWater;
     private Block harvestedCrop;
-    private ItemStack withheldSeed = ItemStack.EMPTY;
     private int workTicks;
     private int scanCooldown;
     private int maintainScanCooldown;
@@ -279,7 +278,7 @@ public class FarmerWorkGoal extends Goal {
         }
         if (workTicks >= HARVEST_DURATION) {
             harvest();
-            if (!withheldSeed.isEmpty() && settler.level().getBlockState(target.below())
+            if (hasSeedFor(harvestedCrop) && settler.level().getBlockState(target.below())
                 .is(Blocks.FARMLAND)) {
                 mode = Mode.PLANTING;
                 workTicks = 0;
@@ -307,17 +306,15 @@ public class FarmerWorkGoal extends Goal {
                 SoundSource.NEUTRAL, 0.6F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
         if (workTicks >= PLANT_DURATION) {
-            boolean planted = false;
             if (settler.level() instanceof ServerLevel serverLevel && harvestedCrop instanceof CropBlock crop
                 && serverLevel.getBlockState(target).isAir()
                 && serverLevel.getBlockState(target.below()).is(Blocks.FARMLAND)) {
-                serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
-                planted = true;
-            }
-            if (planted) {
-                withheldSeed = ItemStack.EMPTY; // consumed by the planted crop
-            } else {
-                returnWithheldSeed(); // guard failed -- the seed must not vanish
+                // The seed leaves the bag ONLY here, after every guard has
+                // passed, so a failed plant costs nothing and the item and
+                // the crop appear together or not at all.
+                if (consumeSeedFor(crop)) {
+                    serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
+                }
             }
             harvestedCrop = null;
             if (bagCount() >= BAG_TRIGGER) {
@@ -399,9 +396,11 @@ public class FarmerWorkGoal extends Goal {
         }
     }
 
-    /** Pulls the mature crop and pockets the drops, withholding one seed
-     *  (remembered in {@link #withheldSeed}) for the PLANTING phase instead
-     *  of replanting immediately. */
+    /** Pulls the mature crop and pockets every drop in the bag. The seed
+     *  for the replant is taken back OUT of the bag at planting time --
+     *  see consumeSeedFor(). Nothing is held outside the bag, because a
+     *  plain goal field is destroyed when the entity unloads or the server
+     *  stops, and item conservation is a permanent invariant. */
     private void harvest() {
         if (!(settler.level() instanceof ServerLevel serverLevel) || !isMatureCrop(target)) {
             return;
@@ -411,14 +410,6 @@ public class FarmerWorkGoal extends Goal {
         harvestedCrop = crop;
         List<ItemStack> drops = Block.getDrops(state, serverLevel, target, null);
 
-        returnWithheldSeed(); // defensive: never overwrite an unreturned seed
-        for (ItemStack drop : drops) {
-            if (withheldSeed.isEmpty() && drop.getItem() instanceof BlockItem blockItem
-                && blockItem.getBlock() == crop) {
-                drop.shrink(1);
-                withheldSeed = new ItemStack(drop.getItem(), 1);
-            }
-        }
         serverLevel.removeBlock(target, false);
         serverLevel.playSound(null, target, state.getSoundType().getBreakSound(),
             SoundSource.BLOCKS, 0.8F, 1.0F);
@@ -483,26 +474,34 @@ public class FarmerWorkGoal extends Goal {
 
     @Override
     public void stop() {
-        returnWithheldSeed();
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
         target = null;
     }
 
-    /**
-     * Item conservation: a withheld seed that was not planted goes back to
-     * the bag (or the ground when the bag is full) on every exit path --
-     * it must never be silently destroyed.
-     */
-    private void returnWithheldSeed() {
-        if (withheldSeed.isEmpty()) {
-            return;
+    /** Does the bag hold a seed that would plant this crop? */
+    private boolean hasSeedFor(Block crop) {
+        return seedSlotFor(crop) >= 0;
+    }
+
+    /** Removes exactly one seed for this crop from the bag. */
+    private boolean consumeSeedFor(Block crop) {
+        int slot = seedSlotFor(crop);
+        if (slot < 0) {
+            return false;
         }
-        ItemStack leftover = settler.bag.addItem(withheldSeed);
-        if (!leftover.isEmpty() && settler.level() instanceof ServerLevel serverLevel) {
-            serverLevel.addFreshEntity(new ItemEntity(serverLevel,
-                settler.getX(), settler.getY() + 0.3, settler.getZ(), leftover));
+        settler.bag.removeItem(slot, 1);
+        return true;
+    }
+
+    private int seedSlotFor(Block crop) {
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (!stack.isEmpty() && stack.getItem() instanceof BlockItem blockItem
+                && blockItem.getBlock() == crop) {
+                return i;
+            }
         }
-        withheldSeed = ItemStack.EMPTY;
+        return -1;
     }
 }

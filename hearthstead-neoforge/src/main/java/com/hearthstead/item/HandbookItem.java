@@ -21,7 +21,14 @@ public class HandbookItem extends Item {
     @Override
     public InteractionResultHolder<ItemStack> use(Level level, Player player,
                                                   InteractionHand hand) {
-        if (level.isClientSide) {
+        // Sneak-use asks the server what the settlement is storing; a
+        // plain use opens the handbook. The request carries no arguments --
+        // the server resolves the settlement from the sender's position.
+        if (player.isShiftKeyDown()) {
+            if (!level.isClientSide && player instanceof net.minecraft.server.level.ServerPlayer sp) {
+                com.hearthstead.network.StorageNetwork.handleRequest(sp);
+            }
+        } else if (level.isClientSide) {
             ClientHooks.openHandbook();
         }
         return InteractionResultHolder.sidedSuccess(player.getItemInHand(hand),

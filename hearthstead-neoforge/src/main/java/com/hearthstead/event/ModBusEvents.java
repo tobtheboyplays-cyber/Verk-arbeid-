@@ -45,6 +45,17 @@ public final class ModBusEvents {
                     com.hearthstead.network.PlaqueNetwork.handle(player, payload);
                 }
             }));
+        registrar.playToClient(com.hearthstead.network.StorageIndexPayload.TYPE,
+            com.hearthstead.network.StorageIndexPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showStorage(payload)));
+        registrar.playToServer(com.hearthstead.network.StorageRequestPayload.TYPE,
+            com.hearthstead.network.StorageRequestPayload.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.StorageNetwork.handleRequest(player);
+                }
+            }));
     }
 
     private ModBusEvents() {
