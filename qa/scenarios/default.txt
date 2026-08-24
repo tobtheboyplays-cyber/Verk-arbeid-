@@ -120,8 +120,23 @@ shot playtest-09-back-in-world
 # no screen opens while it is empty, fits a Build Plan, and proves the
 # building registers via `hearthstead scan`/`hearthstead info`.
 
-# Face a known, level direction so every `~`-relative fill/setblock below
-# lands where this scenario expects it.
+# Move well clear of the hearth+recruit test above before doing anything
+# else. Two independent reasons, both proven live: (1) that hearth's
+# settlement can by now have starved and disbanded ("the hearth has gone
+# cold" — a real, timing-dependent outcome of a long scenario, never
+# scripted), so its exact fate is not something this section can assume;
+# (2) even when it is STILL alive, Settlement.inside() only covers the 48
+# blocks around its OWN hearth, while a new settlement refuses to found
+# within a combined 96 blocks of an existing one (Settlement.DEFAULT_RADIUS
+# on each side) -- so a plaque built merely "nearby" can land in the gap
+# between those two radii: too close for a new settlement to form, too far
+# for the old one to cover it, and PlaqueBlockEntity.link() reports that
+# gap as "No room found" (proven live; see the note further down where the
+# new hearth is placed). 300 blocks clears both radii with a wide margin
+# regardless of which way this run's earlier section happened to wander.
+scmd execute at $PLAYER run tp $PLAYER ~300 ~ ~300 0 0
+scmd execute at $PLAYER run forceload add ~-8 ~-8
+wait 3
 scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 0
 wait 1
 
@@ -145,6 +160,30 @@ scmd execute at $PLAYER run setblock ~-1 ~1 ~4 minecraft:torch
 scmd execute at $PLAYER run setblock ~1 ~1 ~1 hearthstead:plaque[facing=north]
 wait 1
 
+# A plaque can only ever LINK to a settlement, never merely to a valid room:
+# PlaqueBlockEntity.link() looks up the nearest settlement whose radius
+# covers the plaque and bails to PLAN_INSERTED_UNLINKED ("No room found") if
+# none does -- proven live: an identical room, with and without a settlement
+# in range, surveys to "No room found" and "Registered" respectively, with
+# nothing else different. By this point in the scenario the ORIGINAL
+# settlement from the recruiting test above may already have starved and
+# disbanded ("the hearth has gone cold" is a real, timing-dependent outcome
+# of a long scenario, not scripted) -- so this section founds its OWN hearth
+# rather than depending on that one surviving. Founding needs its chunk
+# force-loaded and a real number of seconds to complete (see the explicit
+# wait right after placing it, below, for exactly why).
+scmd execute at $PLAYER run setblock ~0 ~1 ~-2 hearthstead:hearth
+scmd execute at $PLAYER run forceload add ~0 ~-2
+
+# Explicit, not incidental: founding needs ~15-20s in this environment
+# (proven live), and the second `hearthstead scan` below is a ONE-SHOT
+# survey -- expect_server's own retry loop re-reads the log, it does not
+# re-issue the scan command, so if founding is still incomplete at the
+# moment that command dispatches, no later retry will save it. This wait
+# makes that requirement self-contained rather than an accident of how much
+# time the empty-plaque UI steps below happen to take.
+wait 15
+
 # Stand exactly 2 blocks back from the plaque, level with it, facing it
 # dead-on (yaw 0 again = +Z, toward the wall it hangs on).
 scmd execute at $PLAYER run tp $PLAYER ~1 ~ ~-1 0 0
@@ -156,6 +195,16 @@ scmd clear $PLAYER
 key 9
 wait 1
 shot plaque-01-before-click
+# Belt and braces, same shape and same reason as `move`'s (see playtest.sh):
+# proven live, this session, that a `click` several directives into a long
+# scenario can silently fail to register as a world interaction even with
+# the crosshair dead-centred on the target and the correct item in hand,
+# for reasons not fully isolated (GLFW/XTEST input delivery in this
+# environment, not the mod -- the identical action taken directly, close to
+# session start, works every time). A second click costs nothing here: the
+# empty-hand interaction is idempotent (same hint, or nothing, either way).
+click right
+wait 2
 click right
 wait 2
 shot plaque-02-empty-clicked
@@ -173,7 +222,15 @@ expect_server Awaiting a build plan
 # give means the plan is guaranteed to land in slot 1.
 scmd give $PLAYER hearthstead:build_plan[hearthstead:building_type="house"] 1
 key 1
-wait 1
+wait 10
+# Same belt-and-braces reasoning as the empty-hand click above -- this one
+# matters more, since insertPlan() is NOT idempotent in the interesting
+# sense: once state leaves EMPTY the plaque no longer matches useItemOn's
+# own EMPTY guard, so a genuine second attempt after a real first success
+# just falls through to useWithoutItem (opens the screen again -- harmless,
+# already open) rather than double-inserting.
+click right
+wait 3
 click right
 wait 3
 shot plaque-03-screen-open

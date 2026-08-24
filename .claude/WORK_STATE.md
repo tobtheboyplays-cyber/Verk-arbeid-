@@ -4,91 +4,92 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
 
 ## Current goal
 
-**SLICE HARNESS-1 — DONE.** Two review rounds (both stored in
-`docs/project/REVIEW_FINDINGS.md`), 22 findings total, all closed or
-explicitly recorded unrecoverable. Full evidence matrix green at fingerprint
-`cebeb07b98d2...`. Opus budget spent (3/3) — no further gate call for this
-task. **No `hearthstead-neoforge/src/` touched this slice.**
+**SLICE PLAQUE-1 — code done; one playtest interaction is harness-blocked
+(KF-009), not a mod defect.** Full findings: `docs/project/KNOWN_FAILURES.md`
+KF-009. Blocker file: `qa/reports/BLOCKED`.
 
-## Closing evidence
+## What's done and evidenced
 
-| Suite | Runs | Result |
-|---|---|---|
-| dedicated / performance / client | x2 cold each | all PASS |
-| playtest | x2 cold | PASS — **70/70 identical checks both runs** |
-| negative all | x1 | PASS 4/4 in one invocation |
-| provision | x1 | PASS |
-| live | x3 | **FAIL, FAIL, PASS** |
+- **W1-W9 all implemented.** Blank plaque (EMPTY state, no UI, dark lamp),
+  separate `BuildPlanItem` (39 keys, 41 bilingual strings), 5-state machine
+  (`EMPTY -> PLAN_INSERTED_UNLINKED -> LINKED_INCOMPLETE/LINKED_VALID`,
+  `ORPHANED`), save-compat via a legacy-id alias table (never a bare `EMPTY`
+  fallback), 4-value lamp art (off/red/amber/green) via a base model + 3-line
+  child variants, 7 recipes (plaque + 6 build plans), KF-001's `hangPlaque()`
+  fix.
+- **`assets` PASS 230/230** at current fingerprint — closes KF-004, KF-005.
+- **`gametest` PASS 19/19** at current fingerprint (twice, at two different
+  fingerprints as scenario edits landed) — closes KF-001. Includes
+  `legacyPlaqueStateLoadsWithoutLosingBuilding`, which loads a SYNTHETIC OLD
+  TAG (`State="linked"` + a `Building` UUID) and proves it resolves to
+  `LINKED_VALID`, not the un-homing `EMPTY` a naive fallback would produce.
+- **The interaction itself proven correct via manual reproduction** — see
+  KF-009 below. This is the load-bearing fact: the MOD is not broken.
 
-`live`'s three-run shape is deliberate, not noise: cycles 1-2 (default
-framing, no settler in view) correctly derived `overall: FAIL` from a genuine
-failed `film` check — proof the verdict is no longer the old hard-coded
-`STOPPED` literal. Cycle 3 (glass pen + `spreadplayers`, settler in frame)
-correctly derived `overall: PASS`, `film` at `subject_mad 23.68`. Both
-directions proven live is what makes the derivation trusted, not just
-unit-tested. Evidence: `qa/reports/artifacts/live/{20260824T042738Z,
-20260824T044458Z,20260824T051935Z}/`.
+## KF-009 — the one open item, read the full entry before touching this again
 
-Round 2's motion-metric fix holds under both a false positive it was built to
-catch (a chat line fading, HUD band now excluded) and a true positive found by
-accident (a distant iron golem, correctly attributed as "something moved" not
-"the settler moved" — see PROTOCOL D-H6 for exactly what the number claims).
+`playtest`'s PLAQUE-1 section fails two `expect_server` checks. Diagnosed at
+length (settlement absence, aim/geometry, session/GLFW staleness, stale
+window id — all ruled out with direct evidence, two real hardening fixes
+applied to `qa/scripts/playtest.sh` and kept). Root cause not isolated;
+matches KF-006's pre-existing, unresolved click/move flakiness class, now
+shown to also affect `click` and `cmd` late in a long scenario. **Do not
+re-run the same four ruled-out experiments** — KF-009 lists unexplored
+directions for whoever continues this.
 
-## Key decisions this slice, for anyone picking this up cold
+## Next concrete action
 
-- **Freshness fingerprint widened** to cover `qa/scripts/**` +
-  `qa/scenarios/**` (excludes `qa/reports/**`, `__pycache__`). Two
-  implementations (`tools/hearthstead-qa`, `qa/scripts/lib_harness.sh`) MUST
-  stay byte-identical — verified, and re-verify after touching either.
-- **Motion (`film`) judges the loudest tile of a 16x9 grid**, HUD band (bottom
-  2 rows) excluded, not the whole-frame average — a small subject averages to
-  noise otherwise. `subject_mad > 2.0` = pass. Establishes "something in the
-  world animated", never "this specific settler moved" — that needs a human
-  reading the contact sheet.
-- **`live start` sets a deterministic observation state** (peaceful, creative,
-  day, clear, no spawns) and asserts `Health > 0` — a joined-but-dead player
-  silently freezes the world (dead players stop nearby chunks ticking) while
-  the session still looks "up".
-- **`live stop` derives `overall` from stored checks** (`finish_result AUTO`),
-  never a hard-coded literal. `film`/`shot` now record checks so there is
-  something to derive from.
-- **`reap` excludes its own process ancestry**, not by text pattern (a
-  caller's argv can legitimately contain the harness path being searched for
-  — no pattern fixes that) but by walking `/proc/*/stat` parent links.
+1. Confirm `git push` landed (this round: KF-009 write-up, BLOCKED rewrite,
+   `qa/scripts/playtest.sh` hardening, `qa/scenarios/default.txt` fixes).
+2. Send PLAQUE-1 to RELEASE_GATE (one Opus call — 0 of 3 spent on this slice
+   so far) with KF-009 as the explicit open question: is GameTest +
+   independently-verified manual reproduction sufficient proof to call this
+   slice done with the scripted playtest check BLOCKED, or does it need
+   more harness work first. Do not self-judge this — that is exactly what
+   the gate is for.
+3. If PASS or accepted-BLOCKED: SLICE VISUAL-1 next (fix KF-007's
+   `gen_settler.py` non-determinism first, then modular settler visuals).
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
 - `ss -ltnp` unreliable here — use `lsof -ti tcp:<port> -sTCP:LISTEN`.
 - GNU `timeout` needs `--foreground`, else killing the PGID misses java.
 - Xvfb ignores SIGHUP — explicit `pkill -9 -f "Xvfb :NN"`.
-- `@argfile` JVM args never reach `/proc/PID/cmdline` — use `/proc/PID/cwd`.
 - `hsqa-inst` is a substring of `hsqa-install` — anchor on `hsqa-inst/`.
 - GLFW needs a real click before relative look works; quickPlay never gives one.
 - Console `tp <t> ~ ~ ~` resolves `~` against the CONSOLE — use `execute at`.
-- `execute at ... run fill ...` suppresses ALL feedback silently.
+- `execute at ... run <anything>` suppresses ALL feedback silently — this
+  bit me AGAIN this round on a `data get block` diagnostic probe; always
+  use bare absolute coordinates when you need to SEE a command's output.
 - `fill <box> X replace X` is a no-op the game never counts.
 - A tmux pane's `tee`'d log echoes the pane's own keystrokes — read the real
   Log4j `logs/latest.log` for anything server-authoritative.
-- `import -window root` on an Xvfb screen sized like the target window passes
-  a size check regardless of the window's real size — capture the window id.
+- **`tp ... facing <x> <y> <z>` computed rotations look correct in a
+  screenshot but do NOT reliably reproduce a working interaction the way a
+  fixed `yaw=0 pitch=0` rotation at a matching stand-back offset does** —
+  proven by direct A/B repro this round. Prefer fixed rotations + a computed
+  stand-back position over `facing` for anything that needs to click.
+- **A `PlaqueScreen` (or any screen) left open from an earlier manual test
+  silently absorbs later clicks as UI interaction, not world interaction** —
+  always `key Escape` between unrelated manual test iterations, or you will
+  chase a phantom "click doesn't work" bug that is actually your own
+  leftover UI state. (This is NOT what KF-009 turned out to be, but cost
+  real time to rule out.)
+- **Never nest `nohup cmd &` inside a `run_in_background: true` Bash call** —
+  the tool only tracks the launcher (which exits almost instantly), not the
+  backgrounded suite; the "completed" notification is a false signal and
+  the real process can keep running, overlapping with whatever you start
+  next. Pass the suite command directly to a backgrounded Bash call instead.
+- **`playtest.sh`'s `focus()` used to cache `$WIN` once at boot and swallow
+  its own exit code unconditionally** — now self-healing (checks the exit
+  code, re-searches on failure). `live.sh`'s equivalent already re-searches
+  fresh every call and never had this defect.
 - `@e[...,limit=N]` bounds a selector, does not require a minimum.
 - **Never run two suites at once** — every one launches a client and a
   server, and a cold start's broad `pkill` kills the other's client.
 - Client boot under software GL / this proxy can take minutes (authlib
   stalls) while genuinely progressing — never treat slowness as a hang.
 
-## Known problems (pre-existing, PLAQUE-1 scope, do not fix here)
+## Known problems (pre-existing, other slices' scope)
 
-KF-001, KF-004, KF-005 (plaque). `full` stays RED on exactly these three —
-by design; see KF-008. `full` was not run this slice for that reason.
-
-## Next concrete action
-
-**SLICE PLAQUE-1**, from `docs/project/PLAN_PLAQUE-1.md` — state machine,
-the save-compat failure mode (an existing world's plaques must not load as
-EMPTY after the state ids are renamed), W1-W9 with acceptance criteria. Fully
-pre-worked: 39 missing lang keys derived from source, 41 bilingual strings
-drafted and argument-checked (`hearthstead-neoforge/docs/plaque_lang_draft.json`),
-the lamp-art gap in `gen_plaque.py` identified. Hand to sonnet-builder for
-Phase 4 of the premium-build-loop (PLAN_GATE already done, no second Opus
-call needed).
+KF-007 (`gen_settler.py` non-determinism) — VISUAL-1's first task.

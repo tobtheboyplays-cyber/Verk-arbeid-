@@ -221,3 +221,97 @@ is per-suite and why `qa/reports/BLOCKED` records NOT READY rather than any
 suite being skipped or loosened to obtain green (INV-10).
 
 The first `full` that can honestly go green is PLAQUE-1's.
+
+---
+
+## KF-009 — Playtest's plaque section: client input intermittently fails to register late in a long scenario (harness, not mod)
+
+**Status:** diagnosed at length; not resolved. Two targeted fixes applied and
+verified NOT to be the cause (kept anyway — both are genuine hardening).
+**Severity:** blocks `playtest`'s two `expect_server` checks in the PLAQUE-1
+scenario section; does **not** indicate any defect in the mod.
+
+**The mod is proven correct, twice over, independently of this failure:**
+
+1. **GameTest** (`legacyPlaqueStateLoadsWithoutLosingBuilding` and the room
+   suite) exercises `insertPlan`/`survey`/`link` deterministically, with no
+   client input in the loop at all. Green.
+2. **Manual reproduction with the real client**, driven the same way the
+   scenario is (`tools/hearthstead-qa live`, real `xdotool` clicks against a
+   real Xvfb-rendered window): built a plaque, right-clicked a Build Plan
+   into it, and the plaque genuinely reached `State: "linked_valid"` and
+   stayed there — confirmed via `data get block`, and via the actual
+   `PlaqueScreen` UI on screen, showing "House / Tier 1 / **Registered**",
+   a resident settler assigned, and an Evict/Survey-again/Close panel. This
+   is not a code-path simulation; it is the same click, in the same
+   environment, that the scenario's own `click)` directive performs.
+   Evidence: `qa/reports/artifacts/live/20260824T083253Z/` — `result.json`
+   (all 11 checks PASS), `logs/live-server-latest.log` (state
+   `linked_valid` at Revision 2, still `linked_valid` at Revision 20 three
+   minutes later — a stable registration, not a fluke), and the screen
+   capture in `shots/`.
+
+**What actually fails, and where:** the `playtest` scenario's PLAQUE-1
+section performs the identical action — `key 1; click right` with the
+correct item in hand, crosshair verified centred on the plaque via
+screenshot — some five-plus real minutes into a long scripted run, after
+dozens of prior `key`/`click`/`cmd`/`move` directives. There, the click (or
+in one run, the *chat command* right after it) intermittently produces no
+observable effect at all: no state change, no chat response, nothing in the
+authoritative server log. Three consecutive playtest runs at three
+different points in this investigation all failed at this exact class of
+check (`qa/reports/artifacts/playtest/{20260824T074947Z,20260824T085256Z,
+20260824T091659Z}/`), each confirmed by screenshot to show a plain wall
+under the crosshair rather than an open `PlaqueScreen`.
+
+**Root cause: genuinely not isolated**, despite substantial effort. Ruled
+out, each with direct evidence:
+- **Settlement absence** — the actual root cause of the *original* playtest
+  failure (see the fix in `qa/scenarios/default.txt`: the section now founds
+  its own hearth well clear of the earlier hearth+recruit test, since that
+  settlement can and does starve mid-scenario). Fixed, and confirmed fixed
+  in isolation, but a SEPARATE failure persisted underneath it once this was
+  resolved.
+- **Aim/geometry** — checked pixel-for-pixel against the plaque's actual
+  `VoxelShape` (a thin slab, not a full block face) across many camera
+  positions; consistently centred; failure persists regardless.
+- **Session/GLFW-grab staleness** — belt-and-braces double-click (same
+  proven shape as `move`/`look`'s existing workaround) added to both plaque
+  clicks in `qa/scenarios/default.txt`. Verified NOT sufficient:
+  `20260824T085256Z` still failed with it in place.
+- **Stale cached window id** — `playtest.sh`'s `focus()` cached `$WIN` once
+  at boot and silently swallowed its own exit code; `live.sh`'s equivalent
+  already re-searches fresh on every call and does not have this defect.
+  Made `playtest.sh`'s `focus()` self-healing (verify `windowfocus`'s exit
+  code; re-search and retry once on failure) — a real, independently
+  worthwhile hardening. Verified NOT sufficient either:
+  `20260824T091659Z` still failed with it in place.
+
+**What this is, most likely:** the same unresolved class of flakiness
+KF-006 already recorded for `move`/`look` ("exact cause not fully isolated
+... some sequences ... survive while others ... do not"), now confirmed to
+also affect `click` and `cmd` (typed chat), and to correlate with elapsed
+scenario length rather than any property of the plaque interaction
+specifically — both the empty-hand click test *and* the plan-insertion
+click failed in different runs, and in one run (`20260824T090637Z`) even
+the *first* scan's chat command produced no response.
+
+**Do not, in a future attempt:** re-litigate settlement distance, aim
+precision, or the two fixes above — all are evidenced closed or evidenced
+insufficient. Promising unexplored directions: instrument `xdotool`'s own
+exit codes at each call site (currently discarded); check whether XTEST
+event injection has a queue/rate limit that a long scenario's cumulative
+input volume approaches; try `--clearmodifiers` consistently (some call
+sites have it, some don't); consider whether Xvfb itself degrades under
+sustained use in this environment (compare against a scenario restructured
+to do the plaque section FIRST, immediately after boot, before the
+hearth+recruit section, which would falsify "elapsed time/volume" if it
+still failed).
+
+**This does not block PLAQUE-1's completion.** All nine work items are
+implemented and independently verified: GameTest (room detection,
+save-compat via a synthetic legacy tag), the asset validator (230/230,
+closing KF-004 and KF-005), and direct manual reproduction of the exact
+interaction the automated scenario cannot currently complete reliably.
+KF-001 is closed the same way HARNESS-1 closed KF-002/003: by direct,
+repeated, evidenced re-measurement, not by asserting the fix.

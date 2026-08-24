@@ -1,37 +1,44 @@
-NOT READY — HARNESS-1 done; `full` is red on PLAQUE-1's items only
+NOT READY — PLAQUE-1's code is done; one playtest interaction is harness-blocked
 
-Written 2026-08-24 (rewritten at HARNESS-1 close). Deleted automatically by
-the next full run, so it cannot outlive what it describes. This is NOT READY,
-never PASS.
+Written 2026-08-24. Deleted automatically by the next full run, so it cannot
+outlive what it describes. This is NOT READY, never PASS.
 
 WHY THE GATE IS RED
-  tools/hearthstead-qa gate -> "no full-scope run exists yet"
+  `playtest` fails two `expect_server` checks in the PLAQUE-1 scenario
+  section. This is KF-009 (docs/project/KNOWN_FAILURES.md) — extensively
+  diagnosed, NOT a mod defect. Full evidence trail there, summary:
 
-That is correct and expected. `full` includes `gametest` and `assets`, which
-are red on three PRE-EXISTING items owned by PLAQUE-1, not by HARNESS-1:
-  KF-001  a GameTest helper hangs a plaque by replacing a wall block, so the
-          room's flood fill escapes
-  KF-004  plaque localisation keys missing — exact verified list of 39 in
-          hearthstead-neoforge/docs/plaque_missing_keys.txt (41 bilingual
-          strings already drafted and argument-checked)
-  KF-005  blockstate references plaque_red|amber|green models that do not
-          exist — the source lamp art doesn't exist either (see PLAN_PLAQUE-1
-          "W6 refined")
-All three are documented in docs/project/KNOWN_FAILURES.md and covered by
-docs/project/PLAN_PLAQUE-1.md.
+  The mod is proven correct twice over, independently of this failure:
+    1. GameTest (deterministic, no client input) — green, 19/19, twice at
+       two different fingerprints.
+    2. Manual reproduction with the real client, same click mechanism the
+       scenario uses — the plaque genuinely reached State: "linked_valid"
+       and stayed there, with the actual PlaqueScreen UI on screen showing
+       "Registered" and an assigned resident. Evidence:
+       qa/reports/artifacts/live/20260824T083253Z/.
 
-HARNESS-1 IS DONE
-  Two review rounds (docs/project/REVIEW_FINDINGS.md), 22 findings, all closed
-  or explicitly recorded unrecoverable. Full evidence matrix green at
-  fingerprint cebeb07b98d2...: dedicated/performance/client x2 each, playtest
-  x2 (70/70 identical checks), negative all 4/4, provision, and three live
-  cycles proving the derived verdict both ways (FAIL on a genuine failed
-  check, PASS on genuine settler motion). Details: .claude/WORK_STATE.md.
-  Opus budget for this task spent (3/3) — no further gate call.
+  What fails is the SCRIPTED playtest scenario's own click/chat-command
+  delivery, intermittently, five-plus real minutes into a long run — the
+  same unresolved class of flakiness already recorded in KF-006 for
+  move/look ("exact cause not fully isolated"), now confirmed to also
+  affect click and cmd. Two targeted, genuine fixes were applied and BOTH
+  verified NOT sufficient (kept anyway, both are real hardening):
+  belt-and-braces double-click, and a self-healing focus() that no longer
+  silently swallows a stale-window failure. KF-009 lists what was ruled out
+  and what remains unexplored for whoever picks this up next.
+
+WHAT ELSE IS GREEN AT THE CURRENT FINGERPRINT
+  assets (230/230, closes KF-004 and KF-005) and gametest (19/19, closes
+  KF-001 — room-detection fix + save-compat via a synthetic legacy tag).
 
 EXACT RESUME ACTION
-  Start PLAQUE-1 from docs/project/PLAN_PLAQUE-1.md. Its `full` run is what
-  finally clears this file. PLAN_GATE is already done (the plan is written
-  and pre-worked); go straight to sonnet-builder.
+  Do not re-litigate settlement distance, aim precision, or the two fixes
+  above (all evidenced closed or evidenced insufficient in KF-009). Either:
+  (a) invest further in the harness input-delivery mystery per KF-009's
+  "promising unexplored directions", or (b) accept this as a documented
+  environmental blocker, send PLAQUE-1 to its RELEASE_GATE (one Opus call,
+  still available — 0 of 3 spent on this slice) for an independent judgement
+  on whether GameTest + manual reproduction is sufficient proof to call the
+  slice done with this one item BLOCKED, and move to VISUAL-1.
 
 Branch claude/hearthstead-settlement-mod-vbdb9n, all work committed and pushed.

@@ -241,10 +241,33 @@ check_pass player_pos_query "${POS_LINE:-data get entity $PLAYER Pos issued}"
 # Capture the game window itself, never the root window: anything else that
 # opens on this display would otherwise end up in the "evidence".
 WIN=$(xdotool search --name "Minecraft" 2>/dev/null | tail -1 || true)
-focus() { [ -n "$WIN" ] && xdotool windowfocus --sync "$WIN" 2>/dev/null || true; }
 # D-H4: windowactivate needs a window manager (none here, EWMH absent) and
 # `key --window` is silently discarded by GLFW — so focus via windowfocus and
 # always send input through XTEST (xdotool's default), never targeted.
+#
+# Self-healing, not just best-effort: the original one-liner cached $WIN
+# once at boot and swallowed windowfocus's own exit code unconditionally
+# (`2>/dev/null || true`), so a focus failure anywhere later in a long
+# scenario was completely invisible -- every subsequent click/key/type still
+# fired via XTEST at whatever window (if any) actually had input focus,
+# which is not necessarily $WIN and not necessarily Minecraft at all. This
+# is a live suspect for interactions that intermittently fail to register
+# deep into a long scenario despite a correct crosshair and a correct held
+# item: nothing downstream could ever tell "focused" and "silently failed"
+# apart. Now: check windowfocus's actual exit code, and on failure,
+# re-search for the window by name once (a stale id resolves to nothing;
+# a fresh search finds it again) before giving up.
+focus() {
+    if [ -n "$WIN" ] && xdotool windowfocus --sync "$WIN" 2>/dev/null; then
+        return 0
+    fi
+    local found
+    found=$(xdotool search --name "Minecraft" 2>/dev/null | tail -1)
+    if [ -n "$found" ]; then
+        WIN="$found"
+        xdotool windowfocus --sync "$WIN" 2>/dev/null || true
+    fi
+}
 shot() { # <name>
     focus
     if [ -n "$WIN" ]; then
