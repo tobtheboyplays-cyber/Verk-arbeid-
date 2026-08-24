@@ -1,52 +1,37 @@
-NOT READY — HARNESS-1 awaiting re-review; `full` is red on PLAQUE-1's items
+NOT READY — HARNESS-1 done; `full` is red on PLAQUE-1's items only
 
-Written 2026-08-24 (rewritten at correction-round close). Deleted
-automatically by the next full run, so it cannot outlive what it describes.
-This is NOT READY, never PASS.
+Written 2026-08-24 (rewritten at HARNESS-1 close). Deleted automatically by
+the next full run, so it cannot outlive what it describes. This is NOT READY,
+never PASS.
 
 WHY THE GATE IS RED
   tools/hearthstead-qa gate -> "no full-scope run exists yet"
 
 That is correct and expected. `full` includes `gametest` and `assets`, which
-are red on three PRE-EXISTING items owned by the NEXT slice (PLAQUE-1), not
-by this one:
+are red on three PRE-EXISTING items owned by PLAQUE-1, not by HARNESS-1:
   KF-001  a GameTest helper hangs a plaque by replacing a wall block, so the
-          room's flood fill escapes (1856 cells where a hut is 27)
+          room's flood fill escapes
   KF-004  plaque localisation keys missing — exact verified list of 39 in
-          hearthstead-neoforge/docs/plaque_missing_keys.txt
-  KF-005  blockstate references plaque_red|amber|green models that do not exist
-All three are documented with evidence in docs/project/KNOWN_FAILURES.md and
-are covered by docs/project/PLAN_PLAQUE-1.md (W6, W7, W9). Running `full` now
-would report them as this slice's failures, which they are not.
+          hearthstead-neoforge/docs/plaque_missing_keys.txt (41 bilingual
+          strings already drafted and argument-checked)
+  KF-005  blockstate references plaque_red|amber|green models that do not
+          exist — the source lamp art doesn't exist either (see PLAN_PLAQUE-1
+          "W6 refined")
+All three are documented in docs/project/KNOWN_FAILURES.md and covered by
+docs/project/PLAN_PLAQUE-1.md.
 
-WHAT THE CORRECTION ROUND PROVED (do not redo)
-  All 14 review findings closed with stored evidence. At one fingerprint
-  (d26bbe2f8a...), with `reap check` clean before and after each:
-    dedicated x2, performance x2, client x2, playtest x2 (70 identical checks
-    both runs), live x2 cold starts driving the full command set,
-    `negative all` 4/4 PASS in a single invocation, `provision` PASS
-    (install rebuilt from scratch, verified by a passing playtest).
-  Finding 3 proven in BOTH directions on one framing: settlers walking score
-  subject_mad 19.79 and PASS; the identical shot with the server tick-frozen
-  scores 0.26 and FAILS.
-  Four further defects were found while proving that and are fixed: the motion
-  check could no longer pass at all; each film take overwrote the previous;
-  `live stop` recorded a hard-coded verdict that hid failed checks; and
-  `live start` could leave a session that looked up but stood in a frozen
-  world after the player was killed.
-  Details and evidence paths: .claude/WORK_STATE.md.
+HARNESS-1 IS DONE
+  Two review rounds (docs/project/REVIEW_FINDINGS.md), 22 findings, all closed
+  or explicitly recorded unrecoverable. Full evidence matrix green at
+  fingerprint cebeb07b98d2...: dedicated/performance/client x2 each, playtest
+  x2 (70/70 identical checks), negative all 4/4, provision, and three live
+  cycles proving the derived verdict both ways (FAIL on a genuine failed
+  check, PASS on genuine settler motion). Details: .claude/WORK_STATE.md.
+  Opus budget for this task spent (3/3) — no further gate call.
 
 EXACT RESUME ACTION
-  1. Read the opus-quality-gate re-review verdict (one short re-review of the
-     changed areas — the governor's third and final Opus call for this task).
-  2. If PASS: start PLAQUE-1 from docs/project/PLAN_PLAQUE-1.md. Its `full`
-     run is what finally clears this file.
-     If REVISE: fix what it names; do not open new scope.
-
-OPEN QUESTION RAISED FOR THE REVIEW, NOT DECIDED UNILATERALLY
-  The freshness fingerprint covers qa/PROTOCOL.md but not qa/scripts/, though
-  those scripts decide what every suite asserts — so test behaviour changed
-  mid-round without invalidating earlier evidence. Widening it invalidates the
-  matrix above and forces a re-run.
+  Start PLAQUE-1 from docs/project/PLAN_PLAQUE-1.md. Its `full` run is what
+  finally clears this file. PLAN_GATE is already done (the plan is written
+  and pre-worked); go straight to sonnet-builder.
 
 Branch claude/hearthstead-settlement-mod-vbdb9n, all work committed and pushed.
