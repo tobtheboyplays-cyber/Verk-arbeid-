@@ -73,6 +73,42 @@ NeoForge server instance and port, materialised fresh per run by
 port, and a leaked one can't poison the others. Ports: dedicated 25571,
 performance 25572, playtest 25573, live 25574.
 
+### Judging motion (D-H6)
+
+`film` judges motion on the **loudest tile** of a 16x9 grid laid over each
+inter-frame difference (`subject_mad`), not on the whole-frame average
+(`median_mad`, still reported). A whole-frame average is dominated by the
+pixels that never change, so a settler three blocks from a static camera —
+unmistakably walking to any human looking at the contact sheet — averaged out
+to 0.34 against a threshold of 2.0. Combined with the pan being opt-in, that
+made `motion_ok` unable to report motion at all, which is the same
+unfalsifiability as a forced pan, mirrored.
+
+Both directions are proven against one framing and stored side by side:
+settlers walking in a pen score 19.79 and PASS; the identical shot with the
+server `tick freeze`d scores 0.26 and FAILS. A camera pan still passes — every
+tile is loud — so the measure widens what can be detected without loosening
+what counts as motion. Reporting both figures keeps a pan (the two converge)
+distinguishable from subject motion (they do not).
+
+Each take gets its own directory (`film/take-NN[-label]/`, label via
+`HSQA_FILM_LABEL`): proving a claim that needs a passing take AND a failing
+control must not destroy the first when the second runs.
+
+### A session that is up must be a session that RUNS (D-H7)
+
+`live start` does not stop at proving a join. A joined player is not a running
+world: a player killed while the session sits unattended leaves the client on
+the death screen, and a dead player stops holding the surrounding chunks at
+full ticking — block entities near them stop ticking too, so a hearth placed
+afterwards never founds its settlement and nothing moves, while `live status`
+still reports the session up. Anything judged from that state is judged from a
+frozen world.
+
+So `start` also sets a deterministic observation state (peaceful, creative,
+day, clear, no mob spawning) and asserts the player is **alive** (`Health > 0`)
+rather than merely connected.
+
 ### No live streaming (D-H5)
 
 Like sound, live video streaming is unavailable in this environment (no
@@ -148,6 +184,12 @@ Some suites (`build`, `assets`, `animation`, `gametest`, `behavior`,
 `doctor`) still use the older flat `qa/reports/artifacts/<TS>/` layout from
 before this slice — both shapes coexist, and any reader (`visual`,
 `reproduce`) globs both rather than assuming one.
+
+A scenario that ends for a reason of its own — `live stop` tearing a session
+down — records `overall` derived from its own checks, never a hard-coded
+terminal status: "it stopped" says nothing about whether it went well, and a
+literal status made a session carrying a FAILED check read exactly like a
+clean one.
 
 `negative` (scenario `negative`), `reap check`/`dry-run`/`reap` (scenario
 `reap`) and `provision` (scenario `provision`) all write into this same

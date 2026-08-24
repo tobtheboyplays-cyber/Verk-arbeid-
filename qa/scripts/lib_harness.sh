@@ -150,6 +150,11 @@ if os.path.exists(jsonl):
             continue
         c = json.loads(line)
         checks[c["name"]] = {"status": c["status"], "evidence": c["evidence"]}
+# "AUTO" means: let the checks decide. A caller that ends a scenario for a
+# reason of its own — `live stop` tearing a session down — still must not
+# record a verdict that hides a failed check behind the fact that it stopped.
+if status == "AUTO":
+    status = "FAIL" if any(c["status"] == "FAIL" for c in checks.values()) else "PASS"
 result = {
     "overall": status,
     "finished": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),

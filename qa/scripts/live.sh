@@ -320,7 +320,11 @@ stop)
     # appending one more check and re-aggregating keeps every earlier one.
     if [ -n "$EV_DIR" ]; then
         check_pass session_stopped "live session stopped and torn down cleanly"
-        finish_result STOPPED
+        # AUTO, not a literal "STOPPED": that a session was torn down says
+        # nothing about whether it went well, and a hard-coded terminal
+        # status made a session carrying a FAILED check read exactly like a
+        # clean one. The stop itself is recorded as its own check above.
+        finish_result AUTO
     fi
     rm -f "$STATE/ev_dir" "$STATE/player" "$STATE/inst"
     echo "session stopped"
