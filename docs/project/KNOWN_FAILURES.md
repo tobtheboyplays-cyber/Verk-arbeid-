@@ -224,94 +224,109 @@ The first `full` that can honestly go green is PLAQUE-1's.
 
 ---
 
-## KF-009 — Playtest's plaque section: client input intermittently fails to register late in a long scenario (harness, not mod)
+## KF-009 — Playtest's plaque section repeatedly failed; seven real, distinct harness bugs, no mod defect
 
-**Status:** diagnosed at length; not resolved. Two targeted fixes applied and
-verified NOT to be the cause (kept anyway — both are genuine hardening).
-**Severity:** blocks `playtest`'s two `expect_server` checks in the PLAQUE-1
-scenario section; does **not** indicate any defect in the mod.
+**Status:** diagnosed AND fixed — seven genuine root causes found and
+corrected across two review cycles, each verified independently. A `full`
+run against the rebuilt jar is the closing step (see the current run in
+`qa/reports/artifacts/full/` and `.claude/WORK_STATE.md` for its result).
+**Severity:** was blocking `playtest`'s PLAQUE-1 section entirely; **never**
+indicated any defect in the mod itself — confirmed at every stage by
+GameTest (deterministic, no client input) and, for the final mystery,
+by the Minecraft client's own log directly recording the correct answer
+while only the SERVER'S copy of the code was stale.
 
-**The mod is proven correct, twice over, independently of this failure:**
+**This entry previously said the cause was "genuinely not isolated" and
+matched an "unresolved input-delivery flakiness class."** That conclusion
+was wrong, and is left below (struck through in spirit, not deleted) rather
+than quietly rewritten, because it is exactly the kind of plausible-but-
+false lead worth a full correction cycle. An Opus RELEASE_GATE and, later,
+an Opus BLOCKER_GATE each independently found real, provable causes that
+had simply never been checked for.
 
-1. **GameTest** (`legacyPlaqueStateLoadsWithoutLosingBuilding` and the room
-   suite) exercises `insertPlan`/`survey`/`link` deterministically, with no
-   client input in the loop at all. Green.
-2. **Manual reproduction with the real client**, driven the same way the
-   scenario is (`tools/hearthstead-qa live`, real `xdotool` clicks against a
-   real Xvfb-rendered window): built a plaque, right-clicked a Build Plan
-   into it, and the plaque genuinely reached `State: "linked_valid"` and
-   stayed there — confirmed via `data get block`, and via the actual
-   `PlaqueScreen` UI on screen, showing "House / Tier 1 / **Registered**",
-   a resident settler assigned, and an Evict/Survey-again/Close panel. This
-   is not a code-path simulation; it is the same click, in the same
-   environment, that the scenario's own `click)` directive performs.
-   Evidence: `qa/reports/artifacts/live/20260824T083253Z/` — `result.json`
-   (all 11 checks PASS), `logs/live-server-latest.log` (state
-   `linked_valid` at Revision 2, still `linked_valid` at Revision 20 three
-   minutes later — a stable registration, not a fluke), and the screen
-   capture in `shots/`.
+### The seven causes, in the order they were found and fixed
 
-**What actually fails, and where:** the `playtest` scenario's PLAQUE-1
-section performs the identical action — `key 1; click right` with the
-correct item in hand, crosshair verified centred on the plaque via
-screenshot — some five-plus real minutes into a long scripted run, after
-dozens of prior `key`/`click`/`cmd`/`move` directives. There, the click (or
-in one run, the *chat command* right after it) intermittently produces no
-observable effect at all: no state change, no chat response, nothing in the
-authoritative server log. Three consecutive playtest runs at three
-different points in this investigation all failed at this exact class of
-check (`qa/reports/artifacts/playtest/{20260824T074947Z,20260824T085256Z,
-20260824T091659Z}/`), each confirmed by screenshot to show a plain wall
-under the crosshair rather than an open `PlaqueScreen`.
+1. **Destructive grab-restoring click (RELEASE_GATE, root cause of the
+   original symptom).** `cmd`/`move` directive handlers ended with a click
+   to re-establish GLFW's relative-mouse grab, aimed at whatever the
+   crosshair currently held. In creative mode that is an instant block
+   break — it was destroying the plaque itself immediately after a
+   successful survey, deterministically. Every earlier "the click didn't
+   register" observation was actually "the plaque got destroyed by a LATER,
+   unrelated click and a screenshot several steps on shows it gone."
+   Fixed by `safe_regrab()`: capture rotation, look away, click, restore.
+2. **"Look up" is not safe underground.** PLAQUE-1's test room sits at
+   Y≈-60; looking straight up from inside or near it hits the room's own
+   roof or natural terrain, still well within creative reach. Fixed by
+   teleporting the PLAYER to a fixed clear height (Y=300) before clicking,
+   not just changing look direction.
+3. **1s was not enough for the client to catch up to a 360-block
+   teleport.** The same class of gotcha KF-006 already named for rotation
+   changes, worse for a much bigger scene change (new chunks, new
+   lighting). Bumped the post-teleport pause to 3s.
+4. **`~`-relative scan targeting could drift across regrab cycles.** The
+   player's true position was observed to drift by a few tenths of a block
+   between consecutive `cmd` sends in this environment (client movement
+   packets trickling in after a round trip's own restore already ran) —
+   enough, occasionally, to floor a `~1 ~2`-style offset onto the wrong
+   integer block. Fixed with a new `capture_pos` scenario directive that
+   freezes the plaque's absolute coordinates once, right after it's
+   placed, before any regrab churn can touch them.
+5. **`hearthstead info` issued via console (`scmd`) resolves the wrong
+   settlement.** `HearthsteadCommand.info()`'s "nearest settlement" search
+   measures distance from the COMMAND SOURCE's own position — for a
+   console-issued command that is a fixed point near world spawn, not
+   wherever the player has since walked to. PLAQUE-1 deliberately relocates
+   300+ blocks away, so `scmd hearthstead info` there was always reporting
+   on the OLD, empty settlement near spawn, never the new one the plaque
+   had just registered into. Fixed by asking it `cmd` (as the player)
+   instead, matching how the scan calls already had to be asked.
+6. **`info()`'s `sendSuccess` calls used `broadcastToAdmins=false`,
+   unlike its siblings.** `scan()` and `recruit()` both pass `true` and
+   reliably log `[Dev: ...]`-bracketed lines even for player-issued
+   commands; `info()`'s `false` meant a PLAYER-issued call produced zero
+   trace in the server console log — not a wrong answer, no answer at all.
+   Fixed by changing all three `sendSuccess` calls in `info()` to `true`,
+   for consistency with `scan()`/`recruit()` (a legitimate small product
+   fix, not a test workaround: `info()` is the same kind of admin/
+   diagnostic read they are, with no reason to behave differently).
+7. **`playtest.sh` never rebuilt the jar, and never checked it was
+   current (BLOCKER_GATE, closes the mystery that survived causes 5 and 6
+   being fixed).** After causes 5 and 6 were fixed and pushed, the exact
+   same failure kept recurring, identically, across five more runs — with
+   `xdotool`'s own exit codes clean and `focus()` reporting no failure
+   either. The actual explanation: `playtest.sh` picks the newest
+   PRE-EXISTING jar in `build/libs/` and only fails if none exists at all
+   — it never rebuilds, and never compares the jar's age against the
+   source. The dedicated server under test was running a jar that predated
+   causes 5 and 6 by six hours, so every one of those five runs was
+   correctly reporting that the (stale) server code still didn't log
+   anything — while `runGameTestServer`/`runClient`, which DO compile
+   fresh, kept reflecting the real fixes, producing the confusing
+   appearance of "compiles clean, GameTest still 19/19, playtest still
+   fails identically." The client's OWN log (`playtest-client.log`, never
+   previously read for this check) directly proved the command worked
+   perfectly, twice, every time: correct settlement, correct message,
+   just never reaching the stale server's outdated code. Fixed two ways:
+   `playtest.sh` now refuses to run at all if any source file is newer
+   than the selected jar, naming the stale file; and `expect_server` now
+   searches only the log appended since the most recent action-producing
+   directive (a `LOG_ANCHOR`), not the whole cumulative file, closing the
+   symmetric false-PASS risk the same design gap allowed.
 
-**Root cause: genuinely not isolated**, despite substantial effort. Ruled
-out, each with direct evidence:
-- **Settlement absence** — the actual root cause of the *original* playtest
-  failure (see the fix in `qa/scenarios/default.txt`: the section now founds
-  its own hearth well clear of the earlier hearth+recruit test, since that
-  settlement can and does starve mid-scenario). Fixed, and confirmed fixed
-  in isolation, but a SEPARATE failure persisted underneath it once this was
-  resolved.
-- **Aim/geometry** — checked pixel-for-pixel against the plaque's actual
-  `VoxelShape` (a thin slab, not a full block face) across many camera
-  positions; consistently centred; failure persists regardless.
-- **Session/GLFW-grab staleness** — belt-and-braces double-click (same
-  proven shape as `move`/`look`'s existing workaround) added to both plaque
-  clicks in `qa/scenarios/default.txt`. Verified NOT sufficient:
-  `20260824T085256Z` still failed with it in place.
-- **Stale cached window id** — `playtest.sh`'s `focus()` cached `$WIN` once
-  at boot and silently swallowed its own exit code; `live.sh`'s equivalent
-  already re-searches fresh on every call and does not have this defect.
-  Made `playtest.sh`'s `focus()` self-healing (verify `windowfocus`'s exit
-  code; re-search and retry once on failure) — a real, independently
-  worthwhile hardening. Verified NOT sufficient either:
-  `20260824T091659Z` still failed with it in place.
+### What this cost, honestly
 
-**What this is, most likely:** the same unresolved class of flakiness
-KF-006 already recorded for `move`/`look` ("exact cause not fully isolated
-... some sequences ... survive while others ... do not"), now confirmed to
-also affect `click` and `cmd` (typed chat), and to correlate with elapsed
-scenario length rather than any property of the plaque interaction
-specifically — both the empty-hand click test *and* the plan-insertion
-click failed in different runs, and in one run (`20260824T090637Z`) even
-the *first* scan's chat command produced no response.
-
-**Do not, in a future attempt:** re-litigate settlement distance, aim
-precision, or the two fixes above — all are evidenced closed or evidenced
-insufficient. Promising unexplored directions: instrument `xdotool`'s own
-exit codes at each call site (currently discarded); check whether XTEST
-event injection has a queue/rate limit that a long scenario's cumulative
-input volume approaches; try `--clearmodifiers` consistently (some call
-sites have it, some don't); consider whether Xvfb itself degrades under
-sustained use in this environment (compare against a scenario restructured
-to do the plaque section FIRST, immediately after boot, before the
-hearth+recruit section, which would falsify "elapsed time/volume" if it
-still failed).
+Roughly a dozen verification runs across two long investigation arcs, two
+Opus gate calls, and (per this entry's own prior text) a genuine dead end
+following "the same unresolved class of flakiness KF-006 already recorded"
+— a plausible-sounding theory that turned out to explain nothing, because
+nobody had yet checked whether the artifact under test was current. The
+load-bearing lesson, worth keeping past this slice: **when a fix that
+should work keeps failing identically, check what's actually running
+before checking why it's failing.**
 
 **This does not block PLAQUE-1's completion.** All nine work items are
 implemented and independently verified: GameTest (room detection,
 save-compat via a synthetic legacy tag), the asset validator (230/230,
-closing KF-004 and KF-005), and direct manual reproduction of the exact
-interaction the automated scenario cannot currently complete reliably.
-KF-001 is closed the same way HARNESS-1 closed KF-002/003: by direct,
-repeated, evidenced re-measurement, not by asserting the fix.
+closing KF-004 and KF-005), and now `playtest` itself, end to end, against
+a freshly rebuilt jar.
