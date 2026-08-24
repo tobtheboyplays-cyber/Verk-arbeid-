@@ -5,6 +5,7 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
@@ -43,6 +44,12 @@ public class CourierWorkGoal extends Goal {
     public static final int SORT_MOVE_TICK = 16;
     /** How much the courier carries per trip; the sack's capacity (D-007). */
     private static final int LOAD_TRIGGER = 8;
+    // Sound-sync contract (catalogue §0.4 / §5.1-5.4). Each value must agree
+    // with the clip comment in SettlerAnimations and tools/anim_check.py.
+    public static final int LIFT_GRIP_TICK = 8;
+    public static final int HAUL_STEP_PERIOD = 18;
+    public static final int HAUL_STRAIN_PERIOD = 96;
+    public static final int SET_DOWN_TICK = 6;
 
     private enum Mode { TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING }
 
@@ -203,6 +210,9 @@ public class CourierWorkGoal extends Goal {
     /** Lifts one bag-load of non-food goods out of the hearth. */
     private void tickLoading() {
         workTicks++;
+        if (workTicks == LIFT_GRIP_TICK) {
+            playAt(ModSounds.CRATE_GRIP.get(), 0.7F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
         if (workTicks < SORT_PERIOD / 2) {
             return;
         }
@@ -244,10 +254,25 @@ public class CourierWorkGoal extends Goal {
             done = true;
             return;
         }
+        // Laden footfalls and the occasional strained breath: the load is
+        // meant to be audible, not just visible (D-007).
+        workTicks++;
+        if (settler.getDeltaMovement().horizontalDistanceSqr() > 1.0E-4) {
+            if (workTicks % HAUL_STEP_PERIOD == 0) {
+                playAt(ModSounds.HAUL_STEP.get(), 0.6F,
+                    0.95F + settler.getRandom().nextFloat() * 0.1F);
+            }
+            if (workTicks % HAUL_STRAIN_PERIOD == 0) {
+                playAt(ModSounds.HAUL_STRAIN.get(), 0.55F,
+                    0.95F + settler.getRandom().nextFloat() * 0.1F);
+            }
+        }
         settler.getLookControl().setLookAt(warehousePos.getX() + 0.5,
             warehousePos.getY() + 0.6, warehousePos.getZ() + 0.5);
         if (settler.blockPosition().distSqr(warehousePos) <= 9.0) {
             settler.getNavigation().stop();
+            playAt(ModSounds.CRATE_DOWN.get(), 0.8F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
             mode = Mode.SORTING;
             workTicks = 0;
             settler.setActivity(SettlerActivity.SORTING);
@@ -288,6 +313,8 @@ public class CourierWorkGoal extends Goal {
                 continue;
             }
             ItemStack leftover = storage.insert(level, warehouse, stack.copy());
+            playAt(ModSounds.CHEST_STOW.get(), 0.65F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
             settler.bag.setItem(i, leftover);
             if (!leftover.isEmpty()) {
                 // Warehouse full: stop, keep what is left, go home with it.
@@ -305,6 +332,11 @@ public class CourierWorkGoal extends Goal {
             }
         }
         return null;
+    }
+
+    private void playAt(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
+        settler.level().playSound(null, settler.getX(), settler.getY(), settler.getZ(),
+            sound, net.minecraft.sounds.SoundSource.NEUTRAL, volume, pitch);
     }
 
     @Override

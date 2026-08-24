@@ -50,6 +50,22 @@ public final class ModSounds {
     public static final DeferredHolder<SoundEvent, SoundEvent> CHEER =
         register("cheer");
 
+    // SLICE A2a -- the carry grammar.
+    public static final DeferredHolder<SoundEvent, SoundEvent> HAUL_STEP =
+        register("haul_step");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CRATE_GRIP =
+        register("crate_grip");
+    public static final DeferredHolder<SoundEvent, SoundEvent> HAUL_STRAIN =
+        register("haul_strain");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CRATE_CREAK =
+        register("crate_creak");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CRATE_DOWN =
+        register("crate_down");
+    public static final DeferredHolder<SoundEvent, SoundEvent> ITEM_PICKUP =
+        register("item_pickup");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CHEST_STOW =
+        register("chest_stow");
+
     private static DeferredHolder<SoundEvent, SoundEvent> register(String name) {
         return SOUND_EVENTS.register(name,
             () -> SoundEvent.createVariableRangeEvent(Hearthstead.id(name)));

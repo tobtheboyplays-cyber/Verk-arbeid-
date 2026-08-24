@@ -204,5 +204,76 @@
       }
     ],
     "subtitle": "subtitles.hearthstead.cheer"
+  },
+  "haul_step": {
+    "sounds": [
+      {
+        "name": "hearthstead:haul_step",
+        "volume": 0.7
+      },
+      {
+        "name": "hearthstead:haul_step2",
+        "volume": 0.7
+      },
+      {
+        "name": "hearthstead:haul_step3",
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.haul_step"
+  },
+  "crate_grip": {
+    "sounds": [
+      {
+        "name": "hearthstead:crate_grip",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.crate_grip"
+  },
+  "haul_strain": {
+    "sounds": [
+      {
+        "name": "hearthstead:haul_strain",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.haul_strain"
+  },
+  "crate_creak": {
+    "sounds": [
+      {
+        "name": "hearthstead:crate_creak",
+        "volume": 0.5
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.crate_creak"
+  },
+  "crate_down": {
+    "sounds": [
+      {
+        "name": "hearthstead:crate_down",
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.crate_down"
+  },
+  "item_pickup": {
+    "sounds": [
+      {
+        "name": "hearthstead:item_pickup",
+        "volume": 0.55
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.item_pickup"
+  },
+  "chest_stow": {
+    "sounds": [
+      {
+        "name": "hearthstead:chest_stow",
+        "volume": 0.65
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.chest_stow"
   }
 }

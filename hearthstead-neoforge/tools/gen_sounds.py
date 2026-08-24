@@ -744,6 +744,134 @@ def render_settler_eat(rng, dur):
     return mix
 
 
+
+# ------------------------------------------------------------ courier ----
+# SLICE A2a. The carry grammar's sound layer: everything a settler moving
+# real goods should be heard doing. Wood and cloth, never metal -- a crate
+# is not a tool.
+
+HAUL_STEP_VARIANTS = (
+    {"f0": 78.0, "tau": 0.055, "scuff": 1500.0},
+    {"f0": 86.0, "tau": 0.048, "scuff": 1750.0},
+    {"f0": 71.0, "tau": 0.062, "scuff": 1350.0},
+)
+
+
+def render_haul_step(rng, dur, variant=0):
+    """A laden footfall: heavier and duller than an unloaded step, with a
+    short scuff as the foot drags under the weight."""
+    p = HAUL_STEP_VARIANTS[variant]
+    mix = []
+    n = n_samples(p["tau"] * 4)
+    thud = [math.exp(-(i / SR) / p["tau"]) * math.sin(TWO_PI * p["f0"] * (i / SR))
+            for i in range(n)]
+    mix_at(mix, thud, 0.0, 1.0)
+    body = one_pole_lp(white_noise(rng, 0.05), 320)
+    be = env_exp(len(body), attack=0.001, tau=0.02)
+    mix_at(mix, [body[i] * be[i] for i in range(len(body))], 0.0, 0.55)
+    scuff = biquad_bp(white_noise(rng, 0.07), p["scuff"], 1.2)
+    se = env_exp(len(scuff), attack=0.008, tau=0.03)
+    mix_at(mix, [scuff[i] * se[i] for i in range(len(scuff))], 0.02, 0.22)
+    return soft_clip(mix, 1.2)
+
+
+def render_crate_grip(rng, dur):
+    """Hands closing on a wooden crate: a dry short creak plus cloth."""
+    mix = []
+    f0 = rng.uniform(430.0, 520.0)
+    creak = biquad_bp(white_noise(rng, 0.10), f0, 3.5)
+    creak = lp_sweep(creak, f0 * 2.4, f0 * 1.2)
+    ce = env_exp(len(creak), attack=0.012, tau=0.045)
+    mix_at(mix, [creak[i] * ce[i] for i in range(len(creak))], 0.0, 0.7)
+    cloth = noise_burst(rng, 0.07, 2100 * rng.uniform(0.9, 1.1), 1.0,
+                        flutter_rate=70.0, flutter_depth=0.6)
+    mix_at(mix, cloth, 0.01, 0.35)
+    return mix
+
+
+def render_haul_strain(rng, dur):
+    """A strained working breath -- the mumble voice under load. Lower and
+    breathier than settler_hm, with no question-like rise."""
+    n = n_samples(dur)
+    f0 = 132.0
+    ph = 0.0
+    src = []
+    for i in range(n):
+        t = i / SR
+        # sags slightly as the breath runs out
+        f = f0 * (1.0 - 0.10 * (t / dur))
+        ph += TWO_PI * f / SR
+        src.append(math.sin(ph) - math.sin(3 * ph) / 9.0)
+    voiced = one_pole_lp(src, 620)
+    chest = biquad_bp(src, 260.0, 4.0)
+    breath = one_pole_lp(white_noise(rng, dur), 1500)
+    out = []
+    for i in range(n):
+        t = i / SR
+        e = min(1.0, t / 0.06)
+        rel = 0.45 * dur
+        if t > dur - rel:
+            e *= max(0.0, (dur - t) / rel)
+        out.append((0.5 * voiced[i] + 0.95 * chest[i]) * e + 0.22 * breath[i] * e)
+    return soft_clip(out, 1.15)
+
+
+def render_crate_creak(rng, dur):
+    """Loaded wood flexing: a slower, deeper creak than crate_grip."""
+    n = n_samples(dur)
+    f0 = rng.uniform(240.0, 300.0)
+    x = biquad_bp(white_noise(rng, dur), f0, 4.5)
+    x = lp_sweep(x, f0 * 3.0, f0 * 1.1)
+    fl = flutter_env(n, rng, rate=11.0, depth=0.45)
+    out = []
+    for i in range(n):
+        t = i / SR
+        g = min(1.0, t / 0.05) * min(1.0, (dur - t) / 0.12)
+        out.append(x[i] * fl[i] * g)
+    return out
+
+
+def render_crate_down(rng, dur):
+    """A crate set down: solid wooden thump, then a small settle knock."""
+    mix = []
+    n = n_samples(0.24)
+    thump = [math.exp(-(i / SR) / 0.06) * math.sin(TWO_PI * 96.0 * (i / SR))
+             for i in range(n)]
+    mix_at(mix, thump, 0.0, 1.0)
+    board = one_pole_lp(white_noise(rng, 0.05), 420)
+    bh = env_exp(len(board), attack=0.0006, tau=0.018)
+    mix_at(mix, [board[i] * bh[i] for i in range(len(board))], 0.0, 0.6)
+    settle = biquad_bp(white_noise(rng, 0.04), 700.0, 2.0)
+    se = env_exp(len(settle), attack=0.001, tau=0.012)
+    mix_at(mix, [settle[i] * se[i] for i in range(len(settle))], 0.09, 0.3)
+    return soft_clip(mix, 1.25)
+
+
+def render_item_pickup(rng, dur):
+    """Something small lifted off a surface: a soft tick and cloth lift."""
+    mix = []
+    tick = one_pole_hp(white_noise(rng, 0.012), 2600)
+    te = env_exp(len(tick), attack=0.0004, tau=0.006)
+    mix_at(mix, [tick[i] * te[i] for i in range(len(tick))], 0.0, 0.7)
+    lift = noise_burst(rng, 0.06, 1600 * rng.uniform(0.9, 1.1), 0.9,
+                       flutter_rate=55.0, flutter_depth=0.5)
+    mix_at(mix, lift, 0.008, 0.4)
+    return mix
+
+
+def render_chest_stow(rng, dur):
+    """An item put down inside a chest: a wooden knock with contents shift."""
+    mix = []
+    n = n_samples(0.16)
+    knock = [math.exp(-(i / SR) / 0.035) * math.sin(TWO_PI * 168.0 * (i / SR))
+             for i in range(n)]
+    mix_at(mix, knock, 0.0, 0.9)
+    shift = biquad_bp(white_noise(rng, 0.09), 1250.0, 1.4)
+    sh = env_exp(len(shift), attack=0.004, tau=0.035)
+    mix_at(mix, [shift[i] * sh[i] for i in range(len(shift))], 0.03, 0.35)
+    return soft_clip(mix, 1.15)
+
+
 # ---------------------------------------------------------------------------
 # Sound registry / sounds.json
 # ---------------------------------------------------------------------------
@@ -780,6 +908,15 @@ SOUND_SPECS = [
     ("cheer",               0.55, render_cheer, {"variant": 0}, 0.55),
     ("cheer2",              0.60, render_cheer, {"variant": 1}, 0.55),
     ("cheer3",              0.65, render_cheer, {"variant": 2}, 0.55),
+    ("haul_step",           0.22, render_haul_step, {"variant": 0}, 0.60),
+    ("haul_step2",          0.22, render_haul_step, {"variant": 1}, 0.60),
+    ("haul_step3",          0.22, render_haul_step, {"variant": 2}, 0.60),
+    ("crate_grip",          0.16, render_crate_grip,  {}, 0.55),
+    ("haul_strain",         0.55, render_haul_strain, {}, 0.50),
+    ("crate_creak",         0.45, render_crate_creak, {}, 0.45),
+    ("crate_down",          0.30, render_crate_down,  {}, 0.75),
+    ("item_pickup",         0.10, render_item_pickup, {}, 0.50),
+    ("chest_stow",          0.20, render_chest_stow,  {}, 0.60),
 ]
 
 SOUNDS_JSON_DATA = {
@@ -879,6 +1016,38 @@ SOUNDS_JSON_DATA = {
             {"name": "hearthstead:cheer3", "volume": 0.6},
         ],
         "subtitle": "subtitles.hearthstead.cheer",
+    },
+    "haul_step": {
+        "sounds": [
+            {"name": "hearthstead:haul_step", "volume": 0.7},
+            {"name": "hearthstead:haul_step2", "volume": 0.7},
+            {"name": "hearthstead:haul_step3", "volume": 0.7},
+        ],
+        "subtitle": "subtitles.hearthstead.haul_step",
+    },
+    "crate_grip": {
+        "sounds": [{"name": "hearthstead:crate_grip", "volume": 0.6}],
+        "subtitle": "subtitles.hearthstead.crate_grip",
+    },
+    "haul_strain": {
+        "sounds": [{"name": "hearthstead:haul_strain", "volume": 0.6}],
+        "subtitle": "subtitles.hearthstead.haul_strain",
+    },
+    "crate_creak": {
+        "sounds": [{"name": "hearthstead:crate_creak", "volume": 0.5}],
+        "subtitle": "subtitles.hearthstead.crate_creak",
+    },
+    "crate_down": {
+        "sounds": [{"name": "hearthstead:crate_down", "volume": 0.8}],
+        "subtitle": "subtitles.hearthstead.crate_down",
+    },
+    "item_pickup": {
+        "sounds": [{"name": "hearthstead:item_pickup", "volume": 0.55}],
+        "subtitle": "subtitles.hearthstead.item_pickup",
+    },
+    "chest_stow": {
+        "sounds": [{"name": "hearthstead:chest_stow", "volume": 0.65}],
+        "subtitle": "subtitles.hearthstead.chest_stow",
     },
 }
 
