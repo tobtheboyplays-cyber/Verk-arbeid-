@@ -1,5 +1,16 @@
 # Building Plaque — design of record
 
+**Superseded in part by D-006 (`docs/project/DECISIONS.md`), implemented in
+PLAQUE-1.** The owner later reversed the "no separate Build Plan item, the
+plaque is pre-stamped" answer recorded below: a plaque is now placed **blank**
+and does nothing — no UI, no survey — until a separate **Build Plan** item is
+inserted into it (six plans, one plaque; recipes, not an architect vendor,
+since no Architect profession exists in this codebase). The state machine,
+glow-vs-state mapping and "no plaque, no building" core idea below are
+otherwise current; only the "no plan item" row and its immediate consequences
+are the superseded part. See `PLAN_PLAQUE-1.md` for the implementation and
+`PlaqueState`/`PlaqueBlockEntity`/`BuildPlanItem` for the code of record.
+
 The owner's uploaded spec plus the decisions taken in the session that
 followed it. Where this document and the uploaded spec differ, the decisions
 here win: they came later and directly from the owner. Where the spec says

@@ -114,3 +114,82 @@ shot playtest-08-handbook-ui
 key Escape
 wait 2
 shot playtest-09-back-in-world
+
+# --- PLAQUE-1 -------------------------------------------------------------
+# Hangs a blank plaque, proves server-side (never a screenshot alone) that
+# no screen opens while it is empty, fits a Build Plan, and proves the
+# building registers via `hearthstead scan`/`hearthstead info`.
+
+# Face a known, level direction so every `~`-relative fill/setblock below
+# lands where this scenario expects it.
+scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 0
+wait 1
+
+# A small house shell 1-6 blocks straight ahead (world +Z: yaw 0 faces
+# south) of wherever the player now stands: a hollow 5-wide x 4-tall x
+# 5-deep box, a door and a lit bed inside, and a BLANK plaque hung on the
+# outside of the door wall, facing into it (D-006 -- no Build Plan means no
+# type and no survey yet). Built via `execute at $PLAYER run` for the same
+# tilde-resolution reason as the hearth aim above (a console command's `~`
+# resolves against the CONSOLE's own position, not the player's); `execute
+# ... run`'s own feedback is dropped (documented, proven live for `fill`) —
+# harmless here, since the room's existence is proven afterward through the
+# plaque's own survey, never through fill/setblock's own text.
+scmd execute at $PLAYER run fill ~-3 ~-1 ~1 ~3 ~4 ~7 minecraft:air
+scmd execute at $PLAYER run fill ~-2 ~0 ~2 ~2 ~3 ~6 minecraft:stone_bricks hollow
+scmd execute at $PLAYER run setblock ~0 ~1 ~2 minecraft:oak_door[half=lower,facing=south]
+scmd execute at $PLAYER run setblock ~0 ~2 ~2 minecraft:oak_door[half=upper,facing=south]
+scmd execute at $PLAYER run setblock ~0 ~1 ~4 minecraft:red_bed[facing=north,part=foot]
+scmd execute at $PLAYER run setblock ~0 ~1 ~5 minecraft:red_bed[facing=north,part=head]
+scmd execute at $PLAYER run setblock ~-1 ~1 ~4 minecraft:torch
+scmd execute at $PLAYER run setblock ~1 ~1 ~1 hearthstead:plaque[facing=north]
+wait 1
+
+# Stand exactly 2 blocks back from the plaque, level with it, facing it
+# dead-on (yaw 0 again = +Z, toward the wall it hangs on).
+scmd execute at $PLAYER run tp $PLAYER ~1 ~ ~-1 0 0
+wait 2
+
+# Empty hotbar, empty hand: right-clicking a blank plaque must open no
+# screen at all, just a hint (W4).
+scmd clear $PLAYER
+key 9
+wait 1
+shot plaque-01-before-click
+click right
+wait 2
+shot plaque-02-empty-clicked
+
+# Server-side proof, never a screenshot alone: survey the plaque directly.
+# A console `~` would resolve against the CONSOLE's own position (the same
+# gotcha as the hearth aim above), so this is asked AS THE PLAYER (`cmd`,
+# real chat, real command dispatch) whose position it then resolves
+# against. The plaque sits 1 right, 1 up, 2 ahead of here.
+cmd hearthstead scan ~ ~1 ~2
+expect_server Awaiting a build plan
+
+# Fit a Build Plan for a house and open the plaque -- this is the moment
+# the surveyor starts working (D-006). A cleared, empty hotbar before the
+# give means the plan is guaranteed to land in slot 1.
+scmd give $PLAYER hearthstead:build_plan[hearthstead:building_type="house"] 1
+key 1
+wait 1
+click right
+wait 3
+shot plaque-03-screen-open
+expect_shot plaque-03-screen-open
+
+# Close the plaque screen first -- Minecraft only opens the chat screen
+# (what `cmd` needs) from Minecraft.screen == null, so a `t` sent while the
+# plaque UI is still open goes nowhere and the following `cmd` types into
+# the void, never running.
+key Escape
+wait 1
+
+# The room already satisfies a house (a bed, a door, a torch, floor space
+# well past the minimum) -- prove registration two ways, both server-side
+# and mod-authoritative, exactly as the plan requires.
+cmd hearthstead scan ~ ~1 ~2
+expect_server Registered
+scmd hearthstead info
+expect_server Homes: 1 registered
