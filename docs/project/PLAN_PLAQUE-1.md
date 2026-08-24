@@ -115,3 +115,42 @@ item needs registration and a model, not new art.
 **Pipeline rule still applies:** edit the generator, never the PNGs, and the
 "run twice, identical bytes" check must hold — `gen_plaque.py` already seeds
 explicitly and says so in its own docstring, unlike `gen_settler.py` (KF-007).
+
+---
+
+## W2 refined — the save-compat failure is real and has a specific shape
+
+Read from `PlaqueBlockEntity.loadAdditional` before starting, so it is designed
+rather than discovered:
+
+```java
+state = PlaqueState.byId(tag.getString("State"));   // byId falls back to UNLINKED
+buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
+```
+
+`byId` returns its **default for any unrecognised id**. W2 renames the ids, so
+every plaque already saved in a live world writes `"linked"`, `"incomplete"` or
+`"unlinked"` — none of which the new enum answers to. With `EMPTY` first in the
+new enum and the fallback left as-is, **every registered building in an
+existing world loads as EMPTY**: the plaque stops surveying, and the settlement
+quietly loses its houses on the first reload after an update. That is the
+un-homing risk the plan named, and this is its exact mechanism.
+
+**Required, not optional:**
+
+1. `byId` maps the legacy ids forward explicitly — `unlinked` →
+   `PLAN_INSERTED_UNLINKED`, `incomplete` → `LINKED_INCOMPLETE`, `linked` →
+   `LINKED_VALID`, `orphaned` → `ORPHANED`. Keep them as a legacy alias table,
+   not as enum ids, so the new names stay the only ones written.
+2. The unknown-id fallback must **not** be `EMPTY`. An unknown id on a plaque
+   that carries a `Building` UUID means "this was linked to something"; resolve
+   it to `LINKED_VALID` and let the next survey correct it downward. Only a
+   plaque with no `Building` UUID may fall back to `EMPTY`.
+3. `loadAdditional` reconciles the pair: `EMPTY` while holding a `Building`
+   UUID is contradictory and must not be representable after a load.
+4. The GameTest for this loads a **synthetic old tag** (`State="linked"` plus a
+   `Building` UUID) and asserts the building is still there — a test written
+   against the new ids only would pass while the bug shipped.
+
+`getUpdateTag` delegates to `saveAdditional`, so the client sees the same ids
+and needs no separate compatibility path.
