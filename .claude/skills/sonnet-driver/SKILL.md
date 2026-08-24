@@ -54,6 +54,23 @@ test, import and API errors are Sonnet's job — investigate, never escalate.
 Spawning these agents from a Sonnet session still gets Opus: the model is in
 the agent definition, not the session.
 
+## Beat the references (standing rule)
+
+Owner directive: for every system we build, **compare it against how
+TekTopia and MineColonies solved the same problem, and against how it
+looks.** If ours is not clearly better — mechanically or visually —
+improve it before calling it done. "Matches the reference" is not the bar;
+the bar is *better*.
+
+`docs/project/REFERENCE_ANALYSIS.md` holds the current comparison: what
+each mod did, what to steal, what to refuse, and their shipped failure
+modes (MineColonies' courier/builder bugs are a map of what to design
+against). Extend it whenever a new system starts.
+
+PREMIUM is the standard for everything shipped — animation, textures, UI,
+sound, feel. When something is merely functional, say so and fix it rather
+than moving on.
+
 ## Research before guessing (standing rule)
 
 If you are unsure how something in Minecraft modding, animation, texturing

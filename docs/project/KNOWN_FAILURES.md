@@ -472,3 +472,47 @@ is no longer `isSleeping()`/no longer carries `SLEEPING` once awake. All 25
 required GameTests, including this one and the pre-existing
 `settlerSleepsInClaimedBed`, pass — see `qa/reports/artifacts/` for the run
 that included this fix.
+
+---
+
+## KF-012 — playtest `scmd()` cannot be made poll-based on log growth
+
+**Status: RECORDED (optimization reverted).** **Severity:** none shipped —
+the attempt was caught by the suite it was meant to speed up.
+
+**What was tried.** `scmd()` ends with a flat `sleep 2` after every server
+console command. With ~50 commands per scenario (plus two `data get`
+round trips inside every `safe_regrab`), that is well over a minute of
+pure waiting per playtest run, most of it after the server had already
+answered. The optimization: send the command, then poll the server log's
+byte size and return as soon as it grows, keeping the same 2s ceiling —
+apparently the same guarantee with none of the dead time. The two
+`sleep 1`s in `safe_regrab` were reduced to 0.2s on the same reasoning
+(scmd would now already have waited for the reply).
+
+**Why it is wrong.** *Log growth is not this command's reply.* The
+playtest server is a live world with settlers, goals, chunk activity and
+the mod's own logging — `logs/latest.log` grows continuously regardless
+of what was just typed. So the poll returns on whatever line happened to
+land next, which means `safe_regrab` can grep a **stale** position or
+rotation, and any step depending on the command having actually completed
+proceeds too early.
+
+**How it failed, concretely.** A real `tools/hearthstead-qa playtest` run
+failed at scenario step 283: `cmd hearthstead scan ...` followed by
+`expect_server:Registered` — the server log never matched, because the
+preceding interaction had been driven from position data read before the
+command it was supposed to follow. Reverted immediately.
+
+**The lesson worth keeping.** A "wait for the system to respond" that
+polls a *shared, noisy* signal is not equivalent to a fixed sleep — it is
+a race. To be sound it would have to poll for a response **specific to
+the command just sent** (a unique marker echoed back, or a matching
+result line), not for generic activity. That is a real design, not a
+tweak, and it is not worth the risk in the harness everything else is
+verified by: `full` is deliberately rare (slice end only) and
+`tools/hearthstead-qa fast` (~50s, no client boot) is the continuous
+check, so the 90 seconds this would have saved buys very little.
+
+**Do not retry** the byte-growth version. If revisited, the only sound
+shape is a per-command correlation marker.
