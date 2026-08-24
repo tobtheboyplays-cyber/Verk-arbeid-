@@ -46,18 +46,54 @@ its own fresh budget: 1 PLAN_GATE call used so far).
   (`qa/reports/artifacts/playtest/20260824T154714Z/logs/
   playtest-client.log`).
 
-**Gate:** `tools/hearthstead-qa full` PASS twice consecutively,
-`green_streak: 2`, fingerprint `2facf25d4bed131d872c71bed45f1d9b25b8615
-821552ee1c4cbfa45f038de5f`, commit `b5398231d74935ed512c243e8be14d1c16a
-9d3a2`, all 11 suites green both times (`qa/reports/latest.json`).
+**RELEASE_GATE (Opus call 2) ran: REVISE.** Findings: HIGH-1 (settlers
+created outside `SettlementManager.spawnSettler` -- spawn egg, `/summon`,
+mob spawner -- stayed permanently stuck at appearance seed 0, a
+player-reachable path via `/hearthstead demo`'s spawn eggs); MEDIUM-2
+(`check_pipeline()`'s new determinism guard degraded generator-execution
+failures and missing Pillow to a warning/info instead of failing, and
+`gen_structures.py` was listed but never actually compared since it
+emits `.nbt` not `.png`); MEDIUM-3 (nothing bound Java's
+`SettlerAppearance`/`SettlerTextureCache` cardinalities and key arrays to
+the layer files `gen_settler.py` actually produces); MEDIUM-4 (hair style
+2 "buzzed" painted a sideburn dot disconnected from its own hair, on
+~25% of settlers). Full findings in the RELEASE_GATE transcript.
+
+**All 4 fixed in one round (commit `9d4f830`), Level A verified, then
+`tools/hearthstead-qa full` PASS twice consecutively again:**
+`green_streak: 2`, fingerprint
+`635407d14b4b329fb9be48ba42c7d3b50fa9be872d29affa8a1d1cbf663f3b7b`,
+commit `9d4f83034c15d0c76fb5e93a3dde611c15fd50d3`, clean tree, all 11
+suites PASS both times (confirmed by reading `qa/reports/latest.json`
+directly). Fixes:
+- HIGH-1: appearance seed now rolled in the `SettlerEntity` constructor
+  itself (the one point every creation path passes through), not just
+  by `SettlementManager`. New GameTest
+  `settlerSpawnedOutsideSettlementManagerGetsRealAppearance`.
+- MEDIUM-2: generator-execution failure is now a real `check()` failure;
+  comparison covers `.nbt` alongside `.png` so `gen_structures.py` gets
+  real coverage. Verified by deliberately breaking a generator (now
+  fails with the real traceback) and confirming `gen_structures.py` is
+  no longer silently skipped.
+- MEDIUM-3: new `check_appearance_binding()` in `validate_assets.py`
+  parses the Java constants/key arrays/profession keys, computes the
+  exact cross product `SettlerTextureCache` will request, and asserts it
+  matches `layers/` exactly. Verified by deleting a layer file and
+  confirming it's caught.
+- MEDIUM-4: sideburn dot now gated on `side_rows >= 3` so it's only ever
+  painted contiguous with real side hair. 4 affected `hair_2_*` PNGs
+  regenerated.
 
 ## Next concrete action
 
-**Run RELEASE_GATE (Opus, 1 call) on the whole VISUAL-1 slice** — package:
-original goal + acceptance criteria, `git diff --stat` across all 3
-commits, test results above, self-play evidence, known limitations. If it
-passes: mark VISUAL-1 complete, move to SLICE ANIM-1 (A1 animation set, 23
-clips). If REVISE: fix in one coordinated round, one re-review only.
+**Run the one short Opus re-review of just the changed areas** (per
+premium-build-loop's post-REVISE rule -- Opus call 3 of the 3-call
+absolute max for this slice). Package: the 4 findings + fixes above,
+`git diff --stat` for commit `9d4f830`, the fresh green-twice evidence.
+If PASS: mark VISUAL-1 complete, move to SLICE ANIM-1 (A1 animation set,
+23 clips), Sonnet-only (all 3 Opus calls will be spent). If findings
+remain: Sonnet fixes ordinary defects alone from here — no more Opus
+calls permitted for this slice.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
