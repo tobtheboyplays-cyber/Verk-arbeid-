@@ -3,7 +3,10 @@
 Every entry is a real, currently-failing thing with evidence. Nothing here is
 a guess. Pre-existing failures must never be attributed to a new slice.
 
-Latest full run: `qa/reports/artifacts/20260823T204752Z/` (overall FAIL).
+No `full` run is current, deliberately: `full` is red on exactly KF-001,
+KF-004 and KF-005 below, which belong to PLAQUE-1. HARNESS-1's evidence is
+per-suite, at fingerprint `cebeb07b98…`; see `.claude/WORK_STATE.md` for the
+matrix and `docs/project/REVIEW_FINDINGS.md` for both review rounds.
 
 ---
 
@@ -98,6 +101,12 @@ KF-002 — fixed by the same ordered-fact-ladder discipline (AC-13).
 **Evidence:** validator — `block.hearthstead.plaque` missing in `en_us.json`
 and `nb_no.json`, and the item key with it. Full key parity between the two
 files is enforced.
+
+**Exact scope, derived from source (2026-08-24):** 39 keys, listed in
+`hearthstead-neoforge/docs/plaque_missing_keys.txt`, with 41 bilingual strings
+already drafted and argument-checked in `docs/plaque_lang_draft.json`. Three
+prefix families are empty — `building.*`, `plaque.state.*`, `requirement.*` —
+and `requirement.*` keys take two format arguments (have, needed), not none.
 
 **Note:** the UI strings the plaque screen and network reference
 (`hearthstead.plaque.*`, `hearthstead.requirement.*`,
@@ -196,3 +205,19 @@ different skins and the committed PNGs match neither.
 **Expected fix:** seed with an explicit integer constant, regenerate, and add
 a validator check so the pipeline's "run twice, identical bytes" rule is
 actually enforced rather than assumed.
+
+
+---
+
+## KF-008 — `full` cannot currently be run without re-reporting PLAQUE-1's failures as this slice's
+
+**Status:** by design, not a defect. **Severity:** informational.
+
+Recorded so nobody "discovers" it again. `full` includes `gametest` and
+`assets`, which are red on KF-001, KF-004 and KF-005. Those are owned by
+PLAQUE-1 and documented above. Running `full` before that slice lands produces
+a red gate that says nothing new, which is why HARNESS-1's completion evidence
+is per-suite and why `qa/reports/BLOCKED` records NOT READY rather than any
+suite being skipped or loosened to obtain green (INV-10).
+
+The first `full` that can honestly go green is PLAQUE-1's.
