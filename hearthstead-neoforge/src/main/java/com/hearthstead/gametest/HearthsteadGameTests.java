@@ -163,8 +163,16 @@ public class HearthsteadGameTests {
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
+        // ANIM-1: replanting now consumes an actual withheld seed (chest-
+        // truth conservation -- CLAUDE.md's "logistics must conserve
+        // items"), so it depends on wheat's own drop RNG (0-3 seeds,
+        // uniform -- ~25% chance of 0 per crop). 8 independent crops keeps
+        // P(zero seeds from all of them) astronomically small instead of
+        // the ~1.6% a 3-crop sample left it at.
         BlockPos[] crops = {
-            new BlockPos(2, 1, 2), new BlockPos(6, 1, 2), new BlockPos(2, 1, 6)
+            new BlockPos(2, 1, 2), new BlockPos(6, 1, 2), new BlockPos(2, 1, 6),
+            new BlockPos(6, 1, 6), new BlockPos(1, 1, 4), new BlockPos(7, 1, 4),
+            new BlockPos(4, 1, 1), new BlockPos(4, 1, 7)
         };
         for (BlockPos crop : crops) {
             helper.setBlock(crop,
