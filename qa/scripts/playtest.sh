@@ -302,6 +302,18 @@ focus() {
 # position and rotation via a second absolute `tp`. Both teleports use
 # fully absolute coordinates (never `~`), so there is no relative round-trip
 # to accumulate error in either position or rotation.
+#
+# Third fix, still the same underlying gotcha KF-006 already named for
+# rotation ("the server-side change needs time to reach the client before
+# its LOCAL camera -- what the click raycasts against -- actually matches
+# it; 1s was not always enough"): a 360-block VERTICAL teleport is a much
+# bigger scene change than a rotation snap (new chunks, new lighting), so
+# the SAME 1s gap between issuing the up-teleport and firing the click was
+# proven live (20260824T103155Z) to still be too short sometimes -- the
+# click can fire while the client is still rendering the old, underground
+# scene, breaking a block there even though the SERVER already considers
+# the player to be at Y=300. Give it the same real margin the hearth-aim
+# click already needed for the identical reason.
 safe_regrab() {
     scmd "data get entity $PLAYER Pos"
     sleep 1
@@ -329,7 +341,7 @@ safe_regrab() {
         return
     fi
     scmd "execute at $PLAYER run tp $PLAYER ~ 300 ~ $yaw -90"
-    sleep 1
+    sleep 3
     focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
     scmd "tp $PLAYER $x $y $z $yaw $pitch"
     sleep 1

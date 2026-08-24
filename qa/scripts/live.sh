@@ -77,6 +77,13 @@ srv_send() { tmux send-keys -l -t "$TMUX_SESSION:server" "$1"; tmux send-keys -t
 # trace at all. Teleport to a fixed height (300) that is guaranteed clear
 # above anything this harness builds, click there, then restore the exact
 # original position AND rotation via absolute coordinates -- never `~`.
+#
+# Third fix, same as playtest.sh's: a 1s gap after the up-teleport is not
+# always enough for the CLIENT to actually catch up to the new position
+# (same class of gotcha KF-006 already named for rotation) -- proven live
+# that the click can still fire while the client renders the old,
+# underground scene, breaking a block there despite the server already
+# considering the player to be at Y=300.
 safe_regrab() {
     local inst player pos x y z rot yaw pitch
     inst=$(cat "$STATE/inst" 2>/dev/null)
@@ -105,7 +112,7 @@ safe_regrab() {
         return
     fi
     srv_send "execute at $player run tp $player ~ 300 ~ $yaw -90"
-    sleep 1
+    sleep 3
     focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
     srv_send "tp $player $x $y $z $yaw $pitch"
     sleep 1
