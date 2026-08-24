@@ -86,10 +86,29 @@ unfalsifiability as a forced pan, mirrored.
 
 Both directions are proven against one framing and stored side by side:
 settlers walking in a pen score 19.79 and PASS; the identical shot with the
-server `tick freeze`d scores 0.26 and FAILS. A camera pan still passes — every
+server `tick freeze`d scores 0.19 and FAILS. A camera pan still passes — every
 tile is loud — so the measure widens what can be detected without loosening
 what counts as motion. Reporting both figures keeps a pan (the two converge)
 distinguishable from subject motion (they do not).
+
+**What `motion_ok` establishes, exactly.** That the capture is live and that
+something in the world part of the frame is animating. It does **not**
+attribute that motion to a subject, and no claim that a particular settler
+animated may rest on it alone — that needs the contact sheet read by a human.
+An unrelated entity carries the number just as well: a 5s clip of an
+apparently empty world scored 3.03, and the loudest tile was a distant iron
+golem walking, not noise.
+
+The HUD band (the bottom two grid rows: chat backlog, hotbar, the held item
+bobbing) is excluded from the measurement, because all three change while the
+world stands still. Measured: in the tick-frozen control — where nothing in
+the world *could* move — one frame pair scored 19.13 in a bottom-row tile,
+which was the `[Server: The game is frozen]` chat line fading out, the same
+magnitude as three walking settlers. It failed only because the median over
+pairs happened to land below the threshold, i.e. by luck; a session where chat
+ticks over once a second would have passed with a completely frozen subject.
+The cost of excluding it is that a subject framed low in the shot is not
+measured, so frame the subject centrally for animation review.
 
 Each take gets its own directory (`film/take-NN[-label]/`, label via
 `HSQA_FILM_LABEL`): proving a claim that needs a passing take AND a failing
@@ -222,7 +241,26 @@ that produced it (world seed recorded in the manifest).
 ## Freshness
 
 Fingerprint = SHA-256 over the sorted `sha256sum` of every file in:
-`hearthstead-neoforge/{src,tools,build.gradle,gradle.properties,settings.gradle}`
-and `qa/PROTOCOL.md`. Any change → previous manifests STALE. The stale
+`hearthstead-neoforge/{src,tools,build.gradle,gradle.properties,settings.gradle}`,
+`qa/PROTOCOL.md`, **`qa/scripts/**` and `qa/scenarios/**`**. Any change →
+previous manifests STALE.
+
+`qa/scripts` and `qa/scenarios` are in it because they decide what every suite
+ASSERTS, not merely how it runs. Leaving them out meant an assertion could be
+loosened while every stored green went on looking current — INV-10 with the
+lock removed, and the same self-satisfying shape as a check that reads a log
+it wrote itself, one level up. It was not hypothetical: a commit changed
+`live.sh`'s and `lib_harness.sh`'s verdict logic while all 36 stored manifests
+carried on reporting the same fingerprint.
+
+`qa/reports/**` is deliberately OUT — every run writes into it, so including it
+would change the fingerprint on every run and it would never settle. So are
+`__pycache__` directories, which a generator rewrites without anything real
+having changed.
+
+The computation exists twice — `fingerprint()` in `tools/hearthstead-qa` and
+`hsqa_fingerprint()` in `qa/scripts/lib_harness.sh` — and the two MUST stay
+byte-for-byte equivalent. If they drift, a manifest's fingerprint stops being
+comparable to `latest.json`'s, which is the whole reason manifests record it. The stale
 marker `qa/reports/.stale` is set by the post-edit hook and cleared only by
 a green `full` run.

@@ -4,73 +4,63 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
 
 ## Current goal
 
-**SLICE HARNESS-1, CORRECTION ROUND** — RELEASE_GATE returned REVISE with 14
-findings. All 14 are fixed AND proven. Proving them surfaced four further
-defects, also fixed. Plan: `docs/project/PLAN_HARNESS-1.md`.
-**No `hearthstead-neoforge/src/` touched in this round.**
+**SLICE HARNESS-1, ROUND 2 OF CORRECTION.** RELEASE_GATE re-review returned
+REVISE with 8 defects; it independently re-derived findings 1, 2 and 3 from the
+artefacts and confirmed them closed. Full list, both rounds:
+`docs/project/REVIEW_FINDINGS.md`. **No `hearthstead-neoforge/src/` touched.**
 
-## Status: run matrix complete at fingerprint `d26bbe2f8a...`, ready for re-review
+## Status: 7 of 8 defects fixed in code; the matrix must now be re-run
 
-| Evidence | Result |
-|---|---|
-| `dedicated` x2 cold | PASS, population 3, no client classloading |
-| `performance` x2 cold | PASS, ~27 settlers by real scoreboard count, MSPT ~1.17 |
-| `client` x2 cold | PASS 4/4, non-black bbox (0,0,1280,720) full frame |
-| `playtest` x2 cold | PASS, **70 identical checks both runs** |
-| `live` x2 cold | both drove start/status/shot/key/scmd/film/stop, torn down clean |
-| `negative all` | **4/4 PASS in ONE invocation**, all transcripts stored |
-| `provision` | PASS — install rebuilt from scratch, verified by a passing playtest |
-| `reap check` | clean before and after every item above |
+The one that is not fixed is defect 4 — the shipped `live` path has no runtime
+evidence — and it cannot be fixed by editing, only by running. See below.
 
-Every manifest records this fingerprint and a clean `dirty_hash`.
+- **D1 HIGH (fingerprint too narrow) — FIXED.** Now covers `qa/scripts/**` and
+  `qa/scenarios/**` as well, excluding `qa/reports/**` (every run writes there,
+  so it would never settle) and `__pycache__` (a generator rewrites it). Both
+  implementations verified byte-identical by running them side by side.
+- **D2 (metric overclaimed) — FIXED.** HUD band (bottom two grid rows: chat,
+  hotbar, held item) excluded — a chat line fading scored **19.13** in the
+  tick-frozen control, matching three walking settlers, and failed only by
+  luck of the median. Frozen control 0.264 → **0.19**; both true positives
+  unchanged (19.79 walking, 3.03 distant golem). Docs now say the number means
+  "capture is live and something in frame animates", never "this settler moved".
+- **D3 (derived verdict inert) — FIXED.** `film` and `shot` record pass/fail
+  checks, so `stop`'s derived verdict has something to derive from.
+- **D5 (reap matcher false positive) — FIXED.** `reap` excluded its own caller
+  by *text*, which cannot work — a wrapper's argv legitimately contains the
+  harness path. Now excluded by process ancestry, and the selftest assertion
+  **fails if the exclusion is removed** (verified against a broken copy).
+- **D6 (findings unmapped) — FIXED.** `docs/project/REVIEW_FINDINGS.md`. Round
+  1's #14 is left explicitly unrecoverable rather than invented.
+- **D7 (selftest re-typed the guard) — FIXED.** Guard extracted to
+  `pid_disposition()`; `cmd_reap` and the selftest call the same function.
+- **D8 (latent traps) — FIXED.** `#like this` comments no longer hard-fail a
+  scenario; `require_ev_dir` stops `film`/`shot` from `mkdir -p` under `/`.
+  (`status` and `stop` were already guarded — only those two were not.)
 
-## The 14 review findings — all closed
+## Correction to a claim I made
 
-1 (expect_server self-satisfy) playtest.sh reads `$INST/logs/latest.log`, never
-the tmux pane; proven by standalone repro `artifacts/finding1-proof/`. •
-2 (client root-capture false pass) client_boot.sh asserts the window's own
-geometry before capturing; bbox went (213,120,1067,600) → (0,0,1280,720). •
-3 (forced pan) pan is opt-in; **proven in both directions**, see below. •
-4 `live start` writes reproduction.md; `stop` preserves start's checks. •
-5 negative/reap/provision all write durable evidence. • 8 unknown directive
-now dies. • 9 manifests carry fingerprint/dirty_hash. • 10 reap selftest calls
-the real `matching_procs`. • 11 pidfile kill validates each PID, refuses
-GradleDaemons. • 12 client_boot writes options.txt deterministically. •
-13 N2's revert trap widened to EXIT INT TERM RETURN. • Extras: perf population
-is a real scoreboard count; contact sheet enforces the AC-5 duration/fps floor.
+"`reap check` clean before and after every item" was **not** true as written.
+3 of 15 stored reap runs FAIL: two (`003615Z`, `003854Z`) correctly reported
+real leaks during the earlier period when suites were run CONCURRENTLY, and one
+(`002935Z`) was the matcher false positive now fixed. The accurate statement is
+that reap was clean before and after every run once the runs were serialised —
+which is also what made the concurrency the visible cause of the earlier N4
+FAIL.
 
-## Four defects found WHILE proving finding 3 (all fixed)
+## The matrix must be re-run — the old one is invalid
 
-- **The motion check could no longer pass.** Making the pan opt-in removed
-  what guaranteed inter-frame difference but left a threshold only a pan can
-  reach: whole-frame mean-abs-difference is dominated by the ~90% of pixels
-  that never change, so three settlers plainly walking scored **0.34** against
-  a threshold of 2.0. Same unfalsifiability as before, mirrored. Now measured
-  as the **loudest tile of a 16x9 grid** (`subject_mad`), whole-frame reported
-  alongside so a pan stays distinguishable. **Proven both ways on one framing:
-  settlers walking 19.79 PASS; identical shot with `tick freeze` 0.26 FAIL.**
-  Evidence: `artifacts/live/20260824T013205Z/film/take-01-settler-motion/`
-  and `take-02-frozen-control/`.
-- **`live start` left a world that stops running.** Unattended, a Slime killed
-  the player; a dead player stops holding nearby chunks at full ticking, so a
-  hearth placed afterwards never founded — and nothing moved — while `live
-  status` still reported the session up. `start` now sets a deterministic
-  observation state (peaceful/creative/day/clear/no-spawns) and asserts
-  **Health > 0**, not merely "connected". Verified on a cold start:
-  `player_alive -- observation state set, Health=20.0`.
-- **Each `film` overwrote the previous take**, so proving a claim that needs a
-  passing take AND a failing control destroyed the first. Takes now get their
-  own directory (`film/take-NN[-label]/`, label via `HSQA_FILM_LABEL`).
-- **`live stop` hard-coded `overall: STOPPED`**, so a session carrying a FAILED
-  check recorded identically to a clean one. `finish_result AUTO` now derives
-  the verdict from the checks; unit-tested both ways.
+Every stored manifest reports `d26bbe2f8a…`. HEAD is a different fingerprint
+under either definition, because the round-1 documentation commit edited
+`qa/PROTOCOL.md`, which was already covered. So widening the definition costs
+nothing that was not already lost. Re-run, serially, `reap check` between each:
 
-## Files changed this round
+    dedicated x2 · performance x2 · client x2 · playtest x2 · live x2
+    negative all · provision
 
-`qa/scripts/{playtest,client_boot,live,lib_harness,reap,negative_tests,
-perf_probe}.sh`, `qa/scripts/build_contact_sheet.py`, `tools/hearthstead-qa`
-(sources lib_harness; provision writes evidence; `negative` added to usage),
-`qa/PROTOCOL.md`, `docs/project/{NEXT_ACTION,PLAN_PLAQUE-1}.md`.
+`live` is the one that MUST be re-run for correctness, not just freshness: both
+stored sessions show `overall: STOPPED`, the pre-fix literal, so the code that
+ships at HEAD has never executed (D4).
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
@@ -90,30 +80,22 @@ perf_probe}.sh`, `qa/scripts/build_contact_sheet.py`, `tools/hearthstead-qa`
 - `@e[...,limit=N]` bounds a selector, it does not require a minimum.
 - **A dead player stops nearby chunks ticking** — block entities near them stop
   too, so the world silently freezes while the session still looks "up".
+- **No text pattern can exclude a process's own caller** — the caller's argv
+  legitimately contains what you are searching for. Exclude by identity.
 - Client boot under software GL / this proxy can take minutes (authlib stalls)
   while genuinely progressing — never treat slowness as a hang.
-
-## Note on the fingerprint
-
-The matrix above was measured at `d26bbe2f8a...`; every manifest records it.
-The documentation commit that describes these fixes edits `qa/PROTOCOL.md`,
-which IS in the fingerprint, so it moves afterwards — documenting evidence
-after gathering it is the normal order, and HARNESS-1 claims no completion:
-PLAQUE-1's `full` re-establishes the gate.
-
-## Open question for the re-review (not fixed unilaterally)
-
-The freshness fingerprint covers `qa/PROTOCOL.md` but **not `qa/scripts/`**,
-even though the routing table says `qa/** -> full` and those scripts decide
-what every suite asserts. Changing the definition invalidates the whole matrix
-above, so it is raised rather than changed mid-round.
+- **Never run two suites at once.** Every one launches a client and a server,
+  and a cold start's broad `pkill` kills the other's client.
 
 ## Known problems (pre-existing, PLAQUE-1 scope, do not fix here)
 
 KF-001, KF-004, KF-005 (plaque). `full` stays RED on exactly these three.
-PLAQUE-1's plan is written: `docs/project/PLAN_PLAQUE-1.md`.
+PLAQUE-1 is planned and pre-worked: `docs/project/PLAN_PLAQUE-1.md`, the 39
+missing lang keys derived from source, and 41 bilingual strings drafted and
+argument-checked in `hearthstead-neoforge/docs/plaque_lang_draft.json`.
 
 ## Next concrete action
 
-One short `opus-quality-gate` re-review of the changed areas only (Opus call 3,
-the governor's absolute maximum). Then start PLAQUE-1 from its plan.
+Re-run the matrix above at the corrected fingerprint. Then PLAQUE-1. The Opus
+budget for this task is spent (3 of 3) — no further gate call; the evidence
+either shows the matrix green at one fingerprint or it does not.
