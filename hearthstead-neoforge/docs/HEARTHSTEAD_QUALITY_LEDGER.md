@@ -12,13 +12,18 @@ raids (A3) are OUT OF SCOPE for this gate — but the ported prototype systems
 and therefore IN scope.
 
 **Product decision log:**
-- PLAQUE SYSTEM REMOVED (user directive). Building registration = pure
-  automatic room detection (interview R2 Q5). The plaque-based refinements
-  from R13 Q51/R14 Q54 are superseded: detection is automatic; feedback is
-  diegetic (particles/sound/HUD toast); building TYPE is inferred from key
-  blocks. Recorded product gap: no manual type-override exists — if
-  ambiguous rooms become a real problem, a non-plaque override UI (via
-  Tingboka) is the sanctioned future path.
+- **SPECIFICATION CORRECTION (2026-08-24, owner-sourced).** The earlier
+  "PLAQUE SYSTEM REMOVED — do not reinstate" directive is **superseded**. The
+  owner reinstated the Building Plaque by written spec, then refined it in
+  answers recorded as `docs/project/DECISIONS.md` D-005 and D-006:
+  **the plaque is the surveyor** — a room is only detected because a plaque
+  was hung, so no plaque means no building; and a plaque with no inserted
+  Build Plan opens no UI. The plaque remains an ACCESS POINT and must never
+  hold its own building registry or resident list.
+  Recorded here because `CLAUDE.md`'s rule is that specification conflicts are
+  resolved by a written correction in this ledger, not by editing an invariant
+  quietly. `CLAUDE.md` and `qa/PROTOCOL.md` INV-2 were reconciled to match;
+  this entry is the missing third piece.
 - Loop directive: no completion claims until 2 consecutive green rounds.
 - **Room detection = TekTopia model (user, this session):** "scan the room; if it
   meets all the requirements, it works." That is exactly the current engine:
