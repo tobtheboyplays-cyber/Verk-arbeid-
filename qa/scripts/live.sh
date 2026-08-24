@@ -158,6 +158,12 @@ start)
         # session actually works, in any order.
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         finish_result PASS
+        write_reproduction "# Reproduce: live start
+tools/hearthstead-qa live start
+Instance: $INST (port $PORT), player: $PLAYER
+Session: tmux $TMUX_SESSION (windows: xvfb/server/client)
+Drive with: tools/hearthstead-qa live <status|shot|key|hold|type|cmd|scmd|click|look|film|stop>
+"
         echo "LIVE: $PLAYER is in the world. Session held open in tmux ($TMUX_SESSION)."
     else
         grab "$EV_SHOTS/start-failed.png"
@@ -248,18 +254,26 @@ status)
 
 stop)
     EV_DIR=$(ev_dir_for_session)
+    # $INST is ephemeral (server_instance.sh rm -rf's it on this role's next
+    # start) — preserve the authoritative server log before tearing anything
+    # down, same reasoning as playtest.sh's teardown().
+    INST=$(cat "$STATE/inst" 2>/dev/null)
+    if [ -n "$EV_DIR" ] && [ -n "$INST" ] && [ -f "$INST/logs/latest.log" ]; then
+        mkdir -p "$EV_DIR/logs"
+        cp "$INST/logs/latest.log" "$EV_DIR/logs/live-server-latest.log" 2>/dev/null
+    fi
     pkill -9 -f "neoforge.*client" 2>/dev/null || true
     pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
     tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
     pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true   # Xvfb ignores SIGHUP
     sleep 1
+    # Finding 4: `stop` must RECORD the stop, not DISCARD `start`'s checks.
+    # finish_result aggregates from $EV_DIR/.checks.jsonl, which start's
+    # check_pass calls already populated and which nothing has deleted — so
+    # appending one more check and re-aggregating keeps every earlier one.
     if [ -n "$EV_DIR" ]; then
-        EV_DIR="$EV_DIR" python3 -c "
-import os, json, time
-ev = os.environ['EV_DIR']
-json.dump({'overall':'STOPPED','finished':time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())},
-          open(os.path.join(ev, 'result.json'), 'w'), indent=2)
-" 2>/dev/null || true
+        check_pass session_stopped "live session stopped and torn down cleanly"
+        finish_result STOPPED
     fi
     rm -f "$STATE/ev_dir" "$STATE/player" "$STATE/inst"
     echo "session stopped"

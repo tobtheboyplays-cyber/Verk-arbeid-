@@ -60,6 +60,11 @@ TEARDOWN_DONE=0
 teardown() {
     [ "$TEARDOWN_DONE" = 1 ] && return
     TEARDOWN_DONE=1
+    # $INST is ephemeral (server_instance.sh rm -rf's it on this role's next
+    # run) — preserve the authoritative server log in durable evidence
+    # regardless of which exit path got here (pass, die(), or an abort).
+    [ -n "${INST:-}" ] && [ -f "$INST/logs/latest.log" ] \
+        && cp "$INST/logs/latest.log" "$EV_LOGS/playtest-server-latest.log" 2>/dev/null
     [ -n "${GRADLE_PID:-}" ] && kill -9 -- "-$GRADLE_PID" 2>/dev/null
     pkill -9 -f "neoforge.*client" 2>/dev/null || true
     tmux has-session -t "$TMUX_PT" 2>/dev/null && tmux kill-session -t "$TMUX_PT" 2>/dev/null
@@ -85,6 +90,19 @@ check_pass install "shared install present"
 INST=$(bash "$HERE/server_instance.sh" "$ROLE" "$PORT" "$MOD" 2>"$EV_LOGS/instance.log" | tail -1)
 [ -d "$INST" ] || die instance "server_instance.sh did not produce a usable instance — see logs/instance.log"
 check_pass instance "$INST"
+
+# AUTHORITATIVE server log (finding 1): $EV_LOGS/playtest-server.log is a
+# `tee` of the tmux PANE, which is a real terminal — it echoes back whatever
+# `scmd()` TYPES the instant tmux sends the keystrokes, before Enter is even
+# processed. Proven live: `expect_server:HS_SETTLER_PRESENT` matched the
+# still-being-typed prompt line `> execute if entity @e[...] run say
+# HS_SETTLER_PRESENT`, not anything the server actually executed — it would
+# have passed with zero settlers. logs/latest.log is the server's own Log4j
+# file output: it is written only by code that actually ran, never by a
+# terminal echoing keystrokes, so it cannot self-satisfy this way. Every
+# check of "did the server really say/do X" reads THIS file; the tee'd pane
+# log is kept only for build/crash diagnostics and human debugging.
+SRV_LOG="$INST/logs/latest.log"
 
 Xvfb "$DISPLAY_NUM" -screen 0 1280x720x24 > "$EV_LOGS/xvfb.log" 2>&1 &
 XVFB_PID=$!
@@ -145,14 +163,14 @@ scmd() { tmux send-keys -l -t "$TMUX_PT:server" "$1"; tmux send-keys -t "$TMUX_P
 SERVER_UP=0
 for _ in $(seq 1 90); do
     sleep 2
-    grep -q 'Done (' "$EV_LOGS/playtest-server.log" 2>/dev/null && { SERVER_UP=1; break; }
+    grep -q 'Done (' "$SRV_LOG" 2>/dev/null && { SERVER_UP=1; break; }
     tmux has-session -t "$TMUX_PT" 2>/dev/null || break
 done
 if [ "$SERVER_UP" != 1 ]; then
-    REASON=$(grep -m1 -E 'FAILED TO BIND|Address already in use|Exception|Error' "$EV_LOGS/playtest-server.log" 2>/dev/null || echo "no Done( line — see logs/playtest-server.log")
+    REASON=$(grep -m1 -E 'FAILED TO BIND|Address already in use|Exception|Error' "$SRV_LOG" 2>/dev/null || echo "no Done( line — see logs/playtest-server.log")
     die server_started "server never reached Done( : $REASON"
 fi
-check_pass server_started "$(grep -m1 'Done (' "$EV_LOGS/playtest-server.log")"
+check_pass server_started "$(grep -m1 'Done (' "$SRV_LOG")"
 
 cd "$MOD"
 # HSQA_TEST_BAD_JOIN_PORT is a test-only hook (AC-8/N4): points the client at
@@ -179,7 +197,7 @@ BUILD_FAILED=0
 # thing that actually decides READY (AC-1).
 for i in $(seq 1 250); do
     sleep 3
-    if grep -qE "joined the game|logged in with entity id" "$EV_LOGS/playtest-server.log" 2>/dev/null; then
+    if grep -qE "joined the game|logged in with entity id" "$SRV_LOG" 2>/dev/null; then
         READY=1; sleep 10; break
     fi
     if grep -qE "BUILD FAILED|FAILURE: Build failed" "$EV_LOGS/playtest-client.log" 2>/dev/null; then
@@ -198,17 +216,17 @@ if [ "$READY" != 1 ]; then
 fi
 
 PLAYER=$(grep -oP '^\S+ \S+ \[Server thread/INFO\].*?: \K\w+(?= joined the game)' \
-    "$EV_LOGS/playtest-server.log" 2>/dev/null | tail -1)
+    "$SRV_LOG" 2>/dev/null | tail -1)
 [ -n "$PLAYER" ] || PLAYER=$(grep -oP '\K\w+(?= joined the game)' \
-    "$EV_LOGS/playtest-server.log" 2>/dev/null | tail -1)
+    "$SRV_LOG" 2>/dev/null | tail -1)
 [ -n "$PLAYER" ] || die player_joined "joined the game seen but player name could not be parsed"
-check_pass player_joined "$(grep -m1 "joined the game" "$EV_LOGS/playtest-server.log")"
+check_pass player_joined "$(grep -m1 "joined the game" "$SRV_LOG")"
 
 scmd "op $PLAYER"
 # AC-1: server-side corroboration beyond the join line itself.
 scmd "data get entity $PLAYER Pos"
 sleep 1
-POS_LINE=$(grep -m1 -A0 "has the following entity data" "$EV_LOGS/playtest-server.log" | tail -1)
+POS_LINE=$(grep -m1 -A0 "has the following entity data" "$SRV_LOG" | tail -1)
 check_pass player_pos_query "${POS_LINE:-data get entity $PLAYER Pos issued}"
 
 # Capture the game window itself, never the root window: anything else that
@@ -239,13 +257,21 @@ shot playtest-00-title
 # regardless of what order it does things in.
 focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
 
+# AC-14: every directive gets a recorded outcome, not just expect_* ones —
+# a typo'd or silently-no-op directive must be visible in result.json, not
+# just an "unknown directive" line nobody greps. DIR_IDX makes each entry's
+# check name unique (the same verb can appear many times in one scenario).
+DIR_IDX=0
 while read -r verb rest; do
     rest="${rest//\$PLAYER/$PLAYER}"
+    DIR_IDX=$((DIR_IDX + 1))
     case "${verb:-}" in
         ''|'#') continue;;
-        wait)  sleep "$rest";;
-        key)   focus; xdotool key --clearmodifiers $rest; sleep 1;;
-        type)  focus; xdotool type --delay 40 -- "$rest"; sleep 1;;
+        wait)  sleep "$rest"; check_pass "$DIR_IDX:wait" "slept ${rest}s";;
+        key)   focus; xdotool key --clearmodifiers $rest; sleep 1
+               check_pass "$DIR_IDX:key" "sent key: $rest";;
+        type)  focus; xdotool type --delay 40 -- "$rest"; sleep 1
+               check_pass "$DIR_IDX:type" "typed: $rest";;
         cmd)   focus
                xdotool key --clearmodifiers t; sleep 1
                xdotool type --delay 35 -- "/$rest"; sleep 1
@@ -258,10 +284,12 @@ while read -r verb rest; do
                # left-click on empty space restores it so every later
                # move/look/click directive keeps working regardless of how
                # many chat commands ran before it.
-               focus; xdotool mousemove 640 360; xdotool click 1; sleep 1;;
+               focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+               check_pass "$DIR_IDX:cmd" "ran as player: /$rest";;
         click) focus
                xdotool mousemove 640 360
-               xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2;;
+               xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2
+               check_pass "$DIR_IDX:click" "clicked ${rest:-left}";;
         move)  focus
                # A prior grab-establishing click does not reliably survive
                # to a LATER `move` several directives on — proven live,
@@ -276,29 +304,38 @@ while read -r verb rest; do
                xdotool mousemove 640 360; xdotool click 1; sleep 2
                xdotool mousemove_relative -- $rest; sleep 1
                xdotool mousemove 640 360; xdotool click 1; sleep 1
-               xdotool mousemove_relative -- $rest; sleep 1;;
-        scmd)  scmd "$rest";;
-        shot)  sleep 1; shot "$rest"; echo "captured $rest.png";;
+               xdotool mousemove_relative -- $rest; sleep 1
+               check_pass "$DIR_IDX:move" "moved $rest";;
+        scmd)  scmd "$rest"; check_pass "$DIR_IDX:scmd" "issued on console: $rest";;
+        shot)  sleep 1; shot "$rest"
+               if [ -s "$EV_SHOTS/$rest.png" ]; then
+                   check_pass "$DIR_IDX:shot" "captured shots/$rest.png"
+               else
+                   check_fail "$DIR_IDX:shot" "shots/$rest.png was not produced"
+               fi
+               echo "captured $rest.png";;
 
         expect_server)
+            # See SRV_LOG note above (finding 1): the real Log4j file, never
+            # the tmux pane's own echo of what was just typed.
             FOUND=0
             for _ in $(seq 1 10); do
-                grep -qE "$rest" "$EV_LOGS/playtest-server.log" 2>/dev/null && { FOUND=1; break; }
+                grep -qE "$rest" "$SRV_LOG" 2>/dev/null && { FOUND=1; break; }
                 sleep 1
             done
             if [ "$FOUND" = 1 ]; then
-                check_pass "expect_server:$rest" "$(grep -m1 -E "$rest" "$EV_LOGS/playtest-server.log")"
+                check_pass "$DIR_IDX:expect_server:$rest" "$(grep -m1 -E "$rest" "$SRV_LOG")"
             else
-                die "expect_server:$rest" "server log never matched /$rest/"
+                die "$DIR_IDX:expect_server:$rest" "server log never matched /$rest/"
             fi
             ;;
 
         expect_shot)
             RES=$(python3 "$HERE/check_screenshot.py" "$EV_SHOTS/$rest.png" 2>&1)
             if echo "$RES" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("pass") else 1)' 2>/dev/null; then
-                check_pass "expect_shot:$rest" "$RES"
+                check_pass "$DIR_IDX:expect_shot:$rest" "$RES"
             else
-                die "expect_shot:$rest" "shots/$rest.png failed AC-3: $RES"
+                die "$DIR_IDX:expect_shot:$rest" "shots/$rest.png failed AC-3: $RES"
             fi
             ;;
 
@@ -307,15 +344,15 @@ while read -r verb rest; do
             BEFORE="$1"; AFTER="$2"; MINPCT="${3:-2.0}"; REGION="${4:-lower-third}"
             RES=$(python3 "$HERE/pixel_diff.py" "$EV_SHOTS/$BEFORE.png" "$EV_SHOTS/$AFTER.png" --min-percent "$MINPCT" --region "$REGION" 2>&1)
             if echo "$RES" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("pass") else 1)' 2>/dev/null; then
-                check_pass "expect_pixel_change:$BEFORE->$AFTER" "$RES"
+                check_pass "$DIR_IDX:expect_pixel_change:$BEFORE->$AFTER" "$RES"
             else
-                die "expect_pixel_change:$BEFORE->$AFTER" "key input produced no visible change: $RES"
+                die "$DIR_IDX:expect_pixel_change:$BEFORE->$AFTER" "key input produced no visible change: $RES"
             fi
             ;;
 
         expect_rotation_change)
             MINDEG="${rest:-30}"
-            RESULT=$(python3 - "$EV_LOGS/playtest-server.log" "$MINDEG" <<'PYEOF'
+            RESULT=$(python3 - "$SRV_LOG" "$MINDEG" <<'PYEOF'
 import re, sys
 log, min_deg = sys.argv[1], float(sys.argv[2])
 rots = re.findall(r"has the following entity data: \[(-?[0-9.]+)f, (-?[0-9.]+)f\]", open(log).read())
@@ -334,13 +371,13 @@ sys.exit(1)
 PYEOF
 )
             if [[ "$RESULT" == PASS:* ]]; then
-                check_pass "expect_rotation_change" "$RESULT"
+                check_pass "$DIR_IDX:expect_rotation_change" "$RESULT"
             else
-                die "expect_rotation_change" "$RESULT"
+                die "$DIR_IDX:expect_rotation_change" "$RESULT"
             fi
             ;;
 
-        *)     echo "unknown directive: $verb $rest";;
+        *)     die "$DIR_IDX:unknown_directive" "unrecognised scenario directive: '$verb $rest' — a typo silently removes an assertion, so this is a hard FAIL";;
     esac
 done < "$SCENARIO"
 

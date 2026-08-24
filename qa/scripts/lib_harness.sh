@@ -18,6 +18,23 @@ if [ ! -e "$HSQA_REPO/artifacts" ]; then
     ln -sfn "../qa/reports/artifacts" "$HSQA_REPO/artifacts/qa"
 fi
 
+# ---- fingerprint / dirty-hash (AC-9, finding 9) ----------------------------
+# Identical computation to tools/hearthstead-qa's own fingerprint()/dirty_hash()
+# so a scenario manifest's fingerprint can be compared directly against the
+# controller's latest.json to prove which source state actually produced a
+# given piece of evidence — this is what makes "shots prove it ran a later
+# scenario than its own manifest claims" detectable instead of invisible.
+hsqa_fingerprint() {
+    local mod="$HSQA_REPO/hearthstead-neoforge" qa="$HSQA_REPO/qa"
+    { find "$mod/src" "$mod/tools" -type f 2>/dev/null | sort | xargs sha256sum 2>/dev/null
+      sha256sum "$mod/build.gradle" "$mod/gradle.properties" "$mod/settings.gradle" \
+                "$qa/PROTOCOL.md" 2>/dev/null
+    } | sha256sum | cut -d' ' -f1
+}
+hsqa_dirty_hash() {
+    git -C "$HSQA_REPO" status --porcelain 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
 # ---- evidence scaffold (AC-11) --------------------------------------------
 ev_init() { # <scenario-id> -> sets EV_DIR/EV_LOGS/EV_SHOTS/EV_FILM/EV_TS
     local scenario="$1"
@@ -27,9 +44,12 @@ ev_init() { # <scenario-id> -> sets EV_DIR/EV_LOGS/EV_SHOTS/EV_FILM/EV_TS
     EV_SHOTS="$EV_DIR/shots"
     EV_FILM="$EV_DIR/film"
     mkdir -p "$EV_LOGS" "$EV_SHOTS" "$EV_FILM"
-    python3 - "$scenario" "$EV_DIR" <<'PYEOF'
+    local fp dh
+    fp="$(hsqa_fingerprint)"
+    dh="$(hsqa_dirty_hash)"
+    python3 - "$scenario" "$EV_DIR" "$fp" "$dh" <<'PYEOF'
 import json, os, subprocess, sys, time
-scenario, ev_dir = sys.argv[1], sys.argv[2]
+scenario, ev_dir, fp, dh = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 def sh(cmd):
     try: return subprocess.check_output(cmd, text=True).strip()
     except Exception: return "unknown"
@@ -37,6 +57,8 @@ manifest = {
     "scenario": scenario,
     "started": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
     "git_commit": sh(["git", "-C", os.environ.get("HSQA_REPO", "."), "rev-parse", "HEAD"]),
+    "fingerprint": fp,
+    "dirty_hash": dh,
 }
 json.dump(manifest, open(os.path.join(ev_dir, "manifest.json"), "w"), indent=2)
 PYEOF
