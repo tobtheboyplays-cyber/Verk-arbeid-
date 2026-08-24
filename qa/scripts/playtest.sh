@@ -280,36 +280,58 @@ focus() {
 # unexplained input-delivery flakiness before the evidence (the block
 # actually vanishing between two screenshots) was read correctly.
 #
-# Fix: never click at whatever the player currently has in view. Capture
-# the exact current rotation server-side, point the camera straight up
-# (open sky above wherever this harness builds test structures -- never a
-# ceiling), click there, then restore the captured rotation exactly. A
-# relative mouse round-trip (send N up, send N back down) cannot be
-# trusted for the restore: once the up-look clamps at pitch -90, the
-# "excess" of the first move is not stored anywhere to cancel out the
-# second, so a symmetric round-trip does not reliably return to the
-# original pitch. An absolute server-side `tp` does not have that problem.
+# First fix (looking straight up before clicking) was NOT sufficient on its
+# own: PLAQUE-1's room is built underground (Y around -60), so "straight
+# up" from inside or near it hits the room's own roof or the natural
+# terrain above, well within creative reach -- not open sky. That click
+# still broke a block, and CommonEvents.onBlockBreak -> BuildingManager.
+# nudgeNear (32-block radius) re-surveys every known plaque near ANY block
+# change, silently (nudgeNear's re-survey only plays a sound/particle, it
+# never sends a chat line -- see PlaqueBlockEntity.announce()). Proven live
+# (20260824T100153Z): the scan command's OWN chat message logged "Registered"
+# at 10:08:27, then this function's trailing click ran, then `hearthstead
+# info` twelve seconds later reported "Homes: 0 registered" with nothing
+# in between explaining it -- a silent re-unlink from the click's collateral
+# block break, not the mod losing track of anything.
+#
+# Real fix: don't rely on LOOK direction being safe -- rely on POSITION.
+# Capture the player's exact position and rotation, teleport straight up to
+# a fixed height (300) far above build height on anything this harness ever
+# constructs (every test structure sits below Y=110), click there where
+# NOTHING can possibly be in reach, then restore the exact original
+# position and rotation via a second absolute `tp`. Both teleports use
+# fully absolute coordinates (never `~`), so there is no relative round-trip
+# to accumulate error in either position or rotation.
 safe_regrab() {
+    scmd "data get entity $PLAYER Pos"
+    sleep 1
+    local pos x y z
+    pos=$(grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d" "$SRV_LOG" 2>/dev/null | tail -1)
+    x=$(echo "$pos" | cut -d',' -f1 | tr -d 'd ')
+    y=$(echo "$pos" | cut -d',' -f2 | tr -d 'd ')
+    z=$(echo "$pos" | cut -d',' -f3 | tr -d 'd ')
+
     scmd "data get entity $PLAYER Rotation"
     sleep 1
     local rot yaw pitch
     rot=$(grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+f, [-0-9.]+f" "$SRV_LOG" 2>/dev/null | tail -1)
     yaw=$(echo "$rot" | cut -d',' -f1 | tr -d 'f ')
     pitch=$(echo "$rot" | cut -d',' -f2 | tr -d 'f ')
-    if [ -z "$yaw" ] || [ -z "$pitch" ]; then
-        # Could not read rotation back -- fall back to the old unsafe click
-        # rather than silently skipping regrab (which broke move/look
-        # entirely, the original failure mode this workaround exists for).
-        # This should not happen in practice; if it does, it is itself
-        # worth seeing in the transcript rather than hiding.
-        echo "safe_regrab: could not read $PLAYER's rotation, falling back to a direct click" >&2
+
+    if [ -z "$x" ] || [ -z "$y" ] || [ -z "$z" ] || [ -z "$yaw" ] || [ -z "$pitch" ]; then
+        # Could not read position/rotation back -- fall back to the old
+        # unsafe click rather than silently skipping regrab (which broke
+        # move/look entirely, the original failure mode this workaround
+        # exists for). This should not happen in practice; if it does, it
+        # is itself worth seeing in the transcript rather than hiding.
+        echo "safe_regrab: could not read $PLAYER's position/rotation, falling back to a direct click" >&2
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         return
     fi
-    scmd "execute at $PLAYER run tp $PLAYER ~ ~ ~ $yaw -90"
+    scmd "execute at $PLAYER run tp $PLAYER ~ 300 ~ $yaw -90"
     sleep 1
     focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
-    scmd "execute at $PLAYER run tp $PLAYER ~ ~ ~ $yaw $pitch"
+    scmd "tp $PLAYER $x $y $z $yaw $pitch"
     sleep 1
 }
 shot() { # <name>

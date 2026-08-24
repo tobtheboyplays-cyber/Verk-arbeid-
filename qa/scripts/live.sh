@@ -69,28 +69,45 @@ srv_send() { tmux send-keys -l -t "$TMUX_SESSION:server" "$1"; tmux send-keys -t
 # break -- this destroyed a plaque under manual live-session testing too,
 # silently, since nothing here ever checked for it). Loads player/instance
 # from $STATE since each `live.sh` invocation is a fresh process.
+#
+# Second fix, same as playtest.sh's: looking straight up is not enough when
+# the player is underground (a roof or natural terrain is still in reach) --
+# a block broken there still silently re-surveys any plaque within 32
+# blocks (BuildingManager.nudgeNear) and can invalidate it with no chat
+# trace at all. Teleport to a fixed height (300) that is guaranteed clear
+# above anything this harness builds, click there, then restore the exact
+# original position AND rotation via absolute coordinates -- never `~`.
 safe_regrab() {
-    local inst player rot yaw pitch
+    local inst player pos x y z rot yaw pitch
     inst=$(cat "$STATE/inst" 2>/dev/null)
     player=$(cat "$STATE/player" 2>/dev/null)
     if [ -z "$inst" ] || [ -z "$player" ]; then
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         return
     fi
+    srv_send "data get entity $player Pos"
+    sleep 1
+    pos=$(grep -oP "$player has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d" \
+          "$inst/logs/latest.log" 2>/dev/null | tail -1)
+    x=$(echo "$pos" | cut -d',' -f1 | tr -d 'd ')
+    y=$(echo "$pos" | cut -d',' -f2 | tr -d 'd ')
+    z=$(echo "$pos" | cut -d',' -f3 | tr -d 'd ')
+
     srv_send "data get entity $player Rotation"
     sleep 1
     rot=$(grep -oP "$player has the following entity data: \[\K[-0-9.]+f, [-0-9.]+f" \
           "$inst/logs/latest.log" 2>/dev/null | tail -1)
     yaw=$(echo "$rot" | cut -d',' -f1 | tr -d 'f ')
     pitch=$(echo "$rot" | cut -d',' -f2 | tr -d 'f ')
-    if [ -z "$yaw" ] || [ -z "$pitch" ]; then
+
+    if [ -z "$x" ] || [ -z "$y" ] || [ -z "$z" ] || [ -z "$yaw" ] || [ -z "$pitch" ]; then
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         return
     fi
-    srv_send "execute at $player run tp $player ~ ~ ~ $yaw -90"
+    srv_send "execute at $player run tp $player ~ 300 ~ $yaw -90"
     sleep 1
     focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
-    srv_send "execute at $player run tp $player ~ ~ ~ $yaw $pitch"
+    srv_send "tp $player $x $y $z $yaw $pitch"
     sleep 1
 }
 # NOT pgrep -f on the -Dhsqa.instanceDir marker: proven live that a java
