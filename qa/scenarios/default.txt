@@ -167,6 +167,18 @@ wait 1
 # several tenths of a block across intervening cmd/click interactions
 # (20260824T103155Z, 20260824T111340Z), enough to floor to the wrong block.
 capture_pos PLAQUE 1 1 1
+# Same freeze, same reason, for the later stand-back reposition below --
+# RELEASE_GATE re-review (2026-08-24) found this one was STILL computed
+# from a live `~1 ~ ~-1` at the time it runs, well after the 15s founding
+# wait that follows. Proven from a failing run's own evidence
+# (20260824T130654Z): the pre-click screenshot shows the crosshair a full
+# block off the plaque before any click happens, and the log's own
+# "Teleported Dev to ..." line for that reposition, worked backward,
+# implies about a block of drift in the player's position across just
+# that wait -- not a click-delivery problem at all, the aim itself was
+# already wrong. Captured now, at the same safe moment as PLAQUE, so the
+# later reposition uses these frozen coordinates instead of live `~` math.
+capture_pos STANDBACK 1 0 -1
 
 # A plaque can only ever LINK to a settlement, never merely to a valid room:
 # PlaqueBlockEntity.link() looks up the nearest settlement whose radius
@@ -193,8 +205,9 @@ scmd execute at $PLAYER run forceload add ~0 ~-2
 wait 15
 
 # Stand exactly 2 blocks back from the plaque, level with it, facing it
-# dead-on (yaw 0 again = +Z, toward the wall it hangs on).
-scmd execute at $PLAYER run tp $PLAYER ~1 ~ ~-1 0 0
+# dead-on (yaw 0 again = +Z, toward the wall it hangs on). Absolute frozen
+# coordinates, not live `~` math -- see capture_pos STANDBACK above.
+scmd tp $PLAYER $STANDBACK_X $STANDBACK_Y $STANDBACK_Z 0 0
 wait 2
 
 # Empty hotbar, empty hand: right-clicking a blank plaque must open no

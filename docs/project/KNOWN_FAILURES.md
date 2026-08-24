@@ -224,17 +224,22 @@ The first `full` that can honestly go green is PLAQUE-1's.
 
 ---
 
-## KF-009 — Playtest's plaque section repeatedly failed; seven real, distinct harness bugs, no mod defect
+## KF-009 — Playtest's plaque section repeatedly failed; eight real, distinct harness bugs, no mod defect
 
-**Status:** diagnosed AND fixed — seven genuine root causes found and
-corrected across two review cycles, each verified independently. A `full`
-run against the rebuilt jar is the closing step (see the current run in
-`qa/reports/artifacts/full/` and `.claude/WORK_STATE.md` for its result).
+**Status:** eight genuine root causes found and corrected across three
+review cycles. The 8th was found by a RELEASE_GATE re-review AFTER this
+entry had already (wrongly, a second time — see "What this cost,
+honestly" below) attributed two failing `full` runs to unspecified
+"environmental input-delivery flakiness." Re-verification (two more
+consecutive clean `full` runs) is pending as of the 8th fix landing —
+check `.claude/WORK_STATE.md` and `qa/reports/latest.json` for the
+current state rather than trusting a status line here that can go stale.
 **Severity:** was blocking `playtest`'s PLAQUE-1 section entirely; **never**
 indicated any defect in the mod itself — confirmed at every stage by
-GameTest (deterministic, no client input) and, for the final mystery,
-by the Minecraft client's own log directly recording the correct answer
-while only the SERVER'S copy of the code was stale.
+GameTest (deterministic, no client input) and, for the trickiest causes,
+by direct evidence (the Minecraft client's own log for cause 7; a
+pre-click screenshot and worked-backward teleport arithmetic for cause 8)
+that named the real mechanism instead of gesturing at "flakiness."
 
 **This entry previously said the cause was "genuinely not isolated" and
 matched an "unresolved input-delivery flakiness class."** That conclusion
@@ -244,7 +249,7 @@ false lead worth a full correction cycle. An Opus RELEASE_GATE and, later,
 an Opus BLOCKER_GATE each independently found real, provable causes that
 had simply never been checked for.
 
-### The seven causes, in the order they were found and fixed
+### The eight causes, in the order they were found and fixed
 
 1. **Destructive grab-restoring click (RELEASE_GATE, root cause of the
    original symptom).** `cmd`/`move` directive handlers ended with a click
@@ -313,20 +318,51 @@ had simply never been checked for.
    searches only the log appended since the most recent action-producing
    directive (a `LOG_ANCHOR`), not the whole cumulative file, closing the
    symmetric false-PASS risk the same design gap allowed.
+8. **The player's stand-back reposition was still computed from live `~`
+   math (RELEASE_GATE re-review, closes the mystery left after cause 7's
+   fix).** Two of the four `full` runs after cause 7 landed still failed —
+   this time at the PLAQUE-1 section's plan-insertion click, with the
+   plaque UI never opening. I attributed this to "genuine environmental
+   input-delivery flakiness (the KF-006 class)" without checking the
+   failing runs' own screenshots first — the exact mistake this entry
+   already corrected once, made again. A RELEASE_GATE re-review checked
+   `qa/reports/artifacts/playtest/20260824T130654Z/shots/plaque-01-before-
+   click.png` (captured BEFORE any click) and found the crosshair sitting
+   on the door, a full block off the plaque — the click never had a
+   chance; the aim itself was wrong. Cause: `tp $PLAYER ~1 ~ ~-1 0 0`
+   (repositioning the player to stand back from the plaque) was still a
+   LIVE relative offset from whatever the player's CURRENT position
+   happened to be — computed after the 15s hearth-founding wait, during
+   which position can drift the same way cause 4 already proved it can
+   during regrab churn, just from passive waiting this time. `capture_pos`
+   already existed for exactly this problem but had only been applied to
+   the scan targets, not this reposition. Fixed by capturing a second
+   frozen position (`STANDBACK`, offset (1, 0, -1) from the same safe
+   moment `PLAQUE` is captured) and using it instead of the live `~`.
 
 ### What this cost, honestly
 
-Roughly a dozen verification runs across two long investigation arcs, two
-Opus gate calls, and (per this entry's own prior text) a genuine dead end
-following "the same unresolved class of flakiness KF-006 already recorded"
-— a plausible-sounding theory that turned out to explain nothing, because
-nobody had yet checked whether the artifact under test was current. The
-load-bearing lesson, worth keeping past this slice: **when a fix that
-should work keeps failing identically, check what's actually running
-before checking why it's failing.**
+Roughly a dozen verification runs across three investigation arcs, three
+Opus gate calls (the maximum allowed for one slice), and — worth stating
+plainly since it happened twice — two separate collapses into "genuine
+environmental flakiness" as an explanation nobody had actually checked
+evidence for. The first (per this entry's own now-corrected prior text)
+was "the same unresolved class of flakiness KF-006 already recorded";
+the second was the identical move made again, immediately after fixing
+the first one, on a DIFFERENT failure. In both cases the real cause was
+sitting in evidence (a stale jar; a screenshot with a mis-aimed crosshair)
+that a look would have found directly, faster than the theorizing did.
+The load-bearing lesson, worth keeping past this slice, restated because
+it needed learning twice: **when a fix that should work keeps failing,
+look at the actual evidence (the client log, the screenshot, the exact
+mechanism) before reaching for "flakiness" — that word is a description
+of not having looked yet, not a diagnosis.**
 
-**This does not block PLAQUE-1's completion.** All nine work items are
-implemented and independently verified: GameTest (room detection,
-save-compat via a synthetic legacy tag), the asset validator (230/230,
-closing KF-004 and KF-005), and now `playtest` itself, end to end, against
-a freshly rebuilt jar.
+**PLAQUE-1's nine work items are implemented and independently verified**
+regardless of this entry's own status: GameTest (room detection,
+save-compat via a synthetic legacy tag) and the asset validator (230/230,
+closing KF-004 and KF-005) are unaffected by any of the eight causes
+above. Whether `playtest` itself is currently green end to end, twice
+consecutively at one fingerprint, is exactly what cause 8's fix needs to
+re-establish — see `.claude/WORK_STATE.md`'s "Next concrete action" for
+the live state; do not infer it from this paragraph.

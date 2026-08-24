@@ -4,11 +4,12 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
 
 ## Current goal
 
-**SLICE PLAQUE-1 — code done, KF-009 fully resolved (7 real harness bugs
-found and fixed, no mod defect at any point). A `full` run against a
-freshly rebuilt jar is verifying end to end** — check its result before
-declaring the slice complete; two consecutive clean `full` passes at one
-fingerprint are required (see `qa/PROTOCOL.md`).
+**SLICE PLAQUE-1 — code done, KF-009's 8th cause just fixed (a scenario
+edit, so the fingerprint changed). Re-verification (2 consecutive clean
+`full` runs at the new fingerprint) has NOT started yet — that is the
+next concrete action, not a completed step.** All 3 of 3 Opus calls for
+this slice are now spent (1 RELEASE_GATE, 1 BLOCKER_GATE, 1 RELEASE_GATE
+re-review) — the rest of this slice is Sonnet-only, no more gate calls.
 
 ## What's done and evidenced
 
@@ -16,64 +17,68 @@ fingerprint are required (see `qa/PROTOCOL.md`).
   separate `BuildPlanItem` (39 keys, 41 bilingual strings), 5-state machine
   (`EMPTY -> PLAN_INSERTED_UNLINKED -> LINKED_INCOMPLETE/LINKED_VALID`,
   `ORPHANED`), save-compat via a legacy-id alias table, 4-value lamp art
-  (off/red/amber/green), 7 recipes, KF-001's `hangPlaque()` fix.
+  (off/red/amber/green), 7 recipes, KF-001's `hangPlaque()` fix. None of
+  this is affected by KF-009 — confirmed intact by the RELEASE_GATE
+  re-review, independent of anything below.
 - **`assets` PASS 230/230** — closes KF-004, KF-005.
-- **`gametest` PASS 19/19** (re-verified after the `info()` source fix,
-  commit 09c3c7a) — closes KF-001. Includes
-  `legacyPlaqueStateLoadsWithoutLosingBuilding`.
-- **`playtest` — see KF-009.** Every check in `qa/scenarios/default.txt`
-  now passes when run against a jar actually built from current source;
-  the harness itself was the last blocker, not the mod.
+- **`gametest` PASS 19/19** (re-verified after the `info()` source fix) —
+  closes KF-001. Includes `legacyPlaqueStateLoadsWithoutLosingBuilding`.
+- **`playtest` — see KF-009.** 2 of 4 `full` runs at the pre-cause-8
+  fingerprint passed clean (green_streak reached 2 there); the other 2
+  failed on cause 8 (now fixed, unverified at the new fingerprint).
 
-## KF-009 — resolved, read the full entry (docs/project/KNOWN_FAILURES.md) before touching this area again
-
-Seven real, distinct bugs, found across two Opus gate calls (1 RELEASE_GATE
-+ 1 BLOCKER_GATE — 2 of 3 Opus calls used on this slice):
+## KF-009 — 8 real bugs found, 8th just fixed — read the full entry (docs/project/KNOWN_FAILURES.md) before touching this area again
 
 1. `cmd`/`move`'s grab-restoring click destroyed whatever block the
-   crosshair held (creative mode = instant break) — this was destroying
-   the plaque itself right after registration. Fixed: `safe_regrab()`.
+   crosshair held (creative mode = instant break). Fixed: `safe_regrab()`.
 2. "Look up" alone isn't safe underground (room is at Y≈-60) — fixed:
    teleport the player to a fixed clear height (Y=300) before clicking.
 3. 1s wasn't always enough for the client to catch up to a 360-block
    teleport — bumped to 3s.
-4. `~`-relative scan targeting could drift across regrab cycles and floor
+4. `~`-relative SCAN targeting could drift across regrab cycles and floor
    to the wrong block — fixed: `capture_pos` directive freezes absolute
    coordinates once, before any drift can happen.
 5. `hearthstead info` via `scmd` (console) resolves "nearest settlement"
-   from the CONSOLE's position (near spawn), not the player's — always
-   reported the wrong, empty settlement after PLAQUE-1's relocation.
-   Fixed: ask it `cmd` (as the player), like `scan` already had to be.
+   from the CONSOLE's position (near spawn), not the player's. Fixed:
+   ask it `cmd` (as the player), like `scan` already had to be.
 6. `info()`'s `sendSuccess` used `broadcastToAdmins=false` unlike its
    siblings `scan()`/`recruit()` (`true`) — a player-issued `info()` call
-   produced ZERO server-log trace. Fixed: changed to `true` (product fix,
-   `HearthsteadCommand.java`).
-7. **`playtest.sh` never rebuilt the jar and never checked it was
-   current** — after fixes 5 and 6 landed, the SAME failure kept
-   recurring identically for 5 more runs because the dedicated server was
-   running a jar 6 hours stale. `runGameTestServer`/`runClient` compile
-   fresh so they reflected the fixes; `playtest`'s server did not. Found
-   via the client's own log (`playtest-client.log`) directly showing the
-   correct answer twice, every time — it just never reached the stale
-   server. Fixed: `playtest.sh` now refuses to run on a jar older than
-   any source file; `expect_server` now searches only log lines appended
-   since the most recent action (was: the whole cumulative file, a
-   symmetric false-PASS risk).
+   produced ZERO server-log trace. Fixed: changed to `true`.
+7. `playtest.sh` never rebuilt the jar and never checked it was current —
+   after fixes 5/6 landed, the SAME failure recurred identically because
+   the server was running a jar 6 hours stale. Found via the CLIENT's own
+   log showing the correct answer every time, never reaching the stale
+   server. Fixed: hard-fail on a stale jar; `expect_server` now anchors
+   to post-action log lines only (`LOG_ANCHOR`), not the whole file.
+8. **The player's STAND-BACK reposition (`tp $PLAYER ~1 ~ ~-1 0 0`) was
+   still live `~` math**, unlike the scan targets which cause 4 already
+   fixed — so it could drift during the 15s founding wait, same as cause
+   4 proved for regrab churn. This produced 2 of 4 `full`-run failures
+   that I WRONGLY diagnosed as "environmental flakiness" without checking
+   evidence — a RELEASE_GATE re-review found a pre-click screenshot
+   showing the crosshair a full block off the plaque, disproving that.
+   Fixed: a second `capture_pos STANDBACK 1 0 -1`, captured at the same
+   safe moment as PLAQUE, replaces the live `~1 ~ ~-1`.
 
-**Lesson to keep:** when a fix that should work keeps failing identically,
-check what's actually running before checking why it's failing.
+**Lesson, learned twice this slice — worth remembering hard:** when a fix
+that should work keeps failing, look at the actual evidence (client log,
+screenshot, exact mechanism) BEFORE reaching for "flakiness." That word
+describes not having looked yet, not a diagnosis.
 
 ## Next concrete action
 
-1. Check the `full` run's result. If PASS: run it again for the required
-   second consecutive clean pass at the same fingerprint, then commit any
-   final doc touch-ups and consider PLAQUE-1 done.
-2. If FAIL: read the actual failing suite's evidence before assuming
-   anything — do not repeat this session's early mistake of theorizing
-   without reading `playtest-client.log`/equivalent first.
-3. Once genuinely done (green_streak >= 2 at one fingerprint): SLICE
-   VISUAL-1 next (fix KF-007's `gen_settler.py` non-determinism first,
-   then modular settler visuals).
+1. `qa/scenarios/default.txt` changed (cause 8's fix) — this changes the
+   fingerprint. Run `tools/hearthstead-qa full` twice, consecutively, no
+   changes in between, and confirm `green_streak: 2` in
+   `qa/reports/latest.json` at the NEW fingerprint before claiming
+   anything. Do not assume the pre-cause-8 green streak still counts.
+2. If a run fails: read the actual evidence (server log, client log,
+   screenshot) for THAT specific failure before writing any explanation
+   down — do not default to "flakiness" a third time.
+3. Once genuinely done (green_streak >= 2 at the current fingerprint):
+   SLICE VISUAL-1 next (fix KF-007's `gen_settler.py` non-determinism
+   first, then modular settler visuals). No Opus budget remains for
+   PLAQUE-1 — do not call another gate on this slice.
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
@@ -84,7 +89,13 @@ check what's actually running before checking why it's failing.
 - Console `tp <t> ~ ~ ~` and any `~`-relative command resolves against the
   CONSOLE's own position/context, not a target entity's — use `execute at`,
   or better, ask as the player (`cmd`) when the check needs the PLAYER's
-  own position/nearest-settlement resolution (this is also KF-009 cause 5).
+  own position/nearest-settlement resolution (KF-009 cause 5).
+- **A player's position can drift measurably even from PASSIVE waiting
+  (not just regrab-teleport churn) — any LATER `~`-relative command that
+  assumes "still where it was placed" needs a `capture_pos` freeze, not
+  just the ones immediately following active teleport cycles (KF-009
+  causes 4 and 8 — cause 8 was missed the first time because this wasn't
+  generalized from cause 4's fix).**
 - `execute at ... run <anything>` suppresses ALL feedback silently.
 - `fill <box> X replace X` is a no-op the game never counts.
 - A `PlaqueScreen` (or any screen) left open silently absorbs later clicks
@@ -95,17 +106,17 @@ check what's actually running before checking why it's failing.
 - Never run two suites at once — every one launches a client and a server.
 - Client boot under software GL / this proxy can take minutes while
   genuinely progressing — never treat slowness as a hang.
-- **A jar sitting in `build/libs/` can be arbitrarily stale — `playtest`
-  (unlike `full`) never rebuilds. `playtest.sh` now hard-fails if any
-  source file is newer than the selected jar; don't remove that check.**
-- **`expect_server` searches only the log since the last action-producing
-  directive (`LOG_ANCHOR`), not the whole file — a scenario edit that adds
-  a new no-op directive between an action and its `expect_server` does not
-  reset this; only `cmd`/`scmd`/`click`/`move`/`key`/`type` do.**
-- **`sendSuccess(msg, broadcastToAdmins)` — `false` means a PLAYER-issued
+- A jar sitting in `build/libs/` can be arbitrarily stale — `playtest.sh`
+  now hard-fails if any source file is newer than the selected jar.
+- `expect_server` searches only the log since the last action-producing
+  directive (`LOG_ANCHOR`), not the whole file.
+- `sendSuccess(msg, broadcastToAdmins)` — `false` means a PLAYER-issued
   command produces NO server console/log trace at all, only client-side
-  chat. Check this flag before adding a log-based `expect_server` check
-  against any command's output.**
+  chat. Check this flag before adding a log-based `expect_server` check.
+- **Before writing down "environmental flakiness" for ANY repeated
+  failure: read the client log AND look at the actual failing
+  screenshot(s) first. Both times this slice skipped that step, the real
+  cause was directly visible in evidence already captured.**
 
 ## Known problems (pre-existing, other slices' scope)
 
@@ -115,8 +126,11 @@ KF-007 (`gen_settler.py` non-determinism) — VISUAL-1's first task.
 
 `safe_regrab()`'s Y=300 round trip (used by every `cmd`/`move`) generates
 `moved too quickly!` warnings and measurable position drift in this
-environment — it works (with `capture_pos` covering the drift for
-position-sensitive targeting) but is a fragility source. A regrab
-mechanism that never moves the player would retire this whole class;
-not worth redesigning now that it's reliable, worth remembering if a
-similar symptom reappears elsewhere.
+environment. `capture_pos` covers this for the specific positions it has
+been applied to (plaque scan target, player stand-back) — it does NOT
+generically cover every `~`-relative command in a scenario; any NEW
+`~`-relative command added after a long wait or several regrab cycles
+needs its own `capture_pos`, checked deliberately, not assumed safe. A
+regrab mechanism that never moves the player would retire this whole
+class; not worth redesigning now, worth remembering if a similar symptom
+reappears elsewhere.
