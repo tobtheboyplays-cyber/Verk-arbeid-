@@ -85,3 +85,33 @@ it does not extend what a building means.
   insertion must not trigger an unbounded immediate re-survey storm if a player
   fills a wall with plaques. Insertion reuses the existing `SURVEY_INTERVAL`
   cooldown path.
+
+---
+
+## W6 refined — read from the actual pipeline (2026-08-24)
+
+Surveyed before starting so the slice does not discover this mid-flight.
+
+**KF-005 needs art, not just models.** `tools/gen_plaque.py` emits fourteen
+files and **no status lamp among them** — there is no red/amber/green source
+art anywhere, so the three missing models could not have been written by
+copying an existing variant. The generator must gain
+`plaque_lamp_{off,red,amber,green}.png` (four, not three: `EMPTY` shows a dark
+lamp, per D-006 — a blank board must not glow a warning colour at a player who
+simply has not slipped a plan in yet).
+
+**Do not write four full models.** `block/plaque.json` is a hand-authored
+10-element model with 6 texture slots (`board`, `edge`, `brass`, `iron`,
+`panel`, `particle`) and no parent. Duplicating it four times means four copies
+of ten elements to keep in step. Instead: promote it to `block/plaque_base.json`
+with one added lamp element bound to a `#lamp` slot, and make each variant a
+three-line child that sets `lamp` and nothing else. Then the blockstate's
+existing `facing x glow` variant table resolves without further change.
+
+**W1's item art already exists.** `textures/item/build_plan.png` and
+`textures/item/building_plaque.png` are already generated, so the Build Plan
+item needs registration and a model, not new art.
+
+**Pipeline rule still applies:** edit the generator, never the PNGs, and the
+"run twice, identical bytes" check must hold — `gen_plaque.py` already seeds
+explicitly and says so in its own docstring, unlike `gen_settler.py` (KF-007).
