@@ -284,20 +284,19 @@ expect_server Registered
 # the same reason, and exactly what line 106's `cmd hearthstead info`
 # earlier in this same scenario already does correctly.
 #
-# Belt and braces, same reason as the two scan calls above: proven live
-# (20260824T113853Z) that a single, un-retried `cmd hearthstead info` here
-# can type/send without the server ever logging any response at all --
-# the directive's own check_pass only confirms xdotool sent the keystrokes,
-# not that Brigadier received a valid command string; a dropped keystroke
-# during typing (the same unresolved input-delivery class KF-006/KF-009
-# already named for click/chat) produces an "unknown command" error that is
-# player-only feedback, never logged. info() is a pure read with no side
-# effects, so a second identical send costs nothing.
+# Belt and braces, same shape as the two scan calls above -- kept for
+# consistency even though the actual cause of this check's failures
+# (113853Z through 122434Z, five straight runs) turned out to be neither
+# input delivery nor anything a resend could fix: the dedicated server
+# under test was running a stale build/libs jar that predated the scmd->cmd
+# and sendSuccess fixes above, so every one of those runs asserted against
+# code that was never actually deployed (BLOCKER_GATE, 2026-08-24; see the
+# jar-freshness check playtest.sh now enforces before it will run at all).
+# info() is a pure read with no side effects, so the second send still
+# costs nothing -- it just was never what any of those runs needed.
 #
-# Diagnostic, not a real assertion: three straight runs (113853Z, 114931Z,
-# 120106Z) show BOTH sends below producing zero server-log trace, unchanged
-# by two independently-real, already-fixed root causes -- capture what the
-# screen actually looks like right here, since nothing else has explained it.
+# Screenshot kept as routine evidence of the pre-check game state, not as
+# an active diagnostic -- the mystery it was added to chase is resolved.
 shot plaque-05-before-final-info
 cmd hearthstead info
 wait 2

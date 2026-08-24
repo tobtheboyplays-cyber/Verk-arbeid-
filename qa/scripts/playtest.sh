@@ -90,6 +90,23 @@ check_pass port_preflight "port $PORT free before launch"
 
 JAR=$(ls -t "$MOD"/build/libs/hearthstead-*.jar 2>/dev/null | grep -v sources | head -1)
 [ -n "$JAR" ] || die build_jar "no mod jar built — run build first"
+# BLOCKER_GATE (2026-08-24): this used to stop at "a jar exists", never at
+# "a jar built from the CURRENT source" — so playtest silently tested
+# whatever server code happened to be sitting in build/libs, however old.
+# Proven live: five straight verification runs (113853Z through 122434Z)
+# chased a phantom harness bug because the dedicated server was running a
+# six-hour-old jar that predated three real source fixes, while
+# runGameTestServer/runClient compiled fresh each time and so reflected
+# them — the exact split that made "compiles clean, GameTest 19/19" and
+# "playtest still fails the identical way" look like a contradiction
+# instead of the stale-artifact problem it was. If ANY source file this
+# jar should have been built from is newer than the jar itself, refuse to
+# run rather than report on code that no longer exists.
+NEWEST_SRC=$(find "$MOD/src" "$MOD/build.gradle" "$MOD/gradle.properties" \
+    -type f -newer "$JAR" 2>/dev/null | head -1)
+if [ -n "$NEWEST_SRC" ]; then
+    die build_jar "stale jar: $(basename "$JAR") predates $NEWEST_SRC — run tools/hearthstead-qa full (or rebuild the jar) before playtest"
+fi
 check_pass build_jar "$(basename "$JAR")"
 
 bash "$HERE/server_install.sh" "$MOD" > "$EV_LOGS/install.log" 2>&1 \
@@ -387,6 +404,14 @@ focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
 # (e.g. `$PLAQUE_X`) instead of a live `~`-relative offset. See capture_pos
 # below for why this exists.
 declare -A CAPTURED_VARS
+# BLOCKER_GATE (2026-08-24): `expect_server` used to grep the WHOLE
+# cumulative log every time, so it could be satisfied by a line written
+# minutes earlier in the same run rather than anything the directive right
+# before it actually caused -- a false-PASS risk symmetric to the
+# false-FAIL the stale-jar check above just closed. LOG_ANCHOR is the log's
+# line count right before the most recent action-producing directive;
+# `expect_server` only searches what was appended after it.
+LOG_ANCHOR=0
 DIR_IDX=0
 while read -r verb rest; do
     rest="${rest//\$PLAYER/$PLAYER}"
@@ -394,6 +419,9 @@ while read -r verb rest; do
         rest="${rest//\$$_cv/${CAPTURED_VARS[$_cv]}}"
     done
     DIR_IDX=$((DIR_IDX + 1))
+    case "${verb:-}" in
+        cmd|scmd|click|move|key|type) LOG_ANCHOR=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0);;
+    esac
     case "${verb:-}" in
         # '#'* not '#': only a bare '#' matched before, so a comment written
         # without a space after the hash ("#like this") fell through to the
@@ -407,18 +435,20 @@ while read -r verb rest; do
         type)  focus; xdotool type --delay 40 -- "$rest"; sleep 1
                check_pass "$DIR_IDX:type" "typed: $rest";;
         cmd)   focus; _kf=$?
-               # Exit codes captured, not discarded: a "promising unexplored
-               # direction" from the original KF-009 investigation, revived
-               # because the LAST `cmd hearthstead info` in the PLAQUE-1
-               # section was proven live (20260824T113853Z, 114931Z, 120106Z,
-               # 121308Z) to consistently produce zero server-log trace at
-               # all, even after two independent, previously-unrelated root
-               # causes were fixed and xdotool's OWN key/type/Return exit
-               # codes proved clean (121308Z) -- focus() itself used to
-               # swallow its own failure (`|| true`, fixed above); if IT is
-               # what's silently failing this late in a long scenario, this
-               # is the fastest way to finally see that instead of guessing.
-               [ "$_kf" -ne 0 ] && echo "cmd: focus() reported failure before typing" >&2
+               # Exit codes captured, not discarded (a "promising unexplored
+               # direction" from the original KF-009 investigation). Added
+               # while chasing what turned out to be a false failure: the
+               # PLAQUE-1 section's final `hearthstead info` check kept
+               # failing identically across five runs (113853Z-122434Z)
+               # despite fixing two real, unrelated bugs, and this
+               # instrumentation came back clean both times it ran -- the
+               # BLOCKER_GATE that resolved it (2026-08-24) found the actual
+               # cause was the dedicated server running a stale build/libs
+               # jar that predated those fixes (see the freshness check
+               # above JAR's selection), nothing about xdotool or focus()
+               # delivery. Kept anyway: real, cheap, defensive visibility
+               # for whatever the next thing that looks like this turns out
+               # to actually be.
                xdotool key --clearmodifiers t; _kt=$?; sleep 1
                xdotool type --delay 35 -- "/$rest"; _kty=$?; sleep 1
                xdotool key --clearmodifiers Return; _kr=$?; sleep 2
@@ -501,16 +531,20 @@ while read -r verb rest; do
 
         expect_server)
             # See SRV_LOG note above (finding 1): the real Log4j file, never
-            # the tmux pane's own echo of what was just typed.
+            # the tmux pane's own echo of what was just typed. Searches only
+            # from LOG_ANCHOR (see its own comment, above the directive
+            # loop) — never the whole cumulative file — so this can only be
+            # satisfied by something the most recent action actually caused,
+            # not a stale match from minutes earlier in the same run.
             FOUND=0
             for _ in $(seq 1 10); do
-                grep -qE "$rest" "$SRV_LOG" 2>/dev/null && { FOUND=1; break; }
+                tail -n +"$((LOG_ANCHOR + 1))" "$SRV_LOG" 2>/dev/null | grep -qE "$rest" && { FOUND=1; break; }
                 sleep 1
             done
             if [ "$FOUND" = 1 ]; then
-                check_pass "$DIR_IDX:expect_server:$rest" "$(grep -m1 -E "$rest" "$SRV_LOG")"
+                check_pass "$DIR_IDX:expect_server:$rest" "$(tail -n +"$((LOG_ANCHOR + 1))" "$SRV_LOG" 2>/dev/null | grep -m1 -E "$rest")"
             else
-                die "$DIR_IDX:expect_server:$rest" "server log never matched /$rest/"
+                die "$DIR_IDX:expect_server:$rest" "server log never matched /$rest/ (since the most recent action)"
             fi
             ;;
 
