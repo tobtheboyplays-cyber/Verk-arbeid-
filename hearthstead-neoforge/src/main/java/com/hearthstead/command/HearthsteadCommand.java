@@ -73,15 +73,21 @@ public final class HearthsteadCommand {
         }
         if (nearest == null) {
             source.sendSuccess(() ->
-                Component.translatable("hearthstead.command.no_settlement"), false);
+                Component.translatable("hearthstead.command.no_settlement"), true);
             return 0;
         }
         Settlement s = nearest;
+        // true (broadcastToAdmins), matching scan()/recruit() just below: info()
+        // is the same kind of admin/diagnostic read they are, and there is no
+        // reason for it alone to suppress console/log visibility when issued
+        // by a player rather than the console -- proven live (20260824T114931Z)
+        // that with this at false, a player-issued `hearthstead info` produces
+        // no server-log trace at all, silently defeating any log-based check.
         source.sendSuccess(() -> Component.translatable("hearthstead.command.info",
             s.name, s.population(), s.capacity(), s.employed(), s.foodCache,
-            s.moraleCache, s.radius), false);
+            s.moraleCache, s.radius), true);
         source.sendSuccess(() -> Component.translatable("hearthstead.command.info_homes",
-            s.validHomeCount(), s.validBedCount()), false);
+            s.validHomeCount(), s.validBedCount()), true);
         return 1;
     }
 
