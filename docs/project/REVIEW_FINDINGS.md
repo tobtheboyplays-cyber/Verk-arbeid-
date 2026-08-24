@@ -49,3 +49,23 @@ re-derived from the artefacts and confirmed closed.
 | 6 | LOW–MED | Findings 6, 7 and 14 had no stored mapping | **fixed** — this file |
 | 7 | LOW | `reap selftest`'s recycled-PID assertions re-typed the predicate instead of exercising the guard | **fixed** — guard extracted to `pid_disposition()`, called by both `cmd_reap` and the selftest |
 | 8 | LOW | `playtest.sh` hard-failed on a comment written `#like this`; `live.sh` `film`/`shot` would `mkdir -p` under `/` with an empty `EV_DIR` | **fixed** — comment glob widened, `require_ev_dir` added. (`status` and `stop` were already guarded; only `shot` and `film` were not.) |
+
+---
+
+## Round 2, defect 4 — closed
+
+**The shipped `live` path had zero runtime evidence.** Closed by re-running
+the matrix at the corrected fingerprint. Three `live` cycles, deliberately
+both directions:
+
+- Cycles 1-2 (default framing, no settler in view): correctly derived
+  `overall: FAIL` from a genuine failed `film` check — proof `finish_result
+  AUTO` is deriving, not returning the old hard-coded `STOPPED`.
+- Cycle 3 (glass pen + `spreadplayers`, settler in frame): correctly derived
+  `overall: PASS`, all 11 checks including `film` at `subject_mad 23.68`.
+
+Evidence: `qa/reports/artifacts/live/{20260824T042738Z,20260824T044458Z,
+20260824T051935Z}/`. Full matrix and all fingerprints:
+`.claude/WORK_STATE.md`.
+
+**Round 2 is now fully closed — all 8 defects fixed and evidenced.**
