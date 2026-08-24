@@ -5,13 +5,15 @@ import com.hearthstead.registry.ModComponents;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Reads and writes the building type carried by a plaque item stack.
+ * Reads and writes the building type carried by a Build Plan item stack.
  *
- * <p>One item, many dedications: the architect sells the same plaque item
- * stamped for a house, a warehouse or a lumber camp. Keeping that in a data
- * component means one block, one model pipeline and one recipe path, instead
- * of a registry entry per building type that would have to grow every time a
- * new building is designed.
+ * <p>D-006: the plaque is placed blank and never carries a type of its own.
+ * One Build Plan item, six dedications: the architect sells the same plan
+ * item stamped for a house, a warehouse or a lumber camp, and inserting one
+ * into a plaque is what gives that plaque a type. Keeping that in a data
+ * component means one item, one model pipeline and one recipe pattern per
+ * type, instead of a registry entry per building type that would have to
+ * grow every time a new building is designed.
  */
 public final class PlaqueItemData {
 

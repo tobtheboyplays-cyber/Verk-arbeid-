@@ -172,7 +172,7 @@ public final class PlaqueNetwork {
     /** Empty when the settler could move in; otherwise why they cannot. */
     private static String blockedReason(PlaqueBlockEntity plaque, Building building,
                                         SettlerEntity settler) {
-        if (plaque.state() != PlaqueState.LINKED) {
+        if (plaque.state() != PlaqueState.LINKED_VALID) {
             return "hearthstead.plaque.blocked.not_ready";
         }
         if (plaque.type().housesResidents()) {

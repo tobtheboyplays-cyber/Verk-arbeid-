@@ -2,6 +2,7 @@ package com.hearthstead.registry;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.item.BuildPlanItem;
 import com.hearthstead.item.HandbookItem;
 import com.hearthstead.item.HearthBlockItem;
 import com.hearthstead.item.ProfessionWritItem;
@@ -42,6 +43,10 @@ public final class ModItems {
 
     public static final DeferredHolder<Item, BlockItem> PLAQUE = ITEMS.register("plaque",
         () -> new BlockItem(ModBlocks.PLAQUE.get(), new Item.Properties()));
+
+    /** D-006: the type lives on the plan, not on the plaque item above. */
+    public static final DeferredHolder<Item, BuildPlanItem> BUILD_PLAN =
+        ITEMS.register("build_plan", () -> new BuildPlanItem(new Item.Properties()));
 
     public static void register(IEventBus bus) {
         ITEMS.register(bus);

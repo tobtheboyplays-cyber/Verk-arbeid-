@@ -15,8 +15,11 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -428,27 +431,71 @@ public class HearthsteadGameTests {
 
 
     /**
-     * Hangs a plaque of {@code type} on the hut's outside south wall, beside
-     * the door — the way the reference image shows it and the way players
-     * naturally do it. Returns the plaque position.
+     * {@code helper.useBlock}, tolerating a harness-only side effect: a mock
+     * player made by {@code makeMockServerPlayerInLevel} carries a
+     * {@code Connection} that never runs NeoForge's real login/configuration
+     * channel handshake, so the very first server-to-client custom payload
+     * this mod ever sends it (the plaque snapshot, opening the screen) is
+     * refused by {@code NetworkRegistry.hasChannel} with an
+     * {@code UnsupportedOperationException}. That is a property of the fake
+     * connection, not of this mod's networking — a real client always
+     * completes the handshake before any screen could open. The interaction
+     * itself (state change, the {@code screenOpens} counter) already
+     * happened before the packet send is attempted, so this only silences the
+     * expected send failure; any other exception still propagates.
+     */
+    private static void useBlockTolerateNoRealConnection(GameTestHelper helper, BlockPos pos,
+                                                          Player player) {
+        try {
+            helper.useBlock(pos, player);
+        } catch (UnsupportedOperationException e) {
+            if (e.getMessage() == null || !e.getMessage().contains("may not be sent")) {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * A stamped Build Plan for {@code type} — what a player would insert into
+     * a blank plaque (D-006).
+     */
+    private static ItemStack buildPlan(com.hearthstead.building.BuildingType type) {
+        return com.hearthstead.block.PlaqueItemData.stamped(
+            new ItemStack(com.hearthstead.registry.ModItems.BUILD_PLAN.get()), type);
+    }
+
+    /**
+     * Hangs a blank plaque and fits it with a Build Plan for {@code type}, on
+     * the hut's outside south wall, beside the door — the way the reference
+     * image shows it and the way players naturally do it. Returns the plaque
+     * position.
      *
-     * <p>Placed through {@code setBlock} plus an explicit survey rather than
-     * through item use, because the harness has no player: the block entity
-     * receives exactly the same calls either way.
+     * <p>KF-001: the plaque is placed in the AIR CELL outside the wall, facing
+     * NORTH into it, exactly as {@code getStateForPlacement} would when a
+     * player right-clicks the wall's outer face — not by replacing a wall
+     * block, which used to punch a hole in the room and made every enclosure
+     * check fail. {@code canSurvive} then finds the wall behind it, and the
+     * block entity's seed search reaches the room via its second candidate
+     * (the mounted-outside case it was written for).
+     *
+     * <p>Fitting the plan through {@code insertPlan} directly rather than
+     * through item use is because the harness has no player for most tests;
+     * the block entity receives exactly the same call either way, and starts
+     * surveying the moment the plan goes in.
      */
     private static BlockPos hangPlaque(GameTestHelper helper, BlockPos hutOrigin,
                                        com.hearthstead.building.BuildingType type) {
-        // South wall is z = hutOrigin.z; the door is at x+2, so hang at x+1.
-        BlockPos plaqueRel = hutOrigin.offset(1, 2, 0);
+        // South wall is z = hutOrigin.z; hang one cell further out (z - 1),
+        // facing NORTH so canSurvive's support check lands on the wall.
+        BlockPos plaqueRel = hutOrigin.offset(1, 2, -1);
         helper.setBlock(plaqueRel, com.hearthstead.registry.ModBlocks.PLAQUE.get()
             .defaultBlockState()
             .setValue(com.hearthstead.block.PlaqueBlock.FACING,
-                net.minecraft.core.Direction.SOUTH));
+                net.minecraft.core.Direction.NORTH));
         BlockPos abs = helper.absolutePos(plaqueRel);
         if (helper.getLevel().getBlockEntity(abs)
             instanceof com.hearthstead.block.PlaqueBlockEntity plaque) {
-            plaque.setType(type);
-            plaque.survey(helper.getLevel());
+            plaque.insertPlan(helper.getLevel(), buildPlan(type));
         }
         return plaqueRel;
     }
@@ -675,5 +722,183 @@ public class HearthsteadGameTests {
             helper.assertTrue(s.capacity() == 3,
                 "capacity should fall back to founders, got " + s.capacity());
         });
+    }
+
+    // ---------------------------------------------------------- PLAQUE-1 ---
+
+    /**
+     * W3: a plaque with no Build Plan fitted must never run a room scan at
+     * all — not on placement, not on its periodic tick. Guards the class of
+     * bug where an EMPTY plaque quietly does the same work a fitted one does.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 450)
+    public void emptyPlaqueNeverScans(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hutOrigin.offset(1, 2, -1);
+        helper.setBlock(plaqueRel, ModBlocks.PLAQUE.get().defaultBlockState()
+            .setValue(com.hearthstead.block.PlaqueBlock.FACING,
+                net.minecraft.core.Direction.NORTH));
+        BlockPos plaqueAbs = helper.absolutePos(plaqueRel);
+        if (!(helper.getLevel().getBlockEntity(plaqueAbs)
+            instanceof com.hearthstead.block.PlaqueBlockEntity plaque)) {
+            helper.fail("plaque block entity missing");
+            return;
+        }
+        helper.assertTrue(plaque.state() == com.hearthstead.building.PlaqueState.EMPTY,
+            "a freshly hung plaque with no plan must start EMPTY, got " + plaque.state());
+
+        helper.runAfterDelay(400, () -> {
+            helper.assertTrue(plaque.state() == com.hearthstead.building.PlaqueState.EMPTY,
+                "an uninserted plaque must remain EMPTY, got " + plaque.state());
+            helper.assertTrue(plaque.scanAttempts() == 0,
+                "an EMPTY plaque must run zero scans over 400 ticks, ran "
+                    + plaque.scanAttempts());
+            helper.succeed();
+        });
+    }
+
+    /**
+     * W4: right-clicking an EMPTY plaque with an empty hand opens no screen at
+     * all — just a hint. Inserting a Build Plan is the moment the screen (and
+     * the surveyor) starts working, and it happens exactly once per click.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100)
+    public void emptyPlaqueOpensNoScreenUntilPlanInserted(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hutOrigin.offset(1, 2, -1);
+        helper.setBlock(plaqueRel, ModBlocks.PLAQUE.get().defaultBlockState()
+            .setValue(com.hearthstead.block.PlaqueBlock.FACING,
+                net.minecraft.core.Direction.NORTH));
+        BlockPos plaqueAbs = helper.absolutePos(plaqueRel);
+        if (!(helper.getLevel().getBlockEntity(plaqueAbs)
+            instanceof com.hearthstead.block.PlaqueBlockEntity plaque)) {
+            helper.fail("plaque block entity missing");
+            return;
+        }
+
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        helper.useBlock(plaqueRel, player);
+        helper.assertTrue(plaque.state() == com.hearthstead.building.PlaqueState.EMPTY,
+            "an empty-hand click on an EMPTY plaque must not change its state, got "
+                + plaque.state());
+        helper.assertTrue(plaque.screenOpenCount() == 0,
+            "right-clicking an EMPTY plaque must not open a screen, opened "
+                + plaque.screenOpenCount() + " times");
+
+        player.setItemInHand(InteractionHand.MAIN_HAND,
+            buildPlan(com.hearthstead.building.BuildingType.HOUSE));
+        useBlockTolerateNoRealConnection(helper, plaqueRel, player);
+        helper.assertTrue(plaque.state() == com.hearthstead.building.PlaqueState.LINKED_VALID,
+            "inserting a plan for an already-valid room should register it, got "
+                + plaque.state());
+        helper.assertTrue(plaque.screenOpenCount() == 1,
+            "inserting a plan must open the screen exactly once, opened "
+                + plaque.screenOpenCount() + " times");
+        helper.succeed();
+    }
+
+    /**
+     * W5: sneak-use with an empty hand on a fitted plaque pulls the exact
+     * plan back out (same item, same stamped type) and dissolves the building
+     * it declared — conservation (INV-3), not destruction.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200)
+    public void sneakUseWithEmptyHandExtractsPlanAndDissolvesBuilding(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hangPlaque(helper, hutOrigin,
+            com.hearthstead.building.BuildingType.HOUSE);
+        BlockPos plaqueAbs = helper.absolutePos(plaqueRel);
+        if (!(helper.getLevel().getBlockEntity(plaqueAbs)
+            instanceof com.hearthstead.block.PlaqueBlockEntity plaque)) {
+            helper.fail("plaque block entity missing");
+            return;
+        }
+        helper.assertTrue(plaque.state() == com.hearthstead.building.PlaqueState.LINKED_VALID,
+            "setup: expected a registered house, got " + plaque.state());
+        helper.assertTrue(s.buildings.size() == 1,
+            "setup: expected one building, got " + s.buildings.size());
+
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        player.setShiftKeyDown(true);
+        helper.useBlock(plaqueRel, player);
+
+        helper.assertTrue(plaque.state() == com.hearthstead.building.PlaqueState.EMPTY,
+            "extracting the plan must return the plaque to EMPTY, got " + plaque.state());
+        helper.assertTrue(s.buildings.isEmpty(),
+            "extracting the plan must dissolve the building, buildings="
+                + s.buildings.size());
+        ItemStack held = player.getMainHandItem();
+        helper.assertTrue(
+            !held.isEmpty() && held.getItem() == com.hearthstead.registry.ModItems.BUILD_PLAN.get()
+                && "house".equals(com.hearthstead.block.PlaqueItemData.typeOf(held)),
+            "the player must receive the exact stamped house plan back, got " + held);
+        helper.succeed();
+    }
+
+    /**
+     * W2 (save-compat): a plaque tag written before PLAQUE-1's state rename
+     * carries the old id {@code "linked"} plus a {@code Building} UUID. That
+     * id must resolve forward to {@code LINKED_VALID}, not fall back to
+     * {@code EMPTY} — a bare fallback would silently un-home every already
+     * -registered building on the first post-update load. A test written only
+     * against the new ids would pass while that bug shipped.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100)
+    public void legacyPlaqueStateLoadsWithoutLosingBuilding(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        ServerLevel level = helper.getLevel();
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hutOrigin.offset(1, 2, -1);
+        helper.setBlock(plaqueRel, ModBlocks.PLAQUE.get().defaultBlockState()
+            .setValue(com.hearthstead.block.PlaqueBlock.FACING,
+                net.minecraft.core.Direction.NORTH));
+        BlockPos plaqueAbs = helper.absolutePos(plaqueRel);
+        if (!(level.getBlockEntity(plaqueAbs)
+            instanceof com.hearthstead.block.PlaqueBlockEntity plaque)) {
+            helper.fail("plaque block entity missing");
+            return;
+        }
+
+        // A building this plaque already declared, exactly as an old save
+        // would have had before the rename ever happened.
+        com.hearthstead.settlement.Building building = new com.hearthstead.settlement.Building(
+            UUID.randomUUID(), com.hearthstead.building.BuildingType.HOUSE, plaqueAbs,
+            helper.absolutePos(bedRel),
+            new net.minecraft.world.level.levelgen.structure.BoundingBox(
+                plaqueAbs.getX() - 3, plaqueAbs.getY() - 2, plaqueAbs.getZ() - 3,
+                plaqueAbs.getX() + 3, plaqueAbs.getY() + 2, plaqueAbs.getZ() + 3));
+        building.valid = true;
+        s.buildings.add(building);
+
+        // A tag exactly like a pre-rename save would write: the old "linked"
+        // id, never "linked_valid" — this build has never written that id.
+        CompoundTag legacy = new CompoundTag();
+        legacy.putString("Type", "house");
+        legacy.putString("State", "linked");
+        legacy.putInt("Revision", 3);
+        legacy.putUUID("Building", building.id);
+        plaque.loadCustomOnly(legacy, level.registryAccess());
+
+        helper.assertTrue(
+            plaque.state() == com.hearthstead.building.PlaqueState.LINKED_VALID,
+            "legacy id 'linked' must resolve to LINKED_VALID, got " + plaque.state());
+        helper.assertTrue(building.id.equals(plaque.buildingId()),
+            "the building id must survive the legacy-tag load");
+        helper.assertTrue(s.buildings.contains(building),
+            "the building itself must still be registered after a legacy-tag load, buildings="
+                + s.buildings.size());
+        helper.succeed();
     }
 }

@@ -22,6 +22,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -40,6 +41,12 @@ import java.util.UUID;
  * settlement. A plaque that cached its own resident list would be a second
  * source of truth, and the two would drift the first time a settler died
  * while the chunk was unloaded.
+ *
+ * <p>D-006: a hung plaque starts {@link PlaqueState#EMPTY} and does nothing
+ * — no UI, no survey — until a Build Plan item is fitted into it. The fitted
+ * plan is itself a real, conserved item: it is stored here, saved and loaded
+ * like the rest of this entity's state, and comes back out exactly as it
+ * went in (INV-3) when the plan is extracted or the plaque is broken.
  */
 public class PlaqueBlockEntity extends BlockEntity {
 
@@ -47,7 +54,9 @@ public class PlaqueBlockEntity extends BlockEntity {
     private static final int SURVEY_INTERVAL = 200;
 
     private BuildingType type = BuildingType.HOUSE;
-    private PlaqueState state = PlaqueState.UNLINKED;
+    private PlaqueState state = PlaqueState.EMPTY;
+    /** The Build Plan currently fitted; {@link ItemStack#EMPTY} while {@link PlaqueState#EMPTY}. */
+    private ItemStack insertedPlan = ItemStack.EMPTY;
     @Nullable
     private UUID buildingId;
     /**
@@ -59,6 +68,11 @@ public class PlaqueBlockEntity extends BlockEntity {
     private long nextSurveyTick;
     private List<Requirement.Status> lastSurvey = List.of();
 
+    /** How many times a real room scan has been attempted — test telemetry for W3. */
+    private int scanAttempts;
+    /** How many times this plaque's screen has been opened — test telemetry for W4. */
+    private int screenOpens;
+
     public PlaqueBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PLAQUE.get(), pos, state);
     }
@@ -67,11 +81,6 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     public BuildingType type() {
         return type;
-    }
-
-    public void setType(BuildingType type) {
-        this.type = type;
-        setChanged();
     }
 
     public PlaqueState state() {
@@ -89,6 +98,18 @@ public class PlaqueBlockEntity extends BlockEntity {
     @Nullable
     public UUID buildingId() {
         return buildingId;
+    }
+
+    public ItemStack insertedPlan() {
+        return insertedPlan.copy();
+    }
+
+    public int scanAttempts() {
+        return scanAttempts;
+    }
+
+    public int screenOpenCount() {
+        return screenOpens;
     }
 
     /**
@@ -114,6 +135,49 @@ public class PlaqueBlockEntity extends BlockEntity {
         super.setRemoved();
     }
 
+    // --------------------------------------------------------------- plan ---
+
+    /**
+     * Fits a Build Plan. Only valid while {@link PlaqueState#EMPTY} — a
+     * plaque that already has one must be extracted first. Reads the type off
+     * the plan, stores a single copy of it, and starts the surveyor: this is
+     * the moment D-006 says the plaque begins working.
+     *
+     * @return whether the plan was accepted
+     */
+    public boolean insertPlan(ServerLevel level, ItemStack plan) {
+        if (state != PlaqueState.EMPTY || plan.isEmpty()) {
+            return false;
+        }
+        type = PlaqueItemData.buildingType(plan);
+        insertedPlan = plan.copyWithCount(1);
+        state = PlaqueState.PLAN_INSERTED_UNLINKED;
+        setChanged();
+        survey(level);
+        return true;
+    }
+
+    /**
+     * Pulls the fitted plan back out, dissolving whatever it declared exactly
+     * as breaking the plaque does. Returns the exact item that was fitted —
+     * same component, same count — so this conserves it (INV-3);
+     * {@link ItemStack#EMPTY} if nothing was fitted.
+     */
+    public ItemStack extractPlan(ServerLevel level, @Nullable Player remover) {
+        if (state == PlaqueState.EMPTY || insertedPlan.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        ItemStack out = insertedPlan.copy();
+        dissolveBuilding(level, remover);
+        insertedPlan = ItemStack.EMPTY;
+        lastSurvey = List.of();
+        state = PlaqueState.EMPTY;
+        updateGlow(level);
+        revision++;
+        setChanged();
+        return out;
+    }
+
     // ------------------------------------------------------------ survey ---
 
     public static void serverTick(net.minecraft.world.level.Level level, BlockPos pos,
@@ -127,16 +191,22 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     /**
      * Look at the room and update everything that follows from it. Safe to
-     * call often: it is a bounded flood fill plus a requirement tally.
+     * call often: it is a bounded flood fill plus a requirement tally. A
+     * blank plaque (W3) refuses outright — no plan means nothing to look
+     * for, and no room scan ever runs for one.
      */
     public void survey(ServerLevel level) {
+        if (state == PlaqueState.EMPTY) {
+            return;
+        }
+        scanAttempts++;
         RoomScanner.Result result = surveyRoom(level);
         PlaqueState previous = state;
 
         if (result == null || !result.enclosed() || result.skyLeak()
             || result.volume() > RoomScanner.MAX_HOME_VOLUME) {
             lastSurvey = List.of();
-            unlink(level, PlaqueState.UNLINKED);
+            unlink(level, PlaqueState.PLAN_INSERTED_UNLINKED);
         } else {
             List<Requirement.Status> statuses = new ArrayList<>();
             boolean allMet = true;
@@ -149,7 +219,7 @@ public class PlaqueBlockEntity extends BlockEntity {
             if (allMet) {
                 link(level, result);
             } else {
-                unlink(level, PlaqueState.INCOMPLETE);
+                unlink(level, PlaqueState.LINKED_INCOMPLETE);
             }
         }
 
@@ -165,6 +235,15 @@ public class PlaqueBlockEntity extends BlockEntity {
      * Finds the room this plaque speaks for. Players hang plaques inside the
      * room and outside beside the door in equal measure, so both are tried
      * rather than documented: in front first, then through the wall behind.
+     *
+     * <p>A candidate only wins outright when it is a room by D-004's own
+     * measure — enclosed, roofed, AND within {@code MAX_HOME_VOLUME} — not
+     * merely enclosed and roofed. Without the volume bound, a wrong-direction
+     * seed that happens to flood into some far larger enclosed space (a cave,
+     * a courtyard, a GameTest arena under its own barrier ceiling) would win
+     * the short-circuit before the correct candidate is ever tried, then get
+     * rejected downstream for being oversized — reporting no room found at
+     * all even though a later candidate would have found the real one.
      */
     @Nullable
     private RoomScanner.Result surveyRoom(ServerLevel level) {
@@ -180,7 +259,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             if (result == null) {
                 continue;
             }
-            if (result.enclosed() && !result.skyLeak()) {
+            if (result.enclosed() && !result.skyLeak()
+                && result.volume() <= RoomScanner.MAX_HOME_VOLUME) {
                 return result; // a real room wins immediately
             }
             if (best == null) {
@@ -195,7 +275,7 @@ public class PlaqueBlockEntity extends BlockEntity {
     private void link(ServerLevel level, RoomScanner.Result result) {
         Settlement settlement = settlementFor(level);
         if (settlement == null) {
-            state = PlaqueState.UNLINKED;
+            state = PlaqueState.PLAN_INSERTED_UNLINKED;
             return;
         }
         SettlementSavedData data = SettlementSavedData.get(level);
@@ -220,7 +300,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         building.furnishingScore = result.furnishingScore();
         building.valid = true;
         building.lastValidatedGameTime = level.getGameTime();
-        state = PlaqueState.LINKED;
+        state = PlaqueState.LINKED_VALID;
         data.setDirty();
 
         if (type.housesResidents()) {
@@ -239,7 +319,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         state = newState;
     }
 
-    /** Breaking the plaque dissolves the building outright. */
+    /** Breaking the plaque, or extracting its plan, dissolves the building outright. */
     public void dissolveBuilding(ServerLevel level, @Nullable Player breaker) {
         Settlement settlement = settlementFor(level);
         Building building = building(level);
@@ -249,7 +329,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         releaseResidents(level, building);
         settlement.buildings.remove(building);
         buildingId = null;
-        state = PlaqueState.UNLINKED;
+        state = PlaqueState.PLAN_INSERTED_UNLINKED;
         SettlementSavedData.get(level).setDirty();
         if (breaker != null) {
             breaker.displayClientMessage(Component.translatable(
@@ -324,14 +404,14 @@ public class PlaqueBlockEntity extends BlockEntity {
     }
 
     private void announce(ServerLevel level, PlaqueState previous) {
-        if (state == PlaqueState.LINKED) {
+        if (state == PlaqueState.LINKED_VALID) {
             level.sendParticles(net.minecraft.core.particles.ParticleTypes.HAPPY_VILLAGER,
                 worldPosition.getX() + 0.5, worldPosition.getY() + 0.5,
                 worldPosition.getZ() + 0.5, 12, 0.4, 0.4, 0.4, 0.02);
             level.playSound(null, worldPosition,
                 com.hearthstead.registry.ModSounds.PROFESSION_ASSIGNED.get(),
                 SoundSource.BLOCKS, 0.8F, 1.15F);
-        } else if (previous == PlaqueState.LINKED) {
+        } else if (previous == PlaqueState.LINKED_VALID) {
             level.playSound(null, worldPosition,
                 net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM,
                 SoundSource.BLOCKS, 0.7F, 0.8F);
@@ -339,6 +419,7 @@ public class PlaqueBlockEntity extends BlockEntity {
     }
 
     public void openScreen(ServerPlayer player) {
+        screenOpens++;
         com.hearthstead.network.PlaqueNetwork.openFor(player, this);
     }
 
@@ -353,15 +434,27 @@ public class PlaqueBlockEntity extends BlockEntity {
         if (buildingId != null) {
             tag.putUUID("Building", buildingId);
         }
+        if (!insertedPlan.isEmpty()) {
+            tag.put("Plan", insertedPlan.saveOptional(provider));
+        }
     }
 
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
         super.loadAdditional(tag, provider);
         type = BuildingType.byId(tag.getString("Type"));
-        state = PlaqueState.byId(tag.getString("State"));
-        revision = tag.getInt("Revision");
         buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
+        state = PlaqueState.byId(tag.getString("State"), buildingId != null);
+        revision = tag.getInt("Revision");
+        insertedPlan = tag.contains("Plan")
+            ? ItemStack.parseOptional(provider, tag.getCompound("Plan"))
+            : ItemStack.EMPTY;
+        // EMPTY while holding a Building id is contradictory after a load
+        // (W2 refined #3) — a Building id means this was linked to something,
+        // so resolve toward LINKED_VALID and let the next survey correct it.
+        if (state == PlaqueState.EMPTY && buildingId != null) {
+            state = PlaqueState.LINKED_VALID;
+        }
     }
 
     /** The client needs the type and state to render the plaque's face. */

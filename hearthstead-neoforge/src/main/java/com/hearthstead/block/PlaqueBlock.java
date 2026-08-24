@@ -1,13 +1,16 @@
 package com.hearthstead.block;
 
-import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.PlaqueState;
+import com.hearthstead.item.BuildPlanItem;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.ItemInteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -37,9 +40,15 @@ import javax.annotation.Nullable;
  * The wall-hung plaque that declares a building.
  *
  * <p>The block itself is deliberately thin logic: it holds facing and a
- * synced {@link Glow} so the world can show red/amber/green at a glance, and
- * defers every decision to {@link PlaqueBlockEntity}. Survey results, links
- * and occupancy are server truth and live in the settlement.
+ * synced {@link Glow} so the world can show red/amber/green (or dark, while
+ * blank) at a glance, and defers every decision to {@link PlaqueBlockEntity}.
+ * Survey results, links and occupancy are server truth and live in the
+ * settlement.
+ *
+ * <p>D-006: a plaque is placed blank ({@link PlaqueState#EMPTY}) and does
+ * nothing until a Build Plan item is fitted into it. {@link #useItemOn} fits
+ * one; {@link #useWithoutItem} opens the screen once a plan is fitted, or
+ * extracts it on an empty-hand sneak-use.
  */
 public class PlaqueBlock extends BaseEntityBlock {
 
@@ -50,10 +59,12 @@ public class PlaqueBlock extends BaseEntityBlock {
     /**
      * What the plaque signals across the village square. Amber specifically
      * means "some of it is there" — the difference between a player who knows
-     * to add the second lantern and one who is guessing.
+     * to add the second lantern and one who is guessing. {@code EMPTY} is a
+     * dark, unlit lamp: a blank board must never glow a warning colour at a
+     * player who simply has not slipped a plan in yet (W6 refined).
      */
     public enum Glow implements StringRepresentable {
-        RED, AMBER, GREEN;
+        EMPTY, RED, AMBER, GREEN;
 
         @Override
         public String getSerializedName() {
@@ -61,7 +72,10 @@ public class PlaqueBlock extends BaseEntityBlock {
         }
 
         public static Glow forState(PlaqueState state, boolean anyProgress) {
-            if (state == PlaqueState.LINKED) {
+            if (state == PlaqueState.EMPTY) {
+                return EMPTY;
+            }
+            if (state == PlaqueState.LINKED_VALID) {
                 return GREEN;
             }
             return anyProgress ? AMBER : RED;
@@ -77,7 +91,7 @@ public class PlaqueBlock extends BaseEntityBlock {
         super(properties);
         registerDefaultState(stateDefinition.any()
             .setValue(FACING, Direction.NORTH)
-            .setValue(GLOW, Glow.RED));
+            .setValue(GLOW, Glow.EMPTY));
     }
 
     @Override
@@ -136,16 +150,33 @@ public class PlaqueBlock extends BaseEntityBlock {
         return state;
     }
 
+    /**
+     * Fits a Build Plan when the plaque is blank (D-006, W4). Any other item,
+     * or a plaque that already has a plan, falls through to
+     * {@link #useWithoutItem} unchanged.
+     */
     @Override
-    public void setPlacedBy(Level level, BlockPos pos, BlockState state,
-                            @Nullable net.minecraft.world.entity.LivingEntity placer,
-                            ItemStack stack) {
-        if (level.isClientSide
-            || !(level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque)) {
-            return;
+    protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level,
+                                              BlockPos pos, Player player, InteractionHand hand,
+                                              BlockHitResult hit) {
+        if (level.isClientSide) {
+            return ItemInteractionResult.SUCCESS;
         }
-        plaque.setType(BuildingType.byId(PlaqueItemData.typeOf(stack)));
-        plaque.survey((ServerLevel) level);
+        if (!(level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque)
+            || !(player instanceof ServerPlayer serverPlayer)) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+        if (plaque.state() != PlaqueState.EMPTY || !(stack.getItem() instanceof BuildPlanItem)) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+        if (!plaque.insertPlan((ServerLevel) level, stack.copyWithCount(1))) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+        if (!player.getAbilities().instabuild) {
+            stack.shrink(1);
+        }
+        plaque.openScreen(serverPlayer);
+        return ItemInteractionResult.CONSUME;
     }
 
     @Override
@@ -158,6 +189,22 @@ public class PlaqueBlock extends BaseEntityBlock {
             || !(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.PASS;
         }
+        // D-006: a blank plaque opens no screen at all — just a hint of what
+        // it is waiting for, said once per click.
+        if (plaque.state() == PlaqueState.EMPTY) {
+            serverPlayer.displayClientMessage(
+                Component.translatable("hearthstead.plaque.needs_plan"), true);
+            return InteractionResult.CONSUME;
+        }
+        // Sneak-use with an empty hand pulls the fitted plan back out (W5),
+        // returning the exact item and dissolving whatever it declared.
+        if (player.isSecondaryUseActive() && player.getMainHandItem().isEmpty()) {
+            ItemStack extracted = plaque.extractPlan((ServerLevel) level, player);
+            if (!extracted.isEmpty()) {
+                giveBack(player, extracted);
+            }
+            return InteractionResult.CONSUME;
+        }
         // Re-survey on open so the player always sees the room as it is now,
         // not as it was when the last block changed.
         plaque.survey((ServerLevel) level);
@@ -165,12 +212,28 @@ public class PlaqueBlock extends BaseEntityBlock {
         return InteractionResult.CONSUME;
     }
 
-    /** Breaking the plaque dissolves the building it declared. */
+    /** Puts an extracted plan back in the player's hand, or their pack, or the ground. */
+    private static void giveBack(Player player, ItemStack stack) {
+        if (player.getMainHandItem().isEmpty()) {
+            player.setItemInHand(InteractionHand.MAIN_HAND, stack);
+        } else if (!player.getInventory().add(stack)) {
+            player.drop(stack, false);
+        }
+    }
+
+    /**
+     * Breaking the plaque dissolves the building it declared, and returns any
+     * fitted plan to the ground rather than voiding it (INV-3).
+     */
     @Override
     public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state,
                                         Player player) {
         if (!level.isClientSide
             && level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
+            ItemStack plan = plaque.insertedPlan();
+            if (!plan.isEmpty()) {
+                Block.popResource(level, pos, plan);
+            }
             plaque.dissolveBuilding((ServerLevel) level, player);
         }
         return super.playerWillDestroy(level, pos, state, player);

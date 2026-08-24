@@ -165,7 +165,7 @@ public class PlaqueScreen extends Screen {
 
         divider(graphics, top + 56);
 
-        if ("linked".equals(snapshot.state())) {
+        if ("linked_valid".equals(snapshot.state())) {
             String header = Component.translatable("hearthstead.plaque.residents").getString()
                 + "   " + snapshot.occupants().size() + " / " + snapshot.capacity();
             graphics.drawCenteredString(font, header, left + PANEL_W / 2, top + 66, PARCHMENT);
@@ -209,8 +209,11 @@ public class PlaqueScreen extends Screen {
 
     /**
      * The requirement list — the answer to "why isn't this a building yet".
-     * Each line shows have/needed, so a half-finished requirement reads as
-     * progress rather than as a bare failure.
+     * Each label already carries its own have/needed counts (the format args
+     * every {@code hearthstead.requirement.*} key takes — "Beds 1/2", not a
+     * bare "Beds" with the count bolted on beside it), so a half-finished
+     * requirement reads as progress rather than as a bare failure, in every
+     * language regardless of word order.
      */
     private void drawRequirements(GuiGraphics graphics) {
         graphics.drawCenteredString(font,
@@ -230,11 +233,9 @@ public class PlaqueScreen extends Screen {
             String mark = met ? "✔" : partial ? "○" : "✘";
             graphics.drawString(font, mark, left + 16, y, colour, false);
             graphics.drawString(font,
-                Component.translatable("hearthstead.requirement." + line.id()),
+                Component.translatable("hearthstead.requirement." + line.id(),
+                    line.have(), line.needed()),
                 left + 30, y, met ? PARCHMENT : MUTED, false);
-            String count = line.have() + " / " + line.needed();
-            graphics.drawString(font, count,
-                left + PANEL_W - 16 - font.width(count), y, colour, false);
             y += 14;
         }
     }
@@ -242,8 +243,8 @@ public class PlaqueScreen extends Screen {
     private void drawBadge(GuiGraphics graphics) {
         String state = snapshot.state();
         int colour = switch (state) {
-            case "linked" -> EMERALD;
-            case "incomplete" -> AMBER;
+            case "linked_valid" -> EMERALD;
+            case "linked_incomplete" -> AMBER;
             default -> RED;
         };
         Component label = Component.translatable("hearthstead.plaque.state." + state);
