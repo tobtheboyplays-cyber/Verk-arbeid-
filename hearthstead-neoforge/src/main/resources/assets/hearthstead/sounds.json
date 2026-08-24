@@ -157,5 +157,52 @@
       }
     ],
     "subtitle": "subtitles.hearthstead.settler_eat"
+  },
+  "settler_panic": {
+    "sounds": [
+      {
+        "name": "hearthstead:settler_panic",
+        "volume": 0.6
+      },
+      {
+        "name": "hearthstead:settler_panic2",
+        "volume": 0.6
+      },
+      {
+        "name": "hearthstead:settler_panic3",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.settler_panic"
+  },
+  "shield_thud": {
+    "sounds": [
+      {
+        "name": "hearthstead:shield_thud",
+        "volume": 0.8
+      },
+      {
+        "name": "hearthstead:shield_thud2",
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.shield_thud"
+  },
+  "cheer": {
+    "sounds": [
+      {
+        "name": "hearthstead:cheer",
+        "volume": 0.6
+      },
+      {
+        "name": "hearthstead:cheer2",
+        "volume": 0.6
+      },
+      {
+        "name": "hearthstead:cheer3",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.cheer"
   }
 }

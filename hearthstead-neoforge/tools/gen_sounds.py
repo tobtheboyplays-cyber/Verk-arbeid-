@@ -629,6 +629,109 @@ def render_ladder_creak(rng, dur):
     return [x[i] * e[i] for i in range(n)]
 
 
+PANIC_VARIANTS = (
+    {"f0": 320.0, "dur": 0.38, "glide": 0.45},
+    {"f0": 355.0, "dur": 0.34, "glide": 0.55},
+    {"f0": 300.0, "dur": 0.42, "glide": 0.38},
+)
+
+
+def render_settler_panic(rng, dur, variant=0):
+    """A short, breathy fright yelp: a fast upward pitch snap over a hiss
+    of breath noise -- frightened, not pained (that register is settler_hm's
+    downward-glide territory; this one snaps UP and is over quickly)."""
+    p = PANIC_VARIANTS[variant]
+    f0 = p["f0"]
+    d = p["dur"]
+    n = n_samples(d)
+    ph = 0.0
+    src = []
+    ap = src.append
+    for i in range(n):
+        t = i / SR
+        g = min(1.0, t / (0.12 * d))  # the snap happens fast, right at onset
+        g = g * g
+        ph += TWO_PI * f0 * (1.0 + p["glide"] * g) / SR
+        ap(math.sin(ph) - math.sin(3 * ph) / 9.0 + math.sin(5 * ph) / 25.0)
+    voiced = one_pole_lp(src, 1100)
+    formant = biquad_bp(src, 1400.0, 3.5)
+    breath = one_pole_hp(white_noise(rng, d), 1800)
+    out = []
+    for i in range(n):
+        t = i / SR
+        e = min(1.0, t / 0.02)  # near-instant onset -- a startled sound
+        rel = 0.55 * d
+        if t > d - rel:
+            e *= max(0.0, (d - t) / rel)
+        be = e * (0.6 + 0.4 * max(0.0, 1.0 - t / (0.3 * d)))  # breath fades first
+        out.append((0.55 * voiced[i] + 0.7 * formant[i]) * e + 0.35 * breath[i] * be)
+    return soft_clip(out, 1.15)
+
+
+SHIELD_VARIANTS = (
+    {"f0": 118.0, "tau": 0.075, "rattle_f": 900.0},
+    {"f0": 104.0, "tau": 0.085, "rattle_f": 1050.0},
+)
+
+
+def render_shield_thud(rng, dur, variant=0):
+    """A deep wooden shield impact: a low body thump plus a brief board
+    rattle -- distinct from blade_hit's bright metal click."""
+    p = SHIELD_VARIANTS[variant]
+    mix = []
+    n = n_samples(p["tau"] * 5)
+    thump = [math.exp(-(i / SR) / p["tau"]) * math.sin(TWO_PI * p["f0"] * (i / SR))
+             for i in range(n)]
+    mix_at(mix, thump, 0.0, 1.0)
+    knock = one_pole_lp(white_noise(rng, 0.03), 260)
+    ke = env_exp(len(knock), attack=0.0005, tau=0.012)
+    mix_at(mix, [knock[i] * ke[i] for i in range(len(knock))], 0.0, 0.5)
+    rattle = biquad_bp(white_noise(rng, 0.10), p["rattle_f"], 2.5)
+    re_ = env_exp(len(rattle), attack=0.004, tau=0.05)
+    mix_at(mix, [rattle[i] * re_[i] for i in range(len(rattle))], 0.02, 0.3)
+    return soft_clip(mix, 1.25)
+
+
+CHEER_VARIANTS = (
+    {"f0": 210.0, "dur": 0.55, "glide": 0.30},
+    {"f0": 232.0, "dur": 0.60, "glide": 0.35},
+    {"f0": 198.0, "dur": 0.65, "glide": 0.28},
+)
+
+
+def render_cheer(rng, dur, variant=0):
+    """A bright mumble-voice cheer: an energetic upward glide with a
+    brighter formant than settler_hm, and a firmer onset -- a hop-and-shout
+    read rather than a question."""
+    p = CHEER_VARIANTS[variant]
+    f0 = p["f0"]
+    d = p["dur"]
+    n = n_samples(d)
+    ph = 0.0
+    vph = rng.uniform(0.0, TWO_PI)
+    src = []
+    ap = src.append
+    for i in range(n):
+        t = i / SR
+        g = min(1.0, t / (0.4 * d))
+        g = g * g * (3.0 - 2.0 * g)
+        vib = 1.0 + 0.02 * min(1.0, t / 0.1) * math.sin(TWO_PI * 6.0 * t + vph)
+        ph += TWO_PI * f0 * (1.0 + p["glide"] * g) * vib / SR
+        ap(math.sin(ph) - math.sin(3 * ph) / 9.0 + math.sin(5 * ph) / 25.0)
+    voiced = one_pole_lp(src, 1400)
+    f1 = biquad_bp(src, 900.0, 4.0)
+    f2 = biquad_bp(src, 2400.0, 5.0)  # brighter upper formant than settler_hm
+    out = []
+    for i in range(n):
+        t = i / SR
+        e = min(1.0, t / 0.04)
+        rel = 0.28 * d
+        if t > d - rel:
+            e *= max(0.0, (d - t) / rel)
+        out.append((0.5 * voiced[i] + 0.9 * f1[i] + 0.5 * f2[i]) * e)
+    return soft_clip(out, 1.1)
+
+
 def render_settler_eat(rng, dur):
     """A soft, wet chew: a damp noise burst plus a tiny mouth-click."""
     mix = []
@@ -669,6 +772,14 @@ SOUND_SPECS = [
     ("yawn",                0.90, render_yawn,         {}, 0.35),
     ("ladder_creak",        0.30, render_ladder_creak, {}, 0.40),
     ("settler_eat",         0.20, render_settler_eat,  {}, 0.55),
+    ("settler_panic",       0.38, render_settler_panic, {"variant": 0}, 0.55),
+    ("settler_panic2",      0.34, render_settler_panic, {"variant": 1}, 0.55),
+    ("settler_panic3",      0.42, render_settler_panic, {"variant": 2}, 0.55),
+    ("shield_thud",         0.30, render_shield_thud, {"variant": 0}, 0.75),
+    ("shield_thud2",        0.30, render_shield_thud, {"variant": 1}, 0.75),
+    ("cheer",               0.55, render_cheer, {"variant": 0}, 0.55),
+    ("cheer2",              0.60, render_cheer, {"variant": 1}, 0.55),
+    ("cheer3",              0.65, render_cheer, {"variant": 2}, 0.55),
 ]
 
 SOUNDS_JSON_DATA = {
@@ -746,6 +857,29 @@ SOUNDS_JSON_DATA = {
         "sounds": [{"name": "hearthstead:settler_eat", "volume": 0.6}],
         "subtitle": "subtitles.hearthstead.settler_eat",
     },
+    "settler_panic": {
+        "sounds": [
+            {"name": "hearthstead:settler_panic", "volume": 0.6},
+            {"name": "hearthstead:settler_panic2", "volume": 0.6},
+            {"name": "hearthstead:settler_panic3", "volume": 0.6},
+        ],
+        "subtitle": "subtitles.hearthstead.settler_panic",
+    },
+    "shield_thud": {
+        "sounds": [
+            {"name": "hearthstead:shield_thud", "volume": 0.8},
+            {"name": "hearthstead:shield_thud2", "volume": 0.8},
+        ],
+        "subtitle": "subtitles.hearthstead.shield_thud",
+    },
+    "cheer": {
+        "sounds": [
+            {"name": "hearthstead:cheer", "volume": 0.6},
+            {"name": "hearthstead:cheer2", "volume": 0.6},
+            {"name": "hearthstead:cheer3", "volume": 0.6},
+        ],
+        "subtitle": "subtitles.hearthstead.cheer",
+    },
 }
 
 
@@ -772,9 +906,17 @@ def read_wav_samples(path):
 
 
 def encode_ogg(wav_path, ogg_path):
+    # -fflags/-flags:a +bitexact and -map_metadata -1 make the container and
+    # its comment tags (encoder version string, stream serial) deterministic
+    # across runs and machines -- otherwise re-running the generator rewrites
+    # every pre-existing .ogg's stream metadata by a handful of bytes with no
+    # change to the underlying (deterministic) PCM, the same class of issue
+    # as KF-007. Proven by running the generator twice in a row and diffing.
     subprocess.run(
-        ["ffmpeg", "-y", "-v", "error", "-i", wav_path,
+        ["ffmpeg", "-y", "-v", "error", "-fflags", "+bitexact",
+         "-flags:a", "+bitexact", "-i", wav_path,
          "-c:a", "libvorbis", "-qscale:a", "4", "-ar", str(SR), "-ac", "1",
+         "-flags:a", "+bitexact", "-map_metadata", "-1", "-fflags", "+bitexact",
          ogg_path],
         check=True)
 

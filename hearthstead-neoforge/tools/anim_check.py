@@ -41,11 +41,12 @@ LEGS_EXEMPT = {"IDLE", "GUARD_PATROL", "EAT"}
 ENDS_IN_POSE_ALLOWLIST = set()  # none in A1; COURIER_LIFT/HEAL_REVIVE are A2/A3.
 
 # Clips declared as carry/arm layers (§16.2) -- must lock arm rotation to
-# <= 6 degrees of travel (§17.4 check 22). None of A1's clips are carry
-# layers in the strict §16.2 sense (WALK_LADEN doesn't exist yet); HAUL_LOG
-# is self-contained this phase (see its own doc comment), so it is NOT
-# checked as a carry layer here -- it deliberately isn't one yet.
-CARRY_LAYER_CLIPS = set()
+# <= 6 degrees of travel (§17.4 check 22). HAUL_LOG is a real §0.5
+# SHOULDER-grammar carry clip: its arms must read as "locked", not swinging
+# with the walk cycle underneath (RELEASE_GATE HIGH-1 -- SettlerModel must
+# resetPose() the arms it owns before applying HAUL_LOG, or this check's
+# amplitude reading is meaningless even when the clip data itself is fine).
+CARRY_LAYER_CLIPS = {"HAUL_LOG"}
 
 # Head-tracking damping table (§17.4 check 24), for clips this phase gives a
 # non-default damp value to. Cross-checked against SettlerModel.java's damp
@@ -82,6 +83,40 @@ SOUND_CONTRACTS = [
 # different pitch, so "sound existence" (check 15) still resolves correctly
 # against sounds.json under the sound's own canonical key, not a synthetic
 # one. LIMB_BRANCHES reuses CHOP; HAUL_LOG reuses SETTLER_HM.
+
+# Sound-sync contracts whose trigger is NOT a single repeating "workTicks %
+# period == tick" loop inside one AI_DIR goal file, so they don't fit
+# SOUND_CONTRACTS' assumptions (period == the clip's own loop length; a
+# single owning AI-goal file; a LINEAR "snap" keyframe). These cover: a
+# throttled first-cycle-only vocal (RUN_PANIC), an every-Nth-cycle grunt on
+# a super-cycle (WALK_LIMP), a server-side scheduler living in
+# SettlerEntity.java rather than AI_DIR (all of these), and genuine
+# one-shots triggered by a broadcast event rather than a modulo (SHIELD_BLOCK,
+# CELEBRATE, WAKE_STRETCH). Each row is still checked for real: the clip has
+# a keyframe at every listed accent second (any interpolation -- these are
+# not all impact snaps, e.g. EAT/CELEBRATE's accents ride a continuous
+# CATMULLROM motion on purpose), the sound resolves in sounds.json, and
+# every tick constant is grepped -- by name, not by guessed value -- out of
+# the Java file that actually owns it, so a value that drifts from this
+# table fails loudly instead of silently.
+# (clip, [accent_seconds...] or [] if the trigger isn't loop-relative,
+#  sound_field, java_file relative to src/main/java/com/hearthstead,
+#  [(tick_constant_name, expected_value), ...])
+ENTITY_SOUND_CONTRACTS = [
+    ("CLIMB_LADDER", [0.25, 0.75], "LADDER_CREAK", "entity/SettlerEntity.java",
+     [("LADDER_CREAK_TICK_A", 5), ("LADDER_CREAK_TICK_B", 15),
+      ("LADDER_CREAK_PERIOD", 20)]),
+    ("WALK_LIMP", [0.40], "SETTLER_HM", "entity/SettlerEntity.java",
+     [("LIMP_GRUNT_TICK", 8)]),
+    ("RUN_PANIC", [0.15], "SETTLER_PANIC", "entity/ai/SettlerPanicGoal.java",
+     [("PANIC_YELP_TICK", 3)]),
+    ("SHIELD_BLOCK", [], "SHIELD_THUD", "entity/SettlerEntity.java",
+     [("SHIELD_THUD_DELAY", 2)]),
+    ("CELEBRATE", [0.45, 1.10], "CHEER", "entity/SettlerEntity.java",
+     [("CHEER_TICK_A", 9), ("CHEER_TICK_B", 22)]),
+    ("WAKE_STRETCH", [1.20], "YAWN", "entity/SettlerEntity.java",
+     [("WAKE_YAWN_TICK", 24)]),
+]
 
 
 def strip_comments(text):
@@ -176,6 +211,46 @@ def check_pipeline_present_in_model(model_path, needle):
     if not os.path.isfile(model_path):
         return False
     return needle in open(model_path, encoding="utf-8").read()
+
+
+TICK_CONSTANT_DECL_RE_TMPL = r'\b{name}\s*=\s*(\d+)\s*;'
+
+
+def check_entity_sound_contracts(defs, sounds_data, errors, warns):
+    """ENTITY_SOUND_CONTRACTS: sound-sync contracts driven by a server-side
+    scheduler or a one-shot trigger rather than a single AI-goal's repeating
+    workTicks%period==tick line (see the table's own comment for why these
+    don't fit SOUND_CONTRACTS)."""
+    java_root = os.path.join(ROOT, "src/main/java/com/hearthstead")
+    for clip, accents, sound_field, rel_path, tick_constants in ENTITY_SOUND_CONTRACTS:
+        d = defs.get(clip)
+        if d is None:
+            errors.append(f"entity sound contract for {clip}: clip not implemented")
+            continue
+        for accent_s in accents:
+            hit = any(any(abs(f[0] - accent_s) < 1e-6 for f in frames)
+                      for _, _, frames in d["channels"])
+            if not hit:
+                errors.append(f"{clip}: no keyframe at accent_seconds={accent_s} on any "
+                              f"channel -- the sound accent has nothing to sync to")
+        sound_key = sound_field.lower()
+        if sound_key not in sounds_data:
+            errors.append(f"{clip}: sound '{sound_key}' (ModSounds.{sound_field}) has no "
+                          f"entry in sounds.json")
+        src_path = os.path.join(java_root, rel_path)
+        if not os.path.isfile(src_path):
+            errors.append(f"{clip}: sound contract source {rel_path} does not exist")
+            continue
+        text = strip_comments(open(src_path, encoding="utf-8").read())
+        for const_name, expect_value in tick_constants:
+            m = re.search(TICK_CONSTANT_DECL_RE_TMPL.format(name=re.escape(const_name)), text)
+            if m is None:
+                errors.append(f"{clip}: constant {const_name} not found in {rel_path} -- "
+                              f"the sound-sync contract (catalogue/goal/checker) is broken")
+            elif int(m.group(1)) != expect_value:
+                errors.append(f"{clip}: {const_name} in {rel_path} is {m.group(1)}, "
+                              f"but the contract table says {expect_value} (fix whichever "
+                              f"is wrong -- they must agree)")
 
 
 def main():
@@ -344,18 +419,33 @@ def main():
                              f"CATMULLROM and more than 0.10s before the impact -- risk of "
                              f"pre-swinging through the contact point")
 
-    # 17.4-24: head-damping table cross-check (grep-based, structural).
+    # 17.3 (extended): entity-scheduler / one-shot sound contracts.
+    check_entity_sound_contracts(defs, sounds_data, errors, warns)
+
+    # 17.4-24: head-damping table cross-check. Structural, not a bare
+    # substring search: scoped to the actual `damp = ...F;` assignment
+    # block (found from its own `float damp;` declaration) so a coincidental
+    # occurrence of the same number elsewhere in a 1000+ line file can't
+    # produce a false pass -- only real assignments inside the damping
+    # cascade itself count.
     model_path = os.path.join(ROOT,
         "src/main/java/com/hearthstead/client/model/SettlerModel.java")
-    for clip, damp in DAMPING_TABLE.items():
-        needle = f"{damp}F" if damp != int(damp) or damp == 0.0 else f"{damp}F"
-        # Search for the literal damp value in SettlerModel.java; this is a
-        # structural smoke check, not a semantic one -- it would miss a
-        # value assigned to the wrong condition, but it catches the more
-        # common failure (a clip added here with no damping wired at all).
-        if not check_pipeline_present_in_model(model_path, needle):
-            errors.append(f"damping table: {clip} needs damp={damp} in "
-                          f"SettlerModel.setupAnim's damping table, literal not found")
+    if not os.path.isfile(model_path):
+        errors.append("damping table: SettlerModel.java not found")
+    else:
+        model_text = strip_comments(open(model_path, encoding="utf-8").read())
+        block_m = re.search(r'\bfloat\s+damp\s*;(.*?)head\.yRot', model_text, re.S)
+        if block_m is None:
+            errors.append("damping table: no 'float damp;' cascade found in "
+                          "SettlerModel.setupAnim -- head-tracking damping is unwired")
+        else:
+            assigned = {round(float(v), 3)
+                       for v in re.findall(r'\bdamp\s*=\s*([\d.]+)F\s*;', block_m.group(1))}
+            for clip, damp in DAMPING_TABLE.items():
+                if round(float(damp), 3) not in assigned:
+                    errors.append(f"damping table: {clip} needs damp={damp} assigned "
+                                  f"somewhere in SettlerModel.setupAnim's damping cascade, "
+                                  f"no such assignment found")
 
     # 17.4-25: per-entity variation call sites (grep-based, warning).
     for clip in PER_ENTITY_VARIATION_CLIPS:

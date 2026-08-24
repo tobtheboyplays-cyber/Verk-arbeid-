@@ -122,6 +122,17 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
 
         if (climbing) {
             animate(entity.climbState, SettlerAnimations.CLIMB_LADDER, ageInTicks);
+        } else if (activity == SettlerActivity.HAULING_LOG && entity.haulState.isStarted()) {
+            // HAUL_LOG is a full self-contained gait -- its own legs, torso,
+            // head, cloak and root, not just an arm overlay (RELEASE_GATE
+            // HIGH-1). It must fully REPLACE WALK, the same way CLIMB_LADDER
+            // does above: applying WALK first and HAUL_LOG's "locked" carry
+            // arms on top of it (vanilla's animate() is additive) defeated
+            // the whole point of a locked carry -- the arms visibly swung
+            // with WALK's oscillation underneath. root().resetPose() at the
+            // top of this method already leaves every part clean, so no
+            // parts are shared with WALK here and no extra reset is needed.
+            animate(entity.haulState, SettlerAnimations.HAUL_LOG, ageInTicks);
         } else {
             // Locomotion: mutually exclusive alternatives to WALK, picked by
             // priority since animateWalk always writes legs+arms+torso+cloak
@@ -139,11 +150,15 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
             }
             animateWalk(locomotion, limbSwing, limbSwingAmount, 2.0F, 2.5F);
 
-            if (activity == SettlerActivity.PATROLLING && limbSwingAmount > 0.01F) {
+            if (activity == SettlerActivity.PATROLLING && entity.patrolState.isStarted()) {
                 // GUARD_PATROL overrides WALK's arm swing with a locked
                 // pommel-hand pose -- reset the two arm parts first, since
                 // vanilla's animate() adds onto the current pose rather than
-                // replacing it.
+                // replacing it. Gated on the AnimationState itself (not a
+                // re-derived limbSwingAmount threshold, which used a
+                // different cutoff than the state's own animateWhen
+                // condition and could reset the arms with nothing applied
+                // to replace them -- RELEASE_GATE LOW-4).
                 rightArm.resetPose();
                 leftArm.resetPose();
                 animate(entity.patrolState, SettlerAnimations.GUARD_PATROL, ageInTicks);
@@ -151,24 +166,49 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         }
 
         // Per-entity phase offsets so a crowd never moves in unison
-        // (§17.4 check 25 -- CELEBRATE, SLEEP_IN_BED, WAKE_STRETCH, IDLE).
+        // (§17.4 check 25). Offsetting the sampled ageInTicks is only valid
+        // for LOOPING clips (IDLE, SLEEP_IN_BED) -- it can jump a ONE-SHOT
+        // past its own length on the very first evaluated frame, truncating
+        // or skipping it entirely (RELEASE_GATE MEDIUM-2). CELEBRATE and
+        // WAKE_STRETCH are one-shots, so their per-entity variation is
+        // staggered server-side instead, on the TRIGGER tick
+        // (SettlerEntity.celebrate()/triggerWakeStretch()) -- not here.
         int id = entity.getId();
         animate(entity.idleState, SettlerAnimations.IDLE, ageInTicks + (id % 80));
         animate(entity.farmState, SettlerAnimations.FARM_TILL, ageInTicks);
         animate(entity.chopState, SettlerAnimations.CHOP, ageInTicks);
         animate(entity.eatState, SettlerAnimations.EAT, ageInTicks);
         animate(entity.restState, SettlerAnimations.REST, ageInTicks);
-        animate(entity.stanceState, SettlerAnimations.GUARD_STANCE, ageInTicks);
         animate(entity.meleeState, SettlerAnimations.MELEE, ageInTicks);
-        animate(entity.celebrateState, SettlerAnimations.CELEBRATE, ageInTicks + (id % 7));
+        animate(entity.celebrateState, SettlerAnimations.CELEBRATE, ageInTicks);
         animate(entity.plantState, SettlerAnimations.FARM_PLANT, ageInTicks);
         animate(entity.harvestState, SettlerAnimations.FARM_HARVEST, ageInTicks);
         animate(entity.waterState, SettlerAnimations.FARM_WATER, ageInTicks);
         animate(entity.limbState, SettlerAnimations.LIMB_BRANCHES, ageInTicks);
-        animate(entity.haulState, SettlerAnimations.HAUL_LOG, ageInTicks);
-        animate(entity.shieldState, SettlerAnimations.SHIELD_BLOCK, ageInTicks);
         animate(entity.sleepState, SettlerAnimations.SLEEP_IN_BED, ageInTicks + (id % 160));
-        animate(entity.wakeState, SettlerAnimations.WAKE_STRETCH, ageInTicks + (id % 60));
+        animate(entity.wakeState, SettlerAnimations.WAKE_STRETCH, ageInTicks);
+
+        if (entity.shieldState.isStarted()) {
+            // SHIELD_BLOCK is a full self-contained guard hold (its own
+            // legs/torso/arms/head/root/cloak, the same full set GUARD_STANCE
+            // owns) -- reset every part both clips touch first, or the
+            // stance's hold values (and any small residual from WALK, whose
+            // amplitude near-zeroes but doesn't fully zero while stationary)
+            // add underneath and corrupt the block pose (RELEASE_GATE
+            // MEDIUM-1). GUARD_STANCE resumes cleanly next frame once
+            // shieldState (a short reflexive one-shot) ends.
+            rightLeg.resetPose();
+            leftLeg.resetPose();
+            head.resetPose();
+            torso.resetPose();
+            rightArm.resetPose();
+            leftArm.resetPose();
+            root.resetPose();
+            torso.getChild("cloak").resetPose();
+            animate(entity.shieldState, SettlerAnimations.SHIELD_BLOCK, ageInTicks);
+        } else {
+            animate(entity.stanceState, SettlerAnimations.GUARD_STANCE, ageInTicks);
+        }
 
         // Head tracking layers additively over the keyframes, damped per the
         // catalogue's damping table (§17.4 check 24) -- most-specific first.

@@ -30,6 +30,12 @@ session needs is written down — never guess, always read.
   per small edit — `changed` tells you which heavy suites your diff maps to.
 - Feature complete → prove it in-game: `tools/hearthstead-qa live start`,
   drive the scenario, `shot`/`film` the evidence.
+- **Visual quality loop for models/animations/textures**: use the Blockbench
+  bridge (`hearthstead-neoforge/tools/blockbench/README.md`) — export the
+  model + all clips to .bbmodel, render posed frames through the real
+  Blockbench engine headless, READ the PNGs and critique against
+  `docs/ANIMATION_CATALOGUE.md` (arcs, easing, silhouette, palette) before
+  and after touching keyframes or generators. Never tune art blind.
 - Slice end → `tools/hearthstead-qa full` twice back-to-back (green_streak
   ≥ 2, one fingerprint, hands off the tree while it runs) → only then
   request the RELEASE_GATE.

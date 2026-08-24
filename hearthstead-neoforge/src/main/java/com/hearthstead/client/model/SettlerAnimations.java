@@ -17,7 +17,9 @@ import static net.minecraft.client.animation.AnimationChannel.Targets.SCALE;
  * Transcribed from docs/ANIMATION_CATALOGUE.md phase A1 (23 clips) --
  * that document is the source of truth for every value below.
  *
- * Sound sync contracts (accent frame -> tick, of a `length*20`-tick cycle):
+ * Sound sync contracts (accent frame -> tick; every value below must agree
+ * with tools/anim_check.py's SOUND_CONTRACTS / ENTITY_SOUND_CONTRACTS tables
+ * and, for the goal-driven ones, the AI goal's own tick-modulo comment):
  *  WALK: footfalls t=0.25s/0.75s (vanilla step sound, no custom contract)
  *  FARM_TILL: t=0.60s -> tick 12 of 30 (FarmerWorkGoal, WORK_DURATION-tied)
  *  FARM_PLANT: t=0.70s -> tick 14 of 40
@@ -26,9 +28,23 @@ import static net.minecraft.client.animation.AnimationChannel.Targets.SCALE;
  *  CHOP: t=0.55s -> tick 11 of 20 (LumbererWorkGoal, live, unchanged)
  *  LIMB_BRANCHES: t=0.30s -> tick 6 of 26; t=0.95s -> tick 19 of 26
  *  HAUL_LOG: t=1.20s -> tick 24 of 48
- *  MELEE: t=0.22s -> tick 4 of 10 (damage tick)
- *  CLIMB_LADDER: t=0.25s/0.75s -> ticks 5/15 of 20
- *  WAKE_STRETCH: t=1.20s -> tick 24 of 52 (one-shot)
+ *  MELEE: t=0.20s -> tick 4 of 10 (damage tick, SettlerEntity.doHurtTarget)
+ *  CLIMB_LADDER: t=0.25s/0.75s -> ticks 5/15 of 20 (SettlerEntity.tickAccents,
+ *    ladder_creak, gated on vertical movement so it is silent while merely
+ *    standing on a ladder)
+ *  WALK_LIMP: t=0.40s -> tick 8, throttled to one grunt per 3rd cycle (an 84
+ *    -tick super-cycle) -- SettlerEntity.tickAccents, settler_hm pitched 0.8x
+ *  RUN_PANIC: t=0.1375s -> tick 3, first cycle only, then throttled to one
+ *    vocal per 2s -- SettlerPanicGoal.tick(), settler_panic
+ *  SHIELD_BLOCK: t=0.10s (2 ticks after the block event is registered) --
+ *    SettlerEntity.hurt(), shield_thud
+ *  EAT: t=0.25s/0.70s -> ticks 5/14 of 24 -- EatFromHearthGoal.tick(),
+ *    settler_eat
+ *  CELEBRATE: t=0.45s/1.10s -> ticks 9/22 after the one-shot's own trigger
+ *    tick (never ageInTicks -- see SettlerModel's own comment on why) --
+ *    SettlerEntity.tickAccents, cheer
+ *  WAKE_STRETCH: t=1.20s -> tick 24 of 52 (one-shot), triggered by
+ *    RestAtNightGoal via SettlerEntity.triggerWakeStretch() -- yawn
  */
 public final class SettlerAnimations {
 
@@ -381,7 +397,9 @@ public final class SettlerAnimations {
             new Keyframe(0.7F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM)))
         .build();
 
-    /** Flat-out flight: arms flailing above the head, out of phase. 0.55s loop. */
+    /** Flat-out flight: arms flailing above the head, out of phase. 0.6s loop
+     *  (bumped from the catalogue's 0.55s so the accent's quarter-beats land
+     *  on the 0.05s tick grid -- recorded in the quality ledger). */
     public static final AnimationDefinition RUN_PANIC = AnimationDefinition.Builder
         .withLength(0.6F).looping()
         .addAnimation("right_leg", new AnimationChannel(ROTATION,

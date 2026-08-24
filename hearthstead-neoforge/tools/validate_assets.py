@@ -548,6 +548,34 @@ def check_lang(langs: dict, any_keys_needed: bool) -> None:
 # 7. Sounds
 # --------------------------------------------------------------------------
 
+SETTLER_ACTIVITY_ENTRY_RE = re.compile(r'\b([A-Z][A-Z0-9_]*)\s*\(\s*"([a-z0-9_]+)"\s*\)')
+
+
+def check_settler_activities(langs: dict) -> None:
+    """Every SettlerActivity enum value needs a real nameplate string —
+    guards against the class of bug where a new activity is appended
+    without a matching hearthstead.activity.<key> lang key (an untranslated
+    key then shows raw in the player-facing nameplate)."""
+    src_path = JAVA_ROOT / "com" / "hearthstead" / "entity" / "SettlerActivity.java"
+    if not src_path.is_file():
+        info("Activities", "SettlerActivity.java not found — skipped")
+        return
+    text = strip_java_comments(src_path.read_text(encoding="utf-8"))
+    enum_body_match = re.search(r"\benum\s+SettlerActivity\s*\{(.*?)\}", text, re.DOTALL)
+    if not check("Activities", enum_body_match is not None,
+                 f"{rel(src_path)} declares the SettlerActivity enum"):
+        return
+    # Only the constant declarations, not the constructor/methods that follow.
+    decls = enum_body_match.group(1).split(";", 1)[0]
+    keys = [m.group(2) for m in SETTLER_ACTIVITY_ENTRY_RE.finditer(decls)]
+    if not check("Activities", bool(keys),
+                 f"{rel(src_path)} has at least one activity constant"):
+        return
+    for key in keys:
+        require_lang_key("Activities", langs, f"hearthstead.activity.{key}",
+                          f"SettlerActivity.{key.upper()}")
+
+
 def check_sounds(sound_events: dict[str, str], langs: dict) -> None:
     sounds_json = MOD_ASSETS / "sounds.json"
     if not sounds_json.is_file():
@@ -1166,6 +1194,7 @@ def main(argv: list[str] | None = None) -> int:
     check_blocks(registries["blocks"], langs)
     check_items(registries["items"], registries["blocks"], blockitems, langs)
     check_entities(registries["entities"], langs)
+    check_settler_activities(langs)
     check_json_integrity()
 
     subtitles_declared = False
