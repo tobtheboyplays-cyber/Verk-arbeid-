@@ -4,104 +4,130 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
 
 ## Current goal
 
-**SLICE HARNESS-1** — repair the QA harness (`tools/hearthstead-qa`, `qa/scripts/*`)
-so in-game testing is real, isolated, torn down, and honestly gated. Plan:
-`docs/project/PLAN_HARNESS-1.md`. **No `hearthstead-neoforge/src/` touched**,
-except `build.gradle`'s client run args (allowed, not `src/`).
+**SLICE HARNESS-1, CORRECTION ROUND** — RELEASE_GATE returned REVISE with a
+14-item defect list (3 HIGH, 5 MEDIUM incl. two AC-8/AC-10 evidence gaps, 4
+LOW + cheap extras). Fixing all in one coordinated pass. Plan:
+`docs/project/PLAN_HARNESS-1.md`. **No `hearthstead-neoforge/src/` touched.**
 
-## Status: ALL 14 ACs implemented and proven with real, stored evidence
+## Status: all 14 findings fixed in code; proving + repeat-run phase in progress
 
-AC-1..AC-14 each have real evidence under `qa/reports/artifacts/`. Both
-"twice from cold starts" pairs done for dedicated/performance/client/
-playtest/live, identical check sets confirmed. All 3 AC-7 teardown trials
-done (clean finish, assertion failure, deliberately-aborted `live start` —
-the exact PID-1273 shape, reproduced and cleaned). All 4 AC-8 negative
-tests (N1-N4) driven for real through the controller, each asserting on the
-real failure message. AC-10 provision done (install rebuilt from scratch,
-verified by a passing playtest, backup deleted). AC-11 evidence-layout grep
-done. AC-12 driven (doctor after a red state still leaves gate non-zero).
-AC-5 film has real motion (median_mad 11.67, contact sheet opened and
-inspected). Ready for RELEASE_GATE.
+**Fixed, verified by direct evidence:**
+- **Finding 1** (expect_server self-satisfy): playtest.sh now reads
+  `$INST/logs/latest.log` (`SRV_LOG`, the server's own Log4j file) for every
+  server-content check — never the tmux pane transcript, which echoes a
+  scmd's typed text before the server executes it. PROVEN with a standalone
+  repro (`qa/reports/artifacts/finding1-proof/transcript.txt`): a false
+  conditional's token is NOT found via SRV_LOG (correctly dies) while the
+  old pane-log method would have matched the echoed keystrokes and wrongly
+  passed; a true unconditional `say` IS found. Reap clean after.
+- **Finding 2** (client suite root-capture false pass): client_boot.sh now
+  finds the real window id, asserts ITS geometry is 1280x720 before ever
+  capturing, never `-window root`. Verified: `client/20260824T003609Z`
+  PASS 4/4, `screenshot-title.png` non-black bbox = (0,0,1280,720) (full
+  frame), vs. the old (213,120,1067,600) letterboxed-854x480 artifact.
+- **Finding 3** (forced camera pan): `live film` pan is now opt-in
+  (4th arg `pan`, default off). Proof run in progress (see below).
+- **Finding 4**: `live start` now writes `reproduction.md`; `stop` appends
+  a `session_stopped` check and re-aggregates via `finish_result` instead of
+  overwriting result.json, so `start`'s checks survive.
+- **Finding 5** (no durable AC-8/AC-10 evidence): `negative_tests.sh`,
+  `reap.sh`'s check/dry-run/reap dispatch, and `cmd_provision` all now call
+  `ev_init`/`check_pass`/`finish_result`/`write_reproduction` — durable
+  evidence under `qa/reports/artifacts/{negative,reap,provision}/<TS>/`.
+- **Finding 8**: unknown scenario directive is now `die()` (hard FAIL);
+  every directive (not just expect_*) gets a `check_pass` entry.
+- **Finding 9**: `ev_init` now computes and records `fingerprint`/
+  `dirty_hash` identically to the controller's own (added `hsqa_fingerprint`/
+  `hsqa_dirty_hash` to lib_harness.sh).
+- **Finding 10**: `reap.sh selftest` now calls `matching_procs()` itself
+  (via injectable `HSQA_REAP_TEST_INPUT`) instead of a separately re-typed
+  pattern copy — verified: `reap.sh selftest` PASS.
+- **Finding 11**: `cmd_reap`'s pidfile-stage kill now validates each PID's
+  live cmdline first — skips if gone, refuses (does not kill) if the PID now
+  belongs to a GradleDaemon.
+- **Finding 12**: client_boot.sh now writes `options.txt` deterministically
+  (same block as playtest.sh/live.sh).
+- **Finding 13**: negative_tests.sh N2's revert trap is now
+  `EXIT INT TERM RETURN`, not RETURN-only.
+- **Cheap extras**: perf_probe.sh's `PERF_POPULATION_OK` now uses a real
+  scoreboard count (`execute store result score ... if entity ...`) instead
+  of `limit=25` (which only caps, never requires, a minimum) — verified live:
+  `performance` PASS, ~27 settlers via genuine count, MSPT 1.17. 
+  build_contact_sheet.py now actually enforces the AC-5 duration/fps floor
+  (`duration_ok`/`fps_ok`/`ac5_ok`), not just `motion_ok`, matching its
+  docstring's claim.
 
-**Not run this slice, deliberately:** `tools/hearthstead-qa full` — it will
-be RED on pre-existing KF-001/004/005 (plaque, PLAQUE-1 scope) by design.
+**In progress this pass (see Next concrete action):** `negative all` (N1-N3
+PASS so far, N4 running — long budget by design), second cold-start
+client/performance runs, finding-3 settler-motion proof, `provision`,
+playtest+live repeat pairs for current source.
 
-## Files changed this slice
+Two dedicated cold-starts already PASS at current fingerprint
+(`d26bbe2f8a...`, runs `20260824T003041Z`/`20260824T003329Z`) — done, do not
+re-run unless fingerprint changes again.
 
-Same set as before plus: `qa/scripts/negative_tests.sh` OUT-dir bug fixed
-(was colliding with the subcommand arg, scattering `n1/`..`n4/` dirs into
-the repo root — now `HSQA_NEGATIVE_OUT` env override, fixed default);
-`qa/scripts/reap.sh` pattern fixed (`hsqa-inst` → `hsqa-inst/`, was a
-substring false-positive against `hsqa-install`, the shared cache dir —
-found live when a harmless diagnostic echo got matched); `qa/scripts/
-live.sh` `server_pid()` rewritten to scan `/proc/*/cwd` (see finding below);
-`qa/scripts/lib_harness.sh` `die()` now always writes `reproduction.md`
-even on failure (AC-11 needs all 5 elements unconditionally); `qa/
-PROTOCOL.md` gained playtest/live/reap/provision/negative suite rows, gate-
-integrity and evidence-store sections; `docs/project/KNOWN_FAILURES.md`
-KF-002/003 marked RESOLVED (re-measured PASS x2), KF-006 marked RESOLVED
-with full root-cause list.
+## Files changed this round (on top of the prior slice's set)
 
-Full file list otherwise unchanged from the previous checkpoint: `tools/
-hearthstead-qa`, `qa/hooks/bash_guard.sh`+`bash_guard_filter.py`+
-`test_bash_guard.py`, `qa/scripts/{lib_harness,reap,server_install,
-server_instance,dedicated_e2e,perf_probe,client_boot,playtest,live,
-check_screenshot,pixel_diff,build_contact_sheet,negative_tests}.{sh,py}`,
-`qa/scenarios/default.txt`, `hearthstead-neoforge/build.gradle` (client
-`--width 1280 --height 720` args only).
+`qa/scripts/playtest.sh` (SRV_LOG, DIR_IDX per-directive checks, unknown
+directive dies, authoritative-log copy in teardown), `qa/scripts/
+client_boot.sh` (window-geometry-verified capture, deterministic
+options.txt), `qa/scripts/live.sh` (opt-in pan, start writes reproduction.md,
+stop preserves checks), `qa/scripts/lib_harness.sh` (hsqa_fingerprint/
+hsqa_dirty_hash, manifest gains those fields), `qa/scripts/reap.sh`
+(matching_procs testable via HSQA_REAP_TEST_INPUT, pidfile-stage PID
+validation + GradleDaemon exclusion, check/dry-run/reap write evidence),
+`qa/scripts/negative_tests.sh` (ev_init evidence, N2 trap widened),
+`qa/scripts/perf_probe.sh` (scoreboard count), `qa/scripts/
+build_contact_sheet.py` (duration/fps floor enforced), `tools/hearthstead-qa`
+(sources lib_harness.sh; cmd_provision writes evidence), `qa/PROTOCOL.md`
+(evidence-store paragraph for negative/reap/provision + fingerprint note).
 
 ## Load-bearing findings from live debugging (do not re-derive)
 
-- **`ss -ltnp` is unreliable in this sandbox** — a real leaked listener was
-  invisible to it in every mode; `lsof -ti tcp:<port> -sTCP:LISTEN` finds it
-  correctly. All port checks now use `lsof`.
-- **GNU `timeout` creates a NEW process group for its child by default** —
-  killing the outer PGID never reached the java process wrapped by a bare
-  `timeout N cmd`. Fix: `timeout --foreground` everywhere.
-- **Xvfb ignores SIGHUP.** `tmux kill-session` sends it to a pane and the
-  Xvfb window survives. Explicit `pkill -9 -f "Xvfb :NN"` required.
-- **`@argfile` JVM args never appear in `/proc/PID/cmdline`** — java expands
-  them internally, not the kernel, so a `-Dmarker=...` in `user_jvm_args.txt`
-  is invisible to `pgrep -f`. `/proc/PID/cwd` is reliable instead (the
-  server's cwd is always its instance dir).
-- **`hsqa-inst` (bare) is a substring of `hsqa-install`** — the shared,
-  long-lived install cache directory. reap's pattern must anchor on
-  `hsqa-inst/` (trailing slash) or it false-matches anything that merely
-  mentions the install-cache path.
-- **GLFW does not grab the mouse for relative look until the first real
-  click into the window.** quickPlay never provides one. `move`/`look`
-  click-then-send twice now (a single click didn't always survive several
-  intervening directives — exact trigger not fully isolated, this is belt
-  and braces).
-- **A bare console `tp <target> ~ ~ ~ ...` resolves `~` against the
-  CONSOLE's own position, not the target's.** Use `execute at <target> run
-  tp <target> ~ ~ ~ ...`.
-- **`execute at ... run fill ...` (and likely other `execute ... run`
-  wraps) suppresses ALL feedback silently** — effect happens, nothing logs.
-  Use bare absolute-coordinate commands for anything whose feedback matters.
-- **`fill <box> X replace X` (self-replace) is a no-op the game never
-  counts**, even when X is present — a fundamentally broken non-destructive
-  existence probe. `expect_block_near_player` was built, proven broken this
-  way, and removed. Query mod-authoritative state instead (`hearthstead
-  info`).
-- **Placement pitch 60° intersects the player's own hitbox**; 45° reliably
-  lands a few blocks out and actually founds the settlement.
-- Client boot under software GL / this proxy can take several minutes
-  (authlib session-server calls stall) while genuinely progressing (high
-  CPU, not hung) — budgets bumped accordingly, never treat slowness as a hang.
-- A negative-test script's own `${1:-default}` for an output dir will
-  silently collide if `$1` is also used as a subcommand selector elsewhere
-  in the same script — use a named env var instead of positional overload.
+- **`ss -ltnp` is unreliable in this sandbox** — use `lsof -ti tcp:<port>
+  -sTCP:LISTEN`.
+- **GNU `timeout` needs `--foreground`** or killing the outer PGID never
+  reaches the wrapped java process.
+- **Xvfb ignores SIGHUP** — explicit `pkill -9 -f "Xvfb :NN"` required.
+- **`@argfile` JVM args never appear in `/proc/PID/cmdline`** — use
+  `/proc/PID/cwd` instead.
+- **`hsqa-inst` (bare) is a substring of `hsqa-install`** — anchor on
+  `hsqa-inst/`.
+- **GLFW needs a real click before relative look works**; quickPlay never
+  provides one.
+- **Console `tp <target> ~ ~ ~ ...` resolves `~` against the console**, not
+  the target — use `execute at <target> run tp ...`.
+- **`execute at ... run fill ...` suppresses ALL feedback silently.**
+- **`fill <box> X replace X` is a no-op the game never counts** — query
+  mod-authoritative state instead.
+- **NEW this round: a tmux pane's `tee`'d log includes the pane's own
+  keystroke echo**, not just genuine server output — any check reading that
+  file can self-satisfy on text it merely typed. Read the real Log4j
+  `logs/latest.log` for anything server-authoritative.
+- **NEW this round: `import -window root` on an Xvfb screen sized to match
+  the target window's expected dimensions coincidentally "passes" a size
+  check regardless of the real window's actual size** — always capture and
+  measure the specific window id.
+- **NEW this round: `@e[...,limit=N]` bounds a selector, it does not require
+  a minimum** — `if entity @e[...,limit=25]` is satisfied by 1 entity, not
+  25. Use `execute store result score ... if entity ...` to get a real count.
+- Client boot under software GL / this proxy can take minutes (authlib
+  stalls) while genuinely progressing — never treat slowness as a hang.
 
 ## Known problems (pre-existing, PLAQUE-1 scope, do not fix here)
 
-KF-001 (hangPlaque punches a wall hole), KF-004 (missing plaque lang keys),
-KF-005 (missing plaque_red/amber/green models). `full` will still be RED on
-exactly these three.
+KF-001, KF-004, KF-005 (plaque). `full` stays RED on exactly these three.
 
 ## Next concrete action
 
-Slice implementation complete. Awaiting RELEASE_GATE (Opus). If resumed
-with defects: address each, re-run the specific suite/AC that covers it,
-and re-verify `reap check` clean afterward for anything that touches a
-server/client/tmux session.
+1. Let `negative all` finish (N4 is long by design); confirm 4/4 verdicts
+   stored under `qa/reports/artifacts/negative/<TS>/`, then `reap check`.
+2. Run `provision` (rebuild install from scratch + verify playtest) —
+   currently blocked only by port/Xvfb contention with `negative`'s N4.
+3. Confirm 2nd cold-start client + performance runs (kicked off
+   concurrently) landed PASS; `reap check` clean.
+4. Run playtest x2 and live x2 (cold starts) for current source; for live,
+   also capture the finding-3 proof (`prove_finding3.sh` in scratchpad) —
+   static camera, real settler motion, median_mad > 2.0, contact sheet
+   showing a visible pose change.
+5. Report closure of every finding with evidence paths. Do not run `full`.

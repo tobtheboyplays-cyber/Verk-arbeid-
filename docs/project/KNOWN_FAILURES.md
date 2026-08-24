@@ -162,6 +162,19 @@ time.
 quickPlay drops straight into the world so `Escape` opens the pause menu,
 not dismisses one.
 
+**Correction (HARNESS-1 review round):** the "window-targeted capture
+(never root)" claim above was true for `playtest.sh`/`live.sh` but NOT for
+`client_boot.sh`, which used `import -window root` — invisible because
+Xvfb's own virtual screen (`-screen 0 1280x720x24`) happens to be exactly
+the required 1280x720, so `check_screenshot.py`'s size assertion passed by
+coincidence regardless of the real window's size. The only green `client`
+evidence at the time was actually an 854x480 window letterboxed inside a
+1280x720 root capture (`screenshot-title.png`'s non-black bounding box was
+(213,120,1067,600), not the full frame). Fixed: `client_boot.sh` now finds
+the recorded window id, asserts its own reported geometry is 1280x720
+*before* ever capturing it, and only ever captures that window. Re-measured:
+PASS, with a full-frame (0,0,1280,720) bounding box.
+
 **No longer unresolved:** `live.sh`'s persistent tmux session (D-H1)
 survives separate shell invocations — proven directly: `start`, `status`
 (twice, same server PID and player both times), `cmd`, `shot`, `film`,
