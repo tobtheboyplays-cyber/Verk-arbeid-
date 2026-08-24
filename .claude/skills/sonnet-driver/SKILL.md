@@ -54,6 +54,23 @@ test, import and API errors are Sonnet's job — investigate, never escalate.
 Spawning these agents from a Sonnet session still gets Opus: the model is in
 the agent definition, not the session.
 
+## Research before guessing (standing rule)
+
+If you are unsure how something in Minecraft modding, animation, texturing
+or the NeoForge API is *properly* done — **look it up before writing it**.
+A first attempt shipped blind is exactly what the quality bar rules out.
+
+1. `WebSearch` the specific question (official docs, NeoForged docs, the
+   Blockbench/Bedrock wikis, established animation references).
+2. Apply what you learned.
+3. **Save the durable lesson as a skill** under `.claude/skills/` (or
+   extend an existing one) with its sources, so it is learned once and
+   never re-derived.
+
+Existing craft skills: `animation-quality` (impact/weight on swings),
+`blockbench-animation` (cycles, secondary motion, tooling, NeoForge
+animation pitfalls).
+
 ## User communication
 
 - The user writes Norwegian — answer in Norwegian, plainly, no jargon.
