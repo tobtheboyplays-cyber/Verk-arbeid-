@@ -38,6 +38,7 @@ public class FarmerWorkGoal extends Goal {
     private static final int TILL_DURATION = 30;
     private static final int WATER_DURATION = 48;
     private static final int BAG_TRIGGER = 8;
+    private static final int TILL_ANCHOR_RANGE = 3;
 
     private enum Mode { TO_WORK, HARVESTING, PLANTING, TO_MAINTAIN, TILLING, WATERING, TO_HEARTH }
 
@@ -110,8 +111,12 @@ public class FarmerWorkGoal extends Goal {
         while (!maintainQueue.isEmpty()) {
             BlockPos candidate = maintainQueue.poll();
             if (isMaintainable(candidate)) {
+                boolean water = settler.level().getBlockState(candidate).is(Blocks.FARMLAND);
+                if (!water && !hasNearbyCropAnchor(candidate)) {
+                    continue; // unanchored tilling would terraform the settlement
+                }
                 maintainTarget = candidate;
-                maintainIsWater = settler.level().getBlockState(candidate).is(Blocks.FARMLAND);
+                maintainIsWater = water;
                 mode = Mode.TO_MAINTAIN;
                 return true;
             }
@@ -127,13 +132,34 @@ public class FarmerWorkGoal extends Goal {
     private boolean isMaintainable(BlockPos pos) {
         BlockState state = settler.level().getBlockState(pos);
         if (state.is(Blocks.FARMLAND)) {
+            BlockState above = settler.level().getBlockState(pos.above());
             return state.getValue(FarmBlock.MOISTURE) < 7
-                && settler.level().getBlockState(pos.above()).isAir();
+                && (above.isAir() || above.getBlock() instanceof CropBlock);
         }
         if ((state.is(Blocks.DIRT) || state.is(Blocks.GRASS_BLOCK))
             && settler.level().getBlockState(pos.above()).isAir()) {
             for (Direction dir : Direction.Plane.HORIZONTAL) {
                 if (settler.level().getBlockState(pos.relative(dir)).is(Blocks.FARMLAND)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Tilling stays anchored to real fields: bare ground converts only
+     * within reach of an existing planted crop. Tilling itself never adds
+     * a crop, so each conversion adds no new anchor and the maintenance
+     * pass cannot cascade farmland across the settlement. Checked per
+     * polled candidate, not in the scan predicate, to keep scans budgeted.
+     */
+    private boolean hasNearbyCropAnchor(BlockPos pos) {
+        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
+        for (int dx = -TILL_ANCHOR_RANGE; dx <= TILL_ANCHOR_RANGE; dx++) {
+            for (int dz = -TILL_ANCHOR_RANGE; dz <= TILL_ANCHOR_RANGE; dz++) {
+                cursor.set(pos.getX() + dx, pos.getY() + 1, pos.getZ() + dz);
+                if (settler.level().getBlockState(cursor).getBlock() instanceof CropBlock) {
                     return true;
                 }
             }
@@ -281,12 +307,18 @@ public class FarmerWorkGoal extends Goal {
                 SoundSource.NEUTRAL, 0.6F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
         if (workTicks >= PLANT_DURATION) {
+            boolean planted = false;
             if (settler.level() instanceof ServerLevel serverLevel && harvestedCrop instanceof CropBlock crop
                 && serverLevel.getBlockState(target).isAir()
                 && serverLevel.getBlockState(target.below()).is(Blocks.FARMLAND)) {
                 serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
+                planted = true;
             }
-            withheldSeed = ItemStack.EMPTY;
+            if (planted) {
+                withheldSeed = ItemStack.EMPTY; // consumed by the planted crop
+            } else {
+                returnWithheldSeed(); // guard failed -- the seed must not vanish
+            }
             harvestedCrop = null;
             if (bagCount() >= BAG_TRIGGER) {
                 mode = Mode.TO_HEARTH;
@@ -333,7 +365,8 @@ public class FarmerWorkGoal extends Goal {
                 SoundSource.NEUTRAL, 0.8F, 0.9F + settler.getRandom().nextFloat() * 0.2F);
         }
         if (workTicks >= TILL_DURATION) {
-            if (settler.level() instanceof ServerLevel serverLevel && isMaintainable(maintainTarget)) {
+            if (settler.level() instanceof ServerLevel serverLevel && isMaintainable(maintainTarget)
+                && hasNearbyCropAnchor(maintainTarget)) {
                 serverLevel.setBlock(maintainTarget, Blocks.FARMLAND.defaultBlockState(), Block.UPDATE_ALL);
             }
             maintainTarget = null;
@@ -378,7 +411,7 @@ public class FarmerWorkGoal extends Goal {
         harvestedCrop = crop;
         List<ItemStack> drops = Block.getDrops(state, serverLevel, target, null);
 
-        withheldSeed = ItemStack.EMPTY;
+        returnWithheldSeed(); // defensive: never overwrite an unreturned seed
         for (ItemStack drop : drops) {
             if (withheldSeed.isEmpty() && drop.getItem() instanceof BlockItem blockItem
                 && blockItem.getBlock() == crop) {
@@ -450,8 +483,26 @@ public class FarmerWorkGoal extends Goal {
 
     @Override
     public void stop() {
+        returnWithheldSeed();
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
         target = null;
+    }
+
+    /**
+     * Item conservation: a withheld seed that was not planted goes back to
+     * the bag (or the ground when the bag is full) on every exit path --
+     * it must never be silently destroyed.
+     */
+    private void returnWithheldSeed() {
+        if (withheldSeed.isEmpty()) {
+            return;
+        }
+        ItemStack leftover = settler.bag.addItem(withheldSeed);
+        if (!leftover.isEmpty() && settler.level() instanceof ServerLevel serverLevel) {
+            serverLevel.addFreshEntity(new ItemEntity(serverLevel,
+                settler.getX(), settler.getY() + 0.3, settler.getZ(), leftover));
+        }
+        withheldSeed = ItemStack.EMPTY;
     }
 }

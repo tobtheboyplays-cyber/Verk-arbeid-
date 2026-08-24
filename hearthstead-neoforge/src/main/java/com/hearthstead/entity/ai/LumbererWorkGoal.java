@@ -185,6 +185,10 @@ public class LumbererWorkGoal extends Goal {
         stuckChecks = 0;
         repathTimer = 0;
         if (mode == Mode.TO_HEARTH) {
+            // Every trip home with a loaded bag is a haul, including the
+            // resume-with-full-bag entry -- the walk and the strain accents
+            // in tickDeposit must tell the same story.
+            settler.setActivity(SettlerActivity.HAULING_LOG);
             pathToHearth();
         } else {
             pathToTree();

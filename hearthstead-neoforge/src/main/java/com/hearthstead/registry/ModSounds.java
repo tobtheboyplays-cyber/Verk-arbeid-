@@ -43,6 +43,12 @@ public final class ModSounds {
         register("ladder_creak");
     public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_EAT =
         register("settler_eat");
+    public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_PANIC =
+        register("settler_panic");
+    public static final DeferredHolder<SoundEvent, SoundEvent> SHIELD_THUD =
+        register("shield_thud");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CHEER =
+        register("cheer");
 
     private static DeferredHolder<SoundEvent, SoundEvent> register(String name) {
         return SOUND_EVENTS.register(name,

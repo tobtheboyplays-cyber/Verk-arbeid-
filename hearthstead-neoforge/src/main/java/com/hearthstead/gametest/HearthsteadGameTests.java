@@ -803,6 +803,57 @@ public class HearthsteadGameTests {
         });
     }
 
+    /** Regression for the ANIM-1 RELEASE_GATE blocker: SLEEPING must
+     *  actually restore energy (tickNeeds() used to only recognise RESTING),
+     *  or a settler who goes to bed tired can never satisfy
+     *  RestAtNightGoal's exit condition and is stuck asleep forever. Drives
+     *  a full night, through dawn, and asserts the settler naturally wakes
+     *  (WAKE_STRETCH fires, activity returns to IDLE) and is free to work
+     *  again -- not still SLEEPING once energy has recovered past dawn. */
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night")
+    public void settlerWakesAtDawnWithRecoveredEnergy(GameTestHelper helper) {
+        helper.getLevel().setDayTime(23000); // REST phase, close to dawn (23500)
+        buildArena(helper, 16, 16);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        Settlement s = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
+        SettlerEntity settler = boundSettler(helper, s, new BlockPos(4, 1, 3));
+        settler.setEnergy(20.0F); // realistic post-workday energy
+
+        final boolean[] sawSleeping = {false};
+        final boolean[] sawEnergyRiseWhileAsleep = {false};
+        final float[] energyAtSleepStart = {-1.0F};
+        helper.succeedWhen(() -> {
+            if (settler.getActivity() == SettlerActivity.SLEEPING) {
+                sawSleeping[0] = true;
+                if (energyAtSleepStart[0] < 0) {
+                    energyAtSleepStart[0] = settler.getEnergy();
+                } else if (settler.getEnergy() > energyAtSleepStart[0] + 1.0F) {
+                    sawEnergyRiseWhileAsleep[0] = true;
+                }
+            }
+            helper.assertTrue(sawSleeping[0], "settler should have slept at some point "
+                + "(act=" + settler.getActivity() + " energy=" + settler.getEnergy() + ")");
+            helper.assertTrue(sawEnergyRiseWhileAsleep[0], "energy should rise while "
+                + "SLEEPING, not just RESTING (BLOCKER-1 regression)");
+            helper.assertTrue(settler.getEnergy() >= 60.0F,
+                "settler should have recovered past the 60-energy wake threshold, has "
+                    + settler.getEnergy());
+            helper.assertTrue(!settler.isSleeping(),
+                "settler must actually leave the bed once energy recovers past dawn");
+            helper.assertTrue(settler.getActivity() != SettlerActivity.SLEEPING,
+                "settler must not still carry SLEEPING once awake, got "
+                    + settler.getActivity());
+        });
+    }
+
     /** ANIM-1: LumbererWorkGoal now inserts a WORK_LIMB beat between the
      *  last strike and the trip home, and hauls logs under HAULING_LOG. */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")

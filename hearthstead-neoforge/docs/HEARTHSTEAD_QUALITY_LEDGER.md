@@ -97,3 +97,25 @@ recorded before and after every fix:
 New regression locks: `unlitRoomRegistersOnceLit` (a failed scan must be
 re-checked, not written off) and `glassRoofCountsAsRoofed` (roofing is
 geometric and must not consult the light engine).
+
+### Iteration 5 — SLICE ANIM-1: recorded specification corrections
+
+Per INV-10, defensible deviations from `docs/ANIMATION_CATALOGUE.md`'s
+literal text, found and confirmed correct by the ANIM-1 RELEASE_GATE
+(MEDIUM-6), recorded here rather than left silent:
+
+| Deviation | Catalogue text | What shipped | Why |
+|---|---|---|---|
+| `RUN_PANIC` length | 0.55 s loop | `withLength(0.6F)` | 0.55 s puts the accent's quarter-beats off the 0.05 s tick grid `anim_check.py` enforces; 0.6 s lands every keyframe on an integer tick with no perceptible change to the silhouette. |
+| `MELEE` end keyframes | catalogue's literal end-pose values | `right_arm`/`left_arm`/`torso`/`head`/`right_leg` end keyframes rewritten to exactly match each part's t=0 start pose | The catalogued end values left a visible pop back to rest the instant the one-shot expired (an interruption artifact, not a deliberate beat). Snapping the end pose to the start pose is the correct fix for any one-shot that is not itself a hold — the general form of `resetPose()`-safety authored into the clip data instead of the model code. |
+| Off-grid keyframe timestamps (`WALK_HURRIED`, `RUN_PANIC`, `MELEE`, `CELEBRATE`) | as originally transcribed | nudged to the nearest 0.05 s tick | `anim_check.py` §17.4 enforces the tick grid; the nudges are sub-perceptual (≤1 tick) and do not change any pose. |
+| `anim_check.py` checker exemptions: `EAT` added to `LEGS_EXEMPT`; `SHIELD_BLOCK` added to `CLOAK_PIN_ALLOWLIST` | catalogue §17.4's own enumerated allowlists do not name either clip | both exemptions kept | `EAT` is a stationary in-place clip the catalogue never asks to move the legs (§12.3 specifies no leg channel at all — flagging its absence would be a false positive). `SHIELD_BLOCK`'s cloak is deliberately pinned by the raised shield arm per §4.4's own bone list, not left to swing — the pin is the correct read of the spec, not a bug the checker should catch. |
+
+### Iteration 6 — SLICE ANIM-1: REVISE round (RELEASE_GATE 2026-08-24)
+
+RELEASE_GATE returned REVISE: 1 BLOCKER (see `docs/project/KNOWN_FAILURES.md`
+KF-011 — bed-sleeping settlers permanently stuck asleep), 4 HIGH, 6 MEDIUM,
+6 LOW. Fixed in one coordinated round per the standing rule (all findings
+addressed together, one re-review). Evidence and per-finding detail: git
+history on `claude/hearthstead-settlement-mod-vbdb9n` for this iteration,
+`.claude/WORK_STATE.md`, and KF-011 above for the BLOCKER specifically.

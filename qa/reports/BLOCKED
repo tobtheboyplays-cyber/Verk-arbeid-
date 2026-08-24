@@ -1,0 +1,60 @@
+SLICE ANIM-1 — REVISE-fix round in progress, not yet ready for `full`.
+
+Failing command: `tools/hearthstead-qa full` (would fail at the `validate`
+step right now).
+
+Error evidence (from `tools/hearthstead-qa quick`, 2026-08-24):
+  [assets] FAIL
+    - SoundEvent 'cheer' registered at ModSounds.java:51 has no entry in sounds.json
+    - SoundEvent 'settler_panic' registered at ModSounds.java:47 has no entry in sounds.json
+    - SoundEvent 'shield_thud' registered at ModSounds.java:49 has no entry in sounds.json
+  [build] PASS, [animation] PASS (9 warnings, expected mid-round)
+
+Work completed this round (compiles clean, gametest 25/25 green including a
+new regression test):
+  - BLOCKER-1 fixed + verified: SettlerEntity.tickNeeds() now recovers
+    energy for SLEEPING (not just RESTING); new GameTest
+    settlerWakesAtDawnWithRecoveredEnergy proves a settler sleeps, gains
+    energy, and wakes past dawn. See docs/project/KNOWN_FAILURES.md KF-011.
+  - Sound-sync contract constants + server-side accent scheduling landed in
+    SettlerEntity (tickAccents), SettlerPanicGoal (yelp), EatFromHearthGoal
+    (bite accents), ModSounds (3 new registered constants).
+  - MEDIUM-3 fixed: FarmerWorkGoal withheld seed now returned/dropped on
+    every exit path (returnWithheldSeed()), never silently destroyed.
+  - MEDIUM-4 fixed: FarmerWorkGoal tilling now anchored within 3 blocks of
+    an existing crop (hasNearbyCropAnchor) — can no longer cascade-till the
+    whole settlement.
+  - MEDIUM-5 fixed: the 5 new work activities added to tickNeeds()'s
+    `working` set (correct hunger/energy drain rate).
+  - LOW-5 fixed: LumbererWorkGoal's full-bag resume path now sets
+    HAULING_LOG so the walk-home animation matches the strain sound.
+  - MEDIUM-6 (part) + doc corrections recorded in
+    hearthstead-neoforge/docs/HEARTHSTEAD_QUALITY_LEDGER.md Iteration 5/6.
+  - Harness speed: playtest/live now run at renderDistance/simulationDistance
+    6 (was 12); client_boot polls every 3s (was 10s). qa/QUICKSTART.md and
+    a new `tools/hearthstead-qa quick` command added. Own commit already
+    pushed (9839460).
+
+Still in flight — two parallel sonnet-builder agents, each owns a disjoint
+file set, neither has reported back yet:
+  - agent a4a7d57c5670804c7: owns SettlerModel.java + SettlerAnimations.java.
+    Fixing HIGH-1 (HAUL_LOG additive-stacking over WALK — arms must be
+    resetPose()'d before the carry clip applies), MEDIUM-1 (SHIELD_BLOCK
+    impact react), MEDIUM-2 model-side (one-shot phase offset removal),
+    LOW-4 (GUARD_PATROL gate mismatch), LOW-2 (doc-comment drift), HIGH-4
+    doc part (class-header sound-contract list correction).
+  - agent a9ff5656e24e21579: owns gen_sounds.py, sounds.json, anim_check.py,
+    validate_assets.py, both lang files. Adding the 3 new sound assets
+    (settler_panic, shield_thud, cheer — the exact cause of the current
+    [assets] FAIL above), HIGH-2 lang keys for the 6 new SettlerActivity
+    values + a validator guard rule, LOW-3 Ogg determinism fix, HIGH-4
+    checker part (SOUND_CONTRACTS completeness).
+
+Exact resume action: wait for both agents' completion notifications (no
+polling — they arrive automatically), verify their diffs compile and pass
+`tools/hearthstead-qa quick` clean, address anything either reports as
+deferred/needing a decision, then run `tools/hearthstead-qa full` twice
+back-to-back (green_streak >= 2, no source edits between runs), request the
+one remaining ANIM-1 RELEASE_GATE re-review scoped to changed areas, update
+.claude/WORK_STATE.md, commit and push. This file is deleted automatically
+by the next `full` run.

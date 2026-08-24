@@ -7,7 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.food.FoodProperties;
@@ -17,6 +16,14 @@ import java.util.EnumSet;
 
 /** Hungry settlers fetch a meal from the communal hearth stores. */
 public class EatFromHearthGoal extends Goal {
+    /** Meal length in ticks; EAT's chew cycle runs inside it. */
+    public static final int EAT_DURATION = 40;
+    // EAT's bite-accent contract (catalogue §12.3): must agree with the
+    // clip comment in SettlerAnimations and tools/anim_check.py.
+    public static final int EAT_BITE_PERIOD = 24;
+    public static final int EAT_BITE_TICK_A = 5;
+    public static final int EAT_BITE_TICK_B = 14;
+
     private final SettlerEntity settler;
     private int cooldown;
     private int repathTimer;
@@ -91,11 +98,18 @@ public class EatFromHearthGoal extends Goal {
         if (eatTicks > 0) {
             // Mid-meal.
             eatTicks--;
-            if (eatTicks % 6 == 0 && settler.level() instanceof ServerLevel serverLevel) {
-                serverLevel.playSound(null, settler.blockPosition(),
-                    SoundEvents.GENERIC_EAT, SoundSource.NEUTRAL, 0.7F,
-                    0.9F + settler.getRandom().nextFloat() * 0.2F);
-                if (!meal.isEmpty()) {
+            if (settler.level() instanceof ServerLevel serverLevel) {
+                // EAT's bite accents (catalogue §12.3): ticks 5 and 14 of
+                // the 24-tick chew cycle. Must agree with the clip comment
+                // in SettlerAnimations and tools/anim_check.py.
+                int chew = (EAT_DURATION - eatTicks) % EAT_BITE_PERIOD;
+                if (chew == EAT_BITE_TICK_A || chew == EAT_BITE_TICK_B) {
+                    serverLevel.playSound(null, settler.blockPosition(),
+                        com.hearthstead.registry.ModSounds.SETTLER_EAT.get(),
+                        SoundSource.NEUTRAL, 0.8F,
+                        0.95F + settler.getRandom().nextFloat() * 0.1F);
+                }
+                if (eatTicks % 6 == 0 && !meal.isEmpty()) {
                     serverLevel.sendParticles(
                         new ItemParticleOption(ParticleTypes.ITEM, meal),
                         settler.getX(), settler.getY() + 1.3, settler.getZ(),
@@ -120,7 +134,7 @@ public class EatFromHearthGoal extends Goal {
                 return;
             }
             meal = extracted;
-            eatTicks = 40;
+            eatTicks = EAT_DURATION;
             settler.getNavigation().stop();
             settler.setActivity(SettlerActivity.EATING);
         } else if (--repathTimer <= 0) {

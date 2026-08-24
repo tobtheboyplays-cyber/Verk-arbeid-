@@ -426,3 +426,49 @@ re-decompiled `Entity`/`LivingEntity` from the real 1.21.1 sources to
 confirm `random` and `entityData` are both initialized before the roll
 runs, and that `entityData.set` on this key cannot trigger any
 `onSyncedDataUpdated` side effect on a partially-constructed entity.
+
+---
+
+## KF-011 — bed-sleeping settlers no longer regained energy and became
+permanently stuck asleep
+
+**Status: RESOLVED** (SLICE ANIM-1). **Severity: BLOCKER** — the only
+BLOCKER-severity finding this repository has recorded to date.
+
+**Found by:** the ANIM-1 RELEASE_GATE (Opus), by reading `tickNeeds()`
+directly and reasoning through the state machine, not by any GameTest
+failing — worth recording because the existing suite passed the whole time
+this defect was live; nothing exercised a settler through a full night at
+low starting energy.
+
+**Original defect:** `RestAtNightGoal` was changed this slice to set the new
+`SettlerActivity.SLEEPING` while a settler sleeps in a claimed bed (it
+previously reused `RESTING` for both rough hearth-side rest and real bed
+sleep, which was itself a defect this slice fixed on purpose — `SLEEPING`
+and `RESTING` are different clips). But `SettlerEntity.tickNeeds()`'s
+energy-recovery branch still checked only `activity == RESTING`; every other
+activity, `SLEEPING` included, hit the drain branch
+(`getEnergy() - (working ? 0.09F : 0.02F)`). Combined with
+`RestAtNightGoal.canContinueToUse()`'s `energy < 60` exit condition once
+curfew ends, and `tick()` returning early while `isSleeping()`, energy could
+not rise while asleep — so any settler who went to bed under ~60 energy
+(i.e. anyone who had worked that day) could never satisfy the goal's own
+exit condition. The goal never stopped, `stopSleeping()`/`triggerWakeStretch()`
+(both only called from the goal's `stop()`) never ran, and the settler never
+worked again.
+
+**Fix:** `tickNeeds()` now recovers energy for `SLEEPING` as well as
+`RESTING`, and recovers it *faster* (`+1.5F`/20-tick period vs. `+1.2F`) —
+a real bed must beat rough hearth-side rest, preserving the housing
+incentive, not merely match it.
+
+**Verified, not assumed:** new GameTest
+`settlerWakesAtDawnWithRecoveredEnergy` sets a settler's energy to 20 (a
+realistic post-workday value), sends it through `RestAtNightGoal` from deep
+night to past dawn, and asserts: the settler was actually observed in
+`SLEEPING` with energy visibly rising while in that state (not just present
+at any single tick), energy reaches the ≥60 wake threshold, and the settler
+is no longer `isSleeping()`/no longer carries `SLEEPING` once awake. All 25
+required GameTests, including this one and the pre-existing
+`settlerSleepsInClaimedBed`, pass — see `qa/reports/artifacts/` for the run
+that included this fix.

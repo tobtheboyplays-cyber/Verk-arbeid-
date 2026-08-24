@@ -75,6 +75,19 @@ public class SettlerEntity extends PathfinderMob {
     public static final byte EV_SHIELD_BLOCK = 66;
     public static final byte EV_WAKE = 67;
 
+    // Sound-sync contracts (docs/ANIMATION_CATALOGUE.md §0.4): each value
+    // must agree with the clip comment in SettlerAnimations and the
+    // assertion in tools/anim_check.py.
+    public static final int LADDER_CREAK_PERIOD = 20;
+    public static final int LADDER_CREAK_TICK_A = 5;
+    public static final int LADDER_CREAK_TICK_B = 15;
+    public static final int LIMP_GRUNT_MOD = 84;
+    public static final int LIMP_GRUNT_TICK = 8;
+    public static final int WAKE_YAWN_TICK = 24;
+    public static final int SHIELD_THUD_DELAY = 2;
+    public static final int CHEER_TICK_A = 9;
+    public static final int CHEER_TICK_B = 22;
+
     /** Bag capacity: harvested goods carried before a hearth deposit run. */
     public static final int BAG_SIZE = 8;
 
@@ -89,6 +102,16 @@ public class SettlerEntity extends PathfinderMob {
     private boolean traveler;
     public final SimpleContainer bag = new SimpleContainer(BAG_SIZE);
     private int voiceCooldown;
+
+    // Server-side accent scheduler: countdowns to staggered one-shot
+    // broadcasts and their delayed sound accents (-1 = idle). One-shot
+    // variation must stagger the TRIGGER tick, never the clip's sampled
+    // time -- offsetting a one-shot's ageInTicks truncates it.
+    private int wakeBroadcastIn = -1;
+    private int wakeYawnIn = -1;
+    private int shieldThudIn = -1;
+    private int celebrateBroadcastIn = -1;
+    private int celebrateAge = -1;
 
     // Client-side animation machinery.
     public final AnimationState idleState = new AnimationState();
@@ -333,8 +356,10 @@ public class SettlerEntity extends PathfinderMob {
     }
 
     public void celebrate() {
-        if (!level().isClientSide) {
-            level().broadcastEntityEvent(this, EV_CELEBRATE);
+        if (!level().isClientSide && celebrateBroadcastIn < 0 && celebrateAge < 0) {
+            // Catalogue §14: stagger celebration starts by up to 20 ticks per
+            // settler so village-wide cheers overlap instead of chorusing.
+            celebrateBroadcastIn = getId() % 20;
         }
     }
 
@@ -364,11 +389,21 @@ public class SettlerEntity extends PathfinderMob {
         SettlerActivity activity = getActivity();
         boolean working = activity == SettlerActivity.WORK_FARM
             || activity == SettlerActivity.WORK_CHOP
+            || activity == SettlerActivity.WORK_PLANT
+            || activity == SettlerActivity.WORK_HARVEST
+            || activity == SettlerActivity.WORK_WATER
+            || activity == SettlerActivity.WORK_LIMB
+            || activity == SettlerActivity.HAULING_LOG
             || activity == SettlerActivity.PATROLLING
             || activity == SettlerActivity.COMBAT;
 
         setHunger(getHunger() - (working ? 0.10F : 0.04F));
-        if (activity == SettlerActivity.RESTING) {
+        if (activity == SettlerActivity.SLEEPING) {
+            // A claimed bed must beat rough hearth-side rest, and a sleeper
+            // that cannot regain energy can never satisfy RestAtNightGoal's
+            // exit condition -- it would be stuck asleep forever.
+            setEnergy(getEnergy() + 1.5F);
+        } else if (activity == SettlerActivity.RESTING) {
             setEnergy(getEnergy() + 1.2F);
         } else {
             setEnergy(getEnergy() - (working ? 0.09F : 0.02F));
@@ -424,6 +459,7 @@ public class SettlerEntity extends PathfinderMob {
                 tickNeeds();
                 com.hearthstead.util.QaTrace.record(this);
             }
+            tickAccents();
             if (voiceCooldown > 0) {
                 voiceCooldown--;
             }
@@ -502,9 +538,61 @@ public class SettlerEntity extends PathfinderMob {
 
     /** Fired from RestAtNightGoal when a sleeping settler naturally wakes. */
     public void triggerWakeStretch() {
-        if (!level().isClientSide) {
-            level().broadcastEntityEvent(this, EV_WAKE);
+        if (!level().isClientSide && wakeBroadcastIn < 0) {
+            // Catalogue §16.2: stagger village wake events >= 8 ticks per
+            // settler so the yawns land as a morning murmur, not in unison.
+            wakeBroadcastIn = (getId() % 5) * 8;
         }
+    }
+
+    /**
+     * Server-side accent scheduler: fires staggered one-shot broadcasts and
+     * the delayed sound accents tied to their clips, plus the cycle-locked
+     * accents of locomotion clips that have no server goal (climb, limp).
+     */
+    private void tickAccents() {
+        if (wakeBroadcastIn >= 0 && wakeBroadcastIn-- == 0) {
+            level().broadcastEntityEvent(this, EV_WAKE);
+            wakeYawnIn = WAKE_YAWN_TICK;
+        }
+        if (wakeYawnIn >= 0 && wakeYawnIn-- == 0) {
+            playAccent(ModSounds.YAWN.get(), 0.9F, 0.95F + random.nextFloat() * 0.1F);
+        }
+        if (shieldThudIn >= 0 && shieldThudIn-- == 0) {
+            playAccent(ModSounds.SHIELD_THUD.get(), 1.0F, 0.95F + random.nextFloat() * 0.1F);
+        }
+        if (celebrateBroadcastIn >= 0 && celebrateBroadcastIn-- == 0) {
+            level().broadcastEntityEvent(this, EV_CELEBRATE);
+            celebrateAge = 0;
+        }
+        if (celebrateAge >= 0) {
+            if (celebrateAge == CHEER_TICK_A || celebrateAge == CHEER_TICK_B) {
+                playAccent(ModSounds.CHEER.get(), 0.9F, 0.9F + random.nextFloat() * 0.2F);
+            }
+            if (++celebrateAge > 40) {
+                celebrateAge = -1; // CELEBRATE is a 2.0 s one-shot
+            }
+        }
+        if (onClimbable() && getDeltaMovement().y * getDeltaMovement().y > 1.0E-4) {
+            int phase = tickCount % LADDER_CREAK_PERIOD;
+            if (phase == LADDER_CREAK_TICK_A || phase == LADDER_CREAK_TICK_B) {
+                playAccent(ModSounds.LADDER_CREAK.get(), 0.4F,
+                    1.0F + (random.nextFloat() - 0.5F) * 0.3F);
+            }
+        }
+        // WALK_LIMP is health-driven on the client (no enum value); mirror
+        // its trigger here. A grunt every third 28-tick cycle, not every
+        // step -- on every step it is comedy, on every third it is pain.
+        if (getHealth() < getMaxHealth() * 0.4F
+            && getDeltaMovement().horizontalDistanceSqr() > 1.0E-4
+            && tickCount % LIMP_GRUNT_MOD == LIMP_GRUNT_TICK) {
+            playAccent(ModSounds.SETTLER_HM.get(), 0.9F, 0.8F);
+        }
+    }
+
+    private void playAccent(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
+        level().playSound(null, getX(), getY(), getZ(), sound,
+            SoundSource.NEUTRAL, volume, pitch);
     }
 
     // ------------------------------------------------------- interaction ---
@@ -546,6 +634,9 @@ public class SettlerEntity extends PathfinderMob {
             // wheel) doesn't exist yet -- A3.
             if (getProfession() == Profession.GUARD && getActivity() == SettlerActivity.COMBAT) {
                 level().broadcastEntityEvent(this, EV_SHIELD_BLOCK);
+                // Catalogue §4.4: the thud lands on the tick the block is
+                // registered, 2 ticks after the event.
+                shieldThudIn = SHIELD_THUD_DELAY;
             }
         }
         return result;
