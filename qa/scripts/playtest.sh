@@ -265,8 +265,17 @@ focus() {
     found=$(xdotool search --name "Minecraft" 2>/dev/null | tail -1)
     if [ -n "$found" ]; then
         WIN="$found"
-        xdotool windowfocus --sync "$WIN" 2>/dev/null || true
+        if xdotool windowfocus --sync "$WIN" 2>/dev/null; then
+            return 0
+        fi
     fi
+    # RELEASE_GATE finding #6: this used to swallow a persistent failure
+    # (`|| true`) rather than surface it -- a caller that types/clicks right
+    # after would silently hit whatever window (if any) happened to already
+    # have focus, indistinguishable in the transcript from a real success.
+    # Loud now so a real failure is finally visible instead of guessed at.
+    echo "focus: FAILED to focus a Minecraft window (last known WIN=$WIN, search found=${found:-<none>})" >&2
+    return 1
 }
 
 # KF-009's actual root cause (opus review, 2026-08-24): `cmd` and `move`
@@ -397,16 +406,19 @@ while read -r verb rest; do
                check_pass "$DIR_IDX:key" "sent key: $rest";;
         type)  focus; xdotool type --delay 40 -- "$rest"; sleep 1
                check_pass "$DIR_IDX:type" "typed: $rest";;
-        cmd)   focus
+        cmd)   focus; _kf=$?
                # Exit codes captured, not discarded: a "promising unexplored
                # direction" from the original KF-009 investigation, revived
                # because the LAST `cmd hearthstead info` in the PLAQUE-1
-               # section was proven live (20260824T113853Z, 114931Z, 120106Z)
-               # to consistently produce zero server-log trace at all, even
-               # after two independent, previously-unrelated root causes were
-               # fixed -- if xdotool itself is failing to deliver these
-               # keystrokes this late in a long scenario, its own exit code
-               # is the fastest way to see that instead of guessing further.
+               # section was proven live (20260824T113853Z, 114931Z, 120106Z,
+               # 121308Z) to consistently produce zero server-log trace at
+               # all, even after two independent, previously-unrelated root
+               # causes were fixed and xdotool's OWN key/type/Return exit
+               # codes proved clean (121308Z) -- focus() itself used to
+               # swallow its own failure (`|| true`, fixed above); if IT is
+               # what's silently failing this late in a long scenario, this
+               # is the fastest way to finally see that instead of guessing.
+               [ "$_kf" -ne 0 ] && echo "cmd: focus() reported failure before typing" >&2
                xdotool key --clearmodifiers t; _kt=$?; sleep 1
                xdotool type --delay 35 -- "/$rest"; _kty=$?; sleep 1
                xdotool key --clearmodifiers Return; _kr=$?; sleep 2
