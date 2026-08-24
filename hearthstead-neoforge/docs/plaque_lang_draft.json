@@ -6,12 +6,12 @@
     "call sites: plaque.level 1 arg (roman tier), plaque.evict.tip 1 arg",
     "(settler name), plaque.dissolved 1 arg (building name),",
     "command.no_plaque 3 args (x y z), command.scan_done 2 args (type, state).",
-    "plaque.state.* follows PLAQUE-1's five-state machine, not the current four."
+    "plaque.state.* follows PLAQUE-1's five-state machine, not the current four.",
+    "CORRECTION: requirement.* keys take TWO args (have, needed) from Requirement.Status.describe() — they render as 'Beds 1/2', not a bare noun. The nine ids are authoritative: four named factories plus five from Requirement.blocks(\"id\", ...) call sites in BuildingType."
   ],
   "en_us": {
     "block.hearthstead.plaque": "Building Plaque",
     "item.hearthstead.plaque": "Building Plaque",
-
     "hearthstead.plaque.title": "Building Plaque",
     "hearthstead.plaque.level": "Tier %s",
     "hearthstead.plaque.residents": "Residents",
@@ -26,41 +26,35 @@
     "hearthstead.plaque.close": "Close",
     "hearthstead.plaque.refresh": "Survey again",
     "hearthstead.plaque.dissolved": "The %s is no longer registered",
-
     "hearthstead.plaque.state.empty": "Awaiting a build plan",
     "hearthstead.plaque.state.plan_inserted_unlinked": "No room found",
     "hearthstead.plaque.state.linked_incomplete": "Unfinished",
     "hearthstead.plaque.state.linked_valid": "Registered",
     "hearthstead.plaque.state.orphaned": "Orphaned",
-
     "hearthstead.building.house": "House",
     "hearthstead.building.lodging": "Lodging House",
     "hearthstead.building.warehouse": "Warehouse",
     "hearthstead.building.lumber_camp": "Lumber Camp",
     "hearthstead.building.farmhouse": "Farmhouse",
     "hearthstead.building.architects_study": "Architect's Study",
-
-    "hearthstead.requirement.beds": "Beds",
-    "hearthstead.requirement.doors": "Doors",
-    "hearthstead.requirement.lights": "Light",
-    "hearthstead.requirement.floor_space": "Floor space",
-    "hearthstead.requirement.storage": "Storage",
-    "hearthstead.requirement.workbench": "Workbench",
-    "hearthstead.requirement.composter": "Composter",
-    "hearthstead.requirement.lectern": "Lectern",
-    "hearthstead.requirement.bookshelf": "Bookshelves",
-
+    "hearthstead.requirement.beds": "Beds %s/%s",
+    "hearthstead.requirement.doors": "Doors %s/%s",
+    "hearthstead.requirement.lights": "Light %s/%s",
+    "hearthstead.requirement.floor_space": "Floor space %s/%s",
+    "hearthstead.requirement.storage": "Storage %s/%s",
+    "hearthstead.requirement.workbench": "Workbench %s/%s",
+    "hearthstead.requirement.composter": "Composter %s/%s",
+    "hearthstead.requirement.lectern": "Lectern %s/%s",
+    "hearthstead.requirement.bookshelf": "Bookshelves %s/%s",
     "hearthstead.mood.happy": "Happy",
     "hearthstead.mood.content": "Content",
     "hearthstead.mood.unhappy": "Unhappy",
-
     "hearthstead.command.no_plaque": "No plaque at %s, %s, %s",
     "hearthstead.command.scan_done": "Surveyed the %s — %s"
   },
   "nb_no": {
     "block.hearthstead.plaque": "Byggeskilt",
     "item.hearthstead.plaque": "Byggeskilt",
-
     "hearthstead.plaque.title": "Byggeskilt",
     "hearthstead.plaque.level": "Nivå %s",
     "hearthstead.plaque.residents": "Beboere",
@@ -75,34 +69,29 @@
     "hearthstead.plaque.close": "Lukk",
     "hearthstead.plaque.refresh": "Mål opp på nytt",
     "hearthstead.plaque.dissolved": "%s er ikke lenger registrert",
-
     "hearthstead.plaque.state.empty": "Venter på byggeplan",
     "hearthstead.plaque.state.plan_inserted_unlinked": "Fant ikke noe rom",
     "hearthstead.plaque.state.linked_incomplete": "Ufullført",
     "hearthstead.plaque.state.linked_valid": "Registrert",
     "hearthstead.plaque.state.orphaned": "Foreldreløst",
-
     "hearthstead.building.house": "Hus",
     "hearthstead.building.lodging": "Losjihus",
     "hearthstead.building.warehouse": "Lagerhus",
     "hearthstead.building.lumber_camp": "Tømmerleir",
     "hearthstead.building.farmhouse": "Gårdshus",
     "hearthstead.building.architects_study": "Arkitektens studerkammer",
-
-    "hearthstead.requirement.beds": "Senger",
-    "hearthstead.requirement.doors": "Dører",
-    "hearthstead.requirement.lights": "Lys",
-    "hearthstead.requirement.floor_space": "Gulvplass",
-    "hearthstead.requirement.storage": "Lagring",
-    "hearthstead.requirement.workbench": "Arbeidsbenk",
-    "hearthstead.requirement.composter": "Kompostbinge",
-    "hearthstead.requirement.lectern": "Lesepult",
-    "hearthstead.requirement.bookshelf": "Bokhyller",
-
+    "hearthstead.requirement.beds": "Senger %s/%s",
+    "hearthstead.requirement.doors": "Dører %s/%s",
+    "hearthstead.requirement.lights": "Lys %s/%s",
+    "hearthstead.requirement.floor_space": "Gulvplass %s/%s",
+    "hearthstead.requirement.storage": "Lagring %s/%s",
+    "hearthstead.requirement.workbench": "Arbeidsbenk %s/%s",
+    "hearthstead.requirement.composter": "Kompostbinge %s/%s",
+    "hearthstead.requirement.lectern": "Lesepult %s/%s",
+    "hearthstead.requirement.bookshelf": "Bokhyller %s/%s",
     "hearthstead.mood.happy": "Glad",
     "hearthstead.mood.content": "Tilfreds",
     "hearthstead.mood.unhappy": "Misfornøyd",
-
     "hearthstead.command.no_plaque": "Ingen byggeskilt på %s, %s, %s",
     "hearthstead.command.scan_done": "Målte opp %s — %s"
   }
