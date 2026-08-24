@@ -75,6 +75,8 @@ public class SettlerEntity extends PathfinderMob {
     public static final byte EV_MELEE = 65;
     public static final byte EV_SHIELD_BLOCK = 66;
     public static final byte EV_WAKE = 67;
+    public static final byte EV_COURIER_LIFT = 68;
+    public static final byte EV_COURIER_SET_DOWN = 69;
 
     // Sound-sync contracts (docs/ANIMATION_CATALOGUE.md §0.4): each value
     // must agree with the clip comment in SettlerAnimations and the
@@ -137,6 +139,8 @@ public class SettlerEntity extends PathfinderMob {
     // SLICE A2a additions (clips land with the courier piece).
     public final AnimationState carryState = new AnimationState();
     public final AnimationState sortState = new AnimationState();
+    public final AnimationState liftState = new AnimationState();
+    public final AnimationState setDownState = new AnimationState();
 
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -512,6 +516,15 @@ public class SettlerEntity extends PathfinderMob {
         if (wakeState.isStarted() && wakeState.getAccumulatedTime() > 2600L) {
             wakeState.stop();
         }
+        // COURIER_LIFT is 1.40 s, COURIER_SET_DOWN is 1.20 s (catalogue
+        // §5.1/§5.3); both are one-shots and must release the parts they
+        // own back to the carry/idle pose when they expire.
+        if (liftState.isStarted() && liftState.getAccumulatedTime() > 1400L) {
+            liftState.stop();
+        }
+        if (setDownState.isStarted() && setDownState.getAccumulatedTime() > 1200L) {
+            setDownState.stop();
+        }
     }
 
     @Override
@@ -524,6 +537,10 @@ public class SettlerEntity extends PathfinderMob {
             shieldState.start(tickCount);
         } else if (id == EV_WAKE) {
             wakeState.start(tickCount);
+        } else if (id == EV_COURIER_LIFT) {
+            liftState.start(tickCount);
+        } else if (id == EV_COURIER_SET_DOWN) {
+            setDownState.start(tickCount);
         } else {
             super.handleEntityEvent(id);
         }
@@ -541,6 +558,20 @@ public class SettlerEntity extends PathfinderMob {
                 SoundSource.NEUTRAL, 0.85F, 0.95F + random.nextFloat() * 0.1F);
         }
         return hit;
+    }
+
+    /** Fired from CourierWorkGoal when the load is gripped and lifted. */
+    public void triggerCourierLift() {
+        if (!level().isClientSide) {
+            level().broadcastEntityEvent(this, EV_COURIER_LIFT);
+        }
+    }
+
+    /** Fired from CourierWorkGoal when the load is set down at the warehouse. */
+    public void triggerCourierSetDown() {
+        if (!level().isClientSide) {
+            level().broadcastEntityEvent(this, EV_COURIER_SET_DOWN);
+        }
     }
 
     /** Fired from RestAtNightGoal when a sleeping settler naturally wakes. */

@@ -35,10 +35,15 @@ CLOAK_PIN_ALLOWLIST = {"SLEEP_IN_BED", "SHIELD_BLOCK"}
 # Clips exempt from "work clips have legs" (check 20): layers, or clips the
 # catalogue explicitly scopes to arms/torso/head/cloak only (EAT: "Kept as
 # -is... add only cloak, root" -- no leg instruction was ever given).
-LEGS_EXEMPT = {"IDLE", "GUARD_PATROL", "EAT"}
+# COURIER_CARRY is the same shape as GUARD_PATROL: catalogue §5.2 says its
+# legs are "inherited from WALK_LADEN; do not author" -- it is an arm+torso
+# +head+cloak+root overlay by design, not a placeholder missing its legs.
+LEGS_EXEMPT = {"IDLE", "GUARD_PATROL", "EAT", "COURIER_CARRY"}
 
 # One-shots allowed to end away from their start pose (§17.4 check 21).
-ENDS_IN_POSE_ALLOWLIST = set()  # none in A1; COURIER_LIFT/HEAL_REVIVE are A2/A3.
+# COURIER_LIFT arrives at the carry handoff pose (catalogue §5, ~line 862)
+# and COURIER_SET_DOWN departs from it -- by design, per §5.1/§5.3.
+ENDS_IN_POSE_ALLOWLIST = {"COURIER_LIFT", "COURIER_SET_DOWN"}
 
 # Clips declared as carry/arm layers (§16.2) -- must lock arm rotation to
 # <= 6 degrees of travel (§17.4 check 22). HAUL_LOG is a real §0.5
@@ -46,7 +51,10 @@ ENDS_IN_POSE_ALLOWLIST = set()  # none in A1; COURIER_LIFT/HEAL_REVIVE are A2/A3
 # with the walk cycle underneath (RELEASE_GATE HIGH-1 -- SettlerModel must
 # resetPose() the arms it owns before applying HAUL_LOG, or this check's
 # amplitude reading is meaningless even when the clip data itself is fine).
-CARRY_LAYER_CLIPS = {"HAUL_LOG"}
+# COURIER_CARRY is the catalogue's CRATE-grammar carry clip (§0.5): its own
+# text says "Total travel: 3 degrees. The arms are a clamp." -- tighter than
+# the checker's 6-degree limit, so this only ever confirms the clamp holds.
+CARRY_LAYER_CLIPS = {"HAUL_LOG", "COURIER_CARRY"}
 
 # Head-tracking damping table (§17.4 check 24), for clips this phase gives a
 # non-default damp value to. Cross-checked against SettlerModel.java's damp
@@ -122,6 +130,35 @@ ENTITY_SOUND_CONTRACTS = [
      [("CHEER_TICK_A", 9), ("CHEER_TICK_B", 22)]),
     ("WAKE_STRETCH", [1.20], "YAWN", "entity/SettlerEntity.java",
      [("WAKE_YAWN_TICK", 24)]),
+
+    # Courier (catalogue §5 / §1.2). None of these fit SOUND_CONTRACTS above:
+    # CourierWorkGoal.java gates its cycle with `workTicks % SORT_PERIOD !=
+    # SORT_MOVE_TICK` (an early-return guard), not the `% period == tick`
+    # form that table's regex looks for, and several of these sounds are not
+    # tied to the clip whose activity is actually active when they fire --
+    # see the honest per-row notes and the class-header comment in
+    # SettlerAnimations.java for the full picture.
+    #
+    # FREQUENCY-ONLY (no accents=[] keyframe check -- rate is real, phase is
+    # not, or the clip they're attached to never actually plays in-game):
+    ("WALK_LADEN", [], "HAUL_STEP", "entity/ai/CourierWorkGoal.java",
+     [("HAUL_STEP_PERIOD", 18)]),
+    ("WALK_LADEN", [], "HAUL_STRAIN", "entity/ai/CourierWorkGoal.java",
+     [("HAUL_STRAIN_PERIOD", 96)]),
+    ("COURIER_LIFT", [], "CRATE_GRIP", "entity/ai/CourierWorkGoal.java",
+     [("LIFT_GRIP_TICK", 8)]),
+    ("COURIER_SET_DOWN", [], "CRATE_DOWN", "entity/ai/CourierWorkGoal.java",
+     [("SET_DOWN_TICK", 6)]),
+    # PHASE-LOCKED: workTicks and sortState's own clock both reset in the
+    # same tick when Mode.SORTING starts at the warehouse, so tick 16 of a
+    # 32-tick cycle really does land on this clip's own t=0.80s "place in
+    # the chest" accent.
+    ("COURIER_SORT", [0.80], "CHEST_STOW", "entity/ai/CourierWorkGoal.java",
+     [("SORT_MOVE_TICK", 16), ("SORT_PERIOD", 32)]),
+    # crate_creak and item_pickup are registered sounds (piece 4) that
+    # CourierWorkGoal never calls playAt(...) for -- no row here, because
+    # there is no tick constant to check and adding one would fabricate a
+    # contract the code does not have. See the piece 3 report.
 ]
 
 

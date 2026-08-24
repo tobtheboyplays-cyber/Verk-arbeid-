@@ -50,6 +50,8 @@ public class CourierWorkGoal extends Goal {
     public static final int HAUL_STEP_PERIOD = 18;
     public static final int HAUL_STRAIN_PERIOD = 96;
     public static final int SET_DOWN_TICK = 6;
+    public static final int CRATE_CREAK_PERIOD = 54;
+    public static final int CRATE_CREAK_OFFSET = 9;
 
     private enum Mode { TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING }
 
@@ -58,6 +60,7 @@ public class CourierWorkGoal extends Goal {
     private BlockPos warehousePos;
     private java.util.UUID warehouseId;
     private int workTicks;
+    private int setDownThudIn = -1;
     private int repathTimer;
     private int stuckChecks;
     private boolean done;
@@ -176,6 +179,10 @@ public class CourierWorkGoal extends Goal {
 
     @Override
     public void tick() {
+        if (setDownThudIn >= 0 && setDownThudIn-- == 0) {
+            playAt(ModSounds.CRATE_DOWN.get(), 0.8F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
         switch (mode) {
             case TO_HEARTH -> tickToHearth();
             case LOADING -> tickLoading();
@@ -211,6 +218,9 @@ public class CourierWorkGoal extends Goal {
     private void tickLoading() {
         workTicks++;
         if (workTicks == LIFT_GRIP_TICK) {
+            // The grip IS the lift: start COURIER_LIFT here so the clip's
+            // own grip beat lands with the sound, not a tick either side.
+            settler.triggerCourierLift();
             playAt(ModSounds.CRATE_GRIP.get(), 0.7F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
         if (workTicks < SORT_PERIOD / 2) {
@@ -232,6 +242,8 @@ public class CourierWorkGoal extends Goal {
             // local only for the moment between these two lines, and the
             // remainder goes straight back, so no path loses an item.
             ItemStack taken = inv.extractItem(slot, want, false);
+            playAt(ModSounds.ITEM_PICKUP.get(), 0.5F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
             ItemStack leftover = settler.bag.addItem(taken);
             if (!leftover.isEmpty()) {
                 inv.insertItem(slot, leftover, false);
@@ -266,13 +278,23 @@ public class CourierWorkGoal extends Goal {
                 playAt(ModSounds.HAUL_STRAIN.get(), 0.55F,
                     0.95F + settler.getRandom().nextFloat() * 0.1F);
             }
+            // Loaded wood flexing. Deliberately offset from the footfall
+            // period so the creak never lands on the same tick as a step.
+            if (workTicks % CRATE_CREAK_PERIOD == CRATE_CREAK_OFFSET) {
+                playAt(ModSounds.CRATE_CREAK.get(), 0.45F,
+                    0.95F + settler.getRandom().nextFloat() * 0.1F);
+            }
         }
         settler.getLookControl().setLookAt(warehousePos.getX() + 0.5,
             warehousePos.getY() + 0.6, warehousePos.getZ() + 0.5);
         if (settler.blockPosition().distSqr(warehousePos) <= 9.0) {
             settler.getNavigation().stop();
-            playAt(ModSounds.CRATE_DOWN.get(), 0.8F,
-                0.95F + settler.getRandom().nextFloat() * 0.1F);
+            // COURIER_SET_DOWN starts now; its contact is SET_DOWN_TICK
+            // ticks in, so the thud is scheduled rather than played here
+            // (playing it immediately put the sound before the crate had
+            // visibly left the settler's hands).
+            settler.triggerCourierSetDown();
+            setDownThudIn = SET_DOWN_TICK;
             mode = Mode.SORTING;
             workTicks = 0;
             settler.setActivity(SettlerActivity.SORTING);

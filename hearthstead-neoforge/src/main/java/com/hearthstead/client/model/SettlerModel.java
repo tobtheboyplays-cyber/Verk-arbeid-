@@ -145,6 +145,13 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
             } else if (night && dark && profession != Profession.GUARD
                 && activity != SettlerActivity.RESTING && activity != SettlerActivity.SLEEPING) {
                 locomotion = SettlerAnimations.CREEP_NIGHT;
+            } else if (activity == SettlerActivity.CARRYING) {
+                // WALK_LADEN replaces WALK's legs/torso/cloak/root/head
+                // whenever carrying (catalogue §1.2). animateWalk scales its
+                // whole output by limbSwingAmount, so it fades to nothing on
+                // its own while stopped -- no extra "moving" check needed to
+                // get the catalogue's "suppressed while stopped" behaviour.
+                locomotion = SettlerAnimations.WALK_LADEN;
             } else if (activity == SettlerActivity.TRAVELING) {
                 locomotion = SettlerAnimations.WALK_HURRIED;
             }
@@ -162,6 +169,49 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
                 rightArm.resetPose();
                 leftArm.resetPose();
                 animate(entity.patrolState, SettlerAnimations.GUARD_PATROL, ageInTicks);
+            } else if (entity.carryState.isStarted()) {
+                // COURIER_CARRY (catalogue §5.2) is the flagship carry
+                // clip: it authors arms/torso/head/cloak/root itself, not
+                // just an arm overlay like GUARD_PATROL -- it re-derives
+                // the same lean/breath/root-compression WALK_LADEN just
+                // wrote, deliberately (its own comment: "reasserted here so
+                // the clip is correct if played standing still"). Left
+                // as-is, WALK_LADEN's contribution and COURIER_CARRY's
+                // would SUM on every bone they share (vanilla animate() is
+                // additive) -- the settler would read as bent double, not
+                // leaning back under a load. Reset every part this clip
+                // owns before applying it; legs are deliberately NOT reset
+                // (COURIER_CARRY authors no leg channel at all -- catalogue
+                // §5.2: "inherited from WALK_LADEN; do not author").
+                // carryState.animateWhen is activity==CARRYING alone, with
+                // no moving component, so this branch and the clip both run
+                // continuously whether the courier is walking or standing
+                // at a chest -- satisfying the catalogue's "standing-still
+                // variant... required, not optional" without a second clip.
+                torso.resetPose();
+                head.resetPose();
+                torso.getChild("cloak").resetPose();
+                root.resetPose();
+                rightArm.resetPose();
+                leftArm.resetPose();
+                animate(entity.carryState, SettlerAnimations.COURIER_CARRY, ageInTicks);
+
+                // Standing-still weight shift (catalogue §5.2, "the single
+                // most robotic thing this mod could ship, so this variant
+                // is required, not optional"): a courier stopped at a chest
+                // still needs to look alive. Procedural, not a second
+                // keyframe clip -- COURIER_CARRY's own single deterministic
+                // curve can't represent two different situations (walking
+                // vs. planted) at once, and this is the same pattern as the
+                // hurt-flinch below: a small addition on top of the
+                // authored pose, gated on real movement.
+                if (limbSwingAmount < 0.01F) {
+                    // ~40-tick (2s) period, matching the catalogue's cited
+                    // root-dip/rise cadence for this variant.
+                    float settleWave = Mth.sin(ageInTicks * 0.157F);
+                    root.y += settleWave * 0.2F - 0.2F;
+                    torso.zRot += settleWave * 0.0524F; // +-3 degrees
+                }
             }
         }
 
@@ -185,6 +235,34 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.harvestState, SettlerAnimations.FARM_HARVEST, ageInTicks);
         animate(entity.waterState, SettlerAnimations.FARM_WATER, ageInTicks);
         animate(entity.limbState, SettlerAnimations.LIMB_BRANCHES, ageInTicks);
+        // COURIER_SORT: a stationary work clip, the same pattern as
+        // chopState/farmState above -- sortState is already gated on
+        // activity==SORTING && !moving (SettlerEntity), so WALK's own
+        // near-zero contribution while stopped doesn't fight it. Drives
+        // both of CourierWorkGoal's SORTING-activity phases (loading at
+        // the hearth and filing at the warehouse chest) since neither has
+        // a distinct AnimationState of its own -- see the piece 3 report.
+        animate(entity.sortState, SettlerAnimations.COURIER_SORT, ageInTicks);
+
+        // COURIER_LIFT / COURIER_SET_DOWN are event-driven one-shots that
+        // OVERRIDE the sort loop they interrupt: the lift arrives at the
+        // carry pose and the set-down departs from it, so letting either
+        // sum with COURIER_SORT's own arm/torso holds would smear both.
+        // Reset only the parts these clips author, then apply. No
+        // per-entity phase offset -- a one-shot offset can jump past the
+        // clip's own length on the first evaluated frame.
+        if (entity.liftState.isStarted() || entity.setDownState.isStarted()) {
+            rightArm.resetPose();
+            leftArm.resetPose();
+            torso.resetPose();
+            head.resetPose();
+            root.resetPose();
+            torso.getChild("cloak").resetPose();
+            rightLeg.resetPose();
+            leftLeg.resetPose();
+            animate(entity.liftState, SettlerAnimations.COURIER_LIFT, ageInTicks);
+            animate(entity.setDownState, SettlerAnimations.COURIER_SET_DOWN, ageInTicks);
+        }
         animate(entity.sleepState, SettlerAnimations.SLEEP_IN_BED, ageInTicks + (id % 160));
         animate(entity.wakeState, SettlerAnimations.WAKE_STRETCH, ageInTicks);
 
