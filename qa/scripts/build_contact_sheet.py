@@ -90,16 +90,31 @@ def ffprobe_info(clip: str):
 
 
 def extract_frames(clip: str, n: int, duration: float, tmpdir: str):
+    """Extract n evenly-spaced frames. A seek very close to the end of the
+    file can occasionally land past the last decodable frame (container/
+    keyframe rounding, not a capture bug -- both `clip.mp4` and every OTHER
+    requested frame decode fine) and ffmpeg then exits 0 having written
+    nothing. Verified live: it was always exactly the last requested frame
+    (t = duration - 0.05s) that did this. Each attempt is checked for a real
+    output file; a miss is retried once further from the edge, then skipped
+    rather than crashing the whole contact sheet on one frame."""
     paths = []
     for i in range(n):
         t = duration * i / max(n - 1, 1)
         t = min(t, max(duration - 0.05, 0))
         out = str(Path(tmpdir) / f"f{i:03d}.png")
-        subprocess.run([
-            "ffmpeg", "-loglevel", "error", "-ss", f"{t:.3f}", "-i", clip,
-            "-frames:v", "1", "-y", out,
-        ], check=True)
-        paths.append((out, t))
+        for nudge in (0.0, 0.25, 0.5):
+            attempt_t = max(0.0, t - nudge)
+            subprocess.run([
+                "ffmpeg", "-loglevel", "error", "-ss", f"{attempt_t:.3f}", "-i", clip,
+                "-frames:v", "1", "-y", out,
+            ], check=True)
+            if Path(out).is_file():
+                paths.append((out, attempt_t))
+                break
+        else:
+            print(f"warning: frame {i} (t={t:.3f}s) never decoded after retries, "
+                  f"skipping", file=sys.stderr)
     return paths
 
 
