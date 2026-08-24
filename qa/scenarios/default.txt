@@ -214,6 +214,15 @@ shot plaque-02-empty-clicked
 # gotcha as the hearth aim above), so this is asked AS THE PLAYER (`cmd`,
 # real chat, real command dispatch) whose position it then resolves
 # against. The plaque sits 1 right, 1 up, 2 ahead of here.
+# Belt and braces, same reasoning as the click tests below: proven live
+# (20260824T094934Z, 20260824T102119Z) that this exact chat-typed command
+# can intermittently land on the wrong block -- `hearthstead scan`'s own
+# no_plaque failure is player-only feedback (never logged), so a dropped
+# keystroke here shows up only as "server log never matched", nothing
+# else. survey() is safe to call repeatedly (its own contract), so a
+# second identical send costs nothing and self-corrects a one-off miss.
+cmd hearthstead scan ~ ~1 ~2
+wait 2
 cmd hearthstead scan ~ ~1 ~2
 expect_server Awaiting a build plan
 
@@ -245,7 +254,10 @@ wait 1
 
 # The room already satisfies a house (a bed, a door, a torch, floor space
 # well past the minimum) -- prove registration two ways, both server-side
-# and mod-authoritative, exactly as the plan requires.
+# and mod-authoritative, exactly as the plan requires. Same belt-and-braces
+# double-send as the first scan above, same reason.
+cmd hearthstead scan ~ ~1 ~2
+wait 2
 cmd hearthstead scan ~ ~1 ~2
 expect_server Registered
 scmd hearthstead info
