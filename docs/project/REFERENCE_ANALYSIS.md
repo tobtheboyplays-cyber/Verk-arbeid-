@@ -45,12 +45,18 @@ manually. Courier stats matter: Agility = run speed, Adaptability = how
 many huts before returning to the Warehouse.
 
 **The failure modes they shipped** — these are the real prize, because we
-are building this system right now:
+are building this system right now.
+
+> **Read this column as a claim under test, not a result.** A2a shipped
+> #2932 anyway (KF-013): the design in the table was right, the code did
+> not implement it, and a fully green suite never noticed because its
+> arena had no walls in it. Nothing here counts as avoided until a test
+> reproduces that bug's actual shape and is shown to fail without the fix.
 
 | Their bug | Why it happens | How A2a avoids it |
 |---|---|---|
 | Courier carries **one stack at a time** (#3594) | capacity treated as an afterthought | Capacity is a **designed, visible mechanic** (D-007): the load sack is tier 1, a cart upgrades it. Bag size is the budget, not a magic constant. |
-| Deliveryman **won't deliver** requested materials (#2932) | request matching silently fails, nothing surfaces it | Chests are truth (D-A2a-2); the index is derived and re-read before every transfer. A courier that cannot act **idles visibly** rather than pretending to work — and the behaviour-trace detector fails the build on thrash/stuck. |
+| Deliveryman **won't deliver** requested materials (#2932) | request matching silently fails, nothing surfaces it | **We shipped this bug too, and it took playing the game to find it — see KF-013.** The design above was sound and the code did not implement it: the courier routed to the plaque block instead of to a chest, and stranded its load. What actually prevents it now: delivery targets a real container at a standable cell, arrival requires being *inside* the building's bounds, a failed route rests instead of re-triggering, and an undeliverable load is carried back to the hearth. Locked in by `courierEntersASealedWarehouseAndDelivers`, which builds a genuinely enclosed room — both new tests were verified to fail on the pre-fix code. |
 | Courier ↔ builder **circular logic loop** (#5333) | two agents each waiting on the other | A2a deliberately has **one direction only**: hearth → warehouse. No fetch-to-worksite, no builder in the loop. Two-way routing lands only after one-way is proven. |
 | Deliveries **stop after a while** (#3892) | a state machine wedges with no watchdog | Every courier GameTest asserts a **completed round trip**, and the acceptance list includes interruption paths explicitly (killed mid-carry, warehouse full, warehouse dissolved, save/reload mid-carry). A wedged state machine fails the suite, not the player's colony. |
 

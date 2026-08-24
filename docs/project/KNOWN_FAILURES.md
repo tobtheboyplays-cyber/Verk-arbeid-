@@ -535,3 +535,118 @@ check, so the 90 seconds this would have saved buys very little.
 
 **Do not retry** the byte-growth version. If revisited, the only sound
 shape is a per-command correlation marker.
+
+---
+
+## KF-013 — the courier loaded but never delivered: the wedge A2a claimed to have designed away
+
+**Status:** RESOLVED (fix + two regression GameTests, both proven to fail
+on the pre-fix code).
+
+**Severity:** BLOCKER. This is MineColonies issue #2932 — "the
+deliveryman picks things up and never delivers them" — reproduced in our
+own mod, in the exact system whose design note claims to avoid it.
+
+**How it was found.** Not by the suite. `tools/hearthstead-qa full` was
+green twice consecutively and `gate` reported `green_streak=2` when this
+shipped. It was found by playing the game: a live session with a real
+hollow oak-plank warehouse (x16-22 / z6-12), a plaque at `19 -57 7` that
+surveyed successfully, 24 oak logs fed into the hearth, and settler Hedda
+assigned COURIER. Queried directly from the running server:
+
+```
+18,-58,9  []        20,-58,9  []
+18,-58,10 []        20,-58,10 []
+10,-59,10 {Items: [{count: 17, Slot: 0, id: "minecraft:oak_log"}]}
+Hedda     [{count: 7, id: "minecraft:oak_log"}]
+Hedda pos [19.50, -60.0, 6.38]
+```
+
+Items were conserved (17 + 7 = 24), so no invariant tripped. The delivery
+simply never completed, silently, forever.
+
+**Root cause — the delivery target was never a place goods can go.**
+`PlaqueBlockEntity.link()` sets `building.anchor = beds.isEmpty() ?
+worldPosition : beds.get(0)`. A warehouse has no beds, so its anchor is
+**the plaque block itself** — mounted in a wall, with no standable cell
+beside it and solid blocks above it. `CourierWorkGoal` routed to that
+anchor and declared arrival at `blockPosition().distSqr(anchor) <= 9.0`.
+Hedda's own numbers: `(19,-60,6)` to `(19,-57,7)` is `0 + 9 + 1 = 10`.
+One more than the radius, standing outside a wall she was never pathing
+through, because `moveTo(anchor.x, anchor.y + 1, anchor.z)` aims *inside*
+the wall.
+
+Then the second half of the wedge: on giving up, the goal set
+`done = true` and `canUse()` re-entered on the very next tick, because a
+non-empty bag unconditionally selects `TO_WAREHOUSE`. Walk out, fail,
+walk out, fail — with the settlement's goods parked in a bag where
+nothing can see or use them.
+
+**Why the GameTests missed it.** `CourierGameTests` registered its
+warehouse with `anchor = minRel` in a wide-open arena with the chest
+adjacent and no walls at all. Every geometry that makes the bug possible
+— a wall-mounted anchor, a chest deep inside, an enclosure to path
+through — was absent. The suite was measuring a situation the game never
+produces.
+
+**The fix (three parts, all in `CourierWorkGoal` + `WarehouseStorage`).**
+
+1. **Deliver to a container, not to a plaque.** `pickDropOff()` picks the
+   nearest real chest/barrel from the warehouse index, and
+   `approachTo()` resolves a genuinely standable cell beside it — a chest
+   is never walkable, so aiming at the container block left the navigator
+   guessing, and outside a sealed room its guess is the wrong side of the
+   wall.
+2. **Arrival means physically inside.** `hasArrivedAt()` requires the
+   settler to be within the building's own bounds *and* within reach of
+   the drop-off. Reaching through a wall is not delivering — and the
+   pre-fix code did exactly that whenever the geometry allowed it (see
+   the regression evidence below).
+3. **Failure is never silent and never strands goods.** `giveUp()` rests
+   the route for `RETRY_COOLDOWN_TICKS` (400) instead of re-triggering
+   next tick, and a new `RETURNING` mode carries an undeliverable load
+   back to the hearth — for an unreachable warehouse, a dissolved one, a
+   full one, or one with no container at all.
+
+**A second, latent defect found while fixing this.** `WarehouseStorage.of()`
+tested freshness with `level.getGameTime() - lastRefreshTick >=
+REFRESH_INTERVAL_TICKS` against a `Long.MIN_VALUE` sentinel. That
+subtraction **overflows to a negative age**, so a never-refreshed index
+read as fresh and reported an empty warehouse forever. It was invisible
+before only because `insert()` scans the world directly; the moment
+`of()` was used to *decide* anything, every warehouse looked empty. Now
+tracked by an explicit `everRefreshed` flag.
+
+**Regression tests, and the proof that they are real judges.** The two
+new tests were run against the restored pre-fix `CourierWorkGoal` and
+both failed:
+
+```
+courierwithnowheretodeliverbringsgoodsbacktothehearth failed!
+  the undeliverable load should come back to the hearth, still carrying 5
+courierentersasealedwarehouseanddelivers failed!
+  the courier must walk into the warehouse, not post goods through the
+  wall -- stowed from -2726715, -59, -3368743
+```
+
+That second line is the wall-posting caught in the act: `y=-59` is a
+block *below* the room floor, outside the room, while the logs landed in
+a chest in the far corner.
+
+`courierEntersASealedWarehouseAndDelivers` builds what the live world
+had and the old arena did not: a closed 7x7 oak room with a ceiling and a
+real closed oak door, the chest diagonally opposite the door, and the
+anchor set to a wall block beside the door exactly as
+`PlaqueBlockEntity` assigns it. It asserts *where the courier stood at
+the tick the chest count rose* — "was she ever inside" is not enough,
+because she can post through the wall and wander in afterwards, which is
+precisely how the first version of this test passed on broken code.
+
+**The lesson worth keeping.** A green suite proved only that the courier
+works in an arena with no architecture in it. The mod's entire premise is
+that players build real enclosed rooms, so any test whose arena has no
+walls is not testing the product. When a system's correctness depends on
+geometry the player supplies, the test must supply that geometry too —
+and `docs/project/REFERENCE_ANALYSIS.md` must not claim a reference mod's
+failure is "avoided by design" until a test reproduces that failure's
+actual shape.

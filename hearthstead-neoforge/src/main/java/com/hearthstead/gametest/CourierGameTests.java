@@ -12,13 +12,18 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoorHingeSide;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -69,13 +74,37 @@ public class CourierGameTests {
     /** Registers a warehouse Building over a corner of the arena. */
     private static Building addWarehouse(GameTestHelper helper, Settlement s,
                                          BlockPos minRel, BlockPos maxRel) {
+        return addWarehouse(helper, s, minRel, maxRel, minRel);
+    }
+
+    /**
+     * Registers a warehouse with an explicit anchor. A real warehouse has no
+     * beds, so its anchor is the plaque block itself -- in a wall.
+     */
+    private static Building addWarehouse(GameTestHelper helper, Settlement s,
+                                         BlockPos minRel, BlockPos maxRel,
+                                         BlockPos anchorRel) {
         BoundingBox bounds = BoundingBox.fromCorners(
             helper.absolutePos(minRel), helper.absolutePos(maxRel));
         Building b = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
-            helper.absolutePos(minRel), helper.absolutePos(minRel), bounds);
+            helper.absolutePos(anchorRel), helper.absolutePos(anchorRel), bounds);
         b.valid = true;
         s.buildings.add(b);
         return b;
+    }
+
+    /** A closed wooden door, both halves, as a player would have hung it. */
+    private static void placeDoor(GameTestHelper helper, BlockPos lowerRel,
+                                  Direction facing) {
+        BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, facing)
+            .setValue(DoorBlock.HINGE, DoorHingeSide.LEFT)
+            .setValue(DoorBlock.OPEN, false)
+            .setValue(DoorBlock.POWERED, false)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER);
+        helper.setBlock(lowerRel, lower);
+        helper.setBlock(lowerRel.above(),
+            lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
     private static Container containerAt(GameTestHelper helper, BlockPos rel) {
@@ -211,6 +240,129 @@ public class CourierGameTests {
                     && h.getInventory().getStackInSlot(0).getCount() == 4,
                 "the logs should still be in the hearth, untouched");
             helper.succeed();
+        });
+    }
+
+    /**
+     * The live-world failure this slice actually shipped with: a warehouse
+     * is a real sealed room, so its plaque -- and therefore its anchor -- is
+     * a wall block with nothing standable beside it. Routing the courier to
+     * the anchor left her outside the wall, one block short of the arrival
+     * radius, giving up and re-triggering forever with the load in her bag.
+     *
+     * <p>Two things are asserted, and the second is the one the open-arena
+     * tests could never catch: the goods arrive, AND the courier was inside
+     * the room when they did. Reaching through a wall is not delivering.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    public void courierEntersASealedWarehouseAndDelivers(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel, 14);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+            hearth.insertGoods(new ItemStack(Items.OAK_LOG, 6));
+        }
+
+        // A closed 7x7 room: walls y1-3 on the ring, a ceiling, one door.
+        for (int x = 6; x <= 12; x++) {
+            for (int z = 6; z <= 12; z++) {
+                boolean rim = x == 6 || z == 6 || x == 12 || z == 12;
+                helper.setBlock(new BlockPos(x, 4, z), Blocks.OAK_PLANKS);
+                if (rim) {
+                    for (int y = 1; y <= 3; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.OAK_PLANKS);
+                    }
+                }
+            }
+        }
+        placeDoor(helper, new BlockPos(9, 1, 6), Direction.SOUTH);
+        // The chest sits in the far corner, diagonally across from the door,
+        // so nothing outside the room is ever within reach of it.
+        BlockPos chestRel = new BlockPos(11, 1, 11);
+        helper.setBlock(chestRel, Blocks.CHEST);
+        // Anchor = the plaque beside the door, in the wall, exactly as
+        // PlaqueBlockEntity assigns it for a building with no beds.
+        addWarehouse(helper, s, new BlockPos(6, 0, 6), new BlockPos(12, 4, 12),
+            new BlockPos(10, 2, 6));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(3, 1, 3));
+        BoundingBox interior = BoundingBox.fromCorners(
+            helper.absolutePos(new BlockPos(7, 1, 7)),
+            helper.absolutePos(new BlockPos(11, 3, 11)));
+        final int[] seen = {0};
+        final String[] postedFrom = {null};
+
+        helper.succeedWhen(() -> {
+            Container chest = containerAt(helper, chestRel);
+            helper.assertTrue(chest != null, "warehouse chest should exist");
+            int delivered = countIn(chest, Items.OAK_LOG);
+            // Where the courier stood at the moment the count rose is the
+            // whole question. Checking "was she ever inside" is not enough:
+            // she can post through the wall and wander in afterwards.
+            if (delivered > seen[0]) {
+                seen[0] = delivered;
+                if (postedFrom[0] == null && !interior.isInside(bud.blockPosition())) {
+                    postedFrom[0] = bud.blockPosition().toShortString();
+                }
+            }
+            helper.assertTrue(postedFrom[0] == null,
+                "the courier must walk into the warehouse, not post goods "
+                    + "through the wall -- stowed from " + postedFrom[0]);
+            helper.assertTrue(delivered >= 6,
+                "all 6 logs should reach the sealed warehouse, saw " + delivered
+                    + " (act=" + bud.getActivity() + ")");
+        });
+    }
+
+    /**
+     * Goods must never end up stranded in a courier's bag. With a warehouse
+     * that has no container to receive them, the load comes home to the
+     * hearth where the settlement can see and use it again.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    public void courierWithNowhereToDeliverBringsGoodsBackToTheHearth(
+        GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(3, 1, 3);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+        // A warehouse with bounds but no chest: a real state, because the
+        // plaque validates the room before anyone furnishes it.
+        addWarehouse(helper, s, new BlockPos(8, 1, 8), new BlockPos(11, 4, 11));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(9, 1, 9));
+        bud.bag.addItem(new ItemStack(Items.OAK_LOG, 5));
+
+        helper.succeedWhen(() -> {
+            int bagged = 0;
+            for (int i = 0; i < bud.bag.getContainerSize(); i++) {
+                bagged += bud.bag.getItem(i).getCount();
+            }
+            BlockEntity be = helper.getLevel()
+                .getBlockEntity(helper.absolutePos(hearthRel));
+            helper.assertTrue(be instanceof HearthBlockEntity, "hearth should exist");
+            int atHearth = 0;
+            var inv = ((HearthBlockEntity) be).getInventory();
+            for (int slot = 0; slot < inv.getSlots(); slot++) {
+                ItemStack stack = inv.getStackInSlot(slot);
+                if (stack.is(Items.OAK_LOG)) {
+                    atHearth += stack.getCount();
+                }
+            }
+            helper.assertTrue(bagged + atHearth == 5,
+                "logs must be conserved, bag=" + bagged + " hearth=" + atHearth);
+            helper.assertTrue(atHearth == 5,
+                "the undeliverable load should come back to the hearth, "
+                    + "still carrying " + bagged);
         });
     }
 }

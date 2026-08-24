@@ -10,12 +10,14 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * The courier: moves non-food goods from the hearth to a warehouse.
@@ -35,6 +37,17 @@ import java.util.EnumSet;
  * with the true leftover carried back. At every instant the items exist
  * in exactly one real container, so an interruption -- including the
  * courier dying, which drops the bag -- conserves them.
+ *
+ * <p><b>The delivery target is a container, never the plaque</b>
+ * (D-A2a-5). A warehouse has no beds, so {@code Building.anchor} is the
+ * plaque block -- mounted in a wall, with no standable cell beside it and
+ * none above it. Routing to the anchor produced exactly MineColonies'
+ * "deliveryman never delivers" wedge (#2932): the courier loaded, walked
+ * to the outside of the wall, never satisfied the arrival radius, gave up
+ * and re-triggered forever with the load stranded in her bag. The courier
+ * now walks to a standable cell beside a real chest, and only stows once
+ * she is <em>inside</em> the building's own bounds -- so goods cannot be
+ * posted through a wall either.
  */
 public class CourierWorkGoal extends Goal {
 
@@ -44,6 +57,16 @@ public class CourierWorkGoal extends Goal {
     public static final int SORT_MOVE_TICK = 16;
     /** How much the courier carries per trip; the sack's capacity (D-007). */
     private static final int LOAD_TRIGGER = 8;
+    /** Reach to the drop-off chest, squared. Two blocks and a bit. */
+    private static final double DROP_OFF_REACH_SQR = 6.25;
+    /** Reach to the hearth, squared. */
+    private static final double HEARTH_REACH_SQR = 6.25;
+    /**
+     * How long the courier stops trying after a route genuinely fails.
+     * Without this, giving up and re-triggering on the next tick is an
+     * invisible busy-loop -- the wedge shape itself, not a fix for it.
+     */
+    public static final int RETRY_COOLDOWN_TICKS = 400;
     // Sound-sync contract (catalogue §0.4 / §5.1-5.4). Each value must agree
     // with the clip comment in SettlerAnimations and tools/anim_check.py.
     public static final int LIFT_GRIP_TICK = 8;
@@ -53,16 +76,18 @@ public class CourierWorkGoal extends Goal {
     public static final int CRATE_CREAK_PERIOD = 54;
     public static final int CRATE_CREAK_OFFSET = 9;
 
-    private enum Mode { TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING }
+    private enum Mode { TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING, RETURNING }
 
     private final SettlerEntity settler;
     private Mode mode;
-    private BlockPos warehousePos;
+    /** The chest being delivered to -- the real destination, not the plaque. */
+    private BlockPos dropOff;
     private java.util.UUID warehouseId;
     private int workTicks;
     private int setDownThudIn = -1;
     private int repathTimer;
     private int stuckChecks;
+    private long cooldownUntil = Long.MIN_VALUE;
     private boolean done;
 
     public CourierWorkGoal(SettlerEntity settler) {
@@ -72,25 +97,46 @@ public class CourierWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (settler.getProfession() != Profession.COURIER
-            || !settler.isBound()
-            || settler.dayPhase() != SettlerEntity.DayPhase.WORK
-            || settler.getEnergy() <= 15) {
+        if (settler.getProfession() != Profession.COURIER || !settler.isBound()) {
+            return false;
+        }
+        if (!(settler.level() instanceof ServerLevel level)) {
             return false;
         }
         Settlement s = settler.settlement();
-        if (s == null || !(settler.level() instanceof ServerLevel level)) {
+        if (s == null) {
             return false;
         }
-        Building warehouse = pickWarehouse(level, s);
-        if (warehouse == null) {
+        boolean carrying = bagCount() > 0;
+        boolean onShift = settler.dayPhase() == SettlerEntity.DayPhase.WORK
+            && settler.getEnergy() > 15
+            && level.getGameTime() >= cooldownUntil;
+        if (!carrying && !onShift) {
+            return false; // nothing in hand and nothing to do: skip the lookup
+        }
+        Building warehouse = pickWarehouse(s);
+        BlockPos target = warehouse == null ? null : pickDropOff(level, warehouse);
+
+        // Carrying with nowhere to put it down: take the goods back to the
+        // hearth rather than sitting on them. Items in a bag are real, but
+        // they are out of circulation, and the settlement cannot see them.
+        if (carrying && target == null) {
+            warehouseId = null;
+            dropOff = null;
+            mode = Mode.RETURNING;
+            return true;
+        }
+        if (!onShift) {
+            return false; // carrying off-shift: hold the load until morning
+        }
+        if (target == null) {
             return false; // idle visibly rather than thrash (MineColonies #2932)
         }
         warehouseId = warehouse.id;
-        warehousePos = warehouse.anchor;
+        dropOff = target;
 
         // Already carrying? Finish the delivery before starting another.
-        if (bagCount() > 0) {
+        if (carrying) {
             mode = Mode.TO_WAREHOUSE;
             return true;
         }
@@ -102,7 +148,7 @@ public class CourierWorkGoal extends Goal {
     }
 
     /** Prefers a warehouse this settler is actually employed at (D-A2a-4). */
-    private Building pickWarehouse(ServerLevel level, Settlement s) {
+    private Building pickWarehouse(Settlement s) {
         Building fallback = null;
         for (Building b : s.buildings) {
             if (b.type != BuildingType.WAREHOUSE || !b.valid) {
@@ -116,6 +162,26 @@ public class CourierWorkGoal extends Goal {
             }
         }
         return fallback;
+    }
+
+    /**
+     * The nearest chest or barrel in the warehouse, or {@code null} if it
+     * has none yet. Read from the cached index rather than a fresh scan so
+     * that calling this every tick stays inside the scan budget.
+     */
+    private BlockPos pickDropOff(ServerLevel level, Building warehouse) {
+        List<BlockPos> containers = WarehouseStorage.of(level, warehouse).containers();
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
+        BlockPos from = settler.blockPosition();
+        for (BlockPos pos : containers) {
+            double d = from.distSqr(pos);
+            if (d < bestDist) {
+                bestDist = d;
+                best = pos;
+            }
+        }
+        return best;
     }
 
     /** Food is off limits; anything else in the hearth is haulable. */
@@ -147,7 +213,7 @@ public class CourierWorkGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return !done && settler.isBound() && warehousePos != null;
+        return !done && settler.isBound();
     }
 
     @Override
@@ -161,20 +227,67 @@ public class CourierWorkGoal extends Goal {
         workTicks = 0;
         stuckChecks = 0;
         repathTimer = 0;
-        if (mode == Mode.TO_WAREHOUSE) {
-            settler.setActivity(SettlerActivity.CARRYING);
-            pathTo(warehousePos);
-        } else {
-            settler.setActivity(SettlerActivity.TRAVELING);
-            pathTo(settler.getHearthPos());
+        switch (mode) {
+            case TO_WAREHOUSE -> {
+                settler.setActivity(SettlerActivity.CARRYING);
+                pathToDropOff();
+            }
+            case RETURNING -> {
+                settler.setActivity(SettlerActivity.CARRYING);
+                pathAbove(settler.getHearthPos());
+            }
+            default -> {
+                settler.setActivity(SettlerActivity.TRAVELING);
+                pathAbove(settler.getHearthPos());
+            }
         }
     }
 
-    private void pathTo(BlockPos pos) {
+    /** Walks to the cell above a block -- used for the hearth. */
+    private void pathAbove(BlockPos pos) {
         if (pos != null) {
             settler.getNavigation().moveTo(pos.getX() + 0.5, pos.getY() + 1,
                 pos.getZ() + 0.5, 0.95);
         }
+    }
+
+    /** Walks to a cell a settler can actually stand in, feet at {@code pos}. */
+    private void pathToStand(BlockPos pos) {
+        settler.getNavigation().moveTo(pos.getX() + 0.5, pos.getY(),
+            pos.getZ() + 0.5, 0.95);
+    }
+
+    private void pathToDropOff() {
+        if (dropOff != null && settler.level() instanceof ServerLevel level) {
+            pathToStand(approachTo(level, dropOff));
+        }
+    }
+
+    /**
+     * A standable cell beside the chest. A chest itself is never walkable,
+     * and the cell above it is only walkable for a barrel, so aiming at the
+     * container block leaves the navigator to guess -- and outside a sealed
+     * room its guess is the wrong side of the wall.
+     */
+    private static BlockPos approachTo(ServerLevel level, BlockPos container) {
+        for (Direction dir : Direction.Plane.HORIZONTAL) {
+            BlockPos side = container.relative(dir);
+            if (isStandable(level, side)) {
+                return side;
+            }
+        }
+        if (isStandable(level, container.above())) {
+            return container.above();
+        }
+        return container;
+    }
+
+    private static boolean isStandable(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
+            && level.getBlockState(pos.above())
+                .getCollisionShape(level, pos.above()).isEmpty()
+            && !level.getBlockState(pos.below())
+                .getCollisionShape(level, pos.below()).isEmpty();
     }
 
     @Override
@@ -188,6 +301,7 @@ public class CourierWorkGoal extends Goal {
             case LOADING -> tickLoading();
             case TO_WAREHOUSE -> tickToWarehouse();
             case SORTING -> tickSorting();
+            case RETURNING -> tickReturning();
         }
     }
 
@@ -199,7 +313,7 @@ public class CourierWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(hearthPos.getX() + 0.5,
             hearthPos.getY() + 0.6, hearthPos.getZ() + 0.5);
-        if (settler.blockPosition().distSqr(hearthPos) <= 6.25) {
+        if (settler.blockPosition().distSqr(hearthPos) <= HEARTH_REACH_SQR) {
             settler.getNavigation().stop();
             mode = Mode.LOADING;
             workTicks = 0;
@@ -207,9 +321,9 @@ public class CourierWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
             if (++stuckChecks > 8) {
-                done = true;
+                giveUp(); // unreachable hearth: rest the route, don't spin
             } else {
-                pathTo(hearthPos);
+                pathAbove(hearthPos);
             }
         }
     }
@@ -258,12 +372,21 @@ public class CourierWorkGoal extends Goal {
         workTicks = 0;
         stuckChecks = 0;
         settler.setActivity(SettlerActivity.CARRYING);
-        pathTo(warehousePos);
+        pathToDropOff();
     }
 
     private void tickToWarehouse() {
-        if (warehousePos == null) {
+        if (dropOff == null || !(settler.level() instanceof ServerLevel level)) {
             done = true;
+            return;
+        }
+        Settlement s = settler.settlement();
+        Building warehouse = s == null ? null : findWarehouseById(s);
+        if (warehouse == null) {
+            mode = Mode.RETURNING; // dissolved mid-trip: carry the goods home
+            stuckChecks = 0;
+            repathTimer = 0;
+            pathAbove(settler.getHearthPos());
             return;
         }
         // Laden footfalls and the occasional strained breath: the load is
@@ -285,9 +408,9 @@ public class CourierWorkGoal extends Goal {
                     0.95F + settler.getRandom().nextFloat() * 0.1F);
             }
         }
-        settler.getLookControl().setLookAt(warehousePos.getX() + 0.5,
-            warehousePos.getY() + 0.6, warehousePos.getZ() + 0.5);
-        if (settler.blockPosition().distSqr(warehousePos) <= 9.0) {
+        settler.getLookControl().setLookAt(dropOff.getX() + 0.5,
+            dropOff.getY() + 0.6, dropOff.getZ() + 0.5);
+        if (hasArrivedAt(warehouse)) {
             settler.getNavigation().stop();
             // COURIER_SET_DOWN starts now; its contact is SET_DOWN_TICK
             // ticks in, so the thud is scheduled rather than played here
@@ -301,14 +424,28 @@ public class CourierWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
             if (++stuckChecks > 12) {
-                // Cannot reach the warehouse. Keep the load rather than
-                // dropping it, and end the goal; the bag is persisted and
-                // drops on death, so nothing is lost either way.
-                done = true;
+                // The warehouse cannot be reached from here. Carry the load
+                // back to the hearth so the goods stay in circulation, and
+                // rest the route so this is not an invisible busy-loop.
+                giveUp();
             } else {
-                pathTo(warehousePos);
+                pathToDropOff();
             }
         }
+    }
+
+    /**
+     * Arrival means <em>in the warehouse, at a chest</em> -- being within
+     * reach through a wall is not arriving. The building's bounds come from
+     * the plaque's room scan and include its shell, so a settler in the
+     * doorway counts as inside while one outside the wall does not.
+     */
+    private boolean hasArrivedAt(Building warehouse) {
+        BlockPos at = settler.blockPosition();
+        if (warehouse.bounds != null && !warehouse.bounds.isInside(at)) {
+            return false;
+        }
+        return at.distSqr(dropOff) <= DROP_OFF_REACH_SQR;
     }
 
     /** One stack per cycle into the warehouse chests, moving at tick 16. */
@@ -324,8 +461,11 @@ public class CourierWorkGoal extends Goal {
         Settlement s = settler.settlement();
         Building warehouse = s == null ? null : findWarehouseById(s);
         if (warehouse == null) {
-            // The warehouse was dissolved mid-delivery. Keep the goods.
-            done = true;
+            mode = Mode.RETURNING; // dissolved mid-delivery: take them home
+            stuckChecks = 0;
+            repathTimer = 0;
+            settler.setActivity(SettlerActivity.CARRYING);
+            pathAbove(settler.getHearthPos());
             return;
         }
         WarehouseStorage storage = WarehouseStorage.of(level, warehouse);
@@ -339,15 +479,82 @@ public class CourierWorkGoal extends Goal {
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
             settler.bag.setItem(i, leftover);
             if (!leftover.isEmpty()) {
-                // Warehouse full: stop, keep what is left, go home with it.
-                done = true;
+                // Warehouse full: stop, and carry what is left back home.
+                mode = Mode.RETURNING;
+                stuckChecks = 0;
+                repathTimer = 0;
+                settler.setActivity(SettlerActivity.CARRYING);
+                pathAbove(settler.getHearthPos());
             }
             return; // one stack per cycle -- the animation beat
         }
         done = true; // bag empty: delivery complete
     }
 
+    /**
+     * Carries an undeliverable load back to the hearth and puts it down.
+     * The failure mode this exists to prevent is the quiet one: a courier
+     * wandering off with the settlement's goods locked in her bag.
+     */
+    private void tickReturning() {
+        if (bagCount() <= 0) {
+            done = true;
+            return;
+        }
+        BlockPos hearthPos = settler.getHearthPos();
+        HearthBlockEntity hearth = settler.hearth();
+        if (hearthPos == null || hearth == null) {
+            done = true; // keep the load; the bag is persisted and drops on death
+            return;
+        }
+        settler.getLookControl().setLookAt(hearthPos.getX() + 0.5,
+            hearthPos.getY() + 0.6, hearthPos.getZ() + 0.5);
+        if (settler.blockPosition().distSqr(hearthPos) <= HEARTH_REACH_SQR) {
+            settler.getNavigation().stop();
+            // Destination-first again: the hearth takes the stack before the
+            // bag slot is overwritten with whatever it could not hold.
+            for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+                ItemStack stack = settler.bag.getItem(i);
+                if (stack.isEmpty()) {
+                    continue;
+                }
+                settler.bag.setItem(i, hearth.insertGoods(stack.copy()));
+            }
+            playAt(ModSounds.CHEST_STOW.get(), 0.65F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+            done = true;
+        } else if (--repathTimer <= 0) {
+            repathTimer = 40;
+            if (++stuckChecks > 12) {
+                done = true; // cannot even get home; the bag keeps the goods
+            } else {
+                pathAbove(hearthPos);
+            }
+        }
+    }
+
+    /**
+     * A route failed for real. Rest it for {@link #RETRY_COOLDOWN_TICKS} so
+     * the courier does something else instead of re-entering this goal on
+     * the very next tick, and bring any load home first.
+     */
+    private void giveUp() {
+        cooldownUntil = settler.level().getGameTime() + RETRY_COOLDOWN_TICKS;
+        if (bagCount() > 0) {
+            mode = Mode.RETURNING;
+            stuckChecks = 0;
+            repathTimer = 0;
+            settler.setActivity(SettlerActivity.CARRYING);
+            pathAbove(settler.getHearthPos());
+        } else {
+            done = true;
+        }
+    }
+
     private Building findWarehouseById(Settlement s) {
+        if (warehouseId == null) {
+            return null;
+        }
         for (Building b : s.buildings) {
             if (b.id.equals(warehouseId) && b.valid) {
                 return b;

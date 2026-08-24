@@ -10,111 +10,58 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
   KF-007 determinism fix + `check_pipeline()`, KF-010 constructor-seed fix.
 - **FIX-1 — DONE** (dedicated-server + performance regressions).
 
-## SLICE ANIM-1 + A2a (pieces 1/2/5) — GATE GREEN
+## SLICE ANIM-1 — all 23 A1 clips landed; both Opus calls spent
 
-All 23 A1 clips implemented (commits `9a1ce02`, `6d472bf`, `db98ae6`),
-gate was green twice, first in-game video sent. **RELEASE_GATE (Opus call
-1) returned REVISE**: 1 BLOCKER, 4 HIGH, 6 MEDIUM, 6 LOW.
+RELEASE_GATE (call 1) REVISE → whole fix round landed and verified; the
+re-review (call 2) REVISE → all its findings landed too. Full detail lives
+in `docs/HEARTHSTEAD_QUALITY_LEDGER.md` and KNOWN_FAILURES (KF-011 the
+stuck-asleep blocker, KF-012 the corrected scmd attribution). Highlights
+worth carrying: SLEEPING now restores energy faster than RESTING; HAUL_LOG
+and the courier carry clips fully replace WALK; all 7 accent sound
+contracts wired via `SettlerEntity.tickAccents()` and enforced by
+`anim_check.ENTITY_SOUND_CONTRACTS`; `export_bbmodel.py` UUIDs SHA-1-derived
+so Blockbench renders no longer invalidate the fingerprint. **ANIM-1's Opus
+budget is spent (2 of 2)** — remaining defects there are Sonnet's; a third
+call needs a genuine BLOCKER_GATE.
 
-**Fix round complete (commits `b4d4650`, `0a18f40`, `ad4a20b`, `7500e22`),
-all Level A checks green** (`quick` PASS: build + 418/418 assets + anim;
-gametest 25/25 including the new regression test):
+## SLICE A2a — warehouse + courier
 
-- BLOCKER-1 → KF-011: `tickNeeds()` now restores energy for SLEEPING
-  (faster than RESTING — a bed must beat rough rest); new GameTest
-  `settlerWakesAtDawnWithRecoveredEnergy` drives night→dawn.
-- HIGH-1: HAUL_LOG fully replaces WALK in `setupAnim` (own gait, like
-  climbing) — carry arms genuinely locked; checker now enforces it
-  (CARRY_LAYER_CLIPS).
-- HIGH-2: lang keys for all 6 new activities (en+nb) + validator rule
-  parsing the enum (`check_settler_activities`).
-- HIGH-4: all 7 missing accent contracts WIRED for real (yawn, ladder
-  creak, settler_eat bites, panic yelp, shield thud, cheer, limp grunt) via
-  a server-side accent scheduler in `SettlerEntity.tickAccents()` + goal
-  hooks; 3 new generated sounds (settler_panic/shield_thud/cheer, 8 oggs);
-  `anim_check.py` ENTITY_SOUND_CONTRACTS greps the named constants from the
-  owning Java files — gaps can no longer hide. Header doc now truthful.
-- MEDIUM-1..6: SHIELD_BLOCK resets all shared parts before the react;
-  one-shot stagger moved server-side to trigger tick (id-based delays);
-  withheld seed returned on every farmer exit path; tilling crop-anchored
-  (no cascade terraforming); 5 new work activities in the needs model;
-  spec corrections recorded in quality ledger Iterations 5/6.
-- LOW: GUARD_PATROL gate uses patrolState.isStarted(); lumberer full-bag
-  resume sets HAULING_LOG; OGG encode now bitexact-deterministic (proven
-  by identical double-run); doc drift fixed.
-- Harness: playtest/live renderDistance 12→6 (playtest was ~62% of full
-  runtime, chunk-gen-bound), client_boot polls 3s, contact-sheet
-  end-frame crash fixed (verified against the real failing clip).
+Landed: `WarehouseStorage` (derived, revisioned, never persisted,
+destination-first `insert()`); `CourierWorkGoal` (hearth → warehouse, one
+direction only so it cannot deadlock like MineColonies #5333; food never
+leaves the hearth); the read-only storage view; 7 courier sounds; the five
+courier clips. Multi-`@GameTestHolder` discovery PROVEN (suite 25 → 33).
 
-**HIGH-3 evidence**: live session restarted on the fixed jar; two long
-films (90s, 100s — camera tracking a lumberer through felling + haul)
-captured and sent to the user. User's verdict on watching: swings lack
-WEIGHT (valid craft feedback → in flight below). "No tool in hand" in
-that film was a harness artifact: raw-NBT Profession merge skips
-`assignProfession()`'s tool equip — confirmed by manual `item replace`
-+ screenshot; not a code defect. Film real settlers via the writ flow.
+**KF-013 — the courier loaded and never delivered.** Found by *playing*,
+after `gate` reported `green_streak=2`. A warehouse has no beds, so its
+anchor is the plaque block — in a wall — and the goal routed there, gave up
+one block outside the arrival radius, and re-entered on the next tick with
+the settlement's logs parked in a bag. This is MineColonies #2932, in the
+system whose design note claimed to avoid it. Fixed: deliver to a real
+container at a standable cell; arrival requires being *inside* the
+building's bounds (no posting through walls); a failed route rests 400
+ticks; a new RETURNING mode carries an undeliverable load home. Also fixed
+a latent overflow — `WarehouseStorage.of()` compared against a
+`Long.MIN_VALUE` sentinel, so a never-refreshed index read as fresh and
+every warehouse looked empty.
 
-**Weight + texture passes landed** (worker-built, verified): CHOP,
-FARM_TILL, LIMB_BRANCHES, MELEE gained impact holds, follow-through
-overshoot and a leading torso per `.claude/skills/animation-quality`;
-`gen_settler.py` gained hair strands, face gradient, cloth creases,
-4-tone boots. Both verified visually through the Blockbench bridge.
-
-**RELEASE_GATE re-review (Opus call 2 of 2): REVISE.** Its BLOCKER was a
-process error of mine -- I kept editing (A2a) while the review ran, so the
-tree moved under it. Findings and their fixes (all landed):
-- MEDIUM-1 (gate-breaking): `export_bbmodel.py` used `uuid4()`, so every
-  Blockbench render invalidated the fingerprint. UUIDs now SHA-1-derived;
-  byte-identical across three exports.
-- HIGH-1 (dead control): the Courier's Writ shipped craftable and
-  described, while `CourierWorkGoal.canUse()` returned false. Implemented
-  the goal for real instead of hiding the item.
-- LOW-3: the farmer's replant seed lived in a goal field (destroyed on
-  unload). It now stays in the persisted bag and is taken back out only
-  after every placement guard passes.
-- MEDIUM-2/LOW-1: CLIMB_LADDER and WALK_LIMP were claimed as phase-locked
-  sound contracts, which they cannot be (one samples accumulated state
-  time, the other is driven by limbSwing). Both now honestly documented as
-  frequency-only, in the header and in `anim_check`.
-- HIGH-2: fresh evidence captured on the current jar -- a 45s tracked
-  close-up (`live/20260824T214537Z/film/take-04-chop-clean/`) plus
-  Blockbench frames of CHOP's anticipation (0.20s) and impact (0.55s).
-
-**A2a is underway** (piece 1, 2 and 5 done, seam already landed):
-- `WarehouseStorage` -- derived, revisioned, never persisted, insert()
-  destination-first with a true leftover. 3 GameTests.
-- `CourierWorkGoal` -- hearth to warehouse, deliberately one-directional
-  so it cannot deadlock like MineColonies #5333; food never leaves the
-  hearth; idles visibly with no warehouse. 3 GameTests.
-- Storage view -- payloads + `StorageScreen`, sneak-use the handbook,
-  read-only on purpose.
-- Multi-`@GameTestHolder` discovery PROVEN (suite 25 -> 31 tests), which
-  was the A2a plan's one recorded unknown.
+Two new GameTests, **both verified to fail on the pre-fix code** (restore
+the old file, run `gametest`, restore the fix — do this for every
+regression test worth trusting).
 
 ## Next concrete action
 
-**GATE IS GREEN: `GATE: PASS (green_streak=2)`** — two consecutive clean
-full runs at one fingerprint (`20260824T222152Z`), covering ANIM-1's whole
-REVISE round plus A2a pieces 1, 2 and 5. ANIM-1's Opus budget is spent
-(2 of 2), so any remaining defect there is Sonnet's to fix; a third call
-needs a genuine BLOCKER_GATE.
+`fast` is PASS (33/33). Commit, then `full` ×2 for `green_streak=2` at the
+new fingerprint, then capture live video of a completed courier round trip
+— the wedge above means no such footage exists yet.
 
-One intermittent playtest failure was seen and root-caused before
-re-running (see KF-012's correction): step 283's plan-insertion click
-occasionally does not land — the KF-009 family, not a code defect. Runs on
-either side of it passed the identical scenario.
+Then A2a's remaining work per `docs/project/PLAN_A2a.md`, and the user's
+standing asks: raids far more frequent/harder than either reference, and
+the courier's visible sack as a real capacity mechanic (cart upgrade later).
 
-Next: A2a **piece 4 (7 courier sounds) FIRST**, then piece 3 (the courier
-clips), per `docs/project/PLAN_A2a.md` — anim_check asserts each
-contracted sound exists in sounds.json, so the assets must land before the
-clips' final `animation` run. Piece 3 = WALK_LADEN + COURIER_LIFT/CARRY/
-SET_DOWN/SORT; apply `animation-quality` (lift and set-down are
-weight-bearing beats) and `blockbench-animation` (WALK_LADEN is a
-four-pose cycle, not two).
-
-**Process lesson from the re-review: never edit source while a gate or a
-review is in flight.** Park the next slice until the current one is frozen
-and green.
+**Process lessons: never edit source while a gate or review is in flight**,
+and **an arena with no walls is not testing this product** — when
+correctness depends on geometry the player builds, the test must build it.
 
 ## Standing infrastructure (new this session — use it)
 

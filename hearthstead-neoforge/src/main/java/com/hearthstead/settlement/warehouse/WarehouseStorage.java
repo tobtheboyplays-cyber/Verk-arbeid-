@@ -42,7 +42,14 @@ public final class WarehouseStorage {
     private final List<BlockPos> containers = new ArrayList<>();
     private final Map<Item, Integer> tally = new LinkedHashMap<>();
     private int totalItems;
-    private long lastRefreshTick = Long.MIN_VALUE;
+    private long lastRefreshTick;
+    /**
+     * Whether {@link #refresh} has ever run. A sentinel tick cannot stand in
+     * for this: {@code getGameTime() - Long.MIN_VALUE} overflows to a
+     * negative age, so a never-refreshed index would read as fresh and
+     * report an empty warehouse forever.
+     */
+    private boolean everRefreshed;
     private int revision;
     /** Containers visited by the last refresh — asserted by the GameTest. */
     private int lastVisitCount;
@@ -58,7 +65,8 @@ public final class WarehouseStorage {
     public static WarehouseStorage of(ServerLevel level, Building building) {
         WarehouseStorage storage =
             CACHE.computeIfAbsent(building.id, WarehouseStorage::new);
-        if (level.getGameTime() - storage.lastRefreshTick >= REFRESH_INTERVAL_TICKS) {
+        if (!storage.everRefreshed
+            || level.getGameTime() - storage.lastRefreshTick >= REFRESH_INTERVAL_TICKS) {
             storage.refresh(level, building);
         }
         return storage;
@@ -104,6 +112,7 @@ public final class WarehouseStorage {
             }
         }
         lastRefreshTick = level.getGameTime();
+        everRefreshed = true;
         revision++;
     }
 
