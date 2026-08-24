@@ -161,6 +161,32 @@ start)
         # means every later `look`/`move` invocation across this whole
         # session actually works, in any order.
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+        # A joined player is not the same thing as a RUNNING world. Proven
+        # live: `start` reported "Dev is in the world", the session was then
+        # left unattended, a Slime killed the player, and the client sat on
+        # the death screen. A dead player stops holding the surrounding
+        # chunks at full ticking, so block entities near them stop ticking
+        # too — a hearth placed afterwards never founded its settlement, and
+        # nothing moved for anyone watching, while `live status` still
+        # cheerfully reported the session up. Everything observed in that
+        # state is a frozen world, which silently invalidates any judgement
+        # about motion or behaviour made from it.
+        #
+        # So bringing the session up now also puts the world into a state
+        # where it will still be running when someone looks at it, and the
+        # last check asserts the player is actually ALIVE rather than merely
+        # connected.
+        for cmd in "difficulty peaceful" "gamemode creative $PLAYER" \
+                   "time set day" "weather clear" "gamerule doMobSpawning false"; do
+            srv_send "$cmd"; sleep 1
+        done
+        srv_send "data get entity $PLAYER Health"; sleep 2
+        HEALTH=$(grep -oP "$PLAYER has the following entity data: \\K[0-9.]+(?=f)" \
+                 "$INST/logs/latest.log" 2>/dev/null | tail -1)
+        case "$HEALTH" in
+            ""|0|0.0) die player_alive "player is not alive after join (Health=${HEALTH:-unknown})";;
+        esac
+        check_pass player_alive "observation state set, Health=$HEALTH"
         finish_result PASS
         write_reproduction "# Reproduce: live start
 tools/hearthstead-qa live start
@@ -209,7 +235,17 @@ look)   focus
         echo "looked $2 $3";;
 
 film)
-    EV_DIR=$(ev_dir_for_session); EV_FILM="$EV_DIR/film"; mkdir -p "$EV_FILM"
+    EV_DIR=$(ev_dir_for_session)
+    # Every take gets its OWN directory. A single `film/` was overwritten by
+    # the next film in the same session, so proving a claim that needs two
+    # takes — a moving subject that must PASS and a frozen one that must
+    # FAIL — destroyed the first take's clip, contact sheet and verdict as
+    # soon as the second ran. Optional label via HSQA_FILM_LABEL so a take
+    # can say what it was for without disturbing the positional arguments.
+    TAKE_N=$(( $(find "$EV_DIR/film" -maxdepth 1 -type d -name 'take-*' 2>/dev/null | wc -l) + 1 ))
+    TAKE_LABEL="${HSQA_FILM_LABEL:-}"
+    EV_FILM="$EV_DIR/film/$(printf 'take-%02d' "$TAKE_N")${TAKE_LABEL:+-$TAKE_LABEL}"
+    mkdir -p "$EV_FILM"
     SECS="${2:-6}"; FPS="${3:-24}"; PAN="${4:-}"
     W=$(win)
     GEOM=$(xdotool getwindowgeometry --shell "$W" 2>/dev/null | grep -E '^(WIDTH|HEIGHT|X|Y)=' | tr '\n' ' ')

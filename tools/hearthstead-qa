@@ -410,5 +410,5 @@ case "${1:-help}" in
     gate)        cmd_gate;;
     status)      cmd_status;;
     reproduce)   shift; cmd_reproduce "${1:-}";;
-    *) sed -n '1,3p' "$0"; echo "commands: doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap full gate status reproduce";;
+    *) sed -n '1,3p' "$0"; echo "commands: doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce";;
 esac
