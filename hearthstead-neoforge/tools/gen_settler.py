@@ -26,8 +26,7 @@ import os
 import zlib
 
 sys.path.insert(0, os.path.dirname(__file__))
-from texlib import (ramp, hx, shade, mix, new_image, fill, put, box_faces,
-                    FACE_LIGHT, save)
+from texlib import ramp, shade, new_image, put, box_faces, FACE_LIGHT, save
 
 SEED_BASE = 1420
 
@@ -193,7 +192,11 @@ def build_hair(style_idx, color_idx):
         for j in range(min(style["side_rows"], fh)):
             for i in range(fw):
                 put(img, x + i, y + j, lit(hair[2 if (i + j) % 3 else 1], side))
-        if style["side_rows"] > 0:
+        # Contiguous only if the side hair itself reaches row 3 (or ends
+        # right at it); a short style like "buzzed" (side_rows=1) would
+        # otherwise leave this dot floating on bare skin two rows below
+        # where the hair actually stops.
+        if style["side_rows"] >= 3:
             put(img, x + (fw - 2 if side == "right" else 1), y + 3, lit(hair[2], side))
 
     x, y, fw, fh = faces["front"]

@@ -101,6 +101,15 @@ public class SettlerEntity extends PathfinderMob {
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
         setPersistenceRequired();
+        // Roll a real appearance seed for every settler the moment it is
+        // constructed, regardless of creation path (SettlementManager,
+        // spawn egg, /summon, mob spawner...). This is the only point every
+        // path passes through, so it's the only place that can guarantee no
+        // settler is ever left at the synced-data default of 0 -- which
+        // would decode to an identical, permanently-baked-in appearance
+        // once first saved. A later readAdditionalSaveData for a loaded
+        // entity always overrides this with the persisted value.
+        entityData.set(DATA_APPEARANCE_SEED, random.nextInt());
         if (getNavigation() instanceof GroundPathNavigation nav) {
             nav.setCanOpenDoors(true);
             nav.setCanPassDoors(true);
@@ -193,9 +202,11 @@ public class SettlerEntity extends PathfinderMob {
         return entityData.get(DATA_APPEARANCE_SEED);
     }
 
-    /** Rolled once at spawn by SettlementManager (INV-5); never call this
-     *  after the settler has joined a settlement -- the look must stay
-     *  stable for a given settler across their whole life. */
+    /** The constructor already rolls a real seed for every settler
+     *  regardless of creation path; this setter exists only for explicit
+     *  overrides (e.g. a future "restyle" feature). Never call this after
+     *  the settler has joined a settlement -- the look must stay stable for
+     *  a given settler across their whole life. */
     public void setAppearanceSeed(int seed) {
         entityData.set(DATA_APPEARANCE_SEED, seed);
     }

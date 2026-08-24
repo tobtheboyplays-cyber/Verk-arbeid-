@@ -923,7 +923,17 @@ def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tupl
     return tmp, None
 
 
+_PIPELINE_OUTPUT_SUFFIXES = (".png", ".nbt")
+
+
 def check_pipeline() -> None:
+    """A regression guard is worthless the moment it stops running and
+    nobody notices. Every branch below therefore ends in a real check()
+    failure on anything that prevents the determinism comparison from
+    happening at all -- a generator that can't execute (missing Pillow
+    included: subprocess failure surfaces it the same as any other crash)
+    is exactly the case this guard exists to catch, not a reason to
+    degrade to a warning or an info line and move on."""
     tools_src = PROJECT_ROOT / "tools"
     if not tools_src.is_dir():
         info("Pipeline", "no tools/ directory — skipped")
@@ -932,38 +942,48 @@ def check_pipeline() -> None:
     for script in PIPELINE_GENERATORS:
         if not (tools_src / script).is_file():
             continue
-        try:
-            import PIL  # noqa: F401
-        except ImportError:
-            info("Pipeline", f"{script}: Pillow not installed — determinism check skipped")
-            continue
 
         tmp_a, err_a = _run_generator_isolated(tools_src, script, "0")
         tmp_b, err_b = _run_generator_isolated(tools_src, script, "1")
         try:
-            if err_a or err_b:
-                check("Pipeline", False,
-                      f"{script}: generator failed under isolated run "
-                      f"(PYTHONHASHSEED=0: {err_a or 'ok'} / PYTHONHASHSEED=1: {err_b or 'ok'})",
-                      warn_only=True)
+            if not check("Pipeline", not (err_a or err_b),
+                         f"{script}: runs cleanly under PYTHONHASHSEED=0 and =1 "
+                         f"(needed before its determinism can even be checked)"
+                         if (err_a or err_b) else
+                         f"{script}: runs cleanly under PYTHONHASHSEED=0 and =1"):
+                if err_a:
+                    check("Pipeline", False, f"{script} (PYTHONHASHSEED=0): {err_a}")
+                if err_b:
+                    check("Pipeline", False, f"{script} (PYTHONHASHSEED=1): {err_b}")
                 continue
 
             res_a = tmp_a / "src"
             res_b = tmp_b / "src"
-            pngs_a = sorted(p.relative_to(res_a) for p in res_a.rglob("*.png")) if res_a.is_dir() else []
-            pngs_b = sorted(p.relative_to(res_b) for p in res_b.rglob("*.png")) if res_b.is_dir() else []
-            if not pngs_a and not pngs_b:
-                info("Pipeline", f"{script}: produced no PNGs to compare — skipped")
+            outs_a = sorted(p.relative_to(res_a) for p in res_a.rglob("*")
+                            if p.is_file() and p.suffix in _PIPELINE_OUTPUT_SUFFIXES) \
+                if res_a.is_dir() else []
+            outs_b = sorted(p.relative_to(res_b) for p in res_b.rglob("*")
+                            if p.is_file() and p.suffix in _PIPELINE_OUTPUT_SUFFIXES) \
+                if res_b.is_dir() else []
+            check("Pipeline", bool(outs_a),
+                  f"{script}: produced at least one output file to compare"
+                  if outs_a else
+                  f"{script}: produced no .png/.nbt output — nothing for this guard to verify")
+            if not outs_a:
                 continue
 
-            check("Pipeline", pngs_a == pngs_b,
-                  f"{script}: PYTHONHASHSEED=0 and PYTHONHASHSEED=1 runs produced the same file set")
+            check("Pipeline", outs_a == outs_b,
+                  f"{script}: PYTHONHASHSEED=0 and PYTHONHASHSEED=1 runs produced the same file set"
+                  if outs_a == outs_b else
+                  f"{script}: PYTHONHASHSEED=0 and PYTHONHASHSEED=1 runs produced DIFFERENT file "
+                  f"sets: only-in-0={sorted(set(outs_a) - set(outs_b))} "
+                  f"only-in-1={sorted(set(outs_b) - set(outs_a))}")
 
             mismatched = []
-            for rel_png in pngs_a:
-                pb = res_b / rel_png
-                if not pb.is_file() or (res_a / rel_png).read_bytes() != pb.read_bytes():
-                    mismatched.append(str(rel_png))
+            for rel_out in outs_a:
+                pb = res_b / rel_out
+                if not pb.is_file() or (res_a / rel_out).read_bytes() != pb.read_bytes():
+                    mismatched.append(str(rel_out))
             check("Pipeline", not mismatched,
                   f"{script}: byte-identical output across PYTHONHASHSEED=0 and PYTHONHASHSEED=1"
                   if not mismatched
@@ -972,10 +992,10 @@ def check_pipeline() -> None:
 
             src_root = PROJECT_ROOT / "src"
             committed_mismatch = []
-            for rel_png in pngs_a:
-                committed = src_root / rel_png
-                if not committed.is_file() or (res_a / rel_png).read_bytes() != committed.read_bytes():
-                    committed_mismatch.append(str(rel_png))
+            for rel_out in outs_a:
+                committed = src_root / rel_out
+                if not committed.is_file() or (res_a / rel_out).read_bytes() != committed.read_bytes():
+                    committed_mismatch.append(str(rel_out))
             check("Pipeline", not committed_mismatch,
                   f"{script}: committed assets match a fresh deterministic run"
                   if not committed_mismatch
@@ -987,12 +1007,121 @@ def check_pipeline() -> None:
 
 
 # --------------------------------------------------------------------------
+# 14. Settler appearance binding (Java cardinalities/keys <-> layer files)
+# --------------------------------------------------------------------------
+
+# check_pipeline() proves the generator is deterministic and matches the
+# committed tree; it says nothing about whether the SET of layer files it
+# produces still matches what SettlerTextureCache (Java) will ask for by
+# name. SKIN_KEYS/HAIR_COLOR_KEYS and the *_COUNT constants are duplicated
+# by hand in Java and Python with no shared source of truth, so a rename or
+# cardinality change on either side would previously only surface as a
+# runtime IOException inside a caught Exception -- i.e. never, in CI.
+
+_JAVA_INT_CONST_RE = re.compile(r"public static final int (\w+)\s*=\s*(\d+)\s*;")
+_JAVA_STRING_ARRAY_RE = re.compile(
+    r"private static final String\[\]\s+(\w+)\s*=\s*\{([^}]*)\}")
+_JAVA_QUOTED_RE = re.compile(r'"([^"]*)"')
+_PROFESSION_ENUM_RE = re.compile(
+    r'^\s*[A-Z_]+\(\s*\d+\s*,\s*"([a-z0-9_]+)"', re.MULTILINE)
+
+
+def _read_java(rel_path: str) -> str | None:
+    path = JAVA_ROOT / rel_path
+    try:
+        return strip_java_comments(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+
+
+def check_appearance_binding() -> None:
+    appearance_src = _read_java("com/hearthstead/entity/SettlerAppearance.java")
+    cache_src = _read_java("com/hearthstead/client/render/SettlerTextureCache.java")
+    profession_src = _read_java("com/hearthstead/entity/Profession.java")
+    gen_path = PROJECT_ROOT / "tools" / "gen_settler.py"
+
+    if not check("Appearance", appearance_src is not None,
+                 "SettlerAppearance.java is readable"):
+        return
+    if not check("Appearance", cache_src is not None,
+                 "SettlerTextureCache.java is readable"):
+        return
+    if not check("Appearance", profession_src is not None,
+                 "Profession.java is readable"):
+        return
+    if not check("Appearance", gen_path.is_file(), "tools/gen_settler.py exists"):
+        return
+
+    counts = {m.group(1): int(m.group(2)) for m in _JAVA_INT_CONST_RE.finditer(appearance_src)}
+    for needed in ("SKIN_COUNT", "HAIR_STYLE_COUNT", "HAIR_COLOR_COUNT",
+                   "FACE_COUNT", "CLOTHING_COUNT"):
+        if not check("Appearance", needed in counts,
+                     f"SettlerAppearance.java declares {needed}"):
+            return
+
+    arrays: dict[str, list[str]] = {}
+    for m in _JAVA_STRING_ARRAY_RE.finditer(cache_src):
+        arrays[m.group(1)] = _JAVA_QUOTED_RE.findall(m.group(2))
+    for needed in ("SKIN_KEYS", "HAIR_COLOR_KEYS"):
+        if not check("Appearance", needed in arrays and bool(arrays[needed]),
+                     f"SettlerTextureCache.java declares a non-empty {needed}"):
+            return
+
+    profession_keys = _PROFESSION_ENUM_RE.findall(profession_src)
+    if not check("Appearance", bool(profession_keys),
+                 "Profession.java declares at least one profession key"):
+        return
+
+    check("Appearance", len(arrays["SKIN_KEYS"]) == counts["SKIN_COUNT"],
+          f"SKIN_KEYS has {len(arrays['SKIN_KEYS'])} entries (SettlerAppearance.SKIN_COUNT="
+          f"{counts['SKIN_COUNT']})")
+    check("Appearance", len(arrays["HAIR_COLOR_KEYS"]) == counts["HAIR_COLOR_COUNT"],
+          f"HAIR_COLOR_KEYS has {len(arrays['HAIR_COLOR_KEYS'])} entries "
+          f"(SettlerAppearance.HAIR_COLOR_COUNT={counts['HAIR_COLOR_COUNT']})")
+
+    # The exact cross product SettlerTextureCache.compose() will ask for by
+    # ResourceLocation, mirrored from its own naming (base_<skin>.png,
+    # hair_<styleIndex>_<colorKey>.png, face_<i>.png, clothing_<i>.png,
+    # outfit_<professionKey>.png).
+    expected = set()
+    for skin in arrays["SKIN_KEYS"]:
+        expected.add(f"base_{skin}.png")
+    for style_idx in range(counts["HAIR_STYLE_COUNT"]):
+        for color in arrays["HAIR_COLOR_KEYS"]:
+            expected.add(f"hair_{style_idx}_{color}.png")
+    for i in range(counts["FACE_COUNT"]):
+        expected.add(f"face_{i}.png")
+    for i in range(counts["CLOTHING_COUNT"]):
+        expected.add(f"clothing_{i}.png")
+    for prof_key in profession_keys:
+        expected.add(f"outfit_{prof_key}.png")
+
+    layers_dir = MOD_ASSETS / "textures" / "entity" / "settler" / "layers"
+    if not check("Appearance", layers_dir.is_dir(),
+                 f"{rel(layers_dir)} exists"):
+        return
+    actual = {p.name for p in layers_dir.glob("*.png")}
+
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    check("Appearance", not missing,
+          f"every layer file the Java cross product implies is present ({len(expected)} expected)"
+          if not missing else
+          f"layers/ is missing files the Java constants/keys imply should exist: {', '.join(missing)}")
+    check("Appearance", not extra,
+          "no orphaned layer files beyond what the Java cross product implies"
+          if not extra else
+          f"layers/ has files no longer implied by the Java constants/keys (rename or cardinality "
+          f"drift?): {', '.join(extra)}")
+
+
+# --------------------------------------------------------------------------
 # Reporting / main
 # --------------------------------------------------------------------------
 
 CATEGORY_ORDER = ["Registry", "Meta", "Blocks", "Items", "Entities", "Lang",
                   "JSON", "Textures", "Sounds", "Recipes", "Tags",
-                  "Structures", "Pipeline", "Info"]
+                  "Structures", "Pipeline", "Appearance", "Info"]
 
 
 def print_report(quiet: bool) -> None:
@@ -1056,6 +1185,7 @@ def main(argv: list[str] | None = None) -> int:
     check_tags(registries)
     check_structures()
     check_pipeline()
+    check_appearance_binding()
 
     # 13. Menus / BlockEntities: no resource requirement — informational.
     info("Info", f"menus registered: {len(registries['menus'])}")

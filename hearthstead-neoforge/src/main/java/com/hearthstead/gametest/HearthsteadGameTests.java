@@ -399,6 +399,31 @@ public class HearthsteadGameTests {
                 + distinct + " distinct look(s)"));
     }
 
+    /** RELEASE_GATE HIGH-1: a settler created by ANY path other than
+     *  SettlementManager.spawnSettler (spawn egg, /summon, a raw
+     *  helper.spawn as used by GameTest fixtures elsewhere in this file)
+     *  must still get a real, non-degenerate appearance seed -- never the
+     *  synced-data default of 0, which would make it a permanent visual
+     *  clone of every other settler stuck at that default. */
+    @GameTest(template = "empty5", timeoutTicks = 100)
+    public void settlerSpawnedOutsideSettlementManagerGetsRealAppearance(GameTestHelper helper) {
+        List<Integer> seeds = new java.util.ArrayList<>();
+        for (int i = 0; i < 6; i++) {
+            SettlerEntity settler = helper.spawn(ModEntities.SETTLER.get(),
+                new BlockPos(1 + i, 1, 1));
+            seeds.add(settler.getAppearanceSeed());
+        }
+        helper.succeedWhen(() -> {
+            for (int seed : seeds) {
+                helper.assertTrue(seed != 0,
+                    "a settler spawned outside SettlementManager must not keep the "
+                        + "degenerate appearance seed 0, got " + seed);
+            }
+            helper.assertTrue(seeds.stream().distinct().count() > 1,
+                "6 settlers spawned outside SettlementManager should not collide on one seed");
+        });
+    }
+
     @GameTest(template = "empty5", timeoutTicks = 100)
     public void savedDataRoundTrip(GameTestHelper helper) {
         Settlement s = new Settlement(UUID.randomUUID(), "Ashford",

@@ -125,7 +125,8 @@ public final class SettlementManager {
         settler.setSettlerName(name);
         settler.finalizeSpawn(level, level.getCurrentDifficultyAt(spawnPos),
             MobSpawnType.MOB_SUMMONED, null);
-        settler.setAppearanceSeed(level.random.nextInt());
+        // Appearance seed is already rolled in the SettlerEntity constructor
+        // for every creation path, not just this one.
         if (traveler) {
             settler.markTraveler(s.id, s.center);
             s.travelerId = settler.getUUID();
