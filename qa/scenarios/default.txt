@@ -268,5 +268,20 @@ cmd hearthstead scan $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
 wait 2
 cmd hearthstead scan $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
 expect_server Registered
-scmd hearthstead info
+# NOT scmd: HearthsteadCommand.info()'s "nearest settlement" search is
+# distance-from-the-COMMAND-SOURCE's-own-position, same as `~`'s console
+# gotcha documented above the hearth-aim tp -- a console-issued command's
+# position is a fixed point near world spawn, not wherever the player has
+# since walked to. This section relocated 300+ blocks away specifically to
+# clear the earlier hearth+recruit settlement's radius, so `scmd hearthstead
+# info` here was silently reporting on THAT settlement (near spawn, zero
+# buildings) every single time, regardless of what the plaque had just
+# registered 300 blocks away -- proven live across four separate runs
+# (20260824T100153Z, 103155Z, 111340Z, 112735Z), each showing "Registered"
+# immediately followed by "Homes: 0 registered" with no re-invalidation in
+# between. `cmd`, asked as the player, resolves against the player's actual
+# position -- exactly the fix the two scan calls above already needed for
+# the same reason, and exactly what line 106's `cmd hearthstead info`
+# earlier in this same scenario already does correctly.
+cmd hearthstead info
 expect_server Homes: 1 registered
