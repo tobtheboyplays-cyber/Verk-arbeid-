@@ -10,7 +10,7 @@ Compact working file. Max ~120 lines. Not a diary — compress, don't append.
   KF-007 determinism fix + `check_pipeline()`, KF-010 constructor-seed fix.
 - **FIX-1 — DONE** (dedicated-server + performance regressions).
 
-## SLICE ANIM-1 — REVISE round nearly closed; re-review is the next gate
+## SLICE ANIM-1 + A2a (pieces 1/2/5) — GATE GREEN
 
 All 23 A1 clips implemented (commits `9a1ce02`, `6d472bf`, `db98ae6`),
 gate was green twice, first in-game video sent. **RELEASE_GATE (Opus call
@@ -90,6 +90,31 @@ tree moved under it. Findings and their fixes (all landed):
   read-only on purpose.
 - Multi-`@GameTestHolder` discovery PROVEN (suite 25 -> 31 tests), which
   was the A2a plan's one recorded unknown.
+
+## Next concrete action
+
+**GATE IS GREEN: `GATE: PASS (green_streak=2)`** — two consecutive clean
+full runs at one fingerprint (`20260824T222152Z`), covering ANIM-1's whole
+REVISE round plus A2a pieces 1, 2 and 5. ANIM-1's Opus budget is spent
+(2 of 2), so any remaining defect there is Sonnet's to fix; a third call
+needs a genuine BLOCKER_GATE.
+
+One intermittent playtest failure was seen and root-caused before
+re-running (see KF-012's correction): step 283's plan-insertion click
+occasionally does not land — the KF-009 family, not a code defect. Runs on
+either side of it passed the identical scenario.
+
+Next: A2a **piece 4 (7 courier sounds) FIRST**, then piece 3 (the courier
+clips), per `docs/project/PLAN_A2a.md` — anim_check asserts each
+contracted sound exists in sounds.json, so the assets must land before the
+clips' final `animation` run. Piece 3 = WALK_LADEN + COURIER_LIFT/CARRY/
+SET_DOWN/SORT; apply `animation-quality` (lift and set-down are
+weight-bearing beats) and `blockbench-animation` (WALK_LADEN is a
+four-pose cycle, not two).
+
+**Process lesson from the re-review: never edit source while a gate or a
+review is in flight.** Park the next slice until the current one is frozen
+and green.
 
 ## Standing infrastructure (new this session — use it)
 
