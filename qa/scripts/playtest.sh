@@ -275,7 +275,12 @@ while read -r verb rest; do
     rest="${rest//\$PLAYER/$PLAYER}"
     DIR_IDX=$((DIR_IDX + 1))
     case "${verb:-}" in
-        ''|'#') continue;;
+        # '#'* not '#': only a bare '#' matched before, so a comment written
+        # without a space after the hash ("#like this") fell through to the
+        # unknown-directive die() added by finding 8 — a hard scenario FAIL
+        # for a comment. No scenario uses that form today, which is exactly
+        # why it would have gone unnoticed until someone wrote one.
+        ''|'#'*) continue;;
         wait)  sleep "$rest"; check_pass "$DIR_IDX:wait" "slept ${rest}s";;
         key)   focus; xdotool key --clearmodifiers $rest; sleep 1
                check_pass "$DIR_IDX:key" "sent key: $rest";;

@@ -18,7 +18,22 @@ TS="$(date -u +%Y%m%dT%H%M%SZ)"
 RUN_DIR="$ARTIFACTS/$TS"
 
 fingerprint() {
-    { find "$MOD/src" "$MOD/tools" -type f 2>/dev/null | sort | xargs sha256sum 2>/dev/null
+    # Covers everything that decides either what the mod DOES or what the
+    # suites ASSERT. qa/scripts and qa/scenarios are in deliberately: an
+    # assertion can be loosened there, and without them a stored green would
+    # go on looking current — which is INV-10 with the lock removed, and the
+    # same self-satisfying shape the review's findings 1-3 were about, one
+    # level up. Proven live: commit 4487f1b changed live.sh's and
+    # lib_harness.sh's verdict logic while every stored manifest carried on
+    # reporting the same fingerprint.
+    #
+    # qa/reports is deliberately OUT: every run writes into it, so including
+    # it would change the fingerprint on every run and it would never settle.
+    # __pycache__ is out for the same reason — running a generator rewrites
+    # .pyc files and would invalidate evidence that nothing real had changed.
+    { find "$MOD/src" "$MOD/tools" "$QA/scripts" "$QA/scenarios" \
+           -type f -not -path '*/__pycache__/*' 2>/dev/null \
+        | sort | xargs sha256sum 2>/dev/null
       sha256sum "$MOD/build.gradle" "$MOD/gradle.properties" "$MOD/settings.gradle" \
                 "$QA/PROTOCOL.md" 2>/dev/null
     } | sha256sum | cut -d' ' -f1

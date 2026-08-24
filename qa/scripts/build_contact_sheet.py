@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """AC-5: build a labelled contact sheet from a recorded clip, and judge
-whether it shows real motion (median inter-frame mean-absolute-difference)
-rather than a frozen or black recording.
+whether the capture is live and something in the world is animating, rather
+than the recording being frozen or black.
+
+This does NOT establish that a particular subject animated — see
+loudest_tile_mad() for exactly what the number does and does not mean.
 
 Usage: build_contact_sheet.py <clip.mp4> <out_sheet.png> [--frames N]
 Prints JSON: {"motion_ok":.., "duration_ok":.., "fps_ok":.., "ac5_ok":..,
@@ -56,6 +59,22 @@ TILE_W, TILE_H = 426, 240
 MOTION_GRID_COLS, MOTION_GRID_ROWS = 16, 9
 MOTION_THRESHOLD = 2.0  # median loudest-tile MAD (0-255 grey) that counts as motion
 
+# The bottom rows of the frame are the game's own HUD: the chat backlog, the
+# hotbar, and the held item bobbing in the corner. All three change without
+# anything in the WORLD moving. Measured: in a clip recorded with the server
+# `tick freeze`d — nothing in the world could move — one frame pair scored
+# 19.13 in a bottom-row tile, which is the `[Server: The game is frozen]`
+# chat line fading out. That is the same magnitude as three walking settlers.
+# It failed only because the median over pairs happened to sit below the
+# threshold, i.e. by luck. A session where chat ticks over once a second
+# would have passed with a completely frozen subject.
+#
+# So the bottom rows are excluded from the measurement. This does mean a
+# subject framed low in the shot is not measured — frame the subject centrally
+# for animation review, which is what the pen framing in
+# artifacts/live/*/film/take-01-settler-motion does.
+MOTION_IGNORE_BOTTOM_ROWS = 2
+
 
 def ffprobe_info(clip: str):
     out = subprocess.check_output([
@@ -95,15 +114,21 @@ def mean_abs_diff(a: Image.Image, b: Image.Image) -> float:
 
 
 def loudest_tile_mad(a: Image.Image, b: Image.Image) -> float:
-    """Mean absolute difference of the single most-changed tile of the frame.
+    """Mean absolute difference of the single most-changed tile of the frame,
+    ignoring the HUD band at the bottom.
 
-    This is what actually answers "did the thing I am looking at move": the
-    background tiles contribute nothing to it, so a small subject is not
-    averaged into insignificance."""
+    WHAT THIS ESTABLISHES, EXACTLY: that the capture is live and that
+    SOMETHING in the world part of the frame is animating. It cannot attribute
+    that motion to a particular subject — an unrelated entity wandering
+    through the shot carries it just as well as the settler you meant to film.
+    (Demonstrated: a 5s clip of an apparently empty world scored 3.03; the
+    loudest tile was a distant iron golem walking, not noise.) Any claim about
+    a SPECIFIC settler's animation needs the contact sheet read by a human on
+    top of this number."""
     diff = _grey_diff(a, b)
     w, h = diff.size
     best = 0.0
-    for row in range(MOTION_GRID_ROWS):
+    for row in range(MOTION_GRID_ROWS - MOTION_IGNORE_BOTTOM_ROWS):
         for col in range(MOTION_GRID_COLS):
             box = (
                 w * col // MOTION_GRID_COLS, h * row // MOTION_GRID_ROWS,
@@ -164,6 +189,8 @@ def main() -> int:
         "fps_ok": fps_ok,
         "ac5_ok": ac5_ok,
         "subject_mad": round(subject_mad, 3),
+        "measured_rows": f"0-{MOTION_GRID_ROWS - MOTION_IGNORE_BOTTOM_ROWS - 1}"
+                         f" of {MOTION_GRID_ROWS} (HUD band excluded)",
         "median_mad": round(median_mad, 3),
         "frame_count": len(imgs),
         "fps": round(fps, 2),

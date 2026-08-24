@@ -44,6 +44,13 @@ export GALLIUM_DRIVER=llvmpipe
 STATE="${HSQA_LIVE_STATE:-/tmp/claude-0/hsqa-live-state}"
 mkdir -p "$STATE"
 
+# An empty EV_DIR would make every `mkdir -p "$EV_DIR/..."` below operate on
+# an absolute path rooted at /. Fail loudly instead: an empty EV_DIR means the
+# session state is gone, so there is nothing meaningful to record anyway.
+require_ev_dir() {
+    [ -n "${EV_DIR:-}" ] || { echo "no live session (state gone) — run: live start" >&2; exit 1; }
+}
+
 win() { xdotool search --name "Minecraft" 2>/dev/null | tail -1; }
 focus() { local w; w=$(win); [ -n "$w" ] && xdotool windowfocus --sync "$w" 2>/dev/null; }
 # D-H4: no window manager here (windowactivate needs EWMH, which is absent),
@@ -202,8 +209,18 @@ Drive with: tools/hearthstead-qa live <status|shot|key|hold|type|cmd|scmd|click|
     ;;
 
 shot)
-    EV_DIR=$(ev_dir_for_session); EV_SHOTS="$EV_DIR/shots"; mkdir -p "$EV_SHOTS"
-    focus; grab "$EV_SHOTS/${2:-shot}.png"; echo "$EV_SHOTS/${2:-shot}.png"
+    EV_DIR=$(ev_dir_for_session); require_ev_dir; EV_SHOTS="$EV_DIR/shots"; mkdir -p "$EV_SHOTS"
+    SHOT_NAME="${2:-shot}"
+    focus; grab "$EV_SHOTS/$SHOT_NAME.png"
+    # Same reasoning as film: a capture that is blank, black or the wrong size
+    # must become a FAILED check, otherwise `stop` can only ever derive PASS.
+    SHOT_RES=$(python3 "$HERE/check_screenshot.py" "$EV_SHOTS/$SHOT_NAME.png" 2>&1)
+    if [ $? -eq 0 ]; then
+        check_pass "shot:$SHOT_NAME" "$SHOT_RES"
+    else
+        check_fail "shot:$SHOT_NAME" "$SHOT_RES"
+    fi
+    echo "$EV_SHOTS/$SHOT_NAME.png"
     ;;
 
 key)    focus; shift; xdotool key --clearmodifiers "$@"; echo "sent key: $*";;
@@ -235,7 +252,7 @@ look)   focus
         echo "looked $2 $3";;
 
 film)
-    EV_DIR=$(ev_dir_for_session)
+    EV_DIR=$(ev_dir_for_session); require_ev_dir
     # Every take gets its OWN directory. A single `film/` was overwritten by
     # the next film in the same session, so proving a claim that needs two
     # takes — a moving subject that must PASS and a frozen one that must
@@ -281,7 +298,17 @@ film)
     RC=$?
     echo "$RESULT" > "$EV_FILM/motion.json"
     echo "$RESULT"
-    [ $RC -eq 0 ] && echo "film ok: ${SECS}s @ ${FPS}fps -> $EV_FILM/clip.mp4, $EV_FILM/contact-sheet.png"
+    # Record the take as a CHECK, not only as a motion.json nobody aggregates.
+    # `stop` derives the session verdict from .checks.jsonl, so a take that
+    # fails AC-5 has to land there or the derived verdict is unreachable — the
+    # session would compute PASS while carrying a failed take on disk.
+    TAKE_NAME="film:$(basename "$EV_FILM")"
+    if [ $RC -eq 0 ]; then
+        check_pass "$TAKE_NAME" "$RESULT"
+        echo "film ok: ${SECS}s @ ${FPS}fps -> $EV_FILM/clip.mp4, $EV_FILM/contact-sheet.png"
+    else
+        check_fail "$TAKE_NAME" "$RESULT"
+    fi
     exit $RC
     ;;
 

@@ -25,8 +25,14 @@ fi
 # given piece of evidence — this is what makes "shots prove it ran a later
 # scenario than its own manifest claims" detectable instead of invisible.
 hsqa_fingerprint() {
+    # MUST stay byte-for-byte equivalent to the controller's fingerprint() —
+    # see the reasoning for each included and excluded path there. If the two
+    # drift, a manifest's fingerprint stops being comparable to latest.json's,
+    # which is the entire point of recording it (finding 9).
     local mod="$HSQA_REPO/hearthstead-neoforge" qa="$HSQA_REPO/qa"
-    { find "$mod/src" "$mod/tools" -type f 2>/dev/null | sort | xargs sha256sum 2>/dev/null
+    { find "$mod/src" "$mod/tools" "$qa/scripts" "$qa/scenarios" \
+           -type f -not -path '*/__pycache__/*' 2>/dev/null \
+        | sort | xargs sha256sum 2>/dev/null
       sha256sum "$mod/build.gradle" "$mod/gradle.properties" "$mod/settings.gradle" \
                 "$qa/PROTOCOL.md" 2>/dev/null
     } | sha256sum | cut -d' ' -f1

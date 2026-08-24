@@ -53,6 +53,22 @@ EXCLUDE='GradleDaemon'
 
 mkdir -p "$PIDDIR"
 
+# The PIDs of this process and everything that launched it. A reap must never
+# consider its own caller: proven live (reap/20260824T002935Z) that an
+# invoking `bash -c '... hsqa-inst/f1proof ...'` wrapper MATCHED the harness
+# pattern, because its argv legitimately contains the path being tested, and
+# was reported as a leak. The SELF_SAFE_PATTERN bracket trick only protects
+# grep's OWN argv, never the caller's — no pattern can, so the fix has to be
+# by identity, not by text.
+ancestry_pids() {
+    local p="${1:-$$}" out=""
+    while [ -n "$p" ] && [ "$p" != 0 ] && [ "$p" != 1 ]; do
+        out="$out $p"
+        p=$(awk '{print $4}' "/proc/$p/stat" 2>/dev/null)
+    done
+    printf '%s' "$out"
+}
+
 matching_procs() { # prints "PID CMD..." lines that match SELF_SAFE_PATTERN and not EXCLUDE
     # Finding 10: `selftest` used to grep its OWN re-typed copy of this
     # pattern, which meant it never actually exercised this function or its
@@ -60,12 +76,43 @@ matching_procs() { # prints "PID CMD..." lines that match SELF_SAFE_PATTERN and 
     # what selftest claims is covered. Source of process lines is
     # injectable via HSQA_REAP_TEST_INPUT so selftest can feed a fixture
     # through this EXACT function instead of a re-typed stand-in.
+    local source_lines mine
+    mine=" $(ancestry_pids) "
     if [ -n "${HSQA_REAP_TEST_INPUT:-}" ]; then
-        printf '%s\n' "$HSQA_REAP_TEST_INPUT" | grep -E "$SELF_SAFE_PATTERN" | grep -v -E "$EXCLUDE"
+        source_lines="$(printf '%s\n' "$HSQA_REAP_TEST_INPUT")"
     else
-        ps -eo pid=,args= 2>/dev/null | grep -E "$SELF_SAFE_PATTERN" | grep -v -E "$EXCLUDE"
+        source_lines="$(ps -eo pid=,args= 2>/dev/null)"
+    fi
+    printf '%s\n' "$source_lines" \
+        | grep -E "$SELF_SAFE_PATTERN" \
+        | grep -v -E "$EXCLUDE" \
+        | while read -r pid rest; do
+              case "$mine" in *" $pid "*) continue;; esac
+              printf '%s %s\n' "$pid" "$rest"
+          done
+}
+
+# The pidfile-stage decision, as a function so it can actually be TESTED.
+# Finding 11 put this logic inline in cmd_reap's kill loop and finding 7 of
+# the re-review pointed out that selftest then graded a re-typed copy of it —
+# the same defect finding 10 was raised for. One definition, two callers.
+pid_cmdline() { # <bare-pid>
+    if [ -n "${HSQA_REAP_TEST_CMDLINES:-}" ]; then
+        printf '%s\n' "$HSQA_REAP_TEST_CMDLINES" \
+            | awk -v p="$1" '$1 == p { $1 = ""; sub(/^ /, ""); print; exit }'
+    else
+        ps -o args= -p "$1" 2>/dev/null
     fi
 }
+
+pid_disposition() { # <pid as stored, may carry a leading - for a group kill>
+    local bare="${1#-}" cmd
+    cmd=$(pid_cmdline "$bare")
+    if [ -z "$cmd" ]; then echo gone
+    elif printf '%s' "$cmd" | grep -qE "$EXCLUDE"; then echo refuse
+    else echo kill; fi
+}
+
 
 port_holder() { # <port> -> "PID CMD" if held, empty if free
     # `ss -ltnp` proved unreliable in this environment (see lib_harness.sh) —
@@ -132,15 +179,12 @@ cmd_reap() {
                 # to look the PID up, refuse to kill anything that is now a
                 # GradleDaemon, and just note (not kill) a PID that is
                 # already gone.
-                local bare="${pid#-}"
-                local cmd; cmd=$(ps -o args= -p "$bare" 2>/dev/null)
-                if [ -z "$cmd" ]; then
-                    echo "  skip pid $pid (from $f): already gone"
-                elif printf '%s' "$cmd" | grep -qE "$EXCLUDE"; then
-                    echo "  REFUSING to kill pid $pid (from $f): now belongs to a GradleDaemon (recycled PID) — cmd: $cmd"
-                else
-                    kill -9 "$pid" 2>/dev/null && echo "  killed pid $pid (from $f): $cmd"
-                fi
+                local cmd; cmd=$(pid_cmdline "${pid#-}")
+                case "$(pid_disposition "$pid")" in
+                    gone)   echo "  skip pid $pid (from $f): already gone";;
+                    refuse) echo "  REFUSING to kill pid $pid (from $f): now belongs to a GradleDaemon (recycled PID) — cmd: $cmd";;
+                    kill)   kill -9 "$pid" 2>/dev/null && echo "  killed pid $pid (from $f): $cmd";;
+                esac
             done < "$f"
             rm -f "$f"
         done
@@ -195,22 +239,33 @@ EOF
     echo "$matched" | grep -q '^22375' && { echo "FAIL: must NEVER match the GradleDaemon line 22375"; ok=0; }
     echo "$matched" | grep -q '^12348' && { echo "FAIL: should not match an unrelated python process"; ok=0; }
 
-    # Finding 11: prove the pidfile-stage recycled-PID guard too, against
-    # the real running process $$'s own PID re-labelled as a pidfile entry
-    # (so `ps -o args= -p` finds a genuinely real, currently-running
-    # process without needing to fork anything special).
-    local self_pid=$$
-    local self_cmd; self_cmd=$(ps -o args= -p "$self_pid" 2>/dev/null)
-    if [ -z "$self_cmd" ]; then
-        echo "FAIL: could not read this shell's own /proc entry for the pidfile-guard check"; ok=0
-    elif printf '%s' "$self_cmd" | grep -qE "$EXCLUDE"; then
-        echo "FAIL: this selftest's own process line unexpectedly matched EXCLUDE — fixture invalid"; ok=0
-    fi
-    ps -o args= -p 999999999 >/dev/null 2>&1
-    local gone_cmd; gone_cmd=$(ps -o args= -p 999999999 2>/dev/null)
-    [ -z "$gone_cmd" ] || { echo "FAIL: PID 999999999 unexpectedly resolved to a real process"; ok=0; }
+    # The reaper must never report its OWN CALLER as a leak. A wrapper whose
+    # argv legitimately contains a harness path (a `bash -c` line mentioning
+    # hsqa-inst/...) matched the pattern and was reported, because no text
+    # pattern can exclude the caller's argv — only identity can. This feeds
+    # this shell's real PID through the real matcher on a line that WOULD
+    # otherwise match.
+    local self_line="$$ /bin/bash -c reap-selftest /tmp/claude-0/hsqa-inst/f1proof"
+    local self_matched
+    self_matched=$(HSQA_REAP_TEST_INPUT="$self_line" matching_procs)
+    [ -z "$self_matched" ] || { echo "FAIL: matched its own caller pid $$ — got: $self_matched"; ok=0; }
 
-    if [ "$ok" = 1 ]; then echo "reap selftest: PASS (GradleDaemon excluded, harness processes matched, pidfile-guard checks hold)"; return 0
+    # The pidfile-stage guard, exercised through pid_disposition() ITSELF —
+    # the same function cmd_reap calls. It used to be re-typed here, which is
+    # the very defect finding 10 was raised for, one stage along.
+    local d
+    d=$(HSQA_REAP_TEST_CMDLINES="4242 java ... org.gradle.launcher.daemon.bootstrap.GradleDaemon 8.14.3" \
+        pid_disposition 4242)
+    [ "$d" = refuse ] || { echo "FAIL: a recycled PID that is now a GradleDaemon must be 'refuse', got '$d'"; ok=0; }
+    d=$(HSQA_REAP_TEST_CMDLINES="4242 java -jar /tmp/claude-0/hsqa-inst/live/server.jar" pid_disposition 4242)
+    [ "$d" = kill ] || { echo "FAIL: a live harness process must be 'kill', got '$d'"; ok=0; }
+    d=$(HSQA_REAP_TEST_CMDLINES="" pid_disposition 999999999)
+    [ "$d" = gone ] || { echo "FAIL: a PID with no process must be 'gone', got '$d'"; ok=0; }
+    # And the leading '-' a group-kill entry carries must not defeat the lookup.
+    d=$(HSQA_REAP_TEST_CMDLINES="4242 java ... GradleDaemon 8.14.3" pid_disposition -4242)
+    [ "$d" = refuse ] || { echo "FAIL: a '-PID' group entry must resolve like its bare PID, got '$d'"; ok=0; }
+
+    if [ "$ok" = 1 ]; then echo "reap selftest: PASS (GradleDaemon excluded, harness processes matched, own caller never matched, pidfile-guard exercised through pid_disposition)"; return 0
     else echo "reap selftest: FAIL"; return 1; fi
 }
 
