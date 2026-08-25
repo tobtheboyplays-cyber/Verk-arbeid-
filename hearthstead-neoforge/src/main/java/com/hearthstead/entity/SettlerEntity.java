@@ -91,6 +91,10 @@ public class SettlerEntity extends PathfinderMob {
     public static final byte EV_WAKE = 67;
     public static final byte EV_COURIER_LIFT = 68;
     public static final byte EV_COURIER_SET_DOWN = 69;
+    /** The universal one-shot: any settler stooping to pick something up off
+     *  the ground, whatever the trade. PICKUP_STOW (1.20 s) is authored in
+     *  parallel; see {@link #triggerPickup()}. */
+    public static final byte EV_PICKUP = 70;
 
     // Sound-sync contracts (docs/ANIMATION_CATALOGUE.md §0.4): each value
     // must agree with the clip comment in SettlerAnimations and the
@@ -137,10 +141,21 @@ public class SettlerEntity extends PathfinderMob {
     /** Last block a footfall was counted on; see {@link #wearPath()}. */
     private BlockPos lastFootfall;
     private SettlerAttributes attributes;
+    /** The daily labor pool every trade spends against. See {@link Effort}. */
+    private Effort effort;
     /** What they are like, and what it costs them. See {@link Trait}. */
     private java.util.EnumSet<Trait> traits = java.util.EnumSet.noneOf(Trait.class);
     public final SimpleContainer bag = new SimpleContainer(BAG_SIZE);
     private int voiceCooldown;
+    /** The last {@link GuardRank} this settler was actually dressed for, so
+     *  {@link #tickGuardEquipment()} can change-detect instead of re-setting
+     *  four item slots every refresh. {@code null} means "never applied" --
+     *  distinct from {@link GuardRank#RECRUIT}, which is a real rank with its
+     *  own (empty) equipment, so a freshly-hired guard still gets one real
+     *  application rather than being silently skipped because RECRUIT looks
+     *  like "nothing to do". */
+    @Nullable
+    private GuardRank lastAppliedGuardRank;
 
     // Server-side accent scheduler: countdowns to staggered one-shot
     // broadcasts and their delayed sound accents (-1 = idle). One-shot
@@ -195,6 +210,9 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState scrapeState = new AnimationState();
     public final AnimationState liftState = new AnimationState();
     public final AnimationState setDownState = new AnimationState();
+    /** The universal pickup: any settler, any trade, stooping for something
+     *  on the ground. One-shot, see {@link #EV_PICKUP}/{@link #triggerPickup()}. */
+    public final AnimationState pickupState = new AnimationState();
 
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -246,6 +264,11 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(2, new com.hearthstead.entity.ai.GuardLeapGoal(this));
         goalSelector.addGoal(2, new GuardMeleeGoal(this));
         goalSelector.addGoal(3, new GuardRespondToAlertGoal(this));
+        // Same numeric slot as the alert response above -- both are "answer
+        // a call that outranks the ordinary day", and RespondToSummonsGoal's
+        // own class doc explains why 3 and not higher (it must still yield
+        // to eating and, via Flag contention, to combat and panic).
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.RespondToSummonsGoal(this));
         goalSelector.addGoal(4, new EatFromHearthGoal(this));
         goalSelector.addGoal(5, new RestAtNightGoal(this));
         goalSelector.addGoal(6, new GoToPostGoal(this));
@@ -254,11 +277,15 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(6, new CourierWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.CrafterWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.MinerWorkGoal(this));
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.InnkeeperWorkGoal(this));
         // Lower than the delivery goal: tidying is what a courier does when
         // there is nothing to fetch.
         goalSelector.addGoal(7, new com.hearthstead.entity.ai.TidyWarehouseGoal(this));
         goalSelector.addGoal(6, new GuardPatrolGoal(this));
         goalSelector.addGoal(7, new ReturnToSettlementGoal(this));
+        // Modest, and lower than every trade: greeting the captain is what a
+        // settler does between real things, never instead of them.
+        goalSelector.addGoal(7, new com.hearthstead.entity.ai.SaluteCaptainGoal(this));
         goalSelector.addGoal(8, new BoundedStrollGoal(this));
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 6.0F));
         goalSelector.addGoal(10, new RandomLookAroundGoal(this));
@@ -516,6 +543,54 @@ public class SettlerEntity extends PathfinderMob {
         }
     }
 
+    /**
+     * The equipment-refresh hook (owner's ask, 2026-08-25: "guards must not
+     * have good armor before they upgrade — they need experience"). Runs off
+     * the same once-a-second cadence as {@link #tickNeeds()}; cheap because
+     * it change-detects against {@link #lastAppliedGuardRank} rather than
+     * re-setting four item slots every second for every guard in the
+     * settlement -- see {@link GuardRank}'s own class doc for the equipment
+     * table and for why this never has to un-rank a guard on its own.
+     *
+     * <p>A settler who is not (or no longer) a {@link Profession#GUARD}
+     * neither wears nor keeps guard armor: the moment this hook sees the
+     * profession has changed away, it strips the four slots once and forgets
+     * the cached rank, so a demoted guard does not spend the rest of their
+     * life in someone else's iron.
+     */
+    private void tickGuardEquipment() {
+        if (getProfession() != Profession.GUARD) {
+            if (lastAppliedGuardRank != null) {
+                GuardRank.clearEquipment(this);
+                lastAppliedGuardRank = null;
+            }
+            return;
+        }
+        GuardRank rank = GuardRank.of(this);
+        if (rank == lastAppliedGuardRank) {
+            return;
+        }
+        // Never true on the FIRST application (lastAppliedGuardRank is null,
+        // not RECRUIT) -- being freshly hired already celebrates via
+        // onHired/assignProfession, and a guard should not double-cheer the
+        // instant they put on their first (empty) kit.
+        boolean rankUp = lastAppliedGuardRank != null
+            && rank.ordinal() > lastAppliedGuardRank.ordinal();
+        lastAppliedGuardRank = rank;
+        GuardRank.applyEquipment(this);
+        if (rankUp) {
+            celebrate();
+            if (level() instanceof ServerLevel serverLevel) {
+                Settlement s = settlement();
+                if (s != null) {
+                    com.hearthstead.settlement.raid.RaidBroadcast.send(serverLevel, s,
+                        Component.translatable("hearthstead.message.rank_up",
+                            getSettlerName(), rank.displayName()));
+                }
+            }
+        }
+    }
+
     // ------------------------------------------------------------- needs ---
 
     /** Rough day schedule; guards ignore the REST phase. */
@@ -540,6 +615,54 @@ public class SettlerEntity extends PathfinderMob {
 
     public int attribute(Attribute attribute) {
         return attributes().get(attribute);
+    }
+
+    /**
+     * The daily labor pool. Lazily full for a settler who has not spent
+     * anything today, mirroring how {@link #attributes()} lazily rolls —
+     * see {@link Effort}'s class doc for the whole design.
+     */
+    public Effort effort() {
+        if (effort == null) {
+            effort = Effort.full();
+        }
+        return effort;
+    }
+
+    /** STAMINA-scaled ceiling on today's work; see {@link Effort#capacity}. */
+    public int effortCapacity() {
+        return effort().capacity(attribute(Attribute.STAMINA));
+    }
+
+    /** What is left to spend today. No hidden numbers (job standard point 1). */
+    public int effortLeft() {
+        return effort().left(attribute(Attribute.STAMINA));
+    }
+
+    /** What has already gone today. */
+    public int effortSpent() {
+        return effort().spent(attribute(Attribute.STAMINA));
+    }
+
+    /**
+     * The one check every trade's work goal makes before starting a NEW
+     * action (docs/project/PLAN_EFFORT.md). Spent is not broken: the
+     * existing stroll/rest goals take over the moment the work goal steps
+     * aside in the priority list — nothing else has to be told.
+     */
+    public boolean isEffortSpent() {
+        return effort().isSpent(attribute(Attribute.STAMINA));
+    }
+
+    /** Pays for one completed work action — call at the moment the action
+     *  finishes, the same rule {@link #train} already follows. */
+    public void spendEffort(int units) {
+        effort().spend(units, attribute(Attribute.STAMINA));
+    }
+
+    /** "14/32", for {@code /hearthstead why} and any future UI. */
+    public String effortDescribe() {
+        return effort().describe(attribute(Attribute.STAMINA));
     }
 
     /**
@@ -675,6 +798,36 @@ public class SettlerEntity extends PathfinderMob {
         addMorale(Mth.clamp(target - morale, -1.0F, 1.0F) * 0.5F);
     }
 
+    /**
+     * Refills the daily effort pool the moment rest actually ENDS, not on a
+     * timer — "at wake", per docs/project/PLAN_EFFORT.md. Watched here as a
+     * SettlerEntity need rather than from inside a rest goal: a genuine
+     * night in a bed is {@link #isSleeping()} (vanilla) going true, then
+     * false, and rough rest by the hearth is the {@link SettlerActivity#RESTING}
+     * activity ending — both are things this entity already knows about
+     * itself, edge-detected against last tick so the refill fires exactly
+     * once per rest rather than every tick of it.
+     *
+     * <p>The rough-rest branch also requires the day to have actually turned
+     * over into working hours. Without that guard, a settler resting rough
+     * who finds a bed partway through the night (see RestAtNightGoal) would
+     * briefly leave RESTING to walk over to it, which looks identical to a
+     * finished night unless the clock itself is checked too.
+     */
+    private void tickEffortRefill() {
+        boolean sleepingNow = isSleeping();
+        if (sleepingLastTick && !sleepingNow) {
+            effort().refillFull(attribute(Attribute.STAMINA));
+        }
+        sleepingLastTick = sleepingNow;
+
+        boolean restingRoughNow = getActivity() == SettlerActivity.RESTING;
+        if (restingRoughLastTick && !restingRoughNow && !sleepingNow && dayPhase().work()) {
+            effort().refillRough(attribute(Attribute.STAMINA));
+        }
+        restingRoughLastTick = restingRoughNow;
+    }
+
     // -------------------------------------------------------------- tick ---
 
     @Override
@@ -691,11 +844,13 @@ public class SettlerEntity extends PathfinderMob {
         if (!level().isClientSide) {
             if (tickCount % 20 == 0) {
                 tickNeeds();
+                tickGuardEquipment();
                 com.hearthstead.util.QaTrace.record(this);
             }
             tickAccents();
             syncCarryLoad();
             wearPath();
+            tickEffortRefill();
             if (voiceCooldown > 0) {
                 voiceCooldown--;
             }
@@ -711,6 +866,12 @@ public class SettlerEntity extends PathfinderMob {
      */
     private String lastRouteFailure;
     private long lastRouteFailureTick = Long.MIN_VALUE;
+
+    // Effort's wake-refill edges (see tickEffortRefill above): whether this
+    // settler was asleep/resting on the PREVIOUS tick, so the refill fires
+    // exactly once, at the instant rest ends, rather than every tick of it.
+    private boolean sleepingLastTick;
+    private boolean restingRoughLastTick;
 
     public void recordRouteFailure(String reason) {
         this.lastRouteFailure = reason;
@@ -878,6 +1039,12 @@ public class SettlerEntity extends PathfinderMob {
         if (setDownState.isStarted() && setDownState.getAccumulatedTime() > 1200L) {
             setDownState.stop();
         }
+        // PICKUP_STOW is 1.20 s (catalogue), mirroring gatherState's own
+        // expiry above -- a one-shot with no server goal driving it back to
+        // idle, so this is the only place its clock runs out.
+        if (pickupState.isStarted() && pickupState.getAccumulatedTime() > 1250L) {
+            pickupState.stop();
+        }
     }
 
     @Override
@@ -894,6 +1061,8 @@ public class SettlerEntity extends PathfinderMob {
             liftState.start(tickCount);
         } else if (id == EV_COURIER_SET_DOWN) {
             setDownState.start(tickCount);
+        } else if (id == EV_PICKUP) {
+            pickupState.start(tickCount);
         } else {
             super.handleEntityEvent(id);
         }
@@ -924,6 +1093,22 @@ public class SettlerEntity extends PathfinderMob {
     public void triggerCourierSetDown() {
         if (!level().isClientSide) {
             level().broadcastEntityEvent(this, EV_COURIER_SET_DOWN);
+        }
+    }
+
+    /**
+     * The universal pickup: any settler, any trade, stooping for something
+     * on the ground -- mirrors {@link #triggerCourierLift()} exactly, one
+     * event broadcast that starts a client-side one-shot. Deliberately not
+     * trade-specific the way {@link #triggerGatherLog()} is: PICKUP_STOW is
+     * the clip for "a hand reaches down and comes back up with something in
+     * it", which is the same motion whether what's on the ground is a dropped
+     * tool, a fumbled crate, or anything else a future goal wants to animate
+     * without inventing its own one-shot for it.
+     */
+    public void triggerPickup() {
+        if (!level().isClientSide) {
+            level().broadcastEntityEvent(this, EV_PICKUP);
         }
     }
 
@@ -1075,6 +1260,7 @@ public class SettlerEntity extends PathfinderMob {
         tag.putInt("Appearance", getAppearanceSeed());
         tag.putBoolean("Traveler", traveler);
         tag.put("Attributes", attributes().save());
+        effort().writeTo(tag);
         net.minecraft.nbt.ListTag traitTag = new net.minecraft.nbt.ListTag();
         for (String key : Trait.keys(traits())) {
             traitTag.add(net.minecraft.nbt.StringTag.valueOf(key));
@@ -1120,6 +1306,7 @@ public class SettlerEntity extends PathfinderMob {
         traits = traitKeys.isEmpty() ? Trait.roll(getRandom())
             : Trait.fromKeys(traitKeys);
         attributes = SettlerAttributes.load(tag.getCompound("Attributes"), getRandom());
+        effort = Effort.readFrom(tag);
         settlementId = tag.hasUUID("SettlementId") ? tag.getUUID("SettlementId") : null;
         targetSettlementId = tag.hasUUID("TargetSettlementId")
             ? tag.getUUID("TargetSettlementId") : null;

@@ -4,5 +4,5 @@
     "lamp": "hearthstead:block/plaque_lamp_red",
     "panel": "hearthstead:block/plaque_plan"
   },
-  "__comment": "A plaque with a plan FITTED. The glow states already encode that -- EMPTY means nothing is in the well -- so the parchment swaps in here rather than needing a second blockstate property. plaque_plan.png was generated for exactly this and was referenced by nothing at all, so the well read as an empty black recess even with a plan in it."
+  "__comment": "A plaque with a plan FITTED but no progress yet. The glow states already encode that -- EMPTY means nothing is in the well -- so the parchment swaps in here rather than needing a second blockstate property. plaque_plan.png is deliberately UNTRIMMED (torn deckle edges, not squared) -- it is shared with AMBER, because both mean the survey has not passed; only GREEN, once the building registers, swaps to plaque_plan_sealed's trimmed sheet and wax seal."
 }

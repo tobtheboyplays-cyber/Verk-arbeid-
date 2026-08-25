@@ -29,7 +29,14 @@ public class GuardPatrolGoal extends Goal {
     public boolean canUse() {
         if (settler.getProfession() != Profession.GUARD
             || settler.getTarget() != null
-            || settler.getEnergy() <= 10) {
+            || settler.getEnergy() <= 10
+            // The daily labor pool (docs/project/PLAN_EFFORT.md): a spent
+            // guard stops WALKING A ROUND, full stop. This is the only
+            // check in the whole trade -- GuardMeleeGoal and
+            // GuardRespondToAlertGoal never read effort at all, so a
+            // guard who has walked their legs off still fights and still
+            // answers an alarm. Safety beats bookkeeping.
+            || settler.isEffortSpent()) {
             return false;
         }
         Settlement settlement = settler.settlement();
@@ -53,6 +60,7 @@ public class GuardPatrolGoal extends Goal {
      */
     private void reachedWaypoint() {
         settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
+        settler.spendEffort(1);
         if (settler.level() instanceof net.minecraft.server.level.ServerLevel level) {
             level.playSound(null, settler.blockPosition(),
                 com.hearthstead.registry.ModSounds.ARMOUR_CLINK.get(),

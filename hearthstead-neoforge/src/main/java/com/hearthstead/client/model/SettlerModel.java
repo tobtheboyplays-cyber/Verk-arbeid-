@@ -271,6 +271,20 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.scrapeState, SettlerAnimations.TANNER_SCRAPE, ageInTicks + (id % 24));
         animate(entity.leapState, SettlerAnimations.LEAP_STRIKE, ageInTicks);
         animate(entity.gatherState, SettlerAnimations.GATHER_LOG, ageInTicks);
+        // PICKUP_STOW is a full-body one-shot like the courier lift: reset
+        // every bone it owns first so the stoop layers over a clean pose
+        // rather than whatever loop was mid-frame (same guard the lift uses).
+        if (entity.pickupState.isStarted()) {
+            rightArm.resetPose();
+            leftArm.resetPose();
+            torso.resetPose();
+            head.resetPose();
+            root.resetPose();
+            torso.getChild("cloak").resetPose();
+            rightLeg.resetPose();
+            leftLeg.resetPose();
+            animate(entity.pickupState, SettlerAnimations.PICKUP_STOW, ageInTicks);
+        }
         // COURIER_SORT: a stationary work clip, the same pattern as
         // chopState/farmState above -- sortState is already gated on
         // activity==SORTING && !moving (SettlerEntity), so WALK's own

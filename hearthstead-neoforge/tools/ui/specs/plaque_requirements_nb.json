@@ -11,6 +11,12 @@
       "h": 230
     },
     {
+      "t": "item",
+      "x": 10,
+      "y": 6,
+      "text": ""
+    },
+    {
       "t": "title",
       "x": 136,
       "y": 12,
@@ -48,7 +54,13 @@
     {
       "t": "divider",
       "x": 10,
-      "y": 46,
+      "y": 44,
+      "w": 252
+    },
+    {
+      "t": "divider",
+      "x": 10,
+      "y": 48,
       "w": 252
     },
     {
@@ -59,21 +71,41 @@
       "h": 38
     },
     {
-      "t": "label",
-      "x": 18,
-      "y": 60,
-      "text": "Pilmakerbenk %s/%s",
-      "tone": "text_strong",
-      "box": 160,
-      "id": "req_name[0]"
+      "t": "inset",
+      "x": 12,
+      "y": 56,
+      "w": 240,
+      "h": 30
+    },
+    {
+      "t": "item",
+      "x": 14,
+      "y": 63,
+      "text": ""
     },
     {
       "t": "label",
-      "x": 18,
-      "y": 74,
-      "text": "10 / 10",
+      "x": 36,
+      "y": 60,
+      "text": "Pilmakerbenk %s/%s",
+      "tone": "text_strong",
+      "box": 142,
+      "id": "req_name[0]"
+    },
+    {
+      "t": "inset",
+      "x": 33,
+      "y": 71,
+      "w": 44,
+      "h": 12
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 73,
+      "text": "36 / 36",
       "tone": "warn",
-      "box": 160,
+      "box": 38,
       "id": "req_count[0]"
     },
     {
@@ -92,21 +124,41 @@
       "h": 38
     },
     {
-      "t": "label",
-      "x": 18,
-      "y": 102,
-      "text": "Pilmakerbenk %s/%s",
-      "tone": "text_strong",
-      "box": 160,
-      "id": "req_name[1]"
+      "t": "inset",
+      "x": 12,
+      "y": 98,
+      "w": 240,
+      "h": 30
+    },
+    {
+      "t": "item",
+      "x": 14,
+      "y": 105,
+      "text": ""
     },
     {
       "t": "label",
-      "x": 18,
-      "y": 116,
-      "text": "10 / 10",
+      "x": 36,
+      "y": 102,
+      "text": "Pilmakerbenk %s/%s",
+      "tone": "text_strong",
+      "box": 142,
+      "id": "req_name[1]"
+    },
+    {
+      "t": "inset",
+      "x": 33,
+      "y": 113,
+      "w": 44,
+      "h": 12
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 115,
+      "text": "36 / 36",
       "tone": "warn",
-      "box": 160,
+      "box": 38,
       "id": "req_count[1]"
     },
     {
@@ -125,21 +177,41 @@
       "h": 38
     },
     {
-      "t": "label",
-      "x": 18,
-      "y": 144,
-      "text": "Pilmakerbenk %s/%s",
-      "tone": "text_strong",
-      "box": 160,
-      "id": "req_name[2]"
+      "t": "inset",
+      "x": 12,
+      "y": 140,
+      "w": 240,
+      "h": 30
+    },
+    {
+      "t": "item",
+      "x": 14,
+      "y": 147,
+      "text": ""
     },
     {
       "t": "label",
-      "x": 18,
-      "y": 158,
-      "text": "10 / 10",
+      "x": 36,
+      "y": 144,
+      "text": "Pilmakerbenk %s/%s",
+      "tone": "text_strong",
+      "box": 142,
+      "id": "req_name[2]"
+    },
+    {
+      "t": "inset",
+      "x": 33,
+      "y": 155,
+      "w": 44,
+      "h": 12
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 157,
+      "text": "36 / 36",
       "tone": "warn",
-      "box": 160,
+      "box": 38,
       "id": "req_count[2]"
     },
     {

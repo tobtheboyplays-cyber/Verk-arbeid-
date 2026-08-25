@@ -32,6 +32,12 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.SETTLER.get(), SettlerRenderer::new);
+        // Replaces vanilla's floating/spinning ItemEntity display with items
+        // that genuinely REST on the ground (user request; W19). Mod
+        // registration fires after vanilla's bootstrap, so this overwrites
+        // the EntityType.ITEM provider cleanly.
+        event.registerEntityRenderer(net.minecraft.world.entity.EntityType.ITEM,
+            com.hearthstead.client.render.GroundedItemRenderer::new);
         event.registerEntityRenderer(ModEntities.RAIDER.get(),
             com.hearthstead.client.render.RaiderRenderer::new);
         // The plaque's parchment: the survey is on the wire (step 1), the

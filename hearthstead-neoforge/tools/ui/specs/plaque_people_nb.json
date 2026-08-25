@@ -11,6 +11,12 @@
       "h": 230
     },
     {
+      "t": "item",
+      "x": 10,
+      "y": 6,
+      "text": ""
+    },
+    {
       "t": "title",
       "x": 136,
       "y": 12,
@@ -48,7 +54,13 @@
     {
       "t": "divider",
       "x": 10,
-      "y": 46,
+      "y": 44,
+      "w": 252
+    },
+    {
+      "t": "divider",
+      "x": 10,
+      "y": 48,
       "w": 252
     },
     {
@@ -57,6 +69,13 @@
       "y": 52,
       "w": 248,
       "h": 38
+    },
+    {
+      "t": "inset",
+      "x": 12,
+      "y": 56,
+      "w": 240,
+      "h": 30
     },
     {
       "t": "label",
@@ -71,7 +90,7 @@
       "t": "label",
       "x": 18,
       "y": 69,
-      "text": "Gruvearbeider",
+      "text": "Vertshusholder",
       "tone": "text_muted",
       "box": 160,
       "id": "occ_prof[0]"
@@ -94,11 +113,26 @@
       "text": "Si opp"
     },
     {
+      "t": "button",
+      "x": 184,
+      "y": 76,
+      "w": 64,
+      "h": 14,
+      "text": "Tilkall"
+    },
+    {
       "t": "card",
       "x": 8,
       "y": 94,
       "w": 248,
       "h": 38
+    },
+    {
+      "t": "inset",
+      "x": 12,
+      "y": 98,
+      "w": 240,
+      "h": 30
     },
     {
       "t": "label",
@@ -113,7 +147,7 @@
       "t": "label",
       "x": 18,
       "y": 111,
-      "text": "Gruvearbeider",
+      "text": "Vertshusholder",
       "tone": "text_muted",
       "box": 160,
       "id": "occ_prof[1]"
@@ -136,11 +170,26 @@
       "text": "Si opp"
     },
     {
+      "t": "button",
+      "x": 184,
+      "y": 118,
+      "w": 64,
+      "h": 14,
+      "text": "Tilkall"
+    },
+    {
       "t": "card",
       "x": 8,
       "y": 136,
       "w": 248,
       "h": 38
+    },
+    {
+      "t": "inset",
+      "x": 12,
+      "y": 140,
+      "w": 240,
+      "h": 30
     },
     {
       "t": "label",
@@ -155,7 +204,7 @@
       "t": "label",
       "x": 18,
       "y": 153,
-      "text": "Gruvearbeider",
+      "text": "Vertshusholder",
       "tone": "text_muted",
       "box": 160,
       "id": "occ_prof[2]"
@@ -176,6 +225,14 @@
       "w": 64,
       "h": 20,
       "text": "Si opp"
+    },
+    {
+      "t": "button",
+      "x": 184,
+      "y": 160,
+      "w": 64,
+      "h": 14,
+      "text": "Tilkall"
     },
     {
       "t": "divider",

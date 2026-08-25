@@ -26,7 +26,9 @@ public record PlaqueAction(BlockPos pos, Kind kind, UUID target, int revision)
     public enum Kind {
         ASSIGN,
         EVICT,
-        REFRESH
+        REFRESH,
+        /** Call one currently-employed worker to the plaque's front. {@code target} is theirs. */
+        SUMMON
     }
 
     public static final Type<PlaqueAction> TYPE = new Type<>(

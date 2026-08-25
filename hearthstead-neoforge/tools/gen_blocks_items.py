@@ -204,6 +204,232 @@ def gen_logo():
     save(img, f"{RESOURCES}/hearthstead_logo.png")
 
 
+# ------------------------------------------------- SLICE CHAINS item icons ---
+# Six intermediate goods bound by FLOWS.md (docs/project/FLOWS.md), plus ALE
+# (the brewery's fed path has to end somewhere -- see ModItems.java). Flat
+# 16x16 icons in the vanilla convention (project standard per
+# validate_assets.py), each a plain silhouette built from texlib's shared
+# palettes so the set reads as one family with the rest of the mod's items.
+# Every rng below is a fresh, fixed-seed random.Random -- never the bare
+# `random` module -- so PYTHONHASHSEED cannot perturb a single pixel
+# (tools/validate_assets.py's pipeline check runs this file twice, once per
+# hash seed, and requires byte-identical output).
+
+def gen_item_flour():
+    """A tied cloth sack, pale flour dusting its neck."""
+    img = new_image(16, 16)
+    rng = random.Random(201)
+    linen = ramp("linen_raw")
+    # sack body: a rounded triangle widening toward the base
+    for y in range(4, 15):
+        half = min(5, 1 + (y - 4))
+        for x in range(8 - half, 8 + half):
+            idx = 2
+            r = rng.random()
+            if r < 0.18:
+                idx = 1
+            elif r < 0.32:
+                idx = 3
+            if x == 8 - half:
+                idx = max(0, idx - 1)          # left shade
+            if x == 8 + half - 1:
+                idx = min(4, idx + 1)           # right catch-light
+            put(img, x, y, linen[idx])
+    # tied neck
+    for y in range(2, 4):
+        for x in range(7, 10):
+            put(img, x, y, linen[1] if y == 2 else linen[2])
+    put(img, 7, 2, linen[0])
+    put(img, 9, 2, linen[0])
+    # a wisp of flour dust escaping the tie
+    put(img, 6, 3, shade(linen[4], 1.05))
+    put(img, 10, 3, shade(linen[4], 1.05))
+    put(img, 8, 1, shade(linen[4], 1.1))
+    save(img, f"{ASSETS}/textures/item/flour.png")
+
+
+def gen_item_malt():
+    """Toasted grain, a small heap on a wooden board."""
+    img = new_image(16, 16)
+    rng = random.Random(202)
+    wheat = ramp("wheat")
+    oak = ramp("oak_light")
+    # board
+    for y in range(11, 14):
+        for x in range(2, 14):
+            put(img, x, y, oak[1] if y == 13 else oak[2 if (x + y) % 3 else 1])
+    # heap of kernels, denser toward the middle, darker (toasted) than raw wheat
+    for y in range(3, 12):
+        width = max(0, 6 - abs(y - 8))
+        for x in range(8 - width, 8 + width):
+            r = rng.random()
+            idx = 1 if r < 0.4 else (0 if r < 0.55 else (2 if r < 0.85 else 3))
+            put(img, x, y, wheat[idx])
+    # a few lit kernels breaking the silhouette on top
+    for (x, y) in ((6, 3), (8, 2), (10, 4), (7, 4), (9, 3)):
+        put(img, x, y, wheat[3])
+    save(img, f"{ASSETS}/textures/item/malt.png")
+
+
+def gen_item_ale():
+    """A short wooden tankard, foam over amber ale."""
+    img = new_image(16, 16)
+    oak = ramp("oak_light")
+    amber = ramp("amber")
+    foam = ramp("linen")
+    # body
+    for y in range(6, 15):
+        for x in range(4, 12):
+            idx = 3
+            if x == 4:
+                idx = 1
+            elif x == 5:
+                idx = 2
+            elif x == 11:
+                idx = 1
+            put(img, x, y, oak[idx])
+    # handle
+    for y in range(8, 12):
+        put(img, 12, y, oak[2])
+    put(img, 13, 8, oak[1])
+    put(img, 13, 11, oak[1])
+    # ale within the rim
+    for y in range(7, 9):
+        for x in range(5, 11):
+            put(img, x, y, amber[2 if y == 7 else 3])
+    # foam cap
+    for x in range(4, 12):
+        put(img, x, 6, foam[4 if x % 2 else 3])
+    put(img, 5, 5, foam[3])
+    put(img, 8, 5, foam[4])
+    put(img, 10, 5, foam[3])
+    # rim highlight
+    put(img, 4, 6, shade(oak[4], 1.1))
+    save(img, f"{ASSETS}/textures/item/ale.png")
+
+
+def gen_item_iron_bloom():
+    """A rough, still-hot lump straight off the bloomery -- no clean facets."""
+    img = new_image(16, 16)
+    rng = random.Random(203)
+    iron = ramp("iron")
+    ember = ramp("ember")
+    cx, cy = 8, 9
+    for y in range(3, 15):
+        for x in range(2, 14):
+            dx, dy = x - cx, (y - cy) * 1.25
+            d2 = dx * dx + dy * dy
+            wob = 1.0 + 0.22 * ((x * 7 + y * 5) % 5 - 2) / 2
+            if d2 > 34 * wob:
+                continue
+            r = rng.random()
+            idx = 2
+            if r < 0.20:
+                idx = 1
+            elif r < 0.35:
+                idx = 3
+            if y < 6:
+                idx = min(4, idx + 1)           # top catch-light
+            put(img, x, y, iron[idx])
+    # hot cracks still glowing
+    for (x, y) in ((6, 7), (7, 8), (9, 9), (8, 10), (10, 8)):
+        put(img, x, y, ember[2])
+    put(img, 7, 7, ember[3])
+    save(img, f"{ASSETS}/textures/item/iron_bloom.png")
+
+
+def gen_item_timber_beam():
+    """A short dressed beam, seen three-quarter with its cut end showing rings."""
+    img = new_image(16, 16)
+    oak = ramp("oak")
+    oak_l = ramp("oak_light")
+    # cut end (left): concentric rings
+    for y in range(3, 13):
+        for x in range(1, 6):
+            d = max(abs(x - 3), abs(y - 8) * 0.7)
+            idx = 1 if int(d) % 2 == 0 else 2
+            put(img, x, y, oak_l[idx])
+    put(img, 3, 8, oak_l[0])
+    # shaft, planed flat with visible grain lines
+    for y in range(4, 12):
+        for x in range(6, 15):
+            idx = 3
+            if y in (4, 11):
+                idx = 2
+            if (x + y * 3) % 7 == 0:
+                idx = 4                          # grain streak, lit
+            put(img, x, y, oak_l[idx])
+    for x in range(6, 15):
+        put(img, x, 3, oak[2])                  # top edge, darker cap rail
+        put(img, x, 12, oak[0])                 # underside, shadow
+    save(img, f"{ASSETS}/textures/item/timber_beam.png")
+
+
+def gen_item_cured_hide():
+    """A stretched pelt, corners pegged out flat -- rawer and paler than tanned leather."""
+    img = new_image(16, 16)
+    rng = random.Random(204)
+    hide = ramp("leather")
+    outline = shade(hide[0], 0.8)
+    # rounded body with four rough leg-corners
+    rows = {
+        2: (5, 11), 3: (3, 13), 4: (2, 14), 5: (2, 14), 6: (1, 15),
+        7: (1, 15), 8: (2, 14), 9: (2, 14), 10: (3, 13), 11: (4, 12),
+        12: (5, 11), 13: (6, 10),
+    }
+    for y, (x0, x1) in rows.items():
+        for x in range(x0, x1):
+            r = rng.random()
+            idx = 3 if r < 0.55 else (2 if r < 0.85 else 4)
+            if x in (x0, x1 - 1):
+                idx = max(0, idx - 1)
+            put(img, x, y, hide[idx])
+    for y, (x0, x1) in rows.items():
+        put(img, x0, y, outline)
+        put(img, x1 - 1, y, outline)
+    put(img, 8, 6, hide[4])                     # a raw highlight, off-centre
+    save(img, f"{ASSETS}/textures/item/cured_hide.png")
+
+
+def gen_item_wool_bolt():
+    """A rolled bolt of woven cloth, end-on, cord-tied like the build plan's scroll."""
+    img = new_image(16, 16)
+    rng = random.Random(205)
+    linen = ramp("linen")
+    leather = ramp("leather")
+    cx, cy = 8, 8
+    for y in range(1, 15):
+        for x in range(2, 14):
+            dx, dy = x - cx, y - cy
+            d2 = dx * dx + dy * dy * 0.36
+            if d2 > 46:
+                continue
+            f = dx / 7.0
+            if f < -0.5:
+                idx = 4
+            elif f < 0.0:
+                idx = 3
+            elif f < 0.5:
+                idx = 2
+            else:
+                idx = 1
+            if rng.random() < 0.10:
+                idx = max(0, idx - 1)
+            put(img, x, y, linen[idx])
+    # end cap rings (the roll's face)
+    for y in range(4, 12):
+        for x in range(2, 6):
+            dx, dy = x - 4, y - 7.5
+            if dx * dx + dy * dy * 0.6 <= 4:
+                put(img, x, y, linen[1 if (int(dx) + int(dy)) % 2 else 2])
+    # cord ties, two bands
+    for x in (6, 10):
+        for y in range(1, 15):
+            if 2 <= y <= 13:
+                put(img, x, y, leather[2 if y % 2 else 1])
+    save(img, f"{ASSETS}/textures/item/wool_bolt.png")
+
+
 if __name__ == "__main__":
     gen_hearth_stone()
     gen_hearth_bowl()
@@ -211,4 +437,11 @@ if __name__ == "__main__":
     gen_hearth_ember()
     gen_handbook()
     gen_logo()
+    gen_item_flour()
+    gen_item_malt()
+    gen_item_ale()
+    gen_item_iron_bloom()
+    gen_item_timber_beam()
+    gen_item_cured_hide()
+    gen_item_wool_bolt()
     print("blocks/items/logo done")

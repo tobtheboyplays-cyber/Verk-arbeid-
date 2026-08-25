@@ -1,5 +1,6 @@
 package com.hearthstead.network;
 
+import com.hearthstead.block.PlaqueBlock;
 import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.building.PlaqueState;
 import com.hearthstead.building.Requirement;
@@ -10,7 +11,9 @@ import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.Summons;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -61,6 +64,7 @@ public final class PlaqueNetwork {
             case ASSIGN -> assign(player, level, plaque, action.target());
             case EVICT -> evict(player, level, plaque, action.target());
             case REFRESH -> plaque.survey(level);
+            case SUMMON -> summon(player, level, plaque, action.target());
         }
         send(player, snapshot(player, plaque));
     }
@@ -138,6 +142,36 @@ public final class PlaqueNetwork {
             settler.addMorale(-4.0F);
         }
         SettlementSavedData.get(level).setDirty();
+    }
+
+    /**
+     * "Come here." Same eligibility check as every other plaque action — the
+     * building must be real, and the target must actually be one of ITS
+     * workers, not merely a settler who exists somewhere — but unlike ASSIGN
+     * and EVICT this changes nothing about who works where. It never bumps
+     * the revision or marks the settlement dirty: the call is not settlement
+     * state, it is a live request that {@code RespondToSummonsGoal} consumes
+     * and forgets.
+     */
+    private static void summon(ServerPlayer player, ServerLevel level,
+                               PlaqueBlockEntity plaque, UUID settlerId) {
+        Building building = plaque.building(level);
+        Settlement settlement = plaque.settlementFor(level);
+        if (building == null || settlement == null || !building.valid) {
+            deny(player, "hearthstead.plaque.not_ready");
+            return;
+        }
+        SettlerEntity settler = findSettler(level, settlement, settlerId);
+        if (settler == null) {
+            deny(player, "hearthstead.plaque.summon.not_loaded");
+            return;
+        }
+        if (!building.workers.contains(settlerId)) {
+            deny(player, "hearthstead.plaque.summon.not_employed");
+            return;
+        }
+        Direction facing = plaque.getBlockState().getValue(PlaqueBlock.FACING);
+        Summons.call(settler, plaque.getBlockPos().relative(facing), level);
     }
 
     // ----------------------------------------------------------- snapshot --
