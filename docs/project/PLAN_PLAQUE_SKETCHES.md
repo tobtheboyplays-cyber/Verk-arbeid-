@@ -1,105 +1,83 @@
-# PLAQUE-2 step 4 — a sketch for every building
+# PLAQUE-2 step 4 — a picture for every building
 
 *"Så må du lage en sketch for alle fremtidige bygg"* — owner, 2026-08-25.
 
-The house sketch is done and proved in game. This is the system that makes the
-other five, and every building type after them, without each one becoming a
-fresh art argument.
+## Eight versions, and the one that was right
 
-## What a sketch has to do
+The ask started as "a sketch for every building" and ended by deleting all the
+art. Every note from the owner killed one wrong idea, and they are worth
+keeping in order, because the last one is only obvious after the first seven:
 
-A plan sheet is about **7.4 x 8.8 model pixels** on the block — roughly half a
-block wide in world. The drawing gets the top ~24 rows of a 64px texture, and
-it is seen from one to four blocks away. Three rounds of redrawing the house
-settled what survives that:
+| note | what it killed |
+|---|---|
+| *"Kan lage litt tydeligere bygg"* | thin-line sepia elevations |
+| *"Synes tegningene er litt tamme … gjerne en hel ny tegnestil"* | refining the same elevation again |
+| *"Nei mye mye tydligere. Se på tektopia og minecolonies så tilpasser du"* | drawing the BUILDING at all |
+| *"Må ha tydelige logoer så man vet hva de forskjellige er"* | a picture with no trade mark |
+| *"Jeg ser ikke hva de er. Det skal ikke være tvil"* | smooth, shaded, vector-looking art |
+| *"Lag heller som icon som tektopia"* | anything that is not an item |
+| *"Bildene er for stygge tenk på en helt ny og forbedret løsning"* | **hand-drawn art, entirely** |
 
-- **Tone, not line.** The darkest ink for the roof mass, a light
-  parchment-shadow fill for the lit wall, darker fills for openings. A
-  wireframe reads as scribble at four blocks; a lit solid with dark holes in
-  it still reads as a building.
-- **One silhouette idea per type.** A player must be able to tell a warehouse
-  plaque from a house plaque at a glance, before any text resolves. That
-  difference has to live in the OUTLINE, not in the detail.
-- **No fine detail.** Corner studs, half-timber braces, thin light-ink
-  mullions — all tried on the house, all noise. Nothing narrower than 1px of
-  contrast against its neighbour.
-- **Inside the opening.** The frame's opening is narrower than the panel; a
-  drawing sized to the panel loses its eaves and chimney behind the brass.
+## What it is now
 
-## The shared envelope
+**The plaque renders the real Minecraft item.** No textures, no generator, no
+sprites. `BuildingType` names an `Item`, and `PlaqueRenderer` draws it with
+`ItemRenderer.renderStatic`.
 
-Every sketch is drawn into the same box and called the same way, so a new
-building type is one function and one line in a table:
+| building | item |
+|---|---|
+| House | red bed |
+| Lodging | white bed |
+| Warehouse | chest |
+| Lumber camp | iron axe |
+| Farmhouse | wheat |
+| Architect's study | lectern |
 
-```
-plan_sketch(img, ox, oy)      52 wide x 26 tall, drawn at (6, 3)
-```
+This is TekTopia's convention taken literally — there you declare a building by
+hanging **an item in a frame** beside its door. It is better than any sprite
+this mod could author, for three reasons that are not matters of taste:
 
-with the shared palette already fixed:
+1. **Recognition.** A player has been looking at these exact shapes for years.
+2. **Consistency.** The emblem is drawn by the people who drew everything else
+   on the screen, so it cannot look pasted on.
+3. **Cost.** The seventh building type needs no art at all — one enum constant.
 
-| role | value | used for |
-|---|---|---|
-| `dark` | `INK[0]` | roof mass, every outline |
-| `mid` | `INK[2]` | doorways and other openings |
-| `wall_tone` | `PARCH[1]` | the lit face of a wall |
-| `pane` | `PARCH[0]` | glass, water, anything recessed |
-| `light` | `PARCH[3]` | a catch-light: latches, glints |
+### `GUI`, not `FIXED`
 
-Helpers `P`, `fill` and `rect` are shared. The rule below the drawing does the
-grounding — no sketch draws a shadow band of its own.
+`ItemDisplayContext.FIXED` is what an item frame uses and was the obvious first
+choice. It is wrong here: it hangs a bed the way a frame does — edge-on, two
+blocks long — and squashed into a sheet this shallow the bed collapsed to a
+strip of planks. `GUI` is the pose every player has seen ten thousand times:
+**the icon in their own hotbar.** A chest looks like the chest in slot one.
 
-## The six silhouettes
+Depth is squashed to a tenth, because there is only 0.044 of a block between
+the sunken panel and the front of the brass frame, and a chest at natural depth
+pushes straight through it and out of the block.
 
-Each one is chosen so its OUTLINE alone separates it from the others.
+### The picture is not a fixed band any more
 
-| type | silhouette idea | what makes it unmistakable |
-|---|---|---|
-| **House** | steep gable, chimney right, two windows and a door | *done* — the baseline |
-| **Lodging** | long low block, **shallow** roof, four small windows in a row, two doors | width and repetition: a dormitory, not a home |
-| **Warehouse** | wide **hipped** roof over a big square opening, loading doors filling the centre, a hoist beam out of the gable | the doorway is the building |
-| **Lumber camp** | open-sided shelter on posts, stacked log ends, a saw trestle | no solid wall — a roof on legs |
-| **Farmhouse** | gable with a **lean-to** on the right, a field furrow line, a composter box | asymmetric, and the only one with ground worked in front |
-| **Architect's study** | tall narrow gable, one big arched window, a lectern shape inside | height, and the only arch |
+It used to occupy 26 rows of the sheet however much text there was.
+`PlaqueRenderer` now lays the writing along the foot of the parchment and gives
+the picture **everything above it**, square and centred — so a registered
+building, whose sheet is two lines, has a big emblem, and one still gathering
+requirements has a smaller one above its checklist.
 
-## Beyond the six
+## Adding the seventh building
 
-`DESIGN.md` names tavern, dining hall, kitchen, smithy, mine entrance,
-infirmary, barracks, watchtower and graveyard. Each gets the same treatment
-when its building type exists — and the rule for choosing a silhouette holds:
-**pick the one shape a player would draw if asked to draw that building from
-memory**, then remove everything else.
+One line: name an item on the enum constant. The rule for choosing it is
+TekTopia's own — **what would you hang in a frame by that door?** A smithy gets
+an anvil, an infirmary a potion, a graveyard a skull.
 
-Candidates already worth writing down: smithy = a chimney twice the height of
-its roof, with a dark forge mouth; watchtower = a tall thin shaft with a
-railed top, the only vertical sketch; graveyard = no building at all, a low
-wall and three stones.
-
-## How the picture reaches the plaque
-
-Today all six types share one `plaque_plan.png`. Per type, this becomes one
-texture each — `plaque_plan_<type>.png` — selected by the model the plaque
-uses. The plaque's blockstate already carries `glow`, not type, so the
-selection happens where the plan itself is known:
-
-- the block entity knows its `BuildingType` and already syncs it;
-- `PlaqueRenderer` already receives the block entity;
-- so the sketch is drawn by the renderer as a small textured quad on the
-  sheet, keyed by type, rather than by multiplying blockstate variants
-  (6 types x 4 glows x 4 facings = 96 variants for what is one picture).
-
-That keeps the block model at four glow variants and leaves the sheet's whole
-face free, which step 5's per-requirement icons will also need.
+`everyPlanHasItsOwnEmblem` fails if two types share an item or one names none,
+so a new building cannot ship indistinguishable from an old one.
 
 ## Acceptance
 
-- Six sketches, each generated by `tools/gen_plaque.py`, byte-reproducible
-  across two runs (KF-007).
-- A warehouse plaque and a house plaque are told apart **at four blocks**, in
-  a screenshot, before any text is legible.
-- No sketch loses part of itself behind the brass frame.
-- The validator knows every `plaque_plan_<type>.png` exists for every
-  `BuildingType`, so adding a type without its sketch fails a check rather
-  than shipping a blank sheet.
+- Every building type renders a distinct, instantly-known item.
+- **A warehouse plaque and a house plaque are told apart before any text is
+  legible** — verified in game.
+- No emblem pushes through the brass frame.
+- No art asset to maintain, and none to get wrong.
 
 ---
 

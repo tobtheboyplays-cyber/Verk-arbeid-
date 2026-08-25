@@ -40,6 +40,10 @@ public record PlaqueSheet(@Nullable Component title, List<Line> lines) {
         MET(0xFF2F6B2E, "✔"),
         PARTIAL(0xFF9A5F12, "✘"),
         UNMET(0xFF8E2B22, "✘"),
+        /** A registered building with room left in it. */
+        SPACE(0xFF2F6B2E, ""),
+        /** A registered building with none. */
+        FULL(0xFF9A5F12, ""),
         /** A note about the plaque itself rather than a requirement. */
         NOTE(0xFF8E2B22, "");
 
@@ -84,23 +88,57 @@ public record PlaqueSheet(@Nullable Component title, List<Line> lines) {
     /** {@link Line#id()} of a line that reports the plaque's state, not a requirement. */
     public static final String STATE_ID = "state";
 
+    /** {@link Line#id()} of the line that reports who is in the building. */
+    public static final String OCCUPANCY_ID = "occupancy";
+
     /**
      * Reads a plaque into a sheet.
      *
-     * @param state  the plaque's state; {@link PlaqueState#EMPTY} writes
-     *               nothing at all, because no plan is fitted and the plaque
-     *               has nothing to claim
-     * @param survey the last survey; empty when no room was found, in which
-     *               case the sheet says so instead of listing requirements it
-     *               could not measure
+     * <p>The sheet has TWO faces, because a field four model pixels tall
+     * cannot hold six lines at a size anyone can read, and because the two
+     * faces answer different questions:
+     *
+     * <ul>
+     *   <li><b>Not registered</b> — the checklist, which is the whole point:
+     *       what is missing, and by how much.</li>
+     *   <li><b>Registered</b> — the checklist has done its job and become
+     *       noise. What is worth knowing from across the room is whether
+     *       there is still space in it.</li>
+     * </ul>
+     *
+     * <p>The switch is not cosmetic. If a requirement later fails — someone
+     * takes the bed out — the plaque unlinks on its next survey and the
+     * checklist comes back by itself, naming exactly what broke.
+     *
+     * <p>There is deliberately NO working / not-working line. The lamp set
+     * into the board already says it, and says it across a village square
+     * where a word would not. The owner asked for one and then withdrew the
+     * request for exactly that reason; a second copy of the same signal on the
+     * same block is clutter.
+     *
+     * @param state     the plaque's state; {@link PlaqueState#EMPTY} writes
+     *                  nothing at all, because no plan is fitted and the
+     *                  plaque has nothing to claim
+     * @param survey    the last survey; empty when no room was found, in which
+     *                  case the sheet says so instead of listing requirements
+     *                  it could not measure
+     * @param occupants settlers in the building now
+     * @param capacity  how many it holds; 0 when there is no building yet
      */
     public static PlaqueSheet of(BuildingType type, PlaqueState state,
-                                 List<Requirement.Status> survey) {
+                                 List<Requirement.Status> survey,
+                                 int occupants, int capacity) {
         if (state == PlaqueState.EMPTY) {
             return BLANK;
         }
         List<Line> lines = new ArrayList<>();
-        if (survey.isEmpty()) {
+        if (state == PlaqueState.LINKED_VALID && capacity > 0) {
+            lines.add(new Line(OCCUPANCY_ID,
+                Component.translatable(type.housesResidents()
+                        ? "hearthstead.plaque.people" : "hearthstead.plaque.workers",
+                    occupants, capacity),
+                occupants >= capacity ? Ink.FULL : Ink.SPACE));
+        } else if (survey.isEmpty()) {
             // No room found, or an orphaned plaque: naming the state is worth
             // more than an empty list, because "no room found" tells the
             // player their walls do not close and a blank sheet does not.
@@ -128,13 +166,19 @@ public record PlaqueSheet(@Nullable Component title, List<Line> lines) {
         return title == null;
     }
 
-    /** Every line met: the sheet reads as finished. */
+    /**
+     * Every requirement line met: the sheet reads as finished.
+     *
+     * <p>A registered building's sheet shows occupancy rather than the
+     * checklist, and counts as complete — it got there.
+     */
     public boolean complete() {
         if (isBlank() || lines.isEmpty()) {
             return false;
         }
         for (Line line : lines) {
-            if (line.ink() != Ink.MET) {
+            Ink ink = line.ink();
+            if (ink != Ink.MET && ink != Ink.SPACE && ink != Ink.FULL) {
                 return false;
             }
         }

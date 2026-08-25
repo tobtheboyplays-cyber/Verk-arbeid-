@@ -2,17 +2,27 @@ package com.hearthstead.client.render;
 
 import com.hearthstead.block.PlaqueBlock;
 import com.hearthstead.block.PlaqueBlockEntity;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.PlaqueSheet;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix4f;
+
+import java.util.EnumMap;
+import java.util.Map;
 
 /**
  * Writes the plaque's survey onto its parchment, in the world.
@@ -54,14 +64,65 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
     private static final float FIELD_HALF_WIDTH = (11.7F - 4.3F) * 0.5F * PX;
 
     /**
-     * The clear field on the sheet, below the header drawing and its ruled
-     * line. The parchment is a 64px texture stretched over the panel's face
-     * (model y 4.3 at the bottom to 13.1 at the top), so texture row r sits at
-     * model y = 13.1 - r * 8.8/64. The rule is drawn on rows 30-31 by
-     * {@code tools/gen_plaque.py}; the field runs from row 32.5 to row 61.5.
+     * What is actually VISIBLE of the parchment: the frame's opening, model
+     * y 4.55..12.85. The panel behind it runs 4.3..13.1, and anything drawn
+     * out there disappears under the brass.
      */
-    private static final float FIELD_TOP = (13.1F - 32.5F * 8.8F / 64.0F) * PX - 0.5F;
-    private static final float FIELD_BOTTOM = (13.1F - 61.5F * 8.8F / 64.0F) * PX - 0.5F;
+    private static final float OPENING_TOP = 12.85F * PX - 0.5F;
+    private static final float OPENING_BOTTOM = 4.55F * PX - 0.5F;
+
+    /**
+     * How far the emblem stands off the parchment. Much bigger than the ink's
+     * lift, because some emblems are real block models with depth -- a chest
+     * and a lectern are not flat -- and they have to clear the sunken panel
+     * rather than sink into it.
+     */
+    private static final float EMBLEM_LIFT = 0.018F;
+
+    /**
+     * Depth, squashed hard. There is only 0.044 of a block between the sunken
+     * panel and the front of the brass frame; a chest at its natural depth
+     * would push straight through it and out of the block. At a tenth it still
+     * reads as a solid and stays inside the well.
+     */
+    private static final float EMBLEM_DEPTH = 0.15F;
+
+    /**
+     * The most of the sheet the writing may take. The rest belongs to the
+     * picture — so a registered building, whose sheet is two lines, gives its
+     * picture most of the parchment, and a plaque still gathering its
+     * requirements gives it what is left over. The picture used to be pinned
+     * to a fixed band whatever else was on the sheet, and at that size the
+     * owner could not tell one plan from another.
+     */
+    private static final float TEXT_SHARE = 0.5F;
+
+    /** Clear parchment between the picture and the first line of writing. */
+    private static final float PICTURE_GAP = 0.018F;
+
+    /**
+     * Ruled lines: one under the title, dividing the emblem and the heading
+     * from the list, and a fainter one between each requirement. They cost a
+     * pixel of height each and they are what turns a stack of words into a
+     * page -- the eye gets rows to follow instead of a paragraph.
+     *
+     * <p>Drawn with {@link RenderType#textBackground()}, which is the render
+     * type vanilla uses for the dark box behind a nameplate: no texture, plain
+     * vertex colour with alpha, and lit like everything else on the sheet. It
+     * means the rules need no asset at all.
+     *
+     * <p>The thickness is in FONT units, not pixels, so it scales with the
+     * writing. A first attempt used 0.9 of a unit and lifted the quads 0.0008
+     * of a block off the parchment: at a normal viewing distance that is two
+     * thirds of a screen pixel, sitting close enough to the panel to z-fight,
+     * and the rules were invisible in game while being perfectly present in
+     * the code. Thin geometry has to be measured in screen pixels, not in
+     * intent.
+     */
+    private static final float RULE_THICKNESS = 1.6F;
+    private static final int RULE_UNDER_TITLE = 0xC8;
+    private static final int RULE_BETWEEN_ROWS = 0x66;
+    private static final float RULE_LIFT = 0.0040F;
 
     /** Clear parchment left around the writing, in block units. */
     private static final float MARGIN_X = 0.012F;
@@ -99,10 +160,25 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
      */
     private static final int VIEW_DISTANCE = 24;
 
+    /**
+     * One item per building type, kept as a stack so nothing is allocated per
+     * frame per plaque.
+     */
+    private static final Map<BuildingType, ItemStack> EMBLEMS =
+        new EnumMap<>(BuildingType.class);
+
+    static {
+        for (BuildingType type : BuildingType.values()) {
+            EMBLEMS.put(type, new ItemStack(type.emblem()));
+        }
+    }
+
     private final Font font;
+    private final ItemRenderer items;
 
     public PlaqueRenderer(BlockEntityRendererProvider.Context context) {
         this.font = context.getFont();
+        this.items = context.getItemRenderer();
     }
 
     @Override
@@ -113,7 +189,8 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
     @Override
     public void render(PlaqueBlockEntity plaque, float partialTick, PoseStack pose,
                        MultiBufferSource buffers, int light, int overlay) {
-        PlaqueSheet sheet = PlaqueSheet.of(plaque.type(), plaque.state(), plaque.lastSurvey());
+        PlaqueSheet sheet = PlaqueSheet.of(plaque.type(), plaque.state(),
+            plaque.lastSurvey(), plaque.occupants(), plaque.capacity());
         if (sheet.isBlank()) {
             return; // no plan fitted: an empty well, and nothing to say
         }
@@ -129,9 +206,14 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
         }
 
         float usableWidth = 2.0F * (FIELD_HALF_WIDTH - MARGIN_X);
-        float usableHeight = (FIELD_TOP - FIELD_BOTTOM) - 2.0F * MARGIN_Y;
-        float scale = Math.min(MAX_SCALE,
-            Math.min(usableWidth / widest, usableHeight / height));
+        float opening = OPENING_TOP - OPENING_BOTTOM;
+        float scale = Math.min(MAX_SCALE, Math.min(usableWidth / widest,
+            opening * TEXT_SHARE / height));
+
+        // The writing sits at the FOOT of the sheet; everything above it is
+        // the picture's.
+        float textBottom = OPENING_BOTTOM + MARGIN_Y;
+        float textTop = textBottom + height * scale;
 
         Direction facing = plaque.getBlockState().getValue(PlaqueBlock.FACING);
         int lit = LightTexture.pack(
@@ -140,7 +222,18 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
         pose.pushPose();
         pose.translate(0.5F, 0.5F, 0.5F);
         pose.mulPose(Axis.YP.rotationDegrees(-facing.toYRot()));
-        pose.translate(0.0F, (FIELD_TOP + FIELD_BOTTOM) * 0.5F, SHEET_Z + INK_LIFT);
+
+        float pictureTop = OPENING_TOP - MARGIN_Y;
+        float pictureBottom = textTop + PICTURE_GAP;
+        float side = Math.min(pictureTop - pictureBottom, usableWidth);
+        if (side > 0.02F) {
+            drawEmblem(plaque, pose, buffers, lit,
+                (pictureTop + pictureBottom) * 0.5F, side);
+        }
+
+        drawRules(pose, buffers, lit, sheet.lines().size(), textTop, widest, scale);
+
+        pose.translate(0.0F, (textTop + textBottom) * 0.5F, SHEET_Z + INK_LIFT);
         // Negative Y scale because font coordinates run downward.
         pose.scale(scale, -scale, scale);
         Matrix4f matrix = pose.last().pose();
@@ -167,6 +260,79 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
             y += LINE;
         }
         pose.popPose();
+    }
+
+    /**
+     * Renders the plan's emblem: the real Minecraft item, exactly the way an
+     * item frame renders one.
+     *
+     * <p>{@link ItemDisplayContext#GUI} on purpose, not {@code FIXED}. FIXED is
+     * what an item frame uses, and it was the obvious first choice -- but it
+     * hangs a bed the way a frame does, edge-on and two blocks long, and
+     * squashed into a sheet this shallow the bed collapsed to a strip of
+     * planks. GUI is the pose every player has seen ten thousand times: the
+     * icon in their own hotbar. A chest looks like the chest in slot one; a
+     * bed looks like the bed in slot two. There is no more recognisable way to
+     * draw an item than the way the player already keeps it.
+     *
+     * <p>Seven versions of hand-drawn art came before this and every one was
+     * worse, for the same reason each time: a sprite this mod authors is
+     * competing with art the player has been looking at for years. The item
+     * itself wins on recognition, on sitting consistently beside everything
+     * else on screen, and on the day a seventh building type is designed and
+     * needs no new art at all.
+     */
+    private void drawEmblem(PlaqueBlockEntity plaque, PoseStack pose,
+                            MultiBufferSource buffers, int light,
+                            float centreY, float side) {
+        ItemStack emblem = EMBLEMS.get(plaque.type());
+        if (emblem == null || emblem.isEmpty()) {
+            return;
+        }
+        pose.pushPose();
+        pose.translate(0.0F, centreY, SHEET_Z + EMBLEM_LIFT);
+        pose.scale(side, side, side * EMBLEM_DEPTH);
+        items.renderStatic(emblem, ItemDisplayContext.GUI, light,
+            OverlayTexture.NO_OVERLAY, pose, buffers, plaque.getLevel(), 0);
+        pose.popPose();
+    }
+
+    /**
+     * The ruled lines, drawn in block units before the text's own flipped
+     * scale is applied -- so the quads keep an honest winding and the
+     * arithmetic reads the same way the layout does.
+     */
+    private void drawRules(PoseStack pose, MultiBufferSource buffers, int light,
+                           int rows, float textTop, float widest, float scale) {
+        VertexConsumer rules = buffers.getBuffer(RenderType.textBackground());
+        float half = widest * 0.5F * scale;
+        float thickness = RULE_THICKNESS * scale;
+        float headed = (LINE * TITLE_SCALE + TITLE_GAP * 0.5F) * scale;
+        rule(rules, pose, -half, half, textTop - headed, thickness,
+            RULE_UNDER_TITLE, light);
+
+        float listTop = (LINE * TITLE_SCALE + TITLE_GAP) * scale;
+        for (int row = 1; row < rows; row++) {
+            rule(rules, pose, -half, half,
+                textTop - listTop - row * LINE * scale, thickness,
+                RULE_BETWEEN_ROWS, light);
+        }
+    }
+
+    private static void rule(VertexConsumer rules, PoseStack pose,
+                             float x0, float x1, float y, float thickness,
+                             int alpha, int light) {
+        float lo = y - thickness * 0.5F;
+        float hi = y + thickness * 0.5F;
+        float z = SHEET_Z + RULE_LIFT;
+        int r = PlaqueSheet.TITLE_COLOUR >> 16 & 0xFF;
+        int g = PlaqueSheet.TITLE_COLOUR >> 8 & 0xFF;
+        int b = PlaqueSheet.TITLE_COLOUR & 0xFF;
+        PoseStack.Pose last = pose.last();
+        rules.addVertex(last, x0, lo, z).setColor(r, g, b, alpha).setLight(light);
+        rules.addVertex(last, x1, lo, z).setColor(r, g, b, alpha).setLight(light);
+        rules.addVertex(last, x1, hi, z).setColor(r, g, b, alpha).setLight(light);
+        rules.addVertex(last, x0, hi, z).setColor(r, g, b, alpha).setLight(light);
     }
 
     private int lineWidth(PlaqueSheet.Line line) {

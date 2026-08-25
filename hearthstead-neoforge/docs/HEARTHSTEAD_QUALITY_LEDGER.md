@@ -119,3 +119,38 @@ KF-011 — bed-sleeping settlers permanently stuck asleep), 4 HIGH, 6 MEDIUM,
 addressed together, one re-review). Evidence and per-finding detail: git
 history on `claude/hearthstead-settlement-mod-vbdb9n` for this iteration,
 `.claude/WORK_STATE.md`, and KF-011 above for the BLOCKER specifically.
+
+### Iteration 7 — PLAQUE-2 step 3b: recorded specification correction
+
+**What changed, and why it is a correction rather than a weakened test.**
+
+`theSheetSaysWhatIsMissing` (added earlier the same day, in step 3) asserted
+that a plaque on a satisfied room shows **one sheet line per requirement**,
+all met. Step 3b makes a registered building show its **occupancy** instead —
+`People 1/2` — and the test failed on exactly that line. Under INV-10 a
+failing test is never edited to fit the code, so this is recorded here.
+
+The change is a product decision the owner asked for, not an accommodation:
+
+> *"Og en population slik jeg vet om et hus er fullt. People 1/2 eller
+> lignende"* — and, minutes later, *"Rettelse dropp working eller ikke. Det
+> lyset fungerer veldig fint."*
+
+The sheet's writable field is about four model pixels tall. Six lines in it
+are unreadable, so the sheet takes one of two faces: the **checklist** while
+the building is not registered, and the **occupancy** once it is. That is also
+the right split by usefulness — a finished checklist is four ticks nobody
+needs to re-read, while "is there a bed free" is the live question — and it
+degrades correctly: if a requirement later fails, the plaque unlinks on its
+next survey and the checklist returns by itself, naming what broke.
+
+**What was kept.** The half of the test that actually judges the slice's claim
+— take the bed out, and *exactly* the beds line flips to unmet while doors,
+lights and floor stay met — is unchanged, and still fails if the ink mapping
+is broken (verified by mutation). Only the first phase's expectation moved,
+from "the finished checklist" to "the registered face", and it now asserts
+the new behaviour positively rather than asserting less.
+
+**No working / not-working line was built**, per the owner's correction. The
+lamp in the board already carries that signal, and carries it across a village
+square where a word cannot.

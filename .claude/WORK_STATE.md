@@ -80,31 +80,61 @@ shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**PLAQUE-2 steps 1-3 done.** The survey crosses to the client, the plaque is
-portrait, and **the sheet is now written on**: header drawing, ruled line,
-title, and one live line per requirement with its count and a tick or cross,
-green / amber / red to match the lamp. Place the bed and the line flips on the
-wall — no click, no command. Verified in game in all four mockup states
-(empty well / no room found / gathering / ready), each reached through the
-real right-click-with-a-plan path, not by NBT.
+**PLAQUE-2 steps 1-4 done.** The plaque now shows, on the block, with no click:
+a **Minecraft-item mark** for its plan (bed / bunk / chest / axe+log / wheat /
+book), its title, and then either the live requirement checklist or — once
+registered — **`People n/m`**, amber when full. Verified in game: a chest on one
+wall and a bed on the other are told apart at four blocks, before any text is
+legible.
 
-Model changes that made it possible: the frame opened from 5.4x7.4 to 7.4x8.3
-model px, the iron brackets now stop at the brass rails so none crosses the
-sheet's corner, and the lower rail lifted off the status lamp (which had been
-showing as a 1px sliver of its dome).
+**The art took eight versions and seven owner notes, and the answer was to
+delete it.** Elevations in sepia, bolder, tonal, silhouettes with badges,
+coloured boxes, shaded three-quarter view, 16x16 hand-drawn sprites — all
+rejected, and rightly. The plaque now renders **the real Minecraft item**
+(`BuildingType.emblem()` + `ItemRenderer.renderStatic`) in
+`ItemDisplayContext.GUI` — the pose from the player's own hotbar. No textures,
+no generator, and the seventh building type needs one enum constant and no art.
+`FIXED` (what item frames use) was tried first and collapses a bed to a strip of
+planks in a sheet this shallow. Full history:
+`docs/project/PLAN_PLAQUE_SKETCHES.md`.
 
-**Owner note acted on:** *"Kan lage litt tydeligere bygg"* — the header
-elevation was redrawn bigger, one ink weight, no studs or braces, and sized to
-sit inside the opening with margins. Two attempts: the first redraw ran its
-eaves off the visible edge.
+**Two structural fixes came with it:**
+- the picture is no longer a fixed band — the renderer lays the writing along
+  the foot of the sheet and gives the picture everything above it, so a
+  two-line registered sheet has a big mark;
+- `everyPlanHasItsOwnEmblem` fails if two types share an item or one names
+  none, so a new building cannot ship indistinguishable from an old one.
 
-`PlaqueSheet` (common, not client) decides what each line says, so the product
-decisions are GameTest-judged rather than screenshot-judged. Both new tests
-proven by mutation: forcing every ink to MET fails them.
+**Occupancy is wire-only.** Recomputed in `survey()`, written into
+`getUpdateTag`, and never into `saveAdditional` — pinned by
+`occupancyNeverReachesTheDisk`, which fails the moment anyone persists it.
+`BuildingManager.livesOrWorksIn` is now the ONE predicate the plaque's screen
+and its sheet both use.
 
-**Next: PLAQUE-2 steps 4-5** — per-type header drawings and per-requirement
-icons (the `Line.id` needed for that is already carried), then the right-click
-screen rebuilt to match the mockup, with the READY TO BUILD button.
+**No working/not-working line**, per the owner's own correction: the lamp
+already says it, and better. Recorded as a specification correction in the
+quality ledger, iteration 7, along with the test that had to change with it.
+
+**Ruled sheet.** One strong rule under the title, fainter ones between rows —
+drawn with `RenderType.textBackground()` (no texture, vertex colour, lit). First
+attempt was 0.9 font units thick lifted 0.0008 blocks: two thirds of a screen
+pixel and z-fighting the panel, so it was invisible in game while perfectly
+present in the code. **Thin geometry is measured in screen pixels, not intent.**
+
+**THE FULL BUILDING ROSTER IS IN** — 28 types, each with its own emblem item,
+its own requirements built from the vanilla block that station actually is, and
+its name in en + nb. Owner: *"Lag alle husene som kommer slik du slipper å
+gjøre det senere … tenk på lange avanserte flows."* The chains that justify
+every one of them are in `docs/project/PLAN_PRODUCTION_CHAINS.md`: grain →
+mill → bakery → dining hall; pasture/hunt/fishery → butcher → kitchen;
+farm + well → brewery → tavern (so **recruiting is downstream of farming**);
+lumber → sawmill → carpenter (hafts) + mine → smelter (ingots) → **smithy**,
+where the two chains meet. Deliberately NOT buildings: graveyard, open fields,
+quarries — a building here is an enclosed room (D-004).
+
+**Next: PLAQUE-2 step 5** — the right-click screen rebuilt to match the mockup,
+with the full requirement list and a READY TO BUILD button. Then professions
+for the new buildings, one chain at a time.
 
 **KF-015 is OPEN** — a raid can resolve as repelled while raiders live in
 unloaded chunks. Design question, recorded not patched.

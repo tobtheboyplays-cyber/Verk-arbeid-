@@ -718,6 +718,40 @@ public class HearthsteadGameTests {
     }
 
     /**
+     * Every building type must stand for a DIFFERENT item.
+     *
+     * <p>The plaque draws its plan's emblem as a real Minecraft item, the way
+     * an item frame does. That only tells a player anything if no two types
+     * share one: a warehouse plaque and a house plaque have to differ at a
+     * glance, before any text on the sheet is legible, and the whole point of
+     * using vanilla items is that they do.
+     *
+     * <p>This is also what stops a seventh building type shipping blank. There
+     * is no texture to forget any more -- the type either names an item or it
+     * does not compile -- but nothing except this test stops someone naming
+     * the same one twice.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100)
+    public void everyPlanHasItsOwnEmblem(GameTestHelper helper) {
+        var seen = new java.util.HashMap<net.minecraft.world.item.Item, String>();
+        for (var type : com.hearthstead.building.BuildingType.values()) {
+            var emblem = type.emblem();
+            helper.assertTrue(emblem != null
+                    && emblem != net.minecraft.world.item.Items.AIR,
+                type.id() + " has no emblem item to draw on its plan");
+            String clash = seen.put(emblem, type.id());
+            helper.assertTrue(clash == null,
+                "two building types share one emblem: " + clash + " and "
+                    + type.id() + " both use " + emblem);
+        }
+        helper.assertTrue(
+            seen.size() == com.hearthstead.building.BuildingType.values().length,
+            "one emblem per type: got " + seen.size() + " for "
+                + com.hearthstead.building.BuildingType.values().length + " types");
+        helper.succeed();
+    }
+
+    /**
      * Reads a sheet the way the CLIENT does: through the update tag, into a
      * fresh block entity that has never seen the server's own list. A sheet
      * built straight off the surveying block entity would pass even if the
@@ -731,7 +765,8 @@ public class HearthsteadGameTests {
         received.handleUpdateTag(server.getUpdateTag(helper.getLevel().registryAccess()),
             helper.getLevel().registryAccess());
         return com.hearthstead.building.PlaqueSheet.of(
-            received.type(), received.state(), received.lastSurvey());
+            received.type(), received.state(), received.lastSurvey(),
+            received.occupants(), received.capacity());
     }
 
     private static com.hearthstead.building.PlaqueSheet.Line lineNamed(
@@ -772,15 +807,20 @@ public class HearthsteadGameTests {
             helper.assertTrue(plaque != null, "the plaque block entity should exist");
             plaque.survey(helper.getLevel());
 
+            // Registered: the checklist has done its job and the sheet turns
+            // over to its other face (step 3b, and the specification
+            // correction recorded in the quality ledger, iteration 7).
             var sheet = clientSheet(helper, plaque);
             helper.assertTrue(!sheet.isBlank(),
                 "a fitted plaque must write on its sheet");
-            helper.assertTrue(sheet.lines().size()
-                    == com.hearthstead.building.BuildingType.HOUSE.requirements().size(),
-                "one line per requirement: got " + sheet.lines().size());
             helper.assertTrue(sheet.complete(),
-                "this hut satisfies a house, so every line must read met; beds line was "
-                    + lineNamed(helper, sheet, "beds").ink());
+                "this hut satisfies a house, so the sheet must read as finished");
+            helper.assertTrue(sheet.lines().size() == 1
+                    && sheet.lines().get(0).id()
+                        .equals(com.hearthstead.building.PlaqueSheet.OCCUPANCY_ID),
+                "a registered building shows occupancy, not the finished checklist; got "
+                    + sheet.lines().stream()
+                        .map(com.hearthstead.building.PlaqueSheet.Line::id).toList());
 
             // Take the bed out. Both halves, or the block simply breaks itself.
             helper.setBlock(hutOrigin.offset(2, 1, 2), Blocks.AIR);
@@ -827,7 +867,8 @@ public class HearthsteadGameTests {
         var blank = com.hearthstead.building.PlaqueSheet.of(
             com.hearthstead.building.BuildingType.HOUSE,
             com.hearthstead.building.PlaqueState.EMPTY,
-            java.util.List.of(new com.hearthstead.building.Requirement.Status(lights, 2, 2)));
+            java.util.List.of(new com.hearthstead.building.Requirement.Status(lights, 2, 2)),
+            0, 0);
         helper.assertTrue(blank.isBlank() && blank.lines().isEmpty(),
             "a plaque with no plan fitted writes nothing at all (D-006), got "
                 + blank.lines().size() + " lines");
@@ -835,7 +876,7 @@ public class HearthsteadGameTests {
         var noRoom = com.hearthstead.building.PlaqueSheet.of(
             com.hearthstead.building.BuildingType.HOUSE,
             com.hearthstead.building.PlaqueState.PLAN_INSERTED_UNLINKED,
-            java.util.List.of());
+            java.util.List.of(), 0, 0);
         helper.assertTrue(!noRoom.isBlank() && noRoom.lines().size() == 1
                 && noRoom.lines().get(0).id()
                     .equals(com.hearthstead.building.PlaqueSheet.STATE_ID),
@@ -847,7 +888,8 @@ public class HearthsteadGameTests {
             java.util.List.of(
                 new com.hearthstead.building.Requirement.Status(lights, 2, 2),
                 new com.hearthstead.building.Requirement.Status(lights, 1, 2),
-                new com.hearthstead.building.Requirement.Status(lights, 0, 2)));
+                new com.hearthstead.building.Requirement.Status(lights, 0, 2)),
+            0, 0);
         var inks = measured.lines().stream()
             .map(com.hearthstead.building.PlaqueSheet.Line::ink).toList();
         helper.assertTrue(inks.equals(java.util.List.of(
@@ -870,6 +912,119 @@ public class HearthsteadGameTests {
                 + "own bitmap font carries; the light pair is unifont-only and "
                 + "renders as a box");
         helper.succeed();
+    }
+
+    /**
+     * A registered house says who is in it, and a full one is visibly full.
+     *
+     * <p>The owner asked for this so a house that is full can be told from one
+     * with a spare bed without opening anything — and asked, minutes later,
+     * that there be NO working/not-working line beside it, because the lamp in
+     * the board already says that better than a word can.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void theSheetSaysWhoLivesThere(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hangPlaque(helper, hutOrigin,
+            com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.runAfterDelay(20, () -> {
+            var plaque = (com.hearthstead.block.PlaqueBlockEntity)
+                helper.getLevel().getBlockEntity(helper.absolutePos(plaqueRel));
+            helper.assertTrue(plaque != null, "the plaque block entity should exist");
+            plaque.survey(helper.getLevel());
+
+            // Registered and empty: the checklist has done its job, and the
+            // sheet turns over to the one thing still worth reading.
+            var empty = clientSheet(helper, plaque);
+            helper.assertTrue(empty.lines().size() == 1,
+                "a registered building shows occupancy, not the finished checklist; got "
+                    + empty.lines().size() + " lines");
+            var line = lineNamed(helper, empty,
+                com.hearthstead.building.PlaqueSheet.OCCUPANCY_ID);
+            helper.assertTrue(line.ink() == com.hearthstead.building.PlaqueSheet.Ink.SPACE,
+                "an empty house has room, got " + line.ink());
+            helper.assertTrue(plaque.capacity() == 1 && plaque.occupants() == 0,
+                "one bed, nobody in it: got " + plaque.occupants() + "/"
+                    + plaque.capacity());
+
+            // Move someone in. The count follows the settler's bed claim, not
+            // a number the plaque keeps for itself.
+            SettlerEntity resident = boundSettler(helper, s, new BlockPos(8, 1, 8));
+            resident.claimBed(helper.absolutePos(bedRel));
+            plaque.survey(helper.getLevel());
+
+            var full = clientSheet(helper, plaque);
+            helper.assertTrue(plaque.occupants() == 1,
+                "the resident claimed the only bed, got " + plaque.occupants());
+            helper.assertTrue(
+                lineNamed(helper, full, com.hearthstead.building.PlaqueSheet.OCCUPANCY_ID)
+                    .ink() == com.hearthstead.building.PlaqueSheet.Ink.FULL,
+                "one of one is full, got "
+                    + lineNamed(helper, full,
+                        com.hearthstead.building.PlaqueSheet.OCCUPANCY_ID).ink());
+
+            // And the checklist must come back on its own when the room breaks.
+            helper.setBlock(hutOrigin.offset(2, 1, 2), Blocks.AIR);
+            helper.setBlock(hutOrigin.offset(2, 1, 3), Blocks.AIR);
+            plaque.survey(helper.getLevel());
+            var broken = clientSheet(helper, plaque);
+            helper.assertTrue(
+                lineNamed(helper, broken, "beds").ink()
+                    == com.hearthstead.building.PlaqueSheet.Ink.UNMET,
+                "with the bed gone the checklist returns, naming the beds line");
+            helper.assertTrue(plaque.occupants() == 0 && plaque.capacity() == 0,
+                "an unregistered building holds nobody, got " + plaque.occupants()
+                    + "/" + plaque.capacity());
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Occupancy rides the WIRE and never the disk.
+     *
+     * <p>D-006: the plaque reads the settlement, it does not keep a copy of
+     * it. A saved occupant count would be wrong the first time a settler died
+     * in an unloaded chunk, and would then be wrong forever, because nothing
+     * would ever contradict it. This is the test that makes that mistake
+     * impossible to make quietly.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void occupancyNeverReachesTheDisk(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hangPlaque(helper, hutOrigin,
+            com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.runAfterDelay(20, () -> {
+            var plaque = (com.hearthstead.block.PlaqueBlockEntity)
+                helper.getLevel().getBlockEntity(helper.absolutePos(plaqueRel));
+            helper.assertTrue(plaque != null, "the plaque block entity should exist");
+            SettlerEntity resident = boundSettler(helper, s, new BlockPos(8, 1, 8));
+            resident.claimBed(helper.absolutePos(bedRel));
+            plaque.survey(helper.getLevel());
+            helper.assertTrue(plaque.occupants() == 1,
+                "precondition: the plaque should see its one resident, got "
+                    + plaque.occupants());
+
+            var registries = helper.getLevel().registryAccess();
+            var wire = plaque.getUpdateTag(registries);
+            helper.assertTrue(wire.contains("Occupants") && wire.contains("Capacity"),
+                "the client cannot draw an occupancy line it was never sent");
+            helper.assertTrue(wire.getInt("Occupants") == 1,
+                "and it must be the real count, got " + wire.getInt("Occupants"));
+
+            var disk = plaque.saveWithoutMetadata(registries);
+            helper.assertTrue(!disk.contains("Occupants") && !disk.contains("Capacity"),
+                "occupancy must NEVER be persisted -- the settlement owns it "
+                    + "(D-006); saved tag was " + disk);
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "empty16", timeoutTicks = 400)

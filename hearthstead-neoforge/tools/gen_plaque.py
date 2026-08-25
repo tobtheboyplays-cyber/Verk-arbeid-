@@ -776,85 +776,6 @@ def gen_item_build_plan():
 # the large-scale lighting. The brass and iron are 16-periodic, hence seamless
 # at 64, so neighbouring elements match wherever they are cut.
 
-def plan_elevation(img, ox, oy):
-    """52x26 gabled timber elevation with a chimney -- the HEADER drawing on a
-    fitted plan sheet.
-
-    The sheet used to be one 54x54 drawing filling the whole parchment, which
-    left nowhere for the thing the sheet is actually for: the live requirement
-    list. The drawing is a header now. It says WHICH plan is fitted; the ruled
-    field below it belongs to the block entity renderer's text, and that text
-    is what changes as the player builds.
-
-    Drawn for LEGIBILITY at range, on the owner's note that the building
-    should read more clearly -- twice. The face is only about half a block
-    wide in world, so the original's corner studs, half-timber braces and thin
-    light-ink windows turned to noise a stride away.
-
-    What carries it now is TONE, not more line. The roof is the darkest ink in
-    the ramp, the wall carries a light parchment-shadow fill, the window panes
-    are darker than the wall and the doorway is nearly black, so the building
-    reads as a lit solid with openings in it rather than as a wireframe. A
-    ruled line below does the grounding, so the drawing carries no shadow band
-    of its own -- two horizontal rules two pixels apart read as one smudge.
-    Sized to sit inside the frame's opening
-    with clear parchment all round -- one attempt at 48x26 ran its eaves and
-    chimney off the visible edge, which reads as a mistake rather than a
-    drawing.
-    """
-    dark, heavy, mid = INK[0], INK[1], INK[2]
-    wall_tone, pane = PARCH[1], PARCH[0]
-
-    def P(i, j, c):
-        put(img, ox + i, oy + j, c)
-
-    def fill(x0, y0, x1, y1, c):
-        for j in range(y0, y1 + 1):
-            for i in range(x0, x1 + 1):
-                P(i, j, c)
-
-    def rect(x0, y0, x1, y1, c):
-        for i in range(x0, x1 + 1):
-            P(i, y0, c)
-            P(i, y1, c)
-        for j in range(y0, y1 + 1):
-            P(x0, j, c)
-            P(x1, j, c)
-
-    for j in range(8):                         # chimney, drawn under the roof
-        for i in range(37, 43):
-            P(i, j, dark if (i in (37, 42) or j == 0) else mid)
-    for j in range(13):                        # gable roof, solid mass
-        half = 1 + round(j * 23.0 / 12.0)
-        for i in range(26 - half, 26 + half + 1):
-            P(i, j, dark)
-    for i in range(52):                        # eave board, overhanging
-        P(i, 13, dark)
-        P(i, 14, dark)
-
-    fill(8, 17, 43, 23, wall_tone)             # lit wall face
-    rect(7, 16, 44, 24, dark)                  # wall outline
-    for wx in (11, 34):                        # four-pane windows
-        fill(wx + 1, 19, wx + 5, 21, pane)
-        rect(wx, 18, wx + 6, 22, dark)
-        for j in range(18, 23):
-            P(wx + 3, j, dark)
-        for i in range(wx, wx + 7):
-            P(i, 20, dark)
-    fill(24, 20, 28, 24, mid)                  # doorway, a dark opening
-    rect(23, 19, 29, 24, dark)
-    P(28, 22, PARCH[3])                        # latch, caught in the light
-
-
-def plan_rule(img, y):
-    """The hand-ruled line that separates the header drawing from the field
-    the requirement text is written on."""
-    for i in range(5, 59):
-        put(img, i, y, INK[3])
-    for i in range(6, 58, 2):
-        put(img, i, y + 1, INK[3])
-
-
 def gen_materials():
     # --- 1. board face: sawn oak, vertical long grain -----------------------
     rng = random.Random(SEED_MAT_BOARD)
@@ -1043,13 +964,13 @@ def gen_materials():
     save(img, f"{ASSETS}/textures/block/plaque_socket.png")
 
     # --- 6. plan face: a plan SHEET, not just a drawing ---------------------
-    # Header drawing on top, a ruled line, then clear parchment. The clear
-    # field is deliberate: PlaqueRenderer writes the title and the live
-    # requirement lines onto it, and text over a drawing is unreadable.
+    # Plain parchment, and nothing else. Everything on the sheet is drawn by
+    # PlaqueRenderer over the top of it: the building's picture, sized to
+    # whatever space the writing does not need, and the writing itself. A
+    # ruled line used to be baked in here to divide the two, which pinned the
+    # picture to a fixed band however little text there was.
     img = new_image(64, 64)
     parchment_sheet(img, 0, 0, 64, 64, random.Random(SEED_MAT_PLAN))
-    plan_elevation(img, 6, 3)
-    plan_rule(img, 30)
     save(img, f"{ASSETS}/textures/block/plaque_plan.png")
 
 

@@ -71,6 +71,19 @@ public class PlaqueBlockEntity extends BlockEntity {
     private long nextSurveyTick;
     private List<Requirement.Status> lastSurvey = List.of();
 
+    /**
+     * Who is in the building this plaque declares, and how many fit.
+     *
+     * <p>Derived, exactly like {@link #lastSurvey}: recomputed by every
+     * {@link #survey}, put on the wire so the sheet can be drawn, and NEVER
+     * written by {@link #saveAdditional}. A plaque that saved an occupant
+     * count would be wrong the first time a settler died in an unloaded
+     * chunk, and D-006 says the plaque reads the settlement rather than
+     * keeping its own copy of it.
+     */
+    private int occupants;
+    private int capacity;
+
     /** How many times a real room scan has been attempted — test telemetry for W3. */
     private int scanAttempts;
     /** How many times this plaque's screen has been opened — test telemetry for W4. */
@@ -96,6 +109,16 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     public List<Requirement.Status> lastSurvey() {
         return lastSurvey;
+    }
+
+    /** Settlers in the building now — 0 unless it is registered. */
+    public int occupants() {
+        return occupants;
+    }
+
+    /** How many the building holds — 0 unless it is registered. */
+    public int capacity() {
+        return capacity;
     }
 
     @Nullable
@@ -174,6 +197,8 @@ public class PlaqueBlockEntity extends BlockEntity {
         dissolveBuilding(level, remover);
         insertedPlan = ItemStack.EMPTY;
         lastSurvey = List.of();
+        occupants = 0;
+        capacity = 0;
         state = PlaqueState.EMPTY;
         updateGlow(level);
         revision++;
@@ -226,6 +251,7 @@ public class PlaqueBlockEntity extends BlockEntity {
             }
         }
 
+        countOccupancy(level);
         updateGlow(level);
         if (state != previous) {
             announce(level, previous);
@@ -238,6 +264,26 @@ public class PlaqueBlockEntity extends BlockEntity {
         // not tick its line over until they walked away and back.
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
             Block.UPDATE_CLIENTS);
+    }
+
+    /**
+     * Re-reads occupancy from the settlement. Only a registered building has
+     * any: an unfinished room holds nobody, whatever was standing in it.
+     */
+    private void countOccupancy(ServerLevel level) {
+        occupants = 0;
+        capacity = 0;
+        if (state != PlaqueState.LINKED_VALID) {
+            return;
+        }
+        Building building = building(level);
+        Settlement settlement = settlementFor(level);
+        if (building == null || settlement == null) {
+            return;
+        }
+        capacity = com.hearthstead.settlement.BuildingManager.capacityOf(type, building);
+        occupants = com.hearthstead.settlement.BuildingManager
+            .occupantsOf(level, settlement, building);
     }
 
     /**
@@ -468,6 +514,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             }
             lastSurvey = List.copyOf(restored);
         }
+        occupants = tag.getInt(OCCUPANTS_KEY);
+        capacity = tag.getInt(CAPACITY_KEY);
         insertedPlan = tag.contains("Plan")
             ? ItemStack.parseOptional(provider, tag.getCompound("Plan"))
             : ItemStack.EMPTY;
@@ -481,6 +529,9 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     /** Key for the surveyed requirement list. Wire-only, never on disk. */
     private static final String SURVEY_KEY = "Survey";
+    /** Keys for the occupancy line. Wire-only, never on disk — see the fields. */
+    private static final String OCCUPANTS_KEY = "Occupants";
+    private static final String CAPACITY_KEY = "Capacity";
 
     /**
      * The client needs the type, the state AND the survey to draw the sheet.
@@ -506,6 +557,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             list.add(entry);
         }
         tag.put(SURVEY_KEY, list);
+        tag.putInt(OCCUPANTS_KEY, occupants);
+        tag.putInt(CAPACITY_KEY, capacity);
         return tag;
     }
 

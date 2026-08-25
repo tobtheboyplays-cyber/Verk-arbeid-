@@ -211,6 +211,56 @@ public final class BuildingManager {
         }
     }
 
+    /**
+     * Whether this settler belongs to this building — sleeps in one of its
+     * beds, or is posted to work in it.
+     *
+     * <p>One predicate, used by both the plaque's screen and the occupancy
+     * line the plaque writes on its own sheet. Two copies of "who lives here"
+     * would eventually disagree, and disagreeing with itself on the same block
+     * is the worst thing a status display can do.
+     */
+    public static boolean livesOrWorksIn(Building building, SettlerEntity settler) {
+        if (building.workers.contains(settler.getUUID())) {
+            return true;
+        }
+        BlockPos bed = settler.getClaimedBed();
+        return bed != null && building.beds.contains(bed);
+    }
+
+    /**
+     * How many settlers this building can hold. A dwelling is bounded by the
+     * beds actually found in the room as well as by its type — four beds in a
+     * house that allows four is a full house; one bed in the same house is a
+     * house for one, not a house with three empty slots.
+     */
+    public static int capacityOf(com.hearthstead.building.BuildingType type,
+                                 Building building) {
+        return type.housesResidents()
+            ? Math.min(type.residentCapacity(), building.beds.size())
+            : type.workerCapacity();
+    }
+
+    /**
+     * How many settlers are in this building now.
+     *
+     * <p>Counts LOADED members only, because a bed claim lives on the settler
+     * entity and an unloaded settler cannot be asked. That is the same basis
+     * the plaque's screen has always used, and it is honest in practice: a
+     * plaque only ticks while its own chunk is loaded, which for a settlement
+     * means the player is standing in it.
+     */
+    public static int occupantsOf(ServerLevel level, Settlement settlement,
+                                  Building building) {
+        int count = 0;
+        for (SettlerEntity settler : SettlementManager.loadedMembers(level, settlement)) {
+            if (livesOrWorksIn(building, settler)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /** The building quality backing a claimed bed, or 0 when homeless. */
     public static int homeQualityFor(Settlement settlement, @Nullable BlockPos bed) {
         if (bed == null) {

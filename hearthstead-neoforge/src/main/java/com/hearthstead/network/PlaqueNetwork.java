@@ -140,14 +140,12 @@ public final class PlaqueNetwork {
         int capacity = 0;
 
         if (settlement != null && building != null) {
-            capacity = plaque.type().housesResidents()
-                ? Math.min(plaque.type().residentCapacity(), building.beds.size())
-                : plaque.type().workerCapacity();
+            capacity = com.hearthstead.settlement.BuildingManager
+                .capacityOf(plaque.type(), building);
             for (SettlerEntity settler : SettlementManager.loadedMembers(level, settlement)) {
                 boolean worker = building.workers.contains(settler.getUUID());
-                boolean resident = settler.getClaimedBed() != null
-                    && building.beds.contains(settler.getClaimedBed());
-                if (worker || resident) {
+                if (com.hearthstead.settlement.BuildingManager
+                        .livesOrWorksIn(building, settler)) {
                     occupants.add(new PlaqueSnapshot.Occupant(settler.getUUID(),
                         settler.getSettlerName(), settler.getProfession().name(),
                         settler.getHealth(), settler.getMaxHealth(),
