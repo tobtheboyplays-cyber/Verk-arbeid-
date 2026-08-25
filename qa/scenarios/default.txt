@@ -263,6 +263,19 @@ click right
 wait 3
 click right
 wait 3
+# A THIRD attempt, with a longer settle. KF-012's correction records this
+# exact step failing intermittently because BOTH clicks missed -- the plan
+# sat in the player's hand and the later scan reported "Awaiting a build
+# plan" instead of "Registered", 30 steps downstream of the real cause.
+# Extra attempts are safe for the reason given above (a click after a real
+# insert falls through to useWithoutItem and merely re-opens the screen).
+click right
+wait 5
+# Prove the insert actually happened, HERE, rather than inferring it from a
+# scan much later. A miss now fails with the plaque's own state in the
+# message instead of a confusing missing-"Registered".
+scmd data get block $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
+expect_server plan_inserted
 shot plaque-03-screen-open
 expect_shot plaque-03-screen-open
 
