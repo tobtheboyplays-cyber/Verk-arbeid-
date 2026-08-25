@@ -387,6 +387,20 @@ public final class Production {
                 continue;
             }
             int stock = countItem(containers, recipe.output());
+            // The reserve rule applies ONLY between recipes making the SAME
+            // thing -- the fed/rough pair (bread_flour before bread). Two
+            // recipes making DIFFERENT things out of one input are not a fed
+            // path at all, they are siblings competing for the same log, and
+            // giving the first-listed one a reserve let it monopolise the
+            // input: a sawmill with twelve logs spent every one on beams and
+            // never cut a plank. Those alternate on need instead.
+            boolean fedPair = false;
+            for (Recipe other : recipes) {
+                if (other != recipe && other.output() == recipe.output()) {
+                    fedPair = true;
+                    break;
+                }
+            }
             // List order wins until a WORKING RESERVE of that output exists.
             // Without this the selector abandoned a recipe the moment its
             // first batch landed: the sawmill made two beams, noticed planks
@@ -398,7 +412,7 @@ public final class Production {
             // bench until the building holds a real stock of it; only then do
             // siblings get their turn, which is the starvation the need-aware
             // policy exists to cure.
-            if (stock < WORKING_RESERVE) {
+            if (fedPair && stock < WORKING_RESERVE) {
                 return recipe;
             }
             if (stock < bestStock) {

@@ -255,14 +255,26 @@ public class ChainsGameTests {
             && countOf(campChest, Items.OAK_LOG) == 0,
             "all six logs should have moved, none left behind and none duplicated");
 
-        // Sawmill: 3 logs -> 2 beams, run twice to clear the 6 logs.
+        // Sawmill: 3 logs -> 2 beams, run twice to clear the 6 logs. The beam
+        // recipe is named explicitly here rather than taken from ready():
+        // this test's subject is the CHAIN (do six logs become four beams and
+        // reach the carpenter without losing anything), not which recipe a
+        // sawmill picks on a given tick. The selector alternates beams and
+        // planks by need on purpose — a sawmill that spent every log on beams
+        // and never cut a plank was the bug, not the behaviour — and it has
+        // its own tests. Asking ready() here would be testing two things at
+        // once and getting a false failure on the one not under test.
+        Production.Recipe beams = null;
+        for (Production.Recipe r : Production.of(BuildingType.SAWMILL)) {
+            if (r.id().equals("timber_beam")) {
+                beams = r;
+                break;
+            }
+        }
+        helper.assertTrue(beams != null,
+            "the sawmill must still know how to make timber beams");
         for (int i = 0; i < 2; i++) {
-            Production.Recipe r = Production.ready(helper.getLevel(), sawmill);
-            helper.assertTrue(r != null && r.id().equals("timber_beam"),
-                "with 3+ logs and nothing else in the chest, the sawmill's fed "
-                    + "recipe (timber_beam) must be the one that runs, got "
-                    + (r == null ? "null" : r.id()));
-            helper.assertTrue(Production.run(helper.getLevel(), sawmill, r),
+            helper.assertTrue(Production.run(helper.getLevel(), sawmill, beams),
                 "the beam recipe should have run");
         }
         helper.assertTrue(countOf(sawChest, Items.OAK_LOG) == 0,
