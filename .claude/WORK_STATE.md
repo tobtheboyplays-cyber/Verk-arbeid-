@@ -80,27 +80,31 @@ shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at `20260825T074448Z`, 63/63.
+**PLAQUE-2 steps 1-3 done.** The survey crosses to the client, the plaque is
+portrait, and **the sheet is now written on**: header drawing, ruled line,
+title, and one live line per requirement with its count and a tick or cross,
+green / amber / red to match the lamp. Place the bed and the line flips on the
+wall — no click, no command. Verified in game in all four mockup states
+(empty well / no room found / gathering / ready), each reached through the
+real right-click-with-a-plan path, not by NBT.
 
-**PLAQUE-2 steps 1-2 done.** The survey now crosses to the client
-(`getUpdateTag` carries id/have/needed triples; `survey()` calls
-`sendBlockUpdated`). The plaque is portrait rather than square. And
-`plaque_plan.png` — the parchment with house elevation and floor plan, drawn
-long ago by the asset pipeline — was **referenced by nothing**; the three lit
-glow variants now show it, so a fitted plaque reads as a drawing under glass
-and an empty one as an empty well.
+Model changes that made it possible: the frame opened from 5.4x7.4 to 7.4x8.3
+model px, the iron brackets now stop at the brass rails so none crosses the
+sheet's corner, and the lower rail lifted off the status lamp (which had been
+showing as a 1px sliver of its dome).
 
-**Correction on record:** my earlier claim that the plaque showed nothing was
-a measurement error — I `data merge`d the BE's `State`, which never calls
-`survey()`, and `updateGlow()` is what writes the `glow` property. The lamp
-(EMPTY/RED/AMBER/GREEN, amber = partial) already worked. `theLampTracksTheSurvey`
-now pins it so that cannot recur.
+**Owner note acted on:** *"Kan lage litt tydeligere bygg"* — the header
+elevation was redrawn bigger, one ink weight, no studs or braces, and sized to
+sit inside the opening with margins. Two attempts: the first redraw ran its
+eaves off the visible edge.
 
-**Next: PLAQUE-2 steps 3-5** — the block entity renderer drawing the TITLE and
-the per-requirement lines with counts and ticks on the sheet face. That is the
-part the mockup is really about, and the only part still missing: the lamp says
-*whether*, the sheet must say *what*. Then per-type pictures, then the
-right-click screen.
+`PlaqueSheet` (common, not client) decides what each line says, so the product
+decisions are GameTest-judged rather than screenshot-judged. Both new tests
+proven by mutation: forcing every ink to MET fails them.
+
+**Next: PLAQUE-2 steps 4-5** — per-type header drawings and per-requirement
+icons (the `Line.id` needed for that is already carried), then the right-click
+screen rebuilt to match the mockup, with the READY TO BUILD button.
 
 **KF-015 is OPEN** — a raid can resolve as repelled while raiders live in
 unloaded chunks. Design question, recorded not patched.

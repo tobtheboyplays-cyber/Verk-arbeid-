@@ -717,6 +717,161 @@ public class HearthsteadGameTests {
         });
     }
 
+    /**
+     * Reads a sheet the way the CLIENT does: through the update tag, into a
+     * fresh block entity that has never seen the server's own list. A sheet
+     * built straight off the surveying block entity would pass even if the
+     * survey never crossed the wire, which is the exact failure PLAQUE-2
+     * step 1 existed to fix.
+     */
+    private static com.hearthstead.building.PlaqueSheet clientSheet(
+            GameTestHelper helper, com.hearthstead.block.PlaqueBlockEntity server) {
+        var received = new com.hearthstead.block.PlaqueBlockEntity(
+            server.getBlockPos(), server.getBlockState());
+        received.handleUpdateTag(server.getUpdateTag(helper.getLevel().registryAccess()),
+            helper.getLevel().registryAccess());
+        return com.hearthstead.building.PlaqueSheet.of(
+            received.type(), received.state(), received.lastSurvey());
+    }
+
+    private static com.hearthstead.building.PlaqueSheet.Line lineNamed(
+            GameTestHelper helper, com.hearthstead.building.PlaqueSheet sheet, String id) {
+        for (var line : sheet.lines()) {
+            if (line.id().equals(id)) {
+                return line;
+            }
+        }
+        helper.fail("the sheet has no line for '" + id + "'; it has "
+            + sheet.lines().stream().map(com.hearthstead.building.PlaqueSheet.Line::id)
+                .toList());
+        return null;
+    }
+
+    /**
+     * The point of the whole slice: the sheet must name WHAT is missing, and
+     * change when the room changes. The lamp already says whether the room
+     * passes; it cannot say that the bed is the thing that is gone.
+     *
+     * <p>Take the bed out of a hut that satisfied a house, and exactly one
+     * line must flip — the beds line. If every line flipped, the sheet would
+     * be reporting the plaque's state rather than the room's contents, which
+     * is what the lamp is for.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void theSheetSaysWhatIsMissing(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hangPlaque(helper, hutOrigin,
+            com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.runAfterDelay(20, () -> {
+            var plaque = (com.hearthstead.block.PlaqueBlockEntity)
+                helper.getLevel().getBlockEntity(helper.absolutePos(plaqueRel));
+            helper.assertTrue(plaque != null, "the plaque block entity should exist");
+            plaque.survey(helper.getLevel());
+
+            var sheet = clientSheet(helper, plaque);
+            helper.assertTrue(!sheet.isBlank(),
+                "a fitted plaque must write on its sheet");
+            helper.assertTrue(sheet.lines().size()
+                    == com.hearthstead.building.BuildingType.HOUSE.requirements().size(),
+                "one line per requirement: got " + sheet.lines().size());
+            helper.assertTrue(sheet.complete(),
+                "this hut satisfies a house, so every line must read met; beds line was "
+                    + lineNamed(helper, sheet, "beds").ink());
+
+            // Take the bed out. Both halves, or the block simply breaks itself.
+            helper.setBlock(hutOrigin.offset(2, 1, 2), Blocks.AIR);
+            helper.setBlock(hutOrigin.offset(2, 1, 3), Blocks.AIR);
+            plaque.survey(helper.getLevel());
+
+            var after = clientSheet(helper, plaque);
+            helper.assertTrue(!after.complete(),
+                "with the bed gone the sheet must not read as finished");
+            helper.assertTrue(
+                lineNamed(helper, after, "beds").ink()
+                    == com.hearthstead.building.PlaqueSheet.Ink.UNMET,
+                "the beds line must read unmet, got "
+                    + lineNamed(helper, after, "beds").ink());
+            for (String stillThere : new String[]{"doors", "lights", "floor_space"}) {
+                helper.assertTrue(
+                    lineNamed(helper, after, stillThere).ink()
+                        == com.hearthstead.building.PlaqueSheet.Ink.MET,
+                    "removing the bed must not disturb the " + stillThere
+                        + " line, which read "
+                        + lineNamed(helper, after, stillThere).ink());
+            }
+            helper.succeed();
+        });
+    }
+
+    /**
+     * The three-way ink, and the two glyphs.
+     *
+     * <p>Amber is not decoration: it is the difference between "you have not
+     * started" and "you need one more lantern", and it is the same signal the
+     * lamp in the board uses, so the two must not disagree.
+     *
+     * <p>The marks are pinned to U+2714/U+2718 on purpose. The lighter
+     * U+2713/U+2717 pair that the mockup's font draws exists in vanilla only
+     * through the unifont fallback, while the heavy pair is in
+     * {@code nonlatin_european.png} and is always there. Swapping them back
+     * would put a missing-glyph box beside every requirement.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100)
+    public void theSheetKnowsPartialFromMissing(GameTestHelper helper) {
+        var lights = com.hearthstead.building.Requirement.lights(2);
+
+        var blank = com.hearthstead.building.PlaqueSheet.of(
+            com.hearthstead.building.BuildingType.HOUSE,
+            com.hearthstead.building.PlaqueState.EMPTY,
+            java.util.List.of(new com.hearthstead.building.Requirement.Status(lights, 2, 2)));
+        helper.assertTrue(blank.isBlank() && blank.lines().isEmpty(),
+            "a plaque with no plan fitted writes nothing at all (D-006), got "
+                + blank.lines().size() + " lines");
+
+        var noRoom = com.hearthstead.building.PlaqueSheet.of(
+            com.hearthstead.building.BuildingType.HOUSE,
+            com.hearthstead.building.PlaqueState.PLAN_INSERTED_UNLINKED,
+            java.util.List.of());
+        helper.assertTrue(!noRoom.isBlank() && noRoom.lines().size() == 1
+                && noRoom.lines().get(0).id()
+                    .equals(com.hearthstead.building.PlaqueSheet.STATE_ID),
+            "a fitted plaque that found no room must say so, not go blank");
+
+        var measured = com.hearthstead.building.PlaqueSheet.of(
+            com.hearthstead.building.BuildingType.HOUSE,
+            com.hearthstead.building.PlaqueState.LINKED_INCOMPLETE,
+            java.util.List.of(
+                new com.hearthstead.building.Requirement.Status(lights, 2, 2),
+                new com.hearthstead.building.Requirement.Status(lights, 1, 2),
+                new com.hearthstead.building.Requirement.Status(lights, 0, 2)));
+        var inks = measured.lines().stream()
+            .map(com.hearthstead.building.PlaqueSheet.Line::ink).toList();
+        helper.assertTrue(inks.equals(java.util.List.of(
+                com.hearthstead.building.PlaqueSheet.Ink.MET,
+                com.hearthstead.building.PlaqueSheet.Ink.PARTIAL,
+                com.hearthstead.building.PlaqueSheet.Ink.UNMET)),
+            "2/2 is met, 1/2 is partial and 0/2 is unmet, got " + inks);
+        helper.assertTrue(
+            com.hearthstead.building.PlaqueSheet.Ink.PARTIAL.colour()
+                != com.hearthstead.building.PlaqueSheet.Ink.UNMET.colour(),
+            "partial must not be painted the same as nothing at all");
+        helper.assertTrue(!measured.complete(),
+            "one unmet line means the sheet does not read as finished");
+
+        helper.assertTrue(
+            com.hearthstead.building.PlaqueSheet.Ink.MET.mark().equals("✔")
+                && com.hearthstead.building.PlaqueSheet.Ink.UNMET.mark().equals("✘")
+                && com.hearthstead.building.PlaqueSheet.Ink.PARTIAL.mark().equals("✘"),
+            "the marks must stay the HEAVY pair U+2714/U+2718, which vanilla's "
+                + "own bitmap font carries; the light pair is unifont-only and "
+                + "renders as a box");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty16", timeoutTicks = 400)
     public void roomDetectedAsHome(GameTestHelper helper) {
         buildArena(helper, 16, 16);

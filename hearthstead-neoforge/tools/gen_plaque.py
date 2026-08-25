@@ -49,7 +49,11 @@ per-face shading supplies the large-scale lighting.
   plaque_socket.png      recessed well, EMPTY. Near-black floor, banded cast
                          shadow from the top/left, four brass clip tongues.
   plaque_plan.png        recessed well, plan FITTED. Parchment over the whole
-                         face, no frame -- the frame is real geometry now.
+                         face, no frame -- the frame is real geometry now. A
+                         header elevation and a ruled line at the top; the
+                         field below is left CLEAR on purpose, because
+                         PlaqueRenderer writes the title and the live
+                         requirement lines onto it in game.
 
   plaque_lamp_{off,red,amber,green}.png (block/, 64x64, FOUR not three)
                          The status lamp element added to block/plaque_base:
@@ -772,12 +776,42 @@ def gen_item_build_plan():
 # the large-scale lighting. The brass and iron are 16-periodic, hence seamless
 # at 64, so neighbouring elements match wherever they are cut.
 
-def blueprint_large(img, ox, oy):
-    """54x54 plan: gabled timber elevation with chimney, over a floor plan."""
-    heavy, light, faint = INK[1], INK[2], INK[3]
+def plan_elevation(img, ox, oy):
+    """52x26 gabled timber elevation with a chimney -- the HEADER drawing on a
+    fitted plan sheet.
+
+    The sheet used to be one 54x54 drawing filling the whole parchment, which
+    left nowhere for the thing the sheet is actually for: the live requirement
+    list. The drawing is a header now. It says WHICH plan is fitted; the ruled
+    field below it belongs to the block entity renderer's text, and that text
+    is what changes as the player builds.
+
+    Drawn for LEGIBILITY at range, on the owner's note that the building
+    should read more clearly -- twice. The face is only about half a block
+    wide in world, so the original's corner studs, half-timber braces and thin
+    light-ink windows turned to noise a stride away.
+
+    What carries it now is TONE, not more line. The roof is the darkest ink in
+    the ramp, the wall carries a light parchment-shadow fill, the window panes
+    are darker than the wall and the doorway is nearly black, so the building
+    reads as a lit solid with openings in it rather than as a wireframe. A
+    ruled line below does the grounding, so the drawing carries no shadow band
+    of its own -- two horizontal rules two pixels apart read as one smudge.
+    Sized to sit inside the frame's opening
+    with clear parchment all round -- one attempt at 48x26 ran its eaves and
+    chimney off the visible edge, which reads as a mistake rather than a
+    drawing.
+    """
+    dark, heavy, mid = INK[0], INK[1], INK[2]
+    wall_tone, pane = PARCH[1], PARCH[0]
 
     def P(i, j, c):
         put(img, ox + i, oy + j, c)
+
+    def fill(x0, y0, x1, y1, c):
+        for j in range(y0, y1 + 1):
+            for i in range(x0, x1 + 1):
+                P(i, j, c)
 
     def rect(x0, y0, x1, y1, c):
         for i in range(x0, x1 + 1):
@@ -787,55 +821,38 @@ def blueprint_large(img, ox, oy):
             P(x0, j, c)
             P(x1, j, c)
 
-    for j in range(1, 8):                      # chimney behind the roofline
-        for i in range(34, 40):
-            P(i, j, heavy if (i in (34, 39) or j == 1) else INK[2])
-    for i in range(33, 41):
-        P(i, 0, heavy)
-    for r in range(18):                        # gable roof
-        for i in range(27 - (r + 1), 27 + (r + 1)):
-            P(i, r, heavy)
-    for i in range(5, 49):                     # overhanging eaves
-        P(i, 18, heavy)
-        P(i, 19, heavy)
-    rect(8, 20, 45, 33, heavy)                 # wall box
-    for j in range(20, 34):                    # corner studs
-        P(16, j, faint)
-        P(37, j, faint)
-    for k in range(4):                         # half-timber braces
-        P(10 + k, 22 + k, light)
-        P(43 - k, 22 + k, light)
-    for wx in (13, 32):                        # leaded windows, four panes
-        rect(wx, 22, wx + 8, 30, light)
-        for j in range(22, 31):
-            P(wx + 4, j, light)
-        for i in range(wx, wx + 9):
-            P(i, 26, light)
-    rect(24, 25, 30, 33, heavy)                # door
-    for j in range(26, 33):
-        P(26, j, faint)
-        P(28, j, faint)
-    P(29, 29, light)                           # latch
-    P(29, 30, light)
+    for j in range(8):                         # chimney, drawn under the roof
+        for i in range(37, 43):
+            P(i, j, dark if (i in (37, 42) or j == 0) else mid)
+    for j in range(13):                        # gable roof, solid mass
+        half = 1 + round(j * 23.0 / 12.0)
+        for i in range(26 - half, 26 + half + 1):
+            P(i, j, dark)
+    for i in range(52):                        # eave board, overhanging
+        P(i, 13, dark)
+        P(i, 14, dark)
 
-    for i in range(33, 48):                    # caption stroke under the plan
-        if (i - 33) % 5 != 4:
-            P(i, 35, faint)
+    fill(8, 17, 43, 23, wall_tone)             # lit wall face
+    rect(7, 16, 44, 24, dark)                  # wall outline
+    for wx in (11, 34):                        # four-pane windows
+        fill(wx + 1, 19, wx + 5, 21, pane)
+        rect(wx, 18, wx + 6, 22, dark)
+        for j in range(18, 23):
+            P(wx + 3, j, dark)
+        for i in range(wx, wx + 7):
+            P(i, 20, dark)
+    fill(24, 20, 28, 24, mid)                  # doorway, a dark opening
+    rect(23, 19, 29, 24, dark)
+    P(28, 22, PARCH[3])                        # latch, caught in the light
 
-    rect(5, 37, 48, 53, faint)                 # floor plan
-    for j in range(37, 54):                    # partition wall
-        P(27, j, faint)
-    for j in (44, 45, 46):                     # inner doorway
-        P(27, j, PARCH[3])
-    for i in range(28, 49):                    # second partition
-        P(i, 45, faint)
-    for i in (36, 37, 38):
-        P(i, 45, PARCH[3])
-    for i in range(24, 29):                    # entry gap in the outer wall
-        P(i, 53, PARCH[3])
-    for j in range(39, 43):                    # hearth block
-        for i in range(8, 14):
-            P(i, j, light if (i in (8, 13) or j in (39, 42)) else INK[3])
+
+def plan_rule(img, y):
+    """The hand-ruled line that separates the header drawing from the field
+    the requirement text is written on."""
+    for i in range(5, 59):
+        put(img, i, y, INK[3])
+    for i in range(6, 58, 2):
+        put(img, i, y + 1, INK[3])
 
 
 def gen_materials():
@@ -1025,10 +1042,14 @@ def gen_materials():
               mat=BRASS, crown=BRASS[3])
     save(img, f"{ASSETS}/textures/block/plaque_socket.png")
 
-    # --- 6. plan face: parchment filling the whole face, no frame ----------
+    # --- 6. plan face: a plan SHEET, not just a drawing ---------------------
+    # Header drawing on top, a ruled line, then clear parchment. The clear
+    # field is deliberate: PlaqueRenderer writes the title and the live
+    # requirement lines onto it, and text over a drawing is unreadable.
     img = new_image(64, 64)
     parchment_sheet(img, 0, 0, 64, 64, random.Random(SEED_MAT_PLAN))
-    blueprint_large(img, 5, 5)
+    plan_elevation(img, 6, 3)
+    plan_rule(img, 30)
     save(img, f"{ASSETS}/textures/block/plaque_plan.png")
 
 
@@ -1588,8 +1609,8 @@ MATERIALS = [
      'use "rotation": 90 on vertical arms; studs on a 32px pitch'),
     ("plaque_socket", "recessed well, empty", "full-face; four brass clips, "
      "banded cast shadow top/left"),
-    ("plaque_plan", "recessed well, plan fitted", "full-face; no frame — the "
-     "frame is real geometry now"),
+    ("plaque_plan", "recessed well, plan fitted", "full-face; header "
+     "elevation + rule, then a clear field the renderer writes on"),
     ("plaque_lamp_off", "status lamp, EMPTY", "full-face; unlit glass, dark "
      "iron bezel — never a warning colour on a blank board"),
     ("plaque_lamp_red", "status lamp, unlinked/orphaned", "full-face; same "

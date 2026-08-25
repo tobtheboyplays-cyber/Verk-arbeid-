@@ -1,5 +1,5 @@
 {
-  "__comment": "Carved wall plaque, PORTRAIT: narrower across and taller up than the original square plate, so the sunken well can carry a readable sheet rather than a token. Built from real depth rather than a picture on a slab: an oak backboard, four forged-iron corner brackets standing proud of it, a raised aged-brass inner frame, the plan panel sunk behind that frame, and a status lamp in the gap between the lower brackets. Every element was reshaped by one proportional mapping, so the ironwork, brass and lamp stay in register. Modelled facing NORTH; the blockstate rotates it. Depth runs z=16 (against the wall) outward to z=11.6.",
+  "__comment": "Carved wall plaque, PORTRAIT. Built from real depth rather than a picture on a slab: an oak backboard, four forged-iron corner brackets standing proud of it, a raised aged-brass inner frame, the plan sheet sunk behind that frame, and a status lamp in the gap below. PLAQUE-2 step 3 opened the frame out from 5.4x7.4 to 7.4x8.3 so the sheet can carry readable text, moved the brackets clear of the sheet's corners, and lifted the lower rail off the lamp. Modelled facing NORTH; the blockstate rotates it. Depth runs z=16 (against the wall) outward to z=11.6. The sheet face sits at z=12.9 -- the number PlaqueRenderer.SHEET_Z is derived from.",
   "textures": {
     "board": "hearthstead:block/plaque_board",
     "edge": "hearthstead:block/plaque_board_edge",
@@ -80,15 +80,15 @@
       }
     },
     {
-      "__comment": "Sunken plan panel: sits BEHIND the brass frame so the well reads as a recess.",
+      "__comment": "The sheet itself: sunk BEHIND the brass frame so the well reads as a recess, and now large enough to be READ. The old well was 5.4x7.4 of a 16px block -- 28% of the board -- which is a token, not a page. At 7.4x8.3 the parchment carries a header drawing, a title and five requirement lines at a size a player can take in from a stride away.",
       "from": [
-        5.047,
-        3.953,
+        4.05,
+        4.3,
         12.9
       ],
       "to": [
-        10.953,
-        12.047,
+        11.95,
+        13.1,
         13.3
       ],
       "faces": {
@@ -142,13 +142,13 @@
     {
       "__comment": "Brass frame, lower rail.",
       "from": [
-        4.625,
-        2.913,
+        3.2,
+        3.45,
         12.2
       ],
       "to": [
-        11.375,
-        4.3,
+        12.8,
+        4.55,
         13.4
       ],
       "faces": {
@@ -211,13 +211,13 @@
     {
       "__comment": "Brass frame, upper rail.",
       "from": [
-        4.625,
-        11.7,
+        3.2,
+        12.85,
         12.2
       ],
       "to": [
-        11.375,
-        13.088,
+        12.8,
+        13.95,
         13.4
       ],
       "faces": {
@@ -280,13 +280,13 @@
     {
       "__comment": "Brass frame, left stile.",
       "from": [
-        4.287,
-        4.3,
+        3.2,
+        4.55,
         12.2
       ],
       "to": [
-        5.3,
-        11.7,
+        4.3,
+        12.85,
         13.4
       ],
       "faces": {
@@ -349,13 +349,13 @@
     {
       "__comment": "Brass frame, right stile.",
       "from": [
-        10.7,
-        4.3,
+        11.7,
+        4.55,
         12.2
       ],
       "to": [
-        11.713,
-        11.7,
+        12.8,
+        12.85,
         13.4
       ],
       "faces": {
@@ -416,7 +416,7 @@
       }
     },
     {
-      "__comment": "Forged-iron corner bracket, lower left \u2014 stands proudest of all.",
+      "__comment": "Forged-iron corner bracket, lower left \u2014 stands proudest of all. The brackets now stop exactly where the brass rail does, so no bracket ever reaches across a corner of the sheet: ironwork clamps the frame, it does not sit on the page.",
       "from": [
         2.6,
         0.6,
@@ -424,7 +424,7 @@
       ],
       "to": [
         5.638,
-        4.762,
+        4.55,
         16
       ],
       "faces": {
@@ -484,7 +484,7 @@
       ],
       "to": [
         13.4,
-        4.762,
+        4.55,
         16
       ],
       "faces": {
@@ -539,7 +539,7 @@
       "__comment": "Corner bracket, upper left.",
       "from": [
         2.6,
-        11.238,
+        12.85,
         11.6
       ],
       "to": [
@@ -599,7 +599,7 @@
       "__comment": "Corner bracket, upper right.",
       "from": [
         10.363,
-        11.238,
+        12.85,
         11.6
       ],
       "to": [
@@ -656,15 +656,15 @@
       }
     },
     {
-      "__comment": "Status lamp: a small domed glass jewel set into the board beneath the frame, between the two lower corner brackets. Swapped per glow state via #lamp in the three-line child models (block/plaque_empty|red|amber|green.json) -- this base element and its geometry never change.",
+      "__comment": "Status lamp: a small domed glass jewel set into the board beneath the frame. It used to be half-buried in the lower rail and showed as a 1px sliver; the rail has moved up off it, so the whole dome now reads. Swapped per glow state via #lamp in the four child models (block/plaque_empty|red|amber|green.json) -- this geometry never changes.",
       "from": [
-        7.241,
-        1.756,
+        7.3,
+        1.55,
         12.7
       ],
       "to": [
-        8.759,
-        3.838,
+        8.7,
+        3.25,
         13.9
       ],
       "faces": {

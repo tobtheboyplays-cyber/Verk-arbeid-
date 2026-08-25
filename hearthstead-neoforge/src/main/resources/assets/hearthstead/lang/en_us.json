@@ -173,7 +173,7 @@
   "hearthstead.requirement.beds": "Beds %s/%s",
   "hearthstead.requirement.doors": "Doors %s/%s",
   "hearthstead.requirement.lights": "Light %s/%s",
-  "hearthstead.requirement.floor_space": "Floor space %s/%s",
+  "hearthstead.requirement.floor_space": "Floor %s/%s",
   "hearthstead.requirement.storage": "Storage %s/%s",
   "hearthstead.requirement.workbench": "Workbench %s/%s",
   "hearthstead.requirement.composter": "Composter %s/%s",

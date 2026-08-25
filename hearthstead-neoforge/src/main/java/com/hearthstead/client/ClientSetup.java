@@ -34,6 +34,11 @@ public final class ClientSetup {
         event.registerEntityRenderer(ModEntities.SETTLER.get(), SettlerRenderer::new);
         event.registerEntityRenderer(ModEntities.RAIDER.get(),
             com.hearthstead.client.render.RaiderRenderer::new);
+        // The plaque's parchment: the survey is on the wire (step 1), the
+        // sheet is big enough to read (step 3), and this is what writes on it.
+        event.registerBlockEntityRenderer(
+            com.hearthstead.registry.ModBlockEntities.PLAQUE.get(),
+            com.hearthstead.client.render.PlaqueRenderer::new);
     }
 
     @SubscribeEvent
