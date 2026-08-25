@@ -155,9 +155,20 @@ public class GuardTrainingGameTests {
             helper.assertTrue(!raider.isAlive() || raider.getHealth() < raiderMax,
                 "fixture sanity: the guard must actually have landed blows, raider at "
                     + raider.getHealth() + "/" + raiderMax);
+            // Name the killer rather than assuming it. Both splash filters
+            // take RaiderEntity only and the target goal takes Monster only,
+            // so if this pig is ever hurt the interesting question is BY WHAT
+            // -- and a failure that just says "pig at 0.0" sends the next
+            // reader hunting through guard code that cannot have done it.
             helper.assertTrue(bystander.isAlive() && bystander.getHealth() >= pigHealth,
                 "cleave splash must never touch a non-raider bystander, pig at "
-                    + bystander.getHealth() + "/" + pigHealth);
+                    + bystander.getHealth() + "/" + pigHealth
+                    + " lastDamage=" + (bystander.getLastDamageSource() == null
+                        ? "none" : bystander.getLastDamageSource().getMsgId())
+                    + " attacker=" + (bystander.getLastDamageSource() == null
+                        ? "none" : String.valueOf(bystander.getLastDamageSource().getEntity()))
+                    + " removed=" + bystander.isRemoved()
+                    + " pos=" + bystander.blockPosition().toShortString());
             helper.succeed();
         });
     }
