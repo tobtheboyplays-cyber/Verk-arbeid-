@@ -972,6 +972,7 @@ def check_structures() -> None:
 # encoder builds.
 PIPELINE_GENERATORS = [
     "gen_settler.py",
+    "gen_armor.py",
     "gen_blocks_items.py",
     "gen_gui.py",
     "gen_plaque.py",

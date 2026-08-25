@@ -28,6 +28,7 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     public SettlerRenderer(EntityRendererProvider.Context context) {
         super(context, new SettlerModel(context.bakeLayer(SettlerModel.LAYER)), 0.5F);
         addLayer(new ItemInHandLayer<>(this, context.getItemInHandRenderer()));
+        addLayer(new SettlerArmorLayer(this));
     }
 
     @Override
