@@ -63,9 +63,10 @@ Existing (untouched) recipes are omitted from ratios below; see
 | BREWERY | **ale_malt** | MALT×2 → ALE×2 | 200 | fed (100 ticks/unit) |
 | BREWERY | **malt** | wheat×4 → MALT×3 | 140 | upstream, higher threshold than rough ale |
 | BREWERY | **ale** | wheat×3 → ALE×1 | 200 | rough (200 ticks/unit — brewery had no recipe before) |
-| SMELTER | **iron_bloom** | raw_iron×3 → IRON_BLOOM×4 | 200 | fed-source, higher threshold than plain smelt |
+| SMELTER | **iron_bloom** | raw_iron×3 → IRON_BLOOM×4 | 160 | fed-source, higher threshold than plain smelt (retuned 200→160, see band rule) |
+| SMELTER | **charcoal** | any log×1 → CHARCOAL×1 | 90 | fuel; listed LAST, and the one recipe exempt from the fuel gate (cold start) |
 | SMELTER | iron *(unchanged)* | raw_iron×1 → iron_ingot×1 | 200 | rough |
-| SMITHY | **bloom_ingot** | IRON_BLOOM×2 → iron_ingot×2 | 200 | finishes the bloom (100 ticks/ingot, half of the smelter's 200) |
+| SMITHY | **bloom_ingot** | IRON_BLOOM×2 → iron_ingot×2 | 160 | finishes the bloom (80 ticks/ingot; retuned 200→160) |
 | SMITHY | axe/pickaxe/hoe/sword *(unchanged)* | iron_ingot → tool | 240–300 | unaffected — a different input item, cannot collide |
 | SAWMILL | **timber_beam** | oak_log×3 → TIMBER_BEAM×2 | 180 | listed first, higher threshold (3) than plank recipes' (1) |
 | SAWMILL | planks/spruce/birch *(unchanged)* | log×1 → planks×6 | 120 | rough, protected |
@@ -87,8 +88,12 @@ three pairs that share an output item:
 - Barrel: rough 260 ticks/unit → fed 130 ticks/unit (260/2 = 130 exactly).
 - Leather: rough 180 ticks/unit → fed 90 ticks/unit (180/2 = 90 exactly).
 - Ale: rough 200 ticks/unit → fed 100 ticks/unit (200/2 = 100 exactly).
-- Ingot (bloom route): smelter's rough 200 ticks/unit → smithy's finishing
-  step 100 ticks/unit (200/2 = 100 exactly) — the yield side of that
+- Ingot (bloom route): the exact-halving rule is SUPERSEDED by the
+  end-to-end band rule (owner-critic krav 10, 2026-08-25). What matters is
+  the whole chain, not one step: rough is 200 ticks/ingot; fed is
+  (160 + 2×160)/4 = 120 ticks/ingot = ×1.67, inside FLOWS' ×1.5-2 band.
+  FuelGameTests asserts the band as a RATIO derived from the live table, so
+  a future retune cannot quietly drift out of it — the yield side of that
   multiplier (3 raw iron → 4 bloom → 4 ingot vs. 3 raw iron → 3 ingot
   directly) is the ×1.33 the smelter recipe itself carries.
 

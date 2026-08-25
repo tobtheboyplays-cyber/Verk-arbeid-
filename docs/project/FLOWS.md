@@ -71,8 +71,13 @@ double as the idle-hours social anchors.
 5. **Warehouse → hub chests** (dining hall meals, armoury arms) — same
    restock machinery, hub-priority below food, above consolidation.
 
-Priority ladder (already encoded in CourierWorkGoal.JobPriority):
-food first, crafter restock second, consolidation last.
+Priority ladder (as encoded in CourierWorkGoal.JobPriority, 2026-08-25):
+crafter restock (ingredients AND fuel) → food delivery → output collection
+→ hearth consolidation. Restock outranks food deliberately: a crafter with
+an empty input chest is stopped DEAD this second, while the food route only
+fires once the larder is under a day's buffer (4 per living settler, capped
+at the hearth's 24 slots). Food still outranks tidying — a hungry village
+beats neat shelves.
 
 ## The one cross-cutting loop: tool wear
 
