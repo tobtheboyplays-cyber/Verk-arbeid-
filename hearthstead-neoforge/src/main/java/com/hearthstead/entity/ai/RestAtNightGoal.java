@@ -41,7 +41,7 @@ public class RestAtNightGoal extends Goal {
     private boolean nightCurfew() {
         Settlement settlement = settler.settlement();
         if (settlement == null) {
-            return settler.getProfession() != Profession.GUARD
+            return !settler.getProfession().martial()
                 && settler.dayPhase().rest();
         }
         return Schedule.shouldSleep(settlement, settler, settler.dayPhase());

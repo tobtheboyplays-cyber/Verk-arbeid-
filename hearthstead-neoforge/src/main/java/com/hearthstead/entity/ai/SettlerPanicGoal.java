@@ -41,7 +41,7 @@ public class SettlerPanicGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (settler.getProfession() == Profession.GUARD || !settler.isBound()) {
+        if (settler.getProfession().martial() || !settler.isBound()) {
             return false;
         }
         BlockPos hearth = settler.getHearthPos();

@@ -24,6 +24,6 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
 
     @Override
     public boolean canUse() {
-        return settler.getProfession() == Profession.GUARD && super.canUse();
+        return settler.getProfession().martial() && super.canUse();
     }
 }

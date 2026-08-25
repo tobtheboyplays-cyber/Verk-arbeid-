@@ -90,6 +90,20 @@ public enum Profession {
         return this != NONE;
     }
 
+    /**
+     * The trades that fight: they hold a night watch, they do not flee when
+     * hurt, and they pick their own targets.
+     *
+     * <p>One predicate rather than a {@code == GUARD} test repeated across
+     * five goals — which is exactly how the archer arrived panicking, sleeping
+     * through its own watch and never acquiring a target (ARCHER-1's
+     * out-of-ownership notes). A new martial trade joins here and every gate
+     * follows.
+     */
+    public boolean martial() {
+        return this == GUARD || this == ARCHER;
+    }
+
     public Component displayName() {
         return Component.translatable("hearthstead.profession." + key);
     }

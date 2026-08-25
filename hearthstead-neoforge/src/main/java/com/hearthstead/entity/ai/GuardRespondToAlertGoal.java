@@ -19,7 +19,10 @@ public class GuardRespondToAlertGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (settler.getProfession() != Profession.GUARD || settler.getTarget() != null) {
+        // Martial, not just GUARD: an archer who ignores the alarm is a
+        // decoration on a tower. They run to the trouble the same way, then
+        // their own attack goal decides what to do when they arrive.
+        if (!settler.getProfession().martial() || settler.getTarget() != null) {
             return false;
         }
         Settlement s = settler.settlement();

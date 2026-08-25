@@ -61,7 +61,7 @@ public final class Schedule {
      */
     public static boolean shouldSleep(Settlement settlement, SettlerEntity settler,
                                       DayPhase phase) {
-        if (settler.getProfession() == Profession.GUARD
+        if (settler.getProfession().martial()
             && Employment.watchOf(settlement, settler) == Employment.Watch.NIGHT) {
             // Off duty IS sleep, for the night watch: this set must be the
             // exact complement of onWatch's night set {REST, EVENING, RISE}.
@@ -81,7 +81,7 @@ public final class Schedule {
         if (!settler.getProfession().employed()) {
             return false;
         }
-        if (settler.getProfession() == Profession.GUARD) {
+        if (settler.getProfession().martial()) {
             return onWatch(settlement, settler, phase);
         }
         return phase.work();
@@ -106,7 +106,7 @@ public final class Schedule {
         if (shouldSleep(settlement, settler, phase)) {
             return null;
         }
-        if (settler.getProfession() == Profession.GUARD
+        if (settler.getProfession().martial()
             && onWatch(settlement, settler, phase)) {
             return null;
         }
