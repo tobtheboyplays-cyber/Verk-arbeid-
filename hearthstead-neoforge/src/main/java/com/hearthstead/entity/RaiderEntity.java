@@ -60,6 +60,19 @@ public class RaiderEntity extends Monster {
     /** Ceiling on menace scaling, so a long feud cannot become unwinnable. */
     public static final float MAX_MENACE = 3.0F;
 
+    /** How much a raider can carry off. Theft is physical (INV: chest truth). */
+    public static final int LOOT_SIZE = 6;
+
+    /**
+     * What this raider has actually stolen. Real items, taken out of real
+     * chests and dropped on death, so a player who kills a laden raider gets
+     * the goods back and one who lets them escape genuinely loses them.
+     * MineColonies' feature request #113 and #129 are both, at root, asking
+     * for a raid that leaves a mark; a counter decrement leaves none.
+     */
+    public final net.minecraft.world.SimpleContainer loot =
+        new net.minecraft.world.SimpleContainer(LOOT_SIZE);
+
     private UUID captainId;
     private UUID settlementId;
     private BlockPos objectivePos;
@@ -88,7 +101,11 @@ public class RaiderEntity extends Monster {
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new OpenDoorGoal(this, false));
-        goalSelector.addGoal(2, new MeleeAttackGoal(this, 1.0, false));
+        // Above melee: a raid that came for the stores goes for the stores.
+        // Fighting is what happens on the way, not the point.
+        goalSelector.addGoal(2,
+            new com.hearthstead.entity.ai.RaiderLootGoal(this));
+        goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
 
@@ -179,9 +196,34 @@ public class RaiderEntity extends Monster {
         return false; // a raid that despawns is a raid that never happened
     }
 
+    /** Total items carried off. Zero means the raid took nothing. */
+    public int lootCount() {
+        int n = 0;
+        for (int i = 0; i < loot.getContainerSize(); i++) {
+            n += loot.getItem(i).getCount();
+        }
+        return n;
+    }
+
+    @Override
+    protected void dropCustomDeathLoot(ServerLevel level,
+                                       net.minecraft.world.damagesource.DamageSource source,
+                                       boolean recentlyHit) {
+        super.dropCustomDeathLoot(level, source, recentlyHit);
+        // Kill a laden raider and the goods come back. This is the other half
+        // of theft being real: it can be undone by fighting for it.
+        for (int i = 0; i < loot.getContainerSize(); i++) {
+            net.minecraft.world.item.ItemStack stack = loot.removeItemNoUpdate(i);
+            if (!stack.isEmpty()) {
+                spawnAtLocation(stack);
+            }
+        }
+    }
+
     @Override
     public void addAdditionalSaveData(CompoundTag tag) {
         super.addAdditionalSaveData(tag);
+        tag.put("Loot", loot.createTag(registryAccess()));
         if (captainId != null) {
             tag.putUUID("CaptainId", captainId);
         }
@@ -199,6 +241,7 @@ public class RaiderEntity extends Monster {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        loot.fromTag(tag.getList("Loot", 10), registryAccess());
         captainId = tag.hasUUID("CaptainId") ? tag.getUUID("CaptainId") : null;
         settlementId = tag.hasUUID("SettlementId") ? tag.getUUID("SettlementId") : null;
         objectivePos = tag.contains("ObjectivePos")

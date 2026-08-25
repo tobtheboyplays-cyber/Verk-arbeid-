@@ -5,6 +5,8 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidCaptain;
@@ -15,6 +17,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -259,6 +263,89 @@ public class RaiderGameTests {
                 + s.raidPressure.pressure() + " from " + pressureBefore);
         helper.assertTrue(captain.defeats() == defeatsBefore + 1,
             "and the captain must remember being driven off");
+        helper.succeed();
+    }
+
+    /**
+     * Theft is physical. A raider takes goods OUT of a real chest and INTO
+     * its own real inventory, the chest is genuinely emptier, and killing
+     * the raider gives the goods back. MineColonies leaves a chat line and a
+     * day of mourning; its own feature requests (#113, #129) are asking for
+     * exactly this -- a consequence you can chase down.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "day")
+    public void raidersStealRealGoodsAndDropThemWhenKilled(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
+        BlockPos chestRel = new BlockPos(9, 1, 9);
+        helper.setBlock(chestRel, Blocks.CHEST);
+        var bounds = net.minecraft.world.level.levelgen.structure.BoundingBox
+            .fromCorners(helper.absolutePos(new BlockPos(8, 1, 8)),
+                helper.absolutePos(new BlockPos(10, 3, 10)));
+        Building warehouse = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
+            helper.absolutePos(new BlockPos(8, 1, 8)),
+            helper.absolutePos(new BlockPos(8, 1, 8)), bounds);
+        warehouse.valid = true;
+        s.buildings.add(warehouse);
+        var chest = (net.minecraft.world.Container) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(chestRel));
+        helper.assertTrue(chest != null, "the store must exist");
+        chest.setItem(0, new ItemStack(Items.WHEAT, 12));
+        final int total = 12;
+
+        RaiderEntity thief = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(7, 1, 9));
+        thief.assign(UUID.randomUUID(), s.id, RaidObjective.KORN, 1.0F, false);
+
+        helper.succeedWhen(() -> {
+            int inChest = 0;
+            for (int i = 0; i < chest.getContainerSize(); i++) {
+                ItemStack st = chest.getItem(i);
+                if (st.is(Items.WHEAT)) {
+                    inChest += st.getCount();
+                }
+            }
+            int carried = thief.lootCount();
+            helper.assertTrue(inChest + carried == total,
+                "wheat must be conserved at every instant: chest=" + inChest
+                    + " carried=" + carried);
+            helper.assertTrue(carried > 0,
+                "the raider should be taking the stores, chest still has "
+                    + inChest);
+            helper.assertTrue(inChest < total,
+                "and the chest must be genuinely emptier, not just counted down");
+        });
+    }
+
+    /**
+     * Getting away with the goods and being wiped out empty-handed must
+     * resolve DIFFERENTLY. Whether the settlement held is about whether the
+     * raiders got what they came for, not about who died.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    public void escapingWithTheStoresResolvesAsALoss(GameTestHelper helper) {
+        buildArena(helper, 12);
+        Settlement s = makeSettlement(helper, new BlockPos(6, 1, 6));
+        for (int i = 0; i < 6; i++) {
+            s.putRecord(UUID.randomUUID(), "S" + i, Profession.NONE);
+        }
+        var level = helper.getLevel();
+        RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
+        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 2L);
+        s.raidPressure.setPressureForTesting(50);
+
+        // The band is gone AND the goods went with them.
+        s.raidLootEscaped = true;
+        int before = s.raidPressure.pressure();
+        int victoriesBefore = captain.victories();
+        helper.assertTrue(RaidDirector.resolveIfOver(level, s),
+            "with nobody left the raid resolves");
+        helper.assertTrue(s.raidPressure.pressure() < before,
+            "losing the stores must EASE pressure -- at a price already paid. "
+                + "Got " + s.raidPressure.pressure() + " from " + before);
+        helper.assertTrue(captain.victories() == victoriesBefore + 1,
+            "and the captain must remember winning");
+        helper.assertTrue(!s.raidLootEscaped,
+            "the flag must be cleared so the next raid starts honest");
         helper.succeed();
     }
 

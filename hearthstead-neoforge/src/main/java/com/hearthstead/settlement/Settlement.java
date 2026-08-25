@@ -55,6 +55,12 @@ public class Settlement {
     public final List<com.hearthstead.settlement.raid.RaidCaptain> raidCaptains =
         new ArrayList<>();
     public com.hearthstead.settlement.raid.RaidPlan pendingRaid;
+    /**
+     * Set when a laden raider gets clear of the settlement. Decides whether
+     * the raid resolves as repelled or lost, which is the difference between
+     * pressure rising and easing.
+     */
+    public boolean raidLootEscaped;
 
     /** Average morale of currently loaded members, refreshed every second. */
     public int moraleCache = 60;
@@ -175,6 +181,7 @@ public class Settlement {
         if (pendingRaid != null) {
             tag.put("PendingRaid", pendingRaid.writeNbt());
         }
+        tag.putBoolean("RaidLootEscaped", raidLootEscaped);
         return tag;
     }
 
@@ -214,6 +221,7 @@ public class Settlement {
             s.raidCaptains.add(com.hearthstead.settlement.raid.RaidCaptain
                 .readNbt(captainList.getCompound(i)));
         }
+        s.raidLootEscaped = tag.getBoolean("RaidLootEscaped");
         if (tag.contains("PendingRaid")) {
             s.pendingRaid = com.hearthstead.settlement.raid.RaidPlan
                 .readNbt(tag.getCompound("PendingRaid"));

@@ -240,17 +240,29 @@ public final class RaidDirector {
             return false; // still going
         }
         RaidCaptain captain = captainOf(settlement, plan.captainId());
-        // Nobody left standing means the settlement held. A captain who wants
-        // goods and leaves with nothing has lost, however many settlers died.
-        settlement.raidPressure.recordRepelled();
-        if (captain != null) {
-            captain.recordDefeat();
+        // Whether the settlement HELD is not about who died -- it is about
+        // whether the raiders got what they came for. A band that leaves with
+        // the stores has won even if it left bodies behind, and one wiped out
+        // empty-handed has lost even if it killed settlers doing it.
+        boolean lost = settlement.raidLootEscaped;
+        if (lost) {
+            settlement.raidPressure.recordLost();
+            if (captain != null) {
+                captain.recordVictory();
+            }
+        } else {
+            settlement.raidPressure.recordRepelled();
+            if (captain != null) {
+                captain.recordDefeat();
+            }
         }
         settlement.pendingRaid = null;
+        settlement.raidLootEscaped = false;
         SettlementSavedData.get(level).setDirty();
         Hearthstead.LOGGER.info(
-            "Raid on {} is over -- {} was driven off (pressure now {}, stage {})",
+            "Raid on {} is over -- {} {} (pressure now {}, stage {})",
             settlement.name, captain == null ? "the band" : captain.name(),
+            lost ? "got away with the stores" : "was driven off",
             settlement.raidPressure.pressure(),
             settlement.raidPressure.stage().id());
         return true;
