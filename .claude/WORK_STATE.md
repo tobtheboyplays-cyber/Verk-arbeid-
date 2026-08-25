@@ -51,21 +51,34 @@ regression test worth trusting).
 
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at fingerprint `20260825T002145Z`, covering
-the KF-013 fix and its hardening. 33/33 GameTests. Commits `0b46089`,
-`e1555c4`, `18f1319`, all pushed.
+**GATE: PASS (green_streak=2)** at fingerprint `20260825T012349Z`. 34/34
+GameTests, dedicated E2E + persistence, ~27 settlers at 1.4 MSPT (budget
+45). A2a and A2b are both closed and verified in the real game, not just
+in an arena.
 
-Next: live video of a completed courier round trip into a *sealed* warehouse
-— the wedge means no such footage exists yet, and an arena is not a house.
-Then **A2b, the courier's visible sack** (`docs/project/PLAN_A2b_SACK.md`):
-the `backpack` cube exists but is pure decoration, so "se hvor mye han bærer"
-is unbuilt. Then A3 raids (`docs/project/PLAN_A3_RAIDS.md`, needs a
-PLAN_GATE first) against the sourced research in
-`docs/project/RAID_REFERENCE_RESEARCH.md`.
+Evidence captured and sent: an 80s wide film and a 60s door close-up of a
+courier delivering into a sealed warehouse (272 logs, hearth emptied,
+nothing lost); a three-settler comparison of empty/half/full sacks; a 75s
+film of laden round trips.
 
-**Process lessons: never edit source while a gate or review is in flight**,
-and **an arena with no walls is not testing this product** — when
-correctness depends on geometry the player builds, the test must build it.
+Next: **A3 raids**, per `docs/project/PLAN_A3_RAIDS.md`, built on the
+sourced facts in `docs/project/RAID_REFERENCE_RESEARCH.md`. Step 1 is the
+Pressure model plus the nightly roll — headless and fully testable before
+any raider entity exists. Acceptance: no raid below the settlement
+threshold, the never-two-nights-below-Beleiring guarantee holds, repelling
+a raid RAISES Pressure, and the value survives save/reload.
+
+## SLICE A2b — the courier's sack — DONE
+
+Synced `DATA_CARRY_LOAD`/`DATA_CARRY_CAPACITY`; the goal's private
+`LOAD_TRIGGER` is gone, so the AI's stop condition and the renderer read
+one number. New `sack` part scales 0.55→1.15 with the load, hangs lower as
+it fills, lags the stride and bends the spine; the decorative pack hides
+while it shows. First version passed every check and looked like a pale
+crate — reshaped 8x8x5 → 7x8x6 and repainted around contrast after staging
+three settlers side by side and *looking*. UV (0,17) verified free against
+every region (the first pick collided with `hat_brim`); generator and
+Blockbench export both byte-stable across two runs.
 
 ## Standing infrastructure (new this session — use it)
 
