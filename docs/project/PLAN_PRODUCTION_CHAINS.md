@@ -1,31 +1,102 @@
-# The full building roster, and the chains that justify it
+# The full building roster: what each one does alone, and the chains on top
 
 *"Lag alle husene som kommer slik du slipper å gjøre det senere. Så tenk langt
 fram hva du vil lage. Da må du tenke på lange avanserte flows som det skal
 lages som råvarer til mat. Eller tre til verktøy."* — owner, 2026-08-25.
 
-All 28 building types now exist in `BuildingType`, each with its own emblem
-item, its own requirements and its name in both languages. This document is the
-reason each one is on the list: **no building exists because it sounds nice. It
-exists because a chain needs that step.**
+*"Vil at alle bygningene skal funke alene også å gi en funksjon for landsbyen.
+Ikke at du må ha en flow for å få noe ut av bygningen."* — owner, same day,
+correcting the first draft of this document.
 
-## The rule that shapes every chain
+All 28 building types exist in `BuildingType`, each with its own emblem item,
+its own requirements and its name in both languages.
 
-A chain is only interesting if each step is a *place with a person in it*.
-MineColonies' depth comes from exactly this and TekTopia's does not — TekTopia's
-professions mostly turn a raw input into a finished good in one hop, which is
-why its village stops being interesting once it is built. So:
+## THE RULE THAT OVERRIDES EVERYTHING ELSE HERE
 
-> **Every chain is at least three buildings long, and every arrow is a courier
-> trip between real chests.**
+> **Every building is useful the day it is finished, on its own, with no other
+> building in the settlement. A chain is an efficiency multiplier, never a
+> gate.**
 
-That last clause is the invariant doing the work (INV: chest truth). A chain
-step is not a recipe in a menu; it is grain physically leaving a farmhouse,
-riding a courier's back to a mill, and coming out as flour that physically
-exists. It is also why raiders stealing from the warehouse hurts — they take
-the middle out of a chain.
+The first draft of this document got that backwards. It described the mill as
+"the step between the farm and the bakery", which would mean a bakery does
+nothing until a mill exists, and a mill does nothing until a farm exists — a
+player would build three rooms before seeing one loaf. That is how a spreadsheet
+is designed, not a village.
 
----
+The correct shape: **a bakery bakes bread from whatever grain the settlement
+has, from the first day.** Add a mill and the same grain yields more bread,
+faster. The chain is the reward for building the whole thing, not the price of
+admission to any part of it.
+
+Two consequences that fall straight out of that rule, and both are good:
+
+1. **Every building accepts inputs from any source** — a courier's delivery, the
+   player's own chest, a caravan's cargo, a raid's plunder. Nothing checks
+   where a sack of grain came from.
+2. **Some buildings are pure services with no inputs at all.** The smithy
+   repairs worn tools. The watchtower extends the warning radius. The infirmary
+   treats the downed. These are useful before they ever produce a thing.
+
+## What each building does ALONE
+
+| building | on its own, with nothing else built |
+|---|---|
+| House | houses settlers; its furnishing raises their morale |
+| Lodging House | newcomers stop sleeping rough at the hearth |
+| Warehouse | the settlement's storage index; couriers gather loose goods into it |
+| Architect's Study | **produces Build Plans** — nothing else does |
+| School | children grow talents faster; adults retrain |
+| Farmhouse | grows and harvests its own fields |
+| Mill | grinds **any** grain the village holds; also mills fodder for the byre |
+| Bakery | bakes bread from grain *or* flour — flour is faster and yields more |
+| Kitchen | turns whatever food exists into meals, satisfying the variety need |
+| Dining Hall | settlers eat **together**: morale and the social need |
+| Pasture | animals breed → wool, milk, meat |
+| Butcher | any raw meat → cuts that keep longer |
+| Fishery | fish from water in reach |
+| Hunter's Lodge | game and hides from the wild |
+| Brewery | ale from any grain |
+| Tavern | travellers arrive → recruiting; settlers relax → morale |
+| Well House | drinking water, and buckets for the fire during a raid |
+| Lumber Camp | fells trees and replants them |
+| Sawmill | logs → planks, far faster than a settler by hand |
+| Carpenter's Shop | planks → furniture, which raises **every** building's quality |
+| Mine Entrance | ore and stone |
+| Smelter | any ore → ingots |
+| Smithy | **repairs worn tools** — a service needing no inputs — and forges new |
+| Weaver's Cottage | wool → cloth → warm clothing before winter |
+| Infirmary | the downed are treated rather than lost |
+| Barracks | guards train; veterans rank up |
+| Watchtower | extends the warning radius; raids are seen coming |
+| Market | caravans trade; the only source of Sølvmark |
+
+## The goods that move between them
+
+Decided with the owner, 2026-08-25 (D-008): intermediates are **real items in
+real chests**, but only where vanilla has no equivalent.
+
+| new item | made by | from | what it buys |
+|---|---|---|---|
+| **Flour** | Mill | any grain | a bakery makes more bread, faster, per grain |
+| **Cured meat** | Butcher | any raw meat | food that keeps, and feeds the kitchen |
+| **Meal** | Kitchen | any two food kinds | satisfies the food-variety need properly |
+| **Ale** | Brewery | grain + water | travellers stay; morale at the tavern |
+| **Cloth** | Weaver | wool | winter clothing, before the warmth need bites |
+| **Tool haft** | Carpenter | planks | tools from the smithy that last far longer |
+
+Everywhere vanilla already has the item — planks, ingots, bread, wool, raw meat
+— the chain uses the vanilla one. Six items, not thirty: enough that a chain is
+a thing you can see on a courier's back and a raider can steal, few enough that
+a warehouse stays readable.
+
+## And then the chains, on top
+
+Everything below is what the settlement gains by connecting buildings that
+already work. Each arrow is a courier trip between real chests (INV: chest
+truth) — grain physically leaving a farmhouse, riding a courier's back, coming
+out as flour that physically exists. That is also why a raider stealing from
+the warehouse hurts: they take the middle out of a chain that was making the
+whole village better than the sum of its rooms.
 
 ## Chain 1 — Bread
 
@@ -44,7 +115,8 @@ Farmhouse ──grain──▶ Mill ──flour──▶ Bakery ──bread─�
 
 **The interesting decision:** a mill serves several farms, so the player must
 notice the queue at the mill before the bread runs out. That is a logistics
-puzzle, not a build order.
+puzzle, not a build order — and a bakery with no mill still feeds the village,
+just on more grain per loaf.
 
 ## Chain 2 — Meat and the table
 
@@ -56,7 +128,9 @@ Fishery ──────fish───┘
 
 Three sources into one butcher, because **food variety is a need**. A settlement
 that eats only bread has miserable settlers even with a full warehouse — so the
-player is pushed to run all three, and each one wants different terrain.
+player is pushed to run all three, and each one wants different terrain. Any
+one of them alone already feeds people; the butcher alone already makes what
+they catch keep longer.
 
 ## Chain 3 — Ale, and why the tavern matters
 
@@ -65,9 +139,10 @@ Farmhouse ──barley──┐
 Well House ──water──┴──▶ Brewery ──ale──▶ Tavern ──▶ travellers recruited
 ```
 
-The tavern is where recruiting happens (R23), so **the recruiting loop is
-downstream of the farm**. You cannot buy population; you grow it, brew it and
-pour it. That is the single strongest argument for the whole chain design.
+The tavern is where recruiting happens (R23). With a brewery behind it the
+settlement recruits **faster and better** — travellers stay for good ale — but
+a tavern with no brewery still draws travellers and still recruits. The chain
+raises the ceiling; it does not hold the door shut.
 
 ## Chain 4 — Timber to tools
 
@@ -78,13 +153,20 @@ Lumber Camp ──logs──▶ Sawmill ──planks──▶ Carpenter ──ha
 Mine ──ore──▶ Smelter ──ingots──────────────────────────▶ Smithy ──tools
 ```
 
-This is the chain the owner named, and it is the one that proves the rule: a
-tool needs **both** halves. Iron alone is not an axe; a haft alone is not an
-axe. The smithy is where two chains meet, which makes it the building whose
-loss hurts most — and therefore the one worth defending.
+This is the chain the owner named, and it is where the standalone rule needs
+saying out loud, because the obvious design is the wrong one. A smithy that
+demanded *both* an ingot and a carpenter's haft before it would make an axe
+would be a smithy that does nothing until two other buildings exist.
+
+So: **the smithy forges a tool from metal alone** — a rough one, worn out
+quickly. Give it hafts from the carpenter and the same metal makes tools that
+last far longer. The chain buys durability, not permission. And the smithy also
+*repairs*, which needs no inputs at all, so it earns its room from the hour it
+opens.
 
 Furniture from the carpenter feeds **building quality**, which feeds morale, so
-the wood chain pays twice.
+the wood chain pays twice — and the sawmill and carpenter are each useful on
+their own before either is connected to anything.
 
 ## Chain 5 — Wool to cloth
 

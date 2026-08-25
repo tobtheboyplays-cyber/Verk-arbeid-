@@ -160,3 +160,53 @@ is unloaded, and the drift is invisible until it corrupts a save.
 trivial and the truth unknowable.
 
 **Affects.** `PlaqueBlockEntity`, `PlaqueNetwork`, `BuildingManager`.
+
+---
+
+## D-007 — Every building is useful alone; a chain is a multiplier, never a gate
+
+**Decision.** No building requires another building to do something. A bakery
+bakes bread from whatever grain the settlement holds, on its first day, with no
+mill in the world. A smithy forges a rough tool from metal alone, and repairs
+worn tools with no inputs at all. Connecting buildings makes each one *better*
+— more yield, faster, longer-lasting output — and never makes one *possible*.
+
+**Reason.** The owner's correction to the first chain design, and it is right:
+*"Vil at alle bygningene skal funke alene også å gi en funksjon for landsbyen.
+Ikke at du må ha en flow for å få noe ut av bygningen."* A gated chain means a
+player builds three rooms before seeing one loaf, which is how a spreadsheet is
+designed rather than a village. It also makes every raid catastrophic in the
+boring way: lose the mill and the bakery stops, rather than slows.
+
+**Rejected.** Strict input chains (MineColonies' shape), where a building idles
+until its supplier exists. Depth there comes at the cost of a long dead start.
+
+**Affects.** Every work building, `docs/project/PLAN_PRODUCTION_CHAINS.md`, and
+every future profession: a worker must have something to do the moment their
+room is registered.
+
+---
+
+## D-008 — A few real intermediate items, not bookkeeping and not a full economy
+
+**Decision.** Intermediate goods exist as **real items in real chests**, but
+only where vanilla has no equivalent: **flour, cloth, tool hafts, ale, cured
+meat, and prepared meals**. Everywhere vanilla already has the item — planks,
+ingots, bread, wool, raw meat — the chain uses the vanilla one.
+
+**Reason.** Owner's choice, 2026-08-25, from three options put to them. It is
+the only one that keeps chest truth (INV-3) intact for the interesting part: a
+raider can steal your flour, a courier visibly carries it, and the Tingbok can
+index it. Bookkeeping-on-the-building would make a chain an invisible bonus
+nobody can see moving.
+
+**Rejected.**
+- *Vanilla items only*, where a mill merely raises the bakery's yield: cheapest,
+  but the chain stops being a thing in the world.
+- *A full goods economy* (grain → flour → dough → loaf, ore → ingot → billet →
+  head → tool): deepest, but 30+ items to draw, store, route and balance, and a
+  warehouse nobody can read.
+
+**Affects.** `ModItems`, the asset pipeline (six new item sprites),
+`WarehouseStorage`, courier routing, and every chain in
+`PLAN_PRODUCTION_CHAINS.md`.

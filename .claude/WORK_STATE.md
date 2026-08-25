@@ -132,9 +132,22 @@ lumber → sawmill → carpenter (hafts) + mine → smelter (ingots) → **smith
 where the two chains meet. Deliberately NOT buildings: graveyard, open fields,
 quarries — a building here is an enclosed room (D-004).
 
+**Two design decisions recorded** (`docs/project/DECISIONS.md`):
+- **D-007 — every building is useful ALONE; a chain is a multiplier, never a
+  gate.** Owner's correction to the first chain draft. A bakery bakes from any
+  grain on day one with no mill in the world; a smithy forges from metal alone
+  and repairs with no inputs at all. A gated chain means three rooms before one
+  loaf. Every future profession must have work the moment its room registers.
+- **D-008 — a few real intermediate items**, chosen by the owner from three
+  options: flour, cured meat, meals, ale, cloth, tool hafts. Vanilla items
+  everywhere vanilla has one. Keeps chest truth for the interesting part — a
+  courier visibly carries flour and a raider can steal it — without a
+  thirty-item economy nobody can read.
+
 **Next: PLAQUE-2 step 5** — the right-click screen rebuilt to match the mockup,
-with the full requirement list and a READY TO BUILD button. Then professions
-for the new buildings, one chain at a time.
+with the full requirement list and a READY TO BUILD button. Then the six
+intermediate items, then professions for the new buildings, one chain at a
+time — each one standalone-useful first (D-007).
 
 **KF-015 is OPEN** — a raid can resolve as repelled while raiders live in
 unloaded chunks. Design question, recorded not patched.
