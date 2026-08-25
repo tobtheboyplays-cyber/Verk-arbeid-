@@ -281,6 +281,48 @@ public final class Employment {
         };
     }
 
+    /**
+     * The tick WITHIN each loop where the trade's sound belongs — the clip's
+     * contact beat, out of the catalogue's own documentation (§7.2, §8.1,
+     * §18, §20).
+     *
+     * <p>Why this exists (audit F8, found independently on mason, smelter
+     * and cook): firing "once per period" at {@code workedTicks % period == 0}
+     * lands the sound on the LOOP SEAM — the rest pose — half a cycle from
+     * the visible strike. The job standard's point 6 wants the thock on the
+     * blow. MinerWorkGoal's {@code cutTicks % 19 == 9} was the one goal that
+     * did it right; this table gives every crafter trade the same treatment.
+     *
+     * <p>Ticks marked (est.) are read from the catalogue's prose rather than
+     * an exact accent line — the animation owner trues them up whenever a
+     * clip is retimed, and the value must always stay in [1, period-1] so it
+     * can never alias back onto the seam.
+     */
+    public static int soundContactOf(BuildingType type) {
+        if (tradeOf(type) == Profession.SCHOLAR) {
+            // Period 40 over an 18-tick clip: the quill scratch is sparser
+            // than the loop by design, so seam alignment does not exist --
+            // mid-period simply keeps it off the wrap.
+            return 20;
+        }
+        return switch (motionOf(type)) {
+            case WORK_HAMMER -> 9;   // §18.4: strike 0.30-0.45s, first hold tick
+            case WORK_STOKE -> 14;   // §18.3: arms compressed at stroke's end, 0.60-0.85s window
+            case WORK_SAW -> 11;     // §18.5: far-end reversal bite (est.)
+            case WORK_OVEN -> 12;    // §18.8: peel held in the oven mouth (est.)
+            case WORK_KNEAD -> 8;    // §18.1: press bottoms out, torso still driving (est.)
+            case WORK_CLEAVE -> 8;   // §18.2: parked at the board (est.)
+            case WORK_WEAVE -> 9;    // §18.6: deeper second pass, mid-loop (est.)
+            case WORK_MINE -> 9;     // §8.1: pick_strike t=0.45s -- MinerWorkGoal's own tick
+            case WORK_STIR -> 24;    // §7.2: pot_stir accent documented at t=1.20s
+            case WORK_PLANE -> 13;   // §20.2: full extension, shaving clears (est.)
+            case WORK_CHISEL -> 10;  // §20.3: strike lands 0.45-0.50s, hold from 0.50s
+            case WORK_FLETCH -> 15;  // §20.4: middle pinch of three, t=0.75s
+            case WORK_SCRAPE -> 13;  // §20.5: two-tick hold at the stroke's bottom (est.)
+            default -> 12;           // never 0: the seam is the one wrong answer
+        };
+    }
+
     /** The attribute a trade's work trains, so doing the job makes you better at it. */
     public static Attribute trainedBy(BuildingType type) {
         return switch (tradeOf(type)) {

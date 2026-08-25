@@ -125,10 +125,12 @@ public class CrafterWorkGoal extends Goal {
             return;
         }
         // The sound rides the clip, not a timer of its own: one per loop of
-        // whatever motion this trade performs, so what you hear and what you
-        // see are the same action (job standard, point 6).
+        // whatever motion this trade performs, ON the clip's contact beat
+        // (job standard, point 6). % period == 0 -- the old form -- fired at
+        // the loop seam, the rest pose, half a cycle away from the visible
+        // strike (audit F8); soundContactOf carries each clip's real beat.
         int period = Employment.soundPeriodOf(bench.type);
-        if (++workedTicks % period == 0) {
+        if (++workedTicks % period == Employment.soundContactOf(bench.type)) {
             level.playSound(null, settler.blockPosition(),
                 Employment.soundOf(bench.type),
                 net.minecraft.sounds.SoundSource.NEUTRAL, 0.75F,
