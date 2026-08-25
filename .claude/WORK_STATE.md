@@ -49,24 +49,31 @@ Two new GameTests, **both verified to fail on the pre-fix code** (restore
 the old file, run `gametest`, restore the fix — do this for every
 regression test worth trusting).
 
+## SLICE A3 — raids. Step 1 (the schedule) is built.
+
+`RaidPressure` replaces the timer both references use. No night is ever
+provably safe: a real roll every night, gated on the settlement being worth
+attacking, chance 5%→55% with pressure. Quiet nights raise pressure faster
+for a richer settlement; **repelling a raid raises it** (the deliberate
+inverse of MineColonies, where losing buys quiet); exactly one hard
+guarantee — never two nights running below BELEIRING, which is what stops a
+nightly roll becoming MineColonies #4838. The roll is a parameter, so every
+rule is exactly testable. `RaidDirector` runs it from the hearth tick and
+`/hearthstead info` shows stage/pressure/chance in both languages.
+
+**Nothing spawns yet, by design.** A scheduled raid is logged, not dropped.
+Step 2 is the first faction: one captain, one objective (Korn), end to end
+against the warehouse A2a already built.
+
+Ten GameTests, proven real: forcing `inGracePeriod()` false and the chance
+floor to zero fails five of them, each naming its rule.
+
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at fingerprint `20260825T012349Z`. 34/34
-GameTests, dedicated E2E + persistence, ~27 settlers at 1.4 MSPT (budget
-45). A2a and A2b are both closed and verified in the real game, not just
-in an arena.
-
-Evidence captured and sent: an 80s wide film and a 60s door close-up of a
-courier delivering into a sealed warehouse (272 logs, hearth emptied,
-nothing lost); a three-settler comparison of empty/half/full sacks; a 75s
-film of laden round trips.
-
-Next: **A3 raids**, per `docs/project/PLAN_A3_RAIDS.md`, built on the
-sourced facts in `docs/project/RAID_REFERENCE_RESEARCH.md`. Step 1 is the
-Pressure model plus the nightly roll — headless and fully testable before
-any raider entity exists. Acceptance: no raid below the settlement
-threshold, the never-two-nights-below-Beleiring guarantee holds, repelling
-a raid RAISES Pressure, and the value survives save/reload.
+Full ×2 for `green_streak=2` on step 1, then **A3 step 2** per
+`docs/project/PLAN_A3_RAIDS.md`: the first faction, its captain, and the
+Korn objective. Everything it needs to attack — a warehouse, real chests,
+real goods — already exists and is verified.
 
 ## SLICE A2b — the courier's sack — DONE
 
