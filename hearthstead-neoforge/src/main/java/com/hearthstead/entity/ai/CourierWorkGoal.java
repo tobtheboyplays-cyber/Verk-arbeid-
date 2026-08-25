@@ -55,8 +55,10 @@ public class CourierWorkGoal extends Goal {
     public static final int SORT_PERIOD = 32;
     /** Tick within the sort cycle at which the stack actually moves. */
     public static final int SORT_MOVE_TICK = 16;
-    /** How much the courier carries per trip; the sack's capacity (D-007). */
-    private static final int LOAD_TRIGGER = 8;
+    // How much the courier carries per trip is NOT a constant here: it is
+    // SettlerEntity.getCarryCapacity(), the same number the sack is drawn
+    // from (D-A2b-1). Two sources for one truth is how the plaque/settlement
+    // split went wrong before (D-006), so the goal reads the entity's.
     /** Reach to the drop-off chest, squared. Two blocks and a bit. */
     private static final double DROP_OFF_REACH_SQR = 6.25;
     /** Reach to the hearth, squared. */
@@ -67,6 +69,18 @@ public class CourierWorkGoal extends Goal {
      * invisible busy-loop -- the wedge shape itself, not a fix for it.
      */
     public static final int RETRY_COOLDOWN_TICKS = 400;
+    /**
+     * How long between re-paths while walking somewhere. Deliberately short:
+     * at 40 ticks a courier whose path was cancelled stood still for two
+     * full seconds before trying again, several times per trip, which both
+     * looks broken and wastes most of a delivery window. The stuck limits
+     * below are scaled so total patience before giving up is unchanged.
+     */
+    private static final int REPATH_INTERVAL = 15;
+    /** Re-paths allowed before a leg is declared unreachable (~300 ticks). */
+    private static final int HEARTH_STUCK_LIMIT = 20;
+    /** Same for the longer haul to the warehouse and home (~480 ticks). */
+    private static final int HAUL_STUCK_LIMIT = 32;
     // Sound-sync contract (catalogue §0.4 / §5.1-5.4). Each value must agree
     // with the clip comment in SettlerAnimations and tools/anim_check.py.
     public static final int LIFT_GRIP_TICK = 8;
@@ -332,8 +346,8 @@ public class CourierWorkGoal extends Goal {
             workTicks = 0;
             settler.setActivity(SettlerActivity.SORTING);
         } else if (--repathTimer <= 0) {
-            repathTimer = 40;
-            if (++stuckChecks > 8) {
+            repathTimer = REPATH_INTERVAL;
+            if (++stuckChecks > HEARTH_STUCK_LIMIT) {
                 giveUp(); // unreachable hearth: rest the route, don't spin
             } else {
                 pathAbove(hearthPos);
@@ -359,12 +373,13 @@ public class CourierWorkGoal extends Goal {
             return;
         }
         var inv = hearth.getInventory();
-        for (int slot = 0; slot < inv.getSlots() && bagCount() < LOAD_TRIGGER; slot++) {
+        int capacity = settler.getCarryCapacity();
+        for (int slot = 0; slot < inv.getSlots() && bagCount() < capacity; slot++) {
             ItemStack stack = inv.getStackInSlot(slot);
             if (!isHaulable(stack)) {
                 continue;
             }
-            int want = Math.min(stack.getCount(), LOAD_TRIGGER - bagCount());
+            int want = Math.min(stack.getCount(), capacity - bagCount());
             // Extract first, then bank it. The extracted stack exists in a
             // local only for the moment between these two lines, and the
             // remainder goes straight back, so no path loses an item.
@@ -435,8 +450,8 @@ public class CourierWorkGoal extends Goal {
             workTicks = 0;
             settler.setActivity(SettlerActivity.SORTING);
         } else if (--repathTimer <= 0) {
-            repathTimer = 40;
-            if (++stuckChecks > 12) {
+            repathTimer = REPATH_INTERVAL;
+            if (++stuckChecks > HAUL_STUCK_LIMIT) {
                 // The warehouse cannot be reached from here. Carry the load
                 // back to the hearth so the goods stay in circulation, and
                 // rest the route so this is not an invisible busy-loop.
@@ -542,8 +557,8 @@ public class CourierWorkGoal extends Goal {
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
             done = true;
         } else if (--repathTimer <= 0) {
-            repathTimer = 40;
-            if (++stuckChecks > 12) {
+            repathTimer = REPATH_INTERVAL;
+            if (++stuckChecks > HAUL_STUCK_LIMIT) {
                 restRoute(); // cannot even get home; the bag keeps the goods
                 done = true;
             } else {

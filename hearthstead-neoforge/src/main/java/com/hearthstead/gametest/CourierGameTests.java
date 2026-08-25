@@ -340,6 +340,82 @@ public class CourierGameTests {
         return n;
     }
 
+    /**
+     * The sack is only worth drawing if its number is the real one. This
+     * pins the synced carry load to the physical bag AND to the AI: with
+     * more in the hearth than one trip can take, the load must peak at
+     * exactly the capacity the goal loads to, because they are the same
+     * number (D-A2b-1). If someone reintroduces a private LOAD_TRIGGER
+     * constant, the peak stops matching and this fails.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    public void courierSackShowsTheRealLoad(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(3, 1, 3);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+            // Deliberately more than one sack holds: three trips, so the
+            // peak load is the capacity and not just "whatever was there".
+            hearth.insertGoods(new ItemStack(Items.OAK_LOG, 20));
+        }
+        helper.setBlock(new BlockPos(10, 1, 10), Blocks.CHEST);
+        addWarehouse(helper, s, new BlockPos(9, 1, 9), new BlockPos(11, 3, 11));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(4, 1, 4));
+        final int[] peak = {0};
+        final String[] fault = {null};
+
+        helper.succeedWhen(() -> {
+            int synced = bud.getCarryLoad();
+            int capacity = bud.getCarryCapacity();
+            peak[0] = Math.max(peak[0], synced);
+            if (synced > capacity && fault[0] == null) {
+                fault[0] = "carried " + synced + " with capacity " + capacity;
+            }
+            float fraction = bud.carryFraction();
+            if ((fraction < 0.0F || fraction > 1.0F) && fault[0] == null) {
+                fault[0] = "carryFraction out of range: " + fraction;
+            }
+            helper.assertTrue(fault[0] == null, "sack state is wrong -- " + fault[0]);
+
+            Container chest = containerAt(helper, new BlockPos(10, 1, 10));
+            helper.assertTrue(chest != null, "warehouse chest should exist");
+            int delivered = countIn(chest, Items.OAK_LOG);
+            helper.assertTrue(delivered >= 20,
+                "all 20 logs should be delivered, saw " + delivered
+                    + " [load=" + synced + " peak=" + peak[0]
+                    + " act=" + bud.getActivity()
+                    + " energy=" + String.format("%.1f", bud.getEnergy())
+                    + " hunger=" + String.format("%.1f", bud.getHunger())
+                    + " phase=" + bud.dayPhase()
+                    + " hearth=" + hearthCount(helper, hearthRel)
+                    + " pos=" + bud.blockPosition().toShortString() + "]");
+            helper.assertTrue(peak[0] == capacity,
+                "the sack should fill to capacity on a full trip: peak="
+                    + peak[0] + " capacity=" + capacity);
+            helper.assertTrue(synced == 0 && bagCount(bud) == 0,
+                "an emptied sack must report empty, load=" + synced
+                    + " bag=" + bagCount(bud));
+        });
+    }
+
+    private static int hearthCount(GameTestHelper helper, BlockPos rel) {
+        BlockEntity be = helper.getLevel().getBlockEntity(helper.absolutePos(rel));
+        if (!(be instanceof HearthBlockEntity hearth)) {
+            return -1;
+        }
+        int n = 0;
+        var inv = hearth.getInventory();
+        for (int slot = 0; slot < inv.getSlots(); slot++) {
+            n += inv.getStackInSlot(slot).getCount();
+        }
+        return n;
+    }
+
     private static boolean doorOpen(GameTestHelper helper, BlockPos rel) {
         BlockState state = helper.getLevel().getBlockState(helper.absolutePos(rel));
         return state.getBlock() instanceof DoorBlock

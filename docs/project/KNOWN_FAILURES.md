@@ -713,3 +713,35 @@ stalled"; `doorOpen` says whether the door was ever operated at all;
 **Do not** raise the timeout, loosen the assertions, or delete the test in
 response to a recurrence. Read the diagnostic line first — it was added for
 exactly that moment.
+
+### Second occurrence, different test — and an arithmetic correction
+
+`courierSackShowsTheRealLoad` (A2b) failed once the same way and passed on
+the next run: `saw 16 [load=0 peak=8 act=IDLE]`. Two of its three round
+trips completed, the peak load equalled capacity exactly as designed, and
+then ~1800 ticks passed with nothing happening. So this is not specific to
+the sealed-warehouse arena: it is **multi-trip courier work occasionally
+stalling**, in a batch where GameTests run concurrently in adjacent arenas
+and therefore share the level's random source.
+
+**Correction to hypothesis 3 above.** It said energy drains 0.02 per tick.
+It does not: `tickNeeds()` is called from `aiStep()` under
+`tickCount % 20 == 0`, so hunger and energy drain 0.04 and 0.02 per
+**twenty** ticks. Over a 2400-tick test that is 4.8 hunger and 2.4 energy —
+so the needs model is ruled out by a factor of twenty more than claimed,
+and the stall cannot be a needs threshold in either test.
+
+**What was done about it (not a fix — a narrowing).** The courier re-pathed
+on a 40-tick timer, so any leg whose path was cancelled left her standing
+still for two full seconds before retrying, repeatedly. That is a real
+gameplay wart on its own — a courier who stands around looks broken — and
+it is the largest idle window in the trip, so it is also the most plausible
+place for a stalled leg to eat a delivery budget. `REPATH_INTERVAL` is now
+15 ticks with the stuck limits scaled up (20 and 32) so **total patience
+before giving up is unchanged**: same give-up behaviour, 2.6× more
+responsive walking.
+
+This is offered as a narrowing, **not** as a root cause. If either test
+fails again, the diagnostics now report pos/energy/hunger/phase/hearth
+remaining, and that evidence should be read before anything else is
+changed.

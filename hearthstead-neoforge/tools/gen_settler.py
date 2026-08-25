@@ -8,6 +8,7 @@ UV table (must mirror SettlerModel.createBodyLayer):
   right_arm (0,32) / left_arm (16,32) 4x12x4
   right_leg (32,32) / left_leg (48,32) 4x12x4
   cloak (64,32) 11x4x6   hat_brim (64,44) 12x1x12
+  sack (0,17) 8x8x5
 
 Five independent axes -- skin tone, hair (style x color), face (eye color),
 clothing, and profession outfit -- each a standalone 128x64 sheet, mostly
@@ -46,6 +47,10 @@ UV = {
     "left_leg":  (48, 32, 4, 12, 4),
     "cloak":     (64, 32, 11, 4, 6),
     "hat_brim":  (64, 44, 12, 1, 12),
+    # A2b: the carried sack. Only drawn when the settler has a load, so it
+    # is painted on the clothing layer like any other garment but reads as
+    # rough sackcloth rather than the tailored coat.
+    "sack":      (0, 17, 8, 8, 5),
 }
 
 # -- modular axes (cardinalities mirror SettlerAppearance in Java) ----------
@@ -275,7 +280,7 @@ def build_face(variant_idx):
 # ---------------------------------------------------------------- clothing --
 
 def build_clothing(variant_idx):
-    """Default garment: torso, arm sleeves, legs, cloak, backpack, belt.
+    """Default garment: torso, arm sleeves, legs, cloak, backpack, belt, sack.
     No profession-specific extras -- those are the outfit layer's job."""
     img = new_image(128, 64)
     palette = CLOTHING_PALETTES[variant_idx]
@@ -439,6 +444,31 @@ def build_clothing(variant_idx):
     put(img, x + fw // 2, y, lit(buckle[3], "front"))
     put(img, x + fw // 2 - 1, y + 1, lit(buckle[3], "front"))
     put(img, x + fw // 2, y + 1, lit(buckle[2], "front"))
+
+    # sack (A2b) -- rough sackcloth, deliberately coarser than the tailored
+    # tunic so a laden settler reads as carrying CARGO, not wearing more
+    # clothes. Hidden by the model unless there is a real load behind it.
+    sack_cloth = ramp("linen_raw")
+    u, v, w, h, d = UV["sack"]
+    faces = box_faces(u, v, w, h, d)
+    for face, (x, y, fw, fh) in faces.items():
+        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=2)
+        if face in ("front", "back", "right", "left"):
+            # Drawstring: two rows of leather cord cinching the neck.
+            for i in range(fw):
+                put(img, x + i, y, lit(leather[1], face))
+                put(img, x + i, y + 1, lit(leather[3], face))
+            # A stuffed sack is fattest in the middle and creases at the
+            # bottom where the weight gathers.
+            for j in range(3, fh - 1):
+                put(img, x + fw // 2 - 1, y + j, lit(sack_cloth[4], face))
+                put(img, x + fw // 2, y + j, lit(sack_cloth[3], face))
+            for i in range(fw):
+                put(img, x + i, y + fh - 1, lit(sack_cloth[0], face))
+    # Knot on the back face, where the cord is tied off.
+    x, y, fw, fh = faces["back"]
+    put(img, x + fw // 2 - 1, y, lit(leather[4], "back"))
+    put(img, x + fw // 2, y + 1, lit(leather[4], "back"))
 
     return img
 

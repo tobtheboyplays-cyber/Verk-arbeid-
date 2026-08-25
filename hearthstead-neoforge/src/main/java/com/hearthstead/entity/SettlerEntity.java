@@ -70,6 +70,17 @@ public class SettlerEntity extends PathfinderMob {
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> DATA_APPEARANCE_SEED =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /**
+     * What the settler is physically carrying, and how much they could.
+     * The bag itself is server-only, so without these the client has no way
+     * to draw a sack that means anything -- and a sack that does not track
+     * the real load is decoration, which is what the old always-on backpack
+     * cube was (D-A2b-1).
+     */
+    private static final EntityDataAccessor<Integer> DATA_CARRY_LOAD =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_CARRY_CAPACITY =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
 
     public static final byte EV_CELEBRATE = 64;
     public static final byte EV_MELEE = 65;
@@ -93,6 +104,13 @@ public class SettlerEntity extends PathfinderMob {
 
     /** Bag capacity: harvested goods carried before a hearth deposit run. */
     public static final int BAG_SIZE = 8;
+    /**
+     * How much a settler carries on their back before the sack is full.
+     * The sack is tier one of a visible capacity mechanic (D-007): a cart
+     * raises this later, and both the AI's stop condition and the renderer
+     * read this one number so they can never disagree.
+     */
+    public static final int BASE_CARRY_CAPACITY = 8;
 
     @Nullable
     private UUID settlementId;
@@ -177,6 +195,8 @@ public class SettlerEntity extends PathfinderMob {
         builder.define(DATA_ENERGY, 90.0F);
         builder.define(DATA_MORALE, 60.0F);
         builder.define(DATA_APPEARANCE_SEED, 0);
+        builder.define(DATA_CARRY_LOAD, 0);
+        builder.define(DATA_CARRY_CAPACITY, BASE_CARRY_CAPACITY);
     }
 
     @Override
@@ -469,9 +489,45 @@ public class SettlerEntity extends PathfinderMob {
                 com.hearthstead.util.QaTrace.record(this);
             }
             tickAccents();
+            syncCarryLoad();
             if (voiceCooldown > 0) {
                 voiceCooldown--;
             }
+        }
+    }
+
+    /** How many items are on this settler's back right now. */
+    public int getCarryLoad() {
+        return entityData.get(DATA_CARRY_LOAD);
+    }
+
+    /** How many they can carry; the sack's size, raised by upgrades later. */
+    public int getCarryCapacity() {
+        return Math.max(1, entityData.get(DATA_CARRY_CAPACITY));
+    }
+
+    public void setCarryCapacity(int capacity) {
+        entityData.set(DATA_CARRY_CAPACITY, Mth.clamp(capacity, 1, BAG_SIZE * 64));
+    }
+
+    /** 0 when empty, 1 when full. What the sack's size is drawn from. */
+    public float carryFraction() {
+        return Mth.clamp((float) getCarryLoad() / getCarryCapacity(), 0.0F, 1.0F);
+    }
+
+    /**
+     * Re-reads the bag and publishes the total. Called from the server tick
+     * rather than from every site that touches the bag: the bag is eight
+     * slots, so a recompute is cheaper than keeping every caller honest, and
+     * a missed call would silently desync the sack from the goods.
+     */
+    private void syncCarryLoad() {
+        int total = 0;
+        for (int i = 0; i < bag.getContainerSize(); i++) {
+            total += bag.getItem(i).getCount();
+        }
+        if (entityData.get(DATA_CARRY_LOAD) != total) {
+            entityData.set(DATA_CARRY_LOAD, total);
         }
     }
 
@@ -734,6 +790,7 @@ public class SettlerEntity extends PathfinderMob {
             tag.put("ClaimedBed", NbtUtils.writeBlockPos(claimedBed));
         }
         tag.put("Bag", bag.createTag(registryAccess()));
+        tag.putInt("CarryCapacity", getCarryCapacity());
     }
 
     @Override
@@ -757,6 +814,9 @@ public class SettlerEntity extends PathfinderMob {
         hearthPos = NbtUtils.readBlockPos(tag, "HearthPos").orElse(null);
         claimedBed = NbtUtils.readBlockPos(tag, "ClaimedBed").orElse(null);
         bag.fromTag(tag.getList("Bag", 10), registryAccess());
+        setCarryCapacity(tag.contains("CarryCapacity")
+            ? tag.getInt("CarryCapacity") : BASE_CARRY_CAPACITY);
+        syncCarryLoad();
     }
 
     /** Idempotent re-registration protects against lost records; called from

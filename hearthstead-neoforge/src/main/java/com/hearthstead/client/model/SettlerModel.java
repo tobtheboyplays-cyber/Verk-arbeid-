@@ -36,6 +36,14 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
     private final ModelPart leftArm;
     private final ModelPart rightLeg;
     private final ModelPart leftLeg;
+    private final ModelPart sack;
+    private final ModelPart backpack;
+
+    /** Sack scale when barely loaded, and when full. */
+    private static final float SACK_MIN_SCALE = 0.55F;
+    private static final float SACK_MAX_SCALE = 1.15F;
+    /** Forward lean, in radians, a full sack puts into the spine. */
+    private static final float SACK_MAX_LEAN = 0.16F;
 
     public SettlerModel(ModelPart root) {
         this.root = root.getChild("root");
@@ -47,6 +55,8 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         this.leftArm = torso.getChild("left_arm");
         this.rightLeg = this.root.getChild("right_leg");
         this.leftLeg = this.root.getChild("left_leg");
+        this.sack = torso.getChild("sack");
+        this.backpack = torso.getChild("backpack");
     }
 
     public static LayerDefinition createBodyLayer() {
@@ -84,6 +94,14 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         torso.addOrReplaceChild("backpack", CubeListBuilder.create()
                 .texOffs(96, 0).addBox(-3.0F, -9.0F, 2.5F, 6.0F, 7.0F, 3.0F),
             PartPose.ZERO);
+        // The carried sack. Distinct from the decorative `backpack` above:
+        // this one is hidden unless the settler is actually carrying, and its
+        // size is the load. Pivot sits at the top-back of the torso so the
+        // scale grows DOWNWARD and outward -- a sack hangs, it does not
+        // inflate around its own middle.
+        torso.addOrReplaceChild("sack", CubeListBuilder.create()
+                .texOffs(0, 17).addBox(-4.0F, 0.0F, 0.0F, 8.0F, 8.0F, 5.0F),
+            PartPose.offset(0.0F, -10.5F, 2.5F));
         torso.addOrReplaceChild("belt", CubeListBuilder.create()
                 .texOffs(96, 20).addBox(-5.0F, -5.0F, -2.5F, 10.0F, 2.0F, 5.0F,
                     new CubeDeformation(0.3F)),
@@ -312,6 +330,46 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
             float progress = (float) entity.hurtTime / 10.0F;
             torso.xRot += Mth.sin(progress * (float) Math.PI) * 0.15F;
         }
+
+        applySack(entity, limbSwing, limbSwingAmount);
+    }
+
+    /**
+     * The load, made visible. Both references make you open a screen to learn
+     * what a worker is carrying; a settlement should be readable by looking
+     * at it, so the sack's size, its sag and the carrier's lean are all one
+     * function of {@code carryFraction()} (D-A2b-2).
+     *
+     * <p>Continuous scale on one cube rather than three swap-in tiers: tiers
+     * cost three UV regions and read as popping, and the blocky silhouette
+     * survives a smooth scale perfectly well.
+     */
+    private void applySack(SettlerEntity entity, float limbSwing,
+                           float limbSwingAmount) {
+        float fill = entity.carryFraction();
+        sack.visible = fill > 0.0F;
+        // One shape on the back, never two. The decorative pack occupies the
+        // same volume as the sack, so showing both would intersect; a settler
+        // who shoulders a load has visibly swapped pack for sack.
+        backpack.visible = !sack.visible;
+        if (!sack.visible) {
+            return;
+        }
+        float size = SACK_MIN_SCALE + (SACK_MAX_SCALE - SACK_MIN_SCALE) * fill;
+        sack.xScale = size;
+        sack.yScale = size;
+        sack.zScale = size;
+        // It hangs: a heavier sack sits lower and pulls further off the back.
+        sack.y += fill * 0.9F;
+        sack.z += fill * 0.6F;
+        // Secondary motion -- the load lags the stride instead of riding
+        // rigidly on the back.
+        sack.xRot += Mth.cos(limbSwing * 0.6662F) * 0.06F * limbSwingAmount * fill;
+        sack.zRot += Mth.sin(limbSwing * 0.3331F) * 0.05F * limbSwingAmount * fill;
+        // The weight is in the spine, not just the prop: a full sack bends
+        // the carrier, an almost-empty one barely does.
+        torso.xRot += SACK_MAX_LEAN * fill;
+        head.xRot -= SACK_MAX_LEAN * fill * 0.6F;
     }
 
     @Override
