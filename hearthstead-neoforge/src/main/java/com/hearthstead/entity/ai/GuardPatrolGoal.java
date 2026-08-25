@@ -45,6 +45,22 @@ public class GuardPatrolGoal extends Goal {
         nextWaypoint();
     }
 
+    /**
+     * A guard's work is the walking, so that is what is counted and what is
+     * heard: one waypoint reached is one unit (job standard, point 8), and the
+     * armour answers at each one (point 6) — a patrol you can hear passing
+     * outside at night is worth more than one you can only see.
+     */
+    private void reachedWaypoint() {
+        settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
+        if (settler.level() instanceof net.minecraft.server.level.ServerLevel level) {
+            level.playSound(null, settler.blockPosition(),
+                com.hearthstead.registry.ModSounds.ARMOUR_CLINK.get(),
+                net.minecraft.sounds.SoundSource.NEUTRAL, 0.55F,
+                0.94F + settler.getRandom().nextFloat() * 0.12F);
+        }
+    }
+
     private void nextWaypoint() {
         Settlement s = settler.settlement();
         if (s == null) {
@@ -71,6 +87,9 @@ public class GuardPatrolGoal extends Goal {
     @Override
     public void tick() {
         if (settler.getNavigation().isDone()) {
+            if (pauseTicks == 0) {
+                reachedWaypoint();
+            }
             pauseTicks++;
             if (pauseTicks % 25 == 0) {
                 // Scan the surroundings while paused.

@@ -516,6 +516,9 @@ public class CourierWorkGoal extends Goal {
             ItemStack leftover = storage.insert(level, warehouse, stack.copy());
             playAt(ModSounds.CHEST_STOW.get(), 0.65F,
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
+            // Job standard, point 8: a stack actually filed is one unit of a
+            // courier's work, and what it builds is the legs to carry the next.
+            settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
             settler.bag.setItem(i, leftover);
             if (!leftover.isEmpty()) {
                 // Warehouse full: stop, and carry what is left back home.

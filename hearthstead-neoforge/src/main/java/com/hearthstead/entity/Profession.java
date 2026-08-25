@@ -26,7 +26,10 @@ public enum Profession {
     MASON(12, "mason", () -> ItemStack.EMPTY, 0x75715F),
     FLETCHER(13, "fletcher", () -> ItemStack.EMPTY, 0x5B7A50),
     WEAVER(14, "weaver", () -> ItemStack.EMPTY, 0xA8A294),
-    TANNER(15, "tanner", () -> ItemStack.EMPTY, 0x7A5230);
+    TANNER(15, "tanner", () -> ItemStack.EMPTY, 0x7A5230),
+    // A starter trade in both references, and the one this roster was
+    // missing. The pick stays in hand: it is what reads at distance.
+    MINER(16, "miner", () -> new ItemStack(Items.IRON_PICKAXE), 0x62604F);
 
     public static final Profession[] BY_ID = values();
 

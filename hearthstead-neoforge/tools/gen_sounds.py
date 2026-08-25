@@ -877,6 +877,212 @@ def render_chest_stow(rng, dur):
 # ---------------------------------------------------------------------------
 
 # (file stem, target duration s, renderer, kwargs, target peak)
+
+# ---------------------------------------------------------------- craft ----
+# One sound per work MOTION, so you can tell what somebody is doing with your
+# eyes shut (job standard, point 6). Each is built from a different physical
+# story rather than the same thud re-tuned: metal ringing, air moving, a blade
+# rasping, wood knocking. That is what makes them distinguishable at a
+# distance, where a mix of subtle variations would smear into one noise.
+
+def render_leap_slam(rng, dur):
+    """A body landing hard: a deep floor thump under a bright armour crash."""
+    mix = []
+    thump = one_pole_lp(white_noise(rng, 0.30), 160)
+    te = env_exp(len(thump), attack=0.002, tau=0.075)
+    mix_at(mix, [thump[i] * te[i] for i in range(len(thump))], 0.010, 1.0)
+    crash = one_pole_hp(white_noise(rng, 0.10), 2200)
+    ce = env_exp(len(crash), attack=0.0008, tau=0.030)
+    mix_at(mix, [crash[i] * ce[i] for i in range(len(crash))], 0.012, 0.55)
+    # A low ring afterwards, so the ground sounds like it took something.
+    n = n_samples(0.40)
+    ring = [0.0] * n
+    acc = rng.uniform(0.0, TWO_PI)
+    for i in range(n):
+        tt = i / SR
+        acc += TWO_PI * 92.0 / SR
+        ring[i] = math.exp(-tt / 0.16) * math.sin(acc)
+    mix_at(mix, ring, 0.016, 0.35)
+    return soft_clip(mix, 1.3)
+
+
+def render_armour_clink(rng, dur, variant=0):
+    """Guard on patrol: mail and buckles settling as weight shifts."""
+    mix = []
+    for k in range(2 + variant):
+        f0 = rng.uniform(2100.0, 3400.0)
+        n = n_samples(0.06)
+        ring = [0.0] * n
+        acc = rng.uniform(0.0, TWO_PI)
+        for i in range(n):
+            tt = i / SR
+            acc += TWO_PI * f0 / SR
+            ring[i] = math.exp(-tt / 0.012) * math.sin(acc)
+        mix_at(mix, ring, 0.010 + k * rng.uniform(0.035, 0.070),
+               rng.uniform(0.28, 0.45))
+    # A soft leather creak underneath, so it is a person and not a bell.
+    creak = one_pole_lp(white_noise(rng, 0.10), 520)
+    ce = env_exp(len(creak), attack=0.008, tau=0.045)
+    mix_at(mix, [creak[i] * ce[i] for i in range(len(creak))], 0.012, 0.30)
+    return soft_clip(mix, 1.0)
+
+
+def render_pick_strike(rng, dur, variant=0):
+    """Miner: steel point into stone -- bright tick, dry crack, grit falling."""
+    mix = []
+    tick = one_pole_hp(white_noise(rng, 0.005), 3600)
+    te = env_exp(len(tick), attack=0.0004, tau=0.0012)
+    mix_at(mix, [tick[i] * te[i] for i in range(len(tick))], 0.008, 0.85)
+    # The crack: a narrow band around a stone-ish mode, gone almost at once.
+    crack = biquad_bp(white_noise(rng, 0.05), 900 * rng.uniform(0.95, 1.06), 5.0)
+    ce = env_exp(len(crack), attack=0.001, tau=0.018)
+    mix_at(mix, [crack[i] * ce[i] for i in range(len(crack))], 0.010, 0.9)
+    # Grit: a sparse scatter of tiny high ticks, the tail that says "stone".
+    for _ in range(6 + variant):
+        g = one_pole_hp(white_noise(rng, 0.004), 5000)
+        ge = env_exp(len(g), attack=0.0004, tau=0.002)
+        mix_at(mix, [g[i] * ge[i] for i in range(len(g))],
+               0.035 + rng.uniform(0.0, 0.16), rng.uniform(0.10, 0.30))
+    return soft_clip(mix, 1.15)
+
+
+def render_anvil_ring(rng, dur, variant=0):
+    """Smith and mason: hammer on iron. Inharmonic partials, long bright decay."""
+    n = n_samples(0.85)
+    body = [0.0] * n
+    f0 = (1180.0 if variant == 0 else 990.0) * rng.uniform(0.99, 1.01)
+    # Deliberately inharmonic ratios -- a harmonic stack sounds like a bell,
+    # a struck anvil does not.
+    for ratio, amp, tr in ((1.0, 1.0, 1.0), (2.76, 0.55, 0.7),
+                           (5.40, 0.30, 0.42), (8.93, 0.14, 0.25)):
+        acc = rng.uniform(0.0, TWO_PI)
+        for i in range(n):
+            t = i / SR
+            acc += TWO_PI * f0 * ratio / SR
+            body[i] += amp * math.exp(-t / (0.30 * tr)) * math.sin(acc)
+    na = n_samples(0.0012)
+    for i in range(min(na, n)):
+        body[i] *= i / na
+    mix = []
+    mix_at(mix, body, 0.010, 0.62)
+    clank = one_pole_hp(white_noise(rng, 0.008), 2800)
+    ke = env_exp(len(clank), attack=0.0004, tau=0.002)
+    mix_at(mix, [clank[i] * ke[i] for i in range(len(clank))], 0.008, 0.8)
+    return soft_clip(mix, 1.25)
+
+
+def render_bellows_puff(rng, dur):
+    """Smelter: air forced through a fire. A swell, not a hit."""
+    n = n_samples(0.55)
+    air = lp_sweep(white_noise(rng, 0.55), 400, 2200)
+    out = []
+    for i in range(min(n, len(air))):
+        t = i / SR
+        # Slow in, slower out: bellows have mass and the fire answers late.
+        env = math.sin(math.pi * min(1.0, t / 0.5)) ** 1.4
+        out.append(air[i] * env)
+    mix = []
+    mix_at(mix, out, 0.010, 0.7)
+    # Fire answering: sparse crackle riding the back half of the swell.
+    for _ in range(9):
+        c = one_pole_bp_safe(rng, 1800)
+        ce = env_exp(len(c), attack=0.0006, tau=0.004)
+        mix_at(mix, [c[i] * ce[i] for i in range(len(c))],
+               0.18 + rng.uniform(0.0, 0.30), rng.uniform(0.10, 0.26))
+    return soft_clip(mix, 1.1)
+
+
+def one_pole_bp_safe(rng, f0):
+    """A very short band-passed tick, used for fire crackle."""
+    return biquad_bp(white_noise(rng, 0.006), f0 * rng.uniform(0.7, 1.5), 3.0)
+
+
+def render_saw_stroke(rng, dur, variant=0):
+    """Sawyer and carpenter: a rasping cut, loud in the middle of the stroke."""
+    n = n_samples(0.45)
+    rasp = biquad_bp(white_noise(rng, 0.45), 1500 * rng.uniform(0.95, 1.05), 1.4)
+    out = []
+    for i in range(min(n, len(rasp))):
+        t = i / SR
+        # Teeth: a fast tremolo over a stroke-shaped envelope. The stroke
+        # peaks in the middle, because that is where the blade is moving
+        # fastest and biting hardest.
+        stroke = math.sin(math.pi * min(1.0, t / 0.42)) ** 1.2
+        teeth = 0.72 + 0.28 * math.sin(TWO_PI * (42.0 + 8.0 * variant) * t)
+        out.append(rasp[i] * stroke * teeth)
+    return soft_clip(out, 1.05)
+
+
+def render_oven_slide(rng, dur):
+    """Baker: a wooden peel scraping over stone, then the loaf going down."""
+    n = n_samples(0.34)
+    scrape = biquad_bp(white_noise(rng, 0.34), 780, 1.1)
+    out = []
+    for i in range(min(n, len(scrape))):
+        t = i / SR
+        env = math.sin(math.pi * min(1.0, t / 0.30)) ** 1.1
+        out.append(scrape[i] * env * (0.8 + 0.2 * math.sin(TWO_PI * 26.0 * t)))
+    mix = []
+    mix_at(mix, out, 0.010, 0.55)
+    # The soft whump of dough meeting hot stone.
+    whump = one_pole_lp(white_noise(rng, 0.10), 380)
+    we = env_exp(len(whump), attack=0.004, tau=0.035)
+    mix_at(mix, [whump[i] * we[i] for i in range(len(whump))], 0.30, 0.65)
+    return soft_clip(mix, 1.1)
+
+
+def render_knead_press(rng, dur):
+    """Cook: the heel of a hand into dough. Soft, low, and no click at all."""
+    thud = one_pole_lp(white_noise(rng, 0.16), 300)
+    te = env_exp(len(thud), attack=0.010, tau=0.045)
+    mix = []
+    mix_at(mix, [thud[i] * te[i] for i in range(len(thud))], 0.010, 0.8)
+    # A faint board knock underneath, so it has a surface to be pressed onto.
+    knock = biquad_bp(white_noise(rng, 0.05), 240, 3.0)
+    ke = env_exp(len(knock), attack=0.002, tau=0.020)
+    mix_at(mix, [knock[i] * ke[i] for i in range(len(knock))], 0.014, 0.35)
+    return soft_clip(mix, 1.0)
+
+
+def render_cleaver_chop(rng, dur, variant=0):
+    """Butcher and tanner: a wet stroke that ends on the board underneath."""
+    mix = []
+    wet = one_pole_lp(white_noise(rng, 0.06), 900)
+    we = env_exp(len(wet), attack=0.001, tau=0.016)
+    mix_at(mix, [wet[i] * we[i] for i in range(len(wet))], 0.009, 0.75)
+    # The board: a short wooden mode, a hair after the meat.
+    n = n_samples(0.18)
+    board = [0.0] * n
+    f0 = (420.0 if variant == 0 else 365.0) * rng.uniform(0.98, 1.02)
+    for ratio, amp in ((1.0, 1.0), (1.71, 0.35)):
+        acc = rng.uniform(0.0, TWO_PI)
+        for i in range(n):
+            t = i / SR
+            acc += TWO_PI * f0 * ratio / SR
+            board[i] += amp * math.exp(-t / 0.045) * math.sin(acc)
+    mix_at(mix, board, 0.016, 0.45)
+    return soft_clip(mix, 1.15)
+
+
+def render_loom_clack(rng, dur, variant=0):
+    """Weaver and fletcher: two light wooden clacks, close together."""
+    mix = []
+    for k, (at, amp) in enumerate(((0.010, 1.0), (0.115 + 0.02 * variant, 0.7))):
+        n = n_samples(0.10)
+        body = [0.0] * n
+        f0 = (940.0 if k == 0 else 1120.0) * rng.uniform(0.98, 1.02)
+        acc = rng.uniform(0.0, TWO_PI)
+        for i in range(n):
+            t = i / SR
+            acc += TWO_PI * f0 / SR
+            body[i] += math.exp(-t / 0.020) * math.sin(acc)
+        mix_at(mix, body, at, 0.55 * amp)
+        tick = one_pole_hp(white_noise(rng, 0.004), 3000)
+        te = env_exp(len(tick), attack=0.0004, tau=0.0012)
+        mix_at(mix, [tick[i] * te[i] for i in range(len(tick))], at - 0.001, 0.45 * amp)
+    return soft_clip(mix, 1.05)
+
+
 SOUND_SPECS = [
     ("hearth_founded",      3.0, render_hearth_founded,     {}, 0.70),
     ("profession_assigned", 1.2, render_profession_assigned, {}, 0.70),
@@ -888,6 +1094,22 @@ SOUND_SPECS = [
     ("chop2",               0.4, render_chop, {"variant": 1}, 0.70),
     ("chop3",               0.4, render_chop, {"variant": 2}, 0.70),
     ("guard_alert",         2.0, render_guard_alert,        {}, 0.70),
+    # CHAINS-1 / job standard point 6: a distinct sound per work motion.
+    ("leap_slam",           0.55, render_leap_slam,          {}, 0.85),
+    ("armour_clink",        0.25, render_armour_clink, {"variant": 0}, 0.45),
+    ("armour_clink2",       0.28, render_armour_clink, {"variant": 1}, 0.45),
+    ("pick_strike",         0.30, render_pick_strike, {"variant": 0}, 0.68),
+    ("pick_strike2",        0.30, render_pick_strike, {"variant": 1}, 0.68),
+    ("anvil_ring",          0.90, render_anvil_ring, {"variant": 0}, 0.72),
+    ("anvil_ring2",         0.90, render_anvil_ring, {"variant": 1}, 0.72),
+    ("bellows_puff",        0.60, render_bellows_puff,       {}, 0.55),
+    ("saw_stroke",          0.50, render_saw_stroke, {"variant": 0}, 0.58),
+    ("saw_stroke2",         0.50, render_saw_stroke, {"variant": 1}, 0.58),
+    ("oven_slide",          0.45, render_oven_slide,         {}, 0.55),
+    ("knead_press",         0.25, render_knead_press,        {}, 0.50),
+    ("cleaver_chop",        0.25, render_cleaver_chop, {"variant": 0}, 0.66),
+    ("cleaver_chop2",       0.25, render_cleaver_chop, {"variant": 1}, 0.66),
+    ("loom_clack",          0.30, render_loom_clack, {"variant": 0}, 0.52),
     ("settler_hm",          0.7, render_settler_hm, {"variant": 0}, 0.35),
     ("settler_hm2",         0.7, render_settler_hm, {"variant": 1}, 0.35),
     # SLICE ANIM-1 additions.
@@ -951,6 +1173,61 @@ SOUNDS_JSON_DATA = {
     "guard_alert": {
         "sounds": [{"name": "hearthstead:guard_alert", "volume": 0.95}],
         "subtitle": "subtitles.hearthstead.guard_alert",
+    },
+    "leap_slam": {
+        "sounds": [{"name": "hearthstead:leap_slam", "volume": 1.0}],
+        "subtitle": "subtitles.hearthstead.leap_slam",
+    },
+    "armour_clink": {
+        "sounds": [
+            {"name": "hearthstead:armour_clink", "volume": 0.7},
+            {"name": "hearthstead:armour_clink2", "volume": 0.7},
+        ],
+        "subtitle": "subtitles.hearthstead.armour_clink",
+    },
+    "pick_strike": {
+        "sounds": [
+            {"name": "hearthstead:pick_strike", "volume": 0.9},
+            {"name": "hearthstead:pick_strike2", "volume": 0.9},
+        ],
+        "subtitle": "subtitles.hearthstead.pick_strike",
+    },
+    "anvil_ring": {
+        "sounds": [
+            {"name": "hearthstead:anvil_ring", "volume": 0.85},
+            {"name": "hearthstead:anvil_ring2", "volume": 0.85},
+        ],
+        "subtitle": "subtitles.hearthstead.anvil_ring",
+    },
+    "bellows_puff": {
+        "sounds": [{"name": "hearthstead:bellows_puff", "volume": 0.8}],
+        "subtitle": "subtitles.hearthstead.bellows_puff",
+    },
+    "saw_stroke": {
+        "sounds": [
+            {"name": "hearthstead:saw_stroke", "volume": 0.8},
+            {"name": "hearthstead:saw_stroke2", "volume": 0.8},
+        ],
+        "subtitle": "subtitles.hearthstead.saw_stroke",
+    },
+    "oven_slide": {
+        "sounds": [{"name": "hearthstead:oven_slide", "volume": 0.85}],
+        "subtitle": "subtitles.hearthstead.oven_slide",
+    },
+    "knead_press": {
+        "sounds": [{"name": "hearthstead:knead_press", "volume": 0.8}],
+        "subtitle": "subtitles.hearthstead.knead_press",
+    },
+    "cleaver_chop": {
+        "sounds": [
+            {"name": "hearthstead:cleaver_chop", "volume": 0.9},
+            {"name": "hearthstead:cleaver_chop2", "volume": 0.9},
+        ],
+        "subtitle": "subtitles.hearthstead.cleaver_chop",
+    },
+    "loom_clack": {
+        "sounds": [{"name": "hearthstead:loom_clack", "volume": 0.75}],
+        "subtitle": "subtitles.hearthstead.loom_clack",
     },
     "settler_hm": {
         "sounds": [

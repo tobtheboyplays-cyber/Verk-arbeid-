@@ -219,6 +219,12 @@ public final class SettlementManager {
     }
 
     public static void onSettlerDied(ServerLevel level, SettlerEntity settler) {
+        // A dead mayor is the settlement's problem, not just this
+        // settler's: morale for everyone and three days of mourning.
+        Settlement mayorSeat = byId(level, settler.getSettlementId());
+        if (mayorSeat != null) {
+            Mayor.onDeath(level, mayorSeat, settler);
+        }
         Settlement s = byId(level, settler.getSettlementId());
         if (s == null) {
             return;

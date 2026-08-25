@@ -451,11 +451,36 @@ while read -r verb rest; do
                # delivery. Kept anyway: real, cheap, defensive visibility
                # for whatever the next thing that looks like this turns out
                # to actually be.
+               _cmd_lines_before=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
                xdotool key --clearmodifiers t; _kt=$?; sleep 1
                xdotool type --delay 35 -- "/$rest"; _kty=$?; sleep 1
                xdotool key --clearmodifiers Return; _kr=$?; sleep 2
                if [ "$_kt" -ne 0 ] || [ "$_kty" -ne 0 ] || [ "$_kr" -ne 0 ]; then
                    echo "cmd: xdotool exit codes key-t=$_kt type=$_kty key-Return=$_kr (non-zero!)" >&2
+               fi
+               # If NOTHING reached the server, the chat key was swallowed --
+               # essentially always because a screen was already open, and the
+               # Game Menu is the one that does it. Proven live
+               # (20260825T164216Z and two reruns): three identical failures
+               # at the same directive, and shots/plaque-02-empty-clicked.png
+               # shows the Game Menu sitting open while the command was typed
+               # into it.
+               #
+               # The scenario's own "send it twice" mitigation cannot help,
+               # because the second send hits the SAME stuck state. Escape is
+               # what breaks the parity: it closes whatever is open, so the
+               # retry starts from the in-world state chat actually needs.
+               #
+               # This changes no assertion. It only makes the keystroke
+               # arrive; whether the command then does the right thing is
+               # still entirely up to expect_server.
+               _cmd_lines_after=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+               if [ "$_cmd_lines_after" -eq "$_cmd_lines_before" ]; then
+                   echo "cmd: no server output for /$rest -- closing any open screen and retrying once" >&2
+                   xdotool key --clearmodifiers Escape; sleep 1
+                   xdotool key --clearmodifiers t; sleep 1
+                   xdotool type --delay 35 -- "/$rest"; sleep 1
+                   xdotool key --clearmodifiers Return; sleep 2
                fi
                # Opening chat releases the mouse grab (needed so chat text
                # can be clicked/selected); closing it does not reliably

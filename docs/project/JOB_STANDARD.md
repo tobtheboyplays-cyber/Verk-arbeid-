@@ -76,13 +76,18 @@ A trade is **certified** when all eleven points pass. `tools/job_audit.py`
 holds the list and fails on regression, so certification is a ratchet rather
 than a claim.
 
-| trade | certified | notes |
+**The starter pack is certified.** These six are the set both references hand
+you first, and every one of them passes all eleven points:
+
+| trade | certified | its signature |
 |---|---|---|
-| lumberer | **yes — the reference** | felling, limbing, hauling; three clips |
-| farmer | not yet | needs point 8 |
-| courier | not yet | needs point 8 |
-| guard | not yet | needs points 2, 8 |
-| baker, cook, butcher, smelter, smith, sawyer, carpenter, mason, fletcher, weaver, tanner | not yet | need points 6 and 11 |
+| lumberer | **yes — the reference** | fells, limbs, hauls, and stoops for the log |
+| farmer | **yes** | casts seed by hand in a wide arc |
+| courier | **yes** | carries a visible load, and tidies the warehouse when idle |
+| guard | **yes** | patrols in earshot; ranks up into cleave and the leap strike |
+| miner | **yes** | cuts stone, and stops when there is nowhere to put it |
+| baker | **yes** | works the oven with a peel, and flips it |
+| cook, butcher, smelter, smith, sawyer, carpenter, mason, fletcher, weaver, tanner | not yet | have work, sound and motion; need their own signature clip and tests |
 
 ## Why this shape
 

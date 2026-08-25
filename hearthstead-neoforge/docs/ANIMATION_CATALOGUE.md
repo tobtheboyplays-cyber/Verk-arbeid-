@@ -222,6 +222,7 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 18.7 | `GATHER_LOG` | 1.10 | 1 | A2 |
 | 18.8 | `OVEN_TEND` | 1.60 | L | A2 |
 | 18.9 | `SOW_BROADCAST` | 1.40 | L | A2 |
+| 19.1 | `LEAP_STRIKE` | 1.30 | 1 | A3 |
 | 13.3 | `EMERGENCY_REPAIR` | 1.80 | L | A3 |
 | 13.4 | `EMERGENCY_CARRY_DOWNED` (+`DOWNED`) | 2.20 | L+ | A3 |
 | 13.5 | `EMERGENCY_COWER` (+`COWER_FLINCH`) | 2.60 | L | A3 |
@@ -2771,3 +2772,24 @@ it, then sweeps across the body in a wide arc and opens. The **release** is the
 beat — the arm parks two ticks at the end of the arc while the seed leaves the
 hand — and the torso rotates a full 42° across the stroke, because the arc
 comes from the hips or it comes from nowhere.
+
+## 19. Guard abilities
+
+Ranks are earned, not bought: a guard's Strength decides what they can do, and
+Strength is trained by the patrols and fights they survive. See
+`entity/GuardRank.java`.
+
+### 19.1 `LEAP_STRIKE` — the sergeant clears the gap *(1.30 s, one-shot)*
+
+Four beats, and it lives or dies on the third. **Coil** (0–0.20 s): a deep
+crouch that accelerates into the bottom, sword back rather than up, because
+this is a lunge. **Launch** (0.20–0.30 s): legs snap straight, root rises 3.4
+px, torso opens — fast, and allowed to be, because it is bracketed by the
+coil's hold and the float. **Float** (0.30–0.50 s): the sword comes overhead
+and *hangs* four ticks. Airborne hang time is what separates a leap from a hop,
+and it is the moment the player reads the threat. **Slam** (0.50–0.60 s): down
+hard, with a five-tick beat at the bottom, then a slow rise — nobody springs
+back up from that landing.
+
+The damage resolves **when the guard lands**, not when the goal starts, so the
+clip is the attack rather than a decoration on one.

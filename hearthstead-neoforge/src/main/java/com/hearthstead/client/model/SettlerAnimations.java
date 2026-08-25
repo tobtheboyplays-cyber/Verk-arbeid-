@@ -1918,4 +1918,165 @@ public final class SettlerAnimations {
             new Keyframe(0.65F, KeyframeAnimations.posVec(0.35F, -0.15F, 0), CATMULLROM),
             new Keyframe(1.40F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
         .build();
+
+    /**
+     * Miner: a two-handed pick into rock. Catalogue 8.1.
+     *
+     * <p>Shorter and tighter than {@code CHOP}, because a pick is swung into a
+     * face an arm's length away rather than through a trunk. The beat is
+     * longer than any other clip in the mod — four ticks — since a pick point
+     * genuinely lodges in stone and has to be worked free, and that lodging is
+     * the whole character of the motion. The recovery is a pull, not a lift:
+     * the torso rocks back to free the point before the arms reset. 0.95 s
+     * loop.
+     */
+    public static final AnimationDefinition MINE_PICK = AnimationDefinition.Builder
+        .withLength(0.95F).looping()
+        .addAnimation("right_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-38, -12, -6), CATMULLROM),
+            new Keyframe(0.15F, KeyframeAnimations.degreeVec(-66, -11, -7), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-136, -9, -8), CATMULLROM),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(-132, -9, -8), LINEAR),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-48, -13, -5), LINEAR),
+            new Keyframe(0.65F, KeyframeAnimations.degreeVec(-46, -13, -5), LINEAR),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(-18, -12, -6), CATMULLROM),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-44, -12, -6), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(-38, -12, -6), CATMULLROM)))
+        .addAnimation("left_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-46, 16, 6), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-128, 12, 8), CATMULLROM),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(-124, 12, 8), LINEAR),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-54, 17, 5), LINEAR),
+            new Keyframe(0.65F, KeyframeAnimations.degreeVec(-52, 17, 5), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(-30, 16, 6), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(-46, 16, 6), CATMULLROM)))
+        .addAnimation("torso", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(14, 3, 0), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(-2, 10, 0), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-8, 12, 0), CATMULLROM),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(30, -5, 0), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(27, -4, 0), LINEAR),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(6, 7, 0), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(14, 3, 0), CATMULLROM)))
+        .addAnimation("head", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(22, 0, 0), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(16, 2, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(29, 0, 0), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(27, 0, 0), LINEAR),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(22, 0, 0), CATMULLROM)))
+        .addAnimation("right_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-13, 0, -5), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-17, 0, -5), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-15, 0, -5), LINEAR),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(-13, 0, -5), CATMULLROM)))
+        .addAnimation("left_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(10, 0, 5), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(10, 0, 5), CATMULLROM)))
+        .addAnimation("cloak", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-15, 0, 0), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(15, 0, 0), CATMULLROM),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM)))
+        .addAnimation("root", new AnimationChannel(POSITION,
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.posVec(0, 0.45F, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.posVec(0, -0.75F, 0.25F), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.posVec(0, -0.7F, 0.25F), LINEAR),
+            new Keyframe(0.95F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
+        .build();
+
+    /**
+     * Sergeant's leap strike: the one everybody will remember.
+     *
+     * <p>Four beats, and the whole clip lives or dies on the third:
+     *
+     * <ol>
+     *   <li><b>Coil</b> (0-0.20 s) — a deep crouch that gathers, accelerating
+     *       into the bottom. The sword goes BACK, not up: this is a lunge.
+     *   <li><b>Launch</b> (0.20-0.30 s) — legs snap straight, root rises hard,
+     *       the torso opens. Fast, and it is allowed to be: it is bracketed by
+     *       the coil's hold and the float.
+     *   <li><b>Float</b> (0.30-0.50 s) — the sword comes overhead and
+     *       <b>hangs</b> for four ticks at the top. Airborne hang time is what
+     *       makes a leap feel like a leap rather than a hop, and it is the
+     *       moment the player reads the threat.
+     *   <li><b>Slam</b> (0.50-0.60 s) — down, hard, with a five-tick beat at
+     *       the bottom while the ground takes it. Then a slow rise, because
+     *       nobody springs back up from a landing like that.
+     * </ol>
+     *
+     * <p>One-shot, 1.30 s, and it returns to its start pose so the guard drops
+     * straight back into their stance. Catalogue 19.1.
+     */
+    public static final AnimationDefinition LEAP_STRIKE = AnimationDefinition.Builder
+        .withLength(1.30F)
+        .addAnimation("right_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-30, -14, -6), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(18, -20, -10), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-72, -16, -8), CATMULLROM),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(-168, -10, -6), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-165, -10, -6), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-26, -15, -4), LINEAR),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-24, -15, -4), LINEAR),
+            new Keyframe(1.00F, KeyframeAnimations.degreeVec(-46, -14, -6), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(-30, -14, -6), CATMULLROM)))
+        .addAnimation("left_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-26, 16, 6), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(24, 26, 12), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(-96, 30, 16), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-92, 30, 16), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-40, 22, 8), LINEAR),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-38, 22, 8), LINEAR),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(-26, 16, 6), CATMULLROM)))
+        .addAnimation("torso", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(34, 8, 0), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-16, 4, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-22, 0, 0), CATMULLROM),
+            new Keyframe(0.55F, KeyframeAnimations.degreeVec(40, -4, 0), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(36, -3, 0), LINEAR),
+            new Keyframe(1.05F, KeyframeAnimations.degreeVec(-4, 2, 0), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM)))
+        .addAnimation("head", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(-18, 0, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(10, 0, 0), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(30, 0, 0), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(27, 0, 0), LINEAR),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM)))
+        .addAnimation("right_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-6, 0, -4), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(-52, 0, -8), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(14, 0, -3), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-30, 0, -5), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-58, 0, -9), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(-54, 0, -9), LINEAR),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(-6, 0, -4), CATMULLROM)))
+        .addAnimation("left_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(6, 0, 4), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(46, 0, 8), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(-16, 0, 3), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(26, 0, 5), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(50, 0, 9), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(46, 0, 9), LINEAR),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(6, 0, 4), CATMULLROM)))
+        .addAnimation("cloak", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(26, 0, 0), CATMULLROM),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(-38, 0, 0), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(44, 0, 0), CATMULLROM),
+            new Keyframe(0.90F, KeyframeAnimations.degreeVec(10, 0, 0), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM)))
+        .addAnimation("root", new AnimationChannel(POSITION,
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.posVec(0, -2.6F, 0), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.posVec(0, 3.4F, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.posVec(0, 3.8F, 0), LINEAR),
+            new Keyframe(0.50F, KeyframeAnimations.posVec(0, 3.6F, 0), LINEAR),
+            new Keyframe(0.60F, KeyframeAnimations.posVec(0, -2.2F, 0), LINEAR),
+            new Keyframe(0.85F, KeyframeAnimations.posVec(0, -2.0F, 0), LINEAR),
+            new Keyframe(1.10F, KeyframeAnimations.posVec(0, 0.3F, 0), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
+        .build();
 }

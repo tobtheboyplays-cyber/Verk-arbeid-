@@ -64,6 +64,13 @@ public class Settlement {
 
     /** Average morale of currently loaded members, refreshed every second. */
     public int moraleCache = 60;
+    /** Who speaks for the settlement. See {@link Mayor}. Null when leaderless. */
+    @javax.annotation.Nullable
+    public UUID mayorId;
+    /** Game time the current mayor took office; a new one settles in slowly. */
+    public long mayorSince;
+    /** Game time until which the settlement is mourning and cannot appoint. */
+    public long mourningUntil;
 
     public Settlement(UUID id, String name, BlockPos center) {
         this.id = id;
@@ -145,6 +152,11 @@ public class Settlement {
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("Id", id);
+        if (mayorId != null) {
+            tag.putUUID("MayorId", mayorId);
+        }
+        tag.putLong("MayorSince", mayorSince);
+        tag.putLong("MourningUntil", mourningUntil);
         tag.putString("Name", name);
         tag.put("Center", NbtUtils.writeBlockPos(center));
         tag.putInt("Radius", radius);
@@ -192,6 +204,9 @@ public class Settlement {
         if (s.radius <= 0) {
             s.radius = DEFAULT_RADIUS;
         }
+        s.mayorId = tag.hasUUID("MayorId") ? tag.getUUID("MayorId") : null;
+        s.mayorSince = tag.getLong("MayorSince");
+        s.mourningUntil = tag.getLong("MourningUntil");
         s.recruitProgress = tag.getInt("RecruitProgress");
         s.recruitTarget = tag.getInt("RecruitTarget");
         s.alertUntilGameTime = tag.getLong("AlertUntil");

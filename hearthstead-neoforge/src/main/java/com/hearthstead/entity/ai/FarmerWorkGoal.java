@@ -494,6 +494,8 @@ public class FarmerWorkGoal extends Goal {
             return false;
         }
         settler.bag.removeItem(slot, 1);
+        // Job standard, point 8: a delivered crop is one unit of work.
+        settler.train(com.hearthstead.entity.Attribute.DEXTERITY, 1.0F);
         return true;
     }
 

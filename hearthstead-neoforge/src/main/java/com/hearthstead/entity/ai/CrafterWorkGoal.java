@@ -46,6 +46,7 @@ public class CrafterWorkGoal extends Goal {
     private Building bench;
     private int lookCooldown;
     private int ticksLeft;
+    private int workedTicks;
 
     public CrafterWorkGoal(SettlerEntity settler) {
         this.settler = settler;
@@ -103,6 +104,7 @@ public class CrafterWorkGoal extends Goal {
         settler.getNavigation().stop();
         settler.setActivity(Employment.motionOf(bench.type));
         ticksLeft = recipe.ticks();
+        workedTicks = 0;
     }
 
     @Override
@@ -117,6 +119,16 @@ public class CrafterWorkGoal extends Goal {
     public void tick() {
         if (!(settler.level() instanceof ServerLevel level)) {
             return;
+        }
+        // The sound rides the clip, not a timer of its own: one per loop of
+        // whatever motion this trade performs, so what you hear and what you
+        // see are the same action (job standard, point 6).
+        int period = Employment.soundPeriodOf(bench.type);
+        if (++workedTicks % period == 0) {
+            level.playSound(null, settler.blockPosition(),
+                Employment.soundOf(bench.type),
+                net.minecraft.sounds.SoundSource.NEUTRAL, 0.75F,
+                0.94F + settler.getRandom().nextFloat() * 0.12F);
         }
         if (--ticksLeft > 0) {
             return;

@@ -111,6 +111,7 @@ public final class Employment {
         TRADES.put(BuildingType.FLETCHER, Profession.FLETCHER);
         TRADES.put(BuildingType.WEAVER, Profession.WEAVER);
         TRADES.put(BuildingType.TANNERY, Profession.TANNER);
+        TRADES.put(BuildingType.MINE, Profession.MINER);
     }
 
     /**
@@ -127,6 +128,7 @@ public final class Employment {
             case COOK -> SettlerActivity.WORK_KNEAD;
             case BUTCHER, TANNER -> SettlerActivity.WORK_CLEAVE;
             case SMELTER -> SettlerActivity.WORK_STOKE;
+            case MINER -> SettlerActivity.WORK_MINE;
             case SMITH, MASON -> SettlerActivity.WORK_HAMMER;
             case SAWYER, CARPENTER -> SettlerActivity.WORK_SAW;
             case WEAVER, FLETCHER -> SettlerActivity.WORK_WEAVE;
@@ -134,10 +136,51 @@ public final class Employment {
         };
     }
 
+    /**
+     * The sound a trade's work makes.
+     *
+     * <p>Job standard, point 6: you should be able to tell what somebody is
+     * doing with your eyes shut. Each of these is a different physical story —
+     * metal ringing, air moving, a blade rasping — rather than one thud
+     * re-tuned, because subtle variations of the same noise smear into one
+     * noise at any distance.
+     */
+    public static net.minecraft.sounds.SoundEvent soundOf(BuildingType type) {
+        return switch (motionOf(type)) {
+            case WORK_HAMMER -> com.hearthstead.registry.ModSounds.ANVIL_RING.get();
+            case WORK_STOKE -> com.hearthstead.registry.ModSounds.BELLOWS_PUFF.get();
+            case WORK_SAW -> com.hearthstead.registry.ModSounds.SAW_STROKE.get();
+            case WORK_OVEN -> com.hearthstead.registry.ModSounds.OVEN_SLIDE.get();
+            case WORK_KNEAD -> com.hearthstead.registry.ModSounds.KNEAD_PRESS.get();
+            case WORK_CLEAVE -> com.hearthstead.registry.ModSounds.CLEAVER_CHOP.get();
+            case WORK_WEAVE -> com.hearthstead.registry.ModSounds.LOOM_CLACK.get();
+            case WORK_MINE -> com.hearthstead.registry.ModSounds.PICK_STRIKE.get();
+            default -> com.hearthstead.registry.ModSounds.KNEAD_PRESS.get();
+        };
+    }
+
+    /**
+     * How often that sound repeats, in ticks — the clip's own loop length, so
+     * the sound lands on the motion rather than on a timer of its own.
+     */
+    public static int soundPeriodOf(BuildingType type) {
+        return switch (motionOf(type)) {
+            case WORK_HAMMER -> 20;
+            case WORK_STOKE -> 28;
+            case WORK_SAW -> 22;
+            case WORK_OVEN -> 32;
+            case WORK_KNEAD -> 24;
+            case WORK_CLEAVE -> 17;
+            case WORK_WEAVE -> 18;
+            case WORK_MINE -> 19;
+            default -> 24;
+        };
+    }
+
     /** The attribute a trade's work trains, so doing the job makes you better at it. */
     public static Attribute trainedBy(BuildingType type) {
         return switch (tradeOf(type)) {
-            case SMITH, MASON, SMELTER, LUMBERER -> Attribute.STRENGTH;
+            case SMITH, MASON, SMELTER, LUMBERER, MINER -> Attribute.STRENGTH;
             case COURIER, GUARD -> Attribute.STAMINA;
             case BAKER, COOK, BUTCHER, TANNER, SAWYER, CARPENTER,
                  FLETCHER, WEAVER, FARMER -> Attribute.DEXTERITY;

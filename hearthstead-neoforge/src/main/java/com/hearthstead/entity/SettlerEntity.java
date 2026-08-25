@@ -185,6 +185,8 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState gatherState = new AnimationState();
     public final AnimationState ovenState = new AnimationState();
     public final AnimationState sowState = new AnimationState();
+    public final AnimationState mineState = new AnimationState();
+    public final AnimationState leapState = new AnimationState();
     public final AnimationState sortState = new AnimationState();
     public final AnimationState liftState = new AnimationState();
     public final AnimationState setDownState = new AnimationState();
@@ -236,6 +238,7 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(1, new OpenDoorGoal(this, true));
         goalSelector.addGoal(1, new SettlerPanicGoal(this));
         goalSelector.addGoal(2, new TravelerJoinGoal(this));
+        goalSelector.addGoal(2, new com.hearthstead.entity.ai.GuardLeapGoal(this));
         goalSelector.addGoal(2, new GuardMeleeGoal(this));
         goalSelector.addGoal(3, new GuardRespondToAlertGoal(this));
         goalSelector.addGoal(4, new EatFromHearthGoal(this));
@@ -245,6 +248,10 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(6, new LumbererWorkGoal(this));
         goalSelector.addGoal(6, new CourierWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.CrafterWorkGoal(this));
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.MinerWorkGoal(this));
+        // Lower than the delivery goal: tidying is what a courier does when
+        // there is nothing to fetch.
+        goalSelector.addGoal(7, new com.hearthstead.entity.ai.TidyWarehouseGoal(this));
         goalSelector.addGoal(6, new GuardPatrolGoal(this));
         goalSelector.addGoal(7, new ReturnToSettlementGoal(this));
         goalSelector.addGoal(8, new BoundedStrollGoal(this));
@@ -484,6 +491,11 @@ public class SettlerEntity extends PathfinderMob {
      * <p>Triggered at the moment the log comes down, not on a timer, so the
      * stoop always lands on a log that actually exists.
      */
+    /** A sergeant's leap. One-shot, expiring on its own clock. */
+    public void triggerLeapStrike() {
+        leapState.start(tickCount);
+    }
+
     public void triggerGatherLog() {
         if (!level().isClientSide) {
             setActivity(SettlerActivity.GATHERING_LOG);
@@ -535,7 +547,14 @@ public class SettlerEntity extends PathfinderMob {
      * counted.
      */
     public void train(Attribute attribute, float units) {
-        attributes().train(attribute, units, Trait.growth(traits()));
+        float boost = Trait.growth(traits());
+        // A clever mayor makes the whole settlement quicker to learn
+        // (Mayor.Boon.GOOD_COUNSEL) -- the one compounding thing a mayor does.
+        Settlement s = settlement();
+        if (s != null && level() instanceof ServerLevel serverLevel) {
+            boost *= com.hearthstead.settlement.Mayor.growth(serverLevel, s);
+        }
+        attributes().train(attribute, units, boost);
     }
 
     /** QUICK_STUDY buys its growth with a point off every attribute. */
@@ -589,10 +608,20 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_SAW
             || activity == SettlerActivity.WORK_WEAVE
             || activity == SettlerActivity.WORK_OVEN
-            || activity == SettlerActivity.WORK_SOW;
+            || activity == SettlerActivity.WORK_SOW
+            || activity == SettlerActivity.WORK_MINE;
 
         setHunger(getHunger()
             - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
+        // LONG_DAYS: a hardy mayor's settlement tires more slowly.
+        float drain = 1.0F;
+        Settlement mayorSeat = settlement();
+        if (mayorSeat != null && level() instanceof ServerLevel mayorLevel) {
+            drain = com.hearthstead.settlement.Mayor.energyDrain(mayorLevel, mayorSeat);
+        }
+        if (drain != 1.0F && getEnergy() < 100.0F) {
+            setEnergy(Math.min(100.0F, getEnergy() + (1.0F - drain) * 0.10F));
+        }
         if (activity == SettlerActivity.SLEEPING) {
             // A claimed bed must beat rough hearth-side rest, and a sleeper
             // that cannot regain energy can never satisfy RestAtNightGoal's
@@ -795,10 +824,20 @@ public class SettlerEntity extends PathfinderMob {
         fineWorkState.animateWhen(activity == SettlerActivity.WORK_WEAVE && !moving, tickCount);
         ovenState.animateWhen(activity == SettlerActivity.WORK_OVEN && !moving, tickCount);
         sowState.animateWhen(activity == SettlerActivity.WORK_SOW && !moving, tickCount);
+        mineState.animateWhen(activity == SettlerActivity.WORK_MINE && !moving, tickCount);
         // GATHER_LOG is a one-shot: triggered when a log actually comes down,
         // and expiring on its own clock like CELEBRATE does.
+        if (leapState.isStarted() && leapState.getAccumulatedTime() > 1350L) {
+            leapState.stop();
+        }
         if (gatherState.isStarted() && gatherState.getAccumulatedTime() > 1150L) {
             gatherState.stop();
+            // Hand the settler back to their goal. Without this the activity
+            // stays GATHERING_LOG for as long as nothing else happens to set
+            // it, and the lumberjack reads as frozen mid-stoop.
+            if (getActivity() == SettlerActivity.GATHERING_LOG) {
+                setActivity(SettlerActivity.IDLE);
+            }
         }
 
         // One-shots expire on their own clock.

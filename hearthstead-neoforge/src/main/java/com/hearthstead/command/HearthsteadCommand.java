@@ -21,6 +21,8 @@ public final class HearthsteadCommand {
             .then(Commands.literal("info").executes(ctx -> info(ctx.getSource())))
             .then(Commands.literal("recruit").requires(src -> src.hasPermission(2))
                 .executes(ctx -> recruit(ctx.getSource())))
+            .then(Commands.literal("mayor").requires(src -> src.hasPermission(2))
+                .executes(ctx -> mayor(ctx.getSource())))
             .then(Commands.literal("scan").requires(src -> src.hasPermission(2))
                 .then(Commands.argument("pos",
                         net.minecraft.commands.arguments.coordinates.BlockPosArgument.blockPos())
@@ -100,6 +102,48 @@ public final class HearthsteadCommand {
     }
 
     /** Re-surveys the plaque at a position — the admin/testing hook. */
+    /**
+     * Appoints the nearest settler as mayor.
+     *
+     * <p>A stopgap until the hearth screen carries the seat: the decision the
+     * player actually makes is <i>which person</i>, and this at least lets
+     * that decision be made and felt.
+     */
+    private static int mayor(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        com.hearthstead.settlement.Settlement s =
+            com.hearthstead.settlement.SettlementManager.at(level,
+                net.minecraft.core.BlockPos.containing(source.getPosition()));
+        if (s == null) {
+            source.sendFailure(Component.translatable("hearthstead.command.no_settlement"));
+            return 0;
+        }
+        com.hearthstead.entity.SettlerEntity nearest = null;
+        double best = Double.MAX_VALUE;
+        for (com.hearthstead.entity.SettlerEntity settler
+                : com.hearthstead.settlement.SettlementManager.loadedMembers(level, s)) {
+            double d = settler.position().distanceToSqr(source.getPosition());
+            if (d < best) {
+                best = d;
+                nearest = settler;
+            }
+        }
+        if (nearest == null) {
+            source.sendFailure(Component.translatable("hearthstead.mayor.refused.nobody"));
+            return 0;
+        }
+        Component refusal = com.hearthstead.settlement.Mayor.appoint(level, s, nearest);
+        if (refusal != null) {
+            source.sendFailure(refusal);
+            return 0;
+        }
+        com.hearthstead.entity.SettlerEntity appointed = nearest;
+        source.sendSuccess(() -> Component.translatable("hearthstead.mayor.appointed",
+            appointed.getSettlerName(),
+            com.hearthstead.settlement.Mayor.boonOf(appointed).displayName()), true);
+        return 1;
+    }
+
     private static int scan(CommandSourceStack source, net.minecraft.core.BlockPos pos) {
         ServerLevel level = source.getLevel();
         if (!(level.getBlockEntity(pos)

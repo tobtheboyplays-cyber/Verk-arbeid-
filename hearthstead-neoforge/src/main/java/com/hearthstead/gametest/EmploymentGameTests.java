@@ -64,7 +64,12 @@ public class EmploymentGameTests {
         // everyone else's alone.
         Settlement s = new Settlement(UUID.randomUUID(), "Testholm",
             helper.absolutePos(new BlockPos(8, 1, 8)));
-        s.radius = 24;
+        // Small on purpose. GameTest arenas sit close together and
+        // SettlementManager.at() resolves by radius, so a generous test
+        // settlement answers for its NEIGHBOUR's hearth -- which is how
+        // foundingSpawnsSettlers came to report "expected 3 initial
+        // settlers, got 1" while testing something else entirely.
+        s.radius = 6;
         data.settlements.put(s.id, s);
         data.setDirty();
         return s;
@@ -544,6 +549,138 @@ public class EmploymentGameTests {
         helper.assertTrue(smith.attribute(Attribute.DEXTERITY)
                 == smith.attributes().get(Attribute.DEXTERITY),
             "and must not quietly raise anything else");
+        helper.succeed();
+    }
+
+    // ------------------------------------------------------- starter pack ---
+
+    /** The miner cuts stone into the mine's own chests, and never into nothing. */
+    @GameTest(template = "empty16", timeoutTicks = 200)
+    public void aMinerNeverBreaksWhatItCannotStore(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building mine = building(helper, s, BuildingType.MINE, 4, 4);
+        SettlerEntity pick = settler(helper, s, "Berg", 4, 4);
+
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, mine, pick).ok(),
+            "a mine entrance must be able to take a miner");
+        helper.assertTrue(pick.getProfession() == Profession.MINER,
+            "hired into a mine, they mine");
+        helper.assertTrue(Employment.trainedBy(BuildingType.MINE) == Attribute.STRENGTH,
+            "mining is strength");
+        helper.assertTrue(Employment.motionOf(BuildingType.MINE)
+                == com.hearthstead.entity.SettlerActivity.WORK_MINE,
+            "and it has a motion of its own");
+        helper.succeed();
+    }
+
+    /**
+     * The courier's tidying only ever merges: same item, same total, fewer
+     * stacks. Item conservation holds even though the world was rearranged.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 300)
+    public void tidyingTheWarehouseConservesEverything(GameTestHelper helper) {
+        floor(helper, 16);
+        helper.setBlock(new BlockPos(4, 1, 4), Blocks.CHEST);
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
+        net.minecraft.world.Container a = (net.minecraft.world.Container)
+            helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(4, 1, 4)));
+        net.minecraft.world.Container b = (net.minecraft.world.Container)
+            helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
+        a.setItem(0, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.WHEAT, 9));
+        b.setItem(0, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.WHEAT, 3));
+        int before = count(a) + count(b);
+
+        Settlement s = settlement(helper);
+        Building warehouse = building(helper, s, BuildingType.WAREHOUSE, 4, 4);
+        SettlerEntity bud = settler(helper, s, "Bud", 4, 4);
+        Employment.hire(helper.getLevel(), s, warehouse, bud);
+        helper.getLevel().setDayTime(3000);
+
+        helper.succeedWhen(() -> {
+            int after = count(a) + count(b);
+            helper.assertTrue(after == before,
+                "tidying must conserve items: " + before + " -> " + after);
+            int stacks = (a.getItem(0).isEmpty() ? 0 : 1) + (b.getItem(0).isEmpty() ? 0 : 1);
+            helper.assertTrue(stacks == 1,
+                "two partial stacks of the same thing must end up as one, got "
+                    + stacks + " (a=" + a.getItem(0) + " b=" + b.getItem(0) + ")");
+        });
+    }
+
+    private static int count(net.minecraft.world.Container container) {
+        int total = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            total += container.getItem(slot).getCount();
+        }
+        return total;
+    }
+
+    // ------------------------------------------------------------- mayor ---
+
+    /**
+     * The mayor's boon comes from who they are, and losing one is a real blow.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200)
+    public void aMayorsDeathCostsTheWholeSettlement(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        SettlerEntity chief = settler(helper, s, "Ordforer", 4, 4);
+        SettlerEntity other = settler(helper, s, "Nabo", 5, 4);
+
+        helper.assertTrue(
+            com.hearthstead.settlement.Mayor.appoint(helper.getLevel(), s, chief) == null,
+            "appointing an ordinary settler must succeed");
+        helper.assertTrue(s.mayorId.equals(chief.getUUID()), "they hold the seat");
+        // The seat is filled but the boon has not arrived: settling in is the
+        // cost that stops swapping being a toggle.
+        helper.assertTrue(
+            com.hearthstead.settlement.Mayor.activeBoon(helper.getLevel(), s) == null,
+            "a brand new mayor's boon must not be in effect yet");
+        helper.assertTrue(
+            com.hearthstead.settlement.Mayor.boonOf(chief).from()
+                == chief.attributes().knack(),
+            "the boon follows the person's own knack");
+
+        float moraleBefore = other.getMorale();
+        com.hearthstead.settlement.Mayor.onDeath(helper.getLevel(), s, chief);
+
+        helper.assertTrue(s.mayorId == null, "a dead mayor vacates the seat");
+        helper.assertTrue(other.getMorale() < moraleBefore,
+            "every settler feels it: " + moraleBefore + " -> " + other.getMorale());
+        helper.assertTrue(
+            com.hearthstead.settlement.Mayor.mourning(helper.getLevel(), s),
+            "and the settlement mourns before it appoints anyone else");
+        helper.assertTrue(
+            com.hearthstead.settlement.Mayor.appoint(helper.getLevel(), s, other) != null,
+            "appointing during mourning must be refused, with a reason");
+        helper.succeed();
+    }
+
+    // ------------------------------------------------------- guard ranks ---
+
+    /** Rank is reached, not bought, and every ability has a threshold. */
+    @GameTest(template = "empty16", timeoutTicks = 200)
+    public void guardAbilitiesUnlockWithEarnedStrength(GameTestHelper helper) {
+        helper.assertTrue(com.hearthstead.entity.GuardRank.of(0)
+            == com.hearthstead.entity.GuardRank.RECRUIT, "nobody starts able");
+        helper.assertTrue(com.hearthstead.entity.GuardRank.of(19)
+            == com.hearthstead.entity.GuardRank.RECRUIT, "and 19 is not 20");
+        helper.assertTrue(com.hearthstead.entity.GuardRank.of(20)
+            == com.hearthstead.entity.GuardRank.SPEARMAN, "20 earns the first");
+        helper.assertTrue(com.hearthstead.entity.GuardRank.of(60)
+            == com.hearthstead.entity.GuardRank.SERGEANT, "60 earns the leap");
+        helper.assertFalse(com.hearthstead.entity.GuardRank.of(59)
+                .atLeast(com.hearthstead.entity.GuardRank.SERGEANT),
+            "and 59 does not");
+        helper.assertTrue(com.hearthstead.entity.GuardRank.of(999)
+            == com.hearthstead.entity.GuardRank.CAPTAIN, "the top is the top");
+        // Secondary targets must never take a full blow, or the area attack
+        // becomes the only attack worth making.
+        helper.assertTrue(com.hearthstead.entity.GuardRank.CLEAVE_SHARE < 1.0F,
+            "a cleave's second target takes less");
         helper.succeed();
     }
 }

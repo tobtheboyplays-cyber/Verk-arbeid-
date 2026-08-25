@@ -23,6 +23,28 @@ public final class ModSounds {
         register("chop");
     public static final DeferredHolder<SoundEvent, SoundEvent> GUARD_ALERT =
         register("guard_alert");
+
+    // Job standard, point 6: one distinct sound per work motion.
+    public static final DeferredHolder<SoundEvent, SoundEvent> LEAP_SLAM =
+        register("leap_slam");
+    public static final DeferredHolder<SoundEvent, SoundEvent> ARMOUR_CLINK =
+        register("armour_clink");
+    public static final DeferredHolder<SoundEvent, SoundEvent> PICK_STRIKE =
+        register("pick_strike");
+    public static final DeferredHolder<SoundEvent, SoundEvent> ANVIL_RING =
+        register("anvil_ring");
+    public static final DeferredHolder<SoundEvent, SoundEvent> BELLOWS_PUFF =
+        register("bellows_puff");
+    public static final DeferredHolder<SoundEvent, SoundEvent> SAW_STROKE =
+        register("saw_stroke");
+    public static final DeferredHolder<SoundEvent, SoundEvent> OVEN_SLIDE =
+        register("oven_slide");
+    public static final DeferredHolder<SoundEvent, SoundEvent> KNEAD_PRESS =
+        register("knead_press");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CLEAVER_CHOP =
+        register("cleaver_chop");
+    public static final DeferredHolder<SoundEvent, SoundEvent> LOOM_CLACK =
+        register("loom_clack");
     public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_HM =
         register("settler_hm");
 

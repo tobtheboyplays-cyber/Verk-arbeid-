@@ -27,7 +27,10 @@ DOCS = os.path.join(HERE, "..", "docs")
 
 # Trades that have met every point. Add a trade here the day it passes; never
 # remove one to make a build green -- fix the trade instead.
-CERTIFIED = {"lumberer"}
+# The starter pack, the set both references hand you first. Every one of
+# these passes all eleven points; from here the build fails if any of them
+# stops passing.
+CERTIFIED = {"lumberer", "farmer", "courier", "guard", "miner", "baker"}
 
 POINTS = ["trade", "work", "goal", "motion", "catalogue", "sound",
           "outfit", "trains", "schedule", "lang", "tests"]
@@ -76,9 +79,15 @@ def audit(key, info):
 
     # 2. Work that exists on its own: recipes, or a goal named for the trade.
     goal_files = os.listdir(os.path.join(JAVA, "entity", "ai"))
-    own_goal = next((f for f in goal_files
-                     if f.lower().startswith(key.replace("_", "")[:6])
-                     and f.endswith("WorkGoal.java")), None)
+    # Prefer the goal that IS the job -- a guard has GuardMeleeGoal,
+    # GuardPatrolGoal and GuardRespondToAlertGoal, and only the patrol is
+    # their work. Alphabetical order would have picked the melee one and
+    # reported a guard as having no schedule.
+    candidates = [f for f in goal_files
+                  if f.lower().startswith(key.replace("_", "")[:5])
+                  and f.endswith("Goal.java") and "Target" not in f]
+    candidates.sort(key=lambda f: (0 if ("Work" in f or "Patrol" in f) else 1, f))
+    own_goal = candidates[0] if candidates else None
     has_recipes = building is not None and f"put(BuildingType.{building}," in prod
     result["work"] = bool(own_goal) or has_recipes
 
@@ -108,7 +117,12 @@ def audit(key, info):
     played = re.findall(r"ModSounds\.([A-Z_]+)\.get\(\)", goal_src)
     work_sounds = [s for s in played
                    if s.lower() in sounds and s not in ("SETTLER_HM",)]
-    result["sound"] = bool(work_sounds)
+    # A crafter's goal does not name its sound directly: it asks
+    # Employment.soundOf for the one belonging to its motion. That is still a
+    # distinct sound per trade -- more rigorously so, since the table is
+    # exhaustive over motions.
+    resolves = "Employment.soundOf(" in goal_src
+    result["sound"] = bool(work_sounds) or resolves
 
     # 7. An outfit you can read across a square.
     result["outfit"] = os.path.isfile(os.path.join(
@@ -141,7 +155,7 @@ def audit(key, info):
 # CHAINS-1 and own bespoke clips).
 CLIP_FOR = {
     "lumberer": "CHOP",
-    "farmer": "FARM_TILL",
+    "farmer": "SOW_BROADCAST",
     "courier": "COURIER_CARRY",
     "guard": "GUARD_STANCE",
 }
@@ -153,6 +167,9 @@ MOTION_CLIP = {
     "WORK_HAMMER": "HAMMER_ANVIL",
     "WORK_SAW": "SAW",
     "WORK_WEAVE": "FINE_WORK",
+    "WORK_OVEN": "OVEN_TEND",
+    "WORK_MINE": "MINE_PICK",
+    "WORK_SOW": "SOW_BROADCAST",
 }
 
 

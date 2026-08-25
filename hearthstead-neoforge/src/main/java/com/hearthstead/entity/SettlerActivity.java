@@ -39,7 +39,8 @@ public enum SettlerActivity {
     // else does. Same wire-format rule -- append only.
     GATHERING_LOG("gathering_log"),
     WORK_OVEN("work_oven"),
-    WORK_SOW("work_sow");
+    WORK_SOW("work_sow"),
+    WORK_MINE("work_mine");
 
     public static final SettlerActivity[] BY_ID = values();
 

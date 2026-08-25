@@ -112,6 +112,9 @@ PROFESSION_OUTFITS = {
                       apron_wool="straw"),
     "tanner":    dict(headgear="bare", apron=True, apron_wool="leather",
                       bracers=True, bracer_wool="burgundy"),
+    # A starter trade: hood against falling grit, bracers against the rock.
+    "miner":     dict(headgear="hood", hood_wool="stone", bracers=True,
+                      bracer_wool="iron"),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed
