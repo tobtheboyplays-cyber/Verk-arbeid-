@@ -52,8 +52,12 @@ def seed_for(*parts):
     return value
 
 
-def build(captain):
+def build(captain, marked=False):
     img = new_image(64, 64)
+    # Unchanged from before "marked" existed: the marked variant reuses the
+    # captain's own woven noise verbatim (same rng seed) and only overlays a
+    # fixed, non-random band on top -- so raider.png and raider_captain.png
+    # stay byte-identical to the pre-Saga generator.
     rng = random.Random(seed_for("raider", captain))
     # The captain wears a helm whose brim shades the brow, so his face
     # needs a lighter base than the hooded grunt or it goes muddy.
@@ -61,7 +65,10 @@ def build(captain):
     cloth = ramp("charcoal")
     leather = ramp("leather")
     iron = ramp("iron")
-    accent = ramp("crimson" if captain else "ember")
+    # SAGA v1: a captain the settlement's roster has actually seen earn an
+    # epithet wears brass, not the plain captain's crimson -- a mark earned
+    # in the field, not handed out at generation (Captain#earnEpithetFrom).
+    accent = ramp("brass" if marked else ("crimson" if captain else "ember"))
     # Eyes are always amber, never the faction accent: crimson eyes on
     # tan skin have no contrast and simply vanish, while the same amber
     # that carries in a hood slit also carries under a helm brim.
@@ -159,14 +166,29 @@ def build(captain):
     x, y, fw, fh = faces["front"]
     for i in range(fw):
         put(img, x + i, y + fh - 1, lit(accent[2], "front"))
+
+    if marked:
+        # A proven leader's mark: a bright band across the pauldron rim, on
+        # every face so it reads from any angle -- distinct from the plain
+        # captain's iron trim without changing the silhouette RaiderModel
+        # already reads at a distance.
+        u, v, w, h, d = UV["pauldron"]
+        faces = box_faces(u, v, w, h, d)
+        for face, (x, y, fw, fh) in faces.items():
+            for i in range(fw):
+                put(img, x + i, y, lit(accent[4], face))
     return img
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    for captain in (False, True):
-        img = build(captain)
-        name = "raider_captain.png" if captain else "raider.png"
+    variants = (
+        (False, False, "raider.png"),
+        (True, False, "raider_captain.png"),
+        (True, True, "raider_captain_marked.png"),
+    )
+    for captain, marked, name in variants:
+        img = build(captain, marked)
         path = os.path.normpath(os.path.join(OUT, name))
         img.save(path)
         print("  wrote %s (%dx%d)" % (path, img.width, img.height))

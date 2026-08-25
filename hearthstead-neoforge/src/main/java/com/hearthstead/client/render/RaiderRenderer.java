@@ -19,6 +19,15 @@ public class RaiderRenderer extends MobRenderer<com.hearthstead.entity.RaiderEnt
         Hearthstead.id("textures/entity/raider/raider.png");
     private static final ResourceLocation CAPTAIN_TEXTURE =
         Hearthstead.id("textures/entity/raider/raider_captain.png");
+    /**
+     * SAGA v1: a captain the settlement's named roster has actually seen
+     * earn an epithet -- see {@code RaiderEntity#isSagaMarked}. Same rig,
+     * same silhouette, a brass mark in place of the plain captain's iron
+     * trim (tools/gen_raider.py), so growth is readable at a glance the
+     * same way the plain grunt/captain split already is.
+     */
+    private static final ResourceLocation CAPTAIN_MARKED_TEXTURE =
+        Hearthstead.id("textures/entity/raider/raider_captain_marked.png");
 
     public RaiderRenderer(EntityRendererProvider.Context context) {
         super(context, new RaiderModel(context.bakeLayer(RaiderModel.LAYER)), 0.4F);
@@ -41,6 +50,9 @@ public class RaiderRenderer extends MobRenderer<com.hearthstead.entity.RaiderEnt
 
     @Override
     public ResourceLocation getTextureLocation(com.hearthstead.entity.RaiderEntity entity) {
-        return entity.isCaptain() ? CAPTAIN_TEXTURE : TEXTURE;
+        if (!entity.isCaptain()) {
+            return TEXTURE;
+        }
+        return entity.isSagaMarked() ? CAPTAIN_MARKED_TEXTURE : CAPTAIN_TEXTURE;
     }
 }

@@ -81,6 +81,27 @@ public class Settlement {
     public final List<com.hearthstead.settlement.raid.RaidLogEntry> raidLog =
         new ArrayList<>();
 
+    /**
+     * SAGA v1 (DESIGN.md system 4): the settlement's named cast within the
+     * enemy gallery above -- up to {@link com.hearthstead.saga.CaptainRoster#MAX_ROSTER}
+     * of the {@link #raidCaptains} carry an earned identity here, keyed by
+     * the same id. Generated once, lazily, by
+     * {@link com.hearthstead.saga.CaptainRoster#ensureRoster}; never a
+     * second source of truth for menace, approach or the win/loss record,
+     * all of which stay on {@code RaidCaptain} untouched.
+     */
+    public final List<com.hearthstead.saga.Captain> sagaRoster = new ArrayList<>();
+    /**
+     * Set for one tick's worth of bookkeeping when the raider wearing the
+     * captain flag is personally killed mid-raid (see
+     * {@code RaiderEntity#die}), read and cleared by
+     * {@code RaidDirector#resolveIfOver} the same way {@link #raidLootEscaped}
+     * is -- so a captain's death is told apart from their band merely being
+     * driven off, which is what triggers Saga's lieutenant succession.
+     */
+    @javax.annotation.Nullable
+    public UUID raidCaptainSlainId;
+
     /** Average morale of currently loaded members, refreshed every second. */
     public int moraleCache = 60;
     /** Who speaks for the settlement. See {@link Mayor}. Null when leaderless. */
@@ -220,6 +241,14 @@ public class Settlement {
             raidLogList.add(e.writeNbt());
         }
         tag.put("RaidLog", raidLogList);
+        ListTag sagaRosterList = new ListTag();
+        for (com.hearthstead.saga.Captain c : sagaRoster) {
+            sagaRosterList.add(c.writeNbt());
+        }
+        tag.put("SagaRoster", sagaRosterList);
+        if (raidCaptainSlainId != null) {
+            tag.putUUID("RaidCaptainSlainId", raidCaptainSlainId);
+        }
         return tag;
     }
 
@@ -276,6 +305,16 @@ public class Settlement {
             s.pendingRaid = com.hearthstead.settlement.raid.RaidPlan
                 .readNbt(tag.getCompound("PendingRaid"));
         }
+        // New keys; absent on an older save defaults to an empty roster and
+        // no captain mid-death -- exactly right, an old save has no Saga
+        // identities yet and no raid mid-flight to have killed one in.
+        ListTag sagaRosterList = tag.getList("SagaRoster", Tag.TAG_COMPOUND);
+        for (int i = 0; i < sagaRosterList.size(); i++) {
+            s.sagaRoster.add(com.hearthstead.saga.Captain
+                .readNbt(sagaRosterList.getCompound(i)));
+        }
+        s.raidCaptainSlainId = tag.hasUUID("RaidCaptainSlainId")
+            ? tag.getUUID("RaidCaptainSlainId") : null;
         return s;
     }
 

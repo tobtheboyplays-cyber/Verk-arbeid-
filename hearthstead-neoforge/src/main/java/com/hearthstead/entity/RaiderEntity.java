@@ -57,12 +57,34 @@ public class RaiderEntity extends Monster {
     /** The telegraph: a scout at the treeline, not a raider assigned to a plan. */
     private static final EntityDataAccessor<Boolean> DATA_SCOUT =
         SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BOOLEAN);
+    /**
+     * SAGA v1: whether the captain leading this raid has earned an epithet
+     * yet (see {@code com.hearthstead.saga.Captain#hasEpithet}) -- a proven
+     * leader wears a visibly different mark than a captain nobody has a
+     * story about yet. Meaningless unless {@link #DATA_CAPTAIN} is also
+     * true.
+     */
+    private static final EntityDataAccessor<Boolean> DATA_SAGA_MARKED =
+        SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BOOLEAN);
 
     /** Health and damage a captain carries over an ordinary follower. */
     public static final float CAPTAIN_HEALTH_BONUS = 14.0F;
     public static final double CAPTAIN_DAMAGE_BONUS = 2.0;
     /** Ceiling on menace scaling, so a long feud cannot become unwinnable. */
     public static final float MAX_MENACE = 3.0F;
+
+    /**
+     * SAGA v1's own "modest, readable" marking, layered on top of the plain
+     * captain bonus above: a NAMED captain -- one the settlement's Saga
+     * roster actually tracks -- is a little stronger again, and grows with
+     * their own record. Deliberately small next to {@link #CAPTAIN_HEALTH_BONUS}:
+     * the point is a readable escalation across a long campaign, not a
+     * wall on raid one.
+     */
+    public static final float SAGA_CAPTAIN_HEALTH_BONUS = 8.0F; // +4 hearts
+    public static final float SAGA_CAPTAIN_SPEED_BONUS = 0.15F; // +15%
+    /** One heart per victory, same cap the task specifies. */
+    public static final int SAGA_VICTORY_HEART_CAP = 6;
 
     /** How much a raider can carry off. Theft is physical (INV: chest truth). */
     public static final int LOOT_SIZE = 6;
@@ -136,10 +158,16 @@ public class RaiderEntity extends Monster {
         builder.define(DATA_MENACE, 1.0F);
         builder.define(DATA_OBJECTIVE, (byte) RaidObjective.BLOD.ordinal());
         builder.define(DATA_SCOUT, false);
+        builder.define(DATA_SAGA_MARKED, false);
     }
 
     public boolean isCaptain() {
         return entityData.get(DATA_CAPTAIN);
+    }
+
+    /** Whether the captain leading this raid has earned an epithet yet. */
+    public boolean isSagaMarked() {
+        return entityData.get(DATA_SAGA_MARKED);
     }
 
     public boolean isScout() {
@@ -215,6 +243,38 @@ public class RaiderEntity extends Monster {
         getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(damage);
     }
 
+    /**
+     * SAGA v1: marks this raider as leading the raid under a name the
+     * settlement's Saga roster actually tracks, on top of the plain
+     * {@link #assign} above -- call only for {@code isCaptain} raiders, and
+     * only once a matching {@code com.hearthstead.saga.Captain} exists
+     * (see {@code CaptainRoster#find}). Everything here is readable: the
+     * name floats over the raider's head (D-A3-3, no hidden stats) and the
+     * strength it buys is exactly the captain's own earned record --
+     * {@code victories}, already capped by the caller's source, capped
+     * again here defensively.
+     */
+    public void markSagaCaptain(String displayName, int victories) {
+        setCustomName(net.minecraft.network.chat.Component.literal(displayName));
+        setCustomNameVisible(true);
+        int hearts = Mth.clamp(victories, 0, SAGA_VICTORY_HEART_CAP);
+        double health = getAttributeBaseValue(Attributes.MAX_HEALTH)
+            + SAGA_CAPTAIN_HEALTH_BONUS + hearts * 2.0;
+        getAttribute(Attributes.MAX_HEALTH).setBaseValue(health);
+        setHealth((float) health);
+        double speed = getAttributeBaseValue(Attributes.MOVEMENT_SPEED)
+            * (1.0 + SAGA_CAPTAIN_SPEED_BONUS);
+        getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(speed);
+    }
+
+    /** Overload for a captain who has earned an epithet -- see
+     * {@link #isSagaMarked()} and {@code RaiderRenderer}'s third texture
+     * tier. */
+    public void markSagaCaptain(String displayName, int victories, boolean earnedEpithet) {
+        markSagaCaptain(displayName, victories);
+        entityData.set(DATA_SAGA_MARKED, earnedEpithet);
+    }
+
     /** Raiders never turn on each other, however the melee goes. */
     @Override
     public boolean canAttack(LivingEntity target) {
@@ -245,6 +305,28 @@ public class RaiderEntity extends Monster {
     @Override
     public boolean removeWhenFarAway(double distance) {
         return false; // a raid that despawns is a raid that never happened
+    }
+
+    /**
+     * SAGA v1: tells the settlement its captain fell here, so
+     * {@code RaidDirector#recordAftermath} can retire them permanently and
+     * raise a lieutenant in their place -- the task's "a captain KILLED
+     * during a raid is dead permanently".
+     *
+     * <p>Deliberately NOT triggered by {@link com.hearthstead.entity.ai.RaiderLootGoal}'s
+     * successful withdrawal, which calls {@code discard()} directly rather
+     * than dying: an escaped captain is alive and richer for it, not slain.
+     */
+    @Override
+    public void die(net.minecraft.world.damagesource.DamageSource cause) {
+        super.die(cause);
+        if (isCaptain() && level() instanceof ServerLevel server) {
+            Settlement s = settlement();
+            if (s != null && s.pendingRaid != null && captainId != null) {
+                s.raidCaptainSlainId = captainId;
+                SettlementSavedData.get(server).setDirty();
+            }
+        }
     }
 
     /** Total items carried off. Zero means the raid took nothing. */
@@ -288,6 +370,7 @@ public class RaiderEntity extends Monster {
         tag.putFloat("Menace", menace());
         tag.putByte("Objective", (byte) objective().ordinal());
         tag.putBoolean("Scout", isScout());
+        tag.putBoolean("SagaMarked", isSagaMarked());
     }
 
     @Override
@@ -304,5 +387,8 @@ public class RaiderEntity extends Monster {
         // Absent on an older save (before scouts existed); default false is
         // exactly right -- an old raider was never a scout.
         entityData.set(DATA_SCOUT, tag.getBoolean("Scout"));
+        // Absent on an older save (before Saga existed); default false is
+        // exactly right -- an old captain never earned an epithet.
+        entityData.set(DATA_SAGA_MARKED, tag.getBoolean("SagaMarked"));
     }
 }

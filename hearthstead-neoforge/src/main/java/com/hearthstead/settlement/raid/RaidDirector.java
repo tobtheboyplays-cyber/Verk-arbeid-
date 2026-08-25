@@ -2,6 +2,8 @@ package com.hearthstead.settlement.raid;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.RaiderEntity;
+import com.hearthstead.saga.Captain;
+import com.hearthstead.saga.CaptainRoster;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
@@ -209,6 +211,16 @@ public final class RaidDirector {
             raider.assign(captain.id(), settlement.id, plan.objective(),
                 captain.menace(), isCaptain);
             raider.setObjectivePos(settlement.center);
+            if (isCaptain) {
+                // SAGA v1: a "wild" captain outside the tracked three (see
+                // CaptainRoster.MAX_ROSTER) leads exactly as before -- no
+                // name, no extra bonus -- so this is purely additive.
+                Captain saga = CaptainRoster.find(settlement, captain.id());
+                if (saga != null) {
+                    raider.markSagaCaptain(saga.displayName(),
+                        captain.victories(), saga.hasEpithet());
+                }
+            }
             level.addFreshEntity(raider);
             spawned.add(raider);
         }
@@ -331,9 +343,16 @@ public final class RaidDirector {
                 captain.recordDefeat();
             }
         }
+        // SAGA v1: told apart from the band merely being driven off -- set
+        // by RaiderEntity#die on the specific raider wearing the captain
+        // flag, so a captain who fought and died reads differently from one
+        // whose followers simply scattered.
+        boolean captainSlain = captain != null
+            && captain.id().equals(settlement.raidCaptainSlainId);
         settlement.pendingRaid = null;
         settlement.raidLootEscaped = false;
-        recordAftermath(level, settlement, plan, captain, !lost);
+        settlement.raidCaptainSlainId = null; // reset so tomorrow starts honest
+        recordAftermath(level, settlement, plan, captain, !lost, captainSlain);
         SettlementSavedData.get(level).setDirty();
         Hearthstead.LOGGER.info(
             "Raid on {} is over -- {} {} (pressure now {}, stage {})",
@@ -356,10 +375,20 @@ public final class RaidDirector {
      * one raid, accumulated live as it happened ({@code RaiderLootGoal}'s
      * successful withdrawal, {@code RaiderEntity#doHurtTarget}), never a
      * running lifetime total.
+     *
+     * <p>SAGA v1 rides along here too: {@link CaptainRoster#recordRaidOutcome}
+     * resolves the name this raid is remembered under (an earned Saga
+     * display name where one exists, the bare {@code RaidCaptain} name
+     * otherwise), succeeds a slain captain with a lieutenant, and grants an
+     * earned/upgraded epithet for a raid that got away with the goods --
+     * all of it before the log entry and report below are built, so both
+     * read the outcome honestly.
      */
     private static void recordAftermath(ServerLevel level, Settlement settlement,
-                                        RaidPlan plan, RaidCaptain captain, boolean held) {
-        String captainName = captain == null ? "?" : captain.name();
+                                        RaidPlan plan, RaidCaptain captain, boolean held,
+                                        boolean captainSlain) {
+        String captainName = CaptainRoster.recordRaidOutcome(level, settlement, captain,
+            plan.objective(), held, captainSlain, level.getRandom());
         String stageAfter = settlement.raidPressure.stage().id();
         RaidLogEntry entry = new RaidLogEntry(plan.night(), captainName,
             plan.objective().id(), held, settlement.raidItemsStolenTonight,
@@ -434,6 +463,11 @@ public final class RaidDirector {
         if (!raidsPossibleAt(level.getDifficulty())) {
             return; // peaceful: no raiders can exist, so no pressure either
         }
+        // SAGA v1: the named cast exists once there is any raid pressure to
+        // speak of (CaptainRoster gates on worthRaiding itself). Cheap and
+        // idempotent -- see CaptainRoster#ensureRoster -- and must run
+        // before planRaid below ever picks a captain to lead tonight.
+        CaptainRoster.ensureRoster(settlement, level.getRandom());
         if (settlement.pendingRaid != null) {
             // A raid is on. Resolve it before considering another night --
             // "deliveries that silently never happen" applied to raids would
@@ -467,8 +501,19 @@ public final class RaidDirector {
         if (raid) {
             RaidPlan plan = planRaid(level, settlement, night);
             settlement.pendingRaid = plan;
-            spawnBand(level, settlement, plan);
+            java.util.List<RaiderEntity> spawned = spawnBand(level, settlement, plan);
             RaidCaptain captain = captainOf(settlement, plan.captainId());
+            // SAGA v1 (the task's "raids are led"): the same night the band
+            // actually arrives, name who is leading it -- readable up front,
+            // not only in the morning report. Skipped if nothing actually
+            // spawned (bad footing on every bearing): a raid nobody can see
+            // must not be announced as led by anyone.
+            if (!spawned.isEmpty() && captain != null) {
+                Captain saga = CaptainRoster.find(settlement, captain.id());
+                String leaderName = saga != null ? saga.displayName() : captain.name();
+                RaidBroadcast.send(level, settlement, Component.translatable(
+                    "hearthstead.message.raid_captain_leads", leaderName, settlement.name));
+            }
             // Logged rather than silently dropped, so "the schedule fired
             // and nothing happened" is visible in evidence instead of
             // looking like the roll never ran.
