@@ -224,5 +224,11 @@
   "hearthstead.requirement.anvil": "Anvil %s/%s",
   "hearthstead.requirement.smithing_table": "Smithing bench %s/%s",
   "hearthstead.requirement.loom": "Loom %s/%s",
-  "hearthstead.requirement.stall": "Stalls %s/%s"
+  "hearthstead.requirement.stall": "Stalls %s/%s",
+  "hearthstead.building.tannery": "Tannery",
+  "hearthstead.building.fletcher": "Fletcher",
+  "hearthstead.building.armoury": "Armoury",
+  "hearthstead.building.mason": "Mason's Yard",
+  "hearthstead.building.library": "Library",
+  "hearthstead.requirement.dressed_stone": "Dressed stone %s/%s"
 }

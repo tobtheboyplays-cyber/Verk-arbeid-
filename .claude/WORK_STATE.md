@@ -52,9 +52,9 @@ lines — one strong under the title, fainter between rows — via
 predicate the screen and the sheet share. No working/not-working line — the
 owner asked, then withdrew it: the lamp already says it.
 
-**THE FULL ROSTER IS IN** — 28 building types, each with its emblem,
+**THE FULL ROSTER IS IN** — **33** building types, each with its emblem,
 requirements built from the vanilla block that station actually is, and its
-name in en + nb.
+name in en + nb. No profession works in the new ones yet; that is CHAINS-1.
 
 **Next: step 5** — the right-click screen rebuilt to match the mockup (full
 requirement list, READY TO BUILD). Then the six intermediate items, then
@@ -67,10 +67,23 @@ professions, one chain at a time, each standalone-useful first.
   a smithy forges from metal alone and repairs with no inputs. Every future
   profession must have work the moment its room registers.
 - **D-008 — six real intermediate items** (flour, cured meat, meals, ale,
-  cloth, tool hafts), vanilla items everywhere vanilla has one. Chosen by the
-  owner from three options. Keeps chest truth for the interesting part.
-- Chains and per-building standalone functions:
-  `docs/project/PLAN_PRODUCTION_CHAINS.md`.
+  cloth, tool hafts), vanilla items everywhere vanilla has one. **The art for
+  them was drawn and thrown away** — the owner judged it bad and said to come
+  back to it. The decision stands; the sprites do not exist.
+- **D-009 — crafters own a MATERIAL DOMAIN, recipes are never taught.**
+  MineColonies' best idea (you never wonder who makes a thing, you look at what
+  it is made of) without the teaching screen that would leave a new building
+  inert.
+- **D-010 — levels gate professions WITHIN a building, never between them.**
+  The owner chose the full MineColonies progression shape knowing it bumps
+  against D-007. Resolved on one line: **a building never waits on another
+  BUILDING; it may wait on ITSELF.** Every level-1 building does its primary
+  job. The reversal condition is written into D-010 and it is a play test.
+- Chains, per-building work and outputs:
+  `docs/project/PLAN_WORK_AND_CHAINS.md` (MineColonies-derived, owner-picked
+  chains: food, tools, weapons+armour, drink+recruiting, stone+repair,
+  knowledge+care; cloth/warmth deferred until seasons exist).
+  `docs/project/PLAN_PRODUCTION_CHAINS.md` holds the standalone-function table.
 
 **KF-015 is OPEN** — a raid can resolve as repelled while raiders live in
 unloaded chunks. Design question, recorded not patched.

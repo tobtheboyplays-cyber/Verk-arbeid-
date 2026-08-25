@@ -210,3 +210,51 @@ nobody can see moving.
 **Affects.** `ModItems`, the asset pipeline (six new item sprites),
 `WarehouseStorage`, courier routing, and every chain in
 `PLAN_PRODUCTION_CHAINS.md`.
+
+---
+
+## D-009 — Crafters own a material domain; recipes are never taught
+
+**Decision.** Each work building owns a **material domain**, and its worker can
+make anything in that domain the settlement has inputs for. The Sawmill owns
+"anything made only of planks, logs or sticks". The Stonemason owns the stone
+family. The Smithy owns metal tools; the Armoury owns worn metal and leather.
+There is no teach-a-recipe step.
+
+**Reason.** Owner's choice, 2026-08-25, taking MineColonies' best idea — you
+never wonder who makes a thing, you look at what it is made of — without the
+cost that comes with it. It also keeps D-007 true: a building is useful the
+hour it opens rather than after the player has taught it something.
+
+**Rejected.** MineColonies' teaching system, which lets one blacksmith be a
+tool shop and another an armourer. Real control, but it needs a teaching screen
+and leaves a new building inert.
+
+**Affects.** Every work building's behaviour, the request system, and the
+Tingbok's "who can make this?" answer.
+
+---
+
+## D-010 — Levels gate professions WITHIN a building, never between buildings
+
+**Decision.** Buildings have levels, and a level admits additional professions
+to that room — a level-3 smithy can seat an armourer beside the smith. **Every
+building at level 1 has its primary worker and does its primary job.** No
+building ever waits on a different building's level.
+
+**Reason.** Owner's choice, 2026-08-25, of the full MineColonies progression
+shape. The gate was flagged as being what D-007 was written against, and the
+choice was made with that flagged.
+
+**How it lives with D-007.** On one line: **a building never waits on another
+BUILDING; it may wait on ITSELF.** D-007 is untouched for cross-building
+dependencies — a bakery bakes with no mill in the world. A level is a decision
+about where to invest inside one room.
+
+**Reversal condition, written down now so it is not argued later.** If levels
+read as a wall rather than a choice in play — a player stuck rather than
+choosing — **D-007 wins and levels stop gating**, keeping only capacity and
+speed. That is the test, and it is a play test, not an argument.
+
+**Affects.** `Building.level`, the plaque's sheet and screen, profession
+assignment, and the upgrade path the architect sells.

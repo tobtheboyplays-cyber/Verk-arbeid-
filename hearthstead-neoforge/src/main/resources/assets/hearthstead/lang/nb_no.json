@@ -224,5 +224,11 @@
   "hearthstead.requirement.anvil": "Ambolt %s/%s",
   "hearthstead.requirement.smithing_table": "Smibenk %s/%s",
   "hearthstead.requirement.loom": "Vevstol %s/%s",
-  "hearthstead.requirement.stall": "Boder %s/%s"
+  "hearthstead.requirement.stall": "Boder %s/%s",
+  "hearthstead.building.tannery": "Garveri",
+  "hearthstead.building.fletcher": "Pilmaker",
+  "hearthstead.building.armoury": "Rustkammer",
+  "hearthstead.building.mason": "Steinhoggeri",
+  "hearthstead.building.library": "Bibliotek",
+  "hearthstead.requirement.dressed_stone": "Hugget stein %s/%s"
 }
