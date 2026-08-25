@@ -4,12 +4,24 @@ import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.saga.Captain;
 import com.hearthstead.saga.CaptainRoster;
+import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderGetter;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.BaseFireBlock;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.Difficulty;
 import net.minecraft.util.RandomSource;
@@ -21,13 +33,19 @@ import net.minecraft.util.RandomSource;
  * which takes its roll as a parameter and is therefore exactly testable.
  * This class only decides <em>when</em> to ask.
  *
- * <p><b>Step 1 scope, stated plainly.</b> The schedule is live — pressure
- * really does evolve night by night in a running world, and the stage is
- * readable through {@code /hearthstead info}. Nothing is spawned yet: when
- * the roll says "tonight", that is logged and the pressure state records
- * it, and the faction, captain and objective land in step 2. This class
- * exists now rather than later so the schedule is not dead code sitting
- * beside a model nothing calls.
+ * <p><b>Scope, stated plainly (updated for SLICE REPAIR-1).</b> The
+ * schedule is live, bands really spawn ({@link #spawnBand}) and raids
+ * really resolve ({@link #resolveIfOver}). The aftermath the design calls
+ * "repair dugnad + defense report" (DESIGN.md system 5) now has both
+ * halves: the report is {@link #recordAftermath}, and the repair is the
+ * <b>scar ledger</b> kept here — every block a raid destroys is recorded
+ * as a {@link Scar} (position + the original {@link BlockState}) in
+ * {@link RaidScars}, bounded per raid and persisted with the world, and
+ * {@code com.hearthstead.entity.ai.RepairWorkGoal} works that queue down
+ * once the raid is over. {@link #recordScar} is the single authorized
+ * channel: any future raider-side destruction (gate breaching, spreading
+ * fire observed by an entity goal) must record through it BEFORE the block
+ * changes, so the original state is never lost.
  */
 public final class RaidDirector {
 
@@ -58,6 +76,27 @@ public final class RaidDirector {
      * a settlement remembers its history, not an unbounded diary.
      */
     public static final int MAX_RAID_LOG = 8;
+
+    /**
+     * SLICE REPAIR-1: how many scars one settlement's ledger holds. The cap
+     * is per settlement and enforced on every recording (oldest dropped),
+     * the same bounding discipline as {@link #MAX_RAID_LOG} and the enemy
+     * gallery — a settlement remembers its wounds, not an unbounded diary,
+     * and the repair dugnad's queue can never grow without limit.
+     */
+    public static final int MAX_SCARS_PER_RAID = 64;
+    /**
+     * Blocks the director itself will torch in one BRANN raid. Deliberately
+     * far under {@link #MAX_SCARS_PER_RAID}: arson damage should read as a
+     * handful of burnt wall blocks the dugnad visibly fixes the next
+     * morning, not a levelled district. One torching per settlement tick
+     * (once a second) at most, so the burning is watchable, not a flash.
+     */
+    public static final int ARSON_PER_RAID = 8;
+    /** How close a raider must stand to a building's bounds to torch it. */
+    public static final int ARSON_REACH = 4;
+    /** Random positions sampled inside a building per torching attempt. */
+    public static final int ARSON_SITE_TRIES = 8;
 
     /** Band size bounds. A raid is a band with a leader, never a horde. */
     public static final int MIN_BAND = 2;
@@ -352,6 +391,12 @@ public final class RaidDirector {
         settlement.pendingRaid = null;
         settlement.raidLootEscaped = false;
         settlement.raidCaptainSlainId = null; // reset so tomorrow starts honest
+        // SLICE REPAIR-1: the arson budget describes exactly one raid, like
+        // the stolen/hurt tallies below it -- reset when the raid closes.
+        // The SCARS themselves are deliberately NOT reset: they are the
+        // repair dugnad's work queue, and they outlive the raid until a
+        // settler actually fixes them (RepairWorkGoal).
+        RaidScars.get(level).resetArson(settlement.id);
         recordAftermath(level, settlement, plan, captain, !lost, captainSlain);
         SettlementSavedData.get(level).setDirty();
         Hearthstead.LOGGER.info(
@@ -360,6 +405,15 @@ public final class RaidDirector {
             lost ? "got away with the stores" : "was driven off",
             settlement.raidPressure.pressure(),
             settlement.raidPressure.stage().id());
+        int scarCount = RaidScars.get(level).scarsOf(settlement.id).size();
+        if (scarCount > 0) {
+            // Logged rather than silent, same doctrine as the roll below:
+            // "the raid burnt things and nobody ever repaired them" must be
+            // findable in evidence, not deduced from a hole in the world.
+            Hearthstead.LOGGER.info(
+                "{} scar(s) left on {} -- the repair dugnad has work",
+                scarCount, settlement.name);
+        }
         return true;
     }
 
@@ -369,7 +423,10 @@ public final class RaidDirector {
      * who was hurt, and what the threat reads as now, both logged on the
      * settlement (a capped history, {@link #MAX_RAID_LOG}) and read out to
      * every nearby player, the same morning the raid actually ended rather
-     * than only ever visible through {@code /hearthstead info}.
+     * than only ever visible through {@code /hearthstead info}. The repair
+     * half is no longer missing: the block damage this raid recorded into
+     * {@link RaidScars} stays behind as the dugnad's work queue, and
+     * {@code RepairWorkGoal} restores it block by block (SLICE REPAIR-1).
      *
      * <p>The tallies are read here and reset here: they describe exactly
      * one raid, accumulated live as it happened ({@code RaiderLootGoal}'s
@@ -472,7 +529,19 @@ public final class RaidDirector {
             // A raid is on. Resolve it before considering another night --
             // "deliveries that silently never happen" applied to raids would
             // be a raid that is scheduled forever and never concludes.
-            resolveIfOver(level, settlement);
+            RaidPlan plan = settlement.pendingRaid;
+            java.util.List<RaiderEntity> living = livingRaidersOf(level, settlement);
+            if (living.isEmpty()) {
+                // resolveIfOver re-queries once on this closing tick; the
+                // cost of one duplicate bounded box query, paid once per
+                // raid, buys keeping its public contract untouched.
+                resolveIfOver(level, settlement);
+                return;
+            }
+            // SLICE REPAIR-1: while the band is actually here, a BRANN raid
+            // burns -- the director's own arson, recorded scar-first so the
+            // repair dugnad knows exactly what stood there.
+            tickArson(level, settlement, plan, living);
             return;
         }
         // Before tonight's own roll: the telegraph. Checked every tick like
@@ -525,6 +594,288 @@ public final class RaidDirector {
                 plan.objective().id(), Math.round(plan.approachDegrees()),
                 pressure.pressure(), pressure.stage().id(),
                 captain == null ? "?" : captain.menace());
+        }
+    }
+
+    // ------------------------------------------------ the scar ledger ---
+    //
+    // SLICE REPAIR-1. The other half of "repair dugnad + defense report"
+    // (DESIGN.md system 5): every block a raid destroys is recorded HERE,
+    // position plus the exact original BlockState, before the block
+    // changes. Settlers never construct buildings autonomously (permanent
+    // invariant) -- a scar is what makes their repair work honest, because
+    // restoring a recorded state is provably repair and can never be
+    // construction of something that was not there.
+
+    /**
+     * Records one block a raid is about to destroy. The single authorized
+     * channel: anything that breaks or burns settlement blocks on a raid's
+     * behalf -- today the director's own arson ({@link #tickArson}),
+     * tomorrow any raider-entity breach goal -- must call this BEFORE the
+     * block changes, so the original state is captured rather than the
+     * wreckage.
+     *
+     * <p>Bounded ({@link #MAX_SCARS_PER_RAID}, oldest dropped) and
+     * idempotent per position: the FIRST recording at a position wins,
+     * because only the first saw the true original -- a second hit on the
+     * same spot is destroying wreckage, not architecture.
+     */
+    public static void recordScar(ServerLevel level, java.util.UUID settlementId,
+                                  BlockPos pos, BlockState original) {
+        if (original.isAir()) {
+            return; // air is not a wound
+        }
+        RaidScars book = RaidScars.get(level);
+        java.util.List<Scar> list = book.of(settlementId);
+        for (Scar scar : list) {
+            if (scar.pos().equals(pos)) {
+                return; // first recording holds the true original
+            }
+        }
+        list.add(new Scar(pos.immutable(), original));
+        while (list.size() > MAX_SCARS_PER_RAID) {
+            list.remove(0); // the oldest wound fades first, like the log
+        }
+        book.setDirty();
+    }
+
+    /** A read-only snapshot of a settlement's open scars, oldest first. */
+    public static java.util.List<Scar> scarsOf(ServerLevel level,
+                                               java.util.UUID settlementId) {
+        return RaidScars.get(level).scarsOf(settlementId);
+    }
+
+    /** Whether a scar is still open at this exact position. */
+    public static boolean hasScarAt(ServerLevel level, java.util.UUID settlementId,
+                                    BlockPos pos) {
+        for (Scar scar : RaidScars.get(level).of(settlementId)) {
+            if (scar.pos().equals(pos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Closes one scar -- called by the repair goal the moment the original
+     * block stands again (or the scar is found obsolete: already healed, or
+     * built over by the player, whose work a repair must never overwrite).
+     *
+     * @return whether a scar was actually open there
+     */
+    public static boolean clearScar(ServerLevel level, java.util.UUID settlementId,
+                                    BlockPos pos) {
+        RaidScars book = RaidScars.get(level);
+        boolean removed = book.of(settlementId).removeIf(s -> s.pos().equals(pos));
+        if (removed) {
+            book.setDirty();
+        }
+        return removed;
+    }
+
+    /**
+     * The director's own arson: one torched block per settlement tick while
+     * a BRANN band is standing at a building, hard-capped per raid
+     * ({@link #ARSON_PER_RAID}). The scar is recorded FIRST, then the block
+     * becomes fire (vanilla burns it out or spreads it from there), so the
+     * dugnad always knows what stood in the hole.
+     *
+     * <p>Bounded like every scan in this mod: raiders are the (already
+     * fetched, band-capped) living list, buildings are the settlement's own
+     * bounded list, and the site search samples at most
+     * {@link #ARSON_SITE_TRIES} positions. Blocks with block entities are
+     * never torched -- burning a chest would void its items (INV: items are
+     * conserved), and burning the plaque would erase the building's
+     * identity rather than wound its body.
+     */
+    private static void tickArson(ServerLevel level, Settlement settlement,
+                                  RaidPlan plan, java.util.List<RaiderEntity> living) {
+        if (plan.objective() != RaidObjective.BRANN) {
+            return; // only arson raids burn; a granary raid steals instead
+        }
+        RaidScars book = RaidScars.get(level);
+        if (book.arsonThisRaid(settlement.id) >= ARSON_PER_RAID) {
+            return;
+        }
+        RandomSource random = level.getRandom();
+        for (RaiderEntity raider : living) {
+            for (Building building : settlement.buildings) {
+                if (!building.valid || building.bounds == null) {
+                    continue;
+                }
+                if (!building.bounds.inflatedBy(ARSON_REACH)
+                        .isInside(raider.blockPosition())) {
+                    continue; // torches are lit at the wall, not from afar
+                }
+                BlockPos site = arsonSite(level, building, random);
+                if (site == null) {
+                    continue;
+                }
+                BlockState original = level.getBlockState(site);
+                recordScar(level, settlement.id, site, original);
+                level.setBlock(site, BaseFireBlock.getState(level, site), 3);
+                book.countArson(settlement.id);
+                Hearthstead.LOGGER.info(
+                    "Raiders torch {} at {} in {} ({} of {} torchings this raid)",
+                    original.getBlock().getName().getString(), site,
+                    settlement.name, book.arsonThisRaid(settlement.id),
+                    ARSON_PER_RAID);
+                return; // one torching per settlement tick: watchable, not a flash
+            }
+        }
+    }
+
+    /**
+     * A block of this building worth burning, or null. Random samples
+     * inside the (room-scan-capped) bounds; a candidate must be a real,
+     * item-yielding block with no block entity -- see {@link #tickArson}
+     * for why chests, beds and the plaque are categorically off the menu.
+     */
+    private static BlockPos arsonSite(ServerLevel level, Building building,
+                                      RandomSource random) {
+        var b = building.bounds;
+        for (int attempt = 0; attempt < ARSON_SITE_TRIES; attempt++) {
+            BlockPos pos = new BlockPos(
+                b.minX() + random.nextInt(b.getXSpan()),
+                b.minY() + random.nextInt(b.getYSpan()),
+                b.minZ() + random.nextInt(b.getZSpan()));
+            BlockState state = level.getBlockState(pos);
+            if (state.isAir()
+                || state.getBlock().asItem() == net.minecraft.world.item.Items.AIR
+                || level.getBlockEntity(pos) != null) {
+                continue;
+            }
+            return pos;
+        }
+        return null;
+    }
+
+    /**
+     * One block a raid destroyed: where, and exactly what stood there.
+     * Plain data with the same writeNbt/readNbt shape as
+     * {@link RaidLogEntry} -- the repair goal restores {@link #original}
+     * verbatim, properties and all, which is what makes repair repair.
+     */
+    public record Scar(BlockPos pos, BlockState original) {
+
+        public CompoundTag writeNbt() {
+            CompoundTag tag = new CompoundTag();
+            tag.put("Pos", NbtUtils.writeBlockPos(pos));
+            tag.put("Original", NbtUtils.writeBlockState(original));
+            return tag;
+        }
+
+        public static Scar readNbt(HolderGetter<Block> blocks, CompoundTag tag) {
+            return new Scar(NbtUtils.readBlockPos(tag, "Pos").orElse(BlockPos.ZERO),
+                NbtUtils.readBlockState(blocks, tag.getCompound("Original")));
+        }
+    }
+
+    /**
+     * The scar ledger itself: per-settlement open scars plus the current
+     * raid's arson budget, persisted with the world exactly the way
+     * {@link SettlementSavedData} is (same Factory/get/load/save shape,
+     * its own {@code .dat}). Lives here rather than on {@link Settlement}
+     * so raid damage bookkeeping stays raid-owned -- the settlement record
+     * never becomes a second place raid state is written.
+     *
+     * <p>Both halves must persist: a pending raid survives a save/reload
+     * ({@link RaidPlan}'s own doc), so the arson budget must survive with
+     * it or a reload mid-raid would hand the band a fresh torch allowance.
+     */
+    public static final class RaidScars extends SavedData {
+        private static final String DATA_NAME = "hearthstead_raid_scars";
+
+        private static final Factory<RaidScars> FACTORY =
+            new Factory<>(RaidScars::new, RaidScars::load, null);
+
+        private final java.util.Map<java.util.UUID, java.util.List<Scar>> scars =
+            new java.util.HashMap<>();
+        private final java.util.Map<java.util.UUID, Integer> arson =
+            new java.util.HashMap<>();
+
+        public static RaidScars get(ServerLevel level) {
+            return level.getDataStorage().computeIfAbsent(FACTORY, DATA_NAME);
+        }
+
+        public RaidScars() {
+        }
+
+        /** The live, mutable list -- internal; callers go through the statics. */
+        private java.util.List<Scar> of(java.util.UUID settlementId) {
+            return scars.computeIfAbsent(settlementId,
+                id -> new java.util.ArrayList<>());
+        }
+
+        /** Read-only snapshot, oldest first. Public for the GameTests. */
+        public java.util.List<Scar> scarsOf(java.util.UUID settlementId) {
+            return java.util.List.copyOf(of(settlementId));
+        }
+
+        int arsonThisRaid(java.util.UUID settlementId) {
+            return arson.getOrDefault(settlementId, 0);
+        }
+
+        void countArson(java.util.UUID settlementId) {
+            arson.merge(settlementId, 1, Integer::sum);
+            setDirty();
+        }
+
+        void resetArson(java.util.UUID settlementId) {
+            if (arson.remove(settlementId) != null) {
+                setDirty();
+            }
+        }
+
+        public static RaidScars load(CompoundTag tag,
+                                     HolderLookup.Provider registries) {
+            RaidScars data = new RaidScars();
+            HolderGetter<Block> blocks = registries.lookupOrThrow(Registries.BLOCK);
+            ListTag list = tag.getList("Settlements", Tag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag st = list.getCompound(i);
+                java.util.UUID id = st.getUUID("Id");
+                if (st.contains("ArsonThisRaid")) {
+                    data.arson.put(id, st.getInt("ArsonThisRaid"));
+                }
+                ListTag scarList = st.getList("Scars", Tag.TAG_COMPOUND);
+                java.util.List<Scar> out = data.of(id);
+                for (int j = 0; j < scarList.size(); j++) {
+                    Scar scar = Scar.readNbt(blocks, scarList.getCompound(j));
+                    // A removed mod's block reads back as air; an air scar
+                    // is unrepairable and unrecordable, so it is dropped on
+                    // load rather than left to jam the queue forever.
+                    if (!scar.original().isAir()) {
+                        out.add(scar);
+                    }
+                }
+            }
+            return data;
+        }
+
+        @Override
+        public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {
+            ListTag list = new ListTag();
+            for (var entry : scars.entrySet()) {
+                java.util.List<Scar> settlementScars = entry.getValue();
+                int arsonCount = arson.getOrDefault(entry.getKey(), 0);
+                if (settlementScars.isEmpty() && arsonCount == 0) {
+                    continue; // fully healed settlements leave no residue
+                }
+                CompoundTag st = new CompoundTag();
+                st.putUUID("Id", entry.getKey());
+                if (arsonCount > 0) {
+                    st.putInt("ArsonThisRaid", arsonCount);
+                }
+                ListTag scarList = new ListTag();
+                for (Scar scar : settlementScars) {
+                    scarList.add(scar.writeNbt());
+                }
+                st.put("Scars", scarList);
+                list.add(st);
+            }
+            tag.put("Settlements", list);
+            return tag;
         }
     }
 }
