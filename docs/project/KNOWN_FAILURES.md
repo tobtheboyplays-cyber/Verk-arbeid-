@@ -769,3 +769,45 @@ have introduced exactly this failure rather than diagnosed it.
 with a night value. If a test genuinely needs night, put it in the
 `night` batch; if it only needs the *arithmetic* of time, test the pure
 function.
+
+### Third occurrence — with diagnostics, which narrowed it to one gate
+
+`courierSackShowsTheRealLoad` failed again, and this time the message
+carried everything:
+
+```
+saw 8 [load=0 peak=8 act=IDLE energy=87.6 hunger=75.2 phase=WORK
+       hearth=12 pos=1760720,-59,-6454871]
+```
+
+Read it: she is **on shift** (`phase=WORK`), **not tired** (87.6), **not
+hungry** (75.2), **carrying nothing**, there are **twelve logs in the
+hearth** and a chest to put them in — and she is idle. That is not a
+stalled walk; it is `canUse()` returning false with obvious work available.
+
+Three gates can do that, and only three:
+
+1. the retry cooldown (`gameTime < cooldownUntil`),
+2. `pickDropOff` returning null (the warehouse index reporting no
+   containers),
+3. `settler.hearth()` returning null, which makes
+   `hearthHasHaulableGoods()` false despite a full hearth.
+
+The energy, hunger and day-phase hypotheses are now **dead by
+measurement**, not by argument.
+
+**Diagnostics are armed for all three.** `SettlerEntity.recordRouteFailure`
+now records *which leg* was abandoned, with the stuck count, the rest
+length and the failure streak, and the test message prints it. If the next
+failure says `lastRouteFailure=none`, cause 1 is excluded and it is 2 or 3;
+if it names a leg, it is 1 and the leg is named. Six further runs did not
+reproduce it, so this waits for evidence rather than a guess.
+
+**Blast radius reduced, and this part IS a fix.** A single abandoned leg
+used to take a courier off shift for a flat 400 ticks — twenty seconds
+idle with a full hearth two steps away, whatever the cause. The rest now
+starts at 100 ticks and doubles per *consecutive* failure up to 400, and
+any completed delivery clears the streak. A transient hiccup costs five
+seconds; a genuinely unreachable warehouse still stops the spin. This does
+not claim to cure the stall — it makes the stall cost a fifth as much
+while the cause is still unknown.

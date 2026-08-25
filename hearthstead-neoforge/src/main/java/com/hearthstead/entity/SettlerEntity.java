@@ -496,6 +496,29 @@ public class SettlerEntity extends PathfinderMob {
         }
     }
 
+    /**
+     * Why this settler last gave up on a route, and when. Transient and
+     * diagnostic only: a settler standing still is the hardest kind of bug
+     * to see, because "idle" looks identical whether the AI decided to rest
+     * or silently failed. KF-014 cost two reproductions for exactly this
+     * reason. Never persisted, never read by the simulation.
+     */
+    private String lastRouteFailure;
+    private long lastRouteFailureTick = Long.MIN_VALUE;
+
+    public void recordRouteFailure(String reason) {
+        this.lastRouteFailure = reason;
+        this.lastRouteFailureTick = level().getGameTime();
+    }
+
+    /** Human-readable, for test messages and live inspection. */
+    public String routeFailureNote() {
+        if (lastRouteFailure == null) {
+            return "none";
+        }
+        return lastRouteFailure + "@" + lastRouteFailureTick;
+    }
+
     /** How many items are on this settler's back right now. */
     public int getCarryLoad() {
         return entityData.get(DATA_CARRY_LOAD);

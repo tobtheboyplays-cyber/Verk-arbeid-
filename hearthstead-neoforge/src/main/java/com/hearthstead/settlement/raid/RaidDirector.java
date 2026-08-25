@@ -4,6 +4,7 @@ import com.hearthstead.Hearthstead;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 
 /**
  * Runs the nightly roll for one settlement.
@@ -32,7 +33,62 @@ public final class RaidDirector {
     /** Length of a Minecraft day, and therefore the night index's divisor. */
     public static final long DAY_LENGTH = 24000L;
 
+    /**
+     * Chance that a raid is led by a captain the settlement has met before,
+     * when there is one to reuse. High on purpose: an enemy you recognise is
+     * the whole point, and a fresh nobody every time is what makes both
+     * references' raids feel like weather rather than like people.
+     */
+    public static final float RETURNING_CAPTAIN_CHANCE = 0.7F;
+
+    /** Captains one settlement will remember at once. */
+    public static final int MAX_REMEMBERED_CAPTAINS = 5;
+
     private RaidDirector() {
+    }
+
+    /**
+     * Builds tonight's raid: who leads it, what they want, and the road they
+     * take. Public so it is directly testable with a seeded random.
+     */
+    public static RaidPlan planRaid(ServerLevel level, Settlement settlement,
+                                    long night) {
+        RandomSource random = level.getRandom();
+        RaidCaptain captain = pickCaptain(settlement, random);
+        RaidObjective objective = RaidObjective.pick(settlement, random);
+        float approach = captain.nextApproachDegrees(random);
+        captain.recordApproach(approach, objective);
+        return new RaidPlan(captain.id(), objective, approach, night);
+    }
+
+    /**
+     * A returning enemy where possible. New captains are only generated
+     * when there is nobody to send or the roll calls for reinforcements, and
+     * the gallery is capped so a long-lived settlement remembers a cast
+     * rather than a crowd.
+     */
+    public static RaidCaptain pickCaptain(Settlement settlement, RandomSource random) {
+        if (!settlement.raidCaptains.isEmpty()
+            && random.nextFloat() < RETURNING_CAPTAIN_CHANCE) {
+            return settlement.raidCaptains.get(
+                random.nextInt(settlement.raidCaptains.size()));
+        }
+        RaidCaptain fresh = RaidCaptain.generate(random);
+        settlement.raidCaptains.add(fresh);
+        while (settlement.raidCaptains.size() > MAX_REMEMBERED_CAPTAINS) {
+            settlement.raidCaptains.remove(0); // the oldest grudge fades first
+        }
+        return fresh;
+    }
+
+    /** The remembered captain with this id, or null if they are forgotten. */
+    public static RaidCaptain captainOf(Settlement settlement, java.util.UUID id) {
+        for (RaidCaptain c : settlement.raidCaptains) {
+            if (c.id().equals(id)) {
+                return c;
+            }
+        }
+        return null;
     }
 
     /** The night index a given world time belongs to. */
@@ -73,14 +129,21 @@ public final class RaidDirector {
             level.getRandom().nextDouble());
         SettlementSavedData.get(level).setDirty();
         if (raid) {
-            // Step 2 consumes this. Logged rather than silently dropped so
-            // that "the schedule fired but nothing happened" is visible in
-            // evidence instead of looking like the roll never ran.
+            RaidPlan plan = planRaid(level, settlement, night);
+            settlement.pendingRaid = plan;
+            RaidCaptain captain = captainOf(settlement, plan.captainId());
+            // Logged rather than silently dropped, so "the schedule fired
+            // and nothing happened" is visible in evidence instead of
+            // looking like the roll never ran.
             Hearthstead.LOGGER.info(
-                "Raid scheduled for {} on night {} (pressure {}, stage {}) "
-                    + "-- no raiders exist yet (A3 step 1)",
-                settlement.name, night, pressure.pressure(),
-                pressure.stage().id());
+                "Raid scheduled for {} on night {}: {} comes for {} from {}"
+                    + " degrees (pressure {}, stage {}, menace {})"
+                    + " -- no raiders exist yet (A3 step 2)",
+                settlement.name, night,
+                captain == null ? "?" : captain.name(),
+                plan.objective().id(), Math.round(plan.approachDegrees()),
+                pressure.pressure(), pressure.stage().id(),
+                captain == null ? "?" : captain.menace());
         }
     }
 }

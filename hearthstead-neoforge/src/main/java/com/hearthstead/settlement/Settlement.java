@@ -46,6 +46,16 @@ public class Settlement {
     public final com.hearthstead.settlement.raid.RaidPressure raidPressure =
         new com.hearthstead.settlement.raid.RaidPressure();
 
+    /**
+     * Enemies this settlement has met, and the raid it is currently
+     * expecting. This is the Tingbok's enemy gallery: captains persist so a
+     * beaten one can come back harder and by a different road, which is the
+     * tail MineColonies' own feature requests (#113, #129) keep asking for.
+     */
+    public final List<com.hearthstead.settlement.raid.RaidCaptain> raidCaptains =
+        new ArrayList<>();
+    public com.hearthstead.settlement.raid.RaidPlan pendingRaid;
+
     /** Average morale of currently loaded members, refreshed every second. */
     public int moraleCache = 60;
 
@@ -157,6 +167,14 @@ public class Settlement {
         }
         tag.put("Buildings", buildingList);
         tag.put("RaidPressure", raidPressure.writeNbt());
+        ListTag captainList = new ListTag();
+        for (com.hearthstead.settlement.raid.RaidCaptain c : raidCaptains) {
+            captainList.add(c.writeNbt());
+        }
+        tag.put("RaidCaptains", captainList);
+        if (pendingRaid != null) {
+            tag.put("PendingRaid", pendingRaid.writeNbt());
+        }
         return tag;
     }
 
@@ -190,6 +208,15 @@ public class Settlement {
         if (tag.contains("RaidPressure")) {
             s.raidPressure.copyFrom(com.hearthstead.settlement.raid.RaidPressure
                 .readNbt(tag.getCompound("RaidPressure")));
+        }
+        ListTag captainList = tag.getList("RaidCaptains", Tag.TAG_COMPOUND);
+        for (int i = 0; i < captainList.size(); i++) {
+            s.raidCaptains.add(com.hearthstead.settlement.raid.RaidCaptain
+                .readNbt(captainList.getCompound(i)));
+        }
+        if (tag.contains("PendingRaid")) {
+            s.pendingRaid = com.hearthstead.settlement.raid.RaidPlan
+                .readNbt(tag.getCompound("PendingRaid"));
         }
         return s;
     }

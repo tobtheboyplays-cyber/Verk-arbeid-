@@ -70,6 +70,15 @@ public class CourierWorkGoal extends Goal {
      */
     public static final int RETRY_COOLDOWN_TICKS = 400;
     /**
+     * First rest after a failed leg. A flat 400 was too blunt: one transient
+     * path hiccup took a courier off shift for twenty seconds even with a
+     * full hearth and an empty warehouse two steps away. The rest now
+     * doubles per consecutive failure up to {@link #RETRY_COOLDOWN_TICKS},
+     * so a hiccup costs five seconds while a genuinely unreachable warehouse
+     * still stops the spin.
+     */
+    public static final int FIRST_REST_TICKS = 100;
+    /**
      * How long between re-paths while walking somewhere. Deliberately short:
      * at 40 ticks a courier whose path was cancelled stood still for two
      * full seconds before trying again, several times per trip, which both
@@ -102,6 +111,8 @@ public class CourierWorkGoal extends Goal {
     private int repathTimer;
     private int stuckChecks;
     private long cooldownUntil = Long.MIN_VALUE;
+    /** Consecutive abandoned routes; reset by any completed delivery. */
+    private int consecutiveFailures;
     private boolean done;
 
     public CourierWorkGoal(SettlerEntity settler) {
@@ -516,6 +527,7 @@ public class CourierWorkGoal extends Goal {
             }
             return; // one stack per cycle -- the animation beat
         }
+        consecutiveFailures = 0; // the route works; forget the bad streak
         done = true; // bag empty: delivery complete
     }
 
@@ -592,7 +604,14 @@ public class CourierWorkGoal extends Goal {
      * for it.
      */
     private void restRoute() {
-        cooldownUntil = settler.level().getGameTime() + RETRY_COOLDOWN_TICKS;
+        consecutiveFailures = Math.min(consecutiveFailures + 1, 8);
+        int rest = Math.min(RETRY_COOLDOWN_TICKS,
+            FIRST_REST_TICKS * (1 << (consecutiveFailures - 1)));
+        cooldownUntil = settler.level().getGameTime() + rest;
+        // A courier that quietly stops working is indistinguishable from one
+        // that has nothing to do. Say which leg failed (KF-014).
+        settler.recordRouteFailure("courier:" + mode + ":stuck" + stuckChecks
+            + ":rest" + rest + ":run" + consecutiveFailures);
     }
 
     private Building findWarehouseById(Settlement s) {

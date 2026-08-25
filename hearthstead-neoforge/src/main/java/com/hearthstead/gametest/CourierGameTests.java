@@ -393,7 +393,8 @@ public class CourierGameTests {
                     + " hunger=" + String.format("%.1f", bud.getHunger())
                     + " phase=" + bud.dayPhase()
                     + " hearth=" + hearthCount(helper, hearthRel)
-                    + " pos=" + bud.blockPosition().toShortString() + "]");
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
             helper.assertTrue(peak[0] == capacity,
                 "the sack should fill to capacity on a full trip: peak="
                     + peak[0] + " capacity=" + capacity);

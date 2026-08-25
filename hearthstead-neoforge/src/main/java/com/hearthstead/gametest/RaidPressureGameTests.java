@@ -5,7 +5,10 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.raid.RaidCaptain;
 import com.hearthstead.settlement.raid.RaidDirector;
+import com.hearthstead.settlement.raid.RaidObjective;
+import com.hearthstead.settlement.raid.RaidPlan;
 import com.hearthstead.settlement.raid.RaidPressure;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -229,6 +232,137 @@ public class RaidPressureGameTests {
         helper.assertTrue(RaidDirector.nightOf(24000L * 7 + 16000L) == 7L,
             "night index should be 7, got "
                 + RaidDirector.nightOf(24000L * 7 + 16000L));
+        helper.succeed();
+    }
+
+    /**
+     * Objectives come from what the settlement actually has. Nobody rides
+     * out to steal grain from a place with no stores.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void objectivesMatchWhatTheSettlementActuallyHas(GameTestHelper helper) {
+        Settlement bare = settlement(1, 0);
+        helper.assertTrue(!RaidObjective.KORN.isAvailableAt(bare),
+            "no warehouse means nothing to come for");
+        helper.assertTrue(!RaidObjective.BRANN.isAvailableAt(bare),
+            "nothing built means nothing to burn");
+        helper.assertTrue(!RaidObjective.LOSEPENGER.isAvailableAt(bare),
+            "one settler is too few to ransom one");
+        helper.assertTrue(RaidObjective.BLOD.isAvailableAt(bare),
+            "but people are always something to lose");
+
+        Settlement rich = settlement(8, 3);
+        helper.assertTrue(RaidObjective.availableAt(rich).size()
+                == RaidObjective.values().length,
+            "a settlement with people, buildings and stores attracts every "
+                + "objective, got " + RaidObjective.availableAt(rich));
+
+        // And a pick is always one of the available ones, never a dud.
+        var random = helper.getLevel().getRandom();
+        for (int i = 0; i < 40; i++) {
+            helper.assertTrue(
+                RaidObjective.pick(bare, random).isAvailableAt(bare),
+                "picked an objective this settlement cannot offer");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The Nemesis half: a settlement remembers its enemies, and a beaten
+     * captain comes back by a different road. MineColonies feature request
+     * #193 is a player working out that raiders "usually come from the same
+     * spawn point" and gang up on one tower guard.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void captainsAreRememberedAndNeverTakeTheSameRoadTwice(GameTestHelper helper) {
+        var random = helper.getLevel().getRandom();
+        RaidCaptain captain = RaidCaptain.generate(random);
+        helper.assertTrue(captain.name() != null && captain.name().contains(" "),
+            "a captain has an earned byname, got " + captain.name());
+        helper.assertTrue(!captain.hasApproached(),
+            "a new captain has no road behind them yet");
+
+        float previous = captain.nextApproachDegrees(random);
+        captain.recordApproach(previous, RaidObjective.KORN);
+        for (int i = 0; i < 60; i++) {
+            float next = captain.nextApproachDegrees(random);
+            float delta = Math.abs(net.minecraft.util.Mth.wrapDegrees(next - previous));
+            helper.assertTrue(delta >= RaidCaptain.MIN_APPROACH_SHIFT - 0.01F,
+                "approach " + next + " is only " + delta
+                    + " degrees off the last one (" + previous + ")");
+            captain.recordApproach(next, RaidObjective.KORN);
+            previous = next;
+        }
+        helper.succeed();
+    }
+
+    /** Winning makes a captain worse news; losing teaches them something too. */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void captainsGrowFromBothOutcomes(GameTestHelper helper) {
+        RaidCaptain captain = RaidCaptain.generate(helper.getLevel().getRandom());
+        float base = captain.menace();
+        captain.recordDefeat();
+        float afterDefeat = captain.menace();
+        helper.assertTrue(afterDefeat > base,
+            "even a beaten captain learns, got " + afterDefeat + " from " + base);
+        captain.recordVictory();
+        helper.assertTrue(captain.menace() > afterDefeat,
+            "and a win must count for more");
+        captain.rememberGrudge("Hedda");
+        helper.assertTrue("Hedda".equals(captain.grudge()),
+            "a captain remembers who hurt them, got " + captain.grudge());
+        helper.succeed();
+    }
+
+    /**
+     * A scheduled raid, its captain and their grudge must survive a reload.
+     * A plan that evaporates on restart is the raid-shaped version of
+     * MineColonies' silently-never-happening deliveries.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void aScheduledRaidAndItsCaptainSurviveReload(GameTestHelper helper) {
+        Settlement s = settlement(8, 3);
+        var random = helper.getLevel().getRandom();
+        RaidCaptain captain = RaidDirector.pickCaptain(s, random);
+        captain.recordVictory();
+        captain.rememberGrudge("Yrsa");
+        captain.recordApproach(120.0F, RaidObjective.KORN);
+        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 120.0F, 4L);
+
+        Settlement reloaded = Settlement.readNbt(s.writeNbt());
+        helper.assertTrue(reloaded.pendingRaid != null,
+            "the scheduled raid must survive a reload");
+        helper.assertTrue(reloaded.pendingRaid.objective() == RaidObjective.KORN,
+            "objective must round-trip, got " + reloaded.pendingRaid.objective());
+        helper.assertTrue(reloaded.pendingRaid.night() == 4L,
+            "night must round-trip");
+        RaidCaptain back = RaidDirector.captainOf(reloaded,
+            reloaded.pendingRaid.captainId());
+        helper.assertTrue(back != null,
+            "the captain leading it must still be remembered");
+        helper.assertTrue(back.name().equals(captain.name()),
+            "by name: " + back.name() + " vs " + captain.name());
+        helper.assertTrue("Yrsa".equals(back.grudge()),
+            "and their grudge must persist, got " + back.grudge());
+        helper.assertTrue(back.victories() == 1, "as must their record");
+        helper.assertTrue(Math.abs(back.lastApproachDegrees() - 120.0F) < 0.01F,
+            "and the road they last took, got " + back.lastApproachDegrees());
+        helper.succeed();
+    }
+
+    /** The gallery is a cast, not a crowd. */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void theEnemyGalleryStaysBounded(GameTestHelper helper) {
+        Settlement s = settlement(8, 3);
+        var random = helper.getLevel().getRandom();
+        for (int i = 0; i < 200; i++) {
+            RaidDirector.pickCaptain(s, random);
+        }
+        helper.assertTrue(
+            s.raidCaptains.size() <= RaidDirector.MAX_REMEMBERED_CAPTAINS,
+            "the enemy gallery must stay bounded, got " + s.raidCaptains.size());
+        helper.assertTrue(!s.raidCaptains.isEmpty(),
+            "but it must not forget everyone");
         helper.succeed();
     }
 
