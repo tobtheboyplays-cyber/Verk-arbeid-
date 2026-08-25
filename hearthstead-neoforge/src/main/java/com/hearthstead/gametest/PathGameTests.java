@@ -55,7 +55,7 @@ public class PathGameTests {
      * two steps back, against a straight line over grass. If the preference
      * were merely cosmetic the pathfinder would cut across and this fails.
      */
-    @GameTest(template = "empty16", timeoutTicks = 300)
+    @GameTest(batch = "path", template = "empty16", timeoutTicks = 300)
     public void settlersTakeTheLongWayRoundToStayOnTheRoad(GameTestHelper helper) {
         meadow(helper, 16);
         // A road from (2,8) north to row 6, along row 6, and back down at x=13.
@@ -95,7 +95,7 @@ public class PathGameTests {
     }
 
     /** Nobody follows the road with a raider in the wheat. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "path", template = "empty16", timeoutTicks = 200)
     public void nobodyFollowsTheRoadWhileFightingOrFleeing(GameTestHelper helper) {
         meadow(helper, 16);
         SettlerEntity guard = settler(helper, new BlockPos(4, 1, 4));
@@ -121,7 +121,7 @@ public class PathGameTests {
      * The village draws its own map: grass walked often enough becomes a path,
      * with nobody building anything.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "path", template = "empty16", timeoutTicks = 200)
     public void feetWearGrassIntoAPath(GameTestHelper helper) {
         meadow(helper, 16);
         PathWear.forget(helper.getLevel());
@@ -145,7 +145,7 @@ public class PathGameTests {
      * The guard rails on a system that edits the world by itself: grass only,
      * outdoors only. A floor a player laid must never be worn away.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "path", template = "empty16", timeoutTicks = 200)
     public void wearTouchesNothingButOpenGrass(GameTestHelper helper) {
         meadow(helper, 16);
         PathWear.forget(helper.getLevel());

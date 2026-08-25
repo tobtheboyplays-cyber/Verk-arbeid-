@@ -115,7 +115,7 @@ public class HearthsteadGameTests {
         return settler;
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void foundingSpawnsSettlers(GameTestHelper helper) {
         SettlementManager.ignoreFoundingDistance = true;
         buildArena(helper, 16, 16);
@@ -133,7 +133,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty5", timeoutTicks = 200)
+    @GameTest(batch = "hearthstead", template = "empty5", timeoutTicks = 200)
     public void professionAssignmentEquipsTool(GameTestHelper helper) {
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 2);
         SettlerEntity settler = boundSettler(helper, s, new BlockPos(2, 1, 2));
@@ -305,7 +305,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 800)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 800)
     public void guardEngagesThreat(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8), 6);
@@ -369,7 +369,7 @@ public class HearthsteadGameTests {
                 + " zombieTarget=" + (zombie.getTarget() != null) + ")"));
     }
 
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty5", timeoutTicks = 100)
     public void settlerNbtRoundTrip(GameTestHelper helper) {
         SettlerEntity original = helper.spawn(ModEntities.SETTLER.get(),
             new BlockPos(2, 1, 2));
@@ -402,7 +402,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty5", timeoutTicks = 100)
     public void settlerAppearanceSurvivesNbtRoundTrip(GameTestHelper helper) {
         SettlerEntity original = helper.spawn(ModEntities.SETTLER.get(),
             new BlockPos(2, 1, 2));
@@ -424,7 +424,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void spawnedSettlersHaveVariedAppearance(GameTestHelper helper) {
         SettlementManager.ignoreFoundingDistance = true;
         buildArena(helper, 16, 16);
@@ -447,7 +447,7 @@ public class HearthsteadGameTests {
      *  must still get a real, non-degenerate appearance seed -- never the
      *  synced-data default of 0, which would make it a permanent visual
      *  clone of every other settler stuck at that default. */
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty5", timeoutTicks = 100)
     public void settlerSpawnedOutsideSettlementManagerGetsRealAppearance(GameTestHelper helper) {
         List<Integer> seeds = new java.util.ArrayList<>();
         for (int i = 0; i < 6; i++) {
@@ -466,7 +466,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty5", timeoutTicks = 100)
     public void savedDataRoundTrip(GameTestHelper helper) {
         Settlement s = new Settlement(UUID.randomUUID(), "Ashford",
             helper.absolutePos(new BlockPos(2, 1, 2)));
@@ -614,7 +614,7 @@ public class HearthsteadGameTests {
      * this property. The claim was a measurement error; this test makes the
      * real behaviour impossible to mistake again.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void theLampTracksTheSurvey(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -668,7 +668,7 @@ public class HearthsteadGameTests {
      * receives, rather than on the server-side list, which was never the
      * thing that was missing.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void theSurveyReachesTheClient(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -731,7 +731,7 @@ public class HearthsteadGameTests {
      * does not compile -- but nothing except this test stops someone naming
      * the same one twice.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 100)
     public void everyPlanHasItsOwnEmblem(GameTestHelper helper) {
         var seen = new java.util.HashMap<net.minecraft.world.item.Item, String>();
         for (var type : com.hearthstead.building.BuildingType.values()) {
@@ -792,7 +792,7 @@ public class HearthsteadGameTests {
      * be reporting the plaque's state rather than the room's contents, which
      * is what the lamp is for.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void theSheetSaysWhatIsMissing(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -860,7 +860,7 @@ public class HearthsteadGameTests {
      * {@code nonlatin_european.png} and is always there. Swapping them back
      * would put a missing-glyph box beside every requirement.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 100)
     public void theSheetKnowsPartialFromMissing(GameTestHelper helper) {
         var lights = com.hearthstead.building.Requirement.lights(2);
 
@@ -922,7 +922,7 @@ public class HearthsteadGameTests {
      * that there be NO working/not-working line beside it, because the lamp in
      * the board already says that better than a word can.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void theSheetSaysWhoLivesThere(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -992,7 +992,7 @@ public class HearthsteadGameTests {
      * would ever contradict it. This is the test that makes that mistake
      * impossible to make quietly.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void occupancyNeverReachesTheDisk(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1027,7 +1027,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void roomDetectedAsHome(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1053,7 +1053,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void leakyRoomRejected(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1143,7 +1143,7 @@ public class HearthsteadGameTests {
      * can save it.) Guards the class of bug where a single unlucky scan left
      * a finished house permanently unregistered.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 900)
     public void unlitRoomRegistersOnceLit(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1174,7 +1174,7 @@ public class HearthsteadGameTests {
      * collision shape roofs a room. A glass roof is a real build people make;
      * it also proves the check does not consult the light engine.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 400)
     public void glassRoofCountsAsRoofed(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1335,7 +1335,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 600)
     public void homeInvalidatedWhenWallBroken(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1373,7 +1373,7 @@ public class HearthsteadGameTests {
      * all — not on placement, not on its periodic tick. Guards the class of
      * bug where an EMPTY plaque quietly does the same work a fitted one does.
      */
-    @GameTest(template = "empty16", timeoutTicks = 450)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 450)
     public void emptyPlaqueNeverScans(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         BlockPos hutOrigin = new BlockPos(6, 0, 6);
@@ -1406,7 +1406,7 @@ public class HearthsteadGameTests {
      * all — just a hint. Inserting a Build Plan is the moment the screen (and
      * the surveyor) starts working, and it happens exactly once per click.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 100)
     public void emptyPlaqueOpensNoScreenUntilPlanInserted(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1450,7 +1450,7 @@ public class HearthsteadGameTests {
      * plan back out (same item, same stamped type) and dissolves the building
      * it declared — conservation (INV-3), not destruction.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 200)
     public void sneakUseWithEmptyHandExtractsPlanAndDissolvesBuilding(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
@@ -1495,7 +1495,7 @@ public class HearthsteadGameTests {
      * -registered building on the first post-update load. A test written only
      * against the new ids would pass while that bug shipped.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 100)
     public void legacyPlaqueStateLoadsWithoutLosingBuilding(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         ServerLevel level = helper.getLevel();

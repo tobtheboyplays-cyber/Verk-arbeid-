@@ -163,7 +163,7 @@ public class SummonsGameTests {
      * The whole feature, end to end: called, the settler glows, walks to the
      * call point, and stops glowing the moment they arrive.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "summons", template = "empty16", timeoutTicks = 400)
     public void summonedSettlerWalksToTheCallAndStopsGlowingOnArrival(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -199,7 +199,7 @@ public class SummonsGameTests {
      * must still lose the glow once the call's own clock runs out — the
      * arrival goal is not the only thing allowed to end a summons.
      */
-    @GameTest(template = "empty16", timeoutTicks = Summons.DURATION_TICKS + 200)
+    @GameTest(batch = "summons", template = "empty16", timeoutTicks = Summons.DURATION_TICKS + 200)
     public void expiredSummonsClearsGlowEvenWhenWalledOff(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -218,7 +218,7 @@ public class SummonsGameTests {
     // --------------------------------------------------------------- (c) ---
 
     /** A SUMMON for a settler this building does not employ is refused outright. */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "summons", template = "empty16", timeoutTicks = 100)
     public void summonRefusedForASettlerTheBuildingDoesNotEmploy(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

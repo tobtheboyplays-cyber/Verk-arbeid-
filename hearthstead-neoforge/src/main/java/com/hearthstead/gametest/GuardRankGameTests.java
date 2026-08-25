@@ -125,7 +125,7 @@ public class GuardRankGameTests {
      * threshold with the same attributes API the rest of the game uses must
      * dress them within {@link SettlerEntity}'s refresh window, unprompted.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "guard_rank", template = "empty16", timeoutTicks = 400)
     public void armorArrivesOnlyAfterTheRankThatEarnsIt(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -173,7 +173,7 @@ public class GuardRankGameTests {
      * to VETERAN's -- never staying stuck one tier above what the guard
      * currently measures up to.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "guard_rank", template = "empty16", timeoutTicks = 400)
     public void armorNeverOutstripsTheCurrentRank(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -228,7 +228,7 @@ public class GuardRankGameTests {
      * and a pause (see that goal's own class doc for why there is no
      * AnimationState to check instead).
      */
-    @GameTest(template = "empty16", timeoutTicks = 300)
+    @GameTest(batch = "guard_rank", template = "empty16", timeoutTicks = 300)
     public void aNearbySettlerFacesTheCaptain(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -256,7 +256,7 @@ public class GuardRankGameTests {
      * The Vaktkaptein: computed on demand from whoever the settlement's
      * loaded guards actually are right now, and the higher rank wins.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "guard_rank", template = "empty16", timeoutTicks = 200)
     public void theCaptainIsTheHighestRankedLivingGuard(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

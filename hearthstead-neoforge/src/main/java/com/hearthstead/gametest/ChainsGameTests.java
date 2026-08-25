@@ -128,7 +128,7 @@ public class ChainsGameTests {
      * farm and no warehouse anywhere in the world (D-007 — the mill is a
      * pure upstream refiner, useful the hour it opens).
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 200)
     public void millGrindsWheatIntoFlourChestTrue(GameTestHelper helper) {
         floor(helper, 16);
         helper.setBlock(new BlockPos(2, 1, 2), Blocks.CHEST);
@@ -168,7 +168,7 @@ public class ChainsGameTests {
      * FLOWS.md asks for, read directly off the recipe table rather than
      * asserted by fiat.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 200)
     public void bakeryWithFlourOutproducesWheatAlone(GameTestHelper helper) {
         floor(helper, 16);
         helper.setBlock(new BlockPos(2, 1, 2), Blocks.CHEST);
@@ -227,7 +227,7 @@ public class ChainsGameTests {
      * barrels); anything else would mean an item vanished or was minted
      * somewhere along the trip (INV-3).
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 400)
     public void threeBuildingChainConservesItemsEndToEnd(GameTestHelper helper) {
         floor(helper, 16);
         helper.setBlock(new BlockPos(2, 1, 2), Blocks.CHEST);
@@ -331,7 +331,7 @@ public class ChainsGameTests {
      * building's own output back through itself, which is exactly the
      * planks-&gt;beam-&gt;planks exploit the task brief names.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 100)
     public void noValueMintingCycleInProductionTable(GameTestHelper helper) {
         Map<Item, Set<Item>> edges = new LinkedHashMap<>();
         int recipeCount = 0;

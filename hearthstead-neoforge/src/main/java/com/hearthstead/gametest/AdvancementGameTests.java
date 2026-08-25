@@ -71,7 +71,7 @@ public class AdvancementGameTests {
      * server-side state that already happened before any packet send is
      * attempted, so this only silences that expected failure.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "advancement", template = "empty16", timeoutTicks = 100)
     public void hangingAPlaqueGrantsTheFirstStepsAdvancement(GameTestHelper helper) {
         BlockPos wallRel = new BlockPos(2, 1, 2);
         helper.setBlock(wallRel, Blocks.STONE_BRICKS);

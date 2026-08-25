@@ -71,7 +71,7 @@ public class BuildPlanRecipeGameTests {
      * {@code hearthstead:build_plan}, and fails by NAME for every
      * non-exempt {@link BuildingType} that stamp set does not cover.
      */
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)
     public void everyBuildingTypeHasACraftablePlanRecipe(GameTestHelper helper) {
         RecipeManager recipes = helper.getLevel().getRecipeManager();
         Set<String> stampedTypes = new HashSet<>();
@@ -157,7 +157,7 @@ public class BuildPlanRecipeGameTests {
     /**
      * WELL (hearthside, the cheapest tier): 1 paper, 1 feather, 1 stick.
      */
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)
     public void wellPlanCraftsFromPaperFeatherAndAStick(GameTestHelper helper) {
         CraftingInput input = grid(
             new ItemStack(Items.PAPER),
@@ -171,7 +171,7 @@ public class BuildPlanRecipeGameTests {
      * SMITHY (skilled tier, iron-priced per the owner-critic's own hint): 1
      * paper, 1 feather, 2 iron ingots.
      */
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)
     public void smithyPlanCraftsFromPaperFeatherAndTwoIronIngots(GameTestHelper helper) {
         CraftingInput input = grid(
             new ItemStack(Items.PAPER),
@@ -186,7 +186,7 @@ public class BuildPlanRecipeGameTests {
      * LIBRARY (civic tier, the most expensive recipe of the pass): 2 paper,
      * 1 feather, 3 books.
      */
-    @GameTest(template = "empty5", timeoutTicks = 100)
+    @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)
     public void libraryPlanCraftsFromPaperFeatherAndThreeBooks(GameTestHelper helper) {
         CraftingInput input = grid(
             new ItemStack(Items.PAPER),

@@ -102,7 +102,7 @@ public class GuardTrainingGameTests {
      * {@link GuardRank#TRAIN_COMBAT} — so a guard who fights visibly climbs.
      * The raider is a no-AI pell so nothing here can kill the fixture.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "guard_training", template = "empty16", timeoutTicks = 400)
     public void landedMeleeHitsTrainStrength(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -130,7 +130,7 @@ public class GuardTrainingGameTests {
      * reach — through many swings, and must come out at full health while
      * the raider demonstrably does not.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "guard_training", template = "empty16", timeoutTicks = 400)
     public void cleaveSplashNeverHitsABystander(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -186,7 +186,7 @@ public class GuardTrainingGameTests {
      * watch). The two-guards-one-barracks fixture is what makes the night
      * guard deterministic (worker index parity, see Employment.watchOf).
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "guard_training", template = "empty16", timeoutTicks = 200)
     public void theNightWatchSleepsThroughTheWholeMorning(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

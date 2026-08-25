@@ -132,7 +132,7 @@ public class WarehouseGameTests {
      * <p>It also pins the exchange rate. Three wheat to a loaf is what vanilla
      * charges, so a player already knows the price before they read anything.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 400)
     public void aBakeryBakesOnItsOwn(GameTestHelper helper) {
         buildArena(helper, 12);
         helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);
@@ -171,7 +171,7 @@ public class WarehouseGameTests {
      * exactly as they were. INV-3 is the invariant, and a crafting system is
      * the easiest place in a mod to breach it by accident.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 400)
     public void productionNeverDestroysAnything(GameTestHelper helper) {
         buildArena(helper, 12);
         helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);
@@ -233,7 +233,7 @@ public class WarehouseGameTests {
      * settlement would never gain anything, and nothing about the symptom
      * would point at the table. Cheap to check, impossible to spot in play.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100)
+    @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 100)
     public void noRecipeMakesItsOwnInput(GameTestHelper helper) {
         int recipes = 0;
         for (var type : com.hearthstead.building.BuildingType.values()) {
@@ -259,7 +259,7 @@ public class WarehouseGameTests {
      * must stay correct after the world is edited underneath it (a player
      * moving items by hand is the normal case, not an edge case).
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 400)
     public void warehouseIndexMatchesRealChests(GameTestHelper helper) {
         buildArena(helper, 12);
         helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);
@@ -294,7 +294,7 @@ public class WarehouseGameTests {
     }
 
     /** The container walk is capped, so a huge warehouse cannot stall a tick. */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 400)
     public void warehouseScanIsBounded(GameTestHelper helper) {
         buildArena(helper, 12);
         int placed = 0;
@@ -326,7 +326,7 @@ public class WarehouseGameTests {
      * the case that matters — MineColonies shipped delivery bugs where a
      * rejected item silently disappeared.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 400)
     public void warehouseInsertConservesItems(GameTestHelper helper) {
         buildArena(helper, 12);
         helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);

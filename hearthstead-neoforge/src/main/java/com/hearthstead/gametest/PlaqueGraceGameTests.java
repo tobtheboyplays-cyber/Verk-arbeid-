@@ -123,7 +123,7 @@ public class PlaqueGraceGameTests {
      * everything reads healthy again. This test FAILS on the pre-grace code,
      * where the first bad survey cleared the roster.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "plaque_grace", template = "empty16", timeoutTicks = 400)
     public void aRenovationKeepsTheStaff(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -174,7 +174,7 @@ public class PlaqueGraceGameTests {
      * GRACE_SURVEYS consecutive readings and the building genuinely
      * dissolves its links — workers freed, validity gone.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "plaque_grace", template = "empty16", timeoutTicks = 400)
     public void aSustainedRuinDoesFireTheStaff(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

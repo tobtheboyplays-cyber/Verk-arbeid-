@@ -161,7 +161,7 @@ public class ArcherGameTests {
      * fixture, so the spread is tight, every volley is exactly one arrow,
      * and the assertion is arithmetic rather than luck.)
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 400)
     public void archerLoosesChestTrueArrowsAtARaider(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -202,7 +202,7 @@ public class ArcherGameTests {
      * above, and the pressure that makes the fletcher worth hiring: the
      * archer stands the post empty-handed rather than conjuring ammunition.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 400)
     public void anEmptyTowerMeansNoShots(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -241,7 +241,7 @@ public class ArcherGameTests {
      * this, a career archer could never leave RECRUIT, the exact defect the
      * guard progression audit found on the STRENGTH ladder.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 600)
     public void loosingArrowsTrainsDexterity(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -275,7 +275,7 @@ public class ArcherGameTests {
      * release. Observed through the goal's own seams; the fixture reaches
      * DEX 35 the same way {@link GuardTrainingGameTests} reaches VETERAN.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 600)
     public void aSharpshooterFiresThePowerShotOnItsCadence(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

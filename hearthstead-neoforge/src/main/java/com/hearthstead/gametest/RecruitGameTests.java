@@ -126,7 +126,7 @@ public class RecruitGameTests {
      * hearth that can afford them, and exactly the price gone afterwards —
      * chest truth (INV-3), never a silent extra charge and never a discount.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
     public void aPayableGuestJoinsAndThePriceIsExact(GameTestHelper helper) {
         floor(helper, 16);
         ServerLevel level = helper.getLevel();
@@ -175,7 +175,7 @@ public class RecruitGameTests {
      * waits out their patience and walks away instead. No tavern this time:
      * the hearth itself is the fallback waiting spot the design calls for.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
     public void anUnpayableGuestWalksAwayInsteadOfJoining(GameTestHelper helper) {
         floor(helper, 16);
         ServerLevel level = helper.getLevel();
@@ -214,7 +214,7 @@ public class RecruitGameTests {
      * The tavern matters, and an innkeeper on shift matters more: both raise
      * the SAME recruit gauge rather than adding a second, hidden one.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
     public void aTavernAndItsInnkeeperAccelerateTheRecruitGauge(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         // No physical settlements share this template's small footprint, so

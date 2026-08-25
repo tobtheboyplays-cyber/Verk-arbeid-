@@ -129,7 +129,7 @@ public class CostsGameTests {
      * re-proven here through {@link Costs} so the refactor is verified, not
      * assumed.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
     public void noDiscountBuildingsMeansFullPriceCharged(GameTestHelper helper) {
         floor(helper, 16);
         ServerLevel level = helper.getLevel();
@@ -175,7 +175,7 @@ public class CostsGameTests {
      * -25% on 4 bread + 8 planks) leaves the hearth -- not the full price,
      * and not some other number.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
     public void employedInnkeeperAppliesTheNamedDiscount(GameTestHelper helper) {
         floor(helper, 16);
         ServerLevel level = helper.getLevel();
@@ -232,7 +232,7 @@ public class CostsGameTests {
      * the two above -- so the third hook here is added directly to prove
      * the engine's own ceiling, not to claim a third real-world source.)
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
     public void stackingCapsAtFiftyPercentNeverDeeper(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Settlement s = new Settlement(UUID.randomUUID(), "Fullstappet",
@@ -271,7 +271,7 @@ public class CostsGameTests {
      * directly against {@link Costs#afterDiscounts}, independent of
      * recruiting's own (always comfortably above 1) numbers.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
     public void aDiscountNeverTakesALineBelowOne(GameTestHelper helper) {
         Costs.Price oneBread = Costs.of(Costs.PriceKey.RECRUIT, Costs.Line.of(Items.BREAD, 1));
         List<Costs.Discount> half = List.of(
@@ -293,7 +293,7 @@ public class CostsGameTests {
      * grows must still be able to pay the planks line with birch planks,
      * not just oak.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
     public void recruitPriceStillAcceptsAnyPlanks(GameTestHelper helper) {
         floor(helper, 16);
         ServerLevel level = helper.getLevel();
