@@ -122,14 +122,17 @@
   "hearthstead.message.home_registered": "Et hjem er registrert i %s (%s seng(er), kvalitet %s)",
   "hearthstead.message.home_lost": "Et hjem i %s er ikke lenger beboelig — sengene står kalde",
   "hearthstead.command.info_homes": "Hjem: %s registrert, %s senger",
+  "hearthstead.command.info_threat": "Trussel: %s (press %s, %s i natt, %s netter siden raid)",
+  "hearthstead.raid.stage.rolig": "Rolig",
+  "hearthstead.raid.stage.uro": "Uro",
+  "hearthstead.raid.stage.varsel": "Varsel",
+  "hearthstead.raid.stage.beleiring": "Beleiring",
   "hearthstead.command.scan_queued": "Romskann satt i kø ved %s %s %s",
-
   "block.hearthstead.plaque": "Byggeskilt",
   "item.hearthstead.plaque": "Byggeskilt",
   "item.hearthstead.build_plan": "Byggeplan",
   "item.hearthstead.build_plan.tooltip": "Sett inn i et hengt skilt for å erklære formålet",
   "hearthstead.build_plan.name": "Byggeplan: %s",
-
   "hearthstead.plaque.title": "Byggeskilt",
   "hearthstead.plaque.level": "Nivå %s",
   "hearthstead.plaque.residents": "Beboere",
@@ -151,20 +154,17 @@
   "hearthstead.plaque.settler_gone": "Den nybyggeren er ikke her lenger",
   "hearthstead.plaque.blocked.full": "Fullt",
   "hearthstead.plaque.blocked.not_ready": "Ikke registrert ennå",
-
   "hearthstead.plaque.state.empty": "Venter på byggeplan",
   "hearthstead.plaque.state.plan_inserted_unlinked": "Fant ikke noe rom",
   "hearthstead.plaque.state.linked_incomplete": "Ufullført",
   "hearthstead.plaque.state.linked_valid": "Registrert",
   "hearthstead.plaque.state.orphaned": "Foreldreløst",
-
   "hearthstead.building.house": "Hus",
   "hearthstead.building.lodging": "Losjihus",
   "hearthstead.building.warehouse": "Lagerhus",
   "hearthstead.building.lumber_camp": "Tømmerleir",
   "hearthstead.building.farmhouse": "Gårdshus",
   "hearthstead.building.architects_study": "Arkitektens studerkammer",
-
   "hearthstead.requirement.beds": "Senger %s/%s",
   "hearthstead.requirement.doors": "Dører %s/%s",
   "hearthstead.requirement.lights": "Lys %s/%s",
@@ -174,11 +174,9 @@
   "hearthstead.requirement.composter": "Kompostbinge %s/%s",
   "hearthstead.requirement.lectern": "Lesepult %s/%s",
   "hearthstead.requirement.bookshelf": "Bokhyller %s/%s",
-
   "hearthstead.mood.happy": "Glad",
   "hearthstead.mood.content": "Tilfreds",
   "hearthstead.mood.unhappy": "Misfornøyd",
-
   "hearthstead.command.no_plaque": "Ingen byggeskilt på %s, %s, %s",
   "hearthstead.command.scan_done": "Målte opp %s — %s"
 }

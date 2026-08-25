@@ -88,6 +88,16 @@ public final class HearthsteadCommand {
             s.moraleCache, s.radius), true);
         source.sendSuccess(() -> Component.translatable("hearthstead.command.info_homes",
             s.validHomeCount(), s.validBedCount()), true);
+        // Readable on purpose. MineColonies' own wiki concedes its raid
+        // curve "is not publicly known", and a threat nobody can read
+        // produces annoyance rather than dread (D-A3-3).
+        source.sendSuccess(() -> Component.translatable("hearthstead.command.info_threat",
+            Component.translatable("hearthstead.raid.stage."
+                + s.raidPressure.stage().id()),
+            s.raidPressure.pressure(),
+            String.format(java.util.Locale.ROOT, "%.0f%%",
+                s.raidPressure.chanceTonight() * 100.0),
+            s.raidPressure.nightsSinceRaid()), true);
         return 1;
     }
 

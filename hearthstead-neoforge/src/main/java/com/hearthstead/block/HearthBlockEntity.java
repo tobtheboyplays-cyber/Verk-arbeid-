@@ -79,6 +79,10 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         }
         s.foodCache = hearth.countFoodUnits();
         SettlementManager.tickRecruitment(serverLevel, s);
+        // The hearth IS the settlement's heartbeat: no hearth, no settlement,
+        // and nothing to raid. Idempotent per night, so this once-a-second
+        // call cannot double-roll.
+        com.hearthstead.settlement.raid.RaidDirector.tick(serverLevel, s);
     }
 
     // ------------------------------------------------------------ food ---

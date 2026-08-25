@@ -745,3 +745,27 @@ This is offered as a narrowing, **not** as a root cause. If either test
 fails again, the diagnostics now report pos/energy/hunger/phase/hearth
 remaining, and that evidence should be read before anything else is
 changed.
+
+### A fifth hypothesis, investigated and ruled out: shared world time
+
+`setDayTime` is **level-wide**, and every GameTest in a batch shares one
+level. A test that flipped the world to night would set `dayPhase()` to
+REST for every settler in every arena beside it, and any work goal gating
+on `dayPhase() == WORK` would stop dead — which is precisely the observed
+signature (`act=IDLE`, partial delivery, intermittent).
+
+`HearthsteadGameTests` does set 16000 and 23000. **But those two tests
+declare `batch = "night"`, and GameTest batches run sequentially**, so they
+cannot overlap the `day` batch the courier tests live in. Every `day` test
+sets the same 2000. So this is ruled out as the cause.
+
+**It remains a live trap for future tests, and is now designed around.**
+`RaidDirector`'s nightfall gate was extracted into a pure
+`isRollTime(dayTime)` precisely so its test could assert the arithmetic
+instead of setting the world to night inside the `day` batch — which would
+have introduced exactly this failure rather than diagnosed it.
+
+**Rule for new tests:** never call `setDayTime` from a `day`-batch test
+with a night value. If a test genuinely needs night, put it in the
+`night` batch; if it only needs the *arithmetic* of time, test the pure
+function.

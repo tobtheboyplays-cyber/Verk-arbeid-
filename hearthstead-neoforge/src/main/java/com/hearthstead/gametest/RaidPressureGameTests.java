@@ -5,6 +5,7 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidPressure;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -200,6 +201,34 @@ public class RaidPressureGameTests {
         // And the grace guarantee must still hold across the reload.
         helper.assertTrue(!reloaded.raidPressure.rollForNight(reloaded, 10L, 0.0),
             "a reloaded settlement still gets its morning-after grace");
+        helper.succeed();
+    }
+
+    /**
+     * The director asks only after nightfall, and each world day is one
+     * night index. Asserted on the arithmetic rather than by setting the
+     * level's time: {@code setDayTime} is level-wide, and a test that
+     * flipped the world to night would stall every settler in every other
+     * test running beside it in the same batch.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void theDirectorOnlyAsksAfterNightfall(GameTestHelper helper) {
+        helper.assertTrue(!RaidDirector.isRollTime(0L), "midnight-dawn is not roll time");
+        helper.assertTrue(!RaidDirector.isRollTime(6000L), "noon is not roll time");
+        helper.assertTrue(!RaidDirector.isRollTime(12000L),
+            "dusk is not yet roll time");
+        helper.assertTrue(RaidDirector.isRollTime(RaidDirector.ROLL_AT_DAYTIME),
+            "the roll time itself counts");
+        helper.assertTrue(RaidDirector.isRollTime(16000L), "deep night rolls");
+        helper.assertTrue(RaidDirector.isRollTime(23999L), "so does pre-dawn");
+        // And it repeats every day, rather than only on the first.
+        helper.assertTrue(RaidDirector.isRollTime(24000L * 7 + 16000L),
+            "night seven rolls too");
+        helper.assertTrue(!RaidDirector.isRollTime(24000L * 7 + 6000L),
+            "and day seven does not");
+        helper.assertTrue(RaidDirector.nightOf(24000L * 7 + 16000L) == 7L,
+            "night index should be 7, got "
+                + RaidDirector.nightOf(24000L * 7 + 16000L));
         helper.succeed();
     }
 
