@@ -4,7 +4,7 @@
   "ingredients": [
     { "item": "minecraft:paper" },
     { "item": "minecraft:feather" },
-    { "item": "minecraft:oak_planks" }
+    { "tag": "minecraft:planks" }
   ],
   "result": {
     "id": "hearthstead:build_plan",
