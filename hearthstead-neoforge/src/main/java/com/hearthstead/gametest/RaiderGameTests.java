@@ -7,7 +7,10 @@ import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.raid.RaidCaptain;
+import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidObjective;
+import com.hearthstead.settlement.raid.RaidPlan;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -152,6 +155,110 @@ public class RaiderGameTests {
             "and which settlement they came for");
         helper.assertTrue(reloaded.objectivePos() != null,
             "and where they were headed");
+        helper.succeed();
+    }
+
+    /**
+     * The band forms up on the planned bearing, spread across a front
+     * rather than stacked on one point -- MineColonies players report
+     * raiders "usually come from the same spawn point" and ganging up on
+     * one tower guard (#193), and TekTopia uses four fixed corners.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 300, batch = "day")
+    public void theBandFormsUpOnThePlannedBearing(GameTestHelper helper) {
+        BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
+        // North is -Z; the geometry must put a 180-degree approach south of
+        // the settlement and a 0-degree approach north of it.
+        BlockPos north = RaidDirector.formUpAt(center, 0.0F, 30);
+        BlockPos south = RaidDirector.formUpAt(center, 180.0F, 30);
+        BlockPos east = RaidDirector.formUpAt(center, -90.0F, 30);
+        helper.assertTrue(north.getZ() > center.getZ(),
+            "0 degrees should form up on +Z, got " + north);
+        helper.assertTrue(south.getZ() < center.getZ(),
+            "180 degrees should form up on -Z, got " + south);
+        helper.assertTrue(east.getX() > center.getX(),
+            "-90 degrees should form up on +X, got " + east);
+        // And the distance must be honoured, so a band never lands on top of
+        // the settlement it came to raid.
+        double d = Math.sqrt(north.distSqr(center));
+        helper.assertTrue(Math.abs(d - 30.0) < 1.5,
+            "form-up distance should be honoured, got " + d);
+        helper.succeed();
+    }
+
+    /** A band is a band, never a horde, however rich the settlement gets. */
+    @GameTest(template = "empty16", timeoutTicks = 300, batch = "day")
+    public void bandSizeGrowsWithWorthButIsCapped(GameTestHelper helper) {
+        buildArena(helper, 10);
+        Settlement small = makeSettlement(helper, new BlockPos(5, 1, 5));
+        for (int i = 0; i < 4; i++) {
+            small.putRecord(UUID.randomUUID(), "S" + i, Profession.NONE);
+        }
+        Settlement huge = new Settlement(UUID.randomUUID(), "Huge", BlockPos.ZERO);
+        for (int i = 0; i < 60; i++) {
+            huge.putRecord(UUID.randomUUID(), "H" + i, Profession.NONE);
+        }
+        var random = helper.getLevel().getRandom();
+        RaidCaptain captain = RaidCaptain.generate(random);
+        int smallBand = RaidDirector.bandSizeFor(small, captain);
+        int hugeBand = RaidDirector.bandSizeFor(huge, captain);
+        helper.assertTrue(hugeBand > smallBand,
+            "a richer settlement draws a bigger band: " + hugeBand
+                + " vs " + smallBand);
+        helper.assertTrue(hugeBand <= RaidDirector.MAX_BAND,
+            "and it must stay a band, not a horde: " + hugeBand);
+        helper.assertTrue(smallBand >= RaidDirector.MIN_BAND,
+            "a raid is never one lone figure: " + smallBand);
+        helper.succeed();
+    }
+
+    /**
+     * A raid must actually arrive, and must actually end. A scheduled raid
+     * that never concludes is the raid-shaped version of MineColonies'
+     * deliveries that silently never happen.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
+    public void aRaidArrivesAndThenResolves(GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
+        for (int i = 0; i < 6; i++) {
+            s.putRecord(UUID.randomUUID(), "S" + i, Profession.NONE);
+        }
+        var level = helper.getLevel();
+        var random = level.getRandom();
+        RaidCaptain captain = RaidDirector.pickCaptain(s, random);
+        RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 3L);
+        s.pendingRaid = plan;
+
+        int spawned = RaidDirector.spawnBand(level, s, plan);
+        helper.assertTrue(spawned > 0,
+            "the band must actually arrive, spawned " + spawned);
+        helper.assertTrue(!RaidDirector.livingRaidersOf(level, s).isEmpty(),
+            "and must be findable as this settlement's raiders");
+        boolean anyCaptain = RaidDirector.livingRaidersOf(level, s).stream()
+            .anyMatch(RaiderEntity::isCaptain);
+        helper.assertTrue(anyCaptain, "a band is led, so one of them is the captain");
+
+        // Not over while anyone still stands.
+        helper.assertTrue(!RaidDirector.resolveIfOver(level, s),
+            "a raid with raiders left standing is not over");
+        helper.assertTrue(s.pendingRaid != null, "so the plan must still be set");
+
+        int pressureBefore = s.raidPressure.pressure();
+        int defeatsBefore = captain.defeats();
+        for (RaiderEntity r : RaidDirector.livingRaidersOf(level, s)) {
+            r.discard();
+        }
+        helper.assertTrue(RaidDirector.resolveIfOver(level, s),
+            "with none left standing the raid must resolve");
+        helper.assertTrue(s.pendingRaid == null,
+            "and the plan must be cleared so the next night can be rolled");
+        helper.assertTrue(s.raidPressure.pressure() > pressureBefore,
+            "repelling a raid must RAISE pressure -- the deliberate inverse "
+                + "of MineColonies buying quiet with a loss. Got "
+                + s.raidPressure.pressure() + " from " + pressureBefore);
+        helper.assertTrue(captain.defeats() == defeatsBefore + 1,
+            "and the captain must remember being driven off");
         helper.succeed();
     }
 
