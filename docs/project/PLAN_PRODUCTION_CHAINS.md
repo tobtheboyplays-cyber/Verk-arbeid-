@@ -259,8 +259,37 @@ them yet.** That is the next several slices, and each one is small now that the
 roster and its chains are decided:
 
 1. professions per building (the worker who stands there),
-2. the recipe each building turns its inputs into,
+2. the recipe each building turns its inputs into — **the seam for this is
+   built**: `Production.java`,
 3. courier routes between them — which A2a already built the machinery for.
 
 The point of doing the roster now is that none of that work has to stop and
 argue about what the buildings are.
+
+## How step 2 is written, once, for all twenty-eight
+
+`com.hearthstead.building.Production` is the shape every work building shares:
+take something out of **your own** chests, spend time, put something back. A
+building type is **one table entry**, not one class — which is the only way
+twenty-eight of them stay correct.
+
+It encodes the two rules this document is built on:
+
+- **D-007, alone.** Inputs come from the building's own containers. A bakery
+  with wheat in its chest bakes bread with no mill, no farm and no warehouse
+  anywhere in the world. Couriers keep it stocked once they exist; they are an
+  optimisation, never a precondition.
+- **INV-3, chest truth.** Room is checked *before* any input is removed. A
+  half-finished withdrawal gives everything back. An overflow that should be
+  impossible is dropped into the world rather than voided. **There is no path
+  through the class that reduces the number of items in the world**, and that
+  is a mutation-proven GameTest, not a comment.
+
+`ready()` is deliberately a pure read, so a work goal can ask "is there
+anything to do?" every tick without side effects — which is what lets a
+profession animate the work rather than teleport its result.
+
+Seeded with the three that need no judgement call: bakery (3 grain → 1 loaf,
+vanilla's own exchange rate, so the player already knows it), butcher (four raw
+meats → their cooked form), smelter (iron, copper, gold). The table stays short
+until the six D-008 items exist; the point is that growing it is a line.

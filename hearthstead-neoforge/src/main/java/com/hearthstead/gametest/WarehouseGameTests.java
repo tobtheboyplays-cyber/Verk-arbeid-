@@ -83,6 +83,167 @@ public class WarehouseGameTests {
         return total;
     }
 
+
+    /** Counts every item in the arena's containers, whatever it is. */
+    private static int allItems(GameTestHelper helper, int size) {
+        int total = 0;
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                Container c = containerAt(helper, new BlockPos(x, 1, z));
+                if (c == null) {
+                    continue;
+                }
+                for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                    total += c.getItem(slot).getCount();
+                }
+            }
+        }
+        return total;
+    }
+
+    private static int countOf(GameTestHelper helper, int size,
+                               net.minecraft.world.item.Item item) {
+        int total = 0;
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                Container c = containerAt(helper, new BlockPos(x, 1, z));
+                if (c == null) {
+                    continue;
+                }
+                for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                    ItemStack s = c.getItem(slot);
+                    if (s.is(item)) {
+                        total += s.getCount();
+                    }
+                }
+            }
+        }
+        return total;
+    }
+
+    /**
+     * A bakery bakes from its OWN chest, with no mill, no farm and no
+     * warehouse anywhere in the world.
+     *
+     * <p>That is D-007 stated as a test rather than as a paragraph: if this
+     * ever needs a second building to pass, the chain has quietly become a
+     * gate and a player has to build three rooms before seeing one loaf.
+     *
+     * <p>It also pins the exchange rate. Three wheat to a loaf is what vanilla
+     * charges, so a player already knows the price before they read anything.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void aBakeryBakesOnItsOwn(GameTestHelper helper) {
+        buildArena(helper, 12);
+        helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);
+        Building bakery = warehouseOver(helper, 12);
+        bakery.type = com.hearthstead.building.BuildingType.BAKERY;
+
+        Container chest = containerAt(helper, new BlockPos(3, 1, 3));
+        helper.assertTrue(chest != null, "the arena chest should be a container");
+        chest.setItem(0, new ItemStack(Items.WHEAT, 7));
+
+        var recipe = com.hearthstead.building.Production.ready(helper.getLevel(), bakery);
+        helper.assertTrue(recipe != null,
+            "a bakery holding wheat has work to do, with nothing else built");
+        helper.assertTrue(recipe.id().equals("bread"),
+            "it should be baking bread, got " + recipe.id());
+
+        boolean ran = com.hearthstead.building.Production.run(
+            helper.getLevel(), bakery, recipe);
+        helper.assertTrue(ran, "the recipe should have run");
+
+        helper.assertTrue(countOf(helper, 12, Items.WHEAT) == 4,
+            "three wheat should be gone, 4 left of 7; saw "
+                + countOf(helper, 12, Items.WHEAT));
+        helper.assertTrue(countOf(helper, 12, Items.BREAD) == 1,
+            "and one loaf made; saw " + countOf(helper, 12, Items.BREAD));
+        helper.succeed();
+    }
+
+    /**
+     * Production never destroys items, and never runs when it cannot finish.
+     *
+     * <p>Three ways to lose items, all closed here: an empty larder must do
+     * nothing; a full larder must not run and must not void what it would have
+     * made; and a building that cannot make anything must leave its contents
+     * exactly as they were. INV-3 is the invariant, and a crafting system is
+     * the easiest place in a mod to breach it by accident.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void productionNeverDestroysAnything(GameTestHelper helper) {
+        buildArena(helper, 12);
+        helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);
+        Building bakery = warehouseOver(helper, 12);
+        bakery.type = com.hearthstead.building.BuildingType.BAKERY;
+        Container chest = containerAt(helper, new BlockPos(3, 1, 3));
+        helper.assertTrue(chest != null, "the arena chest should be a container");
+
+        // 1. Nothing to work with: no recipe, and no change.
+        chest.setItem(0, new ItemStack(Items.WHEAT, 2));          // one short
+        helper.assertTrue(
+            com.hearthstead.building.Production.ready(helper.getLevel(), bakery) == null,
+            "two wheat is not enough for a loaf, so there is no work");
+        int before = allItems(helper, 12);
+        helper.assertTrue(before == 2, "precondition: 2 items, saw " + before);
+
+        // 2. A full larder: the recipe must refuse rather than void the loaf.
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            chest.setItem(slot, new ItemStack(Items.WHEAT, Items.WHEAT.getDefaultMaxStackSize()));
+        }
+        int packed = allItems(helper, 12);
+        var recipe = new com.hearthstead.building.Production.Recipe("bread",
+            net.minecraft.world.item.crafting.Ingredient.of(Items.WHEAT), 3,
+            Items.BREAD, 1, 160);
+        boolean ran = com.hearthstead.building.Production.run(
+            helper.getLevel(), bakery, recipe);
+        helper.assertTrue(!ran,
+            "a bakery with nowhere to put the loaf must not bake it");
+        helper.assertTrue(allItems(helper, 12) == packed,
+            "and must not have touched the wheat: " + allItems(helper, 12)
+                + " vs " + packed);
+        helper.assertTrue(countOf(helper, 12, Items.BREAD) == 0,
+            "no loaf should exist; the wheat was not spent");
+
+        // 3. A building type that makes nothing leaves everything alone.
+        bakery.type = com.hearthstead.building.BuildingType.HOUSE;
+        helper.assertTrue(
+            com.hearthstead.building.Production.ready(helper.getLevel(), bakery) == null,
+            "a house is not a workshop");
+        helper.assertTrue(allItems(helper, 12) == packed,
+            "and asking must have changed nothing");
+        helper.succeed();
+    }
+
+    /**
+     * No recipe may turn a thing into itself.
+     *
+     * <p>A recipe whose output matches its own input is an infinite loop with
+     * a worker standing in it: the building would always have work, the
+     * settlement would never gain anything, and nothing about the symptom
+     * would point at the table. Cheap to check, impossible to spot in play.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100)
+    public void noRecipeMakesItsOwnInput(GameTestHelper helper) {
+        int recipes = 0;
+        for (var type : com.hearthstead.building.BuildingType.values()) {
+            for (var recipe : com.hearthstead.building.Production.of(type)) {
+                recipes++;
+                helper.assertTrue(recipe.inputCount() > 0 && recipe.outputCount() > 0,
+                    type.id() + "/" + recipe.id() + " makes or takes nothing");
+                helper.assertTrue(recipe.ticks() > 0,
+                    type.id() + "/" + recipe.id() + " takes no time at all");
+                helper.assertTrue(
+                    !recipe.input().test(new ItemStack(recipe.output())),
+                    type.id() + "/" + recipe.id() + " turns " + recipe.output()
+                        + " into itself -- a worker would loop on it forever");
+            }
+        }
+        helper.assertTrue(recipes >= 8,
+            "expected the production table to be populated, found " + recipes);
+        helper.succeed();
+    }
+
     /**
      * The index must equal a brute-force recount of the same chests, and
      * must stay correct after the world is edited underneath it (a player

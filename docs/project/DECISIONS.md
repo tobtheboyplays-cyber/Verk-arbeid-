@@ -258,3 +258,65 @@ speed. That is the test, and it is a play test, not an argument.
 
 **Affects.** `Building.level`, the plaque's sheet and screen, profession
 assignment, and the upgrade path the architect sells.
+
+---
+
+## D-011 — Employment is a relationship between a settler and a BUILDING
+
+**Decision.** A settler stores **which building employs them**, and nothing
+else about their job. Their profession is *derived* from that building's type.
+There is no second place where a job is written down.
+
+**Reason.** Owner's choice, 2026-08-25: MineColonies' hire/fire in place of
+TekTopia's emblem. The shape is the substance — hiring a person *into a room*
+rather than stamping a trade *onto a person* is what makes the roster
+affordable (28 buildings need no writ items, recipes or sprites), what keeps
+the plaque honest (it is an access point; the settlement holds the truth), and
+what closes the player's flow, which currently dead-ends the moment a building
+registers.
+
+**Rejected.** Keeping `Profession` as stored state alongside an employer field.
+Two sources of truth for one fact is the exact mistake the plaque invariant
+exists to prevent, and it would drift the first time a building changed type.
+
+**Affects.** `SettlerEntity` persistence, `Profession`, the plaque screen and
+sheet, every work goal, and the settler's outfit and tool.
+
+---
+
+## D-012 — The writ of trade is retired
+
+**Decision.** `ProfessionWritItem` and its per-profession items stop being how
+a job is given. Employment is commanded at the plaque.
+
+**Reason.** The owner asked for hire/fire **instead of** ("heller") the emblem
+model. Leaving the writ in as a second path would mean two ways to change one
+fact, which D-011 exists to forbid, and the writ cannot express the thing that
+makes hire/fire good — that taking a worker from one building costs another
+building its trade.
+
+**Cost, stated plainly.** This deletes items, recipes, sprites and lang keys.
+The mod is private and unreleased, so no save in the world depends on them.
+
+**Affects.** `item/`, recipes, the creative tab, en_us + nb_no, and every
+GameTest that calls `assignProfession` directly.
+
+---
+
+## D-013 — Suggestion, never automation
+
+**Decision.** No system may change a settler's employer. Only a player command
+can. The plaque *suggests* a candidate, with a written reason, and the player
+presses the button.
+
+**Reason.** Automatic hiring is the MineColonies feature whose own community
+advice is to switch it off, because unpredictable reassignment is worse than no
+help at all. It is also the same promise the printed raid odds make: the
+settlement tells you the truth and then you decide.
+
+**Reversal condition.** If staffing thirty settlers by hand reads as a chore
+rather than a decision, auto-staffing arrives as a **visible standing order**
+with a name and an off switch — never as a hidden default.
+
+**Affects.** The hire service, the plaque screen, and anything later tempted to
+"helpfully" fill an empty post.
