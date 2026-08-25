@@ -38,6 +38,14 @@ public class Settlement {
 
     /** Refreshed every second by the hearth block entity. */
     public int foodCache;
+    /**
+     * How badly the world wants to raid this place tonight. Persisted, and
+     * the only thing that decides whether a raid happens — there is no night
+     * counter with a safe floor (see RaidPressure).
+     */
+    public final com.hearthstead.settlement.raid.RaidPressure raidPressure =
+        new com.hearthstead.settlement.raid.RaidPressure();
+
     /** Average morale of currently loaded members, refreshed every second. */
     public int moraleCache = 60;
 
@@ -148,6 +156,7 @@ public class Settlement {
             buildingList.add(b.writeNbt());
         }
         tag.put("Buildings", buildingList);
+        tag.put("RaidPressure", raidPressure.writeNbt());
         return tag;
     }
 
@@ -177,6 +186,10 @@ public class Settlement {
         ListTag buildingList = tag.getList("Buildings", Tag.TAG_COMPOUND);
         for (int i = 0; i < buildingList.size(); i++) {
             s.buildings.add(Building.readNbt(buildingList.getCompound(i)));
+        }
+        if (tag.contains("RaidPressure")) {
+            s.raidPressure.copyFrom(com.hearthstead.settlement.raid.RaidPressure
+                .readNbt(tag.getCompound("RaidPressure")));
         }
         return s;
     }
