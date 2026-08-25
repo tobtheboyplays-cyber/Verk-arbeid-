@@ -1,5 +1,5 @@
 {
-  "__comment": "Carved wall plaque built from real depth rather than a picture on a slab: an oak backboard, four forged-iron corner brackets standing proud of it, a raised aged-brass inner frame, and the plan panel sunk behind that frame. Modelled facing NORTH; the blockstate rotates it. Depth runs z=16 (against the wall) outward to z=11.6 (the brass lip).",
+  "__comment": "Carved wall plaque, PORTRAIT: narrower across and taller up than the original square plate, so the sunken well can carry a readable sheet rather than a token. Built from real depth rather than a picture on a slab: an oak backboard, four forged-iron corner brackets standing proud of it, a raised aged-brass inner frame, the plan panel sunk behind that frame, and a status lamp in the gap between the lower brackets. Every element was reshaped by one proportional mapping, so the ironwork, brass and lamp stay in register. Modelled facing NORTH; the blockstate rotates it. Depth runs z=16 (against the wall) outward to z=11.6.",
   "textures": {
     "board": "hearthstead:block/plaque_board",
     "edge": "hearthstead:block/plaque_board_edge",
@@ -12,139 +12,707 @@
   "elements": [
     {
       "__comment": "Oak backboard.",
-      "from": [2, 2, 13.2],
-      "to": [14, 14, 16],
+      "from": [
+        2.938,
+        1.062,
+        13.2
+      ],
+      "to": [
+        13.062,
+        14.938,
+        16
+      ],
       "faces": {
-        "north": {"uv": [0, 0, 16, 16], "texture": "#board"},
-        "south": {"uv": [0, 0, 16, 16], "texture": "#board"},
-        "east":  {"uv": [0, 0, 16, 16], "texture": "#edge"},
-        "west":  {"uv": [0, 0, 16, 16], "texture": "#edge"},
-        "up":    {"uv": [0, 0, 16, 16], "texture": "#edge"},
-        "down":  {"uv": [0, 0, 16, 16], "texture": "#edge"}
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#board"
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#board"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#edge"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#edge"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#edge"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#edge"
+        }
       }
     },
     {
       "__comment": "Sunken plan panel: sits BEHIND the brass frame so the well reads as a recess.",
-      "from": [4.5, 4.5, 12.9],
-      "to": [11.5, 11.5, 13.3],
+      "from": [
+        5.047,
+        3.953,
+        12.9
+      ],
+      "to": [
+        10.953,
+        12.047,
+        13.3
+      ],
       "faces": {
-        "north": {"uv": [0, 0, 16, 16], "texture": "#panel"},
-        "east":  {"uv": [0, 0, 2, 16], "texture": "#brass"},
-        "west":  {"uv": [0, 0, 2, 16], "texture": "#brass"},
-        "up":    {"uv": [0, 0, 16, 2], "texture": "#brass"},
-        "down":  {"uv": [0, 0, 16, 2], "texture": "#brass"}
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#panel"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            2,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            2,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            2
+          ],
+          "texture": "#brass"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            2
+          ],
+          "texture": "#brass"
+        }
       }
     },
     {
       "__comment": "Brass frame, lower rail.",
-      "from": [4, 3.6, 12.2],
-      "to": [12, 4.8, 13.4],
+      "from": [
+        4.625,
+        2.913,
+        12.2
+      ],
+      "to": [
+        11.375,
+        4.3,
+        13.4
+      ],
       "faces": {
-        "north": {"uv": [0, 11, 16, 14], "texture": "#brass"},
-        "south": {"uv": [0, 11, 16, 14], "texture": "#brass"},
-        "east":  {"uv": [6, 11, 9, 14], "texture": "#brass"},
-        "west":  {"uv": [6, 11, 9, 14], "texture": "#brass"},
-        "up":    {"uv": [0, 6, 16, 9], "texture": "#brass"},
-        "down":  {"uv": [0, 6, 16, 9], "texture": "#brass"}
+        "north": {
+          "uv": [
+            0,
+            11,
+            16,
+            14
+          ],
+          "texture": "#brass"
+        },
+        "south": {
+          "uv": [
+            0,
+            11,
+            16,
+            14
+          ],
+          "texture": "#brass"
+        },
+        "east": {
+          "uv": [
+            6,
+            11,
+            9,
+            14
+          ],
+          "texture": "#brass"
+        },
+        "west": {
+          "uv": [
+            6,
+            11,
+            9,
+            14
+          ],
+          "texture": "#brass"
+        },
+        "up": {
+          "uv": [
+            0,
+            6,
+            16,
+            9
+          ],
+          "texture": "#brass"
+        },
+        "down": {
+          "uv": [
+            0,
+            6,
+            16,
+            9
+          ],
+          "texture": "#brass"
+        }
       }
     },
     {
       "__comment": "Brass frame, upper rail.",
-      "from": [4, 11.2, 12.2],
-      "to": [12, 12.4, 13.4],
+      "from": [
+        4.625,
+        11.7,
+        12.2
+      ],
+      "to": [
+        11.375,
+        13.088,
+        13.4
+      ],
       "faces": {
-        "north": {"uv": [0, 2, 16, 5], "texture": "#brass"},
-        "south": {"uv": [0, 2, 16, 5], "texture": "#brass"},
-        "east":  {"uv": [6, 2, 9, 5], "texture": "#brass"},
-        "west":  {"uv": [6, 2, 9, 5], "texture": "#brass"},
-        "up":    {"uv": [0, 6, 16, 9], "texture": "#brass"},
-        "down":  {"uv": [0, 6, 16, 9], "texture": "#brass"}
+        "north": {
+          "uv": [
+            0,
+            2,
+            16,
+            5
+          ],
+          "texture": "#brass"
+        },
+        "south": {
+          "uv": [
+            0,
+            2,
+            16,
+            5
+          ],
+          "texture": "#brass"
+        },
+        "east": {
+          "uv": [
+            6,
+            2,
+            9,
+            5
+          ],
+          "texture": "#brass"
+        },
+        "west": {
+          "uv": [
+            6,
+            2,
+            9,
+            5
+          ],
+          "texture": "#brass"
+        },
+        "up": {
+          "uv": [
+            0,
+            6,
+            16,
+            9
+          ],
+          "texture": "#brass"
+        },
+        "down": {
+          "uv": [
+            0,
+            6,
+            16,
+            9
+          ],
+          "texture": "#brass"
+        }
       }
     },
     {
       "__comment": "Brass frame, left stile.",
-      "from": [3.6, 4.8, 12.2],
-      "to": [4.8, 11.2, 13.4],
+      "from": [
+        4.287,
+        4.3,
+        12.2
+      ],
+      "to": [
+        5.3,
+        11.7,
+        13.4
+      ],
       "faces": {
-        "north": {"uv": [2, 0, 5, 16], "texture": "#brass"},
-        "south": {"uv": [2, 0, 5, 16], "texture": "#brass"},
-        "east":  {"uv": [6, 0, 9, 16], "texture": "#brass"},
-        "west":  {"uv": [6, 0, 9, 16], "texture": "#brass"},
-        "up":    {"uv": [2, 6, 5, 9], "texture": "#brass"},
-        "down":  {"uv": [2, 6, 5, 9], "texture": "#brass"}
+        "north": {
+          "uv": [
+            2,
+            0,
+            5,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "south": {
+          "uv": [
+            2,
+            0,
+            5,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "east": {
+          "uv": [
+            6,
+            0,
+            9,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "west": {
+          "uv": [
+            6,
+            0,
+            9,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "up": {
+          "uv": [
+            2,
+            6,
+            5,
+            9
+          ],
+          "texture": "#brass"
+        },
+        "down": {
+          "uv": [
+            2,
+            6,
+            5,
+            9
+          ],
+          "texture": "#brass"
+        }
       }
     },
     {
       "__comment": "Brass frame, right stile.",
-      "from": [11.2, 4.8, 12.2],
-      "to": [12.4, 11.2, 13.4],
+      "from": [
+        10.7,
+        4.3,
+        12.2
+      ],
+      "to": [
+        11.713,
+        11.7,
+        13.4
+      ],
       "faces": {
-        "north": {"uv": [11, 0, 14, 16], "texture": "#brass"},
-        "south": {"uv": [11, 0, 14, 16], "texture": "#brass"},
-        "east":  {"uv": [6, 0, 9, 16], "texture": "#brass"},
-        "west":  {"uv": [6, 0, 9, 16], "texture": "#brass"},
-        "up":    {"uv": [11, 6, 14, 9], "texture": "#brass"},
-        "down":  {"uv": [11, 6, 14, 9], "texture": "#brass"}
+        "north": {
+          "uv": [
+            11,
+            0,
+            14,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "south": {
+          "uv": [
+            11,
+            0,
+            14,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "east": {
+          "uv": [
+            6,
+            0,
+            9,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "west": {
+          "uv": [
+            6,
+            0,
+            9,
+            16
+          ],
+          "texture": "#brass"
+        },
+        "up": {
+          "uv": [
+            11,
+            6,
+            14,
+            9
+          ],
+          "texture": "#brass"
+        },
+        "down": {
+          "uv": [
+            11,
+            6,
+            14,
+            9
+          ],
+          "texture": "#brass"
+        }
       }
     },
     {
-      "__comment": "Forged-iron corner bracket, lower left — stands proudest of all.",
-      "from": [1.6, 1.6, 11.6],
-      "to": [5.2, 5.2, 16],
+      "__comment": "Forged-iron corner bracket, lower left \u2014 stands proudest of all.",
+      "from": [
+        2.6,
+        0.6,
+        11.6
+      ],
+      "to": [
+        5.638,
+        4.762,
+        16
+      ],
       "faces": {
-        "north": {"uv": [0, 11, 5, 16], "texture": "#iron"},
-        "east":  {"uv": [0, 11, 6, 16], "texture": "#iron"},
-        "west":  {"uv": [0, 11, 6, 16], "texture": "#iron"},
-        "up":    {"uv": [0, 11, 5, 16], "texture": "#iron"},
-        "down":  {"uv": [0, 11, 5, 16], "texture": "#iron"}
+        "north": {
+          "uv": [
+            0,
+            11,
+            5,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "east": {
+          "uv": [
+            0,
+            11,
+            6,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "west": {
+          "uv": [
+            0,
+            11,
+            6,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "up": {
+          "uv": [
+            0,
+            11,
+            5,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "down": {
+          "uv": [
+            0,
+            11,
+            5,
+            16
+          ],
+          "texture": "#iron"
+        }
       }
     },
     {
       "__comment": "Corner bracket, lower right.",
-      "from": [10.8, 1.6, 11.6],
-      "to": [14.4, 5.2, 16],
+      "from": [
+        10.363,
+        0.6,
+        11.6
+      ],
+      "to": [
+        13.4,
+        4.762,
+        16
+      ],
       "faces": {
-        "north": {"uv": [11, 11, 16, 16], "texture": "#iron"},
-        "east":  {"uv": [0, 11, 6, 16], "texture": "#iron"},
-        "west":  {"uv": [0, 11, 6, 16], "texture": "#iron"},
-        "up":    {"uv": [11, 11, 16, 16], "texture": "#iron"},
-        "down":  {"uv": [11, 11, 16, 16], "texture": "#iron"}
+        "north": {
+          "uv": [
+            11,
+            11,
+            16,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "east": {
+          "uv": [
+            0,
+            11,
+            6,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "west": {
+          "uv": [
+            0,
+            11,
+            6,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "up": {
+          "uv": [
+            11,
+            11,
+            16,
+            16
+          ],
+          "texture": "#iron"
+        },
+        "down": {
+          "uv": [
+            11,
+            11,
+            16,
+            16
+          ],
+          "texture": "#iron"
+        }
       }
     },
     {
       "__comment": "Corner bracket, upper left.",
-      "from": [1.6, 10.8, 11.6],
-      "to": [5.2, 14.4, 16],
+      "from": [
+        2.6,
+        11.238,
+        11.6
+      ],
+      "to": [
+        5.638,
+        15.4,
+        16
+      ],
       "faces": {
-        "north": {"uv": [0, 0, 5, 5], "texture": "#iron"},
-        "east":  {"uv": [0, 0, 6, 5], "texture": "#iron"},
-        "west":  {"uv": [0, 0, 6, 5], "texture": "#iron"},
-        "up":    {"uv": [0, 0, 5, 5], "texture": "#iron"},
-        "down":  {"uv": [0, 0, 5, 5], "texture": "#iron"}
+        "north": {
+          "uv": [
+            0,
+            0,
+            5,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            6,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            6,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            5,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            5,
+            5
+          ],
+          "texture": "#iron"
+        }
       }
     },
     {
       "__comment": "Corner bracket, upper right.",
-      "from": [10.8, 10.8, 11.6],
-      "to": [14.4, 14.4, 16],
+      "from": [
+        10.363,
+        11.238,
+        11.6
+      ],
+      "to": [
+        13.4,
+        15.4,
+        16
+      ],
       "faces": {
-        "north": {"uv": [11, 0, 16, 5], "texture": "#iron"},
-        "east":  {"uv": [0, 0, 6, 5], "texture": "#iron"},
-        "west":  {"uv": [0, 0, 6, 5], "texture": "#iron"},
-        "up":    {"uv": [11, 0, 16, 5], "texture": "#iron"},
-        "down":  {"uv": [11, 0, 16, 5], "texture": "#iron"}
+        "north": {
+          "uv": [
+            11,
+            0,
+            16,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            6,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            6,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "up": {
+          "uv": [
+            11,
+            0,
+            16,
+            5
+          ],
+          "texture": "#iron"
+        },
+        "down": {
+          "uv": [
+            11,
+            0,
+            16,
+            5
+          ],
+          "texture": "#iron"
+        }
       }
     },
     {
       "__comment": "Status lamp: a small domed glass jewel set into the board beneath the frame, between the two lower corner brackets. Swapped per glow state via #lamp in the three-line child models (block/plaque_empty|red|amber|green.json) -- this base element and its geometry never change.",
-      "from": [7.1, 2.6, 12.7],
-      "to": [8.9, 4.4, 13.9],
+      "from": [
+        7.241,
+        1.756,
+        12.7
+      ],
+      "to": [
+        8.759,
+        3.838,
+        13.9
+      ],
       "faces": {
-        "north": {"uv": [0, 0, 16, 16], "texture": "#lamp"},
-        "east":  {"uv": [0, 0, 3, 16], "texture": "#lamp"},
-        "west":  {"uv": [0, 0, 3, 16], "texture": "#lamp"},
-        "up":    {"uv": [0, 0, 16, 3], "texture": "#lamp"},
-        "down":  {"uv": [0, 0, 16, 3], "texture": "#lamp"}
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#lamp"
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            3,
+            16
+          ],
+          "texture": "#lamp"
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            3,
+            16
+          ],
+          "texture": "#lamp"
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            3
+          ],
+          "texture": "#lamp"
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            3
+          ],
+          "texture": "#lamp"
+        }
       }
     }
   ]

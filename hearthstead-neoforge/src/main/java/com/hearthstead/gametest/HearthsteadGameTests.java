@@ -607,6 +607,57 @@ public class HearthsteadGameTests {
     }
 
     /**
+     * The lamp is a real state signal and must actually change with the
+     * survey. Pinned because I once claimed the plaque showed nothing,
+     * having staged that check by data merge-ing the block entity's State
+     * directly -- which never calls survey(), and survey() is what writes
+     * this property. The claim was a measurement error; this test makes the
+     * real behaviour impossible to mistake again.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void theLampTracksTheSurvey(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+
+        // Blank plaque, nothing fitted: the lamp is dark.
+        BlockPos blankRel = hutOrigin.offset(3, 2, -1);
+        helper.setBlock(blankRel, com.hearthstead.registry.ModBlocks.PLAQUE.get()
+            .defaultBlockState()
+            .setValue(com.hearthstead.block.PlaqueBlock.FACING,
+                net.minecraft.core.Direction.NORTH));
+        helper.assertTrue(
+            helper.getBlockState(blankRel)
+                .getValue(com.hearthstead.block.PlaqueBlock.GLOW)
+                == com.hearthstead.block.PlaqueBlock.Glow.EMPTY,
+            "an unfitted plaque's lamp is dark, got "
+                + helper.getBlockState(blankRel)
+                    .getValue(com.hearthstead.block.PlaqueBlock.GLOW));
+
+        // Fitted on a room that satisfies it: the lamp goes green.
+        BlockPos plaqueRel = hangPlaque(helper, hutOrigin,
+            com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.succeedWhen(() -> {
+            var glow = helper.getBlockState(plaqueRel)
+                .getValue(com.hearthstead.block.PlaqueBlock.GLOW);
+            helper.assertTrue(glow != com.hearthstead.block.PlaqueBlock.Glow.EMPTY,
+                "a fitted plaque's lamp must leave EMPTY once it has surveyed");
+            helper.assertTrue(glow == com.hearthstead.block.PlaqueBlock.Glow.GREEN,
+                "this hut satisfies a house, so the lamp must read GREEN, got "
+                    + glow);
+            // And the blank one beside it must still be dark, so the two are
+            // genuinely distinguishable on the wall.
+            helper.assertTrue(
+                helper.getBlockState(blankRel)
+                    .getValue(com.hearthstead.block.PlaqueBlock.GLOW)
+                    == com.hearthstead.block.PlaqueBlock.Glow.EMPTY,
+                "the unfitted plaque beside it must still read EMPTY");
+        });
+    }
+
+    /**
      * The plaque's survey must reach the CLIENT. Verified in game that three
      * plaques in three different states rendered identically, because
      * saveAdditional carries type/state/revision/plan and nothing else -- so
