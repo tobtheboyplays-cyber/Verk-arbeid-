@@ -575,7 +575,13 @@ public class SettlerEntity extends PathfinderMob {
             return;
         }
         GuardRank rank = GuardRank.of(this);
-        if (rank == lastAppliedGuardRank) {
+        // Change-detect on the rank, but ALSO re-check a guard whose kit is
+        // incomplete: since the kit is bought from the settlement's stores
+        // rather than conjured, a promotion can legitimately outrun the
+        // armoury. Without this second condition the guard who ranked up on
+        // an empty armoury would stay bare forever, because their rank never
+        // changes again -- the smith could deliver and nobody would notice.
+        if (rank == lastAppliedGuardRank && GuardRank.isFullyEquipped(this)) {
             return;
         }
         // Never true on the FIRST application (lastAppliedGuardRank is null,

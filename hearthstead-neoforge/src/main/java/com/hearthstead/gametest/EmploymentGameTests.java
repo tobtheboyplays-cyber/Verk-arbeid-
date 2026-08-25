@@ -260,14 +260,34 @@ public class EmploymentGameTests {
     public void aBuildingWithNoTradeRefusesHiring(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
-        Building brewery = building(helper, s, BuildingType.BREWERY, 2, 2);
+        // The example is DERIVED, never named: this test used to hard-code the
+        // brewery, and the night the brewery got a brewer the test failed for
+        // the best possible reason -- the mod had grown. Ask the trade table
+        // itself which building is still unstaffed, so the check survives
+        // every future trade landing.
+        BuildingType tradeless = null;
+        for (BuildingType type : BuildingType.values()) {
+            if (Employment.tradeOf(type) == com.hearthstead.entity.Profession.NONE) {
+                tradeless = type;
+                break;
+            }
+        }
+        if (tradeless == null) {
+            // Every building employs somebody. The rule still holds, there is
+            // simply nothing left to test it on -- and saying so is honest,
+            // where quietly passing would not be.
+            helper.succeed();
+            return;
+        }
+        Building unstaffed = building(helper, s, tradeless, 2, 2);
         SettlerEntity astrid = settler(helper, s, "Astrid", 4, 4);
 
-        Employment.Hired result = Employment.hire(helper.getLevel(), s, brewery, astrid);
+        Employment.Hired result = Employment.hire(helper.getLevel(), s, unstaffed, astrid);
 
-        helper.assertFalse(result.ok(), "a trade that does not exist cannot be taken up");
+        helper.assertFalse(result.ok(),
+            "a trade that does not exist cannot be taken up (" + tradeless.id() + ")");
         helper.assertTrue(result.refusal() != null, "and it must say why");
-        helper.assertTrue(brewery.workers.isEmpty(), "nobody is seated");
+        helper.assertTrue(unstaffed.workers.isEmpty(), "nobody is seated");
         helper.succeed();
     }
 

@@ -56,6 +56,44 @@ public class GuardRankGameTests {
         return s;
     }
 
+
+    /**
+     * An armoury holding every piece the rank ladder can ask for.
+     *
+     * <p>Needed since the kit became chest-true: armor is WITHDRAWN from the
+     * settlement's own stores now, never conjured, so a test about who is
+     * allowed to wear what has to give the settlement something to hand out.
+     * Stocked generously on purpose — these two tests are about the RANK
+     * rule, and an armoury that runs dry mid-promotion would be testing
+     * supply instead.
+     */
+    private static void stockedArmoury(GameTestHelper helper, Settlement s,
+                                       int x, int z) {
+        BlockPos chestRel = new BlockPos(x, 1, z);
+        helper.setBlock(chestRel, net.minecraft.world.level.block.Blocks.CHEST);
+        BlockPos anchor = helper.absolutePos(chestRel);
+        com.hearthstead.settlement.Building armoury =
+            new com.hearthstead.settlement.Building(UUID.randomUUID(),
+            com.hearthstead.building.BuildingType.ARMOURY,
+            helper.absolutePos(new BlockPos(x, 2, z)), anchor,
+            net.minecraft.world.level.levelgen.structure.BoundingBox.fromCorners(
+                anchor, anchor.offset(2, 2, 2)));
+        armoury.valid = true;
+        s.buildings.add(armoury);
+        if (helper.getLevel().getBlockEntity(anchor)
+            instanceof net.minecraft.world.Container chest) {
+            net.minecraft.world.item.Item[] kit = {
+                Items.LEATHER_HELMET, Items.LEATHER_CHESTPLATE,
+                Items.LEATHER_LEGGINGS, Items.LEATHER_BOOTS,
+                Items.IRON_HELMET, Items.IRON_CHESTPLATE,
+                Items.IRON_LEGGINGS, Items.IRON_BOOTS,
+            };
+            for (int i = 0; i < kit.length; i++) {
+                chest.setItem(i, new net.minecraft.world.item.ItemStack(kit[i], 2));
+            }
+        }
+    }
+
     private static SettlerEntity settler(GameTestHelper helper, Settlement s,
                                          String name, int x, int z) {
         SettlerEntity settler = helper.spawn(ModEntities.SETTLER.get(),
@@ -91,6 +129,7 @@ public class GuardRankGameTests {
     public void armorArrivesOnlyAfterTheRankThatEarnsIt(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
+        stockedArmoury(helper, s, 10, 10);
         SettlerEntity guard = settler(helper, s, "Rekrutt", 4, 4);
         guard.assignProfession(Profession.GUARD);
 
@@ -138,6 +177,7 @@ public class GuardRankGameTests {
     public void armorNeverOutstripsTheCurrentRank(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
+        stockedArmoury(helper, s, 10, 10);
         SettlerEntity guard = settler(helper, s, "Kaptein", 4, 4);
         guard.assignProfession(Profession.GUARD);
         trainStrengthTo(guard, GuardRank.CAPTAIN.threshold());

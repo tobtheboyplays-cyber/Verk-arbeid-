@@ -170,7 +170,7 @@ public class ArmouryGameTests {
      * {@code SettlerEntity}'s equipment-refresh hook genuinely withdraws from
      * the world rather than the old thin-air behaviour.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400)
     public void aPromotedSpearmanWithdrawsHerChestplateFromTheArmoury(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
@@ -218,7 +218,7 @@ public class ArmouryGameTests {
      * SettlerEntity change is needed to actually trigger without a further
      * promotion.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400)
     public void promotionWithEmptyStoresLeavesUnarmouredThenPicksUpStockOnNextRefresh(
         GameTestHelper helper) {
         buildArena(helper, 14);
@@ -275,7 +275,7 @@ public class ArmouryGameTests {
      * the SAME total — armoury + warehouse + hearth — to prove the swap is
      * exactly conserving: two pieces out, two pieces back, net zero.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400)
     public void promotionPastATierReturnsOutgrownPiecesConservingTheStores(GameTestHelper helper) {
         buildArena(helper, 14);
         BlockPos hearthRel = new BlockPos(11, 1, 11);
