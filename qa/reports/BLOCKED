@@ -1,25 +1,22 @@
-BLOCKED: full/gametest suites cannot run mid-fleet (fingerprinted sources
-are actively owned by parallel workers). Wave respawned 2026-08-25 ~21:30Z
-after the container re-provision killed the previous instances (their
-uncommitted partials were lost with the old working tree; all pushed work
-survived at 6cad478).
+BLOCKED: full/gametest suites cannot run in the MAIN tree while workers own
+fingerprinted sources. Evidence is being produced instead in a clean git
+worktree at committed HEAD (scratchpad/verify-tree) — that run judges
+exactly what is pushed, which is what the owner-critic's krav 1 demands.
 
-In-flight ownership (respawned wave R):
-- polermester-R (cycle 1): SettlerAnimations, SettlerModel, SettlerEntity,
-  4 screens subset, gen_settler.py, gen_sounds.py, BOTH lang files,
-  SettlerSnapshotPayload/SettlerNetwork, ANIMATION_CATALOGUE.md, ModSounds
-  + sounds.json.
-- FUEL-1R: Production.java, CrafterWorkGoal.java, building/Fuel.java (new),
-  gametest/FuelGameTests.java (new).
-- FOOD-1R: CourierWorkGoal.java, gametest/CourierFoodRouteGameTests.java (new).
-- REPAIR-1R: settlement/raid/RaidDirector.java, entity/ai/RepairWorkGoal.java
-  (new), gametest/RepairGameTests.java (new).
-- ARMOR-1R: client/render/SettlerArmorLayer.java (new), SettlerRenderer.java
-  (registration line only), tools/gen_armor.py (new) + armor overlay PNGs.
-- ARCHER-1R: Profession.java, Employment.java, entity/ArcherRank.java (new),
-  entity/ai/ArcherAttackGoal.java (new), gametest/ArcherGameTests.java (new),
-  BuildingType.java (only if needed), WATCHTOWER→BARRACKS substitutions in
-  existing gametests.
-- byggherren #1: read-only critic, owns nothing.
-Everything else is free. Coordinator compiles, commits, deletes this file
-at integration, then runs VERIFY-1.
+Still in flight (wave R, second half):
+- polermester-R: SettlerAnimations (CHOP + PICKUP_STOW REBUILDS per
+  Byggherre-dom #2), SettlerModel, SettlerEntity (3 goal registrations:
+  Scholar 6 / Archer 2 / Repair 5), 4 screens, gen_settler.py (4 missing
+  outfits: scholar, miller, brewer, archer), gen_sounds.py, BOTH lang
+  files (research keys + archer keys + discount keys), ModSounds,
+  sounds.json, ANIMATION_CATALOGUE.md.
+- ARMOURY-1: GuardRank.java + ArmouryGameTests (chest-true rank kit).
+- HANDBOOK-2: HandbookScreen.java + data/hearthstead/advancement/.
+
+Landed and committed tonight: fuel economy, courier food route, visible
+rank armor, archer trade, martial predicate, repair dugnad, research
+bonuses wired, 33 survival recipes, central Costs + discounts, recruit
+price tag fix, four fuel-seeded test fixes, doc reconciliation.
+
+Coordinator deletes this file when the last three land and the main-tree
+suite runs clean.
