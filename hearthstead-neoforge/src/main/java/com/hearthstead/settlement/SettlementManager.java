@@ -16,7 +16,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
@@ -34,47 +33,25 @@ public final class SettlementManager {
     public static boolean ignoreFoundingDistance = false;
 
     /**
-     * What joining costs, in village-grown goods (DESIGN.md system 8: "recruit
-     * by paying a price in village-grown goods"). Paid whole, from the
-     * hearth's own inventory, at the moment a waiting guest is admitted.
-     *
-     * <p><b>Why bread and planks.</b> Bread is what every settlement has from
-     * its first harvest — three founders with a farmhouse can pay it before
-     * their first traveler even arrives. Oak planks are the one good stacked
-     * on top: cheap enough that an afternoon at the sawmill (or a player's own
-     * axe and crafting table) buries the cost completely, but a settlement
-     * with no production running yet has to genuinely wait and stock up
-     * first. Wool would have made the same point, but it needs a weaver AND
-     * sheep, which is a taller order than this slice's "young settlement can
-     * still just about afford it" is aiming for. Together the two items are a
-     * price a subsistence camp feels and a thriving settlement never notices
-     * — which is exactly the shape a "price" is supposed to have here.
-     */
-    private static final RecruitCost[] RECRUIT_PRICE = {
-        new RecruitCost(null, Items.BREAD, 4),
-        // ANY planks, not oak specifically (Byggherre-dom #1, krav 8): a
-        // settlement founded in a birch or spruce forest could literally
-        // never recruit under an exact-item match, which makes no sense to
-        // the player standing in it. Bread stays exact -- bread is bread.
-        new RecruitCost(net.minecraft.tags.ItemTags.PLANKS, null, 8),
-    };
-
-    /** One line of the recruit price: an exact item OR any item in a tag. */
-    private record RecruitCost(net.minecraft.tags.TagKey<net.minecraft.world.item.Item> tag,
-                               Item exact, int count) {
-        boolean matches(ItemStack stack) {
-            return tag != null ? stack.is(tag) : stack.is(exact);
-        }
-    }
-
-    /**
      * How long a guest waits at the tavern (or the hearth, tavern-less)
      * before giving up on a settlement that cannot pay. 2.5 game days: long
      * enough that a settlement mid-harvest gets a real second chance, short
      * enough that an unpayable settlement is not haunted by the same guest
      * forever. Doubled while an innkeeper is on shift (see
      * {@link #tickWaitingTraveler}) — hospitality buys a guest more time to
-     * wait, not a cheaper price; the price never moves.
+     * wait.
+     *
+     * <p>That is a DIFFERENT hook from the innkeeper's price discount: what
+     * joining costs (DESIGN.md system 8: "recruit by paying a price in
+     * village-grown goods"), and the named discounts a settlement can earn
+     * against it (an innkeeper on shift, a dining hall), live in
+     * {@link Costs#recruit()} and {@link Costs#discountsFor} — this class
+     * only ever asks, through {@link #recruitPrice} and
+     * {@link #recruitDiscounts} below, so {@link #tickWaitingTraveler} and
+     * the UI stay on the same one number, exactly what COSTS.md's
+     * implementation map requires. One hook lets a slow settlement wait
+     * longer, the other lowers what it pays once it can — the two stack
+     * independently, and neither substitutes for the other.
      */
     private static final long GUEST_PATIENCE_TICKS = 60_000L;
 
@@ -194,9 +171,10 @@ public final class SettlementManager {
      * A waiting guest has been paid for and joins the settlement.
      *
      * <p>Payment itself is the caller's job ({@link #tickWaitingTraveler}
-     * deducts {@link #RECRUIT_PRICE} before ever calling this) — by the time
-     * this runs the price is already gone from the hearth, so this method
-     * only ever does the joining, the same as it always has.
+     * deducts the settlement's {@link #recruitPrice discounted recruit price}
+     * before ever calling this) — by the time this runs the price is already
+     * gone from the hearth, so this method only ever does the joining, the
+     * same as it always has.
      */
     public static void convertTraveler(ServerLevel level, SettlerEntity settler) {
         Settlement s = byId(level, settler.getTargetSettlementId());
@@ -268,11 +246,12 @@ public final class SettlementManager {
 
     /**
      * A guest is standing at the tavern (or the hearth, tavern-less), waiting
-     * to be let in. Admits them the moment the settlement can pay
-     * {@link #RECRUIT_PRICE}; otherwise lets them keep waiting up to their
-     * patience, doubled while an innkeeper is on shift — checked straight off
-     * {@link Building#workers}, never a flag kept in step by hand (Employment's
-     * own invariant: the worker list is the only record of who is employed).
+     * to be let in. Admits them the moment the settlement can pay its
+     * {@link #recruitPrice discounted recruit price}; otherwise lets them
+     * keep waiting up to their patience, doubled while an innkeeper is on
+     * shift — checked straight off {@link Building#workers}, never a flag
+     * kept in step by hand (Employment's own invariant: the worker list is
+     * the only record of who is employed).
      *
      * <p>Payment is only ever attempted once the guest has actually reached
      * the waiting spot, so "joins only once they wait there" is a fact about
@@ -299,8 +278,9 @@ public final class SettlementManager {
         BlockPos waitingSpot = tavern != null ? tavern.anchor : s.center;
         boolean arrived = waitingSpot != null
             && guest.blockPosition().distSqr(waitingSpot) <= 9;
+        Costs.Price price = recruitPrice(level, s);
         if (arrived && level.getBlockEntity(s.center) instanceof HearthBlockEntity hearth
-            && canPayRecruitPrice(hearth.getInventory())) {
+            && Costs.canPay(hearth.getInventory(), price)) {
             // Capacity is checked BEFORE the price leaves the hearth. The
             // audit wave found the old order paid first and let
             // convertTraveler discard the guest at a full settlement --
@@ -311,7 +291,7 @@ public final class SettlementManager {
             if (s.population() >= s.capacity()) {
                 return;
             }
-            payRecruitPrice(hearth.getInventory());
+            Costs.pay(hearth.getInventory(), price);
             convertTraveler(level, guest);
             return;
         }
@@ -338,44 +318,25 @@ public final class SettlementManager {
 
     // ------------------------------------------------------- the price ---
 
-    private static boolean canPayRecruitPrice(ItemStackHandler inventory) {
-        for (RecruitCost cost : RECRUIT_PRICE) {
-            if (countMatching(inventory, cost) < cost.count()) {
-                return false;
-            }
-        }
-        return true;
+    /**
+     * What recruiting would cost this settlement RIGHT NOW, every discount
+     * it has earned already applied — the one call both
+     * {@link #tickWaitingTraveler} and the hire/recruit UI are meant to make,
+     * so the two never drift onto two different numbers. See
+     * {@link #recruitDiscounts} for the itemization behind this total.
+     */
+    public static Costs.Price recruitPrice(ServerLevel level, Settlement s) {
+        return Costs.afterDiscounts(Costs.recruit(), recruitDiscounts(level, s));
     }
 
-    /** Only ever called after {@link #canPayRecruitPrice} said yes. */
-    private static void payRecruitPrice(ItemStackHandler inventory) {
-        for (RecruitCost cost : RECRUIT_PRICE) {
-            extractMatching(inventory, cost, cost.count());
-        }
-    }
-
-    private static int countMatching(ItemStackHandler inventory, RecruitCost cost) {
-        int total = 0;
-        for (int slot = 0; slot < inventory.getSlots(); slot++) {
-            ItemStack stack = inventory.getStackInSlot(slot);
-            if (!stack.isEmpty() && cost.matches(stack)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
-    }
-
-    /** Mixed stacks pay together: 5 birch + 3 spruce planks are 8 planks. */
-    private static void extractMatching(ItemStackHandler inventory, RecruitCost cost, int amount) {
-        for (int slot = 0; slot < inventory.getSlots() && amount > 0; slot++) {
-            ItemStack stack = inventory.getStackInSlot(slot);
-            if (!stack.isEmpty() && cost.matches(stack)) {
-                int take = Math.min(amount, stack.getCount());
-                stack.shrink(take);
-                inventory.setStackInSlot(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
-                amount -= take;
-            }
-        }
+    /**
+     * The named discount lines making up {@link #recruitPrice}'s reduction —
+     * e.g. an employed innkeeper, a valid dining hall — for the UI to render
+     * per COSTS.md's "UI rule": full price, then discounted price with each
+     * hook named ("Vertshusholderen -25%, Spisesalen -25%").
+     */
+    public static List<Costs.Discount> recruitDiscounts(ServerLevel level, Settlement s) {
+        return Costs.discountsFor(level, s, Costs.PriceKey.RECRUIT);
     }
 
     private static int countItem(ItemStackHandler inventory, Item item) {
