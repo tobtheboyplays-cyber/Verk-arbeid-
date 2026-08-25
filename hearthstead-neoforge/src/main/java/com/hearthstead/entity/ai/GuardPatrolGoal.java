@@ -20,6 +20,21 @@ public class GuardPatrolGoal extends Goal {
     private int pauseTicks;
     private BlockPos currentWaypoint;
 
+    /**
+     * Vaktdrill's multiplier on the peacetime drill (RESEARCH-1's handoff).
+     * Combat training is deliberately NOT multiplied: the project is a
+     * drill yard, not a war.
+     */
+    private float drillBonus() {
+        com.hearthstead.settlement.Settlement settlement = settler.settlement();
+        if (!(settler.level() instanceof net.minecraft.server.level.ServerLevel level)
+            || settlement == null) {
+            return 1.0F;
+        }
+        return com.hearthstead.settlement.research.Research.bonus(level, settlement.id,
+            com.hearthstead.settlement.research.ResearchKey.GUARD_TRAINING);
+    }
+
     public GuardPatrolGoal(SettlerEntity settler) {
         this.settler = settler;
         setFlags(EnumSet.of(Flag.MOVE));
@@ -67,7 +82,7 @@ public class GuardPatrolGoal extends Goal {
         // threshold 20 in ~3.5-4 in-game days of full-time patrols, with
         // combat paying 5x per event) lives on GuardRank.TRAIN_DRILL.
         settler.train(com.hearthstead.entity.Attribute.STRENGTH,
-            com.hearthstead.entity.GuardRank.TRAIN_DRILL);
+            com.hearthstead.entity.GuardRank.TRAIN_DRILL * drillBonus());
         settler.spendEffort(1);
         if (settler.level() instanceof net.minecraft.server.level.ServerLevel level) {
             level.playSound(null, settler.blockPosition(),

@@ -48,6 +48,21 @@ public class CrafterWorkGoal extends Goal {
     private int ticksLeft;
     private int workedTicks;
 
+    /**
+     * The recipe's cost after this settlement's research (RESEARCH-1's
+     * handoff, finally wired): Bedre Gjær really does make the bakery
+     * faster. A settlement that never opened a lectern pays exactly the
+     * table price -- the multiplier is neutral, not absent.
+     */
+    private int researchedTicks(Production.Recipe recipe) {
+        Settlement settlement = settler.settlement();
+        if (!(settler.level() instanceof ServerLevel level)
+            || settlement == null || bench == null) {
+            return recipe.ticks();
+        }
+        return Production.ticksFor(level, settlement.id, bench.type, recipe);
+    }
+
     public CrafterWorkGoal(SettlerEntity settler) {
         this.settler = settler;
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
@@ -107,7 +122,7 @@ public class CrafterWorkGoal extends Goal {
     public void start() {
         settler.getNavigation().stop();
         settler.setActivity(Employment.motionOf(bench.type));
-        ticksLeft = recipe.ticks();
+        ticksLeft = researchedTicks(recipe);
         workedTicks = 0;
     }
 
@@ -161,6 +176,6 @@ public class CrafterWorkGoal extends Goal {
             return;
         }
         recipe = next;
-        ticksLeft = next.ticks();
+        ticksLeft = researchedTicks(next);
     }
 }

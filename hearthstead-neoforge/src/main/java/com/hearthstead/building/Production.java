@@ -2,6 +2,8 @@ package com.hearthstead.building;
 
 import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.research.Research;
+import com.hearthstead.settlement.research.ResearchKey;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -278,6 +280,42 @@ public final class Production {
 
     private static void put(BuildingType type, Recipe... recipes) {
         RECIPES.put(type, List.of(recipes));
+    }
+
+    /**
+     * What a recipe actually costs this settlement in ticks, after research.
+     *
+     * <p>The completed project multiplies the printed cost — Bedre Gjær makes
+     * a bakery's loaf 0.85x the ticks, and nothing else changes. FLOWS.md's
+     * one rule holds: multiply, never gate. A settlement that has researched
+     * nothing pays the table price, which is why {@link Research#bonus}
+     * returns a neutral 1.0 rather than an absence.
+     *
+     * <p>Floored at one tick: a stack of future multipliers must never make
+     * work instantaneous, and a zero-tick recipe would complete inside the
+     * same tick it started, skipping the animation the player is supposed to
+     * see doing it.
+     */
+    public static int ticksFor(ServerLevel level, java.util.UUID settlementId,
+                               BuildingType type, Recipe recipe) {
+        ResearchKey key = researchKeyFor(type);
+        if (key == null || settlementId == null) {
+            return recipe.ticks();
+        }
+        float multiplier = Research.bonus(level, settlementId, key);
+        return Math.max(1, Math.round(recipe.ticks() * multiplier));
+    }
+
+    /** Which project, if any, speeds this kind of building up. */
+    @Nullable
+    private static ResearchKey researchKeyFor(BuildingType type) {
+        return switch (type) {
+            case BAKERY -> ResearchKey.BAKERY_TICKS;
+            case SAWMILL -> ResearchKey.SAWMILL_TICKS;
+            case SMELTER -> ResearchKey.SMELTER_TICKS;
+            case TANNERY -> ResearchKey.TANNERY_TICKS;
+            default -> null;
+        };
     }
 
     /** Everything this kind of building knows how to make. Never null. */

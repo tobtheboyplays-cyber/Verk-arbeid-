@@ -607,9 +607,40 @@ public class FarmerWorkGoal extends Goal {
                 // path re-files bare farmland as waterable.
                 if (state.is(Blocks.FARMLAND)
                     && serverLevel.getBlockState(maintainTarget.above())
-                        .getBlock() instanceof CropBlock) {
+                        .getBlock() instanceof CropBlock crop) {
                     serverLevel.setBlock(maintainTarget, state.setValue(FarmBlock.MOISTURE, 7),
                         Block.UPDATE_ALL);
+                    // Åkerskifte (RESEARCH-1's FARM_GROWTH handoff, finally
+                    // wired): a researched settlement's tended crops "grow
+                    // more often". The multiplier becomes the chance that
+                    // this watering ALSO advances the crop a stage -- the
+                    // honest reading of "more often", and bounded to the
+                    // tended plot and to a watering the farmer actually
+                    // performed. Un-researched settlements roll against 0.
+                    BlockPos above = maintainTarget.above();
+                    BlockState cropState = serverLevel.getBlockState(above);
+                    com.hearthstead.settlement.Settlement settlement = settler.settlement();
+                    if (settlement != null && !crop.isMaxAge(cropState)) {
+                        float extra = com.hearthstead.settlement.research.Research.bonus(
+                            serverLevel, settlement.id,
+                            com.hearthstead.settlement.research.ResearchKey.FARM_GROWTH) - 1.0F;
+                        if (extra > 0.0F && settler.getRandom().nextFloat() < extra) {
+                            // One stage, explicitly -- not bone meal (which
+                            // jumps 2-5) and not randomTick (protected). The
+                            // age property is read off the state so beetroot's
+                            // 0-3 ladder works the same as wheat's 0-7.
+                            for (var property : cropState.getProperties()) {
+                                if (property instanceof net.minecraft.world.level.block.state
+                                        .properties.IntegerProperty age
+                                    && "age".equals(property.getName())) {
+                                    serverLevel.setBlock(above,
+                                        crop.getStateForAge(cropState.getValue(age) + 1),
+                                        Block.UPDATE_ALL);
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             }
             chargeLightAction();
