@@ -51,13 +51,17 @@ regression test worth trusting).
 
 ## Next concrete action
 
-`fast` is PASS (33/33). Commit, then `full` ×2 for `green_streak=2` at the
-new fingerprint, then capture live video of a completed courier round trip
-— the wedge above means no such footage exists yet.
+**GATE: PASS (green_streak=2)** at fingerprint `20260825T002145Z`, covering
+the KF-013 fix and its hardening. 33/33 GameTests. Commits `0b46089`,
+`e1555c4`, `18f1319`, all pushed.
 
-Then A2a's remaining work per `docs/project/PLAN_A2a.md`, and the user's
-standing asks: raids far more frequent/harder than either reference, and
-the courier's visible sack as a real capacity mechanic (cart upgrade later).
+Next: live video of a completed courier round trip into a *sealed* warehouse
+— the wedge means no such footage exists yet, and an arena is not a house.
+Then **A2b, the courier's visible sack** (`docs/project/PLAN_A2b_SACK.md`):
+the `backpack` cube exists but is pure decoration, so "se hvor mye han bærer"
+is unbuilt. Then A3 raids (`docs/project/PLAN_A3_RAIDS.md`, needs a
+PLAN_GATE first) against the sourced research in
+`docs/project/RAID_REFERENCE_RESEARCH.md`.
 
 **Process lessons: never edit source while a gate or review is in flight**,
 and **an arena with no walls is not testing this product** — when
