@@ -1192,7 +1192,7 @@ public class HearthsteadGameTests {
             "a glass-roofed room is roofed, got " + s.validHomeCount()));
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 900, batch = "night")
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "night_sleep")
     public void settlerSleepsInClaimedBed(GameTestHelper helper) {
         helper.getLevel().setDayTime(16000); // deep night: REST phase
         buildArena(helper, 16, 16);
@@ -1231,7 +1231,7 @@ public class HearthsteadGameTests {
      *  a full night, through dawn, and asserts the settler naturally wakes
      *  (WAKE_STRETCH fires, activity returns to IDLE) and is free to work
      *  again -- not still SLEEPING once energy has recovered past dawn. */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night_wake")
     public void settlerWakesAtDawnWithRecoveredEnergy(GameTestHelper helper) {
         // Still deep in REST, a few hundred ticks short of RISE at 23000.
         // The village clock (DayPhase) now opens a waking phase before

@@ -121,7 +121,7 @@ public class TradeMasonGameTests {
      * second batch runs straight after the first with no re-hire, proving
      * this is a loop and not a one-shot.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "trade_mason", template = "empty16", timeoutTicks = 900)
     public void aHiredMasonChiselsStoneIntoBricks(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

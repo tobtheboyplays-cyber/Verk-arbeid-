@@ -110,7 +110,7 @@ public class TradeSawyerGameTests {
      * (motion {@code WORK_SAW}), so a settler who did nothing cannot pass
      * this test by the recipe running itself.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "trade_sawyer", template = "empty16", timeoutTicks = 600)
     public void aHiredSawyerActuallySaws(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

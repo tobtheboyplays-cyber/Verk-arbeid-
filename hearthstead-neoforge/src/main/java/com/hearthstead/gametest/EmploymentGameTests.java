@@ -103,7 +103,7 @@ public class EmploymentGameTests {
      * them out of the first, in the same operation. There is no instant in
      * which a settler holds two jobs.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void noSettlerHoldsTwoPosts(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -126,7 +126,7 @@ public class EmploymentGameTests {
     }
 
     /** A building seats what its type says, and not one more. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void hiringStopsAtCapacity(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -154,7 +154,7 @@ public class EmploymentGameTests {
      * worst habit is taking a worker silently; you find out the farm has no
      * farmer when the bread stops.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void takingAWorkerNamesTheLoss(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -186,7 +186,7 @@ public class EmploymentGameTests {
      * A settler pointing at a building that no longer exists is the exact class
      * of bug KF-013 and KF-014 both were. Made impossible rather than findable.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void aDissolvedBuildingKeepsNoWorkers(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -209,7 +209,7 @@ public class EmploymentGameTests {
      * never a second copy of it. Tamper with the record and the projection must
      * follow, not argue.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void professionIsDerivedNeverStored(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -230,7 +230,7 @@ public class EmploymentGameTests {
     }
 
     /** Dismissal costs them something and leaves them standing in the village. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void dismissalLeavesThemInTheVillage(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -256,7 +256,7 @@ public class EmploymentGameTests {
      * A building whose trade is not implemented refuses honestly instead of
      * seating a worker who would stand there doing nothing (D-014).
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void aBuildingWithNoTradeRefusesHiring(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -297,7 +297,7 @@ public class EmploymentGameTests {
      * The owner's rule, enforced: a settler arrives at 15 out of 100 at the
      * very best. Everything above that is earned by doing the work.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void nobodyArrivesBetterThanFifteen(GameTestHelper helper) {
         RandomSource random = RandomSource.create(20260825L);
         int best = 0;
@@ -324,7 +324,7 @@ public class EmploymentGameTests {
     }
 
     /** Growth is asymptotic: 100 is a direction, not a destination. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void nobodyEverReachesTheCeiling(GameTestHelper helper) {
         SettlerAttributes a = SettlerAttributes.blank();
         for (int i = 0; i < 200000; i++) {
@@ -339,7 +339,7 @@ public class EmploymentGameTests {
     }
 
     /** The same work is worth far less to someone who is already good at it. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void growthSlowsAsItRises(GameTestHelper helper) {
         SettlerAttributes novice = SettlerAttributes.blank();
         int noviceGain = trainFor(novice, 400);
@@ -371,7 +371,7 @@ public class EmploymentGameTests {
      * roster of pure advantages collapses into "reroll until you get the good
      * one". This is the test that stops a future trait from quietly being free.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void everyTraitCostsSomething(GameTestHelper helper) {
         for (Trait trait : Trait.ALL) {
             boolean pays = trait.carry() < 1.0F || trait.speed() < 1.0F
@@ -391,7 +391,7 @@ public class EmploymentGameTests {
     // ---------------------------------------------------------- the clock ---
 
     /** One rhythm for the whole village, cut at the light the player sees. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void theVillageRunsOnOneClock(GameTestHelper helper) {
         helper.assertTrue(DayPhase.of(23500) == DayPhase.RISE, "dawn is RISE");
         helper.assertTrue(DayPhase.of(3000).work(), "mid-morning is work");
@@ -411,7 +411,7 @@ public class EmploymentGameTests {
      * A garrison that all sleeps at midnight is not a garrison. Two guards in
      * one barracks must stand opposite watches.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void theNightWatchIsAwakeWhenTheDayWatchIsNot(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -441,7 +441,7 @@ public class EmploymentGameTests {
      * Where the day sends people: to their own building in working hours, and
      * to the table at noon.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void theDaySendsPeopleSomewhereReal(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -479,7 +479,7 @@ public class EmploymentGameTests {
      * fall back to standing still, which is the generic work loop the animation
      * invariant exists to forbid.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void everyTradeHasWorkAndAMotionOfItsOwn(GameTestHelper helper) {
         for (BuildingType type : BuildingType.values()) {
             if (com.hearthstead.building.Production.produces(type)) {
@@ -510,7 +510,7 @@ public class EmploymentGameTests {
      * turns: hire someone and the building starts producing, with no mill, no
      * farm and no warehouse anywhere in the world (D-007).
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 600)
     public void aHiredBakerActuallyBakes(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -551,7 +551,7 @@ public class EmploymentGameTests {
     }
 
     /** Doing the job makes you better at it — counted on completion, not on a timer. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void craftingTrainsTheTradeItPractises(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -578,7 +578,7 @@ public class EmploymentGameTests {
     // ------------------------------------------------------- starter pack ---
 
     /** The miner cuts stone into the mine's own chests, and never into nothing. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void aMinerNeverBreaksWhatItCannotStore(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -601,7 +601,7 @@ public class EmploymentGameTests {
      * The courier's tidying only ever merges: same item, same total, fewer
      * stacks. Item conservation holds even though the world was rearranged.
      */
-    @GameTest(template = "empty16", timeoutTicks = 300)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 300)
     public void tidyingTheWarehouseConservesEverything(GameTestHelper helper) {
         floor(helper, 16);
         helper.setBlock(new BlockPos(4, 1, 4), Blocks.CHEST);
@@ -646,7 +646,7 @@ public class EmploymentGameTests {
     /**
      * The mayor's boon comes from who they are, and losing one is a real blow.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void aMayorsDeathCostsTheWholeSettlement(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -685,7 +685,7 @@ public class EmploymentGameTests {
     // ------------------------------------------------------- guard ranks ---
 
     /** Rank is reached, not bought, and every ability has a threshold. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
     public void guardAbilitiesUnlockWithEarnedStrength(GameTestHelper helper) {
         helper.assertTrue(com.hearthstead.entity.GuardRank.of(0)
             == com.hearthstead.entity.GuardRank.RECRUIT, "nobody starts able");

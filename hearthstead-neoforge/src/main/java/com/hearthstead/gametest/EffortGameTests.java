@@ -183,7 +183,7 @@ public class EffortGameTests {
      * question actually plugs into on the housing side -- the reason to
      * build real beds rather than let settlers doze by the hearth.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night_effort")
     public void aNightInAClaimedBedRefillsThePoolInFull(GameTestHelper helper) {
         helper.getLevel().setDayTime(22600); // short of dawn, deep in REST
         buildArena(helper, 16);

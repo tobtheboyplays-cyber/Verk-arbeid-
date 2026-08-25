@@ -120,7 +120,7 @@ public class TradeWeaverGameTests {
      * recipe (wool into a banner) needs six wool to fire, far more than this
      * short window produces, so which recipe runs is never in doubt.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "trade_weaver", template = "empty16", timeoutTicks = 600)
     public void aHiredWeaverActuallyWeaves(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

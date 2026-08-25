@@ -125,7 +125,7 @@ public class TradeButcherGameTests {
      * passing on a compile check. If the motion is ever wired back to a shared
      * generic work loop, {@code sawCleaving} never becomes true either.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "trade_butcher", template = "empty16", timeoutTicks = 600)
     public void aHiredButcherActuallyCooks(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

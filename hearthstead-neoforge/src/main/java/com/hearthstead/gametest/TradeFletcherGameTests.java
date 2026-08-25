@@ -122,7 +122,7 @@ public class TradeFletcherGameTests {
      * and a second batch runs straight after the first with no re-hire,
      * proving this is a loop and not a one-shot.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "trade_fletcher", template = "empty16", timeoutTicks = 600)
     public void aHiredFletcherFletchesFlintIntoArrows(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

@@ -147,7 +147,7 @@ public class MinerDropsGameTests {
      * recipes actually accept — and the block item {@code minecraft:iron_ore}
      * appears nowhere: not in the chest, not as a dropped entity.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "miner_drops", template = "empty16", timeoutTicks = 400)
     public void aMinedIronOreArrivesAsRawIron(GameTestHelper helper) {
         plankFloor(helper, 16);
         BlockPos oreRel = new BlockPos(4, 0, 4);
@@ -190,7 +190,7 @@ public class MinerDropsGameTests {
      * miner's pick) — the form the mason's recipes take by design rather
      * than by accident — and the STONE item appears nowhere.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "miner_drops", template = "empty16", timeoutTicks = 400)
     public void aMinedStoneArrivesAsCobblestone(GameTestHelper helper) {
         plankFloor(helper, 16);
         BlockPos stoneRel = new BlockPos(4, 0, 4);

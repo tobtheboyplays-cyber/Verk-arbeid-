@@ -143,7 +143,7 @@ public class TradeCookGameTests {
      * straight after the first with no re-hire, proving this is a loop and
      * not a one-shot.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "trade_cook", template = "empty16", timeoutTicks = 900)
     public void aHiredCookStirsPotatoesIntoBakedPotatoes(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

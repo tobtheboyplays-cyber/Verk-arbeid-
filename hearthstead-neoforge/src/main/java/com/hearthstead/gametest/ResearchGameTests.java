@@ -117,7 +117,7 @@ public class ResearchGameTests {
 
     /** Starting a project takes exactly its costs, from the study's own
      *  chest — conservation, not "some items disappear." */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
     public void startingConsumesExactlyItsCosts(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -145,7 +145,7 @@ public class ResearchGameTests {
 
     /** A chest that cannot pay every line is refused, and refused whole:
      *  nothing already there is taken (atomic, not partial). */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
     public void startingRefusesWhenMaterialsAreShort(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -176,7 +176,7 @@ public class ResearchGameTests {
     /** With no scholar employed at all, an active project does not move —
      *  neither the work goal (nobody to run it) nor the daily trickle
      *  (which itself requires an employed worker) has anything to advance. */
-    @GameTest(template = "empty16", timeoutTicks = 120)
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 120)
     public void progressDoesNotMoveWithNoScholarEmployed(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -198,7 +198,7 @@ public class ResearchGameTests {
      *  active project's sessions actually climb — the whole loop the owner
      *  asked for, end to end, with no shortcut through {@code
      *  Research.advanceSession} directly. */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 900)
     public void anEmployedScholarActuallyAdvancesTheProject(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -233,7 +233,7 @@ public class ResearchGameTests {
      *  save/load round trip through its own NBT — {@code Research} is never
      *  consulted for this, only the plain data {@code ResearchState} is,
      *  the exact idiom {@code SagaGameTests} uses for {@code Settlement}. */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 900)
     public void completionExposesTheBonusAndSurvivesReload(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -271,7 +271,7 @@ public class ResearchGameTests {
 
     /** Cancelling refunds exactly the documented half of the domain sample
      *  — never the paper, never the whole amount. */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
     public void cancellingRefundsHalfTheDomainSampleOnly(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

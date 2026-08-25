@@ -156,7 +156,7 @@ public class TradeCarpenterGameTests {
      * never fewer), and a second batch runs straight after the first with no
      * re-hire, proving this is a loop and not a one-shot.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "trade_carpenter", template = "empty16", timeoutTicks = 900)
     public void aHiredCarpenterPlanesSticksIntoLadders(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);

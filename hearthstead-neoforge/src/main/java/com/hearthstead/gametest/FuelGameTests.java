@@ -152,7 +152,7 @@ public class FuelGameTests {
      * must name the right shortage: {@link Production#starvedForFuel} is
      * true the whole time — this workshop is cold, not empty.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 600)
     public void aSmelterWithoutFirewoodMakesNothing(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -205,7 +205,7 @@ public class FuelGameTests {
      * double, or burned on failure could not hold these equalities through
      * a single poll.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900)
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 900)
     public void firewoodFedSmelterSmeltsWithAnExactLedger(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -256,7 +256,7 @@ public class FuelGameTests {
      * charred at all (it cannot be its own input AND its own fuel) — the
      * deadlock the exemption exists to prevent.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 600)
     public void bareLogsStillBecomeCharcoalColdStart(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -300,7 +300,7 @@ public class FuelGameTests {
      * wheat spent, the charcoal destroyed (the sanctioned sink), and not
      * one item more or less anywhere in the building.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 200)
     public void aBakeryBakesOnlyWithFirewood(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -390,7 +390,7 @@ public class FuelGameTests {
      * either. Retune any of the three recipes and this test re-derives the
      * arithmetic; only leaving the band fails it.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 200)
     public void bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
