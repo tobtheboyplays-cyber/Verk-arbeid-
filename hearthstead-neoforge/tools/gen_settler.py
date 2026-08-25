@@ -28,7 +28,7 @@ import zlib
 
 sys.path.insert(0, os.path.dirname(__file__))
 from texlib import (ramp, shade, mix, new_image, put, box_faces, FACE_LIGHT,
-                    save, lit, woven)
+                    save, lit, woven, hx)
 
 SEED_BASE = 1420
 
@@ -80,6 +80,24 @@ CLOTHING_PALETTES = [
     dict(tunic="wheat", trim="leather", cloak_wool="forest", legs_wool="wool_gray"),
 ]
 
+# PENDING TEXLIB HOIST (coordinator): the scholar's ink-blue. texlib.py is
+# outside this cycle's polermester file ownership, so the ramp lives here
+# until the coordinator moves it into texlib.PALETTES verbatim as
+# "ink_blue" and this constant + ramp_of() collapse into ramp("ink_blue").
+# Passes palette law 1-3: V 32/43/54/64/74 (steps 10-11, span 42), hue
+# 226 -> 207 (cool shadows, warm-ward highlights), chroma peaking at stops
+# 1-2 (S 57/55) and falling to 32 at the top. Stop 2 is Profession.SCHOLAR's
+# identity colour 0x3E5C8A exactly.
+INK_BLUE = ["#2c3552", "#2f426e", "#3e5c8a", "#5a7da3", "#80a2bd"]
+
+
+def ramp_of(name):
+    """ramp() plus this file's pending-hoist local ramps (see INK_BLUE)."""
+    if name == "ink_blue":
+        return [hx(c) for c in INK_BLUE]
+    return ramp(name)
+
+
 # Profession outfits: the ONLY axis still tied to profession. Everything
 # else (skin/hair/face/clothing) is rolled independently per settler.
 PROFESSION_OUTFITS = {
@@ -119,6 +137,25 @@ PROFESSION_OUTFITS = {
     # A starter trade: hood against falling grit, bracers against the rock.
     "miner":     dict(headgear="hood", hood_wool="stone", bracers=True,
                       bracer_wool="iron"),
+    # RESEARCH-1 + the archer (Profession ids 18-21). Trade-telling: each
+    # differs from every existing trade by >= 2 of {ramp/hue family,
+    # headgear silhouette, part combination} -- checked pairwise. The
+    # scholar is the skill's own worked example: hood + satchel reads
+    # "scholar" before any colour does; the ink-blue hood makes it read at
+    # night too. The miller is the flour that never washes out: a pale
+    # linen cap crown (hood cube hidden, like the farmer) over an amber
+    # apron with dusted rolled sleeves. The brewer is warm brown through:
+    # oak-toned hood, leather apron, one amber barrel-hoop band. The
+    # archer is a woodland silhouette against the guard's iron wall: a
+    # forest hood, a fletched quiver on the back, leather arm guards.
+    "scholar":   dict(headgear="hood", hood_wool="ink_blue",
+                      book_satchel=True),
+    "miller":    dict(headgear="miller_cap", apron=True, apron_wool="amber",
+                      bracers=True, bracer_wool="linen", flour_dust=True),
+    "brewer":    dict(headgear="hood", hood_wool="oak_light", apron=True,
+                      apron_wool="leather", hoop_band=True),
+    "archer":    dict(headgear="hood", hood_wool="forest", quiver=True,
+                      bracers=True, bracer_wool="leather"),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed
@@ -142,45 +179,54 @@ def compose(*layers):
 
 def build_base(skin_idx):
     """Bare skin: head (all faces incl. nose/mouth shading) + hands. Every
-    other UV region stays transparent -- clothing paints over it opaquely."""
+    other UV region stays transparent -- clothing paints over it opaquely.
+
+    hearthstead-art v2 16px-face construction: clean vertical modelling
+    only -- forehead rows catch the light, the jaw falls off, sockets sit
+    one step darker -- and NO per-pixel noise anywhere on skin (the old
+    22% speckle read as a mask; noise/dither on skin is a named sin).
+    Shadows step the warm skin ramp, never gray."""
     img = new_image(128, 64)
     skin = ramp(SKIN_KEYS[skin_idx])
-    rng = random.Random(seed_for("base", skin_idx))
 
     u, v, w, h, d = UV["head"]
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
         for j in range(fh):
-            # Subtle vertical modelling: brow/forehead catches light, the
-            # jaw falls into shadow -- a flat speckle read as a mask before.
             if face == "front":
                 base = 4 if j <= 1 else (3 if j <= 5 else 2)
+            elif face == "top":
+                base = 3  # FACE_LIGHT's 1.14 supplies the crown light
             else:
-                base = 3
+                base = 3 if j <= 5 else 2  # vertical falloff only
             for i in range(fw):
-                idx = base if rng.random() > 0.22 else max(0, base - 1)
-                put(img, x + i, y + j, lit(skin[idx], face))
+                put(img, x + i, y + j, lit(skin[base], face))
         if face == "front":
-            # Temple/cheekbone highlight at the outermost columns -- clear
-            # of the eye whites (cols 1,6), brow (cols 1,2,5,6) and
-            # nose/mouth (cols 3,4) painted by later layers.
+            # Temple/cheekbone highlight at the outermost columns, joined
+            # to the forehead rows above (not orphans).
             put(img, x, y + 2, lit(skin[4], "front"))
             put(img, x + fw - 1, y + 2, lit(skin[4], "front"))
+            # Socket row: outer columns one step darker so the face layer's
+            # eyes sit IN the head; the eye row stays the highest-contrast
+            # row of the face.
+            put(img, x, y + 3, lit(skin[2], "front"))
+            put(img, x + fw - 1, y + 3, lit(skin[2], "front"))
 
-    # Nose + mouth shading: skin-tone dependent, so it lives here, not in
-    # the face layer (which only owns eye color).
     x, y, fw, fh = faces["front"]
-    skin_d = shade(skin[2], 0.95)
-    put(img, x + 3, y + 4, lit(skin_d, "front"))
-    put(img, x + 4, y + 4, lit(skin[4], "front"))
+    # Nose: 1px, skin stop 1, centre column, row y+4 -- the shadow side of
+    # the nose sits down-right of the top-left key. No nostrils.
+    put(img, x + 4, y + 4, lit(skin[1], "front"))
+    # Mouth: 2px, one value darker than its ground, never red.
     mouth = shade(skin[1], 0.9)
     put(img, x + 3, y + 5, lit(mouth, "front"))
     put(img, x + 4, y + 5, lit(mouth, "front"))
     # Jaw/chin AO -- one dark row grounding the chin against the neck.
-    jaw = shade(skin[1], 0.92)
     for i in range(fw):
-        put(img, x + i, y + fh - 1, lit(jaw, "front"))
+        put(img, x + i, y + fh - 1, lit(skin[1], "front"))
 
+    # Hands (rows 9-11 of the arm cubes): stop 3 with a stop-1 knuckle row
+    # on the forward face (art v2: "hands from stop 3 with a stop-1
+    # knuckle row"); clean ramp steps, no speckle.
     for part in ("right_arm", "left_arm"):
         u, v, w, h, d = UV[part]
         pfaces = box_faces(u, v, w, h, d)
@@ -194,7 +240,7 @@ def build_base(skin_idx):
                 continue
             for j in range(9, fh):
                 for i in range(fw):
-                    idx = 3 if rng.random() > 0.2 else 2
+                    idx = 1 if (face == "front" and j == 10) else 3
                     put(img, x + i, y + j, lit(skin[idx], face))
     return img
 
@@ -202,6 +248,13 @@ def build_base(skin_idx):
 # -------------------------------------------------------------------- hair --
 
 def build_hair(style_idx, color_idx):
+    """Hair as RIBBON CLUMPS, not strands (hearthstead-art v2 16px rule):
+    per-column vertical runs of stops 1-2-3 following the flow -- down from
+    the crown, forward at the fringe -- each clump jogging its tone every
+    2-4 rows so no streak runs full length and no two columns band. Glints
+    are stop-3 pixels on a modulus of 7-9 so they never align into rows;
+    the darkened (x0.82) part line still breaks the top-face mass. Every
+    face draws its own fresh rng sequence -- never mirrored noise."""
     img = new_image(128, 64)
     style = HAIR_STYLES[style_idx]
     hair = ramp(HAIR_COLOR_KEYS[color_idx])
@@ -210,19 +263,30 @@ def build_hair(style_idx, color_idx):
     u, v, w, h, d = UV["head"]
     faces = box_faces(u, v, w, h, d)
 
-    # Strand suggestion: 2px-wide combed bands (not per-pixel noise) with a
-    # sparse brighter glint where a strand catches the key light, so hair
-    # reads as directional locks instead of a flat speckled blob.
-    def strand_idx(i, j, dark=1, light=2, glint=3, glint_mod=7):
-        idx = dark if ((i // 2) + (j // 2)) % 2 == 0 else light
-        if (i * 5 + j * 3) % glint_mod == 0:
-            idx = glint
-        return idx
+    def ribbon_cols(fw, fh):
+        cols = []
+        for _ in range(fw):
+            tones = []
+            tone = rng.choice((1, 2, 2, 2, 3))
+            while len(tones) < fh:
+                tones.extend([tone] * rng.randint(2, 4))
+                tone = min(3, max(1, tone + rng.choice((-1, 1))))
+            cols.append(tones[:fh])
+        return cols
+
+    def paint_ribbons(face, x, y, fw, rows, glint_mod, skip=None):
+        cols = ribbon_cols(fw, rows)
+        for j in range(rows):
+            for i in range(fw):
+                if skip and skip(i, j):
+                    continue
+                idx = cols[i][j]
+                if (i * 5 + j * 3) % glint_mod == 0:
+                    idx = 3
+                put(img, x + i, y + j, lit(hair[idx], face))
 
     x, y, fw, fh = faces["top"]
-    for j in range(fh):
-        for i in range(fw):
-            put(img, x + i, y + j, lit(hair[strand_idx(i, j)], "top"))
+    paint_ribbons("top", x, y, fw, fh, glint_mod=7)
     # Center parting groove: a single darker column breaking the crown so
     # the top face isn't one uniform mass.
     part_col = x + fw // 2
@@ -230,15 +294,11 @@ def build_hair(style_idx, color_idx):
         put(img, part_col, y + j, lit(shade(hair[1], 0.82), "top"))
 
     x, y, fw, fh = faces["back"]
-    for j in range(min(style["back_rows"], fh)):
-        for i in range(fw):
-            put(img, x + i, y + j, lit(hair[strand_idx(i, j, glint_mod=9)], "back"))
+    paint_ribbons("back", x, y, fw, min(style["back_rows"], fh), glint_mod=9)
 
     for side in ("right", "left"):
         x, y, fw, fh = faces[side]
-        for j in range(min(style["side_rows"], fh)):
-            for i in range(fw):
-                put(img, x + i, y + j, lit(hair[strand_idx(i, j, glint_mod=8)], side))
+        paint_ribbons(side, x, y, fw, min(style["side_rows"], fh), glint_mod=8)
         # Contiguous only if the side hair itself reaches row 3 (or ends
         # right at it); a short style like "buzzed" (side_rows=1) would
         # otherwise leave this dot floating on bare skin two rows below
@@ -247,11 +307,10 @@ def build_hair(style_idx, color_idx):
             put(img, x + (fw - 2 if side == "right" else 1), y + 3, lit(hair[2], side))
 
     x, y, fw, fh = faces["front"]
-    for j in range(style["fringe_rows"]):
-        for i in range(fw):
-            if j == style["fringe_rows"] - 1 and i in (2, 5):
-                continue  # broken fringe line
-            put(img, x + i, y + j, lit(hair[strand_idx(i, j, glint_mod=8)], "front"))
+    if style["fringe_rows"]:
+        last = style["fringe_rows"] - 1
+        paint_ribbons("front", x, y, fw, style["fringe_rows"], glint_mod=8,
+                      skip=lambda i, j: j == last and i in (2, 5))  # broken fringe
 
     brow = shade(hair[1], 1.05)
     for i in (1, 2, 5, 6):
@@ -507,6 +566,10 @@ def build_clothing(variant_idx):
 def _paint_headgear_shell(img, o, rng):
     u, v, w, h, d = UV["hood"]
     faces = box_faces(u, v, w, h, d)
+    if o.get("headgear") == "miller_cap":
+        # The miller's cap is painted on the head crown (the hood cube is
+        # hidden for the miller, like the farmer) -- no shell here.
+        return
     if o.get("headgear") == "helm":
         iron = ramp("iron")
         for face, (x, y, fw, fh) in faces.items():
@@ -533,7 +596,7 @@ def _paint_headgear_shell(img, o, rng):
             put(img, x, y + j, lit(iron[3], "front"))
             put(img, x + fw - 1, y + j, lit(iron[3], "front"))
     else:
-        wool = ramp(o.get("hood_wool", "leather"))
+        wool = ramp_of(o.get("hood_wool", "leather"))
         for face, (x, y, fw, fh) in faces.items():
             if face == "front":
                 continue
@@ -718,6 +781,128 @@ def _paint_gauntlets(img):
                     put(img, x + i, y + j, lit(leather[3 if (i + j) % 2 else 2], face))
 
 
+def _paint_miller_cap(img, rng):
+    """Miller: a flour-pale linen cap crown (the hood cube is hidden for
+    the miller, so this paints the head's own crown rows, the farmer's
+    straw-crown mechanism) plus the flour that never washes out -- sparse
+    2px runs of the lightest stop, ~20% coverage, the doctrine's
+    sanctioned dust case (never single-pixel static)."""
+    linen = ramp("linen")
+    u, v, w, h, d = UV["head"]
+    faces = box_faces(u, v, w, h, d)
+    x, y, fw, fh = faces["top"]
+    for j in range(fh):
+        for i in range(fw):
+            put(img, x + i, y + j, lit(linen[3], "top"))
+    for _ in range(6):
+        dx, dy = rng.randrange(fw - 1), rng.randrange(fh)
+        put(img, x + dx, y + dy, lit(linen[4], "top"))
+        put(img, x + dx + 1, y + dy, lit(linen[4], "top"))
+    for face in ("back", "right", "left", "front"):
+        x, y, fw, fh = faces[face]
+        for i in range(fw):
+            put(img, x + i, y, lit(linen[4], face))      # lit upper band
+            put(img, x + i, y + 1, lit(linen[3], face))  # rolled brim
+        # one dust run per side band
+        dx = rng.randrange(fw - 1)
+        put(img, x + dx, y + 1, lit(linen[4], face))
+        put(img, x + dx + 1, y + 1, lit(linen[4], face))
+
+
+def _paint_flour_dust(img, rng):
+    """Flour settled where flour settles: the apron's upper front and the
+    shoulder tops -- sparse 2px runs, clusters not static."""
+    linen = ramp("linen")
+    u, v, w, h, d = UV["torso"]
+    faces = box_faces(u, v, w, h, d)
+    x, y, fw, fh = faces["front"]
+    for _ in range(4):
+        dx, dy = 2 + rng.randrange(fw - 5), 4 + rng.randrange(3)
+        put(img, x + dx, y + dy, lit(linen[4], "front"))
+        put(img, x + dx + 1, y + dy, lit(linen[4], "front"))
+    tx, ty, tw, th = faces["top"]
+    for _ in range(3):
+        dx, dy = rng.randrange(tw - 1), rng.randrange(th)
+        put(img, tx + dx, ty + dy, lit(linen[3], "top"))
+        put(img, tx + dx + 1, ty + dy, lit(linen[3], "top"))
+
+
+def _paint_book_satchel(img):
+    """Scholar: the backpack cube becomes a flat leather book-satchel with
+    an ink-blue flap and a parchment page-edge peeking out beneath it, plus
+    a matching cross-body strap (opposite diagonal to the courier's).
+    Silhouette first: hood + satchel reads 'scholar' before colour does."""
+    leather = ramp("leather")
+    blue = ramp_of("ink_blue")
+    parch = ramp("parchment")
+    u, v, w, h, d = UV["backpack"]
+    pack = box_faces(u, v, w, h, d)
+    for face, (px, py, pw, ph) in pack.items():
+        for j in range(ph):
+            for i in range(pw):
+                put(img, px + i, py + j, lit(leather[3 if (i + 2 * j) % 5 else 2], face))
+    for face in ("back", "front"):
+        px, py, pw, ph = pack[face]
+        for j in range(ph // 2):
+            for i in range(pw):
+                put(img, px + i, py + j, lit(blue[3 if j == 0 else 2], face))
+        for i in range(pw):
+            put(img, px + i, py + ph // 2, lit(blue[0], face))  # flap hem shadow
+        for i in range(1, pw - 1):  # page edge under the flap
+            put(img, px + i, py + ph // 2 + 1, lit(parch[4 if i % 2 else 3], face))
+    u, v, w, h, d = UV["torso"]
+    tf = box_faces(u, v, w, h, d)
+    x, y, fw, fh = tf["front"]
+    for j in range(1, fh - 1):
+        i = (fw - 3) - (j * (fw - 5)) // max(fh - 2, 1)
+        put(img, x + i, y + j, lit(blue[2], "front"))
+        put(img, x + i + 1, y + j, lit(blue[1], "front"))
+    bx, by, bw, bh = tf["back"]
+    for j in range(1, bh - 1):
+        i = 2 + (j * (bw - 5)) // max(bh - 2, 1)
+        put(img, bx + i, by + j, lit(blue[2], "back"))
+        put(img, bx + i - 1, by + j, lit(blue[1], "back"))
+
+
+def _paint_hoop_band(img):
+    """Brewer: a brass-amber barrel-hoop band across the leather apron --
+    the cooper's mark, one warm accent on the dark ground, lit stops
+    up-left per the light law."""
+    amber = ramp("amber")
+    u, v, w, h, d = UV["torso"]
+    x, y, fw, fh = box_faces(u, v, w, h, d)["front"]
+    for i in range(2, fw - 2):
+        put(img, x + i, y + 6, lit(amber[3 if i <= fw // 2 else 2], "front"))
+
+
+def _paint_quiver(img, rng):
+    """Archer: the backpack cube becomes a fletched quiver -- leather body
+    lashed with forest cord, arrow shafts ending in pale wheat fletching at
+    the top. The fletching cluster is the read at distance."""
+    leather = ramp("leather")
+    forest = ramp("forest")
+    wheat = ramp("wheat")
+    u, v, w, h, d = UV["backpack"]
+    pack = box_faces(u, v, w, h, d)
+    for face, (px, py, pw, ph) in pack.items():
+        for j in range(ph):
+            for i in range(pw):
+                put(img, px + i, py + j, lit(leather[3 if (i * 2 + j) % 4 else 2], face))
+    for face in ("back", "front"):
+        px, py, pw, ph = pack[face]
+        for i in range(pw):  # two lashing cords
+            put(img, px + i, py + 2, lit(forest[2], face))
+            put(img, px + i, py + ph - 2, lit(forest[1], face))
+        # fletched arrow ends above the quiver mouth: shaft + pale vanes
+        for k, ai in enumerate((1, pw // 2, pw - 2)):
+            put(img, px + ai, py, lit(wheat[4 if k != 1 else 3], face))
+            put(img, px + ai, py + 1, lit(wheat[2], face))
+    # arrow tips seen from above on the top face
+    tx, ty, tw, th = pack["top"]
+    for k, ai in enumerate((1, tw // 2, tw - 2)):
+        put(img, tx + ai, ty + th // 2, lit(wheat[4 if k != 1 else 3], "top"))
+
+
 def build_outfit(prof_key):
     img = new_image(128, 64)
     o = PROFESSION_OUTFITS[prof_key]
@@ -736,6 +921,16 @@ def build_outfit(prof_key):
         _paint_gauntlets(img)
     if o.get("satchel_rig"):
         _paint_satchel_rig(img)
+    if o.get("flour_dust"):
+        _paint_flour_dust(img, rng)
+    if o.get("book_satchel"):
+        _paint_book_satchel(img)
+    if o.get("hoop_band"):
+        _paint_hoop_band(img)
+    if o.get("quiver"):
+        _paint_quiver(img, rng)
+    if o.get("headgear") == "miller_cap":
+        _paint_miller_cap(img, rng)
     return img
 
 

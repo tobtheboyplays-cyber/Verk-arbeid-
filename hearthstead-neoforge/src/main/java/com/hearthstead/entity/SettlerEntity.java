@@ -92,7 +92,7 @@ public class SettlerEntity extends PathfinderMob {
     public static final byte EV_COURIER_LIFT = 68;
     public static final byte EV_COURIER_SET_DOWN = 69;
     /** The universal one-shot: any settler stooping to pick something up off
-     *  the ground, whatever the trade. PICKUP_STOW (1.20 s) is authored in
+     *  the ground, whatever the trade. PICKUP_STOW (1.40 s) is authored in
      *  parallel; see {@link #triggerPickup()}. */
     public static final byte EV_PICKUP = 70;
 
@@ -263,6 +263,10 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(2, new TravelerJoinGoal(this));
         goalSelector.addGoal(2, new com.hearthstead.entity.ai.GuardLeapGoal(this));
         goalSelector.addGoal(2, new GuardMeleeGoal(this));
+        // The archer's ranged loop sits beside the guard's melee at the same
+        // slot: both are "fight the target I have", and only one of the two
+        // professions ever activates either.
+        goalSelector.addGoal(2, new com.hearthstead.entity.ai.ArcherAttackGoal(this));
         goalSelector.addGoal(3, new GuardRespondToAlertGoal(this));
         // Same numeric slot as the alert response above -- both are "answer
         // a call that outranks the ordinary day", and RespondToSummonsGoal's
@@ -271,6 +275,9 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(3, new com.hearthstead.entity.ai.RespondToSummonsGoal(this));
         goalSelector.addGoal(4, new EatFromHearthGoal(this));
         goalSelector.addGoal(5, new RestAtNightGoal(this));
+        // Raid-damage repair outranks the ordinary trades (5, after rest):
+        // a breached wall is everyone's problem before anyone's workday.
+        goalSelector.addGoal(5, new com.hearthstead.entity.ai.RepairWorkGoal(this));
         goalSelector.addGoal(6, new GoToPostGoal(this));
         goalSelector.addGoal(6, new FarmerWorkGoal(this));
         goalSelector.addGoal(6, new LumbererWorkGoal(this));
@@ -278,6 +285,7 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.CrafterWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.MinerWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.InnkeeperWorkGoal(this));
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.ScholarWorkGoal(this));
         // Lower than the delivery goal: tidying is what a courier does when
         // there is nothing to fetch.
         goalSelector.addGoal(7, new com.hearthstead.entity.ai.TidyWarehouseGoal(this));
@@ -1039,10 +1047,13 @@ public class SettlerEntity extends PathfinderMob {
         if (setDownState.isStarted() && setDownState.getAccumulatedTime() > 1200L) {
             setDownState.stop();
         }
-        // PICKUP_STOW is 1.20 s (catalogue), mirroring gatherState's own
-        // expiry above -- a one-shot with no server goal driving it back to
-        // idle, so this is the only place its clock runs out.
-        if (pickupState.isStarted() && pickupState.getAccumulatedTime() > 1250L) {
+        // PICKUP_STOW is 1.40 s (catalogue section 21.1, rebuilt 2026-08-25
+        // -- the extra 4 ticks bought a real bag-contact hold and a
+        // decelerating return, which is what stopped the expiry snapping on
+        // film), mirroring gatherState's own expiry above -- a one-shot
+        // with no server goal driving it back to idle, so this is the only
+        // place its clock runs out.
+        if (pickupState.isStarted() && pickupState.getAccumulatedTime() > 1450L) {
             pickupState.stop();
         }
     }

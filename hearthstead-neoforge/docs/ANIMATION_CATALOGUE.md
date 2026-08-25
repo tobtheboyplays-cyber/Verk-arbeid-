@@ -628,50 +628,54 @@ long-range silhouette cue we have and the farmer uses all of it.
 
 ## 3. Lumberer
 
-### 3.1 `CHOP` — felling *(retuned 2026-08-25: SIDE arc, not overhead)*
+### 3.1 `CHOP` — felling *(REBUILT 2026-08-25: the cascade build)*
 
 - **Trigger:** `LumbererWorkGoal`, chopping a validated tree.
 - **Activity:** `WORK_CHOP`.
 - **Length:** 1.00 s, **looping**.
-- **Silhouette:** a real feller's notch cut, not an overhead wood-splitter.
-  Owner note 2026-08-25: *"på hogging animasjonen så vil jeg han hogger fra
-  siden som i real life"* — the axe travels a near-horizontal, rotational
-  arc into the trunk at hip-to-chest height, driven by the hips unwinding,
-  not by the arms dropping. Feet stay planted wide the whole swing; the
-  rotation is all torso and shoulders.
-- **Bones:**
-  - `torso` ROT (the twist does the heavy lifting): (8, 0, 0) @0.00 →
-    (2, −20, 0) @0.20 → **(−2, −42, 0) @0.35** (full coil, wound away from the
-    tree) → **(22, −38, 0) @0.50 LINEAR** → **(16, 22, 0) @0.55 LINEAR**
-    (the unwind — 60° of `y` in one tick) → (14, 20, 0) @0.65 → (10, 6, 0) @0.80
-    → (8, 0, 0) @1.00. `x` peaks at 0.50, strictly before the 0.55 contact —
-    the torso commits to the cut a beat before the axe arrives.
-  - `right_arm` ROT: (−30, −20, 10) @0.00 → (−40, −55, 14) @0.20 →
-    (−46, −95, 18) @0.35 (wound back and around, roughly level, **not**
-    overhead) → **(−44, −88, 17) @0.50 LINEAR** →
-    **(−34, 70, −6) @0.55 LINEAR** (contact — 158° of `y` in one tick as the
-    arm sweeps across the body into the trunk) → (−33, 68, −6) @0.60 →
-    (−31, 64, −7) @0.70 (three-tick beat, the axe buried in the wood) →
-    (−38, 20, 2) @0.85 (the pull-out, swinging past the hang pose before
-    settling) → (−30, −20, 10) @1.00.
-  - `left_arm` ROT: mirrors at ~0.8× amplitude, same shape, opposite twist
-    sign: (−20, −10, −8) baseline → (−32, −72, −12) @0.35 →
-    **(−22, 58, 4) @0.55 LINEAR** → (−21, 15, −3) @0.85.
-  - `head` ROT: (10, −4, 0) @0.00 → (4, −6, 0) @0.35 →
-    **(16, −2, 0) @0.55 LINEAR** → (8, −4, 0) @0.75 → (10, −4, 0) @1.00 —
-    stays fixed on the notch the whole swing; it does not travel with the
-    torso's twist.
-  - `right_leg` / `left_leg` ROT: **hold** (−14, 0, −8) / (12, 0, 8) — wide and
-    static. The stance does not move; only the hips rotate above it.
-  - `cloak` ROT: (4, 0, 0) @0.00 → (−22, 0, 0) @0.35 (thrown out by the coil) →
-    (24, 0, 0) @0.60 (whipped through by the unwind, lagging the torso's own
-    0.55 peak by one tick) → (−8, 0, 0) @0.80 (overshoot) → (4, 0, 0) @1.00.
-  - `root` POS: 0 @0.00 → (0, 0.3, −0.3) @0.35 (rocks onto the back foot for
-    the coil) → (0, 0.1, −0.2) @0.50 LINEAR → **(0, −0.9, 0.4) @0.55 LINEAR**
-    (drops and lurches forward into the trunk) → (0, −0.7, 0.3) @0.70 →
-    0 @1.00.
+- **Silhouette:** a real feller's notch cut at CHEST height. Owner note:
+  *"på hogging animasjonen så vil jeg han hogger fra siden som i real
+  life"*; owner verdict on the first side-arc retune: *"Øksa til siden ser
+  fortsatt jævlig ut"* — that build kept the arm pitched down (axe at thigh
+  height, read as a wave), peaked torso and arm on the same tick (one
+  synchronized jerk), had zero overshoot, a flat-0 torso roll and statue
+  legs. This build is a **cascade**: hips → shoulders → arm, each firing
+  2 ticks after the last.
+- **Bones (the numbers the owner-critic verifies):**
+  - `right_arm` ROT: rest (−55, −25, 8); wind-up accelerates to
+    **(−104, −86, 14) @0.35** (axe cocked high across the body — arm pitch
+    stays −80..−104 all cycle so the axe rides a chest-high line);
+    2-tick gather to (−100, −80, 13) @0.45; **(−92, −58, 8) @0.50 LINEAR**
+    (22°/tick) → **(−80, 34, 2) @0.55 LINEAR** — contact, **92°/tick** on
+    `y`, ramp 3 → 22 → 92 over the last three intervals; bite hold
+    (−79.5, 33, 2) @0.60 / (−78.5, 31.5, 2) @0.70 (LINEAR, ≤2.5° drift);
+    release RAMPS out of the bite ((−76, 22, 3) @0.75, ~10°/tick) then
+    pulls hard to **(−52, −38, 10) @0.85** — 13° past the −25 rest on `y`,
+    ~11% of the 120° strike travel; recoil key @0.90, settle @1.00 with a
+    velocity-continuous seam into the next wind-up.
+  - `left_arm` ROT: same shape at ~0.75 amplitude (−38/−76/−58 family),
+    LINEAR through the same contact and hold ticks.
+  - `torso` ROT — **fires first**: coil to (2, 22, −4) @0.35 (`y` extreme
+    = contact − 4 ticks), unwind RAMPS in at (4, 18, −2) @0.40 (4°/tick);
+    **peak-velocity interval 0.40→0.45 (15°/tick on `y`) leads the arm's
+    0.50→0.55 by 2 ticks**; pitch (`x`) peaks at 16 @0.50 — strictly
+    before the contact — and the torso arrives (15, −14, 10) @0.55 already
+    decelerating (4°/tick). Total `y` swing 36° = 30% of the arm's 120°.
+    `z` **rolls −4 → +10** through the strike — the weight visibly
+    transfers rear foot → front foot.
+  - `right_leg` / `left_leg` ROT: staggered (−14/+12 x); the rear leg
+    plants to −11 in the coil then drives to **−19 with a 3° heel pivot
+    (`y` 2 → −3) at contact**; the front leg 16 → 7 with its own 3° toe
+    pivot — he steps INTO it.
+  - `root` POS: (−0.6, +0.35, −0.45) @0.40 (loaded back and UP, §1.12) →
+    LINEAR drive to **(+0.7, −0.9, +0.35) @0.55** — 0.9 px drop, 1.3 px of
+    lateral travel through the strike.
+  - `head` ROT: fixed on the notch; counter-dips 8 → 14 LINEAR at contact.
+  - `cloak` ROT: dragged to (−12.5, 0, 6) @0.50 (lagging the torso peak by
+    2 ticks), whipped through to (15, 0, −5) @0.70 (3 ticks after the
+    torso's arrival), settles through the seam.
 - **Accent:** **t = 0.55 s** → `hearthstead:chop`, tick 11 of a 20-tick cycle.
-  **This contract is already live and correct — do not change it.**
+  **This contract is live and correct — locked, do not change it.**
 - **Carry:** axe in the right hand.
 
 ### 3.2 `LIMB_BRANCHES` — trimming the felled trunk
@@ -762,31 +766,43 @@ parse a dozen of them at once. Every guard clip therefore has a distinct
 **arm silhouette** — low guard, high guard, shield wall, horn to lips, arm
 raised. Never two guard clips with the same arm shape.
 
-### 4.1 `GUARD_STANCE` — at the post *(exists; retune)*
+### 4.1 `GUARD_STANCE` — at the post *(exists; reworked 2026-08-25 to the Pflug low guard)*
 
 - **Trigger:** guard standing a post, or in combat but out of swing range.
 - **Activity:** `PATROLLING` / `COMBAT` while stationary.
-- **Length:** 3.00 s, **looping**.
-- **Silhouette:** feet apart, weight settled, sword low and shield forward,
-  head sweeping a slow arc.
-- **Bones** *(punch-up pass 2026-08-25)*:
-  - **`root` POS breath:** 0 @0.00 → (0, −0.8, 0) @1.50 → 0 @3.00 — deepened
-    from −0.4; a guard that never shifts weight looks like a statue.
-  - **`torso` ROT:** the sway now runs `y` from +3° to −15° (was ±3°) — a
-    guard's weight genuinely rocks between feet over the 3 s stance.
-  - **`right_arm` / `left_arm` ROT:** the mid-stance settle widened from
-    ±3° to ±9° of travel — (−26, 0, −6) → (−17, 0, −6) @1.50 → back, and
-    (−34, 18, 6) → (−25, 18, 6) @1.50 → back.
-  - **`cloak` ROT:** (3, 0, 2) @0.00 → (3, 0, −8) @1.65 → (3, 0, 2) @3.00 —
-    deepened from ±2°, lagging the torso sway by 0.15 s (peak at 1.65 s, not
-    1.50 s).
-  - **`head`:** the ±30° sweep widened to ±36°, still uneven —
-    0 @0.00 → 36 @0.90 → 0 @1.50 → −36 @2.40 → 0 @3.00 — symmetric scanning
-    reads as a machine.
-  - **`right_leg` / `left_leg` ROT:** a small weight-shift brace added,
-    (0, −8, −4) → (−4, −8, −6) @1.50 → back, mirrored — a guard's stance
-    was fully static before this pass.
-- **Accent:** none. Optional armour clink at t = 1.50 s, volume 0.2.
+- **Length:** 4.00 s, **looping** — the loop IS the breath cycle.
+- **Silhouette:** the low guard (Pflug-derived, animation-quality §2.2):
+  blade forward-and-down 30–45° below horizontal continuing the forearm
+  line, hilt in front of the hip, off-hand across the body, feet staggered,
+  weight ~60/40 on the front foot, torso forward and ready. Confident and
+  controlled — the owner's direct demand (*"han skal virke selvsikker og
+  kontrolert"*): the confident-vs-nervous difference is the CLOCK, not the
+  pose — one slow breath, one slow scan, zero fidget.
+- **Bones** *(rework 2026-08-25 — replaces the earlier punch-up pass, which
+  read as nervous: 15° torso sway, two ±36° head sweeps per 3 s and a ±9°
+  arm pump were weight-shifting far too often for a trained soldier)*:
+  - **`right_arm` ROT (sword):** (−28, −10, 5) with ≤ 2° breath drift to
+    (−30, −11.5, 6.5) @2.80 — x sets the blade angle (30–45° below
+    horizontal), y draws the hilt in front of the hip, z tucks the upper
+    arm to the ribs. Never flared outward, never hanging straight down.
+  - **`left_arm` ROT (off-hand/shield):** across the body at the hip,
+    (−20, 14, 4) → (−22, 15.5, 5) @2.80 → back.
+  - **`right_leg` / `left_leg` ROT:** staggered stance — left foot leads
+    (x −10), sword-side foot back (x +12), toes out (y −6/+5, z ∓3),
+    knees soft; ≤ 0.5° of weight micro-shift with the breath. Asymmetric
+    magnitudes on purpose (§3 check 11).
+  - **`torso` ROT:** +6° forward at rest, +7.5° at the top of the breath;
+    sway is y +1.5° → −1.5° across the loop (3° total — §2.2's 1–3° band).
+  - **`root` POS breath:** trough @0.60 → (0, +0.35, 0) @2.80 → falling
+    through the seam — rise 2.2 s, fall 1.8 s (down faster, §1.9).
+  - **`head`:** ONE slow deliberate scan per loop — float near center,
+    gather @1.80, out to (0, 17, 0) @2.60 (~1°/tick, y ≤ 20°), hold the
+    look to @3.10, controlled return. No metronome sweeps.
+  - **`cloak` ROT:** (3, 0, 1.5) trough @0.75 → (5.5, 0, −1.5) @2.95 —
+    lagging the torso peak (@2.80) by 3 ticks.
+  - **Loop seam:** every channel keys t=0 mid-motion (v0 = trough + Δ/3),
+    so value AND velocity are continuous across the wrap (§3 check 6).
+- **Accent:** none.
 - **Carry:** sword right, shield left.
 
 ### 4.2 `GUARD_PATROL` — the walking watch
@@ -799,17 +815,24 @@ raised. Never two guard clips with the same arm shape.
 - **Silhouette:** a walk in which the arms do *not* swing — one hand rests on
   the sword pommel, the other holds the shield edge — plus a head that turns
   independently of the stride. Instantly separable from a civilian walking.
-- **Bones:**
-  - `right_arm` ROT: (−34, −6, −12) @0.00 → (−31, −6, −13) @2.00 →
-    (−34, −6, −12) @4.00 — hand on the pommel, nearly locked. **This overriding
-    of the walk swing is the entire read.**
-  - `left_arm` ROT: (−40, 16, 10) @0.00 → (−37, 16, 11) @2.00 →
-    (−40, 16, 10) @4.00 — shield carried at the hip.
-  - `head` ROT: 0 @0.00 → (−4, 34, 0) @1.10 → (0, 6, 0) @1.90 →
-    (−4, −34, 0) @3.00 → 0 @4.00 — a wider, slower sweep than the standing
-    stance, with a pause at 1.90 s (something caught his eye).
-  - `torso` ROT: additive (2, 0, 0) — slightly squarer than a civilian.
-  - `cloak`, legs, `torso` POS: **inherited from `WALK`; do not author.**
+- **Bones** *(rework 2026-08-25 — same Pflug carry as §4.1; the old carry
+  flared the sword arm outward, z −12, which is what read as "holder
+  sverdet rart")*:
+  - `right_arm` ROT: (−30, −8, 5) with ≤ 1° drift to (−31, −8.6, 5.6)
+    @2.80 — blade continuing the forearm line, hilt before the hip, upper
+    arm tucked to the ribs. **This overriding of the walk swing is the
+    entire read.**
+  - `left_arm` ROT: (−20, 15, 6) → (−21, 15.6, 6.6) @2.80 → back — the
+    off-hand/shield carried across the body at the hip.
+  - `head` ROT: ONE slow deliberate scan per 4 s loop, to the OPPOSITE
+    side of §4.1's — float near center, gather @1.80, out to (−1, −18, 0)
+    @2.60, hold to @3.10, controlled return. A guard alternating post and
+    patrol appears to cover both flanks.
+  - `torso`, `cloak`, legs, `torso` POS: **inherited from `WALK`; do not
+    author** (this clip stays a 2-bone-class arm+head layer,
+    `BONE_COUNT_EXEMPT` in `anim_check.py`).
+  - **Loop seam:** every channel keys t=0 mid-motion (velocity-continuous
+    wrap, §3 check 6).
 - **Accent:** none.
 - **Carry:** sword right, shield left.
 
@@ -2963,47 +2986,45 @@ beat: it will fire on harvest pickups, chest withdrawals, and ground pickups.
 Wiring those triggers to the clip is a separate piece of work (goal-side,
 outside this file); this section only specifies the clip itself.
 
-### 21.1 `PICKUP_STOW` — stoop, grab, and tuck it at the hip *(1.20 s,
-    one-shot)*
+### 21.1 `PICKUP_STOW` — stoop, grab, and tuck it at the hip *(1.40 s,
+    one-shot; REBUILT 2026-08-25)*
 
 Deliberately the light counterpart to `GATHER_LOG`: one arm, not two, and a
 snatch rather than a haul — the two must never be confused for each other
-even though both stoop deep. Two beats. **Grab** (0.00–0.65 s): the torso
-pitches to 60°, both knees bend, the right arm reaches down past the knee,
-and the pose holds for two ticks (0.55–0.65) at the bottom — the moment of
-contact with the item. **Stand and tuck** (0.65–1.20 s): the torso unwinds
-fast, swinging past level to a slight negative overshoot before settling,
-while the right hand travels up and across to the left hip — where the
-courier bag renders — arriving with a distinct wrist roll (a big, fast `y`/`z`
-turn, not just `x`) and holding there for two ticks (0.95–1.05) before the
-arm drops back to rest. The head tracks the item throughout: down at the
-grab, forward at the tuck. Legs, cloak, and root all move with the stoop —
-this is a full-body beat, not an arm gesture bolted onto an idle stance.
+even though both stoop deep. Rebuilt after the owner's *"Den må fikses på"*
+and the owner-critic's numeric verdict on the first build (no channel
+anywhere over 16°/tick — "no accent at all"; CATMULLROM softening both
+story beats; the return home faster than the stow it existed to punctuate;
+the arm still sweeping ~46° through the final 3 ticks, which snapped on
+film when the state expired). §2.4 structure, two beats a viewer can count:
+**snatch… stow.**
 
-- **Bones:**
-  - `torso` ROT: (5, 0, 0) @0.00 → (25, 5, 0) @0.15 → (48, 8, 0) @0.35 →
-    (60, 10, 0) @0.55 → (59, 10, 0) @0.65 → (10, −4, 0) @0.85 →
-    (−4, −6, 0) @1.00 (the overshoot) → (2, −2, 0) @1.10 → (5, 0, 0) @1.20.
-  - `right_arm` ROT: (−6, −4, −2) @0.00 → (−28, −8, −4) @0.15 →
-    (−75, −14, −6) @0.35 → (−96, −18, −8) @0.55 → (−95, −18, −8) @0.65
-    (the grab hold) → (−40, 15, 18) @0.85 →
-    **(−28, 38, 42) @0.95 LINEAR** (the wrist roll into the tuck) →
-    (−25, 42, 46) @1.05 LINEAR (the tuck hold) → (−6, −4, −2) @1.20.
-  - `left_arm` ROT: a small counter-lean only, (−4, 4, 2) baseline →
-    (−24, 9, 4) @0.55 → back. This is a one-handed clip; the off arm barely
-    moves, which is what sells "light" against `GATHER_LOG`'s two-armed
-    heave.
-  - `head` ROT: (5, 0, 0) @0.00 → (42, 8, 0) @0.55 (down at the grab) →
-    (0, −6, 0) @1.00 (forward at the tuck) → (5, 0, 0) @1.20.
-  - `right_leg` / `left_leg` ROT: (−4, 0, −3) / (4, 0, 3) baseline, both
-    knees bending to (−42, 0, −6) / (40, 0, 6) at the grab and back.
-  - `cloak` ROT: (2, 0, 0) @0.00 → (32, 0, 0) @0.55 → (−8, 0, 0) @0.75
-    (whipped through by the stand) → (2, 0, 0) @1.20.
-  - `root` POS: (0, 0, 0) @0.00 → (0, −5.5, 0) @0.55 (down for the stoop) →
-    (0, 1.0, 0) @0.85 (a real rise, past neutral, on the stand) →
-    (0, 0, 0) @1.20.
+- **The build, phase by phase (28 ticks):**
+  - **Counter-move 0.00–0.10:** the head drops first to lock the item
+    (5 → 16 x) while the torso *straightens* (5 → 1) and root rises +0.3 —
+    anticipation opposite the stoop.
+  - **Reach 0.10–0.50:** dive to torso 58°, knees to −38/+36, the hand
+    HOVERING short of the item at arm x −62.
+  - **The SNATCH 0.50–0.55:** arm x −62 → −97 in one tick (**35°/tick,
+    LINEAR on both keys**) — the grab accent, a heron strike.
+  - **Grab hold 0.55–0.70:** 3 ticks LINEAR, every channel within 2°.
+  - **Rise 0.70–0.90:** torso unwinds fast, root over-rises +0.7.
+  - **The STOW ROLL 0.90–0.95:** wrist turns into the left-hip bag,
+    z 8 → 46 (**38°/tick, the fastest motion in the clip**, LINEAR pair);
+    the head snaps its glance to the bag in the same tick.
+  - **Bag-contact hold 0.95–1.10:** 3 ticks LINEAR, drift ≤ 2.5°.
+  - **Release 1.10–1.40:** DECELERATING (16 → 9 → ≤4°/tick), one past-rest
+    overshoot key at 1.25–1.30 on every major channel, then a near-still
+    settle. Every channel ends exactly on its start value, so the
+    `SettlerEntity` expiry (1450 ms) can never cut visible motion.
+- **Key values:** grab pose torso (61, 10.5, 3), arm (−97, −18, −8),
+  legs −43/+41, root −5.7; tuck pose arm (−30, 40, 46) → (−28.5, 42, 45.5)
+  held; torso passes level to (−2.5, −5.5, −1.2) during the tuck; cloak
+  peak (29, 0, 4) @0.65 lags the grab by 2 ticks, second flick @1.00 after
+  the rise.
 - **Accent:** none authored here — a grab/stow sound, if any, is the
-  wiring goal's call, not this clip's.
+  wiring goal's call, not this clip's. The snatch (0.55) and the roll
+  (0.95) are the two candidate instants.
 - **Carry:** grammar SNATCH — whatever was picked up should render briefly
-  in the right hand between the grab (0.55 s) and the tuck (1.05 s), then
+  in the right hand between the grab (0.55 s) and the tuck (1.10 s), then
   vanish into the bag, the same handoff discipline as `FARM_HARVEST`.

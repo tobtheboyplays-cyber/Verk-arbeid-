@@ -128,8 +128,19 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         root().getAllParts().forEach(ModelPart::resetPose);
 
         // Profession silhouette: hood up, straw brim, or bare head.
+        // The visible set mirrors gen_settler.PROFESSION_OUTFITS exactly:
+        // every trade whose outfit paints a hood shell (or the guard's
+        // helm, which lives on the same cube) shows the cube; bare-headed
+        // trades and the two cap-crown trades (farmer, miller -- painted
+        // on the head itself) hide it. Before 2026-08-25 only NONE and
+        // GUARD were listed, so seven hooded crafts painted hoods that
+        // never rendered -- the outfit layer's whole trade-telling job.
         Profession profession = entity.getProfession();
-        hood.visible = profession == Profession.NONE || profession == Profession.GUARD;
+        hood.visible = switch (profession) {
+            case NONE, GUARD, BAKER, COOK, SMELTER, MASON, INNKEEPER,
+                 WEAVER, MINER, SCHOLAR, BREWER, ARCHER -> true;
+            default -> false;
+        };
         hatBrim.visible = profession == Profession.FARMER;
 
         SettlerActivity activity = entity.getActivity();

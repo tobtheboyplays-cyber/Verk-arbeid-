@@ -1,11 +1,24 @@
 package com.hearthstead.entity;
 
+import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.warehouse.WarehouseIndex;
+import com.hearthstead.settlement.warehouse.WarehouseStorage;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.neoforged.neoforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -54,6 +67,51 @@ import java.util.function.Supplier;
  * settler screen should be able to eyeball who the veterans are just by
  * walking the wall.
  *
+ * <h2>The kit is bought, not conjured</h2>
+ *
+ * <p>Owner-critic verdict #1, krav 4: rank used to reach straight into thin
+ * air for a rank's pieces — a fresh {@code ItemStack} materialised the
+ * instant Strength crossed a threshold, which broke the mod's oldest
+ * invariant (every item is physically real; chest truth, INV-3) and left the
+ * armoury a building with nothing to do. {@link #applyEquipment} now
+ * WITHDRAWS every piece from the settlement's own stores, in the same order
+ * a player would actually look: the ARMOURY's own chests first (that is what
+ * an armoury is for), then any WAREHOUSE, then the communal hearth as the
+ * last resort — the same chest-true idiom {@code RepairWorkGoal} and
+ * {@code CourierWorkGoal} use, re-reading live containers rather than
+ * trusting a remembered count, one real item leaving one real slot in the
+ * same operation it lands on the guard.
+ *
+ * <p><b>The resulting economy</b> (FLOWS.md's Ring 3: "barracks + watchtower
+ * + armoury — arms/armor → guard rank ceilings"): the smelter turns ore into
+ * ingots, the smithy turns ingots into iron armor, and now that armor has to
+ * actually sit in a chest somewhere the smith's product finally has demand
+ * — the visible progression the owner asked for, "guards must not have good
+ * armor before they upgrade", now cuts both ways. A settlement that never
+ * builds a smithy — or never routes its ingots there — fields veterans who
+ * stay in leather forever, because iron that was never forged is iron that
+ * can never be withdrawn. Nothing here manufactures a shortfall away.
+ *
+ * <p><b>If the stores cannot afford it, the kit waits.</b> Rank is never
+ * gated on equipment — every ability check in {@code GuardMeleeGoal} and
+ * {@code GuardLeapGoal} reads {@link #of} off raw Strength, exactly as
+ * before, so a bare-chested Sergeant still leaps. {@link #applyEquipment}
+ * simply leaves a slot exactly as it was worn when the rank's own piece is
+ * not in stock anywhere — never stripping a guard down to bare skin for gear
+ * the settlement cannot yet afford, and never inventing the gap. The moment
+ * a matching piece exists in the stores, the very next call dresses it — see
+ * {@link #isFullyEquipped} for the tool a caller needs to notice that moment
+ * even when the rank itself has not moved (a settlement's whole reason to
+ * finally build that smithy).
+ *
+ * <p><b>Superseded gear goes back, not into the void.</b> The leather
+ * chestplate a Veteran outgrows on the way to Sergeant's iron one is
+ * deposited into the very same store chain — armoury, then warehouse, then
+ * hearth — the withdrawal came from, and only popped onto the ground at the
+ * armoury's own anchor (INV-3's {@code popResource} idiom, mirroring
+ * {@code Production}'s own give-back) if every one of those is genuinely
+ * full. A settlement that promotes ten guards still owns its old kit.
+ *
  * <h2>Whether armor can go backwards</h2>
  *
  * <p>There is no separate "rank ever reached" record — {@link #of} always
@@ -64,8 +122,9 @@ import java.util.function.Supplier;
  * purpose — a high-water-mark rank would mean a settler could be dressed
  * above what they currently measure up to, which is the opposite of "armor
  * gated by experience". If Strength ever *can* drop (a future injury system,
- * a debuff), the guard's kit will drop with it, honestly, rather than
- * quietly keeping gear they no longer show the Strength for.
+ * a debuff), the guard's kit drops with it — and, exactly like an ordinary
+ * supersession, the piece that no longer fits is returned to the stores
+ * rather than deleted.
  */
 public enum GuardRank {
     RECRUIT("recruit", 0,
@@ -145,7 +204,9 @@ public enum GuardRank {
     private final int threshold;
     // One fresh ItemStack per call, never a shared instance -- two guards
     // dressed at the same rank must never be able to corrupt each other's
-    // gear through one stack's NBT or stack count.
+    // gear through one stack's NBT or stack count. NOTE: this fresh stack is
+    // a SPEC only -- what item this rank wants in this slot -- and is never
+    // itself equipped; see targetPiece() and applyEquipment().
     private final Supplier<ItemStack> helmet;
     private final Supplier<ItemStack> chest;
     private final Supplier<ItemStack> legs;
@@ -200,32 +261,282 @@ public enum GuardRank {
     };
 
     /**
+     * The rank's own piece for one armor slot — a fresh, unworn spec stack
+     * (an empty {@link ItemStack} for a slot this rank does not fill). Used
+     * only to know WHAT item to look for and to compare against what is
+     * already worn; it is never itself equipped — see {@link #applyEquipment}.
+     */
+    private ItemStack targetPiece(EquipmentSlot slot) {
+        return switch (slot) {
+            case HEAD -> helmet.get();
+            case CHEST -> chest.get();
+            case LEGS -> legs.get();
+            case FEET -> boots.get();
+            default -> ItemStack.EMPTY;
+        };
+    }
+
+    /** Same physical piece, ignoring stack size and components (durability,
+     *  enchantments a player may have added) — the question is only "is this
+     *  slot already dressed the way this rank wants", not "is it the exact
+     *  same NBT". Both empty counts as a match. */
+    private static boolean matches(ItemStack worn, ItemStack target) {
+        if (worn.isEmpty() && target.isEmpty()) {
+            return true;
+        }
+        if (worn.isEmpty() || target.isEmpty()) {
+            return false;
+        }
+        return worn.is(target.getItem());
+    }
+
+    /**
      * Dresses a guard for the rank {@link #of(SettlerEntity)} says they have
-     * actually reached — no more, no less. Safe to call on any settler at any
-     * cadence; it always sets all four armor slots (an empty {@link ItemStack}
-     * for a slot the rank does not fill), so a caller never has to know what
-     * the guard was wearing a moment ago. {@code setDropChance(0)} on every
-     * slot: a settlement's investment in its guards must not evaporate the
-     * first time one loses a fight (mirrors {@link SettlerEntity}'s own
-     * MAINHAND tool, which is dropChance-0 for the same reason).
+     * actually reached — no more, no less — by WITHDRAWING each piece from
+     * the settlement's own stores rather than conjuring it (see the class
+     * doc's "kit is bought, not conjured"). Safe to call on any settler at
+     * any cadence: a slot already holding the right piece is left untouched
+     * (no needless withdraw/deposit cycle), a slot whose piece is not in
+     * stock anywhere is left exactly as it was worn, and only an actual
+     * change moves anything — so a caller never has to know what the guard
+     * was wearing a moment ago, and calling this twice in a row with no
+     * change in the world does nothing the second time.
+     *
+     * <p>Order of withdrawal, cheapest-to-reach first: the ARMOURY's own
+     * chests, then any WAREHOUSE, then the communal hearth — the same
+     * container-first idiom {@code RepairWorkGoal} uses for repair material.
+     * A superseded piece (the slot's old occupant, once the new one is
+     * actually in hand) is returned through the identical chain, INV-3's
+     * {@code popResource} idiom only as the very last resort if every store
+     * is genuinely full.
+     *
+     * <p>{@code setDropChance(0)} on every armor slot regardless of whether
+     * this call touched it: a settlement's investment in its guards must not
+     * evaporate the first time one loses a fight (mirrors
+     * {@link SettlerEntity}'s own MAINHAND tool, which is dropChance-0 for
+     * the same reason).
      */
     public static void applyEquipment(SettlerEntity settler) {
         GuardRank rank = of(settler);
-        settler.setItemSlot(EquipmentSlot.HEAD, rank.helmet.get());
-        settler.setItemSlot(EquipmentSlot.CHEST, rank.chest.get());
-        settler.setItemSlot(EquipmentSlot.LEGS, rank.legs.get());
-        settler.setItemSlot(EquipmentSlot.FEET, rank.boots.get());
+        if (settler.level() instanceof ServerLevel level) {
+            Settlement settlement = settler.settlement();
+            for (EquipmentSlot slot : ARMOR_SLOTS) {
+                ItemStack target = rank.targetPiece(slot);
+                ItemStack worn = settler.getItemBySlot(slot);
+                if (matches(worn, target)) {
+                    continue; // already dressed correctly for this slot
+                }
+                ItemStack acquired = target.isEmpty() ? ItemStack.EMPTY
+                    : withdrawOne(level, settlement, settler, target.getItem());
+                if (!target.isEmpty() && acquired.isEmpty()) {
+                    // Not in stock anywhere right now. The rank still stands
+                    // (of() reads Strength alone) but this piece waits --
+                    // whatever is currently worn, bare skin or an earlier
+                    // tier's piece the guard already owns, stays exactly as
+                    // it is. Nothing is invented to fill the gap.
+                    continue;
+                }
+                settler.setItemSlot(slot, acquired);
+                if (!worn.isEmpty()) {
+                    // Superseded: the piece this slot held a moment ago is
+                    // real and must not simply vanish (INV-3).
+                    depositToStores(level, settlement, settler, worn);
+                }
+            }
+        }
+        // Chest access is server-only; on the client (this hook only ever
+        // runs server-side in practice, see SettlerEntity's equipment-
+        // refresh hook) nothing above ran and no slot was touched. The
+        // drop-chance reset below is harmless and idempotent either way.
         for (EquipmentSlot slot : ARMOR_SLOTS) {
             settler.setDropChance(slot, 0.0F);
         }
     }
 
+    /**
+     * Whether {@code settler} already wears the exact kit their current rank
+     * has earned — true once every armor slot either holds the rank's own
+     * piece or the rank calls for nothing there.
+     *
+     * <p>Exists for a caller with a periodic tick to tell "fully kitted, no
+     * need to look again" apart from "still waiting on the smith":
+     * {@link #applyEquipment} only ever re-attempts a stalled withdrawal when
+     * it is actually called, and a caller that only calls it when the RANK
+     * itself has changed (today's {@code SettlerEntity} equipment-refresh
+     * hook does exactly that, change-detecting against a cached rank) will
+     * never notice new stock arriving for a guard stalled mid-kit at the
+     * SAME rank. The fix is one line at that call site — also consult this
+     * before skipping the refresh — which is outside this file's ownership;
+     * see the fix-worker's report.
+     */
+    public static boolean isFullyEquipped(SettlerEntity settler) {
+        GuardRank rank = of(settler);
+        for (EquipmentSlot slot : ARMOR_SLOTS) {
+            if (!matches(settler.getItemBySlot(slot), rank.targetPiece(slot))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Strips the four armor slots bare — a settler who has stopped being a
      *  guard keeps their earned Strength, but the armor was the guard's, not
-     *  theirs; see {@link SettlerEntity}'s equipment-refresh hook. */
+     *  theirs; see {@link SettlerEntity}'s equipment-refresh hook. The
+     *  stripped pieces are real items and return to the settlement's stores
+     *  exactly like an ordinary supersession (INV-3) — losing a trade must
+     *  not also lose the kit it was issued. */
     public static void clearEquipment(SettlerEntity settler) {
+        ServerLevel level = settler.level() instanceof ServerLevel sl ? sl : null;
+        Settlement settlement = settler.settlement();
         for (EquipmentSlot slot : ARMOR_SLOTS) {
+            ItemStack worn = settler.getItemBySlot(slot);
             settler.setItemSlot(slot, ItemStack.EMPTY);
+            if (!worn.isEmpty() && level != null) {
+                depositToStores(level, settlement, settler, worn);
+            }
+        }
+    }
+
+    // ------------------------------------------------------ store access ---
+    //
+    // The armoury-then-warehouse-then-hearth idiom, both directions. Chests
+    // are the truth (INV-3): every withdrawal and every deposit re-reads the
+    // real container it touches, exactly like RepairWorkGoal's material
+    // lookup and CourierWorkGoal's restock/deposit legs -- nothing here ever
+    // trusts a remembered count.
+
+    /**
+     * Every valid building of one type in the settlement — every ARMOURY, or
+     * every WAREHOUSE, since either can be built more than once. Empty (never
+     * null) when the settlement has none yet, which is exactly the state a
+     * settlement with no smithy-fed armoury lives in: the withdrawal below
+     * simply finds nothing there and falls through to the next tier.
+     */
+    private static List<Building> buildingsOfType(Settlement settlement, BuildingType type) {
+        List<Building> found = new ArrayList<>();
+        for (Building b : settlement.buildings) {
+            if (b.type == type && b.valid) {
+                found.add(b);
+            }
+        }
+        return found;
+    }
+
+    /** Every real chest/barrel across every valid building of one type,
+     *  doubly bounded exactly like {@code RepairWorkGoal#ownChests}: one
+     *  building's scan is capped by {@link WarehouseIndex#MAX_CONTAINERS},
+     *  and a settlement's building count is itself bounded. */
+    private static List<Container> containersOfType(ServerLevel level, Settlement settlement,
+                                                     BuildingType type) {
+        List<Container> found = new ArrayList<>();
+        for (Building b : buildingsOfType(settlement, type)) {
+            for (BlockPos pos : WarehouseIndex.containers(level, b)) {
+                if (level.getBlockEntity(pos) instanceof Container container) {
+                    found.add(container);
+                }
+            }
+        }
+        return found;
+    }
+
+    /** Takes exactly one real item out of the first matching slot found, or
+     *  {@link ItemStack#EMPTY} if none holds it — the item's own stack,
+     *  components and all, never a substitute. */
+    private static ItemStack extractOneFrom(List<Container> containers, Item item) {
+        for (Container container : containers) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack in = container.getItem(slot);
+                if (!in.isEmpty() && in.is(item)) {
+                    ItemStack removed = container.removeItem(slot, 1);
+                    if (!removed.isEmpty()) {
+                        container.setChanged();
+                        return removed;
+                    }
+                }
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static ItemStack extractOneFromHearth(@Nullable HearthBlockEntity hearth, Item item) {
+        if (hearth == null) {
+            return ItemStack.EMPTY;
+        }
+        ItemStackHandler inventory = hearth.getInventory();
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            ItemStack in = inventory.getStackInSlot(slot);
+            if (!in.isEmpty() && in.is(item)) {
+                return inventory.extractItem(slot, 1, false);
+            }
+        }
+        return ItemStack.EMPTY;
+    }
+
+    /**
+     * Withdraws exactly one {@code item}, armoury chests first (that is what
+     * an armoury is for), then any warehouse, then the communal hearth as
+     * the last resort — the priority FLOWS.md's Ring 3 describes for hub
+     * arms/armor. Returns {@link ItemStack#EMPTY} if the settlement's stores
+     * hold none of it anywhere; nothing is ever taken partway.
+     */
+    private static ItemStack withdrawOne(ServerLevel level, @Nullable Settlement settlement,
+                                         SettlerEntity settler, Item item) {
+        if (settlement != null) {
+            ItemStack got = extractOneFrom(containersOfType(level, settlement, BuildingType.ARMOURY), item);
+            if (!got.isEmpty()) {
+                return got;
+            }
+            got = extractOneFrom(containersOfType(level, settlement, BuildingType.WAREHOUSE), item);
+            if (!got.isEmpty()) {
+                return got;
+            }
+        }
+        return extractOneFromHearth(settler.hearth(), item);
+    }
+
+    /** Destination-first insert (D-A2a-3) into every building of one type in
+     *  turn, stopping the moment nothing is left over. Reuses
+     *  {@link WarehouseStorage#insert}, the same conserving transfer every
+     *  courier route already trusts — not a second insert implementation. */
+    private static ItemStack depositInto(ServerLevel level, List<Building> buildings, ItemStack stack) {
+        ItemStack remaining = stack;
+        for (Building building : buildings) {
+            if (remaining.isEmpty()) {
+                break;
+            }
+            remaining = WarehouseStorage.of(level, building).insert(level, building, remaining);
+        }
+        return remaining;
+    }
+
+    /**
+     * Returns a superseded piece to the settlement rather than deleting it
+     * (INV-3): armoury chests first, then any warehouse, then the hearth
+     * larder, and only as the true last resort — every one of those full or
+     * absent — popped onto the ground at the armoury's own anchor (or, with
+     * no armoury built yet, at the guard's own feet) exactly like
+     * {@code Production}'s own give-back.
+     */
+    private static void depositToStores(ServerLevel level, @Nullable Settlement settlement,
+                                        SettlerEntity settler, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        List<Building> armouries = settlement == null ? List.of()
+            : buildingsOfType(settlement, BuildingType.ARMOURY);
+        ItemStack remaining = depositInto(level, armouries, stack);
+        if (!remaining.isEmpty() && settlement != null) {
+            remaining = depositInto(level, buildingsOfType(settlement, BuildingType.WAREHOUSE), remaining);
+        }
+        if (!remaining.isEmpty()) {
+            HearthBlockEntity hearth = settler.hearth();
+            if (hearth != null) {
+                remaining = hearth.insertGoods(remaining);
+            }
+        }
+        if (!remaining.isEmpty()) {
+            BlockPos dropAt = !armouries.isEmpty() ? armouries.get(0).anchor : settler.blockPosition();
+            Block.popResource(level, dropAt, remaining);
         }
     }
 
