@@ -16,21 +16,27 @@ Prøvebenken research system + need-aware Production.ready() + profession
 nameplate; d4c8962 recruit conservation; earlier: plaque beautification,
 fleet wave 3, door fix 426b627.
 
-## Agents in flight
-- polermester cycle 1 (owns SettlerAnimations, SettlerModel, SettlerEntity
-  anim wiring, 4 screens subset, gen_settler/gen_sounds, BOTH lang files,
-  SettlerSnapshotPayload/Network). Queued addenda: guard sword stance
-  ("selvsikker og kontrolert", use skill v2 §2.2 Pflug recipe), better base
-  skins, research lang keys (scratchpad/research_lang_keys.md), ScholarWorkGoal
-  registration line, outfit_scholar/miller/brewer.
-- FARMER-BOOTSTRAP (FarmerWorkGoal + new gametest): first-planting, seed
-  reserve, replant 28t.
-- GUARD-PROGRESSION (GuardRank/Melee/Leap/Patrol/Schedule + new gametest):
-  STRENGTH training, night-watch sleep gap, leap fizzle, hostile-only splash.
-- COURIER-R2 (CourierWorkGoal + new gametest): workshop outputs → warehouse,
-  keep-back 8 (MINE 0).
-- RESEARCH-TEX + RESEARCH-UI: skill drafts → scratchpad (anim draft LANDED,
-  installed as animation-quality v2).
+## Agents in flight (WAVE-R, respawned ~21:50Z after container re-provision)
+Container was reclaimed during a session-limit outage: previous six agents
+died, their UNCOMMITTED partials are gone, all pushed work survived. Fresh
+container, task store rolled back (repo docs are the ledger). Respawned:
+- polermester-R: guard stance (skill v2 §2.2), base skins, outfit_scholar/
+  miller/brewer, 5 signature-trade sounds, research lang keys (scratchpad/
+  research_lang_keys.md), ScholarWorkGoal line, catalogue §2.2 true-up.
+- FUEL-1R (Production/CrafterWorkGoal/Fuel.java): firewood upkeep,
+  charcoal recipe, cold-start exemption. Frozen contract: Fuel.burns/
+  perBatch/isFuel — FOOD-1R codes against it.
+- FOOD-1R (CourierWorkGoal): route 5 warehouse→hearth food + fuel restock.
+- REPAIR-1R (RaidDirector/RepairWorkGoal): scar recording + repair dugnad.
+- ARMOR-1R (SettlerArmorLayer/gen_armor.py): rank armor overlays.
+- ARCHER-1R (Profession/Employment/ArcherRank/ArcherAttackGoal):
+  WATCHTOWER archer, DEX ladder, Power/Triple Shot, chest-true arrows.
+- byggherren #1: owner-critic verdict on HEAD (read-only). Agent def
+  committed: .claude/agents/byggherren.md — spawn every cycle; severity-1
+  demands block GATE-1.
+Deferred to coordinator at landings: SettlerEntity lines for RepairWorkGoal
++ ArcherAttackGoal (+ Scholar via polermester), Employment.soundOf lines
+from polermester, archer lang keys, soundContactOf true-ups.
 
 ## Next actions (order)
 1. Land remaining fix workers → compile-probe → commit each.
