@@ -56,7 +56,10 @@ named **sound** debt, not a motion debt).
 
 ---
 
-## D-007 — A courier's load is visible, and carry capacity is a real mechanic
+## D-007b — A courier's load is visible, and carry capacity is a real mechanic
+
+*(Renumbered from a duplicate D-007 2026-08-25; the chain decision below
+keeps the original number because other documents cite it as D-007.)*
 
 **Decision** (owner directive, A2a). The courier wears a visible load sack.
 What they are carrying, and how much they *can* carry, is a real gameplay
