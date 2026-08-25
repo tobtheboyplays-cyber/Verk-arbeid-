@@ -49,32 +49,48 @@ Two new GameTests, **both verified to fail on the pre-fix code** (restore
 the old file, run `gametest`, restore the fix — do this for every
 regression test worth trusting).
 
-## SLICE A3 — raids. Step 1 (the schedule) is built.
+## SLICE A3 — raids. Steps 1 and 2 (schedule + enemies) are built.
+
+**GATE: PASS (green_streak=2)** at fingerprint `20260825T024140Z`, 49/49.
 
 `RaidPressure` replaces the timer both references use. No night is ever
 provably safe: a real roll every night, gated on the settlement being worth
-attacking, chance 5%→55% with pressure. Quiet nights raise pressure faster
-for a richer settlement; **repelling a raid raises it** (the deliberate
-inverse of MineColonies, where losing buys quiet); exactly one hard
-guarantee — never two nights running below BELEIRING, which is what stops a
-nightly roll becoming MineColonies #4838. The roll is a parameter, so every
-rule is exactly testable. `RaidDirector` runs it from the hearth tick and
+attacking, chance 5%→55% with pressure. Quiet nights raise it faster for a
+richer settlement; **repelling a raid raises it** (the deliberate inverse of
+MineColonies, where losing buys quiet); one hard guarantee — never two
+nights running below BELEIRING. The roll is a parameter, so every rule is
+exactly testable.
+
+`RaidObjective` (KORN/BLOD/BRANN/LØSEPENGER) is picked from what the
+settlement actually has. `RaidCaptain` carries an earned byname, a record
+that grows from wins and losses, a grudge against one named settler, and an
+approach always ≥60° off their last — because walling the road that worked
+last time must not be a solution. `RaidPlan` + the capped enemy gallery
+persist on the settlement. `RaidDirector` runs it all from the hearth tick;
 `/hearthstead info` shows stage/pressure/chance in both languages.
 
-**Nothing spawns yet, by design.** A scheduled raid is logged, not dropped.
-Step 2 is the first faction: one captain, one objective (Korn), end to end
-against the warehouse A2a already built.
+**Nothing spawns yet, by design.** A scheduled raid is logged with who,
+what and from where. Step 3 is the entity that enacts the plan: the first
+faction's raider, the captain's visible identity, and the Korn objective
+against the warehouse A2a already built and proved.
 
-Ten GameTests, proven real: forcing `inGracePeriod()` false and the chance
-floor to zero fails five of them, each naming its rule.
+Tests are proven judges by mutation, not assumed: forcing `inGracePeriod()`
+false + the chance floor to zero fails five tests; removing the approach
+shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at fingerprint `20260825T020219Z`, 44/44
-GameTests. Next: **A3 step 2** per
-`docs/project/PLAN_A3_RAIDS.md`: the first faction, its captain, and the
-Korn objective. Everything it needs to attack — a warehouse, real chests,
-real goods — already exists and is verified.
+**A3 step 3** per `docs/project/PLAN_A3_RAIDS.md` — the raider entity for
+one faction, one captain, the Korn objective, end to end. Everything it
+needs to attack already exists and is verified.
+
+**KF-014 is still open and is the one honest loose end.** Third occurrence
+captured with full diagnostics: on shift, energy 87.6, hunger 75.2, twelve
+logs in the hearth, idle. Energy/hunger/day-phase are dead by measurement.
+Exactly three gates remain and the settler now records which leg it
+abandoned, so the next occurrence names one. Blast radius reduced
+(escalating 100→400 tick backoff, cleared by any delivery) — that part is a
+real fix; the stall itself is not yet cured and must not be claimed as such.
 
 ## SLICE A2b — the courier's sack — DONE
 
