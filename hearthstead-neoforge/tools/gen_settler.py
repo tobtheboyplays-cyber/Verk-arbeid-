@@ -8,7 +8,7 @@ UV table (must mirror SettlerModel.createBodyLayer):
   right_arm (0,32) / left_arm (16,32) 4x12x4
   right_leg (32,32) / left_leg (48,32) 4x12x4
   cloak (64,32) 11x4x6   hat_brim (64,44) 12x1x12
-  sack (0,17) 8x8x5
+  sack (0,17) 7x8x6
 
 Five independent axes -- skin tone, hair (style x color), face (eye color),
 clothing, and profession outfit -- each a standalone 128x64 sheet, mostly
@@ -50,7 +50,7 @@ UV = {
     # A2b: the carried sack. Only drawn when the settler has a load, so it
     # is painted on the clothing layer like any other garment but reads as
     # rough sackcloth rather than the tailored coat.
-    "sack":      (0, 17, 8, 8, 5),
+    "sack":      (0, 17, 7, 8, 6),
 }
 
 # -- modular axes (cardinalities mirror SettlerAppearance in Java) ----------
@@ -445,30 +445,48 @@ def build_clothing(variant_idx):
     put(img, x + fw // 2 - 1, y + 1, lit(buckle[3], "front"))
     put(img, x + fw // 2, y + 1, lit(buckle[2], "front"))
 
-    # sack (A2b) -- rough sackcloth, deliberately coarser than the tailored
-    # tunic so a laden settler reads as carrying CARGO, not wearing more
-    # clothes. Hidden by the model unless there is a real load behind it.
-    sack_cloth = ramp("linen_raw")
+    # sack (A2b) -- rough sackcloth, deliberately coarser and darker than
+    # the tailored tunic so a laden settler reads as carrying CARGO, not
+    # wearing more clothes. Hidden by the model unless there is a real load.
+    # First pass was too pale and flat and read as a crate; this one is
+    # built around contrast: dark creases, a lit crown, a heavy base.
+    sack_cloth = ramp("wheat")
     u, v, w, h, d = UV["sack"]
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
-        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=2)
+        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=1)
         if face in ("front", "back", "right", "left"):
-            # Drawstring: two rows of leather cord cinching the neck.
+            # Drawstring: leather cord cinching the neck, then the gathered
+            # cloth just below it.
             for i in range(fw):
-                put(img, x + i, y, lit(leather[1], face))
+                put(img, x + i, y, lit(leather[0], face))
                 put(img, x + i, y + 1, lit(leather[3], face))
-            # A stuffed sack is fattest in the middle and creases at the
-            # bottom where the weight gathers.
-            for j in range(3, fh - 1):
-                put(img, x + fw // 2 - 1, y + j, lit(sack_cloth[4], face))
-                put(img, x + fw // 2, y + j, lit(sack_cloth[3], face))
+                put(img, x + i, y + 2, lit(sack_cloth[3], face))
+            # A stuffed sack is lit across its crown and falls into vertical
+            # creases; the weight gathers into a dark base.
+            for j in range(3, fh - 2):
+                t = (j - 3) / max(1, fh - 6)
+                for i in range(fw):
+                    # Distance from the middle drives the shading, so the
+                    # cube reads as round rather than as a flat panel.
+                    edge = abs(i - (fw - 1) / 2.0) / max(0.5, (fw - 1) / 2.0)
+                    if edge > 0.72:
+                        idx = 0
+                    elif i % 3 == 1 and j % 2 == 0:
+                        idx = 1
+                    elif edge < 0.28 and t < 0.55:
+                        idx = 4
+                    else:
+                        idx = 2 if t > 0.6 else 3
+                    put(img, x + i, y + j, lit(sack_cloth[idx], face))
             for i in range(fw):
+                put(img, x + i, y + fh - 2, lit(sack_cloth[1], face))
                 put(img, x + i, y + fh - 1, lit(sack_cloth[0], face))
     # Knot on the back face, where the cord is tied off.
     x, y, fw, fh = faces["back"]
     put(img, x + fw // 2 - 1, y, lit(leather[4], "back"))
     put(img, x + fw // 2, y + 1, lit(leather[4], "back"))
+    put(img, x + fw // 2 + 1, y, lit(leather[2], "back"))
 
     return img
 

@@ -62,7 +62,7 @@ BONES = [
     ("belt",      "torso", (0, 0, 0),       [(96, 20, -5, -5, -2.5, 10, 2, 5, 0.3, False)]),
     # A2b carried sack: hidden in game unless loaded, but always exported
     # so the bridge shows the same rig the renderer uses.
-    ("sack",      "torso", (0, -10.5, 2.5), [(0, 17, -4, 0, 0, 8, 8, 5, 0.0, False)]),
+    ("sack",      "torso", (0, -10.5, 2.5), [(0, 17, -3.5, 0, 0, 7, 8, 6, 0.0, False)]),
     ("right_leg", "root",  (-2.6, -12, 0),  [(32, 32, -2, 0, -2, 4, 12, 4, 0.0, False)]),
     ("left_leg",  "root",  (2.6, -12, 0),   [(48, 32, -2, 0, -2, 4, 12, 4, 0.0, True)]),
 ]
