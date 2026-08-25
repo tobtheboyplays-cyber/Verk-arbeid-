@@ -4,6 +4,7 @@ import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.settlement.Building;
@@ -282,6 +283,13 @@ public class RaiderGameTests {
         var bounds = net.minecraft.world.level.levelgen.structure.BoundingBox
             .fromCorners(helper.absolutePos(new BlockPos(8, 1, 8)),
                 helper.absolutePos(new BlockPos(10, 3, 10)));
+        // A plaque block MUST exist at the anchor. BuildingManager's sweep
+        // dissolves any building whose plaquePos holds no plaque -- correctly,
+        // since "no plaque, no building" is the permanent invariant (D-005).
+        // A fixture that skips this registers a building the game then deletes
+        // out from under the test, on a round-robin sweep shared with every
+        // other concurrently running test: the root cause of KF-014.
+        helper.setBlock(new BlockPos(8, 1, 8), ModBlocks.PLAQUE.get());
         Building warehouse = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
             helper.absolutePos(new BlockPos(8, 1, 8)),
             helper.absolutePos(new BlockPos(8, 1, 8)), bounds);

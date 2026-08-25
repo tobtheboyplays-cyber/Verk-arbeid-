@@ -653,11 +653,44 @@ actual shape.
 
 ---
 
-## KF-014 — `courierEntersASealedWarehouseAndDelivers` failed once and has not reproduced
+## KF-014 — couriers intermittently stopped working — RESOLVED (root cause found on the fourth occurrence)
 
-**Status:** OPEN, not root-caused. Observed **once in ten runs**. Recorded
-rather than quietly re-run, because an intermittent test is a bad judge and
-the next reader deserves to know it was seen.
+**Status:** **RESOLVED.** Root cause found on the fourth occurrence, by the
+diagnostics added after the third. Ten consecutive clean runs afterwards,
+against a rate that had reached roughly one in four.
+
+**The cause: the test fixtures registered buildings the game then deleted.**
+`BuildingManager.tick()` sweeps one building per interval and, when the
+block at `building.plaquePos` is not a `PlaqueBlock`, calls `dissolve()` —
+correctly, because **no plaque, no building** is the permanent invariant
+(D-005). The GameTest fixtures registered warehouses at anchor positions
+where no plaque block had been placed, so the sweep eventually deleted the
+warehouse out from under the running test. The courier then behaved exactly
+as designed: no warehouse, so return the load to the hearth and idle.
+
+**Why it was intermittent, precisely.** The sweep is round-robin across
+*every* building in *every* settlement, one per interval — and GameTests in
+a batch run concurrently, so how quickly the cursor reaches any particular
+fixture's warehouse depends on how many buildings the other tests happen to
+have registered at that moment. That is the nondeterminism, and it is why
+it presented as a rate rather than as a reproducible failure.
+
+**The fix:** fixtures now hang a real plaque at the anchor
+(`helper.setBlock(anchorRel, ModBlocks.PLAQUE.get())`), which is what the
+game requires of a real warehouse anyway. The product was never wrong; the
+tests were asserting against a building the product was entitled to remove.
+
+**How the diagnostics got there**, since this is the part worth repeating:
+each occurrence added exactly the field that would separate the surviving
+hypotheses, and the fourth one named the answer outright —
+`lastRouteFailure=none` killed the cooldown hypothesis, and `containers=-2`
+(the sentinel for *no valid warehouse at all*) pointed straight at the
+building having been dissolved. Guessing at a fix after the first occurrence
+would have papered over a fixture bug and left it to resurface.
+
+---
+
+### Original entry, kept for the reasoning trail
 
 **The one failure** (during a `fast` run, immediately after the KF-013
 follow-up edits landed):

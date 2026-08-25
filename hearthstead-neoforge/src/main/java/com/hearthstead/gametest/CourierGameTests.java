@@ -85,6 +85,13 @@ public class CourierGameTests {
     private static Building addWarehouse(GameTestHelper helper, Settlement s,
                                          BlockPos minRel, BlockPos maxRel,
                                          BlockPos anchorRel) {
+        // A plaque block MUST exist at the anchor. BuildingManager's sweep
+        // dissolves any building whose plaquePos holds no plaque -- correctly,
+        // since "no plaque, no building" is the permanent invariant (D-005).
+        // A fixture that skips this registers a building the game then deletes
+        // out from under the test, on a round-robin sweep shared with every
+        // other concurrently running test: the root cause of KF-014.
+        helper.setBlock(anchorRel, ModBlocks.PLAQUE.get());
         BoundingBox bounds = BoundingBox.fromCorners(
             helper.absolutePos(minRel), helper.absolutePos(maxRel));
         Building b = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
@@ -384,6 +391,26 @@ public class CourierGameTests {
         });
     }
 
+    /**
+     * How many containers the warehouse index is reporting. KF-014 comes
+     * down to exactly two remaining causes, and this separates them: if the
+     * courier is idle with work available and this reads 0, the index is the
+     * culprit; if it reads 1 and hearthNull is false, neither is, and the
+     * gate that closed is something not yet enumerated.
+     */
+    private static int warehouseContainerCount(GameTestHelper helper, Settlement s) {
+        if (!(helper.getLevel() instanceof net.minecraft.server.level.ServerLevel level)) {
+            return -1;
+        }
+        for (Building b : s.buildings) {
+            if (b.valid && b.type == BuildingType.WAREHOUSE) {
+                return com.hearthstead.settlement.warehouse.WarehouseStorage
+                    .of(level, b).containers().size();
+            }
+        }
+        return -2; // no valid warehouse at all
+    }
+
     private static int bagCount(SettlerEntity settler) {
         int n = 0;
         for (int i = 0; i < settler.bag.getContainerSize(); i++) {
@@ -446,7 +473,9 @@ public class CourierGameTests {
                     + " phase=" + bud.dayPhase()
                     + " hearth=" + hearthCount(helper, hearthRel)
                     + " pos=" + bud.blockPosition().toShortString()
-                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+                    + " lastRouteFailure=" + bud.routeFailureNote()
+                    + " hearthNull=" + (bud.hearth() == null)
+                    + " containers=" + warehouseContainerCount(helper, s) + "]");
             helper.assertTrue(peak[0] == capacity,
                 "the sack should fill to capacity on a full trip: peak="
                     + peak[0] + " capacity=" + capacity);
