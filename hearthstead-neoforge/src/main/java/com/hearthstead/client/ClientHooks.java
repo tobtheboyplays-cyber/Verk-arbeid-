@@ -66,6 +66,15 @@ public final class ClientHooks {
         }
     }
 
+    public static void showResearchSnapshot(com.hearthstead.network.ResearchSnapshotPayload snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen instanceof com.hearthstead.client.screen.ResearchScreen open) {
+            open.update(snapshot);
+        } else {
+            mc.setScreen(new com.hearthstead.client.screen.ResearchScreen(snapshot));
+        }
+    }
+
     private ClientHooks() {
     }
 }

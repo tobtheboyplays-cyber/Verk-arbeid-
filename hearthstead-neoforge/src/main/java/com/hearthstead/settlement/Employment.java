@@ -118,6 +118,21 @@ public final class Employment {
         // through CrafterWorkGoal like the twelve above -- see
         // InnkeeperWorkGoal for the goal built for that shape instead.
         TRADES.put(BuildingType.TAVERN, Profession.INNKEEPER);
+
+        // SLICE RESEARCH-1: the architects' study's own trade. The scholar
+        // does not run through CrafterWorkGoal -- there is no Production
+        // recipe table for research, a project is a multi-day undertaking
+        // rather than a batch -- see ScholarWorkGoal for the goal built for
+        // that shape, and com.hearthstead.settlement.research.Research for
+        // the state it advances.
+        TRADES.put(BuildingType.ARCHITECTS_STUDY, Profession.SCHOLAR);
+
+        // Coordinator addendum, 2026-08-25: MILL and BREWERY both gained
+        // real recipe tables in Production (SLICE CHAINS) and both run
+        // through CrafterWorkGoal exactly like the twelve original crafting
+        // trades -- they only needed a trade on this map to become hireable.
+        TRADES.put(BuildingType.MILL, Profession.MILLER);
+        TRADES.put(BuildingType.BREWERY, Profession.BREWER);
     }
 
     /**
@@ -147,6 +162,20 @@ public final class Employment {
             // tavern, so a real INNKEEPER clip (working the bar, greeting a
             // guest) is future work, not this slice's.
             case INNKEEPER -> SettlerActivity.SORTING;
+            // RESEARCH-1: FINE_WORK's close, careful hand motion is the
+            // closest existing clip to a scholar bent over a lectern -- its
+            // activity key is WORK_WEAVE (see SettlerEntity#setupAnimationStates,
+            // which animates fineWorkState on it). A dedicated WRITE clip
+            // (quill moving, page turning) is future signature-motion work,
+            // the same footnote as INNKEEPER's above.
+            case SCHOLAR -> SettlerActivity.WORK_WEAVE;
+            // Coordinator addendum: the miller works stones and sacks, which
+            // reads as the same press-and-turn motion WORK_KNEAD already is;
+            // the brewer tends a mash over heat, which reads as WORK_STOKE.
+            // Both are reuses, not bespoke clips -- future signature-motion
+            // work, exactly like SCHOLAR and INNKEEPER above.
+            case MILLER -> SettlerActivity.WORK_KNEAD;
+            case BREWER -> SettlerActivity.WORK_STOKE;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -180,8 +209,27 @@ public final class Employment {
     }
 
     public static net.minecraft.sounds.SoundEvent soundOf(BuildingType type) {
+        // RESEARCH-1: soundOf keys off the shared MOTION, not the trade, and
+        // the scholar's motion IS WORK_WEAVE (motionOf's own reuse above) --
+        // so without this branch a scholar would ring with the weaver's
+        // LOOM_CLACK, which reads as a mechanical clack rather than a pen.
+        // FEATHER_PINCH (the fletcher's own sound, at a slower period below)
+        // is the existing catalogue entry that actually fits: a quill IS a
+        // feather, and the fletcher's soft pinch-and-set is closer to a
+        // scratching nib than any loom, forge or bench sound in the table.
+        if (tradeOf(type) == Profession.SCHOLAR) {
+            return com.hearthstead.registry.ModSounds.FEATHER_PINCH.get();
+        }
         return switch (motionOf(type)) {
             case WORK_HAMMER -> com.hearthstead.registry.ModSounds.ANVIL_RING.get();
+            // Coordinator addendum: MILLER (WORK_KNEAD) and BREWER
+            // (WORK_STOKE) both fall straight through this motion-keyed
+            // switch and land on the same sounds as BAKER and SMELTER --
+            // working sacks and stones is close enough to kneading's press,
+            // and tending a mash over heat is close enough to a bellows, to
+            // reuse rather than invent (the SORTING/INNKEEPER precedent
+            // below is the same call). Future signature-motion work, not
+            // this slice's.
             case WORK_STOKE -> com.hearthstead.registry.ModSounds.BELLOWS_PUFF.get();
             case WORK_SAW -> com.hearthstead.registry.ModSounds.SAW_STROKE.get();
             case WORK_OVEN -> com.hearthstead.registry.ModSounds.OVEN_SLIDE.get();
@@ -210,6 +258,11 @@ public final class Employment {
      * the sound lands on the motion rather than on a timer of its own.
      */
     public static int soundPeriodOf(BuildingType type) {
+        if (tradeOf(type) == Profession.SCHOLAR) {
+            // Slower than the fletcher's own 32 -- a quiet, thoughtful
+            // scratch of a quill, not a workshop's steady rhythm.
+            return 40;
+        }
         return switch (motionOf(type)) {
             case WORK_HAMMER -> 20;
             case WORK_STOKE -> 28;
@@ -234,11 +287,20 @@ public final class Employment {
             case SMITH, MASON, SMELTER, LUMBERER, MINER -> Attribute.STRENGTH;
             case COURIER, GUARD -> Attribute.STAMINA;
             case BAKER, COOK, BUTCHER, TANNER, SAWYER, CARPENTER,
-                 FLETCHER, WEAVER, FARMER -> Attribute.DEXTERITY;
+                 FLETCHER, WEAVER, FARMER,
+                 // Coordinator addendum: grinding grain and working a mash
+                 // are the same "fine manual work" this whole group already
+                 // covers, not a strength or judgement trade.
+                 MILLER, BREWER -> Attribute.DEXTERITY;
             // Keeping guests waiting happily is a social skill, not a
             // physical one -- the same reason WITS is what fitness for the
             // post is measured against below, in keyAttributeOf's default.
             case INNKEEPER -> Attribute.WITS;
+            // RESEARCH-1: judgement, explicitly -- named the same way
+            // INNKEEPER is above, rather than left to fall through the
+            // default, because a reader should never have to wonder whether
+            // a brand-new trade's attribute was a deliberate choice.
+            case SCHOLAR -> Attribute.WITS;
             default -> Attribute.WITS;
         };
     }

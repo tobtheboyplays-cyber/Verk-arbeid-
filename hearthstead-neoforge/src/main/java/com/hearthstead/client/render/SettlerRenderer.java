@@ -86,13 +86,22 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
         font.drawInBatch(name, x, 0, 0xFFFFFFFF, false, matrix, buffers,
             Font.DisplayMode.NORMAL, 0, packedLight);
 
-        // Second line while targeted: profession and current doing.
-        if (Minecraft.getInstance().crosshairPickEntity == entity) {
-            Profession profession = entity.getProfession();
-            Component status = profession.employed()
+        // Second line: the PROFESSION, always ("navn over med yrke ...
+        // tydeligere for jobben", 20260825) — a villager's job is readable
+        // at a glance, not only under the crosshair. The current doing is
+        // the noisy part, so it still only joins in while targeted.
+        Profession profession = entity.getProfession();
+        boolean targeted = Minecraft.getInstance().crosshairPickEntity == entity;
+        Component status = null;
+        if (profession.employed()) {
+            status = targeted
                 ? Component.empty().append(profession.displayName())
                     .append(" · ").append(entity.getActivity().displayName())
-                : entity.getActivity().displayName();
+                : profession.displayName();
+        } else if (targeted) {
+            status = entity.getActivity().displayName();
+        }
+        if (status != null) {
             float sx = -font.width(status) / 2.0F;
             int color = 0xFF000000 | profession.color();
             font.drawInBatch(status, sx, 11, color, false, matrix, buffers,

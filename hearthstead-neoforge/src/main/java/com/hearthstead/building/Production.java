@@ -239,8 +239,24 @@ public final class Production {
     }
 
     /**
-     * The first recipe this building could run right now: its inputs are in
-     * the building's own chests and there is room for what comes out.
+     * The recipe this building should run right now: its inputs are in the
+     * building's own chests, there is room for what comes out — and, among
+     * every recipe that could run, the one whose OUTPUT the building has the
+     * least of already.
+     *
+     * <p>Why need-aware and not first-listed: four independent trade audits
+     * (sawyer, carpenter, weaver, fletcher — 20260825) found the same defect.
+     * "Return the first satisfiable recipe" means a building with a steady
+     * supply of one input makes that recipe forever and its siblings NEVER
+     * run — the sawmill saws planks eternally while the beam order starves.
+     * Preferring the scarcest output is the smallest rule that fixes all
+     * four: a pile of planks stops attracting work by itself, and whatever
+     * the chests are short of gets made next.
+     *
+     * <p>Ties (including the everyone-at-zero start) keep LIST ORDER, which
+     * preserves the FLOWS.md fed-path doctrine: the improved recipe for the
+     * same output is listed first and still wins whenever its intermediate
+     * ingredient exists — bread_flour over bread, never the other way.
      *
      * <p>Deliberately a pure read — it changes nothing — so a work goal can
      * ask "is there anything to do?" every tick without side effects.
@@ -255,13 +271,21 @@ public final class Production {
         if (containers.isEmpty()) {
             return null;
         }
+        Recipe best = null;
+        int bestStock = Integer.MAX_VALUE;
         for (Recipe recipe : recipes) {
             if (count(containers, recipe) >= recipe.inputCount()
                 && hasRoomFor(containers, recipe)) {
-                return recipe;
+                int stock = countItem(containers, recipe.output());
+                // Strictly less: an equal-stock later entry loses, so the
+                // fed path's listed-first preference survives the tie.
+                if (stock < bestStock) {
+                    best = recipe;
+                    bestStock = stock;
+                }
             }
         }
-        return null;
+        return best;
     }
 
     /**
@@ -309,6 +333,20 @@ public final class Production {
             }
         }
         return found;
+    }
+
+    /** How many of one item the building's chests hold — the "need" signal. */
+    private static int countItem(List<Container> containers, Item item) {
+        int total = 0;
+        for (Container container : containers) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (!stack.isEmpty() && stack.is(item)) {
+                    total += stack.getCount();
+                }
+            }
+        }
+        return total;
     }
 
     private static int count(List<Container> containers, Recipe recipe) {

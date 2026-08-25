@@ -35,7 +35,19 @@ public enum Profession {
     // tavern to be more than an empty room. Hands stay free, same as
     // COURIER: hospitality is a manner, not a tool, and there is nothing to
     // hold that reads at a glance the way a hoe or an axe does.
-    INNKEEPER(17, "innkeeper", () -> ItemStack.EMPTY, 0xC08A3E);
+    INNKEEPER(17, "innkeeper", () -> ItemStack.EMPTY, 0xC08A3E),
+    // SLICE RESEARCH-1 (docs/project/PLAN_RESEARCH.md): the scholar's hands
+    // stay free, the same as every crafting trade above -- the work
+    // animation and the room they stand in are what identify them, and a
+    // vanilla item at the hip would read as clutter rather than a trade.
+    SCHOLAR(18, "scholar", () -> ItemStack.EMPTY, 0x3E5C8A),
+    // Coordinator addendum, 2026-08-25: the mill and the brewery needed a
+    // trade the moment Production (CHAINS) grew recipe tables for them --
+    // CrafterWorkGoal already knows how to run any building with a recipe
+    // table, it only needed somebody hireable to send there (D-014: a
+    // recipe nobody can be hired to run is worse than no recipe at all).
+    MILLER(19, "miller", () -> ItemStack.EMPTY, 0xD8CBA8),
+    BREWER(20, "brewer", () -> ItemStack.EMPTY, 0x9C6B2F);
 
     public static final Profession[] BY_ID = values();
 
