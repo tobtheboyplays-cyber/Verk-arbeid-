@@ -181,7 +181,7 @@ public class RaidDamageGameTests {
      * state before the block ever changes — exactly the ordering {@link
      * RaidDirector}'s class doc demands.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "raid_damage_day")
     public void breachingADoorScarsItBeforeDestroyingIt(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(9, 1, 9));
@@ -237,7 +237,7 @@ public class RaidDamageGameTests {
      * count plus carried count equals the original total. Nothing is ever
      * duplicated and nothing is ever destroyed — see {@code RaiderLootGoal}.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "raid_damage_day")
     public void lootingMovesItemsRatherThanDuplicatingThem(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
@@ -270,7 +270,7 @@ public class RaidDamageGameTests {
      * WHOLE scenario: whatever is not in the chest anymore is either on the
      * raider or, once it is dead, on the ground where it fell.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "raid_damage_day")
     public void aKilledRaiderDropsExactlyWhatItCarried(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
@@ -315,7 +315,7 @@ public class RaidDamageGameTests {
      * raider keeps trying at point-blank range for long enough to spend its
      * ENTIRE per-raid break budget on whatever else is reachable instead.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1400, batch = "raid_damage_day")
     public void aChestBlockingTheWayIsNeverBroken(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(9, 1, 9));

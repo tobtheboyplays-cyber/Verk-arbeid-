@@ -156,7 +156,7 @@ public class CourierWorkshopRouteGameTests {
      * collection trip must claim its (building, item) key and release it
      * once the job resolves.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_workshop_route_day")
     public void mineYieldIsCollectedCompletely(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
 
@@ -218,7 +218,7 @@ public class CourierWorkshopRouteGameTests {
      * puts 8 back later would pass an end-state check and still have
      * broken the buffer the keep-back exists to guarantee.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_workshop_route_day")
     public void workshopOutputKeepsItsKeepBack(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         int stocked = 20;
@@ -278,7 +278,7 @@ public class CourierWorkshopRouteGameTests {
      * watch is a latch, not an end-state read: if a single poll ever sees
      * it outside the smelter's chest, the test cannot pass.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_workshop_route_day")
     public void workshopInputsAreNeverCollected(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         int rawStocked = 10;

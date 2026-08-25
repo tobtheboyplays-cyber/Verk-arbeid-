@@ -144,7 +144,7 @@ public class CourierGameTests {
      * The whole point: goods left at the hearth end up in warehouse chests,
      * carried there by a settler, with the total item count unchanged.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "courier_day")
     public void courierHaulsGoodsFromHearthToWarehouse(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -181,7 +181,7 @@ public class CourierGameTests {
      * Food is the settlement's life support and must never be hauled away
      * (D-A2a-1) -- draining the hearth would quietly starve everyone.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "courier_day")
     public void courierNeverTakesFoodFromTheHearth(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -217,7 +217,7 @@ public class CourierGameTests {
      * states -- MineColonies' delivery loop failures (#5333/#3892) are
      * exactly this shape.
      */
-    @GameTest(template = "empty16", timeoutTicks = 800, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 800, batch = "courier_day")
     public void courierIdlesWithoutAWarehouse(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 12);
@@ -262,7 +262,7 @@ public class CourierGameTests {
      * tests could never catch: the goods arrive, AND the courier was inside
      * the room when they did. Reaching through a wall is not delivering.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_day")
     public void courierEntersASealedWarehouseAndDelivers(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -346,7 +346,7 @@ public class CourierGameTests {
      * and it clears completely the moment the sack is emptied -- a settler
      * who stayed slow after delivering would be a permanent silent debuff.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "courier_day")
     public void aFullSackSlowsTheCarrier(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 12);
@@ -434,7 +434,7 @@ public class CourierGameTests {
      * number (D-A2b-1). If someone reintroduces a private LOAD_TRIGGER
      * constant, the peak stops matching and this fails.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_day")
     public void courierSackShowsTheRealLoad(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -516,7 +516,7 @@ public class CourierGameTests {
      * that has no container to receive them, the load comes home to the
      * hearth where the settlement can see and use it again.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "courier_day")
     public void courierWithNowhereToDeliverBringsGoodsBackToTheHearth(
         GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);

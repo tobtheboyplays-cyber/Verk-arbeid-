@@ -89,7 +89,7 @@ public class SagaGameTests {
      * roster round-trips through NBT exactly the way {@code RaidCaptain}'s
      * own gallery does.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "saga_day")
     public void rosterGenerationIsDeterministicAndPersists(GameTestHelper helper) {
         UUID settlementId = UUID.randomUUID();
         RandomSource random = helper.getLevel().getRandom();
@@ -131,7 +131,7 @@ public class SagaGameTests {
      * lieutenant takes their place carrying the grudge marker in their own
      * name -- "Kettil, sworn to Grimr" (v1 flavor, per the task).
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "saga_day")
     public void aSlainCaptainIsSucceededByAGrudgeBearingLieutenant(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement s = settlement(UUID.randomUUID(), 8);
@@ -196,7 +196,7 @@ public class SagaGameTests {
      * first epithet -- and the growth buys a readably tougher, faster,
      * differently-textured captain, never a hidden number.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "saga_day")
     public void aVictoriousRaidGrowsTheLeaderAndEarnsAnEpithet(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement s = settlement(UUID.randomUUID(), 8);
@@ -255,7 +255,7 @@ public class SagaGameTests {
      * (see its own class doc) rather than something worth re-verifying
      * delivery for here.
      */
-    @GameTest(template = "empty16", timeoutTicks = 300, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 300, batch = "saga_day")
     public void theLeadingRaiderCarriesTheNameTheBroadcastReports(GameTestHelper helper) {
         buildArena(helper, 16);
         Settlement s = makeSettlementForBand(helper, new BlockPos(8, 1, 8), 8);

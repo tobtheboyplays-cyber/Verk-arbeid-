@@ -177,7 +177,7 @@ public class LogisticsGameTests {
      * -- not just that the physically-obvious outcome (one delivery, not
      * two) happened to occur.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "logistics_day")
     public void reservationLetsOnlyOneCourierFetchTheSameStock(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -258,7 +258,7 @@ public class LogisticsGameTests {
      * stay converged: once the warehouse reads as tidy the goal must go
      * quiet, not keep re-selecting and re-scanning forever.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2000, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2000, batch = "logistics_day")
     public void tidyConvergesAndGoesQuiet(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -329,7 +329,7 @@ public class LogisticsGameTests {
      * that is not the hearth, landing in a building that is not a
      * warehouse) that no existing GameTest exercises.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "logistics_day")
     public void restockConservesItemsAcrossTheFullRoute(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -403,7 +403,7 @@ public class LogisticsGameTests {
      * way to route around a "closed" door still fails this for the right
      * reason.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "logistics_day")
     public void courierOpensAClosedDoorToDeliver(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);

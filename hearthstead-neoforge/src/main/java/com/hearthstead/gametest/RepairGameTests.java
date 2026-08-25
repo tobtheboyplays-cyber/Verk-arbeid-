@@ -143,7 +143,7 @@ public class RepairGameTests {
      * the unauthored EMERGENCY_REPAIR clip — is actually observed doing the
      * work, not just declared.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "repair_day")
     public void aMasonRepairsARaidScarConsumingExactlyOneBrick(GameTestHelper helper) {
         helper.getLevel().setDayTime(3000); // mid-morning: working hours
         buildArena(helper, 14);
@@ -197,7 +197,7 @@ public class RepairGameTests {
      * has been conjured from anywhere (items are conserved — a repair that
      * ran without paying would be creation, not repair).
      */
-    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "repair_day")
     public void noMaterialMeansNoRepairAndNothingConsumed(GameTestHelper helper) {
         helper.getLevel().setDayTime(3000);
         buildArena(helper, 14);
@@ -245,7 +245,7 @@ public class RepairGameTests {
      * arithmetic "blocks standing + bricks left = 2" would break, and the
      * end state below would be unreachable inside the timeout.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "repair_day")
     public void twoRepairersSplitTwoScarsWithoutDoubleClaim(GameTestHelper helper) {
         helper.getLevel().setDayTime(3000);
         buildArena(helper, 14);
@@ -312,7 +312,7 @@ public class RepairGameTests {
      * positions and exact BlockStates — because a scar that forgets what
      * stood there can only be rebuilt wrong.
      */
-    @GameTest(template = "empty16", timeoutTicks = 100, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 100, batch = "repair_day")
     public void theScarLedgerIsBoundedDedupedAndSurvivesNbt(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         UUID id = UUID.randomUUID(); // ledger-only test: no settlement needed

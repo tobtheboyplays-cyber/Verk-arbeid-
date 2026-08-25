@@ -132,7 +132,7 @@ public class FarmerBootstrapGameTests {
      * exactly: every seed is in the chest, in the bag, or standing in the
      * plot as a crop.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "farmer_bootstrap_day")
     public void farmerBootstrapsABrandNewPlotFromChestSeeds(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
@@ -199,7 +199,7 @@ public class FarmerBootstrapGameTests {
      * deposit emptied the ENTIRE bag -- seeds included -- so this exact
      * cycle ended with zero seeds and a tile that could die permanently.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "farmer_bootstrap_day")
     public void depositHoldsBackTheSeedReserve(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);

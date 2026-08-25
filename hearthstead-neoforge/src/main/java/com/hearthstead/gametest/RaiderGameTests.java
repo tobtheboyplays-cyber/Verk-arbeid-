@@ -73,7 +73,7 @@ public class RaiderGameTests {
      * scale off the same flag, so you can read who leads a raid from across
      * the field.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_day")
     public void captainsAreVisiblyAndMechanicallyDistinct(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
@@ -100,7 +100,7 @@ public class RaiderGameTests {
      * stat sheet -- and it is capped, so a long feud stays winnable rather
      * than becoming a wall.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_day")
     public void menaceScalesStrengthAndIsCapped(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
@@ -124,7 +124,7 @@ public class RaiderGameTests {
     }
 
     /** Raiders never turn on each other, however the melee goes. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_day")
     public void raidersDoNotFightEachOther(GameTestHelper helper) {
         buildArena(helper, 10);
         RaiderEntity a = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 2));
@@ -137,7 +137,7 @@ public class RaiderGameTests {
      * A raid that despawns is a raid that never happened. Raiders are
      * persistent, and their orders survive a save.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_day")
     public void raidersPersistAndRememberTheirOrders(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
@@ -172,7 +172,7 @@ public class RaiderGameTests {
      * raiders "usually come from the same spawn point" and ganging up on
      * one tower guard (#193), and TekTopia uses four fixed corners.
      */
-    @GameTest(template = "empty16", timeoutTicks = 300, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 300, batch = "raider_day")
     public void theBandFormsUpOnThePlannedBearing(GameTestHelper helper) {
         BlockPos center = helper.absolutePos(new BlockPos(8, 1, 8));
         // North is -Z; the geometry must put a 180-degree approach south of
@@ -195,7 +195,7 @@ public class RaiderGameTests {
     }
 
     /** A band is a band, never a horde, however rich the settlement gets. */
-    @GameTest(template = "empty16", timeoutTicks = 300, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 300, batch = "raider_day")
     public void bandSizeGrowsWithWorthButIsCapped(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement small = makeSettlement(helper, new BlockPos(5, 1, 5));
@@ -225,7 +225,7 @@ public class RaiderGameTests {
      * that never concludes is the raid-shaped version of MineColonies'
      * deliveries that silently never happen.
      */
-    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "raider_day")
     public void aRaidArrivesAndThenResolves(GameTestHelper helper) {
         buildArena(helper, 16);
         Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
@@ -281,7 +281,7 @@ public class RaiderGameTests {
      * day of mourning; its own feature requests (#113, #129) are asking for
      * exactly this -- a consequence you can chase down.
      */
-    @GameTest(template = "empty16", timeoutTicks = 900, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "raider_day")
     public void raidersStealRealGoodsAndDropThemWhenKilled(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
@@ -336,7 +336,7 @@ public class RaiderGameTests {
      * resolve DIFFERENTLY. Whether the settlement held is about whether the
      * raiders got what they came for, not about who died.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_day")
     public void escapingWithTheStoresResolvesAsALoss(GameTestHelper helper) {
         buildArena(helper, 12);
         Settlement s = makeSettlement(helper, new BlockPos(6, 1, 6));
@@ -365,7 +365,7 @@ public class RaiderGameTests {
     }
 
     /** Guards already hunt hostiles, so a raider is a target without a special case. */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_day")
     public void guardsTreatRaidersAsHostile(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 12);
@@ -394,7 +394,7 @@ public class RaiderGameTests {
      * wealth. The same settlement, unchanged in every other way, must pull a
      * visibly bigger band once it reads as besieged.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_day")
     public void bandSizeEscalatesWithPressureStage(GameTestHelper helper) {
         Settlement calm = new Settlement(UUID.randomUUID(), "Calm", BlockPos.ZERO);
         Settlement besieged = new Settlement(UUID.randomUUID(), "Besieged", BlockPos.ZERO);
@@ -419,7 +419,7 @@ public class RaiderGameTests {
      * The aftermath report (D-A3-8 / "Aftermath"): what a lost raid actually
      * cost must be readable afterward, not only felt in the moment.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_day")
     public void aLostRaidLeavesAReportOfWhatWasStolenAndWhoWasHurt(GameTestHelper helper) {
         buildArena(helper, 12);
         Settlement s = makeSettlement(helper, new BlockPos(6, 1, 6));
@@ -450,7 +450,7 @@ public class RaiderGameTests {
     }
 
     /** The other outcome must read differently: held means nothing was taken. */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_day")
     public void aHeldRaidIsLoggedAsHeldWithoutStolenGoods(GameTestHelper helper) {
         buildArena(helper, 12);
         Settlement s = makeSettlement(helper, new BlockPos(6, 1, 6));
@@ -476,7 +476,7 @@ public class RaiderGameTests {
     }
 
     /** The report is a history, not an unbounded diary -- capped like the enemy gallery. */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_day")
     public void theRaidLogStaysBounded(GameTestHelper helper) {
         Settlement s = new Settlement(UUID.randomUUID(), "Logtown", BlockPos.ZERO);
         var level = helper.getLevel();
@@ -496,7 +496,7 @@ public class RaiderGameTests {
      * report; the same raider swinging outside a raid (a scout defending
      * itself, say) must not inflate one that never happened.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_day")
     public void hurtingASettlerIsOnlyTalliedDuringALiveRaid(GameTestHelper helper) {
         buildArena(helper, 10);
         Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
@@ -530,7 +530,7 @@ public class RaiderGameTests {
      * RaiderEntity, but it must never itself start the fight it is warning
      * the settlement about.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_day")
     public void scoutsAreOmensAndDoNotHuntEvenNextToSettlers(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));

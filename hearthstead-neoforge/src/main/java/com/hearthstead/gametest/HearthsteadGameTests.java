@@ -150,7 +150,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "farm9", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "farm9", timeoutTicks = 1600, batch = "hearthstead_day")
     public void farmerHarvestsAndDeposits(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildFarmArena(helper, 9);
@@ -221,7 +221,7 @@ public class HearthsteadGameTests {
 
     /** ANIM-1: the single WORKING phase is now a real HARVEST-then-PLANT
      *  sequence, each with its own activity/clip. */
-    @GameTest(template = "farm9", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "farm9", timeoutTicks = 1600, batch = "hearthstead_day")
     public void farmerActivityProgressesThroughHarvestAndPlant(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildFarmArena(helper, 9);
@@ -253,7 +253,7 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "hearthstead_day")
     public void lumbererFellsTreeCleanly(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);
@@ -323,7 +323,7 @@ public class HearthsteadGameTests {
                 + ", target=" + (guard.getTarget() != null) + ")"));
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 900, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 900, batch = "hearthstead_day")
     public void hungrySettlerEatsFromHearth(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);
@@ -344,7 +344,7 @@ public class HearthsteadGameTests {
                 + ", food=" + hearth.countFoodUnits() + ")"));
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "hearthstead_day")
     public void civilianFleesAndAlarmSounds(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);
@@ -1283,7 +1283,7 @@ public class HearthsteadGameTests {
 
     /** ANIM-1: LumbererWorkGoal now inserts a WORK_LIMB beat between the
      *  last strike and the trip home, and hauls logs under HAULING_LOG. */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "hearthstead_day")
     public void lumbererLimbsThenHaulsAfterFelling(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16, 16);

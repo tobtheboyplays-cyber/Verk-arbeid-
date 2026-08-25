@@ -99,7 +99,7 @@ public class EffortGameTests {
      * predicate throws it out on purpose -- and a crop inside it is worked
      * exactly as before.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "effort_day")
     public void farmerNeverTouchesCropsOutsideTheTendedPlot(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
@@ -143,7 +143,7 @@ public class EffortGameTests {
      * farming forever" -- so it has to hold with the farmer given every
      * reason to work.
      */
-    @GameTest(template = "empty16", timeoutTicks = 700, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 700, batch = "effort_day")
     public void aSpentSettlerNeverStartsANewWorkMotion(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
@@ -228,7 +228,7 @@ public class EffortGameTests {
      * file also proves the two pieces of PLAN_EFFORT.md's lumberer section
      * land together, not just that the replant survived untouched.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "effort_day")
     public void lumbererReplantsWhereTheTreeStoodAndPaysForIt(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);

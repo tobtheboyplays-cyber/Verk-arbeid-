@@ -198,7 +198,7 @@ public class CourierFoodRouteGameTests {
      * watches the restock lock: a food trip claims its (settlement, item)
      * key and releases it once the job resolves.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_food_route_day")
     public void breadReachesTheStarvingHearth(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         hearthAt(helper).insertGoods(new ItemStack(Items.BREAD, 1));
@@ -260,7 +260,7 @@ public class CourierFoodRouteGameTests {
      * prevent. Every poll pins every count; any bread seen out of place at
      * any tick keeps failing to the timeout.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2000, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2000, batch = "courier_food_route_day")
     public void stockedLarderTriggersNoDelivery(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         int seeded = 8;
@@ -309,7 +309,7 @@ public class CourierFoodRouteGameTests {
      * (the bread trip, then 12 cobble at a carry capacity of 8 = two more
      * trips), hence the longer timeout.
      */
-    @GameTest(template = "empty16", timeoutTicks = 4800, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 4800, batch = "courier_food_route_day")
     public void starvingHearthOutranksMineCollection(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         addWarehouse(helper, s);
@@ -384,7 +384,7 @@ public class CourierFoodRouteGameTests {
      * Fuel contract marks SMELTER as a burner (FLOWS.md gives the smelter
      * the charcoal recipe for exactly this loop).
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_food_route_day")
     public void fuelReachesTheColdSmelter(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         addWarehouse(helper, s);
