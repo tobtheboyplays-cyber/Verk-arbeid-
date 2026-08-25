@@ -13,11 +13,24 @@ forskjellige bygningene."*
 
 This is the permanent invariant made legible. **The plaque is the surveyor**
 (D-005/D-006): a building exists because a player hung a plaque and the room
-satisfied it. Right now the plaque enforces that rule while telling the
-player nothing — verified in game: three plaques in three different states
-(empty / plan inserted / different building types) render **identically**,
-so the only way to learn whether a survey passed is to run a command. The
-mockup fixes exactly that.
+satisfied it.
+
+> **Correction to an earlier claim in this document.** I first wrote that
+> three plaques in three states "render identically". **That was my
+> measurement error, not the game's behaviour.** I had staged the test by
+> `data merge`-ing the block entity's `State` field directly, which never
+> calls `survey()` — and `updateGlow()` is what writes the `glow` blockstate
+> property. So all three stayed on the default `empty` variant because
+> nothing had ever surveyed them. The plaque DOES already signal its state:
+> a lamp jewel set into the board, `EMPTY / RED / AMBER / GREEN`, with amber
+> specifically meaning "some progress" (`Requirement.Status.partial()`).
+
+**What is genuinely missing is still exactly what the mockup asks for.** A
+lamp tells you *whether*. It cannot tell you *what is missing* — that the
+room needs one more torch, or has no bed at all. The parchment sheet with
+the building's picture, its title and a per-requirement line with counts and
+ticks is the part that does not exist, and it is the difference between a
+player who knows what to do next and one who is guessing.
 
 ## What it must become
 
@@ -84,8 +97,10 @@ and a house plaque is visibly a house.
 
 ## Acceptance
 
-- Three plaques in three different states are **visibly different** in a
-  screenshot, with no command run — the exact check that failed today.
+- A plaque shows **which requirements are unmet and by how much**, on the
+  block, with no command and no right-click. The existing lamp already
+  distinguishes the states; the sheet is what turns "not yet" into "you need
+  one more torch".
 - Placing a required block flips its line to ✓ **without** re-opening
   anything.
 - A warehouse plan and a house plan are distinguishable at a glance.
