@@ -50,10 +50,22 @@ public final class SettlementManager {
      * price a subsistence camp feels and a thriving settlement never notices
      * — which is exactly the shape a "price" is supposed to have here.
      */
-    private static final ItemStack[] RECRUIT_PRICE = {
-        new ItemStack(Items.BREAD, 4),
-        new ItemStack(Items.OAK_PLANKS, 8),
+    private static final RecruitCost[] RECRUIT_PRICE = {
+        new RecruitCost(null, Items.BREAD, 4),
+        // ANY planks, not oak specifically (Byggherre-dom #1, krav 8): a
+        // settlement founded in a birch or spruce forest could literally
+        // never recruit under an exact-item match, which makes no sense to
+        // the player standing in it. Bread stays exact -- bread is bread.
+        new RecruitCost(net.minecraft.tags.ItemTags.PLANKS, null, 8),
     };
+
+    /** One line of the recruit price: an exact item OR any item in a tag. */
+    private record RecruitCost(net.minecraft.tags.TagKey<net.minecraft.world.item.Item> tag,
+                               Item exact, int count) {
+        boolean matches(ItemStack stack) {
+            return tag != null ? stack.is(tag) : stack.is(exact);
+        }
+    }
 
     /**
      * How long a guest waits at the tavern (or the hearth, tavern-less)
@@ -327,8 +339,8 @@ public final class SettlementManager {
     // ------------------------------------------------------- the price ---
 
     private static boolean canPayRecruitPrice(ItemStackHandler inventory) {
-        for (ItemStack cost : RECRUIT_PRICE) {
-            if (countItem(inventory, cost.getItem()) < cost.getCount()) {
+        for (RecruitCost cost : RECRUIT_PRICE) {
+            if (countMatching(inventory, cost) < cost.count()) {
                 return false;
             }
         }
@@ -337,8 +349,32 @@ public final class SettlementManager {
 
     /** Only ever called after {@link #canPayRecruitPrice} said yes. */
     private static void payRecruitPrice(ItemStackHandler inventory) {
-        for (ItemStack cost : RECRUIT_PRICE) {
-            extractExact(inventory, cost.getItem(), cost.getCount());
+        for (RecruitCost cost : RECRUIT_PRICE) {
+            extractMatching(inventory, cost, cost.count());
+        }
+    }
+
+    private static int countMatching(ItemStackHandler inventory, RecruitCost cost) {
+        int total = 0;
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            ItemStack stack = inventory.getStackInSlot(slot);
+            if (!stack.isEmpty() && cost.matches(stack)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    /** Mixed stacks pay together: 5 birch + 3 spruce planks are 8 planks. */
+    private static void extractMatching(ItemStackHandler inventory, RecruitCost cost, int amount) {
+        for (int slot = 0; slot < inventory.getSlots() && amount > 0; slot++) {
+            ItemStack stack = inventory.getStackInSlot(slot);
+            if (!stack.isEmpty() && cost.matches(stack)) {
+                int take = Math.min(amount, stack.getCount());
+                stack.shrink(take);
+                inventory.setStackInSlot(slot, stack.isEmpty() ? ItemStack.EMPTY : stack);
+                amount -= take;
+            }
         }
     }
 
