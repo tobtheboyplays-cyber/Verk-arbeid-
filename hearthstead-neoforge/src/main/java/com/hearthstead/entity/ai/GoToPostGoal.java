@@ -66,14 +66,7 @@ public class GoToPostGoal extends Goal {
             return false;
         }
         // Already there: say no, so the trade goals can have the movement flag.
-        boolean already = settler.blockPosition().closerThan(post.where(), Schedule.AT_POST);
-        if ("Astrid".equals(settler.getSettlerName())) {
-            double dist = Math.sqrt(settler.blockPosition().distSqr(post.where()));
-            System.out.println("GTP_DEBUG canUse name=" + settler.getSettlerName()
-                + " pos=" + settler.blockPosition() + " post=" + post.where()
-                + " reason=" + post.reason() + " dist=" + dist + " already=" + already);
-        }
-        if (already) {
+        if (settler.blockPosition().closerThan(post.where(), Schedule.AT_POST)) {
             return false;
         }
         posting = post;
@@ -114,14 +107,27 @@ public class GoToPostGoal extends Goal {
         walkedTicks = 0;
         repathTimer = 0;
         settler.setActivity(posting.activity());
-        if ("Astrid".equals(settler.getSettlerName())) {
-            System.out.println("GTP_DEBUG start name=" + settler.getSettlerName()
-                + " pos=" + settler.blockPosition() + " post=" + posting.where()
-                + " reason=" + posting.reason());
-        }
         path();
     }
 
+    /**
+     * Hand the flag back honestly.
+     *
+     * <p>Whether this goal ends because the settler arrived, gave up, picked
+     * something up, or got a target, the settler is left standing still with
+     * nothing telling it what it is doing. Every other goal that owns
+     * Flag.MOVE resets the activity in its own {@code stop()} (see
+     * {@link RestAtNightGoal#stop()}); this one used not to, which meant a
+     * settler who legitimately arrived — or who was cut off mid-walk by a
+     * combat target or a courier's pickup — kept reading
+     * {@code SettlerActivity.TRAVELING} until some other goal happened to
+     * overwrite it. When the goal that was supposed to take the flag next
+     * (a trade goal on a look-cooldown, a fully-fed settler with nothing
+     * else to do) was slow to claim it, that stale TRAVELING label was the
+     * only thing an observer — a test assertion or a player — ever saw,
+     * which reads as "never arrived" even on ticks where the settler had
+     * been standing at its post the whole time.
+     */
     @Override
     public void stop() {
         if (posting != null && walkedTicks > PATIENCE
@@ -130,6 +136,7 @@ public class GoToPostGoal extends Goal {
         }
         posting = null;
         settler.getNavigation().stop();
+        settler.setActivity(SettlerActivity.IDLE);
     }
 
     @Override
@@ -145,13 +152,6 @@ public class GoToPostGoal extends Goal {
         BlockPos where = posting.where();
         boolean moving = settler.getNavigation().moveTo(
             where.getX() + 0.5, where.getY(), where.getZ() + 0.5, 0.85);
-        if ("Astrid".equals(settler.getSettlerName())) {
-            System.out.println("GTP_DEBUG path name=" + settler.getSettlerName()
-                + " pos=" + settler.blockPosition() + " where=" + where
-                + " moving=" + moving + " walkedTicks=" + walkedTicks
-                + " navDone=" + settler.getNavigation().isDone()
-                + " path=" + settler.getNavigation().getPath());
-        }
         if (!moving) {
             // No path at all is worth saying immediately; waiting out the
             // patience timer would just delay the same answer.
