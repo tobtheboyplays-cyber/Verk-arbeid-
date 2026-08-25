@@ -32,14 +32,22 @@ import java.util.EnumSet;
  * <h2>Detecting "blocked" without watching any other goal</h2>
  *
  * <p>This goal never inspects what {@code RaiderLootGoal} or the target
- * selector are privately doing — it only ever watches the raider's own
- * position. Every tick it is not running, it compares {@code
- * raider.blockPosition()} against the last position it sampled: real
- * progress resets the sample, and it is only once the raider has gone
- * {@link #STUCK_THRESHOLD_TICKS} without moving — while it still wants to
- * be somewhere it is not — that it looks for something to break. A raider
- * successfully walking to a target never trips this; only one that
- * genuinely cannot make progress does, which is exactly "milling about".
+ * selector are privately doing — it only ever watches two things vanilla
+ * already tracks on every entity: whether it is standing still, and whether
+ * {@code Entity#horizontalCollision} has EVER been true since it started
+ * standing still — the exact signal vanilla's own {@code DoorInteractGoal}
+ * uses to know a mob has bumped into something solid, just remembered
+ * across the window rather than required on every single tick of it (a
+ * blocked raider's navigation does not necessarily push into the obstacle
+ * every tick once it has already arrived at the closest reachable point).
+ * Requiring the collision at all is what matters: a looting raider standing
+ * at a chest is stationary but never once collides (it stopped on purpose,
+ * in open air), so no matter how long it stands there it is never mistaken
+ * for stuck, while a raider parked against a door or wall it cannot pass
+ * collided getting there. Only once the raider has been stationary AND has
+ * collided at least once inside that same stationary window for {@link
+ * #STUCK_THRESHOLD_TICKS} — while it still wants to be somewhere it is not
+ * — does it look for something to break.
  *
  * <h2>Doors first, a wall only if none is adjacent</h2>
  *
@@ -142,6 +150,9 @@ public class RaiderBreachGoal extends Goal {
     @Nullable
     private BlockPos stuckAnchor;
     private long stuckSinceTime = -1L;
+    /** Whether {@code horizontalCollision} has fired at least once since
+     * {@link #stuckAnchor} was last set — see {@link #canUse()}. */
+    private boolean collidedSinceAnchor;
 
     public RaiderBreachGoal(RaiderEntity raider) {
         this.raider = raider;
@@ -158,10 +169,12 @@ public class RaiderBreachGoal extends Goal {
         }
         Settlement settlement = raider.settlement();
         if (settlement == null || settlement.pendingRaid == null) {
+            stuckAnchor = null;
             return false; // only ever during a raid that is actually on
         }
         BlockPos destination = destinationFor(raider);
         if (destination == null) {
+            stuckAnchor = null;
             return false;
         }
         BlockPos here = raider.blockPosition();
@@ -171,12 +184,29 @@ public class RaiderBreachGoal extends Goal {
         }
         long now = level.getGameTime();
         if (stuckAnchor == null || here.distSqr(stuckAnchor) > STUCK_EPS_SQR) {
+            // Real progress (or just starting to watch): reset the window.
+            // A raider that stopped on purpose (it reached what it actually
+            // wanted, e.g. a chest to loot) will sit inside this same small
+            // window forever without ever accumulating collisions, which is
+            // exactly why the check below matters as much as the timer does.
             stuckAnchor = here.immutable();
             stuckSinceTime = now;
-            return false; // moving fine, or just started watching
+            collidedSinceAnchor = raider.horizontalCollision;
+            return false;
+        }
+        if (raider.horizontalCollision) {
+            collidedSinceAnchor = true;
+        }
+        if (!collidedSinceAnchor) {
+            // Stationary, but never actually pressed against anything --
+            // vanilla's own signal (see DoorInteractGoal) for "bumped into
+            // something solid". Without this, a raider that voluntarily
+            // stands still to work (looting a chest, say) would eventually
+            // look identical to one that is genuinely blocked.
+            return false;
         }
         if (now - stuckSinceTime < STUCK_THRESHOLD_TICKS) {
-            return false; // stationary, but not long enough to call it stuck
+            return false; // stationary and colliding, but not long enough yet
         }
         BlockPos candidate = findBreachCandidate(level, settlement);
         if (candidate == null) {

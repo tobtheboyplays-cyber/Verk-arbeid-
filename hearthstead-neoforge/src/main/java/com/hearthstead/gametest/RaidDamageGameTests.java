@@ -44,6 +44,14 @@ import java.util.UUID;
  * arithmetic under the new pressure of a raider that can now knock down
  * what stands in its way.
  *
+ * <p>Every raider here is genuinely walking toward a real KORN loot chest
+ * (via {@code RaiderLootGoal}, unmodified) rather than being hand-placed
+ * already adjacent to whatever it must breach: {@link RaiderBreachGoal}'s
+ * own "am I actually blocked" detector keys off {@code
+ * Entity#horizontalCollision} (see its class doc), which only ever fires
+ * from a real, failed movement attempt — so the fixtures have to produce
+ * one honestly, the same way a real raid would.
+ *
  * <p>Every scenario here is built the same way {@code RepairGameTests}
  * verifies the other end of this same ledger: seed the world directly, run
  * real ticks, and read the outcome back from {@link RaidDirector}'s own
@@ -116,6 +124,31 @@ public class RaidDamageGameTests {
         }
     }
 
+    /**
+     * Registers a real, lootable KORN target at (9,1,9) — a plaque at the
+     * building's corner, a WAREHOUSE {@link Building} whose bounds cover
+     * it (so {@code RaiderLootGoal}'s own {@code WarehouseIndex} walk
+     * actually finds it), and the chest stocked with {@code count} wheat.
+     * The exact fixture {@code RaiderGameTests}' theft test uses.
+     */
+    private static Container installLootChest(GameTestHelper helper, Settlement s, int count) {
+        BlockPos chestRel = new BlockPos(9, 1, 9);
+        helper.setBlock(chestRel, Blocks.CHEST);
+        var bounds = BoundingBox.fromCorners(helper.absolutePos(new BlockPos(8, 1, 8)),
+            helper.absolutePos(new BlockPos(10, 3, 10)));
+        helper.setBlock(new BlockPos(8, 1, 8), ModBlocks.PLAQUE.get());
+        Building warehouse = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
+            helper.absolutePos(new BlockPos(8, 1, 8)),
+            helper.absolutePos(new BlockPos(8, 1, 8)), bounds);
+        warehouse.valid = true;
+        s.buildings.add(warehouse);
+        Container chest = (Container) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(chestRel));
+        helper.assertTrue(chest != null, "the store fixture must actually be a container");
+        chest.setItem(0, new ItemStack(Items.WHEAT, count));
+        return chest;
+    }
+
     private static int countOf(Container container, Item item) {
         int n = 0;
         for (int i = 0; i < container.getContainerSize(); i++) {
@@ -141,18 +174,14 @@ public class RaidDamageGameTests {
     // --------------------------------------------------------------- (a) ---
 
     /**
-     * A raider sealed out by a door it cannot open (an iron one — mobs
-     * never open those, vanilla or otherwise) does not mill about at it:
-     * it chops through, and {@link RaidDirector#recordScar} is called for
-     * the door's own exact original state before the block ever changes,
-     * exactly the ordering {@link RaidDirector}'s class doc demands.
-     *
-     * <p>The raider is placed already adjacent to the door rather than made
-     * to walk there — this goal never depends on how it became stuck, only
-     * on the fact that it is, so testing the mechanism directly is honest
-     * and avoids pathfinding timing becoming a source of flakiness.
+     * A raider genuinely trying to reach a real loot chest, sealed behind a
+     * door it cannot open (an iron one — mobs never open those, vanilla or
+     * otherwise), does not mill about at it: it chops through, and {@link
+     * RaidDirector#recordScar} is called for the door's own exact original
+     * state before the block ever changes — exactly the ordering {@link
+     * RaidDirector}'s class doc demands.
      */
-    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "day")
     public void breachingADoorScarsItBeforeDestroyingIt(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(9, 1, 9));
@@ -171,10 +200,12 @@ public class RaidDamageGameTests {
             "fixture must actually place the door");
 
         var level = helper.getLevel();
-        RaidCaptain captain = beginRaid(level, s, RaidObjective.BLOD);
-        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(6, 1, 9));
-        raider.assign(captain.id(), s.id, RaidObjective.BLOD, 1.0F, false);
-        raider.setObjectivePos(helper.absolutePos(new BlockPos(9, 1, 9)));
+        RaidCaptain captain = beginRaid(level, s, RaidObjective.KORN);
+        installLootChest(helper, s, 20);
+
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 9));
+        raider.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
+        raider.setObjectivePos(s.center);
 
         helper.succeedWhen(() -> {
             List<RaidDirector.Scar> scars = RaidDirector.scarsOf(level, s.id);
@@ -212,21 +243,8 @@ public class RaidDamageGameTests {
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
         var level = helper.getLevel();
         RaidCaptain captain = beginRaid(level, s, RaidObjective.KORN);
-
-        BlockPos chestRel = new BlockPos(9, 1, 9);
-        helper.setBlock(chestRel, Blocks.CHEST);
-        var bounds = BoundingBox.fromCorners(helper.absolutePos(new BlockPos(8, 1, 8)),
-            helper.absolutePos(new BlockPos(10, 3, 10)));
-        helper.setBlock(new BlockPos(8, 1, 8), ModBlocks.PLAQUE.get());
-        Building warehouse = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
-            helper.absolutePos(new BlockPos(8, 1, 8)),
-            helper.absolutePos(new BlockPos(8, 1, 8)), bounds);
-        warehouse.valid = true;
-        s.buildings.add(warehouse);
-        Container chest = (Container) level.getBlockEntity(helper.absolutePos(chestRel));
-        helper.assertTrue(chest != null, "the store must exist");
         final int total = 20;
-        chest.setItem(0, new ItemStack(Items.WHEAT, total));
+        Container chest = installLootChest(helper, s, total);
 
         RaiderEntity thief = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(7, 1, 9));
         thief.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
@@ -258,20 +276,8 @@ public class RaidDamageGameTests {
         Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
         var level = helper.getLevel();
         RaidCaptain captain = beginRaid(level, s, RaidObjective.KORN);
-
-        BlockPos chestRel = new BlockPos(9, 1, 9);
-        helper.setBlock(chestRel, Blocks.CHEST);
-        var bounds = BoundingBox.fromCorners(helper.absolutePos(new BlockPos(8, 1, 8)),
-            helper.absolutePos(new BlockPos(10, 3, 10)));
-        helper.setBlock(new BlockPos(8, 1, 8), ModBlocks.PLAQUE.get());
-        Building warehouse = new Building(UUID.randomUUID(), BuildingType.WAREHOUSE,
-            helper.absolutePos(new BlockPos(8, 1, 8)),
-            helper.absolutePos(new BlockPos(8, 1, 8)), bounds);
-        warehouse.valid = true;
-        s.buildings.add(warehouse);
-        Container chest = (Container) level.getBlockEntity(helper.absolutePos(chestRel));
         final int total = 20;
-        chest.setItem(0, new ItemStack(Items.WHEAT, total));
+        Container chest = installLootChest(helper, s, total);
 
         RaiderEntity thief = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(7, 1, 9));
         thief.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
@@ -303,13 +309,13 @@ public class RaidDamageGameTests {
     // --------------------------------------------------------------- (d) ---
 
     /**
-     * A chest sits directly in the gap a raider is trying to force. It is
-     * never broken — a block entity anywhere in the candidate set is
-     * skipped outright — even though the raider keeps trying at point-blank
-     * range for long enough to spend its ENTIRE per-raid break budget on
-     * whatever else is reachable instead.
+     * A chest sits directly in the gap a raider genuinely trying to reach
+     * its real loot chest must pass. It is never broken — a block entity
+     * anywhere in the candidate set is skipped outright — even though the
+     * raider keeps trying at point-blank range for long enough to spend its
+     * ENTIRE per-raid break budget on whatever else is reachable instead.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "day")
+    @GameTest(template = "empty16", timeoutTicks = 1400, batch = "day")
     public void aChestBlockingTheWayIsNeverBroken(GameTestHelper helper) {
         buildArena(helper, 14);
         Settlement s = makeSettlement(helper, new BlockPos(9, 1, 9));
@@ -322,12 +328,18 @@ public class RaidDamageGameTests {
         gateChest.setItem(0, new ItemStack(Items.IRON_INGOT, 5));
 
         var level = helper.getLevel();
-        RaidCaptain captain = beginRaid(level, s, RaidObjective.BLOD);
-        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(6, 1, 9));
-        raider.assign(captain.id(), s.id, RaidObjective.BLOD, 1.0F, false);
-        raider.setObjectivePos(helper.absolutePos(new BlockPos(9, 1, 9)));
+        RaidCaptain captain = beginRaid(level, s, RaidObjective.KORN);
+        // The REAL loot target, registered as a warehouse so RaiderLootGoal
+        // actually paths toward it -- the gate chest above is deliberately
+        // NOT part of any building, so it is never a loot target itself,
+        // only ever the thing physically standing in the way of this one.
+        installLootChest(helper, s, 20);
 
-        helper.runAtTickTime(1000, () -> {
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 9));
+        raider.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
+        raider.setObjectivePos(s.center);
+
+        helper.runAtTickTime(1200, () -> {
             BlockState now = level.getBlockState(gateAbs);
             helper.assertTrue(level.getBlockEntity(gateAbs) instanceof Container,
                 "the chest must still be a real container, got " + now);
