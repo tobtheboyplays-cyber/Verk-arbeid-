@@ -6,6 +6,7 @@ import com.hearthstead.building.Requirement;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.BuildingManager;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
@@ -80,14 +81,25 @@ public final class PlaqueNetwork {
             return;
         }
         if (plaque.type().employsWorkers() && !plaque.type().housesResidents()) {
-            if (building.workers.size() >= plaque.type().workerCapacity()) {
-                deny(player, "hearthstead.plaque.no_room");
-                return;
-            }
             if (building.workers.contains(settlerId)) {
                 return; // already here; a double-click is not an error
             }
-            building.workers.add(settlerId);
+            // Through the service, never straight into the list. Employment is
+            // the only thing allowed to change who works where (D-011): it
+            // vacates the settler's old post in the same operation, keeps the
+            // profession projection in step, and refuses with a reason instead
+            // of a silent no-op.
+            Employment.Hired hired =
+                Employment.hire(level, settlement, building, settler);
+            if (!hired.ok()) {
+                denyWith(player, hired.refusal());
+                return;
+            }
+            if (hired.cost().loses() != null) {
+                // Never take a worker silently: say which building lost them,
+                // to the player who did it.
+                player.displayClientMessage(hired.cost().sentence(), true);
+            }
         } else {
             BlockPos bed = freeBed(level, settlement, building);
             if (bed == null) {
@@ -110,8 +122,14 @@ public final class PlaqueNetwork {
             deny(player, "hearthstead.plaque.not_ready");
             return;
         }
-        building.workers.remove(settlerId);
         SettlerEntity settler = findSettler(level, settlement, settlerId);
+        if (settler != null && building.workers.contains(settlerId)) {
+            // Dismissal has weight: morale, and they walk out. Employment owns
+            // that so it happens the same way wherever it is triggered from.
+            Employment.dismiss(level, settlement, settler);
+        } else {
+            building.workers.remove(settlerId);
+        }
         if (settler != null && settler.getClaimedBed() != null
             && building.beds.contains(settler.getClaimedBed())) {
             // Eviction takes the bed and nothing else: no profession change,
@@ -151,11 +169,18 @@ public final class PlaqueNetwork {
                         settler.getHealth(), settler.getMaxHealth(),
                         Math.round(settler.getMorale()), worker));
                 } else {
+                    Employment.Cost cost = Employment.costOfHiring(settlement, settler);
                     candidates.add(new PlaqueSnapshot.Candidate(settler.getUUID(),
                         settler.getSettlerName(), settler.getProfession().name(),
                         settler.getClaimedBed() != null,
                         (int) Math.sqrt(settler.blockPosition().distSqr(plaque.getBlockPos())),
-                        blockedReason(plaque, building, settler)));
+                        blockedReason(plaque, building, settler),
+                        Employment.fitness(settlement, settler, building),
+                        cost.loses() == null ? "hearthstead.employ.cost.none"
+                            : cost.leavesEmpty() ? "hearthstead.employ.cost.leaves_empty"
+                            : "hearthstead.employ.cost.moves",
+                        cost.loses() == null ? ""
+                            : "hearthstead.building." + cost.loses().type.id()));
                 }
             }
         }
@@ -176,6 +201,9 @@ public final class PlaqueNetwork {
         if (plaque.type().housesResidents()) {
             return building.beds.size() <= countHoused(building, settler.level())
                 ? "hearthstead.plaque.blocked.full" : "";
+        }
+        if (!Employment.teaches(plaque.type())) {
+            return "hearthstead.employ.refused.no_trade";
         }
         return building.workers.size() >= plaque.type().workerCapacity()
             ? "hearthstead.plaque.blocked.full" : "";
@@ -241,6 +269,14 @@ public final class PlaqueNetwork {
      */
     private static boolean mayManage(ServerPlayer player, Settlement settlement) {
         return settlement != null;
+    }
+
+    /** Refusals that already carry their own sentence. */
+    private static void denyWith(ServerPlayer player,
+                                 net.minecraft.network.chat.Component reason) {
+        if (reason != null) {
+            player.displayClientMessage(reason, true);
+        }
     }
 
     private static void deny(ServerPlayer player, String key) {

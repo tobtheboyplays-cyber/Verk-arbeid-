@@ -3,6 +3,7 @@ package com.hearthstead.settlement;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -97,6 +98,50 @@ public final class Employment {
         TRADES.put(BuildingType.WAREHOUSE, Profession.COURIER);
         TRADES.put(BuildingType.BARRACKS, Profession.GUARD);
         TRADES.put(BuildingType.WATCHTOWER, Profession.GUARD);
+
+        // CHAINS-1: every building whose work exists in Production.
+        TRADES.put(BuildingType.BAKERY, Profession.BAKER);
+        TRADES.put(BuildingType.KITCHEN, Profession.COOK);
+        TRADES.put(BuildingType.BUTCHER, Profession.BUTCHER);
+        TRADES.put(BuildingType.SMELTER, Profession.SMELTER);
+        TRADES.put(BuildingType.SMITHY, Profession.SMITH);
+        TRADES.put(BuildingType.SAWMILL, Profession.SAWYER);
+        TRADES.put(BuildingType.CARPENTER, Profession.CARPENTER);
+        TRADES.put(BuildingType.MASON, Profession.MASON);
+        TRADES.put(BuildingType.FLETCHER, Profession.FLETCHER);
+        TRADES.put(BuildingType.WEAVER, Profession.WEAVER);
+        TRADES.put(BuildingType.TANNERY, Profession.TANNER);
+    }
+
+    /**
+     * The motion a trade actually performs, which is what gets animated.
+     *
+     * <p>D-015: clips are keyed to the action, not the job title. A butcher and
+     * a tanner both cleave at a bench; a smith and a mason both swing a hammer
+     * at a hard surface. Eleven trades, six real actions — and none of them is
+     * a generic work loop, which is what the invariant is actually protecting.
+     */
+    public static SettlerActivity motionOf(BuildingType type) {
+        return switch (tradeOf(type)) {
+            case BAKER, COOK -> SettlerActivity.WORK_KNEAD;
+            case BUTCHER, TANNER -> SettlerActivity.WORK_CLEAVE;
+            case SMELTER -> SettlerActivity.WORK_STOKE;
+            case SMITH, MASON -> SettlerActivity.WORK_HAMMER;
+            case SAWYER, CARPENTER -> SettlerActivity.WORK_SAW;
+            case WEAVER, FLETCHER -> SettlerActivity.WORK_WEAVE;
+            default -> SettlerActivity.IDLE;
+        };
+    }
+
+    /** The attribute a trade's work trains, so doing the job makes you better at it. */
+    public static Attribute trainedBy(BuildingType type) {
+        return switch (tradeOf(type)) {
+            case SMITH, MASON, SMELTER, LUMBERER -> Attribute.STRENGTH;
+            case COURIER, GUARD -> Attribute.STAMINA;
+            case BAKER, COOK, BUTCHER, TANNER, SAWYER, CARPENTER,
+                 FLETCHER, WEAVER, FARMER -> Attribute.DEXTERITY;
+            default -> Attribute.WITS;
+        };
     }
 
     /** The trade practised in this kind of building, or NONE if none yet is. */

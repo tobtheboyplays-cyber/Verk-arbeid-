@@ -60,22 +60,38 @@ public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
     }
 
     /**
-     * Someone who could move in. {@code blockedReason} is empty when they are
-     * eligible; when it is not, the row is drawn disabled and the reason is
-     * shown, because a greyed-out row with no explanation is a bug report
-     * waiting to happen.
+     * Someone who could move in or take the post.
+     *
+     * <p>{@code blockedReason} is empty when they are eligible; when it is not,
+     * the row is drawn disabled and the reason is shown, because a greyed-out
+     * row with no explanation is a bug report waiting to happen (D-014).
+     *
+     * <p>{@code fitness} is 0–5, drawn as pips rather than printed, because you
+     * read "four of five" at a glance and never read "62" at a glance.
+     *
+     * <p>{@code costKey} and {@code costArg} are the sentence that says what
+     * taking this settler costs — "the Farmhouse would have no worker" — sent
+     * as a key and its argument so the client renders it in its own language.
+     * The server works it out; the client is never asked to.
      */
     public record Candidate(UUID id, String name, String profession,
-                            boolean housed, int distance, String blockedReason) {
+                            boolean housed, int distance, String blockedReason,
+                            int fitness, String costKey, String costArg) {
         public static final StreamCodec<RegistryFriendlyByteBuf, Candidate> CODEC =
-            StreamCodec.composite(
-                net.minecraft.core.UUIDUtil.STREAM_CODEC, Candidate::id,
-                ByteBufCodecs.STRING_UTF8, Candidate::name,
-                ByteBufCodecs.STRING_UTF8, Candidate::profession,
-                ByteBufCodecs.BOOL, Candidate::housed,
-                ByteBufCodecs.VAR_INT, Candidate::distance,
-                ByteBufCodecs.STRING_UTF8, Candidate::blockedReason,
-                Candidate::new);
+            StreamCodec.of((buf, c) -> {
+                net.minecraft.core.UUIDUtil.STREAM_CODEC.encode(buf, c.id());
+                buf.writeUtf(c.name());
+                buf.writeUtf(c.profession());
+                buf.writeBoolean(c.housed());
+                buf.writeVarInt(c.distance());
+                buf.writeUtf(c.blockedReason());
+                buf.writeVarInt(c.fitness());
+                buf.writeUtf(c.costKey());
+                buf.writeUtf(c.costArg());
+            }, buf -> new Candidate(
+                net.minecraft.core.UUIDUtil.STREAM_CODEC.decode(buf),
+                buf.readUtf(), buf.readUtf(), buf.readBoolean(), buf.readVarInt(),
+                buf.readUtf(), buf.readVarInt(), buf.readUtf(), buf.readUtf()));
     }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PlaqueSnapshot> CODEC =

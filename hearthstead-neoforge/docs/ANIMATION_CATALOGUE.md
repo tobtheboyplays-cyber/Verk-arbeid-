@@ -213,6 +213,12 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 12.12 | `REST` | 6.00 | L | A1 |
 | 13.1 | `EMERGENCY_FLEE_SHELTER` | 1.10 | L | A3 |
 | 13.2 | `EMERGENCY_BUCKET` | 1.60 | L | B1 |
+| 18.1 | `KNEAD` | 1.20 | L | A2 |
+| 18.2 | `CLEAVE` | 0.85 | L | A2 |
+| 18.3 | `STOKE` | 1.40 | L | A2 |
+| 18.4 | `HAMMER_ANVIL` | 1.00 | L | A2 |
+| 18.5 | `SAW` | 1.10 | L | A2 |
+| 18.6 | `FINE_WORK` | 0.90 | L | A2 |
 | 13.3 | `EMERGENCY_REPAIR` | 1.80 | L | A3 |
 | 13.4 | `EMERGENCY_CARRY_DOWNED` (+`DOWNED`) | 2.20 | L+ | A3 |
 | 13.5 | `EMERGENCY_COWER` (+`COWER_FLINCH`) | 2.60 | L | A3 |
@@ -2665,6 +2671,75 @@ assertion here, the clip changes, or the assertion is renegotiated in the
 quality ledger as a recorded specification correction — never silently relaxed.
 
 
+## 18. Craft motions — one action, many trades
 
+**D-015.** Every settler task having its own clip is a permanent invariant, and
+it exists to forbid a single generic work loop that every profession shares.
+It does not require a clip per **job title**, and pretending it does produces
+worse animation, not better: a butcher and a tanner make the same stroke at the
+same bench, and a smith and a mason both swing a hammer at a hard surface.
+Giving those two pairs four subtly different clips would be four half-observed
+animations instead of two well-observed ones.
 
+So these six clips are keyed to the **action**. Eleven trades map onto them,
+and none of the six is generic — each is a specific job of work with its own
+timing, weight and failure mode.
 
+| motion | trades | why they share it |
+|---|---|---|
+| `KNEAD` | baker, cook | pressing food into a bench |
+| `CLEAVE` | butcher, tanner | a short cleaving stroke at board height |
+| `STOKE` | smelter | two-handed bellows, and flinching off the heat |
+| `HAMMER_ANVIL` | smith, mason | a full strike at a hard surface |
+| `SAW` | sawyer, carpenter | a two-handed push-pull cut |
+| `FINE_WORK` | weaver, fletcher | close, quick, fiddly hand work |
+
+**This supersedes** the per-profession entries §9.1 `SMITH_HAMMER` and §9.2
+`SMITH_BELLOWS` (now `HAMMER_ANVIL` and `STOKE`), and will absorb §7.1
+`COOK_CHOP_VEG` into `CLEAVE` when the kitchen's own clips land. Those rows
+stay in the table as planned refinements, not as duplicates to be built.
+
+### 18.1 `KNEAD` — dough into a bench *(1.20 s, loop)*
+
+No strike, so no impact beat. The weight comes from **continuous pressure**:
+the push bottoms out and *stays* there while the torso keeps driving down for
+three more ticks, which reads as leaning body weight onto the heel of the hand
+rather than tapping a table. Arms alternate out of phase so the hands look
+busy. Root drops 0.6 px at the press.
+
+### 18.2 `CLEAVE` — the butcher's stroke *(0.85 s, loop)*
+
+Shorter travel and much faster through the bottom than `CHOP` — a cleaver is
+light and the target is close. Keeps the standard's beat: three ticks parked at
+the board. The off hand holds the work down and barely moves, which is what
+makes the stroke look aimed rather than flailed.
+
+### 18.3 `STOKE` — bellows, and the heat *(1.40 s, loop)*
+
+Slow, two-handed, resisted. The beat is at the **end of the stroke**, arms
+compressed while the fire answers. The recovery is the interesting half: the
+torso pulls back *and away* (root −0.35 z) rather than simply returning, which
+reads as standing in front of something far too hot.
+
+### 18.4 `HAMMER_ANVIL` — the strike *(1.00 s, loop)*
+
+The heaviest clip in the mod, and the reference implementation of the craft
+standard: the wind-up accelerates into the top, the **torso peaks three ticks
+before** the arm reaches the anvil, the hammer parks for a four-tick beat at the
+bottom, and the recovery overshoots to −22° — well past the −40° rest — before
+settling. The off hand grips with tongs and does not move; a still hand beside
+a violent one is what makes the violent one read.
+
+### 18.5 `SAW` — the two-handed cut *(1.10 s, loop)*
+
+No impact, so the weight lives in the **reversals**: each end of the stroke
+holds two ticks while the blade bites and the body changes direction. A saw
+animated as a smooth sine wave looks like waving; the pauses are what make it
+cut. Root travels ±0.35 z with the stroke.
+
+### 18.6 `FINE_WORK` — close hand work *(0.90 s, loop)*
+
+Deliberately the opposite of everything above: small amplitude, high frequency,
+head down at 27–29°, torso almost still. It is in the set to make the heavy
+clips read heavy — a village where every trade swings from the shoulder has no
+scale to it. Two passes per loop so the hands look busy rather than metronomic.

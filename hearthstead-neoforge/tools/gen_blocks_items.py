@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hearth block set, profession writs, handbook, spawn-egg-free extras and
+"""Hearth block set, handbook, spawn-egg-free extras and
 the mod logo. All deterministic pixel art."""
 import os
 import random
@@ -93,60 +93,6 @@ def gen_hearth_ember():
 
 
 # ---------------------------------------------------------------- items ---
-
-def writ(seal_color_ramp, glyph):
-    """Rolled parchment scroll with ribbon + wax seal + profession glyph."""
-    img = new_image(16, 16)
-    parch = ramp("parchment")
-    rng = random.Random(sum(x * 17 + y for x, y in glyph) & 0xFF)
-    # scroll body: vertical roll, slight diagonal
-    for y in range(2, 14):
-        for x in range(4, 12):
-            idx = 3
-            if x in (4, 11):
-                idx = 1
-            elif x in (5, 10):
-                idx = 2
-            elif rng.random() < 0.12:
-                idx = 2
-            put(img, x, y, parch[idx])
-    # rolled ends
-    for x in range(3, 13):
-        put(img, x, 2, parch[4] if 4 < x < 11 else parch[2])
-        put(img, x, 13, parch[1])
-        put(img, x, 12, parch[2] if 4 < x < 11 else parch[1])
-    put(img, 3, 2, parch[1])
-    put(img, 12, 2, parch[1])
-    # ribbon
-    seal = ramp(seal_color_ramp)
-    for x in range(4, 12):
-        put(img, x, 8, seal[2])
-    # wax seal, 3x3 with highlight
-    for dx in range(3):
-        for dy in range(3):
-            put(img, 10 + dx, 7 + dy, seal[3])
-    put(img, 10, 7, seal[4])
-    put(img, 12, 9, seal[1])
-    put(img, 11, 8, seal[2])
-    # glyph hint on the upper parchment
-    ink = ramp("ink")
-    for (gx, gy) in glyph:
-        put(img, gx, gy, ink[1])
-    return img
-
-
-def gen_writs():
-    # tiny glyphs drawn in ink: hoe, axe, sword, crate strokes
-    hoe = [(6, 4), (7, 4), (8, 4), (6, 5), (6, 6)]
-    axe = [(6, 4), (7, 4), (7, 5), (6, 5), (8, 6), (5, 4)]
-    sword = [(7, 3), (7, 4), (7, 5), (6, 6), (8, 6), (7, 6)]
-    # A2a courier: a small crate outline
-    crate = [(6, 4), (7, 4), (8, 4), (6, 5), (8, 5), (6, 6), (7, 6), (8, 6)]
-    save(writ("forest", hoe), f"{ASSETS}/textures/item/writ_farmer.png")
-    save(writ("burgundy", axe), f"{ASSETS}/textures/item/writ_lumberer.png")
-    save(writ("iron", sword), f"{ASSETS}/textures/item/writ_guard.png")
-    save(writ("leather", crate), f"{ASSETS}/textures/item/writ_courier.png")
-
 
 def gen_handbook():
     img = new_image(16, 16)
@@ -263,7 +209,6 @@ if __name__ == "__main__":
     gen_hearth_bowl()
     gen_hearth_top()
     gen_hearth_ember()
-    gen_writs()
     gen_handbook()
     gen_logo()
     print("blocks/items/logo done")

@@ -37,9 +37,7 @@ public final class HearthsteadCommand {
             return 0;
         }
         give(player, new ItemStack(ModItems.HEARTH.get()));
-        give(player, new ItemStack(ModItems.WRIT_FARMER.get()));
-        give(player, new ItemStack(ModItems.WRIT_LUMBERER.get()));
-        give(player, new ItemStack(ModItems.WRIT_GUARD.get()));
+        give(player, new ItemStack(ModItems.BUILD_PLAN.get()));
         give(player, new ItemStack(ModItems.HANDBOOK.get()));
         give(player, new ItemStack(Items.BREAD, 32));
         give(player, new ItemStack(Items.WHEAT_SEEDS, 32));

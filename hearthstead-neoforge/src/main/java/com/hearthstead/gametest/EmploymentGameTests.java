@@ -44,9 +44,30 @@ public class EmploymentGameTests {
         }
     }
 
+    /**
+     * A settlement the entity layer can actually find.
+     *
+     * <p>Registered with {@link com.hearthstead.settlement.SettlementSavedData},
+     * because {@code settler.settlement()} resolves by id through the manager:
+     * a bare Settlement object is invisible to every goal, and the symptom is
+     * a settler who simply stands there with no error anywhere.
+     */
     private static Settlement settlement(GameTestHelper helper) {
-        return new Settlement(UUID.randomUUID(), "Testholm",
+        com.hearthstead.settlement.SettlementSavedData data =
+            com.hearthstead.settlement.SettlementSavedData.get(helper.getLevel());
+        // Deliberately does NOT sweep settlements inside the arena bounds the
+        // way the older fixture does. Tests share one level, arenas sit next
+        // to each other, and a sweep from one test deleted the settlement
+        // another was counting settlers in -- which surfaced as
+        // "expected 3 initial settlers, got 1" in a test this file never
+        // touches. Each test here makes its own settlement and leaves
+        // everyone else's alone.
+        Settlement s = new Settlement(UUID.randomUUID(), "Testholm",
             helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 24;
+        data.settlements.put(s.id, s);
+        data.setDirty();
+        return s;
     }
 
     private static Building building(GameTestHelper helper, Settlement s,
@@ -234,14 +255,14 @@ public class EmploymentGameTests {
     public void aBuildingWithNoTradeRefusesHiring(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
-        Building bakery = building(helper, s, BuildingType.BAKERY, 2, 2);
+        Building brewery = building(helper, s, BuildingType.BREWERY, 2, 2);
         SettlerEntity astrid = settler(helper, s, "Astrid", 4, 4);
 
-        Employment.Hired result = Employment.hire(helper.getLevel(), s, bakery, astrid);
+        Employment.Hired result = Employment.hire(helper.getLevel(), s, brewery, astrid);
 
         helper.assertFalse(result.ok(), "a trade that does not exist cannot be taken up");
         helper.assertTrue(result.refusal() != null, "and it must say why");
-        helper.assertTrue(bakery.workers.isEmpty(), "nobody is seated");
+        helper.assertTrue(brewery.workers.isEmpty(), "nobody is seated");
         helper.succeed();
     }
 
@@ -419,6 +440,110 @@ public class EmploymentGameTests {
         Schedule.Posting idle = Schedule.postFor(s, astrid, DayPhase.MORNING_WORK);
         helper.assertTrue(idle != null && "idle".equals(idle.reason()),
             "the unemployed gather in plain sight, so the player can see them");
+        helper.succeed();
+    }
+
+    // ----------------------------------------------------------- the work ---
+
+    /**
+     * Every trade that exists has a motion of its own, and every building that
+     * can make something has somebody who can be hired to make it.
+     *
+     * <p>These two together are what stop the roster drifting: a building with
+     * recipes and no trade is unstaffable, and a trade with no motion would
+     * fall back to standing still, which is the generic work loop the animation
+     * invariant exists to forbid.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200)
+    public void everyTradeHasWorkAndAMotionOfItsOwn(GameTestHelper helper) {
+        for (BuildingType type : BuildingType.values()) {
+            if (com.hearthstead.building.Production.produces(type)) {
+                helper.assertTrue(Employment.teaches(type),
+                    type.id() + " has recipes but nobody can be hired to run them");
+            }
+            if (!Employment.teaches(type)) {
+                continue;
+            }
+            Profession trade = Employment.tradeOf(type);
+            if (trade == Profession.FARMER || trade == Profession.LUMBERER
+                || trade == Profession.COURIER || trade == Profession.GUARD) {
+                continue;  // these had their own clips before CHAINS-1
+            }
+            helper.assertTrue(
+                Employment.motionOf(type) != com.hearthstead.entity.SettlerActivity.IDLE,
+                type.id() + " would work by standing still — every task needs "
+                    + "its own motion");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The whole loop, end to end: a room with wheat in its chest, a settler
+     * hired into it, and bread that did not exist before.
+     *
+     * <p>This is the test that proves the chain the owner asked for actually
+     * turns: hire someone and the building starts producing, with no mill, no
+     * farm and no warehouse anywhere in the world (D-007).
+     */
+    @GameTest(template = "empty16", timeoutTicks = 600)
+    public void aHiredBakerActuallyBakes(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building bakery = building(helper, s, BuildingType.BAKERY, 4, 4);
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
+        net.minecraft.world.level.block.entity.BlockEntity be =
+            helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
+        helper.assertTrue(be instanceof net.minecraft.world.Container,
+            "the arena chest should be a container");
+        net.minecraft.world.Container chest = (net.minecraft.world.Container) be;
+        chest.setItem(0, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.WHEAT, 12));
+
+        SettlerEntity astrid = settler(helper, s, "Astrid", 4, 4);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, bakery, astrid).ok(),
+            "a bakery must be able to take a baker");
+        helper.assertTrue(astrid.getProfession() == Profession.BAKER,
+            "hired into a bakery, they bake");
+
+        // Mid-morning: working hours, so the trade goal is allowed to run.
+        helper.getLevel().setDayTime(3000);
+
+        helper.succeedWhen(() -> {
+            int bread = 0;
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                net.minecraft.world.item.ItemStack stack = chest.getItem(slot);
+                if (stack.is(net.minecraft.world.item.Items.BREAD)) {
+                    bread += stack.getCount();
+                }
+            }
+            helper.assertTrue(bread > 0,
+                "a hired baker standing in a bakery full of wheat must produce "
+                    + "bread (activity=" + astrid.getActivity() + ")");
+        });
+    }
+
+    /** Doing the job makes you better at it — counted on completion, not on a timer. */
+    @GameTest(template = "empty16", timeoutTicks = 200)
+    public void craftingTrainsTheTradeItPractises(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building smithy = building(helper, s, BuildingType.SMITHY, 4, 4);
+        SettlerEntity smith = settler(helper, s, "Smed", 4, 4);
+        Employment.hire(helper.getLevel(), s, smithy, smith);
+
+        Attribute trained = Employment.trainedBy(BuildingType.SMITHY);
+        helper.assertTrue(trained == Attribute.STRENGTH,
+            "a smith's work is strength, got " + trained);
+        int before = smith.attribute(trained);
+        for (int i = 0; i < 400; i++) {
+            smith.train(trained, 1.0F);
+        }
+        helper.assertTrue(smith.attribute(trained) > before,
+            "four hundred completed strikes must move the needle: "
+                + before + " -> " + smith.attribute(trained));
+        helper.assertTrue(smith.attribute(Attribute.DEXTERITY)
+                == smith.attributes().get(Attribute.DEXTERITY),
+            "and must not quietly raise anything else");
         helper.succeed();
     }
 }

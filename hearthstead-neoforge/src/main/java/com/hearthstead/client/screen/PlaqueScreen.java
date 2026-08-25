@@ -1,45 +1,93 @@
 package com.hearthstead.client.screen;
 
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.client.ui.HsButton;
+import com.hearthstead.client.ui.HsUi;
+import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.network.PlaqueAction;
 import com.hearthstead.network.PlaqueSnapshot;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.AbstractButton;
+import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
  * The building plaque's screen: what this building is, what it still needs,
- * and who lives or works in it.
+ * who works in it, and who could.
  *
  * <p>Drawn entirely from the server's snapshot. The screen holds no opinion
- * about capacity, eligibility or state — it renders what it was sent, and
- * sends back the revision it drew, so a click on a view the world has already
- * moved past is refused rather than applied.
+ * about capacity, eligibility or cost — it renders what it was sent and sends
+ * back the revision it drew, so a click on a view the world has already moved
+ * past is refused rather than applied.
+ *
+ * <h2>The hire tab, and the one sentence that makes it different</h2>
+ *
+ * <p>MineColonies' hire list is a wall of names and numbers, and hiring someone
+ * quietly guts the building they came from — you find out the farm has no
+ * farmer when the bread stops. Here every candidate is a card that states
+ * <b>what taking them costs</b>, in words, before you press anything:
+ *
+ * <pre>  Bjørn Kvam            ●●●○○        [ Hire ]
+ *   Farmhouse
+ *   The Farmhouse would have no worker            &lt;- amber</pre>
+ *
+ * <p>The cost sentence is computed on the server and sent as a key, so it is
+ * true and it is in the player's language. Fitness is drawn as pips because you
+ * read "three of five" at a glance and never read "48" at a glance.
+ *
+ * <p>Every control here does something (D-014). A candidate who cannot be hired
+ * is drawn disabled <i>with the reason in their tooltip</i> — including the
+ * honest one, that no trade is practised in this building yet.
  */
 public class PlaqueScreen extends Screen {
 
-    private static final int PANEL_W = 210;
-    private static final int PANEL_H = 216;
+    private static final int PANEL_W = 256;
+    private static final int PAD = 8;
+    private static final int SCROLL_W = HsUiTokens.SCROLL_W;
+    private static final int CARD_X = PAD;
+    private static final int CARD_W = PANEL_W - 2 * PAD - SCROLL_W - 2;
+    private static final int CARD_H = 38;
+    private static final int CARD_STEP = CARD_H + 4;
+    private static final int BTN_W = 64;
+    private static final int BTN_X = CARD_X + CARD_W - BTN_W - 8;
+    private static final int TEXT_X = CARD_X + 10;
+    private static final int LIST_TOP = 52;
+    /** Rows shown at once. Three keeps the panel inside a 240px-tall GUI. */
+    private static final int ROWS = 3;
+    private static final int LIST_H = ROWS * CARD_STEP - 4;
+    private static final int FOOT = LIST_TOP + LIST_H + 6;
+    private static final int PANEL_H = FOOT + 20 + HsUiTokens.BUTTON_H + 10;
 
-    // Carved oak, iron, brass, charcoal and parchment — the material language
-    // of the plaque itself, so the panel reads as the same object.
-    private static final int OAK_DARK = 0xFF2A1E12;
-    private static final int OAK = 0xFF3E2C1A;
-    private static final int CHARCOAL = 0xFF1B1B1B;
-    private static final int CHARCOAL_ROW = 0xFF232323;
-    private static final int BRASS = 0xFFB8912F;
-    private static final int BRASS_DIM = 0xFF6E571C;
-    private static final int PARCHMENT = 0xFFE8E0D0;
-    private static final int MUTED = 0xFF8A8578;
-    private static final int EMERALD = 0xFF5FA860;
-    private static final int AMBER = 0xFFC98A2E;
-    private static final int RED = 0xFF8A3A35;
+    /** The cost line gets the full card width; it is the point of the screen. */
+    private static final int NAME_BOX = BTN_X - TEXT_X - 40;
+    private static final int POST_BOX = BTN_X - TEXT_X - 6;
+    private static final int COST_BOX = CARD_W - 20;
+
+    private enum Tab {
+        REQUIREMENTS("requirements"),
+        PEOPLE("people"),
+        HIRE("hire");
+
+        private final String key;
+
+        Tab(String key) {
+            this.key = key;
+        }
+
+        Component label() {
+            return Component.translatable("hearthstead.plaque.tab." + key);
+        }
+    }
 
     private PlaqueSnapshot snapshot;
-    private boolean showingCandidates;
+    private Tab tab = Tab.REQUIREMENTS;
+    private int scroll;
     private int left;
     private int top;
 
@@ -61,72 +109,86 @@ public class PlaqueScreen extends Screen {
         rebuild();
     }
 
+    // ------------------------------------------------------------ widgets ---
+
     private void rebuild() {
         clearWidgets();
         if (snapshot == null) {
             return;
         }
-        int rowY = top + 96;
-
-        if (showingCandidates) {
-            int shown = 0;
-            for (PlaqueSnapshot.Candidate candidate : snapshot.candidates()) {
-                if (shown >= 5) {
-                    break;
-                }
-                boolean eligible = candidate.blockedReason().isEmpty();
-                Component label = Component.literal(candidate.name())
-                    .append(Component.literal("  " + candidate.distance() + "m")
-                        .withStyle(ChatFormatting.DARK_GRAY));
-                var button = net.minecraft.client.gui.components.Button
-                    .builder(label, b -> act(PlaqueAction.Kind.ASSIGN, candidate.id()))
-                    .bounds(left + 12, rowY, PANEL_W - 24, 18)
-                    .tooltip(eligible ? null
-                        : net.minecraft.client.gui.components.Tooltip.create(
-                            Component.translatable(candidate.blockedReason())))
-                    .build();
-                button.active = eligible && snapshot.mayManage();
-                addRenderableWidget(button);
-                rowY += 20;
-                shown++;
-            }
-            addRenderableWidget(net.minecraft.client.gui.components.Button
-                .builder(Component.translatable("hearthstead.plaque.back"),
-                    b -> { showingCandidates = false; rebuild(); })
-                .bounds(left + 12, top + PANEL_H - 26, PANEL_W - 24, 18).build());
-            return;
+        int tabW = (PANEL_W - 20 - 2 * 4) / 3;
+        Tab[] tabs = Tab.values();
+        for (int i = 0; i < tabs.length; i++) {
+            Tab which = tabs[i];
+            addRenderableWidget(new TabButton(
+                left + 10 + i * (tabW + 4), top + 26, tabW, 16,
+                which.label(), which == tab, () -> {
+                    tab = which;
+                    scroll = 0;
+                    rebuild();
+                }));
         }
 
-        for (PlaqueSnapshot.Occupant occupant : snapshot.occupants()) {
-            var evict = net.minecraft.client.gui.components.Button
-                .builder(Component.translatable("hearthstead.plaque.evict"),
-                    b -> act(PlaqueAction.Kind.EVICT, occupant.id()))
-                .bounds(left + PANEL_W - 52, rowY + 4, 40, 16)
-                .tooltip(net.minecraft.client.gui.components.Tooltip.create(
-                    Component.translatable("hearthstead.plaque.evict.tip",
-                        occupant.name())))
-                .build();
-            evict.active = snapshot.mayManage();
-            addRenderableWidget(evict);
-            rowY += 24;
+        int rows = rowCount();
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, rows - ROWS)));
+
+        if (tab == Tab.PEOPLE) {
+            buildPeople();
+        } else if (tab == Tab.HIRE) {
+            buildHire();
         }
 
-        if (snapshot.occupants().size() < snapshot.capacity()) {
-            var assign = net.minecraft.client.gui.components.Button
-                .builder(Component.translatable("hearthstead.plaque.assign"),
-                    b -> { showingCandidates = true; rebuild(); })
-                .bounds(left + 12, rowY + 2, PANEL_W - 24, 18).build();
-            assign.active = snapshot.mayManage() && !snapshot.candidates().isEmpty();
-            addRenderableWidget(assign);
-        }
+        addRenderableWidget(HsButton.normal(left + 10, top + FOOT + 20, BTN_W,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.plaque.refresh"),
+            () -> act(PlaqueAction.Kind.REFRESH, new UUID(0, 0))));
+        addRenderableWidget(HsButton.normal(left + BTN_X, top + FOOT + 20, BTN_W,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.plaque.close"), this::onClose));
+    }
 
-        addRenderableWidget(net.minecraft.client.gui.components.Button
-            .builder(Component.translatable("hearthstead.plaque.close"), b -> onClose())
-            .bounds(left + PANEL_W / 2 + 4, top + PANEL_H - 26, PANEL_W / 2 - 16, 18).build());
-        addRenderableWidget(net.minecraft.client.gui.components.Button
-            .builder(Component.translatable("hearthstead.plaque.refresh"),
-                b -> act(PlaqueAction.Kind.REFRESH, new UUID(0, 0)))
-            .bounds(left + 12, top + PANEL_H - 26, PANEL_W / 2 - 16, 18).build());
+    private void buildPeople() {
+        List<PlaqueSnapshot.Occupant> people = snapshot.occupants();
+        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+            PlaqueSnapshot.Occupant occupant = people.get(row + scroll);
+            int y = top + LIST_TOP + row * CARD_STEP;
+            HsButton dismiss = HsButton.danger(left + BTN_X, y + 4, BTN_W,
+                HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.employ.dismiss"),
+                () -> act(PlaqueAction.Kind.EVICT, occupant.id()));
+            dismiss.active = snapshot.mayManage();
+            dismiss.setTooltip(Tooltip.create(Component.translatable(
+                "hearthstead.plaque.evict.tip", occupant.name())));
+            addRenderableWidget(dismiss);
+        }
+    }
+
+    private void buildHire() {
+        List<PlaqueSnapshot.Candidate> people = snapshot.candidates();
+        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+            PlaqueSnapshot.Candidate candidate = people.get(row + scroll);
+            int y = top + LIST_TOP + row * CARD_STEP;
+            boolean eligible = candidate.blockedReason().isEmpty();
+            HsButton hire = HsButton.normal(left + BTN_X, y + 4, BTN_W,
+                HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.employ.hire"),
+                () -> act(PlaqueAction.Kind.ASSIGN, candidate.id()));
+            hire.active = eligible && snapshot.mayManage();
+            // A disabled control always says why (D-014).
+            hire.setTooltip(Tooltip.create(eligible
+                ? Component.translatable("hearthstead.employ.hire.tip",
+                    candidate.name())
+                : Component.translatable(candidate.blockedReason())));
+            addRenderableWidget(hire);
+        }
+    }
+
+    private int rowCount() {
+        return switch (tab) {
+            case PEOPLE -> snapshot.occupants().size();
+            case HIRE -> snapshot.candidates().size();
+            case REQUIREMENTS -> snapshot.requirements().size();
+        };
     }
 
     private void act(PlaqueAction.Kind kind, UUID target) {
@@ -137,165 +199,194 @@ public class PlaqueScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
+        int rows = rowCount();
+        if (rows > ROWS) {
+            int before = scroll;
+            scroll = Math.max(0, Math.min(rows - ROWS, scroll - (int) Math.signum(dy)));
+            if (before != scroll) {
+                rebuild();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, dx, dy);
+    }
+
+    // ------------------------------------------------------------- drawing ---
+
+    @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
         if (snapshot == null) {
             super.render(graphics, mouseX, mouseY, partialTick);
             return;
         }
+        HsUi.window(graphics, left, top, PANEL_W, PANEL_H);
+        HsUi.centred(graphics, font, title(), left + PANEL_W / 2, top + 12,
+            HsUiTokens.TEXT_STRONG);
+        HsUi.divider(graphics, left + 10, top + 46, PANEL_W - 20);
 
-        // Frame: oak board, brass inner rule, charcoal interior.
-        graphics.fill(left - 3, top - 3, left + PANEL_W + 3, top + PANEL_H + 3, OAK_DARK);
-        graphics.fill(left - 1, top - 1, left + PANEL_W + 1, top + PANEL_H + 1, OAK);
-        graphics.fill(left + 3, top + 3, left + PANEL_W - 3, top + PANEL_H - 3, BRASS_DIM);
-        graphics.fill(left + 4, top + 4, left + PANEL_W - 4, top + PANEL_H - 4, CHARCOAL);
-        brassCorners(graphics);
-
-        graphics.drawCenteredString(font,
-            Component.translatable("hearthstead.plaque.title"),
-            left + PANEL_W / 2, top + 12, PARCHMENT);
-
-        // Identity line: name, level, and a status badge that never relies on
-        // colour alone — the word is always there next to the dot.
-        Component name = Component.translatable("hearthstead.building." + snapshot.buildingType());
-        graphics.drawString(font, name, left + 14, top + 30, PARCHMENT, false);
-        graphics.drawString(font, Component.translatable("hearthstead.plaque.level",
-            roman(snapshot.level())), left + 14, top + 42, MUTED, false);
-        drawBadge(graphics);
-
-        divider(graphics, top + 56);
-
-        if ("linked_valid".equals(snapshot.state())) {
-            String header = Component.translatable("hearthstead.plaque.residents").getString()
-                + "   " + snapshot.occupants().size() + " / " + snapshot.capacity();
-            graphics.drawCenteredString(font, header, left + PANEL_W / 2, top + 66, PARCHMENT);
-            if (!showingCandidates) {
-                drawOccupants(graphics);
-            } else {
-                graphics.drawCenteredString(font,
-                    Component.translatable("hearthstead.plaque.choose"),
-                    left + PANEL_W / 2, top + 84, MUTED);
-            }
-        } else {
-            drawRequirements(graphics);
+        switch (tab) {
+            case REQUIREMENTS -> drawRequirements(graphics);
+            case PEOPLE -> drawPeople(graphics, mouseX, mouseY);
+            case HIRE -> drawHire(graphics, mouseX, mouseY);
         }
 
+        int rows = rowCount();
+        HsUi.scrollbar(graphics, left + PANEL_W - PAD - SCROLL_W, top + LIST_TOP,
+            LIST_H, rows == 0 ? 1.0F : Math.min(1.0F, (float) ROWS / rows),
+            rows <= ROWS ? 0.0F : (float) scroll / (rows - ROWS), false);
+
+        HsUi.divider(graphics, left + 10, top + FOOT, PANEL_W - 20);
+        HsUi.labelIn(graphics, font, footer(), left + 12, top + FOOT + 7,
+            PANEL_W - 24, HsUiTokens.ACCENT);
         super.render(graphics, mouseX, mouseY, partialTick);
     }
 
-    private void drawOccupants(GuiGraphics graphics) {
-        int y = top + 96;
-        for (PlaqueSnapshot.Occupant occupant : snapshot.occupants()) {
-            graphics.fill(left + 12, y, left + PANEL_W - 12, y + 22, CHARCOAL_ROW);
-            graphics.fill(left + 12, y, left + 13, y + 22, BRASS_DIM);
-            graphics.drawString(font, occupant.name(), left + 18, y + 3, PARCHMENT, false);
-            graphics.drawString(font,
-                Component.translatable("hearthstead.profession." +
-                    occupant.profession().toLowerCase(java.util.Locale.ROOT)),
-                left + 18, y + 13, MUTED, false);
-            String health = (int) occupant.health() + "/" + (int) occupant.maxHealth();
-            graphics.drawString(font, "♥ " + health, left + PANEL_W - 108, y + 3,
-                0xFFC0392B, false);
-            graphics.drawString(font, mood(occupant.morale()), left + PANEL_W - 108, y + 13,
-                moodColour(occupant.morale()), false);
-            y += 24;
-        }
-        if (snapshot.occupants().isEmpty()) {
-            graphics.drawCenteredString(font,
-                Component.translatable("hearthstead.plaque.empty"),
-                left + PANEL_W / 2, y + 6, MUTED);
-        }
+    private Component title() {
+        BuildingType type = BuildingType.byId(snapshot.buildingType());
+        return type == null ? Component.translatable("hearthstead.plaque.title")
+            : type.displayName();
     }
 
     /**
-     * The requirement list — the answer to "why isn't this a building yet".
-     * Each label already carries its own have/needed counts (the format args
-     * every {@code hearthstead.requirement.*} key takes — "Beds 1/2", not a
-     * bare "Beds" with the count bolted on beside it), so a half-finished
-     * requirement reads as progress rather than as a bare failure, in every
-     * language regardless of word order.
+     * The footer says the one thing worth saying about this tab. On the hire
+     * tab that is the suggestion — and it is a <i>suggestion</i>: the settlement
+     * never moves anybody on its own (D-013). The server has already sorted the
+     * candidates, so the first one is the recommendation.
      */
+    private Component footer() {
+        if (tab == Tab.HIRE) {
+            List<PlaqueSnapshot.Candidate> people = snapshot.candidates();
+            return people.isEmpty()
+                ? Component.translatable("hearthstead.employ.no_candidates")
+                : Component.translatable("hearthstead.employ.suggested",
+                    people.get(0).name());
+        }
+        if (tab == Tab.PEOPLE) {
+            return Component.translatable("hearthstead.plaque.people_count",
+                snapshot.occupants().size(), snapshot.capacity());
+        }
+        return Component.translatable("hearthstead.plaque.level", snapshot.level());
+    }
+
     private void drawRequirements(GuiGraphics graphics) {
-        graphics.drawCenteredString(font,
-            Component.translatable("hearthstead.plaque.needs"),
-            left + PANEL_W / 2, top + 66, PARCHMENT);
-        int y = top + 82;
-        if (snapshot.requirements().isEmpty()) {
-            graphics.drawCenteredString(font,
-                Component.translatable("hearthstead.plaque.no_room"),
-                left + PANEL_W / 2, y + 8, AMBER);
-            return;
-        }
-        for (PlaqueSnapshot.RequirementLine line : snapshot.requirements()) {
+        List<PlaqueSnapshot.RequirementLine> lines = snapshot.requirements();
+        for (int row = 0; row < ROWS && row + scroll < lines.size(); row++) {
+            PlaqueSnapshot.RequirementLine line = lines.get(row + scroll);
+            int y = top + LIST_TOP + row * CARD_STEP;
             boolean met = line.have() >= line.needed();
-            boolean partial = !met && line.have() > 0;
-            int colour = met ? EMERALD : partial ? AMBER : RED;
-            String mark = met ? "✔" : partial ? "○" : "✘";
-            graphics.drawString(font, mark, left + 16, y, colour, false);
-            graphics.drawString(font,
-                Component.translatable("hearthstead.requirement." + line.id(),
-                    line.have(), line.needed()),
-                left + 30, y, met ? PARCHMENT : MUTED, false);
-            y += 14;
+            HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, false);
+            HsUi.labelIn(graphics, font,
+                Component.translatable("hearthstead.requirement." + line.id()),
+                left + TEXT_X, y + 8, POST_BOX, HsUiTokens.TEXT_STRONG);
+            HsUi.labelIn(graphics, font,
+                Component.literal(line.have() + " / " + line.needed()),
+                left + TEXT_X, y + 22, POST_BOX,
+                met ? HsUiTokens.GOOD : HsUiTokens.WARN);
+            HsUi.pips(graphics, left + BTN_X, y + 10,
+                line.needed() == 0 ? 5
+                    : Math.min(5, line.have() * 5 / Math.max(1, line.needed())),
+                5, met ? HsUi.Tone.GOOD : HsUi.Tone.WARN);
         }
     }
 
-    private void drawBadge(GuiGraphics graphics) {
-        String state = snapshot.state();
-        int colour = switch (state) {
-            case "linked_valid" -> EMERALD;
-            case "linked_incomplete" -> AMBER;
-            default -> RED;
-        };
-        Component label = Component.translatable("hearthstead.plaque.state." + state);
-        int w = font.width(label);
-        int x = left + PANEL_W - 16 - w;
-        graphics.fill(x - 10, top + 28, x + w + 4, top + 40, CHARCOAL_ROW);
-        graphics.fill(x - 7, top + 32, x - 3, top + 36, colour);
-        graphics.drawString(font, label, x, top + 30, colour, false);
-    }
-
-    private void divider(GuiGraphics graphics, int y) {
-        graphics.fill(left + 14, y, left + PANEL_W - 14, y + 1, BRASS_DIM);
-        graphics.fill(left + PANEL_W / 2 - 2, y - 2, left + PANEL_W / 2 + 2, y + 3, BRASS);
-    }
-
-    private void brassCorners(GuiGraphics graphics) {
-        int[][] corners = {
-            {left + 4, top + 4}, {left + PANEL_W - 12, top + 4},
-            {left + 4, top + PANEL_H - 12}, {left + PANEL_W - 12, top + PANEL_H - 12}};
-        for (int[] c : corners) {
-            graphics.fill(c[0], c[1], c[0] + 8, c[1] + 2, BRASS);
-            graphics.fill(c[0], c[1], c[0] + 2, c[1] + 8, BRASS);
+    private void drawPeople(GuiGraphics graphics, int mouseX, int mouseY) {
+        List<PlaqueSnapshot.Occupant> people = snapshot.occupants();
+        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+            PlaqueSnapshot.Occupant occupant = people.get(row + scroll);
+            int y = top + LIST_TOP + row * CARD_STEP;
+            boolean hovered = hovering(mouseX, mouseY, y);
+            HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
+            HsUi.labelIn(graphics, font, Component.literal(occupant.name()),
+                left + TEXT_X, y + 5, NAME_BOX, HsUiTokens.TEXT_STRONG);
+            HsUi.labelIn(graphics, font,
+                Component.translatable("hearthstead.profession."
+                    + occupant.profession().toLowerCase(java.util.Locale.ROOT)),
+                left + TEXT_X, y + 17, POST_BOX, HsUiTokens.TEXT_MUTED);
+            float morale = occupant.morale() / 100.0F;
+            HsUi.bar(graphics, left + TEXT_X, y + 29, 80, 6, morale,
+                HsUi.Tone.of(morale));
         }
     }
 
-    private static String mood(int morale) {
-        if (morale >= 70) {
-            return Component.translatable("hearthstead.mood.happy").getString();
+    private void drawHire(GuiGraphics graphics, int mouseX, int mouseY) {
+        List<PlaqueSnapshot.Candidate> people = snapshot.candidates();
+        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+            PlaqueSnapshot.Candidate candidate = people.get(row + scroll);
+            int y = top + LIST_TOP + row * CARD_STEP;
+            boolean hovered = hovering(mouseX, mouseY, y);
+            HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
+            HsUi.labelIn(graphics, font, Component.literal(candidate.name()),
+                left + TEXT_X, y + 5, NAME_BOX, HsUiTokens.TEXT_STRONG);
+            HsUi.pips(graphics, left + BTN_X - 36, y + 6, candidate.fitness(), 5,
+                HsUi.Tone.ACCENT);
+            HsUi.labelIn(graphics, font, currentPost(candidate),
+                left + TEXT_X, y + 17, POST_BOX, HsUiTokens.TEXT_MUTED);
+            // The sentence that says what taking them costs, on its own row at
+            // full card width, amber when a building would be left empty.
+            boolean empties = candidate.costKey()
+                .equals("hearthstead.employ.cost.leaves_empty");
+            HsUi.labelIn(graphics, font, costSentence(candidate),
+                left + TEXT_X, y + 28, COST_BOX,
+                empties ? HsUiTokens.WARN : HsUiTokens.TEXT_MUTED);
         }
-        if (morale >= 40) {
-            return Component.translatable("hearthstead.mood.content").getString();
-        }
-        return Component.translatable("hearthstead.mood.unhappy").getString();
     }
 
-    private static int moodColour(int morale) {
-        return morale >= 70 ? EMERALD : morale >= 40 ? 0xFF9AA36B : RED;
+    private Component currentPost(PlaqueSnapshot.Candidate candidate) {
+        return candidate.costArg().isEmpty()
+            ? Component.translatable("hearthstead.employ.unemployed")
+            : Component.translatable(candidate.costArg());
     }
 
-    private static String roman(int level) {
-        return switch (level) {
-            case 2 -> "II";
-            case 3 -> "III";
-            case 4 -> "IV";
-            case 5 -> "V";
-            default -> "I";
-        };
+    private Component costSentence(PlaqueSnapshot.Candidate candidate) {
+        return candidate.costArg().isEmpty()
+            ? Component.translatable(candidate.costKey())
+            : Component.translatable(candidate.costKey(),
+                Component.translatable(candidate.costArg()));
+    }
+
+    private boolean hovering(int mouseX, int mouseY, int cardTop) {
+        return mouseX >= left + CARD_X && mouseX <= left + CARD_X + CARD_W
+            && mouseY >= cardTop && mouseY <= cardTop + CARD_H;
     }
 
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    /** A tab is a button that looks like a tab and says where you are. */
+    private static final class TabButton extends AbstractButton {
+        private final boolean selected;
+        private final Runnable onPress;
+
+        private TabButton(int x, int y, int w, int h, Component label,
+                          boolean selected, Runnable onPress) {
+            super(x, y, w, h, label);
+            this.selected = selected;
+            this.onPress = onPress;
+        }
+
+        @Override
+        public void onPress() {
+            onPress.run();
+        }
+
+        @Override
+        protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY,
+                                    float partialTick) {
+            HsUi.tab(graphics, getX(), getY(), getWidth(), getHeight(), selected);
+            var font = net.minecraft.client.Minecraft.getInstance().font;
+            HsUi.labelIn(graphics, font, getMessage(),
+                getX() + 4, getY() + (getHeight() - HsUiTokens.TEXT_H) / 2,
+                getWidth() - 8,
+                selected ? HsUiTokens.TEXT : HsUiTokens.TEXT_MUTED);
+        }
+
+        @Override
+        protected void updateWidgetNarration(NarrationElementOutput output) {
+            defaultButtonNarrationText(output);
+        }
     }
 }

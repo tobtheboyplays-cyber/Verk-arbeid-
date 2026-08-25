@@ -23,7 +23,18 @@ public enum SettlerActivity {
     SLEEPING("sleeping"),
     // Appended for SLICE A2a (catalogue §0.7) -- same wire-format rule.
     CARRYING("carrying"),
-    SORTING("sorting");
+    SORTING("sorting"),
+    // Appended for SLICE CHAINS-1 -- same wire-format rule: never reorder.
+    //
+    // These are keyed to the MOTION, not the job title (D-015). A butcher and
+    // a tanner both cleave; a smith and a mason both strike. Eleven trades map
+    // onto six real actions, and none of them is a generic work loop.
+    WORK_KNEAD("work_knead"),
+    WORK_CLEAVE("work_cleave"),
+    WORK_STOKE("work_stoke"),
+    WORK_HAMMER("work_hammer"),
+    WORK_SAW("work_saw"),
+    WORK_WEAVE("work_weave");
 
     public static final SettlerActivity[] BY_ID = values();
 

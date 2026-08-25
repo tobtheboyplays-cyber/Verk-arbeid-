@@ -19,10 +19,6 @@ public final class ModCreativeTabs {
             .icon(() -> new ItemStack(ModItems.HEARTH.get()))
             .displayItems((params, output) -> {
                 output.accept(ModItems.HEARTH.get());
-                output.accept(ModItems.WRIT_FARMER.get());
-                output.accept(ModItems.WRIT_LUMBERER.get());
-                output.accept(ModItems.WRIT_GUARD.get());
-                output.accept(ModItems.WRIT_COURIER.get());
                 output.accept(ModItems.HANDBOOK.get());
                 output.accept(ModItems.SETTLER_SPAWN_EGG.get());
             })

@@ -90,6 +90,51 @@ public final class Production {
             new Recipe("iron", Ingredient.of(Items.RAW_IRON), 1, Items.IRON_INGOT, 1, 200),
             new Recipe("copper", Ingredient.of(Items.RAW_COPPER), 1, Items.COPPER_INGOT, 1, 200),
             new Recipe("gold", Ingredient.of(Items.RAW_GOLD), 1, Items.GOLD_INGOT, 1, 240));
+
+        // The kitchen turns what the settlement has into something worth
+        // sitting down to. Until the Meal item exists (D-008) it cooks, which
+        // is honest work and useful on its own.
+        put(BuildingType.KITCHEN,
+            new Recipe("stew", Ingredient.of(Items.BROWN_MUSHROOM), 2, Items.MUSHROOM_STEW, 1, 140),
+            new Recipe("baked_potato", Ingredient.of(Items.POTATO), 1, Items.BAKED_POTATO, 1, 100),
+            new Recipe("dried_kelp", Ingredient.of(Items.KELP), 1, Items.DRIED_KELP, 1, 80));
+
+        // Chain B, timber. A sawmill gets six planks from a log where a settler
+        // with a hand axe gets four -- the chain buys yield, never permission.
+        put(BuildingType.SAWMILL,
+            new Recipe("planks", Ingredient.of(Items.OAK_LOG), 1, Items.OAK_PLANKS, 6, 120),
+            new Recipe("spruce_planks", Ingredient.of(Items.SPRUCE_LOG), 1, Items.SPRUCE_PLANKS, 6, 120),
+            new Recipe("birch_planks", Ingredient.of(Items.BIRCH_LOG), 1, Items.BIRCH_PLANKS, 6, 120));
+
+        put(BuildingType.CARPENTER,
+            new Recipe("sticks", Ingredient.of(Items.OAK_PLANKS), 2, Items.STICK, 4, 60),
+            new Recipe("barrel", Ingredient.of(Items.OAK_PLANKS), 7, Items.BARREL, 1, 260),
+            new Recipe("ladder", Ingredient.of(Items.STICK), 7, Items.LADDER, 3, 140));
+
+        // "The smithy forges a tool from metal alone" -- PLAN_PRODUCTION_CHAINS,
+        // and it is the load-bearing example of D-007. A smithy that demanded
+        // both an ingot and a carpenter's haft would do nothing until two other
+        // buildings existed.
+        put(BuildingType.SMITHY,
+            new Recipe("axe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_AXE, 1, 300),
+            new Recipe("pickaxe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_PICKAXE, 1, 300),
+            new Recipe("hoe", Ingredient.of(Items.IRON_INGOT), 2, Items.IRON_HOE, 1, 240),
+            new Recipe("sword", Ingredient.of(Items.IRON_INGOT), 2, Items.IRON_SWORD, 1, 260));
+
+        put(BuildingType.MASON,
+            new Recipe("stone_bricks", Ingredient.of(Items.STONE), 4, Items.STONE_BRICKS, 4, 160),
+            new Recipe("stone", Ingredient.of(Items.COBBLESTONE), 1, Items.STONE, 1, 120));
+
+        put(BuildingType.FLETCHER,
+            new Recipe("arrows", Ingredient.of(Items.FLINT), 1, Items.ARROW, 4, 100),
+            new Recipe("bow", Ingredient.of(Items.STRING), 3, Items.BOW, 1, 280));
+
+        put(BuildingType.WEAVER,
+            new Recipe("wool", Ingredient.of(Items.STRING), 4, Items.WHITE_WOOL, 1, 140),
+            new Recipe("banner", Ingredient.of(Items.WHITE_WOOL), 6, Items.WHITE_BANNER, 1, 260));
+
+        put(BuildingType.TANNERY,
+            new Recipe("leather", Ingredient.of(Items.RABBIT_HIDE), 4, Items.LEATHER, 1, 180));
     }
 
     private static void put(BuildingType type, Recipe... recipes) {

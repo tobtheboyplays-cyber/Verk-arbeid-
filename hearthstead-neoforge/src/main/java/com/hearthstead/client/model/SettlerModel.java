@@ -253,6 +253,14 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.harvestState, SettlerAnimations.FARM_HARVEST, ageInTicks);
         animate(entity.waterState, SettlerAnimations.FARM_WATER, ageInTicks);
         animate(entity.limbState, SettlerAnimations.LIMB_BRANCHES, ageInTicks);
+        // CHAINS-1 craft motions. Staggered by entity id so a row of bakers
+        // does not knead in lockstep -- the same trick idleState uses.
+        animate(entity.kneadState, SettlerAnimations.KNEAD, ageInTicks + (id % 24));
+        animate(entity.cleaveState, SettlerAnimations.CLEAVE, ageInTicks + (id % 17));
+        animate(entity.stokeState, SettlerAnimations.STOKE, ageInTicks + (id % 28));
+        animate(entity.hammerState, SettlerAnimations.HAMMER_ANVIL, ageInTicks + (id % 20));
+        animate(entity.sawState, SettlerAnimations.SAW, ageInTicks + (id % 22));
+        animate(entity.fineWorkState, SettlerAnimations.FINE_WORK, ageInTicks + (id % 18));
         // COURIER_SORT: a stationary work clip, the same pattern as
         // chopState/farmState above -- sortState is already gated on
         // activity==SORTING && !moving (SettlerEntity), so WALK's own

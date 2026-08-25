@@ -1,11 +1,9 @@
 package com.hearthstead.registry;
 
 import com.hearthstead.Hearthstead;
-import com.hearthstead.entity.Profession;
 import com.hearthstead.item.BuildPlanItem;
 import com.hearthstead.item.HandbookItem;
 import com.hearthstead.item.HearthBlockItem;
-import com.hearthstead.item.ProfessionWritItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -21,21 +19,9 @@ public final class ModItems {
     public static final DeferredHolder<Item, HearthBlockItem> HEARTH = ITEMS.register("hearth",
         () -> new HearthBlockItem(ModBlocks.HEARTH.get(), new Item.Properties()));
 
-    public static final DeferredHolder<Item, ProfessionWritItem> WRIT_FARMER =
-        ITEMS.register("writ_farmer",
-            () -> new ProfessionWritItem(Profession.FARMER, new Item.Properties()));
 
-    public static final DeferredHolder<Item, ProfessionWritItem> WRIT_LUMBERER =
-        ITEMS.register("writ_lumberer",
-            () -> new ProfessionWritItem(Profession.LUMBERER, new Item.Properties()));
 
-    public static final DeferredHolder<Item, ProfessionWritItem> WRIT_COURIER =
-        ITEMS.register("writ_courier",
-            () -> new ProfessionWritItem(Profession.COURIER, new Item.Properties()));
 
-    public static final DeferredHolder<Item, ProfessionWritItem> WRIT_GUARD =
-        ITEMS.register("writ_guard",
-            () -> new ProfessionWritItem(Profession.GUARD, new Item.Properties()));
 
     public static final DeferredHolder<Item, HandbookItem> HANDBOOK = ITEMS.register("handbook",
         () -> new HandbookItem(new Item.Properties().stacksTo(1)));

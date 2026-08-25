@@ -90,6 +90,28 @@ PROFESSION_OUTFITS = {
     # A2a: a courier reads by the carrying rig, not headgear -- hands and
     # head stay free so the carry animations own the silhouette.
     "courier":  dict(headgear="bare", satchel_rig=True),
+    # CHAINS-1 crafts. Built from the same parts as everything else, but each
+    # given its own apron or bracer colour, because eleven trades in one brown
+    # apron is eleven settlers you cannot tell apart across a square -- which
+    # is the whole reason the outfit layer exists.
+    "baker":     dict(headgear="hood", hood_wool="linen", apron=True,
+                      apron_wool="linen"),
+    "cook":      dict(headgear="hood", hood_wool="linen_raw", apron=True,
+                      apron_wool="wool_gray"),
+    "butcher":   dict(headgear="bare", apron=True, apron_wool="burgundy"),
+    "smelter":   dict(headgear="hood", hood_wool="iron", bracers=True,
+                      bracer_wool="ember"),
+    "smith":     dict(headgear="bare", apron=True, apron_wool="iron",
+                      bracers=True, bracer_wool="leather"),
+    "sawyer":    dict(headgear="bare", bracers=True, bracer_wool="oak"),
+    "carpenter": dict(headgear="bare", apron=True, apron_wool="oak_light"),
+    "mason":     dict(headgear="hood", hood_wool="stone", bracers=True,
+                      bracer_wool="stone"),
+    "fletcher":  dict(headgear="bare", apron=True, apron_wool="forest"),
+    "weaver":    dict(headgear="hood", hood_wool="wheat", apron=True,
+                      apron_wool="straw"),
+    "tanner":    dict(headgear="bare", apron=True, apron_wool="leather",
+                      bracers=True, bracer_wool="burgundy"),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed
@@ -565,10 +587,10 @@ def _paint_straw_crown(img):
                 put(img, x + i, y + j, lit(straw[3 if (i + j) % 3 else 2], face))
 
 
-def _paint_apron(img):
+def _paint_apron(img, palette="leather"):
     u, v, w, h, d = UV["torso"]
     x, y, fw, fh = box_faces(u, v, w, h, d)["front"]
-    leather = ramp("leather")
+    leather = ramp(palette)
     for j in range(4, fh - 1):
         for i in range(2, fw - 2):
             idx = 3 if (i * 5 + j * 3) % 7 else 2
@@ -662,8 +684,8 @@ def _paint_gambeson(img):
             put(img, x + i, y + j, lit(trim[4 if (i + j) % 2 else 2], "front"))
 
 
-def _paint_bracers(img):
-    leather = ramp("leather")
+def _paint_bracers(img, palette="leather"):
+    leather = ramp(palette)
     for part in ("right_arm", "left_arm"):
         u, v, w, h, d = UV[part]
         for face, (x, y, fw, fh) in box_faces(u, v, w, h, d).items():
@@ -698,11 +720,11 @@ def build_outfit(prof_key):
     if o.get("headgear") == "straw_hat":
         _paint_straw_crown(img)
     if o.get("apron"):
-        _paint_apron(img)
+        _paint_apron(img, o.get("apron_wool", "leather"))
     if o.get("gambeson"):
         _paint_gambeson(img)
     if o.get("bracers"):
-        _paint_bracers(img)
+        _paint_bracers(img, o.get("bracer_wool", "leather"))
     if o.get("gauntlets"):
         _paint_gauntlets(img)
     if o.get("satchel_rig"):

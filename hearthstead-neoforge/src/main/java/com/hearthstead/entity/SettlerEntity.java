@@ -174,6 +174,13 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState climbState = new AnimationState();
     // SLICE A2a additions (clips land with the courier piece).
     public final AnimationState carryState = new AnimationState();
+    // CHAINS-1 craft motions. One state per MOTION, not per trade (D-015).
+    public final AnimationState kneadState = new AnimationState();
+    public final AnimationState cleaveState = new AnimationState();
+    public final AnimationState stokeState = new AnimationState();
+    public final AnimationState hammerState = new AnimationState();
+    public final AnimationState sawState = new AnimationState();
+    public final AnimationState fineWorkState = new AnimationState();
     public final AnimationState sortState = new AnimationState();
     public final AnimationState liftState = new AnimationState();
     public final AnimationState setDownState = new AnimationState();
@@ -233,6 +240,7 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(6, new FarmerWorkGoal(this));
         goalSelector.addGoal(6, new LumbererWorkGoal(this));
         goalSelector.addGoal(6, new CourierWorkGoal(this));
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.CrafterWorkGoal(this));
         goalSelector.addGoal(6, new GuardPatrolGoal(this));
         goalSelector.addGoal(7, new ReturnToSettlementGoal(this));
         goalSelector.addGoal(8, new BoundedStrollGoal(this));
@@ -556,7 +564,13 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_LIMB
             || activity == SettlerActivity.HAULING_LOG
             || activity == SettlerActivity.PATROLLING
-            || activity == SettlerActivity.COMBAT;
+            || activity == SettlerActivity.COMBAT
+            || activity == SettlerActivity.WORK_KNEAD
+            || activity == SettlerActivity.WORK_CLEAVE
+            || activity == SettlerActivity.WORK_STOKE
+            || activity == SettlerActivity.WORK_HAMMER
+            || activity == SettlerActivity.WORK_SAW
+            || activity == SettlerActivity.WORK_WEAVE;
 
         setHunger(getHunger()
             - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
@@ -752,6 +766,15 @@ public class SettlerEntity extends PathfinderMob {
         carryState.animateWhen(activity == SettlerActivity.CARRYING, tickCount);
         sortState.animateWhen(activity == SettlerActivity.SORTING && !moving, tickCount);
 
+        // CHAINS-1: stationary craft loops, the same gate as chopState above --
+        // a crafter who is walking is not at their bench.
+        kneadState.animateWhen(activity == SettlerActivity.WORK_KNEAD && !moving, tickCount);
+        cleaveState.animateWhen(activity == SettlerActivity.WORK_CLEAVE && !moving, tickCount);
+        stokeState.animateWhen(activity == SettlerActivity.WORK_STOKE && !moving, tickCount);
+        hammerState.animateWhen(activity == SettlerActivity.WORK_HAMMER && !moving, tickCount);
+        sawState.animateWhen(activity == SettlerActivity.WORK_SAW && !moving, tickCount);
+        fineWorkState.animateWhen(activity == SettlerActivity.WORK_WEAVE && !moving, tickCount);
+
         // One-shots expire on their own clock.
         if (meleeState.isStarted() && meleeState.getAccumulatedTime() > 500L) {
             meleeState.stop();
@@ -887,10 +910,6 @@ public class SettlerEntity extends PathfinderMob {
 
     @Override
     public InteractionResult mobInteract(Player player, InteractionHand hand) {
-        ItemStack held = player.getItemInHand(hand);
-        if (held.getItem() instanceof com.hearthstead.item.ProfessionWritItem) {
-            return InteractionResult.PASS; // handled by the writ item itself
-        }
         if (!level().isClientSide && player instanceof ServerPlayer serverPlayer) {
             if (voiceCooldown <= 0) {
                 level().playSound(null, blockPosition(), ModSounds.SETTLER_HM.get(),
