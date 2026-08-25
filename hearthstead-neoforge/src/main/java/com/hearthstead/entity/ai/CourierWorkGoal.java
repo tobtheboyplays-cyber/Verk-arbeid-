@@ -29,14 +29,20 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The courier: moves goods between the hearth, the warehouse and crafters
- * short of their own raw material.
+ * The courier: moves goods between the hearth, the warehouse and the
+ * workshops -- restocking crafters short of their own raw material, and
+ * collecting their surplus product back.
  *
- * <p><b>Two routes, never a request queue.</b> A courier either consolidates
- * hearth goods into a warehouse, or restocks a crafter short of its own raw
- * material from a warehouse that has some ({@link JobPriority} orders the
- * choice) -- never the reverse of either, and never anything closer to a
- * worksite than a building's own chests. MineColonies shipped a
+ * <p><b>Three routes, never a request queue.</b> A courier consolidates
+ * hearth goods into a warehouse, restocks a crafter short of its own raw
+ * material from a warehouse that has some, or collects a workshop's surplus
+ * OUTPUT into a warehouse (FLOWS.md route 4, the return leg of the economy
+ * loop -- without it the mason's bricks, the smelter's ingots and the
+ * mine's entire yield strand forever in their own chests and the smithy can
+ * only ever be fed by hand). {@link JobPriority} orders the choice; no
+ * route ever carries a building's own raw material AWAY from it, and none
+ * touches anything closer to a worksite than a building's own
+ * chests. MineColonies shipped a
  * courier/builder circular wait where each side blocked on the other (issue
  * #5333); nothing here can do that, because neither route ever waits ON
  * anybody: a courier decides a destination from the world as it stands right
@@ -113,9 +119,28 @@ public class CourierWorkGoal extends Goal {
     private static final int HEARTH_STUCK_LIMIT = 20;
     /** Same for a longer haul -- to a warehouse, a source or a crafter (~480 ticks). */
     private static final int HAUL_STUCK_LIMIT = 32;
-    /** How often {@link #findRestockJob} is even tried, so an idle courier
-     *  is not re-scanning every crafter's chests on every single tick. */
+    /** How often {@link #findRestockJob} (and, one rung below it on the
+     *  same budgeted slot, {@link #findCollectionJob}) is even tried, so an
+     *  idle courier is not re-scanning every crafter's chests on every
+     *  single tick. */
     private static final int RESTOCK_LOOK_INTERVAL = 40;
+    /**
+     * COLLECTION: how many of an output item stay behind in the producing
+     * building's own chests. Stripping a workshop bare would race its own
+     * crafter for its own product -- the mason's STONE is also the input of
+     * her stone_bricks recipe, and the smithy's bloom-forged IRON_INGOT is
+     * the input of every tool she makes -- so a same-building chain always
+     * keeps working out of this buffer, and only the genuine surplus
+     * travels. Cross-building chains lose nothing either: the smelter's
+     * bloom feeds the smithy THROUGH the warehouse (the restock route only
+     * ever reads warehouse stock), so hauling the surplus is precisely what
+     * gets that chain fed, and the eight left behind cost it nothing.
+     * A {@link BuildingType#MINE} has no Production table and consumes
+     * nothing, so its keep-back is zero -- see {@link #keepBackFor}.
+     * Public so the GameTest asserts against the same number the route
+     * uses.
+     */
+    public static final int OUTPUT_KEEP_BACK = 8;
     /**
      * How long a claimed restock job stays claimed without a heartbeat.
      * Renewed every active tick ({@link #renewReservation}), so a courier
@@ -155,9 +180,11 @@ public class CourierWorkGoal extends Goal {
     /**
      * The order a courier tries jobs in when nothing is already in her
      * hands. Lower ordinal outranks higher: {@link #findRestockJob} is
-     * always tried before {@link #beginConsolidation}, so a crafter running
-     * dry on its own raw material is never left waiting behind routine
-     * tidying-up of the hearth.
+     * always tried before {@link #findCollectionJob}, and both before
+     * {@link #beginConsolidation}, so a crafter running dry on its own raw
+     * material is never left waiting behind an output pile that is merely
+     * getting taller, and neither waits behind routine tidying-up of the
+     * hearth.
      *
      * <p>This is a decision-time ordering only -- a trip already under way
      * is always finished before a new one is picked (see
@@ -183,6 +210,20 @@ public class CourierWorkGoal extends Goal {
          * worse look than a warehouse chest one merge short of tidy.
          */
         CRAFTER_RESTOCK,
+        /**
+         * A producing building's own OUTPUT piled up past
+         * {@link #OUTPUT_KEEP_BACK} -- or ANYTHING in a
+         * {@link BuildingType#MINE}, which has no Production table and
+         * whose chests are pure yield -- with a warehouse that has room for
+         * it. FLOWS.md route 4, the return leg of the economy loop. Below
+         * restocking on purpose: a crafter out of raw material is stopped
+         * dead right now, while an output merely accumulates. Above hearth
+         * tidying because a stranded output is stock the restock route
+         * cannot see until it reaches a warehouse -- the mason's bricks are
+         * repair material and the smelter's ingots are the smithy's iron,
+         * but only once they get there.
+         */
+        OUTPUT_COLLECTION,
         /** Plain hearth -> warehouse consolidation: the original, still-needed job. */
         WAREHOUSE_CONSOLIDATION
     }
@@ -190,21 +231,26 @@ public class CourierWorkGoal extends Goal {
     private final SettlerEntity settler;
     private Mode mode;
     private JobPriority job;
-    /** The chest being delivered to for consolidation -- never the plaque. */
+    /** The warehouse chest being delivered to (consolidation and
+     *  collection both land here) -- never the plaque. */
     private BlockPos dropOff;
     private UUID warehouseId;
-    /** RESTOCK only: the warehouse chest raw material is withdrawn from. */
+    /** RESTOCK/COLLECTION: the chest this trip withdraws from -- a
+     *  warehouse chest for a restock, the producing building's own chest
+     *  for a collection. */
     private BlockPos sourcePos;
-    /** RESTOCK only: which warehouse {@link #sourcePos} belongs to -- also
-     *  the fallback deposit target if the crafter cannot take the load. */
+    /** RESTOCK/COLLECTION: which building {@link #sourcePos} belongs to --
+     *  also the fallback deposit target if the destination cannot take the
+     *  load (a restock load goes back to its warehouse, a collected output
+     *  back to the workshop it came out of). */
     private UUID sourceWarehouseId;
     /** RESTOCK only: the crafter building being restocked. */
     private UUID craftBuildingId;
     /** RESTOCK only: chest at the crafter to deposit into. */
     private BlockPos craftDropOff;
-    /** RESTOCK only: the exact item this trip is reserved for. */
+    /** RESTOCK/COLLECTION: the exact item this trip is reserved for. */
     private Item reservedItem;
-    /** RESTOCK only: the ledger key held for this trip, if any. */
+    /** RESTOCK/COLLECTION: the ledger key held for this trip, if any. */
     private RestockKey reservationKey;
     private int workTicks;
     private int setDownThudIn = -1;
@@ -259,6 +305,14 @@ public class CourierWorkGoal extends Goal {
                 beginRestock(restock);
                 return true;
             }
+            // Same budgeted slot, next rung down (OUTPUT_COLLECTION): only
+            // when no crafter is starving does the courier go around
+            // emptying workshop output shelves into the warehouse.
+            CollectionJob collection = findCollectionJob(level, s);
+            if (collection != null) {
+                beginCollection(collection);
+                return true;
+            }
         }
         return beginConsolidation(level, s);
     }
@@ -285,6 +339,29 @@ public class CourierWorkGoal extends Goal {
                 return false; // hold the load until morning, same as consolidation
             }
             mode = Mode.TO_CRAFTER;
+            return true;
+        }
+        if (job == JobPriority.OUTPUT_COLLECTION) {
+            Building target = findBuildingById(s, warehouseId);
+            if (target == null) {
+                target = pickWarehouse(s); // original gone: any warehouse will do
+            }
+            BlockPos chest = target == null ? null : pickDropOff(level, target);
+            if (chest == null) {
+                // Every warehouse is gone: the collected output goes back
+                // to the workshop it came out of -- never to the hearth,
+                // which is read as "goods awaiting their first haul", and
+                // never held hostage in the bag.
+                releaseReservation();
+                mode = Mode.RETURNING;
+                return true;
+            }
+            if (!onShift) {
+                return false; // hold the load until morning, same as the others
+            }
+            warehouseId = target.id;
+            dropOff = chest;
+            mode = Mode.TO_WAREHOUSE;
             return true;
         }
         Building warehouse = pickWarehouse(s);
@@ -330,6 +407,19 @@ public class CourierWorkGoal extends Goal {
         craftDropOff = restock.craftChest();
         reservedItem = restock.item();
         reservationKey = restock.key();
+        mode = Mode.TO_SOURCE;
+    }
+
+    private void beginCollection(CollectionJob collection) {
+        job = JobPriority.OUTPUT_COLLECTION;
+        sourceWarehouseId = collection.source().id;
+        sourcePos = collection.sourceChest();
+        craftBuildingId = null;
+        craftDropOff = null;
+        warehouseId = collection.warehouse().id;
+        dropOff = collection.dropChest();
+        reservedItem = collection.item();
+        reservationKey = collection.key();
         mode = Mode.TO_SOURCE;
     }
 
@@ -440,7 +530,7 @@ public class CourierWorkGoal extends Goal {
             }
             case RETURNING -> {
                 settler.setActivity(SettlerActivity.CARRYING);
-                pathAbove(job == JobPriority.CRAFTER_RESTOCK
+                pathAbove(returnsToSource()
                     ? sourcePos : settler.getHearthPos());
             }
             default -> {
@@ -726,6 +816,9 @@ public class CourierWorkGoal extends Goal {
             return; // one stack per cycle -- the animation beat
         }
         consecutiveFailures = 0; // the route works; forget the bad streak
+        // A collection trip holds a ledger key exactly like a restock does;
+        // consolidation never has one, so this is a no-op for it.
+        releaseReservation();
         done = true; // bag empty: delivery complete
     }
 
@@ -738,18 +831,19 @@ public class CourierWorkGoal extends Goal {
             return;
         }
         Settlement s = settler.settlement();
-        Building warehouse = s == null ? null : findBuildingById(s, sourceWarehouseId);
-        if (warehouse == null) {
-            // The source warehouse dissolved mid-trip. Nothing has been
-            // taken yet -- the bag is still empty at this point in the
-            // route -- so there is nothing to lose; just stand down.
+        Building source = s == null ? null : findBuildingById(s, sourceWarehouseId);
+        if (source == null) {
+            // The source building (a warehouse for a restock, the workshop
+            // for a collection) dissolved mid-trip. Nothing has been taken
+            // yet -- the bag is still empty at this point in the route --
+            // so there is nothing to lose; just stand down.
             done = true;
             releaseReservation();
             return;
         }
         settler.getLookControl().setLookAt(sourcePos.getX() + 0.5,
             sourcePos.getY() + 0.6, sourcePos.getZ() + 0.5);
-        if (hasArrived(warehouse, sourcePos)) {
+        if (hasArrived(source, sourcePos)) {
             settler.getNavigation().stop();
             mode = Mode.WITHDRAWING;
             workTicks = 0;
@@ -786,44 +880,89 @@ public class CourierWorkGoal extends Goal {
             releaseReservation();
             return;
         }
-        int capacity = settler.getCarryCapacity();
-        for (int slot = 0; slot < container.getContainerSize() && bagCount() < capacity; slot++) {
-            ItemStack stack = container.getItem(slot);
-            // Reserved by exact ITEM, not by the recipe's whole ingredient:
-            // this exact item was confirmed sitting in this exact chest when
-            // the job was claimed, so that is what gets fetched -- not just
-            // anything else the recipe's tag would also accept.
-            if (stack.isEmpty() || !stack.is(reservedItem)) {
-                continue;
+        if (job == JobPriority.OUTPUT_COLLECTION) {
+            withdrawCollectedSurplus(level, container);
+        } else {
+            int capacity = settler.getCarryCapacity();
+            for (int slot = 0; slot < container.getContainerSize() && bagCount() < capacity; slot++) {
+                ItemStack stack = container.getItem(slot);
+                // Reserved by exact ITEM, not by the recipe's whole ingredient:
+                // this exact item was confirmed sitting in this exact chest when
+                // the job was claimed, so that is what gets fetched -- not just
+                // anything else the recipe's tag would also accept.
+                if (stack.isEmpty() || !stack.is(reservedItem)) {
+                    continue;
+                }
+                int want = Math.min(stack.getCount(), capacity - bagCount());
+                // Destination-first (D-A2a-3): remove from the real chest, bank
+                // into the bag, and give back whatever the bag would not take,
+                // so an interruption between these lines still leaves the item
+                // somewhere real.
+                ItemStack removed = container.removeItem(slot, want);
+                if (removed.isEmpty()) {
+                    continue;
+                }
+                ItemStack leftover = settler.bag.addItem(removed);
+                giveBackToChest(container, slot, leftover);
+                playAt(ModSounds.ITEM_PICKUP.get(), 0.5F,
+                    0.95F + settler.getRandom().nextFloat() * 0.1F);
             }
-            int want = Math.min(stack.getCount(), capacity - bagCount());
-            // Destination-first (D-A2a-3): remove from the real chest, bank
-            // into the bag, and give back whatever the bag would not take,
-            // so an interruption between these lines still leaves the item
-            // somewhere real.
-            ItemStack removed = container.removeItem(slot, want);
-            if (removed.isEmpty()) {
-                continue;
-            }
-            ItemStack leftover = settler.bag.addItem(removed);
-            giveBackToChest(container, slot, leftover);
-            playAt(ModSounds.ITEM_PICKUP.get(), 0.5F,
-                0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
         if (bagCount() <= 0) {
             // Reserved, but empty-handed on arrival -- a player took it by
             // hand between the reservation and now, or rearranged the
-            // chest. Chest truth is re-read here, never assumed from
+            // chest (or, for a collection, the surplus fell back under the
+            // keep-back). Chest truth is re-read here, never assumed from
             // reservation time; nothing was picked up, so nothing is lost.
             done = true;
             releaseReservation();
             return;
         }
-        mode = Mode.TO_CRAFTER;
+        boolean toWarehouse = job == JobPriority.OUTPUT_COLLECTION;
+        mode = toWarehouse ? Mode.TO_WAREHOUSE : Mode.TO_CRAFTER;
         workTicks = 0;
         stuckChecks = 0;
         settler.setActivity(SettlerActivity.CARRYING);
-        pathToChest(craftDropOff);
+        pathToChest(toWarehouse ? dropOff : craftDropOff);
+    }
+
+    /**
+     * COLLECTION's half of the withdrawal: lifts the reserved output item
+     * out of the workshop's chest, but only down to the keep-back
+     * ({@link #OUTPUT_KEEP_BACK}; zero for a {@link BuildingType#MINE}),
+     * counted across the WHOLE building's chests and re-read now -- the
+     * count the job was claimed on is however many ticks old, and chest
+     * truth means the only number allowed to authorise a removal is one
+     * read in the same tick as the removal.
+     */
+    private void withdrawCollectedSurplus(ServerLevel level, Container container) {
+        Settlement s = settler.settlement();
+        Building source = s == null ? null : findBuildingById(s, sourceWarehouseId);
+        if (source == null) {
+            return; // building dissolved: take nothing; the empty-bag path stands down
+        }
+        int total = countItemIn(liveContainers(level, source), reservedItem);
+        int surplus = total - keepBackFor(source.type);
+        int want = Math.min(surplus, settler.getCarryCapacity() - bagCount());
+        for (int slot = 0; slot < container.getContainerSize() && want > 0; slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty() || !stack.is(reservedItem)) {
+                continue;
+            }
+            int take = Math.min(stack.getCount(), want);
+            // Destination-first (D-A2a-3), exactly like the restock loop:
+            // out of the real chest, into the bag, remainder straight back.
+            ItemStack removed = container.removeItem(slot, take);
+            if (removed.isEmpty()) {
+                continue;
+            }
+            int got = removed.getCount();
+            ItemStack leftover = settler.bag.addItem(removed);
+            giveBackToChest(container, slot, leftover);
+            want -= got - leftover.getCount();
+            playAt(ModSounds.ITEM_PICKUP.get(), 0.5F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
     }
 
     /**
@@ -934,9 +1073,10 @@ public class CourierWorkGoal extends Goal {
      * Carries an undeliverable load back to where it came from and puts it
      * down. Where "back" means depends on the job: a consolidation load
      * goes to the hearth it was lifted from; a restock load goes to the
-     * warehouse it was lifted from, never to the hearth -- putting raw
-     * material there would misplace it, since the hearth is read as "goods
-     * awaiting their first haul", not general storage.
+     * warehouse it was lifted from and a collected output back to the
+     * workshop it was lifted from, never to the hearth -- putting either
+     * there would misplace it, since the hearth is read as "goods awaiting
+     * their first haul", not general storage.
      *
      * <p>The failure mode this exists to prevent is the quiet one: a
      * courier wandering off with the settlement's goods locked in her bag.
@@ -946,26 +1086,26 @@ public class CourierWorkGoal extends Goal {
             done = true;
             return;
         }
-        boolean toWarehouse = job == JobPriority.CRAFTER_RESTOCK;
-        BlockPos returnPos = toWarehouse ? sourcePos : settler.getHearthPos();
+        boolean backToSource = returnsToSource();
+        BlockPos returnPos = backToSource ? sourcePos : settler.getHearthPos();
         boolean nowhereToGo = returnPos == null
-            || (!toWarehouse && settler.hearth() == null);
+            || (!backToSource && settler.hearth() == null);
         if (nowhereToGo) {
-            // No hearth (or, for a restock load, no source position at all)
-            // -- a razed settlement, which raids are meant to be able to
-            // cause. Keep the load and rest the route: without the
+            // No hearth (or, for a chest-sourced load, no source position
+            // at all) -- a razed settlement, which raids are meant to be
+            // able to cause. Keep the load and rest the route: without the
             // cooldown, canUse() re-selects RETURNING on the very next tick
             // and this becomes a one-tick busy loop.
             restRoute();
             done = true;
             return;
         }
-        double reachSqr = toWarehouse ? CHEST_REACH_SQR : HEARTH_REACH_SQR;
+        double reachSqr = backToSource ? CHEST_REACH_SQR : HEARTH_REACH_SQR;
         settler.getLookControl().setLookAt(returnPos.getX() + 0.5,
             returnPos.getY() + 0.6, returnPos.getZ() + 0.5);
         if (settler.blockPosition().distSqr(returnPos) <= reachSqr) {
             settler.getNavigation().stop();
-            depositReturnedLoad(toWarehouse);
+            depositReturnedLoad(backToSource);
             playAt(ModSounds.CHEST_STOW.get(), 0.65F,
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
             if (bagCount() > 0) {
@@ -990,7 +1130,7 @@ public class CourierWorkGoal extends Goal {
         }
     }
 
-    private void depositReturnedLoad(boolean toWarehouse) {
+    private void depositReturnedLoad(boolean backToSource) {
         if (!(settler.level() instanceof ServerLevel level)) {
             return;
         }
@@ -999,15 +1139,19 @@ public class CourierWorkGoal extends Goal {
             if (stack.isEmpty()) {
                 continue;
             }
-            if (toWarehouse) {
+            if (backToSource) {
                 Settlement s = settler.settlement();
-                Building warehouse = s == null ? null
+                // The building sourcePos belongs to: a warehouse for a
+                // restock load, the workshop itself for a collected output.
+                // WarehouseStorage.insert works on any building's chests
+                // (see tickDepositing), so both return legs share it.
+                Building source = s == null ? null
                     : findBuildingById(s, sourceWarehouseId);
-                if (warehouse == null) {
+                if (source == null) {
                     continue; // nothing to insert into: keep it in the bag
                 }
                 settler.bag.setItem(i,
-                    WarehouseStorage.of(level, warehouse).insert(level, warehouse, stack.copy()));
+                    WarehouseStorage.of(level, source).insert(level, source, stack.copy()));
             } else {
                 HearthBlockEntity hearth = settler.hearth();
                 if (hearth == null) {
@@ -1024,17 +1168,24 @@ public class CourierWorkGoal extends Goal {
      * unreachable, full, or gone.
      */
     private void beginReturn() {
-        if (job == JobPriority.CRAFTER_RESTOCK) {
-            // The delivery attempt is decided either way from here -- a
-            // second courier's scan will see the crafter's real, current
-            // need, so holding the lease any further protects nothing.
+        if (returnsToSource()) {
+            // The trip is decided either way from here -- a second
+            // courier's scan will see the chests' real, current state, so
+            // holding the lease any further protects nothing.
             releaseReservation();
         }
         mode = Mode.RETURNING;
         stuckChecks = 0;
         repathTimer = 0;
         settler.setActivity(SettlerActivity.CARRYING);
-        pathAbove(job == JobPriority.CRAFTER_RESTOCK ? sourcePos : settler.getHearthPos());
+        pathAbove(returnsToSource() ? sourcePos : settler.getHearthPos());
+    }
+
+    /** Whether an undeliverable load goes back to {@link #sourcePos} rather
+     *  than the hearth: both chest-sourced routes return to their source. */
+    private boolean returnsToSource() {
+        return job == JobPriority.CRAFTER_RESTOCK
+            || job == JobPriority.OUTPUT_COLLECTION;
     }
 
     /**
@@ -1168,11 +1319,142 @@ public class CourierWorkGoal extends Goal {
         return null;
     }
 
+    // --------------------------------------------------- collection scan ---
+
+    /**
+     * COLLECTION (FLOWS.md route 4): the first producing building sitting
+     * on more of one of its own OUTPUT items than its keep-back
+     * ({@link #OUTPUT_KEEP_BACK}; a {@link BuildingType#MINE} has no
+     * Production table at all -- its chests are pure yield, so EVERYTHING
+     * there is surplus with a keep-back of zero), paired with the first
+     * warehouse with room for that item. No warehouse, or no room in any:
+     * no job -- this route exists to un-strand goods, and a load lifted
+     * with nowhere to put it down would only re-strand them in a bag
+     * (nothing is ever dropped, and nothing is ever voided).
+     *
+     * <p>Only OUTPUTS move. An item sitting in a workshop's chest because
+     * it is that building's raw material (raw iron in the smelter) is
+     * exactly what the restock route just delivered; hauling it back out
+     * would be a courier carousel. Matching against the building's own
+     * recipe outputs -- never "anything not currently needed" -- is what
+     * keeps the two routes out of each other's cargo, and the shared
+     * reservation key (same building id, same item) locks even the
+     * transient tug-of-war out: one building's one item is one courier's
+     * business at a time, whichever direction it is moving.
+     *
+     * <p>"First", not "best", reserved-before-returned in the same
+     * synchronous call, and bounded exactly like {@link #findRestockJob}:
+     * the same settlement building-list walks, the same
+     * {@link WarehouseIndex#MAX_CONTAINERS} cap on every chest read, and
+     * only ever tried in the same {@link #RESTOCK_LOOK_INTERVAL} slot,
+     * after restock found nothing.
+     */
+    private CollectionJob findCollectionJob(ServerLevel level, Settlement s) {
+        long now = level.getGameTime();
+        for (Building source : s.buildings) {
+            if (!source.valid || source.type == BuildingType.WAREHOUSE) {
+                continue; // a warehouse is this route's destination, never its source
+            }
+            boolean mine = source.type == BuildingType.MINE;
+            if (!mine && !Production.produces(source.type)) {
+                continue; // makes nothing: it has no "output" to collect
+            }
+            List<Held> theirs = liveContainers(level, source);
+            if (theirs.isEmpty()) {
+                continue;
+            }
+            Item item = findSurplusOutput(theirs, source.type);
+            if (item == null) {
+                continue;
+            }
+            RestockKey key = new RestockKey(source.id, item);
+            if (isReservedByOther(key, now)) {
+                continue; // another courier is already emptying this shelf
+            }
+            Held stock = findStock(theirs, Ingredient.of(item));
+            if (stock == null) {
+                continue;
+            }
+            for (Building warehouse : s.buildings) {
+                if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
+                    continue;
+                }
+                List<Held> store = liveContainers(level, warehouse);
+                if (store.isEmpty() || !roomFor(store, Ingredient.of(item))) {
+                    continue; // this one cannot take it; maybe another can
+                }
+                if (!reserve(key, now)) {
+                    break; // lost a same-tick race; leave this building alone
+                }
+                BlockPos drop = pickDropOff(level, warehouse);
+                if (drop == null) {
+                    drop = store.get(0).pos(); // cache momentarily behind the live read
+                }
+                return new CollectionJob(source, stock.pos(), warehouse, drop, item, key);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The first item this building's chests hold beyond its keep-back that
+     * the building itself PRODUCES -- or, for a mine, holds at all. Inputs
+     * never match: they are the restock route's cargo, not this one's. An
+     * item that is both (the mason's STONE, the smithy's IRON_INGOT) does
+     * match, and the keep-back is what lets its own chain keep running.
+     */
+    private static Item findSurplusOutput(List<Held> containers, BuildingType type) {
+        if (type == BuildingType.MINE) {
+            for (Held h : containers) {
+                Container c = h.container();
+                for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                    ItemStack stack = c.getItem(slot);
+                    if (!stack.isEmpty()) {
+                        return stack.getItem();
+                    }
+                }
+            }
+            return null;
+        }
+        for (Production.Recipe recipe : Production.of(type)) {
+            if (countItemIn(containers, recipe.output()) > keepBackFor(type)) {
+                return recipe.output();
+            }
+        }
+        return null;
+    }
+
+    /** COLLECTION keep-back per building kind: a mine's chests are pure
+     *  yield; a workshop keeps a working buffer of its own product (see
+     *  {@link #OUTPUT_KEEP_BACK} for why). */
+    private static int keepBackFor(BuildingType type) {
+        return type == BuildingType.MINE ? 0 : OUTPUT_KEEP_BACK;
+    }
+
+    /** Like {@link #countMatching}, by exact item rather than ingredient. */
+    private static int countItemIn(List<Held> containers, Item item) {
+        int total = 0;
+        for (Held h : containers) {
+            Container c = h.container();
+            for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                ItemStack stack = c.getItem(slot);
+                if (!stack.isEmpty() && stack.is(item)) {
+                    total += stack.getCount();
+                }
+            }
+        }
+        return total;
+    }
+
     private record Held(BlockPos pos, Container container) {
     }
 
     private record RestockJob(Building crafter, BlockPos craftChest, Building warehouse,
                               BlockPos sourceChest, Item item, RestockKey key) {
+    }
+
+    private record CollectionJob(Building source, BlockPos sourceChest, Building warehouse,
+                                 BlockPos dropChest, Item item, RestockKey key) {
     }
 
     private static List<Held> liveContainers(ServerLevel level, Building building) {
@@ -1240,7 +1522,12 @@ public class CourierWorkGoal extends Goal {
 
     // ------------------------------------------------------- reservation ---
 
-    /** Which crafter, and which exact item, a restock trip is claimed for. */
+    /** Which building, and which exact item, a trip is claimed for. For a
+     *  restock the id is the DESTINATION crafter's; for a collection it is
+     *  the SOURCE workshop's. One ledger for both means one building's one
+     *  item is one courier's business at a time -- the two routes cannot
+     *  even transiently drag the same item through the same door in both
+     *  directions. */
     private record RestockKey(UUID crafterId, Item item) {
     }
 
