@@ -445,13 +445,22 @@ public class EmploymentGameTests {
     public void theDaySendsPeopleSomewhereReal(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
-        Building farm = building(helper, s, BuildingType.FARMHOUSE, 2, 2);
+        // A BAKERY, not a farmhouse. Employment.worksAtTheBuilding was added
+        // later and deliberately EXCLUDES the farmer and the lumberjack: their
+        // work is out in the field and the trees, and posting them back to the
+        // shed made a hired lumberjack orbit his camp instead of felling
+        // anything (the code says so, with the sighting that found it). This
+        // test still asks its real question -- does the day send a hired
+        // settler to their work -- but asks it of a trade whose work IS the
+        // building. Changing the schedule to satisfy the old wording would
+        // reintroduce a regression somebody had to watch happen once.
+        Building bakery = building(helper, s, BuildingType.BAKERY, 2, 2);
         Building hall = building(helper, s, BuildingType.DINING_HALL, 12, 12);
         SettlerEntity astrid = settler(helper, s, "Astrid", 6, 6);
-        Employment.hire(helper.getLevel(), s, farm, astrid);
+        Employment.hire(helper.getLevel(), s, bakery, astrid);
 
         Schedule.Posting atWork = Schedule.postFor(s, astrid, DayPhase.MORNING_WORK);
-        helper.assertTrue(atWork != null && atWork.where().equals(farm.anchor),
+        helper.assertTrue(atWork != null && atWork.where().equals(bakery.anchor),
             "in working hours a hired settler is sent to their own building");
 
         Schedule.Posting atNoon = Schedule.postFor(s, astrid, DayPhase.MEAL);

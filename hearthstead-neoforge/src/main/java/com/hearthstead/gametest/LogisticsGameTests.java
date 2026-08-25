@@ -341,7 +341,7 @@ public class LogisticsGameTests {
             hearth.bindSettlement(s.id);
         }
 
-        addBuilding(helper, s, BuildingType.WAREHOUSE,
+        Building warehouse = addBuilding(helper, s, BuildingType.WAREHOUSE,
             new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
         helper.setBlock(new BlockPos(5, 1, 3), Blocks.CHEST);
         Container source = containerAt(helper, new BlockPos(5, 1, 3));
@@ -353,6 +353,15 @@ public class LogisticsGameTests {
         helper.setBlock(new BlockPos(3, 1, 6), Blocks.CHEST);
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        // Really EMPLOYED at the warehouse, not just wearing the profession.
+        // The courier() fixture uses assignProfession -- a shortcut whose own
+        // comment says production code must go through Employment.hire -- so
+        // employerOf found nobody, the schedule correctly fell through to the
+        // idle gathering branch, and the route recorded 'post:idle'. The
+        // schedule was right; the arena had never hired anyone.
+        helper.assertTrue(com.hearthstead.settlement.Employment
+            .hire(helper.getLevel(), s, warehouse, bud).ok(),
+            "the warehouse must be able to take the courier");
 
         helper.succeedWhen(() -> {
             Container smithyChest = containerAt(helper, new BlockPos(3, 1, 6));
