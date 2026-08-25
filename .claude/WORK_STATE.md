@@ -80,17 +80,22 @@ shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**A3 step 3** per `docs/project/PLAN_A3_RAIDS.md` — the raider entity for
-one faction, one captain, the Korn objective, end to end. Everything it
-needs to attack already exists and is verified.
+**GATE: PASS (green_streak=2)** at `20260825T052006Z`, 59/59. A3 steps 1-3b
+done: the schedule, the enemies, and a raid that arrives and resolves.
 
-**KF-014 is still open and is the one honest loose end.** Third occurrence
-captured with full diagnostics: on shift, energy 87.6, hunger 75.2, twelve
-logs in the hearth, idle. Energy/hunger/day-phase are dead by measurement.
-Exactly three gates remain and the settler now records which leg it
-abandoned, so the next occurrence names one. Blast radius reduced
-(escalating 100→400 tick backoff, cleared by any delivery) — that part is a
-real fix; the stall itself is not yet cured and must not be claimed as such.
+**A3 step 3c** is next: the KORN objective — raiders path to the warehouse,
+take goods out of real chests into their own inventory, and carry them off.
+Theft must be physical (chest truth), so a raid that succeeds leaves the
+warehouse genuinely emptier. Losing must call `recordLost()` + the captain's
+`recordVictory()`, the mirror of the repel path already built and tested.
+
+**Then PLAQUE-2** (`docs/project/PLAN_PLAQUE_2.md`, task #23) — user-specified
+and marked Core, with a mockup at `docs/project/plaque_reference.png`. Root
+gap already verified in game: three plaques in three different states render
+identically, because the requirement statuses are computed server-side and
+never reach the renderer.
+
+**KF-014 remains open** and is the one honest loose end — see KNOWN_FAILURES.
 
 ## SLICE A2b — the courier's sack — DONE
 
