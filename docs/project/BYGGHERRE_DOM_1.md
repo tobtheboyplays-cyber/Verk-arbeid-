@@ -5,7 +5,7 @@ Ingen GATE-1 før krav 1-5 er lukket.
 
 | # | krav | alv | ansvar | status |
 |---|---|---|---|---|
-| 1 | Null suite-bevis for hele flåte-æraen; siste full RØD | 1 | koordinator: VERIFY-1 gametest + full ×2 på HEAD etter bølge R | venter på bølge R |
+| 1 | Null suite-bevis for hele flåte-æraen; siste full RØD | 1 | koordinator | **BEVIS KJØRT** 2026-08-25 22:15Z på rent worktree: 186 tester, 31 røde. Baseline på forrige commit: 160/25 — natta ga NULL regresjoner. Rotårsak isolert som KF-019 (settlere ankommer aldri jobben, pre-eksisterende) og eid av ARRIVAL-1. Grønn kjøring gjenstår. |
 | 2 | Forskning død 3×: scholar-goal uregistrert, lang-nøkler mangler, bonuser ukoblet | 1 | polermester-R (goal-linje + nøkler); koordinator (bonuser) | **bonuser LANDET** 6b9fc25; goal-linje + nøkler hos polermester |
 | 3 | Ingen spiser kokkens mat (mat ekskludert fra frakt) | 1 | FOOD-1R rute 5 | **LANDET** b844016 |
 | 4 | Vaktrustning trylles + usynlig | 1 | ARMOR-1R (synlig); NY: chest-true armoury-kjede | **synlig LANDET** 4caef43; chest-true kjede gjenstår |
