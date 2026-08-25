@@ -844,3 +844,47 @@ any completed delivery clears the streak. A transient hiccup costs five
 seconds; a genuinely unreachable warehouse still stops the spin. This does
 not claim to cure the stall — it makes the stall cost a fifth as much
 while the cause is still unknown.
+
+---
+
+## KF-015 — a raid can resolve as "repelled" while raiders are still alive
+
+**Status:** OPEN, by design decision rather than oversight. Found while
+root-causing an intermittent A3 test, and recorded rather than patched at
+speed, because the correct answer is a design question.
+
+**The evidence.** `araidarrivesandthenresolves` failed intermittently with
+the diagnostic `spawned=3 living=2`: three raiders were created and added to
+the world, including the captain, but `livingRaidersOf()` could only see
+two. A raider that forms up 26-38 blocks from the settlement lands outside
+the small region a GameTest force-loads, and `getEntitiesOfClass` only
+returns entities in loaded chunks.
+
+**Why that matters in the real game, not just in a test.**
+`resolveIfOver()` ends a raid when `livingRaidersOf()` comes back empty, and
+then records it as **repelled** — raising pressure and marking a defeat
+against the captain. But "no raiders visible in a bounded box right now" is
+not the same claim as "no raiders left". A band whose members are in
+unloaded chunks — because the player walked away, or the raid formed up at
+the edge of loaded terrain — would be declared driven off while it is
+still coming.
+
+**Why it is not patched here.** The obvious fixes each have a real cost:
+
+- Track spawned raider UUIDs on the settlement and resolve only when all are
+  confirmed dead — correct, but a raider that despawns or is removed by
+  another mod would wedge the raid open forever, which is the failure class
+  this slice exists to avoid.
+- Add a minimum raid duration before resolution is allowed — cheap, hides
+  the symptom, does not make the claim true.
+- Force-load the raid area for the duration — heavy, and a design decision
+  about performance that should be made deliberately.
+
+**What was done now:** the test no longer asserts through the bounded query,
+because that was never what it was testing — it asserts on the band
+`spawnBand()` actually produced. The production concern is untouched and
+recorded here.
+
+**Do not** treat a green suite as evidence this is resolved. It is a real
+gap in raid resolution, and it belongs to the raid slice's remaining work
+alongside the telegraph and the scar.

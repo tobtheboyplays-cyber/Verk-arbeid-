@@ -13,7 +13,10 @@ import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -229,6 +232,12 @@ public class PlaqueBlockEntity extends BlockEntity {
         }
         revision++;
         setChanged();
+        // setChanged() alone marks the chunk dirty for SAVING; it does not
+        // resend the block. Without this the sheet would only refresh when
+        // the chunk reloaded, so a bed placed in front of the player would
+        // not tick its line over until they walked away and back.
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
+            Block.UPDATE_CLIENTS);
     }
 
     /**
@@ -446,6 +455,19 @@ public class PlaqueBlockEntity extends BlockEntity {
         buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
         state = PlaqueState.byId(tag.getString("State"), buildingId != null);
         revision = tag.getInt("Revision");
+        if (tag.contains(SURVEY_KEY)) {
+            List<Requirement.Status> restored = new ArrayList<>();
+            ListTag list = tag.getList(SURVEY_KEY, Tag.TAG_COMPOUND);
+            for (int i = 0; i < list.size(); i++) {
+                CompoundTag entry = list.getCompound(i);
+                Requirement requirement = type.requirementById(entry.getString("Id"));
+                if (requirement != null) {
+                    restored.add(new Requirement.Status(requirement,
+                        entry.getInt("Have"), entry.getInt("Needed")));
+                }
+            }
+            lastSurvey = List.copyOf(restored);
+        }
         insertedPlan = tag.contains("Plan")
             ? ItemStack.parseOptional(provider, tag.getCompound("Plan"))
             : ItemStack.EMPTY;
@@ -457,11 +479,33 @@ public class PlaqueBlockEntity extends BlockEntity {
         }
     }
 
-    /** The client needs the type and state to render the plaque's face. */
+    /** Key for the surveyed requirement list. Wire-only, never on disk. */
+    private static final String SURVEY_KEY = "Survey";
+
+    /**
+     * The client needs the type, the state AND the survey to draw the sheet.
+     *
+     * <p>The survey rides the update tag but is deliberately NOT written by
+     * {@code saveAdditional}: it is derived data, recomputed by every
+     * {@link #survey}, so persisting it would be a second copy of something
+     * the world already knows. Without it on the wire, though, the block
+     * renders identically in every state -- which is exactly what it did
+     * before this, and why a player had to run a command to learn whether
+     * their room passed.
+     */
     @Override
     public CompoundTag getUpdateTag(HolderLookup.Provider provider) {
         CompoundTag tag = new CompoundTag();
         saveAdditional(tag, provider);
+        ListTag list = new ListTag();
+        for (Requirement.Status status : lastSurvey) {
+            CompoundTag entry = new CompoundTag();
+            entry.putString("Id", status.requirement().id());
+            entry.putInt("Have", status.have());
+            entry.putInt("Needed", status.needed());
+            list.add(entry);
+        }
+        tag.put(SURVEY_KEY, list);
         return tag;
     }
 

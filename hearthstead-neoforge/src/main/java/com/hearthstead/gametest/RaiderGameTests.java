@@ -235,14 +235,18 @@ public class RaiderGameTests {
         RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 3L);
         s.pendingRaid = plan;
 
-        int spawned = RaidDirector.spawnBand(level, s, plan);
-        helper.assertTrue(spawned > 0,
-            "the band must actually arrive, spawned " + spawned);
+        var band = RaidDirector.spawnBand(level, s, plan);
+        helper.assertTrue(!band.isEmpty(),
+            "the band must actually arrive, spawned " + band.size());
         helper.assertTrue(!RaidDirector.livingRaidersOf(level, s).isEmpty(),
             "and must be findable as this settlement's raiders");
-        boolean anyCaptain = RaidDirector.livingRaidersOf(level, s).stream()
-            .anyMatch(RaiderEntity::isCaptain);
-        helper.assertTrue(anyCaptain, "a band is led, so one of them is the captain");
+        // Asserted on the band spawnBand actually produced, not on what a
+        // bounded box query can see: a raider that forms up 30+ blocks out
+        // lands beyond the small region a GameTest force-loads, so the query
+        // legitimately cannot see all of them here.
+        boolean anyCaptain = band.stream().anyMatch(RaiderEntity::isCaptain);
+        helper.assertTrue(anyCaptain,
+            "a band is led, so one of them is the captain [band=" + band.size() + "]");
 
         // Not over while anyone still stands.
         helper.assertTrue(!RaidDirector.resolveIfOver(level, s),
@@ -251,7 +255,7 @@ public class RaiderGameTests {
 
         int pressureBefore = s.raidPressure.pressure();
         int defeatsBefore = captain.defeats();
-        for (RaiderEntity r : RaidDirector.livingRaidersOf(level, s)) {
+        for (RaiderEntity r : band) {
             r.discard();
         }
         helper.assertTrue(RaidDirector.resolveIfOver(level, s),

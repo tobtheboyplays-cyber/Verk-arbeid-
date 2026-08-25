@@ -606,6 +606,66 @@ public class HearthsteadGameTests {
         return plaqueRel;
     }
 
+    /**
+     * The plaque's survey must reach the CLIENT. Verified in game that three
+     * plaques in three different states rendered identically, because
+     * saveAdditional carries type/state/revision/plan and nothing else -- so
+     * the block entity renderer had no requirement data to draw and a player
+     * had to run a command to learn whether their room passed.
+     *
+     * <p>Asserted on the update tag, which is what the client actually
+     * receives, rather than on the server-side list, which was never the
+     * thing that was missing.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400)
+    public void theSurveyReachesTheClient(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hangPlaque(helper, hutOrigin,
+            com.hearthstead.building.BuildingType.HOUSE);
+
+        helper.succeedWhen(() -> {
+            var be = helper.getLevel().getBlockEntity(helper.absolutePos(plaqueRel));
+            helper.assertTrue(be instanceof com.hearthstead.block.PlaqueBlockEntity,
+                "the plaque block entity should exist");
+            var plaque = (com.hearthstead.block.PlaqueBlockEntity) be;
+            var tag = plaque.getUpdateTag(helper.getLevel().registryAccess());
+
+            helper.assertTrue(tag.contains("Survey"),
+                "the update tag must carry the survey -- without it the block "
+                    + "renders identically in every state");
+            var list = tag.getList("Survey", net.minecraft.nbt.Tag.TAG_COMPOUND);
+            helper.assertTrue(!list.isEmpty(),
+                "and it must carry the actual requirement lines, got none");
+            helper.assertTrue(list.size()
+                    == com.hearthstead.building.BuildingType.HOUSE.requirements().size(),
+                "one line per requirement: got " + list.size() + " for "
+                    + com.hearthstead.building.BuildingType.HOUSE.requirements().size()
+                    + " requirements");
+
+            boolean anyMet = false;
+            for (int i = 0; i < list.size(); i++) {
+                var entry = list.getCompound(i);
+                helper.assertTrue(!entry.getString("Id").isEmpty(),
+                    "each line must name its requirement");
+                helper.assertTrue(entry.getInt("Needed") > 0,
+                    "and say how many are needed");
+                if (entry.getInt("Have") >= entry.getInt("Needed")) {
+                    anyMet = true;
+                }
+                // The requirement must be reconstructible client-side by id,
+                // since the counter function cannot cross the wire.
+                helper.assertTrue(com.hearthstead.building.BuildingType.HOUSE
+                        .requirementById(entry.getString("Id")) != null,
+                    "unknown requirement id on the wire: " + entry.getString("Id"));
+            }
+            helper.assertTrue(anyMet,
+                "this hut satisfies its house plaque, so some line must read met");
+        });
+    }
+
     @GameTest(template = "empty16", timeoutTicks = 400)
     public void roomDetectedAsHome(GameTestHelper helper) {
         buildArena(helper, 16, 16);

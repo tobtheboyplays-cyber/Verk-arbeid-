@@ -89,6 +89,21 @@ public enum BuildingType {
         return workerCapacity;
     }
 
+    /**
+     * The requirement with this id, or null. Needed because the plaque sends
+     * its survey to the client as (id, have, needed) triples -- the counter
+     * function itself cannot cross the wire, and the client only needs to
+     * name and count, not to re-measure.
+     */
+    public Requirement requirementById(String id) {
+        for (Requirement r : requirements()) {
+            if (r.id().equals(id)) {
+                return r;
+            }
+        }
+        return null;
+    }
+
     public List<Requirement> requirements() {
         return requirements;
     }

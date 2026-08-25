@@ -152,24 +152,24 @@ public final class RaidDirector {
      * corners. A band that arrives across a front has to be met, not
      * funnelled.
      */
-    public static int spawnBand(ServerLevel level, Settlement settlement,
-                                RaidPlan plan) {
+    public static java.util.List<RaiderEntity> spawnBand(ServerLevel level,
+                                                        Settlement settlement,
+                                                        RaidPlan plan) {
+        java.util.List<RaiderEntity> spawned = new java.util.ArrayList<>();
         RaidCaptain captain = captainOf(settlement, plan.captainId());
         if (captain == null) {
-            return 0;
+            return spawned;
         }
         int band = bandSizeFor(settlement, captain);
         RandomSource random = level.getRandom();
-        int spawned = 0;
         for (int i = 0; i < band; i++) {
             boolean isCaptain = i == 0;
             float spread = band <= 1 ? 0.0F
                 : (i / (float) (band - 1) - 0.5F) * 2.0F * SPAWN_ARC;
             int distance = SPAWN_MIN_DISTANCE + random.nextInt(
                 Math.max(1, SPAWN_MAX_DISTANCE - SPAWN_MIN_DISTANCE + 1));
-            BlockPos column = formUpAt(settlement.center,
-                plan.approachDegrees() + spread, distance);
-            BlockPos ground = standableNear(level, column);
+            BlockPos ground = footingFor(level, settlement,
+                plan.approachDegrees() + spread, distance, isCaptain);
             if (ground == null) {
                 continue; // no footing on this bearing; the rest still come
             }
@@ -184,10 +184,59 @@ public final class RaidDirector {
                 captain.menace(), isCaptain);
             raider.setObjectivePos(settlement.center);
             level.addFreshEntity(raider);
-            spawned++;
+            spawned.add(raider);
         }
         return spawned;
     }
+
+    /**
+     * Footing for one raider. A follower gets one attempt on its own bearing
+     * -- if the ground there is bad, the band simply arrives one short.
+     *
+     * <p>The CAPTAIN does not: a leaderless band contradicts the whole
+     * design, so the captain sweeps outward around the arc until something
+     * takes. Found by a test asserting a band is led and occasionally
+     * finding it was not, because the leader's single column happened to
+     * have no floor.
+     */
+    private static BlockPos footingFor(ServerLevel level, Settlement settlement,
+                                       float bearing, int distance,
+                                       boolean isCaptain) {
+        BlockPos direct = standableNear(level,
+            formUpAt(settlement.center, bearing, distance));
+        if (direct != null || !isCaptain) {
+            return direct;
+        }
+        for (int step = 1; step <= CAPTAIN_BEARING_TRIES; step++) {
+            for (int sign : new int[] {1, -1}) {
+                float swept = bearing + sign * step * CAPTAIN_BEARING_STEP;
+                for (int d = distance; d >= SPAWN_MIN_DISTANCE / 2; d -= 4) {
+                    BlockPos found = standableNear(level,
+                        formUpAt(settlement.center, swept, d));
+                    if (found != null) {
+                        return found;
+                    }
+                }
+            }
+        }
+        // Last resort: the settlement's own ground. A raid that was rolled,
+        // planned and announced and then silently failed to appear because
+        // the terrain on every bearing was bad is the raid-shaped version of
+        // "deliveries that silently never happen" -- the exact failure class
+        // this whole slice is built against. Arriving badly beats not
+        // arriving, and it is logged so it is never mistaken for normal.
+        BlockPos athome = standableNear(level, settlement.center);
+        if (athome != null) {
+            Hearthstead.LOGGER.warn(
+                "No footing on any bearing for the captain raiding {} -- "
+                    + "forming up at the settlement itself", settlement.name);
+        }
+        return athome;
+    }
+
+    /** How far the captain will sweep for footing, and in what steps. */
+    public static final int CAPTAIN_BEARING_TRIES = 8;
+    public static final float CAPTAIN_BEARING_STEP = 24.0F;
 
     /**
      * Solid footing near a column, searched up then down. Without this a
