@@ -42,6 +42,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.PathfinderMob;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.FloatGoal;
@@ -111,6 +112,15 @@ public class SettlerEntity extends PathfinderMob {
      * read this one number so they can never disagree.
      */
     public static final int BASE_CARRY_CAPACITY = 8;
+    /**
+     * How much a full sack costs in speed. A load you can carry at full
+     * pace is not a load -- the whole point of making capacity visible is
+     * that the player can SEE the trade, so it has to cost something in the
+     * world and not only in a number.
+     */
+    public static final float MAX_CARRY_SLOW = 0.38F;
+    private static final net.minecraft.resources.ResourceLocation CARRY_SLOW_ID =
+        com.hearthstead.Hearthstead.id("carry_slow");
 
     @Nullable
     private UUID settlementId;
@@ -551,6 +561,27 @@ public class SettlerEntity extends PathfinderMob {
         }
         if (entityData.get(DATA_CARRY_LOAD) != total) {
             entityData.set(DATA_CARRY_LOAD, total);
+            applyCarrySlow();
+        }
+    }
+
+    /**
+     * Slows the settler in proportion to what is on their back. Applied as a
+     * transient attribute modifier so it affects every kind of movement --
+     * fleeing included -- rather than only the speed a work goal happens to
+     * ask for, and so it disappears cleanly the moment the sack is emptied.
+     */
+    private void applyCarrySlow() {
+        var speed = getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speed == null) {
+            return;
+        }
+        speed.removeModifier(CARRY_SLOW_ID);
+        float fill = carryFraction();
+        if (fill > 0.0F) {
+            speed.addOrUpdateTransientModifier(new AttributeModifier(
+                CARRY_SLOW_ID, -MAX_CARRY_SLOW * fill,
+                AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
         }
     }
 

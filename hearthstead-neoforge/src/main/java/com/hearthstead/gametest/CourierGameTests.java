@@ -16,6 +16,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -329,6 +330,57 @@ public class CourierGameTests {
                     + " everInside=" + everInside[0]
                     + " doorOpen=" + doorOpen(helper, new BlockPos(9, 1, 6))
                     + "]");
+        });
+    }
+
+    /**
+     * A load has to cost something in the world, not only in a number. A
+     * full sack slows the carrier, the penalty scales with how full it is,
+     * and it clears completely the moment the sack is emptied -- a settler
+     * who stayed slow after delivering would be a permanent silent debuff.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    public void aFullSackSlowsTheCarrier(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 12);
+        BlockPos hearthRel = new BlockPos(3, 1, 3);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel, 10);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+        SettlerEntity empty = courier(helper, s, new BlockPos(5, 1, 5));
+        SettlerEntity laden = courier(helper, s, new BlockPos(7, 1, 5));
+        SettlerEntity half = courier(helper, s, new BlockPos(9, 1, 5));
+        laden.bag.addItem(new ItemStack(Items.OAK_LOG, laden.getCarryCapacity()));
+        half.bag.addItem(new ItemStack(Items.OAK_LOG,
+            Math.max(1, half.getCarryCapacity() / 2)));
+
+        final boolean[] checked = {false};
+        helper.runAtTickTime(40, () -> {
+            double emptySpeed = empty.getAttributeValue(Attributes.MOVEMENT_SPEED);
+            double halfSpeed = half.getAttributeValue(Attributes.MOVEMENT_SPEED);
+            double ladenSpeed = laden.getAttributeValue(Attributes.MOVEMENT_SPEED);
+            helper.assertTrue(ladenSpeed < emptySpeed,
+                "a full sack must slow the carrier: " + ladenSpeed
+                    + " vs " + emptySpeed);
+            helper.assertTrue(halfSpeed < emptySpeed && halfSpeed > ladenSpeed,
+                "and the penalty must scale with the load: half=" + halfSpeed
+                    + " full=" + ladenSpeed + " empty=" + emptySpeed);
+            checked[0] = true;
+            // Emptying the sack must give the speed straight back.
+            laden.bag.clearContent();
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(checked[0], "the laden checks must run first");
+            helper.assertTrue(laden.getCarryLoad() == 0, "the sack is empty now");
+            helper.assertTrue(
+                laden.getAttributeValue(Attributes.MOVEMENT_SPEED)
+                    == empty.getAttributeValue(Attributes.MOVEMENT_SPEED),
+                "an emptied sack must return the speed in full, got "
+                    + laden.getAttributeValue(Attributes.MOVEMENT_SPEED)
+                    + " vs " + empty.getAttributeValue(Attributes.MOVEMENT_SPEED));
         });
     }
 

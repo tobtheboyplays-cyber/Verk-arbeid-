@@ -1058,43 +1058,61 @@ public final class SettlerAnimations {
      *  standing still at a chest, not just in transit. 2.0s loop (against
      *  WALK_LADEN's 1.2s, so the two drift in and out of phase and the haul
      *  never looks mechanically looped). */
+    /**
+     * Both hands gripping the sack's shoulder straps, not a crate held in
+     * front. The first version posed the arms forward at -78 degrees and
+     * leaned the torso BACKWARD to counterbalance -- which is how you carry
+     * a load in front of you, and this settler's load is on his back. The
+     * lean is forward now, the hands are up at the chest on the straps, and
+     * the weight of it is in the spine.
+     *
+     * <p>Read together with SettlerModel.applySack, which adds more forward
+     * lean the fuller the sack gets (vanilla animate() is additive), so a
+     * near-empty courier walks nearly upright and a full one is bent into it.
+     * 2.0s loop.
+     */
     public static final AnimationDefinition COURIER_CARRY = AnimationDefinition.Builder
         .withLength(2.0F).looping()
+        // Hands up on the straps: raised high, drawn inward across the chest.
         .addAnimation("right_arm", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-78, 16, -14), CATMULLROM),
-            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-76, 16, -15), CATMULLROM),
-            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-79, 17, -14), CATMULLROM),
-            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-78, 16, -14), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-104, 27, -25), CATMULLROM),
+            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-101, 26, -27), CATMULLROM),
+            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-106, 28, -24), CATMULLROM),
+            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-104, 27, -25), CATMULLROM)))
         .addAnimation("left_arm", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-78, -16, 14), CATMULLROM),
-            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-76, -16, 15), CATMULLROM),
-            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-79, -17, 14), CATMULLROM),
-            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-78, -16, 14), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-104, -27, 25), CATMULLROM),
+            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-101, -26, 27), CATMULLROM),
+            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-106, -28, 24), CATMULLROM),
+            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-104, -27, 25), CATMULLROM)))
+        // Forward into the weight, with the trudge rocking side to side.
         .addAnimation("torso", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-11, 2, 0), CATMULLROM),
-            new Keyframe(0.5F, KeyframeAnimations.degreeVec(-13, 0, 1.5F), CATMULLROM),
-            new Keyframe(1.0F, KeyframeAnimations.degreeVec(-11, -2, 0), CATMULLROM),
-            new Keyframe(1.5F, KeyframeAnimations.degreeVec(-13, 0, -1.5F), CATMULLROM),
-            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-11, 2, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(9, 2, 0), CATMULLROM),
+            new Keyframe(0.5F, KeyframeAnimations.degreeVec(11, 0, 2.5F), CATMULLROM),
+            new Keyframe(1.0F, KeyframeAnimations.degreeVec(9, -2, 0), CATMULLROM),
+            new Keyframe(1.5F, KeyframeAnimations.degreeVec(11, 0, -2.5F), CATMULLROM),
+            new Keyframe(2.0F, KeyframeAnimations.degreeVec(9, 2, 0), CATMULLROM)))
         .addAnimation("torso", new AnimationChannel(SCALE,
             new Keyframe(0.0F, KeyframeAnimations.scaleVec(1.0, 1.0, 1.0), CATMULLROM),
-            new Keyframe(0.55F, KeyframeAnimations.scaleVec(1.012, 1.008, 1.012), CATMULLROM),
+            new Keyframe(0.55F, KeyframeAnimations.scaleVec(1.012, 0.992, 1.012), CATMULLROM),
             new Keyframe(1.1F, KeyframeAnimations.scaleVec(1.0, 1.0, 1.0), CATMULLROM),
-            new Keyframe(1.65F, KeyframeAnimations.scaleVec(1.010, 1.006, 1.010), CATMULLROM),
+            new Keyframe(1.65F, KeyframeAnimations.scaleVec(1.010, 0.994, 1.010), CATMULLROM),
             new Keyframe(2.0F, KeyframeAnimations.scaleVec(1.0, 1.0, 1.0), CATMULLROM)))
+        // Head up against the lean -- he still has to see where he is going.
         .addAnimation("head", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(5, 0, 0), CATMULLROM),
-            new Keyframe(0.6F, KeyframeAnimations.degreeVec(7, 8, 0), CATMULLROM),
-            new Keyframe(1.1F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM),
-            new Keyframe(1.6F, KeyframeAnimations.degreeVec(7, -6, 0), CATMULLROM),
-            new Keyframe(2.0F, KeyframeAnimations.degreeVec(5, 0, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-4, 6, 0), CATMULLROM),
+            new Keyframe(1.1F, KeyframeAnimations.degreeVec(-7, 0, 0), CATMULLROM),
+            new Keyframe(1.6F, KeyframeAnimations.degreeVec(-4, -5, 0), CATMULLROM),
+            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM)))
         .addAnimation("cloak", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(7, 0, 0), CATMULLROM),
-            new Keyframe(1.0F, KeyframeAnimations.degreeVec(8, 0, 0), CATMULLROM),
-            new Keyframe(2.0F, KeyframeAnimations.degreeVec(7, 0, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-5, 0, 0), CATMULLROM),
+            new Keyframe(1.0F, KeyframeAnimations.degreeVec(-7, 0, 0), CATMULLROM),
+            new Keyframe(2.0F, KeyframeAnimations.degreeVec(-5, 0, 0), CATMULLROM)))
+        // Sinks under the load rather than riding level.
         .addAnimation("root", new AnimationChannel(POSITION,
-            new Keyframe(0.0F, KeyframeAnimations.posVec(0, -1, 0), CATMULLROM),
-            new Keyframe(2.0F, KeyframeAnimations.posVec(0, -1, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM),
+            new Keyframe(1.0F, KeyframeAnimations.posVec(0, -0.1F, 0), CATMULLROM),
+            new Keyframe(2.0F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM)))
         .build();
 
     /** One-shot: the reverse of the lift, faster and looser -- drops, the
