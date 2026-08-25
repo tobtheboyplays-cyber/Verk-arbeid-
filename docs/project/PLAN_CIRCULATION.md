@@ -93,3 +93,52 @@ F9 **hide-path balance** (butcher §6.3): the rabbit→cured_hide fed path is
 ~4x cheaper per leather than the rough path and consumes MEAT not hide —
 re-point the recipe at RABBIT_HIDE and bring the advantage into the
 x1.5-x2 FLOWS band, with a test.
+
+## Wave-2 synthesis (final four audits: farmer, mason, smelter, guard — 20260825)
+
+Status marks: [LANDET] committed; [I ARBEID] a fix worker owns it now;
+[SLICE] queued as its own slice.
+
+**Systemic, resolved:**
+- [LANDET] `Production.ready()` is need-aware (scarcest output wins, ties
+  keep list order for the fed-path doctrine) — kills the sawyer/carpenter/
+  weaver/fletcher starvation class AND the smithy's bloom_ingot-forever
+  risk (tools at stock 0 now outrank topping up ingots). Smelter/sawyer
+  gametests reconciled with the selector; weaver's proof is naturally safe
+  (succeeds before wool_bolt becomes satisfiable).
+- [LANDET] Miner banks real loot (`Block.getDrops` with an iron pickaxe),
+  not block items — the mine→smelter chain exists at all now.
+  MinerDropsGameTests pins it.
+
+**In flight (fix workers own the files):**
+- [I ARBEID] FARMER-BOOTSTRAP: first-planting on tilled ground (orphaned
+  FARM_PLANT clip finally used), seed reserve on deposit, replant duration
+  28t to match SOW_BROADCAST, no watering bare tiles.
+- [I ARBEID] GUARD-PROGRESSION: STRENGTH trains from landed hits + patrol
+  drill (the rank ladder becomes reachable by guarding), night-watch
+  MORNING_WORK sleep gap, leap fizzle resolution, hostile-only splash,
+  +0.5 dmg/rank in the goal.
+- [I ARBEID] COURIER-R2: workshop outputs → warehouse (keep-back 8; MINE
+  keep-back 0). Closes mason C2/smelter C1's stranded-output half.
+
+**Queued slices (not yet owned):**
+- [SLICE] REPAIR-1: raid-damage repair orders consume mason stone/bricks —
+  the mason's first real sink (RaidDirector has the report half only).
+- [SLICE] FUEL-1: firewood/charcoal upkeep for smelter/bakery/smithy
+  (DESIGN.md:15's "firewood/warmth" pillar; furnaces currently run on
+  nothing). Gives the lumberer's surplus a destination too.
+- [SLICE] ARMOR-VISIBLE: rank armor renders on the settler model (server
+  slots are set but SettlerRenderer has no armor layer — the audit calls
+  it "invisible to the player"; custom model needs a bespoke layer).
+- [SLICE] GUARD-3: Shield Bash (SPEARMAN) + Rally (CAPTAIN) — documented
+  in GuardRank's own table, absent in code; pairs with the horn/banner
+  command wheel (ROADMAP C2).
+- [SLICE] FARM-COMPOST: the plaque-required composter becomes the farm's
+  efficiency lever (chaff → bone meal → maintenance boost).
+- [SLICE] STONE-VARIETY: mason recipes for the granite/diorite/andesite/
+  deepslate the miner now genuinely banks; FLOWS' promised "cut stone".
+- Doc honesty: JOB_STANDARD.md certification rows are stale three ways
+  (mason reason wrong, smelter "needs GameTest" false, catalogue §2.2
+  farmer trigger stale). Reconcile in the next doc pass; certification
+  additions wait for VERIFY-1 suite evidence, per the smelter audit's
+  warning that job_audit "ok" rows are presence-checks, not proof.
