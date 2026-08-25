@@ -2,6 +2,7 @@ package com.hearthstead.entity.ai;
 
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.building.Fuel;
 import com.hearthstead.building.Production;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
@@ -27,15 +28,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
  * The courier: moves goods between the hearth, the warehouse and the
  * workshops -- restocking crafters short of their own raw material, and
  * collecting their surplus product back.
  *
- * <p><b>Three routes, never a request queue.</b> A courier consolidates
+ * <p><b>Four routes, never a request queue.</b> A courier consolidates
  * hearth goods into a warehouse, restocks a crafter short of its own raw
- * material from a warehouse that has some, or collects a workshop's surplus
+ * material -- or, for a building that burns, short of fuel -- from a
+ * warehouse that has some, carries prepared food from a warehouse to a
+ * hearth running low (FLOWS.md route 5 -- without it the bakery's bread
+ * strands on a warehouse shelf while the village goes hungry beside it),
+ * or collects a workshop's surplus
  * OUTPUT into a warehouse (FLOWS.md route 4, the return leg of the economy
  * loop -- without it the mason's bricks, the smelter's ingots and the
  * mine's entire yield strand forever in their own chests and the smithy can
@@ -57,7 +63,9 @@ import java.util.UUID;
  * the HEARTH specifically: a recipe's raw material can itself be a food item
  * (raw beef, a potato) sitting in a warehouse a player filled by hand, and
  * restocking a butcher or kitchen with it is fine -- that route never
- * touches the hearth.
+ * touches the hearth. The hearth is a one-way food valve: the FOOD_DELIVERY
+ * route carries meals INTO it from a warehouse when the larder runs low,
+ * and nothing ever carries them back out.
  *
  * <p><b>Chests are the truth</b> (D-A2a-3): goods are removed from the
  * source into the bag, and inserted into the destination-first with the true
@@ -142,6 +150,49 @@ public class CourierWorkGoal extends Goal {
      */
     public static final int OUTPUT_KEEP_BACK = 8;
     /**
+     * FOOD_DELIVERY: meals the hearth should hold per living settler before
+     * the larder reads as LOW. A settler eats one item per meal
+     * ({@code HearthBlockEntity#extractBestFood} removes exactly one) and
+     * sits down to roughly two or three meals across a day (hunger drains
+     * 0.04-0.10/s and a meal restores nutrition x 8), so four per head is a
+     * full day's eating with margin -- the larder starts refilling while
+     * everyone can still eat, never after the shelf is bare.
+     */
+    public static final int FOOD_PER_SETTLER = 4;
+    /**
+     * FOOD_DELIVERY: ceiling on the LOW threshold, whatever the population.
+     * 24 is {@code HearthBlockEntity#INVENTORY_SIZE} -- one meal per hearth
+     * slot -- so past six settlers (6 x {@link #FOOD_PER_SETTLER} = 24) the
+     * threshold stops growing: a big village's courier tops the larder up to
+     * a bound the hearth can always physically hold (food stacks, so this is
+     * comfortably conservative), instead of chasing a target that scales
+     * past the furniture.
+     */
+    public static final int FOOD_STOCK_CAP = 24;
+    /**
+     * FUEL: how many batches' worth of fuel a burning building keeps on
+     * hand. Restock triggers when its chests hold fewer than
+     * {@code FUEL_RESERVE_BATCHES x Fuel.perBatch(type)} fuel items -- four
+     * batches covers a full courier round trip (claim, walk, withdraw, walk,
+     * deposit can span several hundred ticks) with the burner never going
+     * cold while the next load is on the road, mirroring how
+     * {@link #FOOD_PER_SETTLER} buys the larder a day of margin.
+     */
+    public static final int FUEL_RESERVE_BATCHES = 4;
+
+    /**
+     * The hearth larder's LOW mark: {@link #FOOD_PER_SETTLER} meals for each
+     * living settler ({@code Settlement#population()} counts records, and
+     * {@code SettlementManager#onSettlerDied} removes a record on death, so
+     * the dead stop being catered for), capped at {@link #FOOD_STOCK_CAP}.
+     * Public and static so the GameTest computes its expectations from the
+     * same arithmetic the route runs on.
+     */
+    public static int hearthFoodThreshold(int livingSettlers) {
+        return Math.min(FOOD_STOCK_CAP, FOOD_PER_SETTLER * livingSettlers);
+    }
+
+    /**
      * How long a claimed restock job stays claimed without a heartbeat.
      * Renewed every active tick ({@link #renewReservation}), so a courier
      * genuinely working the job never sees it expire, however long her
@@ -174,17 +225,21 @@ public class CourierWorkGoal extends Goal {
 
     private enum Mode {
         TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING, RETURNING,
-        TO_SOURCE, WITHDRAWING, TO_CRAFTER, DEPOSITING
+        TO_SOURCE, WITHDRAWING, TO_CRAFTER, DEPOSITING,
+        /** FOOD_DELIVERY's set-down: bag -> hearth, one stack per cycle. */
+        STOCKING
     }
 
     /**
      * The order a courier tries jobs in when nothing is already in her
      * hands. Lower ordinal outranks higher: {@link #findRestockJob} is
-     * always tried before {@link #findCollectionJob}, and both before
+     * always tried before {@link #findFoodJob}, that before
+     * {@link #findCollectionJob}, and all three before
      * {@link #beginConsolidation}, so a crafter running dry on its own raw
-     * material is never left waiting behind an output pile that is merely
-     * getting taller, and neither waits behind routine tidying-up of the
-     * hearth.
+     * material is never left waiting behind a larder top-up, a hungry
+     * village is never left waiting behind an output pile that is merely
+     * getting taller, and none of them waits behind routine tidying-up of
+     * the hearth.
      *
      * <p>This is a decision-time ordering only -- a trip already under way
      * is always finished before a new one is picked (see
@@ -193,23 +248,30 @@ public class CourierWorkGoal extends Goal {
      */
     private enum JobPriority {
         /**
-         * Food reaching the hearth. Never actually a job this goal runs:
-         * food never leaves the hearth once it is there (D-A2a-1), and
-         * {@code FarmerWorkGoal} delivers the harvest to the hearth
-         * directly, so there is nothing here to fetch or carry. Listed
-         * first anyway so the ladder reads as one complete, ordered thing
-         * rather than two lists that merely happen to agree -- and so a
-         * courier-carried food route, if one is ever added, already has its
-         * priority decided and documented.
-         */
-        FOOD_TO_HEARTH,
-        /**
-         * A crafter short of its own raw material, when a warehouse is
-         * holding some. Outranks consolidation: a smithy standing idle for
-         * want of iron sitting fifteen blocks away in a warehouse is a
-         * worse look than a warehouse chest one merge short of tidy.
+         * A crafter short of its own raw material -- or, for a building
+         * that burns ({@code Fuel#burns}), short of fuel -- when a
+         * warehouse is holding some. Outranks consolidation: a smithy
+         * standing idle for want of iron sitting fifteen blocks away in a
+         * warehouse is a worse look than a warehouse chest one merge short
+         * of tidy.
          */
         CRAFTER_RESTOCK,
+        /**
+         * The hearth larder running LOW (below
+         * {@link #hearthFoodThreshold}) with a warehouse holding something
+         * edible -- FLOWS.md route 5's hearth half, warehouse -> hearth.
+         * The tier that used to sit at the very top of this ladder was a
+         * placeholder for the farmer's own harvest delivery (FLOWS route 1),
+         * which never runs through this goal at all; now the courier-carried
+         * food route is real, it lands HERE instead: above collection and
+         * consolidation because a hungry village outranks tidy shelves, but
+         * below CRAFTER_RESTOCK because the LOW threshold fires while the
+         * village still has a full day's eating in hand ({@code
+         * EatFromHearthGoal} works down to the last loaf), whereas a crafter
+         * with an empty input chest -- the bakery that BAKES this route's
+         * cargo among them -- is stopped dead right now.
+         */
+        FOOD_DELIVERY,
         /**
          * A producing building's own OUTPUT piled up past
          * {@link #OUTPUT_KEEP_BACK} -- or ANYTHING in a
@@ -294,8 +356,7 @@ public class CourierWorkGoal extends Goal {
         }
 
         // The priority ladder (JobPriority): try each tier in turn and take
-        // the first with real work. (Food never reaches this goal at all --
-        // see JobPriority.FOOD_TO_HEARTH -- so that tier has nothing to try.)
+        // the first with real work.
         if (restockCooldown > 0) {
             restockCooldown--;
         } else {
@@ -305,9 +366,18 @@ public class CourierWorkGoal extends Goal {
                 beginRestock(restock);
                 return true;
             }
-            // Same budgeted slot, next rung down (OUTPUT_COLLECTION): only
-            // when no crafter is starving does the courier go around
-            // emptying workshop output shelves into the warehouse.
+            // Same budgeted slot, next rung down (FOOD_DELIVERY): no
+            // crafter is starving, so the larder gets looked at before any
+            // shelf-tidying does.
+            FoodJob food = findFoodJob(level, s);
+            if (food != null) {
+                beginFoodDelivery(food);
+                return true;
+            }
+            // Same budgeted slot again, next rung down (OUTPUT_COLLECTION):
+            // only when no crafter is starving and the village can eat does
+            // the courier go around emptying workshop output shelves into
+            // the warehouse.
             CollectionJob collection = findCollectionJob(level, s);
             if (collection != null) {
                 beginCollection(collection);
@@ -339,6 +409,21 @@ public class CourierWorkGoal extends Goal {
                 return false; // hold the load until morning, same as consolidation
             }
             mode = Mode.TO_CRAFTER;
+            return true;
+        }
+        if (job == JobPriority.FOOD_DELIVERY) {
+            if (settler.hearth() == null || settler.getHearthPos() == null) {
+                // The hearth is gone mid-trip (a razed settlement): the
+                // meals go back to the warehouse they came from rather
+                // than riding out of circulation in a bag.
+                releaseReservation();
+                mode = Mode.RETURNING;
+                return true;
+            }
+            if (!onShift) {
+                return false; // hold the load until morning, same as the others
+            }
+            mode = Mode.TO_HEARTH;
             return true;
         }
         if (job == JobPriority.OUTPUT_COLLECTION) {
@@ -407,6 +492,19 @@ public class CourierWorkGoal extends Goal {
         craftDropOff = restock.craftChest();
         reservedItem = restock.item();
         reservationKey = restock.key();
+        mode = Mode.TO_SOURCE;
+    }
+
+    private void beginFoodDelivery(FoodJob food) {
+        job = JobPriority.FOOD_DELIVERY;
+        sourceWarehouseId = food.warehouse().id;
+        sourcePos = food.sourceChest();
+        craftBuildingId = null;
+        craftDropOff = null;
+        warehouseId = null;
+        dropOff = null;
+        reservedItem = food.item();
+        reservationKey = food.key();
         mode = Mode.TO_SOURCE;
     }
 
@@ -534,7 +632,10 @@ public class CourierWorkGoal extends Goal {
                     ? sourcePos : settler.getHearthPos());
             }
             default -> {
-                settler.setActivity(SettlerActivity.TRAVELING);
+                // TO_HEARTH serves two jobs: consolidation walks there
+                // empty-handed to load, a food delivery arrives laden.
+                settler.setActivity(bagCount() > 0
+                    ? SettlerActivity.CARRYING : SettlerActivity.TRAVELING);
                 pathAbove(settler.getHearthPos());
             }
         }
@@ -624,20 +725,37 @@ public class CourierWorkGoal extends Goal {
             case WITHDRAWING -> tickWithdrawing();
             case TO_CRAFTER -> tickToCrafter();
             case DEPOSITING -> tickDepositing();
+            case STOCKING -> tickStocking();
         }
     }
 
     private void tickToHearth() {
         BlockPos hearthPos = settler.getHearthPos();
         if (hearthPos == null) {
+            // A laden food trip re-decides through canUseCarrying, which
+            // sends the meals back to their warehouse; an empty-handed
+            // consolidation walk just stands down.
             done = true;
             return;
+        }
+        workTicks++;
+        if (bagCount() > 0) {
+            playHaulSounds(); // the food leg carries real weight like any haul
         }
         settler.getLookControl().setLookAt(hearthPos.getX() + 0.5,
             hearthPos.getY() + 0.6, hearthPos.getZ() + 0.5);
         if (settler.blockPosition().distSqr(hearthPos) <= HEARTH_REACH_SQR) {
             settler.getNavigation().stop();
-            mode = Mode.LOADING;
+            if (job == JobPriority.FOOD_DELIVERY) {
+                // Laden arrival: the crate comes DOWN here, mirroring
+                // tickToWarehouse -- the thud is scheduled so it lands with
+                // the clip's contact, not before it.
+                settler.triggerCourierSetDown();
+                setDownThudIn = SET_DOWN_TICK;
+                mode = Mode.STOCKING;
+            } else {
+                mode = Mode.LOADING;
+            }
             workTicks = 0;
             settler.setActivity(SettlerActivity.SORTING);
         } else if (--repathTimer <= 0) {
@@ -882,6 +1000,8 @@ public class CourierWorkGoal extends Goal {
         }
         if (job == JobPriority.OUTPUT_COLLECTION) {
             withdrawCollectedSurplus(level, container);
+        } else if (job == JobPriority.FOOD_DELIVERY) {
+            withdrawFoodForHearth(container);
         } else {
             int capacity = settler.getCarryCapacity();
             for (int slot = 0; slot < container.getContainerSize() && bagCount() < capacity; slot++) {
@@ -918,12 +1038,19 @@ public class CourierWorkGoal extends Goal {
             releaseReservation();
             return;
         }
-        boolean toWarehouse = job == JobPriority.OUTPUT_COLLECTION;
-        mode = toWarehouse ? Mode.TO_WAREHOUSE : Mode.TO_CRAFTER;
         workTicks = 0;
         stuckChecks = 0;
         settler.setActivity(SettlerActivity.CARRYING);
-        pathToChest(toWarehouse ? dropOff : craftDropOff);
+        if (job == JobPriority.OUTPUT_COLLECTION) {
+            mode = Mode.TO_WAREHOUSE;
+            pathToChest(dropOff);
+        } else if (job == JobPriority.FOOD_DELIVERY) {
+            mode = Mode.TO_HEARTH;
+            pathAbove(settler.getHearthPos());
+        } else {
+            mode = Mode.TO_CRAFTER;
+            pathToChest(craftDropOff);
+        }
     }
 
     /**
@@ -942,7 +1069,7 @@ public class CourierWorkGoal extends Goal {
             return; // building dissolved: take nothing; the empty-bag path stands down
         }
         int total = countItemIn(liveContainers(level, source), reservedItem);
-        int surplus = total - keepBackFor(source.type);
+        int surplus = total - keepBackFor(source.type, reservedItem);
         int want = Math.min(surplus, settler.getCarryCapacity() - bagCount());
         for (int slot = 0; slot < container.getContainerSize() && want > 0; slot++) {
             ItemStack stack = container.getItem(slot);
@@ -952,6 +1079,48 @@ public class CourierWorkGoal extends Goal {
             int take = Math.min(stack.getCount(), want);
             // Destination-first (D-A2a-3), exactly like the restock loop:
             // out of the real chest, into the bag, remainder straight back.
+            ItemStack removed = container.removeItem(slot, take);
+            if (removed.isEmpty()) {
+                continue;
+            }
+            int got = removed.getCount();
+            ItemStack leftover = settler.bag.addItem(removed);
+            giveBackToChest(container, slot, leftover);
+            want -= got - leftover.getCount();
+            playAt(ModSounds.ITEM_PICKUP.get(), 0.5F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
+    }
+
+    /**
+     * FOOD_DELIVERY's half of the withdrawal: lifts the reserved edible
+     * item out of the warehouse chest, but only up to the larder's live
+     * deficit -- {@link #hearthFoodThreshold} minus what the hearth holds
+     * RIGHT NOW, re-read this tick exactly the way
+     * {@link #withdrawCollectedSurplus} re-reads its surplus, because the
+     * stock the job was claimed on is however many ticks old. Capping at
+     * the deficit rather than a full bag means the route never drains a
+     * warehouse of food the village does not yet need -- a warehouse
+     * potato is also the kitchen's raw material, and the restock route
+     * should not find its cargo pre-emptively carried off to the hearth.
+     */
+    private void withdrawFoodForHearth(Container container) {
+        HearthBlockEntity hearth = settler.hearth();
+        Settlement s = settler.settlement();
+        if (hearth == null || s == null) {
+            return; // razed while walking: take nothing; the empty-bag path stands down
+        }
+        int deficit = hearthFoodThreshold(s.population()) - hearth.countFoodUnits();
+        int want = Math.min(deficit, settler.getCarryCapacity() - bagCount());
+        for (int slot = 0; slot < container.getContainerSize() && want > 0; slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty() || !stack.is(reservedItem)) {
+                continue;
+            }
+            int take = Math.min(stack.getCount(), want);
+            // Destination-first (D-A2a-3), exactly like the other two
+            // withdrawal loops: out of the real chest, into the bag,
+            // remainder straight back to the very slot it came from.
             ItemStack removed = container.removeItem(slot, take);
             if (removed.isEmpty()) {
                 continue;
@@ -1063,6 +1232,47 @@ public class CourierWorkGoal extends Goal {
         }
         // Delivered: a later courier's scan sees the crafter's real, now
         // lower need, so holding the lease any further protects nothing.
+        releaseReservation();
+        done = true;
+    }
+
+    /**
+     * FOOD_DELIVERY's set-down: one stack per cycle out of the bag into the
+     * hearth's communal larder, through the same
+     * {@code HearthBlockEntity#insertGoods} every other hearth deposit uses
+     * (the true leftover comes back, so nothing is dropped or voided). A
+     * leftover means the hearth is genuinely full -- the rest returns to
+     * the warehouse it came from, exactly like a full crafter chest on the
+     * restock route.
+     */
+    private void tickStocking() {
+        workTicks++;
+        if (workTicks % SORT_PERIOD != SORT_MOVE_TICK) {
+            return;
+        }
+        HearthBlockEntity hearth = settler.hearth();
+        if (hearth == null) {
+            beginReturn(); // razed mid-delivery: the meals go back to the warehouse
+            return;
+        }
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack leftover = hearth.insertGoods(stack.copy());
+            playAt(ModSounds.CHEST_STOW.get(), 0.65F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+            settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
+            settler.bag.setItem(i, leftover);
+            if (!leftover.isEmpty()) {
+                beginReturn(); // hearth full: the rest goes back, never the floor
+            }
+            return; // one stack per cycle -- the animation beat
+        }
+        consecutiveFailures = 0; // the route works; forget the bad streak
+        // Delivered: EatFromHearthGoal and Settlement.foodCache read the
+        // hearth directly, so the village can eat the moment this lands.
         releaseReservation();
         done = true;
     }
@@ -1182,10 +1392,14 @@ public class CourierWorkGoal extends Goal {
     }
 
     /** Whether an undeliverable load goes back to {@link #sourcePos} rather
-     *  than the hearth: both chest-sourced routes return to their source. */
+     *  than the hearth: every chest-sourced route returns to its source --
+     *  a food load included, since its destination IS the hearth, so "back
+     *  to the hearth" would be pressing on toward the very place that just
+     *  proved full, unreachable or gone. */
     private boolean returnsToSource() {
         return job == JobPriority.CRAFTER_RESTOCK
-            || job == JobPriority.OUTPUT_COLLECTION;
+            || job == JobPriority.OUTPUT_COLLECTION
+            || job == JobPriority.FOOD_DELIVERY;
     }
 
     /**
@@ -1249,7 +1463,9 @@ public class CourierWorkGoal extends Goal {
     /**
      * The first crafter building genuinely short of a raw material one of
      * the settlement's warehouses is holding, with nobody else already
-     * fetching it for that crafter.
+     * fetching it for that crafter -- or, on the same tier, the first
+     * burning building ({@code Fuel#burns}) short of fuel
+     * ({@link #FUEL_RESERVE_BATCHES}).
      *
      * <p>"First", not "best" -- the same tradeoff {@code
      * TidyWarehouseGoal#findMerge} makes and for the same reason: a courier
@@ -1278,45 +1494,183 @@ public class CourierWorkGoal extends Goal {
     private RestockJob findRestockJob(ServerLevel level, Settlement s) {
         long now = level.getGameTime();
         for (Building crafter : s.buildings) {
-            if (!crafter.valid || !Production.produces(crafter.type)) {
+            boolean burns = Fuel.burns(crafter.type);
+            if (!crafter.valid || (!Production.produces(crafter.type) && !burns)) {
                 continue;
             }
             List<Held> mine = liveContainers(level, crafter);
             if (mine.isEmpty()) {
                 continue;
             }
-            for (Production.Recipe recipe : Production.of(crafter.type)) {
-                Ingredient want = recipe.input();
-                if (countMatching(mine, want) >= recipe.inputCount()
-                    || !roomFor(mine, want)) {
-                    continue; // not short, or nowhere to put more even if fetched
+            if (Production.produces(crafter.type)) {
+                for (Production.Recipe recipe : Production.of(crafter.type)) {
+                    Ingredient want = recipe.input();
+                    if (countMatching(mine, want) >= recipe.inputCount()
+                        || !roomFor(mine, want)) {
+                        continue; // not short, or nowhere to put more even if fetched
+                    }
+                    RestockJob claimed = claimRestockFrom(level, s, crafter, mine, want, now);
+                    if (claimed != null) {
+                        return claimed;
+                    }
                 }
-                for (Building warehouse : s.buildings) {
-                    if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
-                        continue;
-                    }
-                    List<Held> theirs = liveContainers(level, warehouse);
-                    Held stock = findStock(theirs, want);
-                    if (stock == null) {
-                        continue;
-                    }
-                    Item item = matchingItem(stock.container(), want);
-                    if (item == null) {
-                        continue;
-                    }
-                    RestockKey key = new RestockKey(crafter.id, item);
-                    if (isReservedByOther(key, now)) {
-                        continue; // another courier already has this job
-                    }
-                    if (!reserve(key, now)) {
-                        continue; // lost a same-tick race to another courier's claim
-                    }
-                    return new RestockJob(crafter, mine.get(0).pos(),
-                        warehouse, stock.pos(), item, key);
+            }
+            // FUEL, same tier: a building that burns ({@code Fuel#burns})
+            // holding fewer than FUEL_RESERVE_BATCHES x Fuel.perBatch(type)
+            // fuel items is as stopped as one out of raw material -- the
+            // raw material is merely checked first to keep the existing
+            // scan order stable, not because it outranks the firebox. The
+            // trip this claims is an ordinary restock in every other way:
+            // same ledger key, same legs, same conservation discipline.
+            if (burns
+                && countMatching(mine, Fuel::isFuel)
+                    < FUEL_RESERVE_BATCHES * Fuel.perBatch(crafter.type)
+                && roomFor(mine, Fuel::isFuel)) {
+                RestockJob claimed = claimRestockFrom(level, s, crafter, mine,
+                    Fuel::isFuel, now);
+                if (claimed != null) {
+                    return claimed;
                 }
             }
         }
         return null;
+    }
+
+    /**
+     * The warehouse half of a restock claim, shared by the raw-material and
+     * fuel checks above: the first warehouse holding a stack {@code want}
+     * accepts, reserved before it is returned -- by the exact item found,
+     * in the same synchronous call, per the reservation reasoning on
+     * {@link #findRestockJob}.
+     */
+    private RestockJob claimRestockFrom(ServerLevel level, Settlement s, Building crafter,
+                                        List<Held> mine, Predicate<ItemStack> want,
+                                        long now) {
+        for (Building warehouse : s.buildings) {
+            if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
+                continue;
+            }
+            List<Held> theirs = liveContainers(level, warehouse);
+            Held stock = findStock(theirs, want);
+            if (stock == null) {
+                continue;
+            }
+            Item item = matchingItem(stock.container(), want);
+            if (item == null) {
+                continue;
+            }
+            RestockKey key = new RestockKey(crafter.id, item);
+            if (isReservedByOther(key, now)) {
+                continue; // another courier already has this job
+            }
+            if (!reserve(key, now)) {
+                continue; // lost a same-tick race to another courier's claim
+            }
+            return new RestockJob(crafter, mine.get(0).pos(),
+                warehouse, stock.pos(), item, key);
+        }
+        return null;
+    }
+
+    // --------------------------------------------------------- food scan ---
+
+    /**
+     * FOOD_DELIVERY (FLOWS.md route 5): when the hearth's larder is LOW --
+     * fewer edible items than {@link #hearthFoodThreshold} for the living
+     * population -- the first warehouse holding anything edible supplies a
+     * hearth-bound top-up trip. The larder is measured with the hearth's
+     * own {@code countFoodUnits()}, the exact number
+     * {@code EatFromHearthGoal} decides against and
+     * {@code Settlement.foodCache} republishes, so the courier and the
+     * eaters can never disagree about what "low" means.
+     *
+     * <p>"First", not "best", reserved-before-returned in the same
+     * synchronous call, and bounded exactly like the other two scans: the
+     * same settlement building-list walk, the same
+     * {@link WarehouseIndex#MAX_CONTAINERS} cap on every chest read, and
+     * only ever tried in the same {@link #RESTOCK_LOOK_INTERVAL} slot,
+     * after restock found nothing. The ledger key borrows the settlement's
+     * own id for its building half -- the hearth is not a {@link Building},
+     * and one settlement has one hearth, so (settlement, item) locks a food
+     * item's hearth run exactly the way (building, item) locks every other
+     * route. Two couriers can still claim DIFFERENT edible items for the
+     * same low larder; both deliver, and the worst case is a larder a few
+     * meals above the threshold -- a harmless surplus, the same accepted
+     * shape as a double restock after a lapsed lease.
+     */
+    private FoodJob findFoodJob(ServerLevel level, Settlement s) {
+        HearthBlockEntity hearth = settler.hearth();
+        if (hearth == null) {
+            return null;
+        }
+        if (hearth.countFoodUnits() >= hearthFoodThreshold(s.population())) {
+            return null; // the larder is stocked; nothing to do
+        }
+        long now = level.getGameTime();
+        for (Building warehouse : s.buildings) {
+            if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
+                continue;
+            }
+            List<Held> theirs = liveContainers(level, warehouse);
+            Held stock = findStock(theirs, CourierWorkGoal::isEdible);
+            if (stock == null) {
+                continue;
+            }
+            Item item = matchingItem(stock.container(), CourierWorkGoal::isEdible);
+            if (item == null) {
+                continue;
+            }
+            if (!hearthHasRoomFor(hearth, item)) {
+                // A hearth crammed full of goods awaiting their first haul:
+                // a load lifted now would only bounce straight back to the
+                // warehouse -- the ping-pong shape RETRY_COOLDOWN exists to
+                // prevent. Consolidation is the route that makes this room.
+                return null;
+            }
+            RestockKey key = new RestockKey(s.id, item);
+            if (isReservedByOther(key, now)) {
+                continue; // another courier is already feeding the hearth this
+            }
+            if (!reserve(key, now)) {
+                continue; // lost a same-tick race to another courier's claim
+            }
+            return new FoodJob(warehouse, stock.pos(), item, key);
+        }
+        return null;
+    }
+
+    /**
+     * What counts as a meal: the SAME check the hearth larder itself
+     * applies. {@code HearthBlockEntity#countFoodUnits()} and
+     * {@code HearthBlockEntity#extractBestFood()} -- the pair
+     * {@code EatFromHearthGoal} eats through -- both test
+     * {@code stack.getFoodProperties(null) != null}, inline in their own
+     * loops rather than as a callable predicate, so it is duplicated here
+     * with {@link HearthBlockEntity} as the source of truth: if the
+     * larder's idea of "edible" ever changes, change this with it.
+     * (Deliberately NOT {@code has(DataComponents.FOOD)}, which
+     * {@link #isHaulable} uses for its coarser keep-food-home purpose:
+     * {@code getFoodProperties} also honours NeoForge's item-extension
+     * overrides, and what matters here is delivering exactly what the
+     * eater can actually eat.)
+     */
+    private static boolean isEdible(ItemStack stack) {
+        return !stack.isEmpty() && stack.getFoodProperties(null) != null;
+    }
+
+    /** Whether the hearth could accept at least one more of this item --
+     *  an empty slot, or a part-stack of the same item. The claim-time
+     *  twin of {@link #roomFor}, against the hearth's item handler. */
+    private static boolean hearthHasRoomFor(HearthBlockEntity hearth, Item item) {
+        var inv = hearth.getInventory();
+        for (int slot = 0; slot < inv.getSlots(); slot++) {
+            ItemStack held = inv.getStackInSlot(slot);
+            if (held.isEmpty()
+                || (held.is(item) && held.getCount() < held.getMaxStackSize())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // --------------------------------------------------- collection scan ---
@@ -1417,18 +1771,31 @@ public class CourierWorkGoal extends Goal {
             return null;
         }
         for (Production.Recipe recipe : Production.of(type)) {
-            if (countItemIn(containers, recipe.output()) > keepBackFor(type)) {
+            if (countItemIn(containers, recipe.output()) > keepBackFor(type, recipe.output())) {
                 return recipe.output();
             }
         }
         return null;
     }
 
-    /** COLLECTION keep-back per building kind: a mine's chests are pure
-     *  yield; a workshop keeps a working buffer of its own product (see
-     *  {@link #OUTPUT_KEEP_BACK} for why). */
-    private static int keepBackFor(BuildingType type) {
-        return type == BuildingType.MINE ? 0 : OUTPUT_KEEP_BACK;
+    /** COLLECTION keep-back per building kind and item: a mine's chests are
+     *  pure yield; a workshop keeps a working buffer of its own product
+     *  (see {@link #OUTPUT_KEEP_BACK} for why) -- and a BURNING building
+     *  keeps at least its whole fuel reserve of any output that doubles as
+     *  fuel (the smelter chars logs into charcoal, and charcoal feeds its
+     *  own firebox). Without that floor the collection route and the fuel
+     *  restock would carousel the same stacks: one hauling firewood in to
+     *  reach {@link #FUEL_RESERVE_BATCHES} x perBatch, the other hauling
+     *  the "surplus" above {@link #OUTPUT_KEEP_BACK} straight back out. */
+    private static int keepBackFor(BuildingType type, Item item) {
+        if (type == BuildingType.MINE) {
+            return 0;
+        }
+        int keep = OUTPUT_KEEP_BACK;
+        if (Fuel.burns(type) && Fuel.isFuel(new ItemStack(item))) {
+            keep = Math.max(keep, FUEL_RESERVE_BATCHES * Fuel.perBatch(type));
+        }
+        return keep;
     }
 
     /** Like {@link #countMatching}, by exact item rather than ingredient. */
@@ -1457,6 +1824,12 @@ public class CourierWorkGoal extends Goal {
                                  BlockPos dropChest, Item item, RestockKey key) {
     }
 
+    /** FOOD_DELIVERY: no destination chest field -- the destination is
+     *  always the settlement's own hearth, read live at delivery time. */
+    private record FoodJob(Building warehouse, BlockPos sourceChest, Item item,
+                           RestockKey key) {
+    }
+
     private static List<Held> liveContainers(ServerLevel level, Building building) {
         List<Held> found = new ArrayList<>();
         for (BlockPos pos : WarehouseIndex.containers(level, building)) {
@@ -1467,13 +1840,19 @@ public class CourierWorkGoal extends Goal {
         return found;
     }
 
-    private static int countMatching(List<Held> containers, Ingredient ingredient) {
+    // The matchers below take a bare Predicate rather than an Ingredient:
+    // an Ingredient IS one (it implements Predicate<ItemStack>), so every
+    // recipe call site passes through unchanged, and the fuel and food
+    // checks hand in {@code Fuel::isFuel} / {@link #isEdible} without
+    // inventing a fake Ingredient for something that is not a recipe input.
+
+    private static int countMatching(List<Held> containers, Predicate<ItemStack> want) {
         int total = 0;
         for (Held h : containers) {
             Container c = h.container();
             for (int slot = 0; slot < c.getContainerSize(); slot++) {
                 ItemStack stack = c.getItem(slot);
-                if (!stack.isEmpty() && ingredient.test(stack)) {
+                if (!stack.isEmpty() && want.test(stack)) {
                     total += stack.getCount();
                 }
             }
@@ -1481,7 +1860,7 @@ public class CourierWorkGoal extends Goal {
         return total;
     }
 
-    private static boolean roomFor(List<Held> containers, Ingredient ingredient) {
+    private static boolean roomFor(List<Held> containers, Predicate<ItemStack> want) {
         for (Held h : containers) {
             Container c = h.container();
             for (int slot = 0; slot < c.getContainerSize(); slot++) {
@@ -1489,7 +1868,7 @@ public class CourierWorkGoal extends Goal {
                 if (stack.isEmpty()) {
                     return true;
                 }
-                if (ingredient.test(stack) && stack.getCount() < stack.getMaxStackSize()) {
+                if (want.test(stack) && stack.getCount() < stack.getMaxStackSize()) {
                     return true;
                 }
             }
@@ -1497,12 +1876,12 @@ public class CourierWorkGoal extends Goal {
         return false;
     }
 
-    private static Held findStock(List<Held> containers, Ingredient ingredient) {
+    private static Held findStock(List<Held> containers, Predicate<ItemStack> want) {
         for (Held h : containers) {
             Container c = h.container();
             for (int slot = 0; slot < c.getContainerSize(); slot++) {
                 ItemStack stack = c.getItem(slot);
-                if (!stack.isEmpty() && ingredient.test(stack)) {
+                if (!stack.isEmpty() && want.test(stack)) {
                     return h;
                 }
             }
@@ -1510,10 +1889,10 @@ public class CourierWorkGoal extends Goal {
         return null;
     }
 
-    private static Item matchingItem(Container container, Ingredient ingredient) {
+    private static Item matchingItem(Container container, Predicate<ItemStack> want) {
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot);
-            if (!stack.isEmpty() && ingredient.test(stack)) {
+            if (!stack.isEmpty() && want.test(stack)) {
                 return stack.getItem();
             }
         }
@@ -1524,10 +1903,11 @@ public class CourierWorkGoal extends Goal {
 
     /** Which building, and which exact item, a trip is claimed for. For a
      *  restock the id is the DESTINATION crafter's; for a collection it is
-     *  the SOURCE workshop's. One ledger for both means one building's one
-     *  item is one courier's business at a time -- the two routes cannot
-     *  even transiently drag the same item through the same door in both
-     *  directions. */
+     *  the SOURCE workshop's; for a food delivery it is the SETTLEMENT's
+     *  own id, standing in for the hearth (which is not a Building). One
+     *  ledger for all of them means one place's one item is one courier's
+     *  business at a time -- two routes cannot even transiently drag the
+     *  same item through the same door in both directions. */
     private record RestockKey(UUID crafterId, Item item) {
     }
 
