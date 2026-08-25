@@ -921,3 +921,38 @@ grew 0 → 11 → 16 → 27 oak logs across three checks, chest-true.
 UNDER a roof (a tree farm in a hall, logs in a cave) is invisible to it.
 The lumberjack accepts that trade — natural trees stand under the sky — but
 no underground trade may adopt the column scan without reading this entry.
+
+## KF-019 — hired settlers never arrive at work (activity=TRAVELING)
+
+**Found:** 2026-08-25 22:15Z, first real GameTest suite run of the fleet era
+(clean worktree at committed HEAD: 186 tests, 31 failed). A baseline run at
+the previous commit (160 tests, 25 failed) proves this PREDATES the fleet
+wave — it is not a regression from any of tonight's work.
+
+**Shape:** about twenty tests across unrelated trades fail with the settler
+stuck in `activity=TRAVELING`, never arriving to do the work: weaver,
+sawyer, fletcher, carpenter, tanner, cook, mason, scholar, miner, farmer,
+lumberer, and the courier's full restock route
+(`lastRouteFailure=post:idle@5044`). The Schedule test
+`thedaysendspeoplesomewherereal` — "in working hours a hired settler is
+sent to their own building" — fails too, which points at the posting layer
+rather than at any one trade. Two sleep tests fail in the same family
+("must actually wake once the night is over", "must actually leave the bed
+once energy recovers past dawn"), so a stuck goal is the likely shared
+cause.
+
+**Why it was invisible:** the live harness proved the loop by hand (a
+lumberjack really did fell a tree, a farmer really did harvest and deliver
+on 2026-08-25). Whatever is broken bites in the GameTest arenas, or bites
+intermittently, and no suite had been run against the fleet's own code
+until tonight. That is the honest lesson: hand-verified live play is not
+suite evidence, and the protocol says so.
+
+**Owned by:** ARRIVAL-1 (GoToPostGoal, Schedule, RoadNavigation,
+RestAtNightGoal). Anything found in SettlerEntity is reported, not patched
+— another worker holds that file.
+
+**Not this:** the other 8 failures at HEAD are tonight's NEW tests awaiting
+their goal-registration lines (repair ×2) or blocked behind this same
+arrival bug (fuel ×3, miner drops ×2, farmer seed reserve). Two tests were
+FIXED tonight (`ahiredsmelteractuallysmelts`, `workshopoutputkeepsitskeepback`).
