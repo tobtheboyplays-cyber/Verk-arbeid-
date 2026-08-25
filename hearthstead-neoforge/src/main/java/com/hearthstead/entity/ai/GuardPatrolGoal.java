@@ -60,6 +60,14 @@ public class GuardPatrolGoal extends Goal {
      */
     private void reachedWaypoint() {
         settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
+        // The peacetime drill: rank reads STRENGTH (GuardRank.of), so the
+        // guard's own rounds must train it — without this, only lumberjacks
+        // and miners trained Strength and a career guard could never leave
+        // RECRUIT. Every waypoint is one rep; the arithmetic (SPEARMAN's
+        // threshold 20 in ~3.5-4 in-game days of full-time patrols, with
+        // combat paying 5x per event) lives on GuardRank.TRAIN_DRILL.
+        settler.train(com.hearthstead.entity.Attribute.STRENGTH,
+            com.hearthstead.entity.GuardRank.TRAIN_DRILL);
         settler.spendEffort(1);
         if (settler.level() instanceof net.minecraft.server.level.ServerLevel level) {
             level.playSound(null, settler.blockPosition(),

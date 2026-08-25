@@ -86,6 +86,53 @@ public enum GuardRank {
 
     /** Secondary targets take this share, the way vanilla's sweep does. */
     public static final float CLEAVE_SHARE = 0.6F;
+
+    // ------------------------------------------------------------ training ---
+    //
+    // Rank reads Attribute.STRENGTH, so the guard's OWN trade has to be able
+    // to climb the ladder: before these existed, only lumberjacking and
+    // mining trained Strength and a career guard could never leave RECRUIT.
+
+    /**
+     * STRENGTH per waypoint drilled on patrol ({@code GuardPatrolGoal}).
+     *
+     * <p>The arithmetic, from {@link SettlerAttributes} (RATE 0.05/unit at
+     * value 0, growth ∝ (1 − v/100)²): climbing a fresh guard's ~5 Strength
+     * to {@link #SPEARMAN}'s 20 integrates to ~395 train units. The effort
+     * pool caps a full-time guard at ~20–21 waypoints a day
+     * ({@code Effort.BASE_CAPACITY} 20, +1 per 5 STAMINA, 1 effort per
+     * waypoint), so at 5.0 units a waypoint the first stripe lands after
+     * ~77 waypoints ≈ <b>3.5–4 in-game days</b> of full-time patrolling —
+     * the intended pace. Drilling every waypoint (rather than every Nth)
+     * fell out of that arithmetic: spacing the reps out would force each
+     * rep — and combat's 5× multiple of it — absurdly large.
+     *
+     * <p>On the same curve the later stripes stretch out exactly as this
+     * class's doc promises: {@link #VETERAN} ≈ +8 more days of pure
+     * drilling, {@link #SERGEANT} ≈ +16, {@link #CAPTAIN} ≈ +47 — past the
+     * first stripe, a guard who never fights barely climbs.
+     */
+    public static final float TRAIN_DRILL = 5.0F;
+
+    /**
+     * STRENGTH per blow actually <i>landed</i> — a melee hit that connected
+     * ({@code GuardMeleeGoal}), a leap that came down on someone
+     * ({@code GuardLeapGoal}). Five times {@link #TRAIN_DRILL} per event, on
+     * purpose: at roughly a point per hit for a recruit, one real fight
+     * teaches more than a day on the wall — "a veteran guard is evidence of
+     * nights survived", and the drill only exists so a guard the raids never
+     * reach still gets there, slower.
+     */
+    public static final float TRAIN_COMBAT = 25.0F;
+
+    /**
+     * Flat bonus damage per rank ordinal on a guard's own swing
+     * ({@code GuardMeleeGoal}): {@link #RECRUIT} +0.0 … {@link #CAPTAIN}
+     * +2.0. Experience swings harder — the ATTACK_DAMAGE attribute stays
+     * flat, the goal adds the edge.
+     */
+    public static final float MELEE_EDGE_PER_RANK = 0.5F;
+
     /** How far a sergeant will leap. Short enough to read as a lunge. */
     public static final double LEAP_MIN = 3.5;
     public static final double LEAP_MAX = 9.0;

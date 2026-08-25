@@ -37,8 +37,8 @@ import javax.annotation.Nullable;
  * <p>A garrison that all sleeps at midnight is a garrison that is not a
  * garrison. Guards are split into a day watch and a night watch by
  * {@link Employment#watchOf}, and the off-watch half sleeps through the
- * <i>afternoon</i> instead. So there is always someone walking, and a raid at
- * 2am meets guards who are already awake rather than a village of sleepers.
+ * <i>working day</i> instead. So there is always someone walking, and a raid
+ * at 2am meets guards who are already awake rather than a village of sleepers.
  */
 public final class Schedule {
 
@@ -57,13 +57,20 @@ public final class Schedule {
      * Whether this settler should be asleep now.
      *
      * <p>For everyone but a night-watch guard this is simply the rest phase.
-     * The night watch sleeps through the afternoon so it can stand the dark.
+     * The night watch sleeps through the working day so it can stand the dark.
      */
     public static boolean shouldSleep(Settlement settlement, SettlerEntity settler,
                                       DayPhase phase) {
         if (settler.getProfession() == Profession.GUARD
             && Employment.watchOf(settlement, settler) == Employment.Watch.NIGHT) {
-            return phase == DayPhase.AFTERNOON_WORK || phase == DayPhase.MEAL;
+            // Off duty IS sleep, for the night watch: this set must be the
+            // exact complement of onWatch's night set {REST, EVENING, RISE}.
+            // MORNING_WORK (ticks 1000-5500) used to be in neither -- a
+            // ~4500-tick dead zone in which a night guard was awake with no
+            // duty, standing uselessly at the barracks instead of in bed.
+            return phase == DayPhase.MORNING_WORK
+                || phase == DayPhase.MEAL
+                || phase == DayPhase.AFTERNOON_WORK;
         }
         return phase.rest();
     }
