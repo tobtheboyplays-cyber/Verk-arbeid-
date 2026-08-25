@@ -515,7 +515,13 @@ long-range silhouette cue we have and the farmer uses all of it.
 
 ### 2.2 `FARM_PLANT` — setting seed
 
-- **Trigger:** `FarmerWorkGoal` replant step, and the spring sowing pass.
+- **Trigger:** `FarmerWorkGoal` FIRST planting of a new field only — a
+  40-tick cycle (`FIRST_PLANT_DURATION`) under `WORK_PLANT`, press beat at
+  tick 14. The REPLANT after a harvest does **not** play this clip any
+  more: it runs the owner's broadcast-sowing signature — `WORK_SOW` /
+  `SOW_BROADCAST` on a 28-tick cycle (`REPLANT_DURATION`), release beat at
+  tick 14 *(trued 2026-08-25; the old "replant step and the spring sowing
+  pass" wording predated FarmerWorkGoal's split)*.
 - **Activity:** `WORK_PLANT`.
 - **Length:** 2.00 s, **looping**.
 - **Silhouette:** a deep squat with one hand pressing into the ground and the
@@ -2929,8 +2935,12 @@ clip is the attack rather than a decoration on one.
 D-016 said every trade gets the one motion nobody else does. §18 left five
 trades borrowing a neighbour's: the cook kneaded, the carpenter sawed, the
 mason hammered, the fletcher wove, the tanner cleaved. This section ends the
-borrowing. Sounds still borrow (Employment.soundOf notes it) — that debt keeps
-these five jobs out of the certified list until their own voices land.
+borrowing. **The sound debt is paid too** (2026-08-25): all five now speak
+with their own synthesized voices — `pot_stir`, `plane_shave`, `chisel_tap`,
+`feather_pinch`, `hide_scrape` — registered in `ModSounds`, pooled with
+variants in `sounds.json`, routed by `Employment.soundOf`, and fired at each
+clip's own contact tick via `Employment.soundContactOf` (the F8 contract;
+`anim_check.py` asserts the pairing).
 
 ### 20.1 `COOK_STIR` — the pot *(1.50 s, loop)*
 

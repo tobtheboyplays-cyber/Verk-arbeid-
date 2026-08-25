@@ -12,11 +12,23 @@ import net.minecraft.network.chat.Component;
 
 /**
  * The settler's handbook: the onboarding artifact for everything the mod does
- * today, in eight short chapters — Founding, the Plaque, Jobs, Attributes,
- * the Day, Logistics, the Mayor, and Threat.
+ * today, in fourteen short chapters — Founding, the Plaque, Jobs, Summons,
+ * Recruiting, Attributes, the Day, Dagsverk, Logistics, Research, the Mayor,
+ * the Watch, Threat, and the Saga.
  *
  * <p>Every chapter is one to two pages, and every page is lang-driven text,
  * so translators can keep pace with design changes without a rebuild.
+ *
+ * <h2>Six chapters added for the fleet era</h2>
+ *
+ * <p>The book shipped with eight chapters written for the vertical slice and
+ * never grew past them while Research, Recruiting, Dagsverk, guard ranks,
+ * Summons and the Saga all landed underneath it — a player could not
+ * discover half the mod from the book that claims to teach it. Summons,
+ * Recruiting, Dagsverk, Research, the Watch and the Saga close that gap,
+ * each written at the same length and in the same in-world voice as the
+ * original eight (see the lang file for body text — this class only owns
+ * structure).
  *
  * <h2>Three ways to move, and none of them are decoration (D-014)</h2>
  *
@@ -41,7 +53,14 @@ import net.minecraft.network.chat.Component;
  * <p>Drawn with the same nine-slice kit the plaque screen uses (see the
  * {@code minecraft-ui} skill) rather than the single fixed-size book texture
  * the old screen blitted — a layout that can gain a ninth chapter without a
- * new piece of art.
+ * new piece of art. That promise is now proven at fourteen: the chapter
+ * index is a {@link #SIDEBAR_ROWS}-row window with the exact scrollbar
+ * {@link ResearchScreen} already uses for its own longer-than-its-box list
+ * (row-indexed, no scissor needed), rather than a panel that keeps growing
+ * taller every time a system ships — which would eventually run past what
+ * GUI Scale 4 on a 1080p display has room for. The active chapter always
+ * scrolls itself into view, so prev/next across a chapter boundary never
+ * leaves the index pointing at nothing on screen.
  */
 public class HandbookScreen extends Screen {
 
@@ -58,11 +77,17 @@ public class HandbookScreen extends Screen {
         new Chapter("founding", 1),
         new Chapter("plaque", 2),
         new Chapter("jobs", 1),
+        new Chapter("summons", 1),
+        new Chapter("recruiting", 1),
         new Chapter("attributes", 2),
         new Chapter("day", 1),
+        new Chapter("dagsverk", 2),
         new Chapter("logistics", 1),
+        new Chapter("research", 2),
         new Chapter("mayor", 1),
+        new Chapter("watch", 2),
         new Chapter("threat", 2),
+        new Chapter("saga", 1),
     };
 
     // Flattened once at class-load: which chapter and which page-within-it a
@@ -115,6 +140,18 @@ public class HandbookScreen extends Screen {
     private static final int SIDEBAR_Y0 = 30;
     private static final int SIDEBAR_ROW_H = 14;
     private static final int SIDEBAR_STEP = 16;
+    // The chapter index is a window, not the whole list: eight rows was the
+    // book's original chapter count and the vertical budget (SIDEBAR_Y0 to
+    // DIVIDER3_Y, unchanged below) was already proven to fit exactly that
+    // many with room to spare. Growing PANEL_H instead to fit all fourteen
+    // chapters in one column would have pushed this screen past what GUI
+    // Scale 4 leaves available on a 1080p display (the panel already sits
+    // within a few pixels of that ceiling at PANEL_H=264) — so the list
+    // scrolls in the same SCROLL_W gap between the tabs and the content
+    // column that was always reserved as GAP, exactly the way
+    // {@code ResearchScreen} scrolls its own longer-than-its-box project
+    // list: a fixed row window plus HsUi.scrollbar, no scissor required.
+    private static final int SIDEBAR_ROWS = 8;
     private static final int CONTENT_TITLE_Y = 30;
     private static final int CONTENT_DIVIDER_Y = 42;
     private static final int BODY_Y = 48;
@@ -136,6 +173,9 @@ public class HandbookScreen extends Screen {
     private int page;
     private int left;
     private int top;
+    /** Index of the first chapter shown in the sidebar's {@link #SIDEBAR_ROWS}
+     *  window. Clamped, and kept pointed at the current chapter, in {@link #rebuild()}. */
+    private int chapterScroll;
 
     public HandbookScreen() {
         super(Component.translatable("hearthstead.guide.title"));
@@ -153,10 +193,26 @@ public class HandbookScreen extends Screen {
         clearWidgets();
 
         int currentChapter = CHAPTER_OF_PAGE[page];
-        for (int c = 0; c < CHAPTERS.length; c++) {
+
+        // Keep the scroll window valid, then keep it pointed at wherever the
+        // player actually is: prev/next stepping across a chapter boundary
+        // (or a direct jump from the page list) must never leave the active
+        // chapter's own tab scrolled out of the visible window.
+        chapterScroll = Math.max(0, Math.min(chapterScroll, Math.max(0, CHAPTERS.length - SIDEBAR_ROWS)));
+        if (currentChapter < chapterScroll) {
+            chapterScroll = currentChapter;
+        } else if (currentChapter >= chapterScroll + SIDEBAR_ROWS) {
+            chapterScroll = currentChapter - SIDEBAR_ROWS + 1;
+        }
+
+        for (int row = 0; row < SIDEBAR_ROWS; row++) {
+            int c = row + chapterScroll;
+            if (c >= CHAPTERS.length) {
+                break;
+            }
             int target = CHAPTER_FIRST_PAGE[c];
             addRenderableWidget(new NavButton(
-                left + PAD, top + SIDEBAR_Y0 + c * SIDEBAR_STEP, SIDE_W, SIDEBAR_ROW_H,
+                left + PAD, top + SIDEBAR_Y0 + row * SIDEBAR_STEP, SIDE_W, SIDEBAR_ROW_H,
                 chapterTitle(c), c == currentChapter, () -> turnTo(target)));
         }
 
@@ -199,6 +255,24 @@ public class HandbookScreen extends Screen {
         rebuild();
     }
 
+    /** Scrolls the chapter index — the same pattern {@code ResearchScreen}
+     *  uses for its own project list, a row-count delta rather than a pixel
+     *  one. Only active once there is something to hide (D-014: a scrollbar
+     *  that cannot move is just a decoration). */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
+        if (CHAPTERS.length > SIDEBAR_ROWS) {
+            int before = chapterScroll;
+            chapterScroll = Math.max(0, Math.min(CHAPTERS.length - SIDEBAR_ROWS,
+                chapterScroll - (int) Math.signum(dy)));
+            if (before != chapterScroll) {
+                rebuild();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, dx, dy);
+    }
+
     private static Component chapterTitle(int chapterIndex) {
         return Component.translatable("hearthstead.guide." + CHAPTERS[chapterIndex].id() + ".title");
     }
@@ -219,6 +293,14 @@ public class HandbookScreen extends Screen {
         HsUi.centred(graphics, font, Component.translatable("hearthstead.guide.title"),
             left + PANEL_W / 2, top + TITLE_Y, HsUiTokens.TEXT_STRONG);
         HsUi.divider(graphics, left + PAD, top + DIVIDER1_Y, PANEL_W - 2 * PAD);
+        // Sits exactly in GAP, the gutter that always separated the tab
+        // column from the content column — a functional reuse of space that
+        // was blank before, not a squeeze on either column (see SIDEBAR_ROWS).
+        HsUi.scrollbar(graphics, left + PAD + SIDE_W, top + SIDEBAR_Y0, SIDEBAR_ROWS * SIDEBAR_STEP - 2,
+            Math.min(1.0F, (float) SIDEBAR_ROWS / CHAPTERS.length),
+            CHAPTERS.length <= SIDEBAR_ROWS ? 0.0F
+                : (float) chapterScroll / (CHAPTERS.length - SIDEBAR_ROWS),
+            false);
 
         int chapterIndex = CHAPTER_OF_PAGE[page];
         Chapter chapter = CHAPTERS[chapterIndex];
