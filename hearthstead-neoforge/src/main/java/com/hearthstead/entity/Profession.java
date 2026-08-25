@@ -47,7 +47,14 @@ public enum Profession {
     // table, it only needed somebody hireable to send there (D-014: a
     // recipe nobody can be hired to run is worse than no recipe at all).
     MILLER(19, "miller", () -> ItemStack.EMPTY, 0xD8CBA8),
-    BREWER(20, "brewer", () -> ItemStack.EMPTY, 0x9C6B2F);
+    BREWER(20, "brewer", () -> ItemStack.EMPTY, 0x9C6B2F),
+    // Owner's ask, 2026-08-25: an archer with abilities over time (ArcherRank
+    // -- Power Shot, Triple Shot). The bow stays in hand like the guard's
+    // sword: it is the trade's tool and what reads at distance, and the
+    // renderer's ItemInHandLayer draws it for free. Forest green, distinct
+    // from the guard's iron grey and the farmer/fletcher sage: the tower
+    // archer is a woodland silhouette, not a wall one.
+    ARCHER(21, "archer", () -> new ItemStack(Items.BOW), 0x2E5D34);
 
     public static final Profession[] BY_ID = values();
 

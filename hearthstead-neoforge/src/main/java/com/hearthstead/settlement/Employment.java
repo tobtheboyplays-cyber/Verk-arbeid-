@@ -97,7 +97,14 @@ public final class Employment {
         TRADES.put(BuildingType.LUMBER_CAMP, Profession.LUMBERER);
         TRADES.put(BuildingType.WAREHOUSE, Profession.COURIER);
         TRADES.put(BuildingType.BARRACKS, Profession.GUARD);
-        TRADES.put(BuildingType.WATCHTOWER, Profession.GUARD);
+        // ARCHER slice, 2026-08-25: the tower is the RANGED post. Both
+        // martial buildings hiring GUARD made them near-duplicates (guard
+        // audit) -- now the barracks raises the melee line and the
+        // watchtower raises archers, and FLOWS' "fletcher ->
+        // barracks/watchtower" edge finally has its consumer: the archer's
+        // quiver restocks, chest-true, from this building's own containers
+        // (ArcherAttackGoal).
+        TRADES.put(BuildingType.WATCHTOWER, Profession.ARCHER);
 
         // CHAINS-1: every building whose work exists in Production.
         TRADES.put(BuildingType.BAKERY, Profession.BAKER);
@@ -176,6 +183,14 @@ public final class Employment {
             // work, exactly like SCHOLAR and INNKEEPER above.
             case MILLER -> SettlerActivity.WORK_KNEAD;
             case BREWER -> SettlerActivity.WORK_STOKE;
+            // ARCHER slice: the archer's trade motion is the watch itself --
+            // PATROLLING keys GUARD_STANCE when standing (the held aim pose
+            // of a drawn shot) and the patrol walk when moving, exactly the
+            // states the guard trade already animates. Bespoke ARCHER_AIM /
+            // ARCHER_SHOOT clips are the polish worker's next cycle, the
+            // same footnote as INNKEEPER and SCHOLAR above -- never a
+            // generic work loop, which is what this map exists to forbid.
+            case ARCHER -> SettlerActivity.PATROLLING;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -343,6 +358,11 @@ public final class Employment {
             // default, because a reader should never have to wonder whether
             // a brand-new trade's attribute was a deliberate choice.
             case SCHOLAR -> Attribute.WITS;
+            // ARCHER slice: named explicitly for the same reason. A shot is
+            // hands, not force -- and ArcherRank reads DEXTERITY, so the
+            // trade's own work must be what climbs its ladder (the exact
+            // lesson GuardRank's training constants document for STRENGTH).
+            case ARCHER -> Attribute.DEXTERITY;
             default -> Attribute.WITS;
         };
     }
@@ -527,7 +547,9 @@ public final class Employment {
         return switch (tradeOf(type)) {
             case LUMBERER, GUARD -> Attribute.STRENGTH;
             case COURIER -> Attribute.STAMINA;
-            case FARMER -> Attribute.DEXTERITY;
+            // The hire screen's decision, made visible: the strongest settler
+            // is the obvious barracks guard and the wrong tower archer.
+            case FARMER, ARCHER -> Attribute.DEXTERITY;
             default -> Attribute.WITS;
         };
     }
@@ -590,6 +612,11 @@ public final class Employment {
      * list decides it, which splits any garrison exactly in half and survives
      * a reload because the list does. A guard with no barracks falls back to
      * the parity of their UUID — still deterministic, still about half.
+     *
+     * <p>Deliberately trade-agnostic: it reads the employer's worker list,
+     * whatever the building is, so a two-archer WATCHTOWER splits into a day
+     * and a night archer by exactly the same rule as a barracks garrison —
+     * the two martial posts keep one watch clock between them.
      */
     public static Watch watchOf(Settlement settlement, SettlerEntity settler) {
         Building employer = employerOf(settlement, settler.getUUID());
