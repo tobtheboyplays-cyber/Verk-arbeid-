@@ -86,6 +86,29 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     /** How many times a real room scan has been attempted — test telemetry for W3. */
     private int scanAttempts;
+
+    /**
+     * How many CONSECUTIVE failed surveys a standing building forgives
+     * before it actually dissolves.
+     *
+     * <p>Found live (20260825T183505Z, "Eira took up work at the Bakery"):
+     * placing bakery blocks nudged a re-survey of the neighbouring
+     * warehouse mid-edit; one transiently failed scan unlinked it, fired
+     * its courier and wiped the worker roster — and the very next hire
+     * command legally re-hired her elsewhere. One bad reading must never
+     * fire the staff: a player patching a wall, a raid knocking one block
+     * out, or a half-finished renovation all read as "temporarily broken",
+     * not "gone". At the ~10s survey cadence three failures is about half a
+     * minute of sustained brokenness — long enough to be real, short enough
+     * that a raid hole left open genuinely costs the building.
+     *
+     * <p>Deliberate acts stay immediate: breaking the plaque or pulling its
+     * plan calls {@link #dissolveBuilding} directly, no grace.
+     */
+    private static final int GRACE_SURVEYS = 3;
+
+    /** Consecutive failed surveys while linked; reset by any healthy one. */
+    private int failedSurveys;
     /** How many times this plaque's screen has been opened — test telemetry for W4. */
     private int screenOpens;
 
@@ -233,8 +256,10 @@ public class PlaqueBlockEntity extends BlockEntity {
 
         if (result == null || !result.enclosed() || result.skyLeak()
             || result.volume() > RoomScanner.MAX_HOME_VOLUME) {
-            lastSurvey = List.of();
-            unlink(level, PlaqueState.PLAN_INSERTED_UNLINKED);
+            if (!graceHolds(level, PlaqueState.PLAN_INSERTED_UNLINKED)) {
+                lastSurvey = List.of();
+                unlink(level, PlaqueState.PLAN_INSERTED_UNLINKED);
+            }
         } else {
             List<Requirement.Status> statuses = new ArrayList<>();
             boolean allMet = true;
@@ -245,8 +270,9 @@ public class PlaqueBlockEntity extends BlockEntity {
             }
             lastSurvey = List.copyOf(statuses);
             if (allMet) {
+                failedSurveys = 0;
                 link(level, result);
-            } else {
+            } else if (!graceHolds(level, PlaqueState.LINKED_INCOMPLETE)) {
                 unlink(level, PlaqueState.LINKED_INCOMPLETE);
             }
         }
@@ -364,6 +390,31 @@ public class PlaqueBlockEntity extends BlockEntity {
     }
 
     /** Drops the link without destroying the building's memory of its people. */
+    /**
+     * A standing building rides out {@value #GRACE_SURVEYS} bad readings.
+     *
+     * <p>Returns true while the grace window shields a currently valid
+     * building: the sheet and glow drop to the given state so the player can
+     * SEE something is wrong, but the building object, its workers and its
+     * bed claims all stay — see {@link #GRACE_SURVEYS} for the live failure
+     * this prevents. A plaque with no valid building has nothing to shield.
+     */
+    private boolean graceHolds(ServerLevel level, PlaqueState shownState) {
+        Building building = building(level);
+        if (building == null || !building.valid) {
+            failedSurveys = 0;
+            return false;
+        }
+        failedSurveys++;
+        if (failedSurveys > GRACE_SURVEYS) {
+            failedSurveys = 0;
+            return false;
+        }
+        state = shownState == PlaqueState.PLAN_INSERTED_UNLINKED
+            ? PlaqueState.LINKED_INCOMPLETE : shownState;
+        return true;
+    }
+
     private void unlink(ServerLevel level, PlaqueState newState) {
         Building building = building(level);
         if (building != null && building.valid) {
@@ -486,6 +537,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         tag.putString("Type", type.id());
         tag.putString("State", state.id());
         tag.putInt("Revision", revision);
+        tag.putInt("FailedSurveys", failedSurveys);
         if (buildingId != null) {
             tag.putUUID("Building", buildingId);
         }
@@ -501,6 +553,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
         state = PlaqueState.byId(tag.getString("State"), buildingId != null);
         revision = tag.getInt("Revision");
+        failedSurveys = tag.getInt("FailedSurveys");
         if (tag.contains(SURVEY_KEY)) {
             List<Requirement.Status> restored = new ArrayList<>();
             ListTag list = tag.getList(SURVEY_KEY, Tag.TAG_COMPOUND);

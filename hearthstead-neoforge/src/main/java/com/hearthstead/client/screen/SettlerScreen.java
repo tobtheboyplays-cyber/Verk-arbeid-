@@ -50,7 +50,12 @@ public class SettlerScreen extends Screen {
     // -- geometry: vanilla metrics (20px buttons, 4px grid), see the
     //    minecraft-ui skill. Text boxes are generous and rely on
     //    HsUi.labelIn's ellipsis as the safety net for long translations. --
-    private static final int PANEL_W = 224;
+    // 224 clipped the mayor badge's "settling in" sentence -- "Ordfører —
+    // Nøysomt arbeid (setter seg inn)" measured 224px against its 200px box
+    // (CONTENT_W - 8), 24px over. 256 carries that box to 232px, clearing it
+    // (and the English worst case, 175px) with margin; every other box on
+    // this panel derives from PANEL_W/CONTENT_W and only gains room.
+    private static final int PANEL_W = 256;
     private static final int PAD = HsUiTokens.PAD;
     private static final int GUTTER = HsUiTokens.GUTTER;
     private static final int CONTENT_W = PANEL_W - 2 * PAD;
@@ -63,7 +68,11 @@ public class SettlerScreen extends Screen {
     private static final int HEADER_TEXT_X = PAD + PORTRAIT_W + 8;
     private static final int HEADER_TEXT_W = PANEL_W - HEADER_TEXT_X - PAD;
 
-    private static final int ATTR_LABEL_W = 128;
+    // Measured against the widest attribute name plus the knack suffix in
+    // both languages ("Utholdenhet (naturlig lag)", 129px) -- 128 clipped it
+    // by a single pixel. 140 leaves a few px of margin and still sits clear
+    // of the pips column that starts at ATTR_LABEL_W + 4.
+    private static final int ATTR_LABEL_W = 140;
     private static final int NEED_LABEL_W = 44;
     private static final int NEED_PCT_W = 26;
     private static final int NEED_BAR_H = 6;
@@ -318,12 +327,23 @@ public class SettlerScreen extends Screen {
         HsUi.labelIn(g, font, line, x, y, CONTENT_W, HsUiTokens.TEXT);
     }
 
+    /**
+     * Word-wrapped rather than {@link HsUi#labelIn} — a refusal reason is a
+     * full sentence a player needs to actually read (why did nothing happen
+     * when I clicked?), and the longest ones measured up to 57px over a
+     * single-line box in English, 35px over in Norwegian. Truncating a
+     * reason with an ellipsis can read as a different, shorter explanation,
+     * which is exactly the kind of misleading cut {@code labelIn} exists to
+     * avoid causing — so this row wraps instead. Two lines covers every
+     * refusal string in both languages with room to spare (see
+     * {@link #layout}, which reserves the space unconditionally).
+     */
     private void drawRefusal(GuiGraphics g, int x, int y) {
         if (snapshot == null) {
             return;
         }
         snapshot.refusal().ifPresent(refusal ->
-            HsUi.labelIn(g, font, refusal, x, y, CONTENT_W, HsUiTokens.WARN));
+            g.drawWordWrap(font, refusal, x, y, CONTENT_W, HsUiTokens.WARN));
     }
 
     // -------------------------------------------------------------- helpers --
@@ -402,7 +422,10 @@ public class SettlerScreen extends Screen {
         l.employmentTop = y;
         y += ROW + GUTTER;
         l.refusalTop = y;
-        y += ROW + GUTTER;
+        // Two rows: the longest refusal sentences wrap to two lines (see
+        // drawRefusal). Reserved unconditionally, same fixed-shape discipline
+        // as the mayor badge above.
+        y += ROW * 2 + GUTTER;
 
         l.dividerD = y;
         y += HsUiTokens.DIVIDER_H + GUTTER;

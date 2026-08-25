@@ -89,6 +89,10 @@ public final class StorageNetwork {
     }
 
     private static void send(ServerPlayer player, StorageIndexPayload payload) {
+        // "top" is already the settlement's real chest totals sorted and
+        // capped server-side (see StorageIndexPayload) -- the client never
+        // computes or caches a total of its own, so what the screen shows
+        // can never disagree with the chests it was read from.
         PacketDistributor.sendToPlayer(player, payload);
     }
 

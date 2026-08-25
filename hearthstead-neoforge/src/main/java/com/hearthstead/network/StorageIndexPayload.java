@@ -20,8 +20,13 @@ import java.util.List;
  *
  * <p>{@code top} is capped server-side so the payload stays small
  * regardless of how much a settlement is hoarding.
+ *
+ * <p>{@code settlementName} names the SETTLEMENT the stores belong to (not a
+ * specific warehouse building — a settlement's warehouses are summed
+ * together server-side), so the Tingboka view can say whose stores it is
+ * reading rather than just "Storage".
  */
-public record StorageIndexPayload(String warehouseName, int distinctTypes,
+public record StorageIndexPayload(String settlementName, int distinctTypes,
                                   int totalItems, List<ItemStack> top)
     implements CustomPacketPayload {
 
@@ -33,7 +38,7 @@ public record StorageIndexPayload(String warehouseName, int distinctTypes,
 
     public static final StreamCodec<RegistryFriendlyByteBuf, StorageIndexPayload> CODEC =
         StreamCodec.composite(
-            ByteBufCodecs.STRING_UTF8, StorageIndexPayload::warehouseName,
+            ByteBufCodecs.STRING_UTF8, StorageIndexPayload::settlementName,
             ByteBufCodecs.VAR_INT, StorageIndexPayload::distinctTypes,
             ByteBufCodecs.VAR_INT, StorageIndexPayload::totalItems,
             ItemStack.OPTIONAL_LIST_STREAM_CODEC, StorageIndexPayload::top,

@@ -112,6 +112,12 @@ public final class Employment {
         TRADES.put(BuildingType.WEAVER, Profession.WEAVER);
         TRADES.put(BuildingType.TANNERY, Profession.TANNER);
         TRADES.put(BuildingType.MINE, Profession.MINER);
+
+        // SLICE RECRUIT-1: the tavern's own trade. Production has no recipe
+        // for hospitality and never will, so the innkeeper does not run
+        // through CrafterWorkGoal like the twelve above -- see
+        // InnkeeperWorkGoal for the goal built for that shape instead.
+        TRADES.put(BuildingType.TAVERN, Profession.INNKEEPER);
     }
 
     /**
@@ -136,6 +142,11 @@ public final class Employment {
             case CARPENTER -> SettlerActivity.WORK_PLANE;
             case WEAVER -> SettlerActivity.WORK_WEAVE;
             case FLETCHER -> SettlerActivity.WORK_FLETCH;
+            // RECRUIT-1: reuses the courier's tidying motion rather than a
+            // bespoke one -- D-016's signature-motion pass never reached the
+            // tavern, so a real INNKEEPER clip (working the bar, greeting a
+            // guest) is future work, not this slice's.
+            case INNKEEPER -> SettlerActivity.SORTING;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -186,6 +197,10 @@ public final class Employment {
             case WORK_CHISEL -> com.hearthstead.registry.ModSounds.CHISEL_TAP.get();
             case WORK_FLETCH -> com.hearthstead.registry.ModSounds.FEATHER_PINCH.get();
             case WORK_SCRAPE -> com.hearthstead.registry.ModSounds.HIDE_SCRAPE.get();
+            // SORTING is shared with the courier's warehouse tidying, and
+            // there is no bespoke tavern sound yet -- the same stow-and-shift
+            // clink reads as a bar being kept, not a stack being counted.
+            case SORTING -> com.hearthstead.registry.ModSounds.CHEST_STOW.get();
             default -> com.hearthstead.registry.ModSounds.KNEAD_PRESS.get();
         };
     }
@@ -220,6 +235,10 @@ public final class Employment {
             case COURIER, GUARD -> Attribute.STAMINA;
             case BAKER, COOK, BUTCHER, TANNER, SAWYER, CARPENTER,
                  FLETCHER, WEAVER, FARMER -> Attribute.DEXTERITY;
+            // Keeping guests waiting happily is a social skill, not a
+            // physical one -- the same reason WITS is what fitness for the
+            // post is measured against below, in keyAttributeOf's default.
+            case INNKEEPER -> Attribute.WITS;
             default -> Attribute.WITS;
         };
     }

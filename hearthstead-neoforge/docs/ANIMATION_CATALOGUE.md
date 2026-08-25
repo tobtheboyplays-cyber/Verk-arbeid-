@@ -474,24 +474,39 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Length:** 1.50 s, **looping**.
 - **Silhouette:** bent at the waist, the hoe swings in a tight arc that ends
   with a sharp downward jab and a small recoil back up the arms.
-- **Bones:**
-  - `torso` ROT: (24, −5, 0) @0.00 → (18, −6, 0) @0.40 → **(31, 2, 0) @0.60** →
-    (27, 4, 0) @0.90 → (24, −5, 0) @1.50. The torso *drops into* the strike —
-    the current version only sways, which is why it reads as sweeping rather
-    than digging.
-  - `right_arm` ROT: (−68, 8, 0) @0.00 → (−96, 12, 0) @0.40 →
-    **(−32, −6, 0) @0.60 LINEAR** → (−46, −12, 0) @0.90 → (−68, 8, 0) @1.50.
-  - `left_arm` ROT: (−42, −10, 0) @0.00 → (−58, −14, 0) @0.40 →
-    **(−22, −8, 0) @0.60 LINEAR** → (−36, −12, 0) @0.90 → (−42, −10, 0) @1.50.
-    Currently the left arm barely moves — it must travel with the right, a hoe
-    is two-handed.
-  - `head` ROT: (12, 0, 0) @0.00 → (8, 0, 0) @0.40 → (18, 0, 0) @0.60 →
-    (12, 0, 0) @1.50 — looks at the blade on impact.
-  - `right_leg` ROT: hold (−8, 0, −3); `left_leg` ROT: hold (8, 0, 3) — a
-    braced forward-back stance, not feet together.
-  - `cloak` ROT: (4, 0, 0) @0.00 → (10, 0, 0) @0.40 → (2, 0, 0) @0.65 →
-    (4, 0, 0) @1.50 — flicks on the down-stroke.
-  - `root` POS: hold (0, −1, 0) — bent knees.
+- **Bones** *(punch-up pass 2026-08-25 — pushed for 15+ block readability: a
+  deeper dip before the strike, a harder jab, legs that brace on contact, and
+  a real root jolt instead of a static hold)*:
+  - `torso` ROT: (24, −5, 0) @0.00 → (16, −7, 0) @0.40 → **(44, 5, 0) @0.50
+    LINEAR** → (36, 3, 0) @0.60 LINEAR → (32, 2, 0) @0.70 LINEAR →
+    (18, −3, 0) @0.90 → (14, −7, 0) @1.10 → (24, −5, 0) @1.50. The torso
+    *drops into* the strike well before the arm arrives (peaks at 0.50,
+    strictly ahead of the 0.60 contact).
+  - `right_arm` ROT: (−68, 8, 0) @0.00 → (−84, 10, 0) @0.20 →
+    (−108, 13, 0) @0.40 → (−155, 8, −7) @0.50 LINEAR →
+    **(−26, −7, 0) @0.60 LINEAR** (contact) → (−25, −7, 0) @0.65 LINEAR →
+    (−24, −8, 0) @0.75 LINEAR (a genuine three-tick beat, the hoe biting the
+    dirt) → (−52, −13, 0) @0.90 → (−90, −16, 0) @1.10 (a real overshoot past
+    the −68 rest) → (−68, 8, 0) @1.50.
+  - `left_arm` ROT: mirrors the right at similar amplitude: (−42, −10, 0)
+    baseline → (−64, −16, 0) @0.50 → (−16, −6, 0) @0.60 LINEAR (through
+    0.75) → (−56, −17, 0) @1.10. It travels *with* the right now, not a
+    fraction of it — a hoe is two-handed.
+  - `head` ROT: (12, 0, 0) @0.00 → (5, 2, 0) @0.35 (glances up on the
+    wind-up) → (22, −3, 0) @0.50 (ducks toward the target) →
+    (26, 0, 0) @0.60 LINEAR (watches the strike land) → (16, 0, 0) @0.75 →
+    (12, 0, 0) @1.50.
+  - `right_leg` / `left_leg` ROT: hold (−8, 0, −3) / (8, 0, 3), braced wider
+    to (−14, 0, −6) / (14, 0, 6) at the 0.60 contact and back — the stance
+    takes the impact too, not just the arms.
+  - `cloak` ROT: (4, 0, 0) @0.00 → (18, 0, 0) @0.35 (thrown back on the
+    wind-up) → (10, 0, 0) @0.50 → (−14, 0, 0) @0.65 (whipped through by the
+    strike, lagging the torso's own peak) → (10, 0, 0) @0.85 (overshoot) →
+    (4, 0, 0) @1.50.
+  - `root` POS: (0, −1, 0) @0.00 → (0, −0.6, 0) @0.40 (rises for the wind-up)
+    → (0, −0.4, 0) @0.50 LINEAR → **(0, −2.0, 0) @0.60 LINEAR** (the jolt) →
+    (0, −1.8, 0) @0.75 LINEAR → (0, −1.3, 0) @0.90 → (0, −1.1, 0) @1.10 →
+    (0, −1, 0) @1.50.
 - **Accent:** **t = 0.60 s** → `hearthstead:farmer_work` (3 variants exist), at
   tick 12 of a 30-tick cycle. *Contract change:* `FarmerWorkGoal` currently
   plays at `workTicks % 12 == 3`, which does not correspond to any keyframe —
@@ -506,22 +521,29 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Silhouette:** a deep squat with one hand pressing into the ground and the
   other cupped at the belt — the lowest working pose in the mod, so at range you
   see "someone kneeling in the field".
-- **Bones:**
-  - `root` POS: (0, −6, 0) @0.00 → (0, −7, 0) @0.70 → (0, −6, 0) @2.00 — the
-    settler is genuinely down at ground level, not just leaning.
+- **Bones** *(punch-up pass 2026-08-25: a deeper reach, a real dip on the
+  press, and secondary motion on head/cloak that used to be dead-static)*:
+  - `root` POS: (0, −6, 0) @0.00 → (0, −6.5, 0) @0.55 → **(0, −9, 0) @0.70** →
+    (0, −6, 0) @2.00 — the press has real downward weight behind it now, not
+    just a held squat.
   - `right_leg` ROT: hold (−62, 0, −8) — folded under.
   - `left_leg` ROT: hold (−34, 0, 10) — knee up, foot planted. Asymmetric legs
     are what makes a squat read as a squat rather than a sit.
-  - `torso` ROT: (30, −8, 0) @0.00 → (38, −10, 0) @0.70 → (34, −6, 0) @1.20 →
+  - `torso` ROT: (30, −8, 0) @0.00 → (46, −12, 0) @0.70 → (38, −4, 0) @1.20 →
     (30, −8, 0) @2.00.
-  - `right_arm` ROT: (−40, 14, 0) @0.00 → (−12, 18, 0) @0.55 →
-    **(−4, 20, 0) @0.70 LINEAR** → (−26, 16, 0) @1.10 → (−40, 14, 0) @2.00 —
-    reaches down, presses the seed in, withdraws.
+  - `right_arm` ROT: (−40, 14, 0) @0.00 → (5, 20, 0) @0.55 →
+    **(18, 24, 0) @0.70 LINEAR** → (−18, 17, 0) @1.10 → (−40, 14, 0) @2.00 —
+    reaches well past vertical to press the seed in, a genuinely deeper dig
+    than before, then withdraws.
   - `left_arm` ROT: hold (−58, −22, 6) ±3° — the seed bag hand, cupped at the
     hip, feeding the right hand. Small inward roll at 1.40 s (grabbing the next
-    seed): (−62, −26, 6) @1.40.
-  - `head` ROT: hold (22, 6, 0) — looking straight down at the furrow.
-  - `cloak` ROT: hold (−4, 0, 0) — pooled behind the crouched body, static.
+    seed): (−66, −30, 6) @1.40.
+  - `head` ROT: (22, 6, 0) @0.00 → (26, 3, 0) @0.55 → (29, 1, 0) @0.70 →
+    (24, 5, 0) @1.10 → (22, 6, 0) @2.00 — tracks the press instead of holding
+    a fixed stare.
+  - `cloak` ROT: (−4, 0, 0) @0.00 → (−10, 0, 0) @0.70 → (2, 0, 0) @1.30 →
+    (−4, 0, 0) @2.00 — no longer a static hold; the cape settles and lifts
+    with the crouch.
 - **Accent:** **t = 0.70 s** → `hearthstead:seed_press` (new: a soft soil pat,
   no metal), tick 14 of a 40-tick cycle.
 - **Carry:** seeds are in the left hand and should render as a small item at the
@@ -536,24 +558,31 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Silhouette:** a twist — reach down and out to one side, then rise and swing
   the arm across the body to the shoulder bag. It is the only farm clip with a
   big horizontal component, so it stands out against tilling from any angle.
-- **Bones:**
-  - `torso` ROT: (28, 16, 0) @0.00 → (34, 20, 0) @0.35 →
-    (10, −14, 0) @0.85 → (14, −6, 0) @1.20 → (28, 16, 0) @1.80. A genuine
-    twist from −14° to +20° on `y`; the rise from 34° to 10° on `x` is the lift.
-  - `right_arm` ROT: (−36, 30, 0) @0.00 → (−6, 34, 0) @0.35 →
-    **(−4, 36, 0) @0.45 LINEAR** (the grab) → (−72, −18, 0) @0.85 →
-    (−58, −10, 0) @1.20 → (−36, 30, 0) @1.80.
-  - `left_arm` ROT: (−46, −16, 0) @0.00 → (−50, −18, 0) @0.35 →
-    (−82, −24, 6) @0.85 → (−78, −22, 6) @1.20 → (−46, −16, 0) @1.80 — the left
-    hand comes up to hold the bag open for the drop at 0.85.
-  - `head` ROT: (18, 12, 0) @0.00 → (22, 16, 0) @0.35 → (6, −10, 0) @0.85 →
-    (18, 12, 0) @1.80 — follows the crop from ground to bag.
-  - `right_leg` ROT: hold (−12, 0, −4); `left_leg` ROT: hold (6, 0, 4).
-  - `root` POS: (0, −3, 0) @0.00 → (0, −4, 0) @0.35 → (0, −1, 0) @0.85 →
-    (0, −3, 0) @1.80 — down for the grab, up for the stow.
-  - `cloak` ROT: (3, 0, −4) @0.00 → (6, 0, −7) @0.35 → (5, 0, 6) @0.90 →
-    (3, 0, −4) @1.80 — swings across with the twist. The `z` channel here is
-    the single detail that makes the harvest look alive from behind.
+- **Bones** *(punch-up pass 2026-08-25: the twist and the reach roughly
+  doubled — the arm now genuinely crosses in front of the body on the grab
+  before swinging all the way to the far hip for the stow)*:
+  - `torso` ROT: (28, 16, 0) @0.00 → (38, 22, 0) @0.35 →
+    (−1, −32, 0) @0.85 → (6, −19, 0) @1.20 → (28, 16, 0) @1.80. The twist now
+    runs from +22° to −32° on `y` — a real 54° turn through the body, not a
+    sway.
+  - `right_arm` ROT: (−36, 30, 0) @0.00 → (21, 38, 0) @0.35 →
+    **(25, 41, 0) @0.45 LINEAR** (the grab, arm now fully forward and open) →
+    (−104, −61, 0) @0.85 (swung hard across to the far hip for the stow) →
+    (−78, −46, 0) @1.20 → (−36, 30, 0) @1.80.
+  - `left_arm` ROT: (−46, −16, 0) @0.00 → (−52, −19, 0) @0.35 →
+    (−104, −29, 16) @0.85 → (−97, −26, 16) @1.20 → (−46, −16, 0) @1.80 — the
+    left hand comes up to hold the bag open for the drop at 0.85.
+  - `head` ROT: (18, 12, 0) @0.00 → (24, 18, 0) @0.35 → (−1, −23, 0) @0.85 →
+    (18, 12, 0) @1.80 — follows the crop from ground to bag, further now that
+    the bag itself is further away.
+  - `right_leg` / `left_leg` ROT: hold (−12, 0, −4) / (6, 0, 4), bracing wider
+    to (−18, 0, −7) / (11, 0, 7) at the 0.85 twist and back.
+  - `root` POS: (0, −3, 0) @0.00 → (0, −5, 0) @0.35 → (0, 1, 0) @0.85 →
+    (0, −3, 0) @1.80 — down for the grab, a genuine rise (not just less-down)
+    for the stow.
+  - `cloak` ROT: (3, 0, −4) @0.00 → (8, 0, −9) @0.35 → (7, 0, 14) @0.90 →
+    (3, 0, −4) @1.80 — swings across with the twist, bigger now that the
+    twist itself is bigger.
 - **Accent:** two — **t = 0.45 s** (the grab) → `hearthstead:crop_pull` (a dry
   rustle-snap), tick 9; and **t = 0.90 s** (into the bag) →
   `hearthstead:bag_stow`, tick 18. Cycle = 36 ticks.
@@ -570,18 +599,25 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Silhouette:** upright, one arm extended forward and slowly tipping — the
   only field task performed standing tall, so a watering farmer is instantly
   distinguishable from a tilling one at any distance.
-- **Bones:**
-  - `torso` ROT: (12, −10, 0) @0.00 → (16, −14, 0) @1.00 → (14, −8, 0) @1.80 →
-    (12, −10, 0) @2.40 — mostly still; the stillness is the point.
-  - `right_arm` ROT: (−58, −18, 0) @0.00 → **(−74, −22, −26) @0.80** →
-    (−78, −22, −34) @1.60 → (−64, −20, −14) @2.10 → (−58, −18, 0) @2.40. The
-    `z` roll from 0° to −34° is the can tipping; the arm barely moves otherwise.
-  - `left_arm` ROT: (−22, 10, 8) @0.00 → (−30, 14, 10) @1.20 →
-    (−22, 10, 8) @2.40 — hanging, balancing, doing nothing much.
-  - `head` ROT: hold (20, −8, 0) — watching the pour point.
+- **Bones** *(punch-up pass 2026-08-25: the can tip is now unmistakable at
+  range — the `z` roll runs to −85° instead of −34° — and root/cloak/head
+  carry a gentle weight shift instead of standing dead still)*:
+  - `torso` ROT: (12, −10, 0) @0.00 → (22, −20, 0) @1.00 → (17, −5, 0) @1.80 →
+    (12, −10, 0) @2.40 — still mostly still; the stillness is still the
+    point, just less rigid.
+  - `right_arm` ROT: (−58, −18, 0) @0.00 → **(−18, −28, −65) @0.80** →
+    (−8, −28, −85) @1.60 → (−43, −23, −35) @2.10 → (−58, −18, 0) @2.40. The
+    `z` roll now runs 0° to −85° — the can visibly upends.
+  - `left_arm` ROT: (−22, 10, 8) @0.00 → (−38, 18, 12) @1.20 →
+    (−22, 10, 8) @2.40 — hanging, balancing.
+  - `head` ROT: (20, −8, 0) @0.00 → (24, −11, 0) @0.80 → (26, −11, 0) @1.60 →
+    (20, −8, 0) @2.40 — follows the pour instead of holding a fixed stare.
   - `right_leg` ROT: hold (−6, 0, −3); `left_leg` ROT: hold (4, 0, 3).
-  - `cloak` ROT: (2, 0, 3) @0.00 → (5, 0, 5) @1.20 → (2, 0, 3) @2.40.
-  - `root` POS: hold (0, 0, 0) — full height.
+  - `cloak` ROT: (2, 0, 3) @0.00 → (−4, 0, 8) @0.80 → (13, 0, 10) @1.60 →
+    (2, 0, 3) @2.40.
+  - `root` POS: (0, 0, 0) @0.00 → (0, −0.3, 0.2) @0.80 → (0, −0.2, 0.3) @1.60
+    → (0, 0, 0) @2.40 — a small weight shift through the pour, not a rigid
+    stand.
 - **Accent:** **t = 0.80 s** → `hearthstead:water_pour` (a 1.2 s trickle, so it
   runs across the tipped section), tick 16 of a 48-tick cycle. Water particles
   spawn from t = 0.90 s to t = 1.90 s.
@@ -592,28 +628,48 @@ long-range silhouette cue we have and the farmer uses all of it.
 
 ## 3. Lumberer
 
-### 3.1 `CHOP` — felling *(exists; retune)*
+### 3.1 `CHOP` — felling *(retuned 2026-08-25: SIDE arc, not overhead)*
 
 - **Trigger:** `LumbererWorkGoal`, chopping a validated tree.
 - **Activity:** `WORK_CHOP`.
 - **Length:** 1.00 s, **looping**.
-- **Silhouette:** a full overhead axe arc — arms go past vertical on the wind-up
-  and snap to the waist on the strike. The tallest-to-lowest sweep in the mod.
-- **Bones:** current values are good; retune list only.
-  - `right_arm` ROT: (−22, −10, −4) @0.00 → (−152, −8, −6) @0.35 →
-    **(−38, −10, −4) @0.55 LINEAR** → (−26, −10, −4) @0.75 → (−22, −10, −4) @1.00.
-    **Add a LINEAR key at 0.50** holding (−140, −8, −6) so the fall into the
-    strike is a straight line, not a Catmull-Rom pre-swing.
-  - `left_arm` ROT: same treatment, mirror values as authored.
-  - `torso` ROT: as authored (5,−3,0) → (−7,−6,0) @0.35 → (15,2,0) @0.55 LINEAR.
-  - `head` ROT: as authored.
-  - **Add `right_leg` / `left_leg`:** hold (−10, 0, −4) / (8, 0, 4). The current
-    clip has no legs at all, which is why the lumberer reads as floating when
-    seen from the side.
-  - **Add `cloak` ROT:** (2, 0, 0) @0.00 → (−12, 0, 0) @0.35 (thrown back by the
-    wind-up) → (9, 0, 0) @0.60 (whipped forward by the strike) → (2, 0, 0) @1.00.
-  - **Add `root` POS:** 0 @0.00 → (0, 0.5, 0) @0.35 (rises onto the toes for the
-    wind-up) → (0, −0.8, 0) @0.55 LINEAR (drops into the blow) → 0 @1.00.
+- **Silhouette:** a real feller's notch cut, not an overhead wood-splitter.
+  Owner note 2026-08-25: *"på hogging animasjonen så vil jeg han hogger fra
+  siden som i real life"* — the axe travels a near-horizontal, rotational
+  arc into the trunk at hip-to-chest height, driven by the hips unwinding,
+  not by the arms dropping. Feet stay planted wide the whole swing; the
+  rotation is all torso and shoulders.
+- **Bones:**
+  - `torso` ROT (the twist does the heavy lifting): (8, 0, 0) @0.00 →
+    (2, −20, 0) @0.20 → **(−2, −42, 0) @0.35** (full coil, wound away from the
+    tree) → **(22, −38, 0) @0.50 LINEAR** → **(16, 22, 0) @0.55 LINEAR**
+    (the unwind — 60° of `y` in one tick) → (14, 20, 0) @0.65 → (10, 6, 0) @0.80
+    → (8, 0, 0) @1.00. `x` peaks at 0.50, strictly before the 0.55 contact —
+    the torso commits to the cut a beat before the axe arrives.
+  - `right_arm` ROT: (−30, −20, 10) @0.00 → (−40, −55, 14) @0.20 →
+    (−46, −95, 18) @0.35 (wound back and around, roughly level, **not**
+    overhead) → **(−44, −88, 17) @0.50 LINEAR** →
+    **(−34, 70, −6) @0.55 LINEAR** (contact — 158° of `y` in one tick as the
+    arm sweeps across the body into the trunk) → (−33, 68, −6) @0.60 →
+    (−31, 64, −7) @0.70 (three-tick beat, the axe buried in the wood) →
+    (−38, 20, 2) @0.85 (the pull-out, swinging past the hang pose before
+    settling) → (−30, −20, 10) @1.00.
+  - `left_arm` ROT: mirrors at ~0.8× amplitude, same shape, opposite twist
+    sign: (−20, −10, −8) baseline → (−32, −72, −12) @0.35 →
+    **(−22, 58, 4) @0.55 LINEAR** → (−21, 15, −3) @0.85.
+  - `head` ROT: (10, −4, 0) @0.00 → (4, −6, 0) @0.35 →
+    **(16, −2, 0) @0.55 LINEAR** → (8, −4, 0) @0.75 → (10, −4, 0) @1.00 —
+    stays fixed on the notch the whole swing; it does not travel with the
+    torso's twist.
+  - `right_leg` / `left_leg` ROT: **hold** (−14, 0, −8) / (12, 0, 8) — wide and
+    static. The stance does not move; only the hips rotate above it.
+  - `cloak` ROT: (4, 0, 0) @0.00 → (−22, 0, 0) @0.35 (thrown out by the coil) →
+    (24, 0, 0) @0.60 (whipped through by the unwind, lagging the torso's own
+    0.55 peak by one tick) → (−8, 0, 0) @0.80 (overshoot) → (4, 0, 0) @1.00.
+  - `root` POS: 0 @0.00 → (0, 0.3, −0.3) @0.35 (rocks onto the back foot for
+    the coil) → (0, 0.1, −0.2) @0.50 LINEAR → **(0, −0.9, 0.4) @0.55 LINEAR**
+    (drops and lurches forward into the trunk) → (0, −0.7, 0.3) @0.70 →
+    0 @1.00.
 - **Accent:** **t = 0.55 s** → `hearthstead:chop`, tick 11 of a 20-tick cycle.
   **This contract is already live and correct — do not change it.**
 - **Carry:** axe in the right hand.
@@ -627,21 +683,30 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Silhouette:** short, fast, sideways axe flicks at knee height with the body
   hunched over — quick and choppy where felling is slow and grand. Two strikes
   per loop, so the rhythm alone distinguishes it at range.
-- **Bones:**
-  - `torso` ROT: (26, 10, 0) @0.00 → (30, 4, 0) @0.30 → (26, 14, 0) @0.65 →
-    (30, 6, 0) @0.95 → (26, 10, 0) @1.30 — hunched, small twists.
-  - `right_arm` ROT: (−74, 24, −10) @0.00 → (−104, 28, −16) @0.20 →
-    **(−48, 10, −4) @0.30 LINEAR** → (−80, 26, −12) @0.55 →
-    (−106, 30, −18) @0.80 → **(−50, 12, −4) @0.95 LINEAR** →
-    (−74, 24, −10) @1.30. Two complete chops, the second slightly bigger.
-  - `left_arm` ROT: follows at 0.85× amplitude, offset −16° on `y` (both hands
-    on the haft): (−66, −8, 8) baseline, dipping to (−44, −4, 4) at each accent.
-  - `head` ROT: hold (24, 10, 0) — fixed on the branch.
-  - `right_leg` ROT: hold (−16, 0, −6) — one foot up on the trunk. `left_leg`
-    ROT: hold (4, 0, 6).
-  - `root` POS: hold (0, −2, 0), with a −0.6 px LINEAR dip at each accent.
-  - `cloak` ROT: (6, 0, 0) @0.00 → (0, 0, 0) @0.20 → (10, 0, 0) @0.35 →
-    (0, 0, 0) @0.80 → (10, 0, 0) @1.00 → (6, 0, 0) @1.30.
+- **Bones** *(punch-up pass 2026-08-25: every amplitude scaled roughly 1.4-1.8×
+  from a fixed rest pose per bone, so both chops read at range without
+  touching the accent timing)*:
+  - `torso` ROT: (26, 10, 0) @0.00 → (46, −4, 0) @0.20 → (40, 0, 0) @0.30 →
+    (26, 10, 0) @0.40 → (12, 19, 0) @0.55 → (50, −2, 0) @0.85 →
+    (43, 2, 0) @0.95 → (12, 19, 0) @1.15 → (26, 10, 0) @1.30 — hunched,
+    now with real twist between the two flicks.
+  - `right_arm` ROT: (−74, 24, −10) @0.00 → (−94, 27, −14) @0.15 →
+    (−116, 30, −18) @0.20 → **(−38, 4, −2) @0.30 LINEAR** →
+    (−82, 27, −13) @0.55 → (−119, 32, −21) @0.80 →
+    **(−40, 7, −2) @0.95 LINEAR** → (−88, 27, −11) @1.20 →
+    (−74, 24, −10) @1.30. Two complete chops, the second slightly bigger,
+    both noticeably wider than before.
+  - `left_arm` ROT: same shape, scaled: (−66, −8, 8) baseline →
+    (−35, −2, 2) @0.30 → (−74, −11, 9) @1.20.
+  - `head` ROT: (24, 10, 0) @0.00 → (31, 5, 0) @0.25 → (22, 12, 0) @0.40 →
+    (31, 3, 0) @0.90 → (22, 12, 0) @1.05 → (24, 10, 0) @1.30 — fixed on the
+    branch with a small tracking dip at each flick, not a dead hold.
+  - `right_leg` / `left_leg` ROT: hold (−16, 0, −6) / (4, 0, 6), bracing to
+    (−22, 0, −9) / (10, 0, 9) at each accent.
+  - `root` POS: hold (0, −2, 0), with a −1.4 px LINEAR dip at each accent
+    (was −0.6).
+  - `cloak` ROT: (6, 0, 0) @0.00 → (−10, 0, 0) @0.20 → (19, 0, 0) @0.35 →
+    (−10, 0, 0) @0.80 → (19, 0, 0) @1.00 → (6, 0, 0) @1.30.
 - **Accent:** **two per loop — t = 0.30 s and t = 0.95 s** →
   `hearthstead:limb_snap` (lighter and higher than `chop`; reuse the chop
   synthesis at 1.4× pitch with a shorter tail), ticks 6 and 19 of a 26-tick
@@ -658,20 +723,30 @@ long-range silhouette cue we have and the farmer uses all of it.
   between gait and strain is what makes long hauls stop looking mechanical).
 - **Silhouette:** a horizontal bar across the shoulders with a figure tilted
   under it — the whole silhouette becomes a lopsided T. Reads at 50 blocks.
-- **Bones:**
-  - `right_arm` ROT: hold (−142, −6, −20), with a slow 3° strain wobble:
-    (−142, −6, −20) @0.00 → (−139, −6, −22) @1.20 → (−142, −6, −20) @2.40. The
-    hand is up and back over the shoulder, gripping the log.
+- **Bones** *(punch-up pass 2026-08-25: the arms stay locked — carry-layer
+  clips are capped at 6° of travel per axis and `right_arm`/`left_arm` are
+  already at that cap, so the weight now reads through torso, head, cloak,
+  root, and this clip's own self-authored legs instead)*:
+  - `right_arm` ROT: hold (−142, −6, −20), with the same slow 3° strain
+    wobble as before — this channel is already at the carry-layer's 6° cap
+    and cannot travel further without breaking the "locked" read.
   - `left_arm` ROT: (−28, 4, −12) @0.00 → (−34, 6, −16) @1.20 →
-    (−28, 4, −12) @2.40 — hangs across the front for balance, swings a little
-    *more* than the walk would give it (the SHOULDER grammar).
-  - `torso` ROT: (9, 0, 8) @0.00 → (11, 0, 11) @1.20 → (9, 0, 8) @2.40 —
-    forward and **tilted away from the load side**.
-  - `head` ROT: hold (4, −14, 0) — turned away from the log, so it does not
-    clip the head, and so you can see the strain on the face.
-  - `cloak` ROT: (5, 0, −6) @0.00 → (8, 0, −9) @1.20 → (5, 0, −6) @2.40 — pushed
-    off to the unloaded side.
-  - `root` POS: hold (0, −1, 0). Legs come from `WALK_LADEN`.
+    (−28, 4, −12) @2.40 — unchanged, also at the 6° cap.
+  - `torso` ROT: (9, 0, 8) @0.00 → (14, 0, 16) @1.20 → (9, 0, 8) @2.40 —
+    forward and **tilted away from the load side**, the tilt now roughly
+    doubled.
+  - `head` ROT: (4, −14, 0) @0.00 → (7, −16, 0) @1.20 → (4, −14, 0) @2.40 —
+    turned away from the log with a real strain nod through the cycle.
+  - `right_leg` / `left_leg` ROT (this clip's own short-stepping legs, A1
+    simplification): the short-step swing roughly doubled, from ±10° to
+    (−10, 0, −7) → (6, 0, −7) @0.60 → (22, 0, −7) @1.20 → (6, 0, −7) @1.80
+    → (−10, 0, −7) @2.40 (mirrored on the left), and the brace `z` widened
+    from ±4° to ±7° throughout.
+  - `cloak` ROT: (5, 0, −6) @0.00 → (13, 0, −14) @1.20 → (5, 0, −6) @2.40 —
+    pushed off to the unloaded side, roughly doubled.
+  - `root` POS: (0, −1, 0) @0.00 → (0, −1.6, 0) @1.20 → (0, −1, 0) @2.40 — a
+    strain bob instead of a static hold. Legs are self-authored for this A1
+    slice; see the class-level comment on why.
 - **Accent:** **t = 1.20 s** → `hearthstead:haul_strain` (a low exhale), tick 24
   of a 48-tick cycle, volume 0.35, throttled to at most one per 3 s per settler.
 - **Carry:** grammar SHOULDER. The log renders from the `torso` transform at
@@ -694,14 +769,23 @@ raised. Never two guard clips with the same arm shape.
 - **Length:** 3.00 s, **looping**.
 - **Silhouette:** feet apart, weight settled, sword low and shield forward,
   head sweeping a slow arc.
-- **Bones:** as authored, plus:
-  - **Add `root` POS breath:** 0 @0.00 → (0, −0.4, 0) @1.50 → 0 @3.00 — a guard
-    that never shifts weight looks like a statue.
-  - **Add `cloak` ROT:** (3, 0, 2) @0.00 → (3, 0, −2) @1.50 → (3, 0, 2) @3.00,
-    lagging the torso sway by 0.15 s (peak at 1.65 s, not 1.50 s).
-  - **Retune `head`:** keep the ±30° sweep but make it uneven —
-    0 @0.00 → 30 @0.90 → 4 @1.50 → −26 @2.40 → 0 @3.00 — symmetric scanning
+- **Bones** *(punch-up pass 2026-08-25)*:
+  - **`root` POS breath:** 0 @0.00 → (0, −0.8, 0) @1.50 → 0 @3.00 — deepened
+    from −0.4; a guard that never shifts weight looks like a statue.
+  - **`torso` ROT:** the sway now runs `y` from +3° to −15° (was ±3°) — a
+    guard's weight genuinely rocks between feet over the 3 s stance.
+  - **`right_arm` / `left_arm` ROT:** the mid-stance settle widened from
+    ±3° to ±9° of travel — (−26, 0, −6) → (−17, 0, −6) @1.50 → back, and
+    (−34, 18, 6) → (−25, 18, 6) @1.50 → back.
+  - **`cloak` ROT:** (3, 0, 2) @0.00 → (3, 0, −8) @1.65 → (3, 0, 2) @3.00 —
+    deepened from ±2°, lagging the torso sway by 0.15 s (peak at 1.65 s, not
+    1.50 s).
+  - **`head`:** the ±30° sweep widened to ±36°, still uneven —
+    0 @0.00 → 36 @0.90 → 0 @1.50 → −36 @2.40 → 0 @3.00 — symmetric scanning
     reads as a machine.
+  - **`right_leg` / `left_leg` ROT:** a small weight-shift brace added,
+    (0, −8, −4) → (−4, −8, −6) @1.50 → back, mirrored — a guard's stance
+    was fully static before this pass.
 - **Accent:** none. Optional armour clink at t = 1.50 s, volume 0.2.
 - **Carry:** sword right, shield left.
 
@@ -1209,36 +1293,44 @@ at it, and `COURIER_SET_DOWN`, which *departs* from it.
 
 ## 8. Miner
 
-### 8.1 `MINE_PICK` — swinging the pick
+### 8.1 `MINE_PICK` — swinging the pick *(retuned 2026-08-25 to match the
+    actual 0.95 s implementation — the previous entry described a 1.20 s
+    clip that was never what shipped)*
 
 - **Trigger:** miner at an ore face in the mineshaft.
 - **Activity:** `MINING`.
-- **Length:** 1.20 s, **looping**.
+- **Length:** 0.95 s, **looping**.
 - **Silhouette:** an overhead-to-forward diagonal drive with the whole body
   behind it and a distinct **rebound** — the pick bounces off the rock and the
   shoulders recoil. Distinguished from `CHOP` by being aimed *forward* into a
-  wall rather than *down* into a stump, and by the recoil, which `CHOP` lacks.
+  wall rather than *sideways* into a trunk, and by the recoil, which `CHOP`
+  lacks.
 - **Bones:**
-  - `right_arm` ROT: (−52, −14, −8) @0.00 → (−158, −10, −12) @0.40 →
-    **(−148, −10, −12) @0.50 LINEAR** →
-    **(−62, −16, −6) @0.60 LINEAR** (impact) →
-    **(−78, −16, −8) @0.70 LINEAR** (the rebound — the arm comes *back up*) →
-    (−56, −14, −8) @0.95 → (−52, −14, −8) @1.20.
-  - `left_arm` ROT: same shape at 0.9× amplitude, `y` and `z` negated;
-    baseline (−58, 16, 8).
-  - `torso` ROT: (10, −4, 0) @0.00 → (−12, −8, 0) @0.40 →
-    (22, 4, 0) @0.60 LINEAR → (14, 2, 0) @0.75 → (10, −4, 0) @1.20.
-  - `head` ROT: (6, 0, 0) @0.00 → (−4, 0, 0) @0.40 → (14, 0, 0) @0.60 LINEAR →
-    (6, 0, 0) @1.20 — and a **flinch away** at 0.65 s to (12, −8, 0): chips fly.
-  - `right_leg` ROT: hold (−14, 0, −5); `left_leg` ROT: hold (10, 0, 5) — a
-    deep braced stance, wider than the lumberer's.
-  - `root` POS: 0 @0.00 → (0, 0.6, 0) @0.40 → **(0, −1.4, 0) @0.60 LINEAR** →
-    (0, −0.4, 0) @0.75 → 0 @1.20.
-  - `cloak` ROT: (2, 0, 0) @0.00 → (−11, 0, 0) @0.40 → (8, 0, 0) @0.65 →
-    (2, 0, 0) @1.20.
-- **Accent:** **t = 0.60 s** → `hearthstead:pick_strike` (metal on stone, with
-  a short cave tail — the reverb is what makes the mine feel underground),
-  tick 12 of a 24-tick cycle. Spark/dust particles on the same tick.
+  - `right_arm` ROT: (−38, −12, −6) @0.00 → (−73, −11, −7) @0.15 →
+    (−161, −8, −9) @0.30 → (−156, −8, −9) @0.40 LINEAR →
+    **(−51, −13, −5) @0.45 LINEAR** (impact) → (−48, −13, −5) @0.65 LINEAR
+    (a two-tick hold, the pick point lodged in stone) →
+    (−13, −12, −6) @0.75 (the rebound — the arm comes *back up*) →
+    (−46, −12, −6) @0.85 → (−38, −12, −6) @0.95.
+  - `left_arm` ROT: same shape, mirrored: (−46, 16, 6) baseline →
+    (−149, 11, 9) @0.30 → (−56, 17, 5) @0.45 → (−26, 16, 6) @0.80.
+  - `torso` ROT: (14, 3, 0) @0.00 → (−12, 14, 0) @0.20 → (−21, 17, 0) @0.30 →
+    (40, −10, 0) @0.40 LINEAR → (35, −8, 0) @0.60 LINEAR → (1, 9, 0) @0.75 →
+    (14, 3, 0) @0.95.
+  - `head` ROT: (6, 0, 0) @0.00 → (−14, 0, 0) @0.40 → (22, 0, 0) @0.60
+    LINEAR → (6, 0, 0) @0.95 — and a **flinch away** at 0.70 s to
+    (15, −9, 0): chips fly.
+  - `right_leg` / `left_leg` ROT: hold (−13, 0, −5) / (10, 0, 5), bracing to
+    (−24, 0, −8) / (16, 0, 8) at 0.45 s — a deep braced stance, wider than
+    the lumberer's.
+  - `root` POS: 0 @0.00 → (0, 0.7, 0) @0.30 → **(0, −1.3, 0.4) @0.45
+    LINEAR** → (0, −1.2, 0.4) @0.60 LINEAR → 0 @0.95.
+  - `cloak` ROT: (4, 0, 0) @0.00 → (−30, 0, 0) @0.30 → (24, 0, 0) @0.50 →
+    (8, 0, 0) @0.70 → (4, 0, 0) @0.95.
+- **Accent:** roughly **t = 0.45 s** → `hearthstead:pick_strike` (metal on
+  stone, with a short cave tail — the reverb is what makes the mine feel
+  underground). Spark/dust particles on the same tick. The exact tick-modulo
+  contract lives in the miner's AI goal, outside this file's ownership.
 - **Carry:** pick in the right hand.
 
 ### 8.2 `MINE_HAUL_ORE` — the ore sack
@@ -2709,44 +2801,54 @@ No strike, so no impact beat. The weight comes from **continuous pressure**:
 the push bottoms out and *stays* there while the torso keeps driving down for
 three more ticks, which reads as leaning body weight onto the heel of the hand
 rather than tapping a table. Arms alternate out of phase so the hands look
-busy. Root drops 0.6 px at the press.
+busy. Root drops 1.1 px at the press *(punch-up 2026-08-25, was 0.6; the arm
+and torso reach also roughly doubled)*.
 
 ### 18.2 `CLEAVE` — the butcher's stroke *(0.85 s, loop)*
 
 Shorter travel and much faster through the bottom than `CHOP` — a cleaver is
 light and the target is close. Keeps the standard's beat: three ticks parked at
 the board. The off hand holds the work down and barely moves, which is what
-makes the stroke look aimed rather than flailed.
+makes the stroke look aimed rather than flailed. *(Punch-up 2026-08-25: wind-up
+and strike both deepened roughly 30%, torso now swings −4° to +28° instead of
+sitting near +12°, root dips −1.0 instead of −0.5.)*
 
 ### 18.3 `STOKE` — bellows, and the heat *(1.40 s, loop)*
 
 Slow, two-handed, resisted. The beat is at the **end of the stroke**, arms
 compressed while the fire answers. The recovery is the interesting half: the
-torso pulls back *and away* (root −0.35 z) rather than simply returning, which
-reads as standing in front of something far too hot.
+torso pulls back *and away* (root −0.6 z) rather than simply returning, which
+reads as standing in front of something far too hot. *(Punch-up 2026-08-25:
+was −0.35; the push itself now drives the arm to −105° instead of −86°, and
+torso swings up to 37° instead of 26°.)*
 
 ### 18.4 `HAMMER_ANVIL` — the strike *(1.00 s, loop)*
 
 The heaviest clip in the mod, and the reference implementation of the craft
-standard: the wind-up accelerates into the top, the **torso peaks three ticks
-before** the arm reaches the anvil, the hammer parks for a four-tick beat at the
-bottom, and the recovery overshoots to −22° — well past the −40° rest — before
-settling. The off hand grips with tongs and does not move; a still hand beside
-a violent one is what makes the violent one read.
+standard: the wind-up accelerates into the top, the torso peaks noticeably
+before the arm reaches the anvil, the hammer parks for a four-tick beat at the
+bottom, and the recovery overshoots to −52° — well past the −40° rest — before
+settling *(punch-up 2026-08-25: was −46°; the wind-up itself now reaches
+−172° and the strike snaps to −30°, both deeper than before)*. The off hand
+grips with tongs and does not move; a still hand beside a violent one is what
+makes the violent one read.
 
 ### 18.5 `SAW` — the two-handed cut *(1.10 s, loop)*
 
 No impact, so the weight lives in the **reversals**: each end of the stroke
 holds two ticks while the blade bites and the body changes direction. A saw
 animated as a smooth sine wave looks like waving; the pauses are what make it
-cut. Root travels ±0.35 z with the stroke.
+cut. Root travels +0.6/−0.5 z and −0.6/0 y with the stroke *(punch-up
+2026-08-25: was ±0.35 z only; the arm swing itself now reaches −140° instead
+of −82°)*.
 
 ### 18.6 `FINE_WORK` — close hand work *(0.90 s, loop)*
 
 Deliberately the opposite of everything above: small amplitude, high frequency,
-head down at 27–29°, torso almost still. It is in the set to make the heavy
+head down at 27–31°, torso almost still. It is in the set to make the heavy
 clips read heavy — a village where every trade swings from the shoulder has no
-scale to it. Two passes per loop so the hands look busy rather than metronomic.
+scale to it. Two passes per loop so the hands look busy rather than metronomic,
+the second pass a touch deeper than the first so it never reads as a metronome.
 
 ### 18.7 `GATHER_LOG` — the lumberjack stoops *(1.10 s, one-shot)*
 
@@ -2760,9 +2862,10 @@ under a log is not the reverse of bending over. Root drops 2.4 px.
 
 The signature is the **flip**. Both hands drive the peel forward into the oven
 mouth, hold three ticks while the loaf goes in, then the wrists snap over — a
-fast roll on the arms' Z axis (±46°) that nothing else in the mod does. The
-torso then leans away as the heat comes back. That recoil is the beat you
-actually recognise a baker by.
+fast roll on the arms' Z axis (±61°, punch-up 2026-08-25, was ±46°) that
+nothing else in the mod does. The torso then leans away as the heat comes
+back, swinging to −18° instead of −10°. That recoil is the beat you actually
+recognise a baker by.
 
 ### 18.9 `SOW_BROADCAST` — the farmer casts seed *(1.40 s, loop)*
 
@@ -2770,8 +2873,9 @@ The oldest sowing motion there is, and it makes a farmer readable at fifty
 blocks. The off hand cradles the seed bag at the hip, the right hand dips into
 it, then sweeps across the body in a wide arc and opens. The **release** is the
 beat — the arm parks two ticks at the end of the arc while the seed leaves the
-hand — and the torso rotates a full 42° across the stroke, because the arc
-comes from the hips or it comes from nowhere.
+hand — and the torso rotates a full 63° across the stroke *(punch-up
+2026-08-25: was 42°; the arm's own sweep now runs from +52° to −83° on `y`)*,
+because the arc comes from the hips or it comes from nowhere.
 
 ## 19. Guard abilities
 
@@ -2781,15 +2885,125 @@ Strength is trained by the patrols and fights they survive. See
 
 ### 19.1 `LEAP_STRIKE` — the sergeant clears the gap *(1.30 s, one-shot)*
 
-Four beats, and it lives or dies on the third. **Coil** (0–0.20 s): a deep
-crouch that accelerates into the bottom, sword back rather than up, because
-this is a lunge. **Launch** (0.20–0.30 s): legs snap straight, root rises 3.4
-px, torso opens — fast, and allowed to be, because it is bracketed by the
-coil's hold and the float. **Float** (0.30–0.50 s): the sword comes overhead
-and *hangs* four ticks. Airborne hang time is what separates a leap from a hop,
-and it is the moment the player reads the threat. **Slam** (0.50–0.60 s): down
-hard, with a five-tick beat at the bottom, then a slow rise — nobody springs
+Four beats, and it lives or dies on the third. **Coil** (0–0.20 s): a deeper
+crouch than before *(punch-up 2026-08-25: torso now folds to −30°, was
+−22°)* that accelerates into the bottom, root dipping to −3.4 px (was −2.6),
+sword back rather than up, because this is a lunge. **Launch** (0.20–0.30 s):
+legs snap straight, root rises to 4.6 px (was 3.4), torso opens to 42° (was
+34°) — fast, and allowed to be, because it is bracketed by the coil's hold and
+the float. **Float** (0.30–0.50 s): the sword comes overhead and *hangs* four
+ticks, root now floating at 5.2 px at the peak (was 3.8) — noticeably higher
+hang time reads as a real leap rather than a hop, and it is the moment the
+player reads the threat. **Slam** (0.50–0.60 s): down hard to −2.9 px (was
+−2.2), with a five-tick beat at the bottom, then a slow rise — nobody springs
 back up from that landing.
 
 The damage resolves **when the guard lands**, not when the goal starts, so the
 clip is the attack rather than a decoration on one.
+
+## 20. Signature motions — the last five trades
+
+D-016 said every trade gets the one motion nobody else does. §18 left five
+trades borrowing a neighbour's: the cook kneaded, the carpenter sawed, the
+mason hammered, the fletcher wove, the tanner cleaved. This section ends the
+borrowing. Sounds still borrow (Employment.soundOf notes it) — that debt keeps
+these five jobs out of the certified list until their own voices land.
+
+### 20.1 `COOK_STIR` — the pot *(1.50 s, loop)*
+
+The left hand grips the pot rim and stays; the right traces a slow ellipse
+through the stew with a faster sweep at the far side, the way a real stir
+accelerates through the thick of it. The head hangs in the steam the whole
+loop. Nothing else in the mod moves an arm in a circle — that is the
+signature. *(Punch-up 2026-08-25: the ellipse itself roughly doubled — the
+arm now swings from −24° to +86° on `y` across the loop instead of −24° to
++26°.)*
+
+### 20.2 `CARPENTER_PLANE` — the push *(1.30 s, loop)*
+
+Both hands on the plane, and the torso commits first — 8° to 53° across the
+push *(punch-up 2026-08-25: was 8° to 24°)* with the arms following into
+full extension at −160° (was −88°), then a three-tick hold at the end of the
+stroke while the shaving clears, then the light drag back. Push fast, return
+slow: planing is asymmetric or it is sanding. The root slides 0.7 forward and
+back (was 0.35), so the weight visibly travels.
+
+### 20.3 `MASON_CHISEL` — the tap *(1.05 s, loop, impact)*
+
+Left hand seats the chisel and barely moves all clip — precision is the
+character. The right raises the mallet through an accelerating three-stage
+wind-up (4.5°, 10°, 13.5° per tick, punch-up 2026-08-25 — was 3°, 8°, 12°),
+lands a 107°-in-one-tick strike (was 85°), holds a three-tick beat on the
+stone, and recovers 18° past rest before settling (was 8°). The chisel hand
+takes a two-tick recoil at contact — the blow travels through it. Full
+craft-standard impact clip, checked as one.
+
+### 20.4 `FLETCHER_FLETCH` — the feather *(1.60 s, loop)*
+
+An arrow held up to the eye in the left hand; the right makes three small
+pinches seating the feathers, each a quick 10–19° press with its own one-tick
+hold, on an irregular rhythm (0.35, 0.75, 1.20) so it reads as judgement
+rather than metronome. The head tilts in close. The smallest clip in the
+set on purpose: fine work reads through stillness, not sweep.
+
+### 20.5 `TANNER_SCRAPE` — the hide *(1.20 s, loop)*
+
+A two-handed scraper drawn hard down the frame — both arms sweep 83° with the
+torso rocking 36° into the stroke and the whole root dipping 0.5 with it,
+then a two-tick hold at the bottom while the stroke finishes, then the light
+lift back up. The heaviest loop of the five: tanning is shoulders, not
+fingers.
+
+## 21. Universal punctuation
+
+Owner request 2026-08-25: *"jeg vil at ALLE settlere av enhver type skal ha
+en animasjon for å plukke opp ting og legge dem i vesken sin"* — every
+settler, any profession, gets this one. It is the village's "I took a thing"
+beat: it will fire on harvest pickups, chest withdrawals, and ground pickups.
+Wiring those triggers to the clip is a separate piece of work (goal-side,
+outside this file); this section only specifies the clip itself.
+
+### 21.1 `PICKUP_STOW` — stoop, grab, and tuck it at the hip *(1.20 s,
+    one-shot)*
+
+Deliberately the light counterpart to `GATHER_LOG`: one arm, not two, and a
+snatch rather than a haul — the two must never be confused for each other
+even though both stoop deep. Two beats. **Grab** (0.00–0.65 s): the torso
+pitches to 60°, both knees bend, the right arm reaches down past the knee,
+and the pose holds for two ticks (0.55–0.65) at the bottom — the moment of
+contact with the item. **Stand and tuck** (0.65–1.20 s): the torso unwinds
+fast, swinging past level to a slight negative overshoot before settling,
+while the right hand travels up and across to the left hip — where the
+courier bag renders — arriving with a distinct wrist roll (a big, fast `y`/`z`
+turn, not just `x`) and holding there for two ticks (0.95–1.05) before the
+arm drops back to rest. The head tracks the item throughout: down at the
+grab, forward at the tuck. Legs, cloak, and root all move with the stoop —
+this is a full-body beat, not an arm gesture bolted onto an idle stance.
+
+- **Bones:**
+  - `torso` ROT: (5, 0, 0) @0.00 → (25, 5, 0) @0.15 → (48, 8, 0) @0.35 →
+    (60, 10, 0) @0.55 → (59, 10, 0) @0.65 → (10, −4, 0) @0.85 →
+    (−4, −6, 0) @1.00 (the overshoot) → (2, −2, 0) @1.10 → (5, 0, 0) @1.20.
+  - `right_arm` ROT: (−6, −4, −2) @0.00 → (−28, −8, −4) @0.15 →
+    (−75, −14, −6) @0.35 → (−96, −18, −8) @0.55 → (−95, −18, −8) @0.65
+    (the grab hold) → (−40, 15, 18) @0.85 →
+    **(−28, 38, 42) @0.95 LINEAR** (the wrist roll into the tuck) →
+    (−25, 42, 46) @1.05 LINEAR (the tuck hold) → (−6, −4, −2) @1.20.
+  - `left_arm` ROT: a small counter-lean only, (−4, 4, 2) baseline →
+    (−24, 9, 4) @0.55 → back. This is a one-handed clip; the off arm barely
+    moves, which is what sells "light" against `GATHER_LOG`'s two-armed
+    heave.
+  - `head` ROT: (5, 0, 0) @0.00 → (42, 8, 0) @0.55 (down at the grab) →
+    (0, −6, 0) @1.00 (forward at the tuck) → (5, 0, 0) @1.20.
+  - `right_leg` / `left_leg` ROT: (−4, 0, −3) / (4, 0, 3) baseline, both
+    knees bending to (−42, 0, −6) / (40, 0, 6) at the grab and back.
+  - `cloak` ROT: (2, 0, 0) @0.00 → (32, 0, 0) @0.55 → (−8, 0, 0) @0.75
+    (whipped through by the stand) → (2, 0, 0) @1.20.
+  - `root` POS: (0, 0, 0) @0.00 → (0, −5.5, 0) @0.55 (down for the stoop) →
+    (0, 1.0, 0) @0.85 (a real rise, past neutral, on the stand) →
+    (0, 0, 0) @1.20.
+- **Accent:** none authored here — a grab/stow sound, if any, is the
+  wiring goal's call, not this clip's.
+- **Carry:** grammar SNATCH — whatever was picked up should render briefly
+  in the right hand between the grab (0.55 s) and the tuck (1.05 s), then
+  vanish into the bag, the same handoff discipline as `FARM_HARVEST`.

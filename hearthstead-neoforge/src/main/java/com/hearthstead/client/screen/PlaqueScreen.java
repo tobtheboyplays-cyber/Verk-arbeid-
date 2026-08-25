@@ -47,7 +47,13 @@ import java.util.UUID;
  */
 public class PlaqueScreen extends Screen {
 
-    private static final int PANEL_W = 256;
+    // 256 clipped the hire screen's cost sentence -- "The Carpenter's Shop
+    // would have no worker" measured 224px against the 212px COST_BOX it
+    // derives (256px is the point of the screen per the class doc, so it
+    // wraps and truncating it is the wrong fix). 272 carries COST_BOX to
+    // 228px, and as a side effect also clears NAME_BOX past the crowded-
+    // settlement "Gislebert the Younger" fallback (111px) with margin.
+    private static final int PANEL_W = 272;
     private static final int PAD = 8;
     private static final int SCROLL_W = HsUiTokens.SCROLL_W;
     private static final int CARD_X = PAD;
@@ -56,6 +62,12 @@ public class PlaqueScreen extends Screen {
     private static final int CARD_STEP = CARD_H + 4;
     private static final int BTN_W = 64;
     private static final int BTN_X = CARD_X + CARD_W - BTN_W - 8;
+    // The footer's own "Survey again" / close pair sit far apart (the close
+    // button is pinned to BTN_X, on the card column's right edge) with no
+    // shared-width need, so the refresh button gets its own, wider constant:
+    // "Survey again" measures 66px and "Mål opp på nytt" 77px against a
+    // BTN_W (64) box, both over its 56px label budget.
+    private static final int REFRESH_BTN_W = 92;
     private static final int TEXT_X = CARD_X + 10;
     private static final int LIST_TOP = 52;
     /** Rows shown at once. Three keeps the panel inside a 240px-tall GUI. */
@@ -138,7 +150,7 @@ public class PlaqueScreen extends Screen {
             buildHire();
         }
 
-        addRenderableWidget(HsButton.normal(left + 10, top + FOOT + 20, BTN_W,
+        addRenderableWidget(HsButton.normal(left + 10, top + FOOT + 20, REFRESH_BTN_W,
             HsUiTokens.BUTTON_H,
             Component.translatable("hearthstead.plaque.refresh"),
             () -> act(PlaqueAction.Kind.REFRESH, new UUID(0, 0))));

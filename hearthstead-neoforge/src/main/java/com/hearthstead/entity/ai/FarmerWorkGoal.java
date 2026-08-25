@@ -1,10 +1,13 @@
 package com.hearthstead.entity.ai;
 
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModSounds;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -39,6 +42,12 @@ public class FarmerWorkGoal extends Goal {
     private static final int WATER_DURATION = 48;
     private static final int BAG_TRIGGER = 8;
     private static final int TILL_ANCHOR_RANGE = 3;
+    /** THE TENDED PLOT (docs/project/PLAN_EFFORT.md): no farmhouse, at any
+     *  skill or headcount, ever tends a square bigger than this. */
+    private static final int TENDED_SIDE_CAP = 11;
+    /** One effort unit per this many completed plant/till/water actions —
+     *  batch-counted so the light work does not spend as fast as a harvest. */
+    private static final int LIGHT_ACTIONS_PER_EFFORT = 4;
 
     private enum Mode { TO_WORK, HARVESTING, PLANTING, TO_MAINTAIN, TILLING, WATERING, TO_HEARTH }
 
@@ -58,6 +67,9 @@ public class FarmerWorkGoal extends Goal {
     private int repathTimer;
     private int stuckChecks;
     private boolean done;
+    /** Batch counter for the light work's effort cost; see harvest()'s own
+     *  per-crop spend for why planting/tilling/watering are counted apart. */
+    private int lightActionCount;
 
     public FarmerWorkGoal(SettlerEntity settler) {
         this.settler = settler;
@@ -68,7 +80,13 @@ public class FarmerWorkGoal extends Goal {
         return settler.getProfession() == Profession.FARMER
             && settler.isBound()
             && settler.dayPhase().work()
-            && settler.getEnergy() > 15;
+            && settler.getEnergy() > 15
+            // The daily labor pool (PLAN_EFFORT.md): once it is spent this
+            // goal will not start, exactly like the energy check just
+            // above -- including the hearth trip for a bag that filled up
+            // right as the pool ran out. That last load waits for tomorrow,
+            // the same way a settler out of energy already would.
+            && !settler.isEffortSpent();
     }
 
     @Override
@@ -125,10 +143,18 @@ public class FarmerWorkGoal extends Goal {
 
     private boolean isMatureCrop(BlockPos pos) {
         BlockState state = settler.level().getBlockState(pos);
-        return state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state);
+        return state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state)
+            && isWithinTendedPlot(pos);
     }
 
     private boolean isMaintainable(BlockPos pos) {
+        if (!isWithinTendedPlot(pos)) {
+            // Tilling and watering grow the field itself, so THE TENDED
+            // PLOT has to bound them too -- an unbounded maintenance pass
+            // would let a farmer terraform the whole settlement even
+            // though harvesting stayed inside the square.
+            return false;
+        }
         BlockState state = settler.level().getBlockState(pos);
         if (state.is(Blocks.FARMLAND)) {
             BlockState above = settler.level().getBlockState(pos.above());
@@ -144,6 +170,55 @@ public class FarmerWorkGoal extends Goal {
             }
         }
         return false;
+    }
+
+    /**
+     * The building this farmer is actually hired into, or null if none —
+     * cheap enough to call from a scan predicate (small building list per
+     * settlement, same cost Employment.employerOf already pays elsewhere).
+     */
+    private Building tendedFarmhouse() {
+        Settlement s = settler.settlement();
+        return s == null ? null : Employment.employerOf(s, settler.getUUID());
+    }
+
+    /**
+     * THE TENDED PLOT (docs/project/PLAN_EFFORT.md §2): a farmer works a
+     * bounded square around their own farmhouse's anchor, never the whole
+     * settlement. That square is the trade's natural limit, the way a real
+     * field has an edge — a crop outside it is simply somebody else's to
+     * tend, or nobody's yet.
+     *
+     * <p>Everything outside the square is filtered out here, in the same
+     * predicate the scan and the target-validity checks already share, so
+     * "ignored entirely" costs nothing extra: it is the same cheap test the
+     * goal was already doing.
+     */
+    private boolean isWithinTendedPlot(BlockPos pos) {
+        Building farmhouse = tendedFarmhouse();
+        if (farmhouse == null || farmhouse.anchor == null) {
+            return false;
+        }
+        int half = tendedHalfSide(farmhouse);
+        BlockPos anchor = farmhouse.anchor;
+        return Math.abs(pos.getX() - anchor.getX()) <= half
+            && Math.abs(pos.getZ() - anchor.getZ()) <= half;
+    }
+
+    /**
+     * Half the tended square's side. Base size comes from skill — 3x3 below
+     * 20 DEXTERITY, widening every 20 points, 11x11 at 80+ — and every OTHER
+     * farmer sharing this farmhouse adds one more ring on top of that, many
+     * hands really tending a bigger field. Either path stops at
+     * {@value #TENDED_SIDE_CAP}: there is no version of this job that farms
+     * the whole map.
+     */
+    private int tendedHalfSide(Building farmhouse) {
+        int dexterity = settler.attribute(Attribute.DEXTERITY);
+        int side = 3 + 2 * (dexterity / 20);
+        int companions = Math.max(0, farmhouse.workers.size() - 1);
+        side = Math.min(TENDED_SIDE_CAP, side + 2 * companions);
+        return side / 2;
     }
 
     /**
@@ -320,6 +395,7 @@ public class FarmerWorkGoal extends Goal {
                 }
             }
             harvestedCrop = null;
+            chargeLightAction();
             if (bagCount() >= BAG_TRIGGER) {
                 mode = Mode.TO_HEARTH;
                 settler.setActivity(SettlerActivity.IDLE);
@@ -369,6 +445,7 @@ public class FarmerWorkGoal extends Goal {
                 && hasNearbyCropAnchor(maintainTarget)) {
                 serverLevel.setBlock(maintainTarget, Blocks.FARMLAND.defaultBlockState(), Block.UPDATE_ALL);
             }
+            chargeLightAction();
             maintainTarget = null;
             nextOrFinish();
         }
@@ -394,6 +471,7 @@ public class FarmerWorkGoal extends Goal {
                         Block.UPDATE_ALL);
                 }
             }
+            chargeLightAction();
             maintainTarget = null;
             nextOrFinish();
         }
@@ -426,6 +504,23 @@ public class FarmerWorkGoal extends Goal {
                 serverLevel.addFreshEntity(new ItemEntity(serverLevel,
                     target.getX() + 0.5, target.getY() + 0.3, target.getZ() + 0.5, leftover));
             }
+        }
+        // One crop pulled by hand is one unit of the daily pool -- charged
+        // whether or not there is a seed to replant, since the labor is the
+        // same either way (PLAN_EFFORT.md §2).
+        settler.spendEffort(1);
+    }
+
+    /**
+     * Planting, tilling and watering are light work next to a harvest, so
+     * they are batch-charged: one effort unit per
+     * {@value #LIGHT_ACTIONS_PER_EFFORT} completed actions of ANY of the
+     * three kinds, counted together rather than per kind.
+     */
+    private void chargeLightAction() {
+        if (++lightActionCount >= LIGHT_ACTIONS_PER_EFFORT) {
+            lightActionCount = 0;
+            settler.spendEffort(1);
         }
     }
 

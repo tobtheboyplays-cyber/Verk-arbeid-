@@ -70,7 +70,12 @@ public class MinerWorkGoal extends Goal {
     @Override
     public boolean canUse() {
         if (settler.getProfession() != Profession.MINER || !settler.isBound()
-            || settler.getTarget() != null || settler.getEnergy() <= 15.0F) {
+            || settler.getTarget() != null || settler.getEnergy() <= 15.0F
+            // The daily labor pool (docs/project/PLAN_EFFORT.md): once
+            // spent, no new block starts. The chest-full check further
+            // down is about where the ore goes; this is about how much
+            // digging one person does in a day.
+            || settler.isEffortSpent()) {
             return false;
         }
         if (lookCooldown > 0) {
@@ -175,6 +180,10 @@ public class MinerWorkGoal extends Goal {
             Block.popResource(level, mine.anchor, left);
         }
         settler.train(Attribute.STRENGTH, 1.0F);
+        // One mined block is one batch here (the goal already re-scans for
+        // the next one rather than chaining several before returning), so
+        // 2 per batch is 2 per block (PLAN_EFFORT.md §2).
+        settler.spendEffort(2);
         target = null;
     }
 

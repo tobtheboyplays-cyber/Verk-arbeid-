@@ -66,7 +66,9 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private static final int BAR_H = 8;
 
     // -- the Mayor tab: two folder tabs above the window's top-left corner --
-    private static final int TAB_W = 50;
+    // 50 clipped "Settlement" (51px) and "Ordfører" (47px) against its
+    // labelIn box (TAB_W - 8); 64 clears both with a few px to spare.
+    private static final int TAB_W = 64;
     private static final int TAB_H = 14;
     private static final int TAB_GAP = 3;
 
@@ -88,7 +90,14 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private static final int MAYOR_CARD_STEP = MAYOR_CARD_H + 4;
     private static final int MAYOR_LIST_H = MAYOR_ROWS * MAYOR_CARD_STEP - 4;
     private static final int MAYOR_FOOT = MAYOR_LIST_TOP + MAYOR_LIST_H + 6;
-    private static final int MAYOR_PANEL_H = MAYOR_FOOT + 8 + HsUiTokens.TEXT_H + 8;
+    // The footer sometimes wraps to two lines -- "Appointing someone new
+    // stands Gislebert the Younger down" measured 299px against a 240px box
+    // (59px over) in English, 249px (9px over) in Norwegian, both from the
+    // rare "crowded settlement" long-name fallback. Two lines clears both
+    // with room to spare; reserved unconditionally like the rest of this
+    // panel's fixed shape.
+    private static final int MAYOR_FOOTER_H = HsUiTokens.TEXT_H + 9;
+    private static final int MAYOR_PANEL_H = MAYOR_FOOT + 8 + MAYOR_FOOTER_H + 8;
 
     private static final int MAYOR_CARD_X = MAYOR_PAD;
     private static final int MAYOR_CARD_W =
@@ -96,7 +105,10 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private static final int MAYOR_BTN_W = 64;
     private static final int MAYOR_BTN_X = MAYOR_CARD_X + MAYOR_CARD_W - MAYOR_BTN_W - 8;
     private static final int MAYOR_TEXT_X = MAYOR_CARD_X + 10;
-    private static final int MAYOR_NAME_BOX = MAYOR_BTN_X - MAYOR_TEXT_X - 40;
+    // Measured against "Gislebert the Younger" (111px, the crowded-settlement
+    // long-name fallback) -- 110 clipped it by 1px. 114 clears it and still
+    // leaves a 2px gap before the pips column at MAYOR_BTN_X - 34.
+    private static final int MAYOR_NAME_BOX = MAYOR_BTN_X - MAYOR_TEXT_X - 36;
     private static final int MAYOR_LINE_BOX = MAYOR_BTN_X - MAYOR_TEXT_X - 6;
 
     private boolean mayorTabOpen;
@@ -273,7 +285,11 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
             rows <= MAYOR_ROWS ? 0.0F : (float) mayorScroll / (rows - MAYOR_ROWS), false);
 
         HsUi.divider(graphics, pl + MAYOR_PAD, pt + MAYOR_FOOT, MAYOR_PANEL_W - 2 * MAYOR_PAD);
-        HsUi.labelIn(graphics, font, mayorFooter(), pl + MAYOR_PAD, pt + MAYOR_FOOT + 7,
+        // Word-wrapped, not labelIn -- the "stands X down" sentence can carry
+        // the current mayor's full (possibly long) name, and ellipsising a
+        // name mid-sentence here reads as a different, shorter sentence
+        // rather than a merely-truncated one. See MAYOR_FOOTER_H.
+        graphics.drawWordWrap(font, mayorFooter(), pl + MAYOR_PAD, pt + MAYOR_FOOT + 7,
             MAYOR_PANEL_W - 2 * MAYOR_PAD, HsUiTokens.ACCENT);
     }
 

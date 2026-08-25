@@ -541,6 +541,7 @@ public final class HearthsteadCommand {
         lines.add(String.format(java.util.Locale.ROOT,
             "needs: energy %.0f hunger %.0f morale %.0f, bag %d",
             s0.getEnergy(), s0.getHunger(), s0.getMorale(), bagCount(s0)));
+        lines.add("effort: " + s0.effortDescribe());
         com.hearthstead.settlement.DayPhase phase = s0.dayPhase();
         lines.add(String.format(java.util.Locale.ROOT,
             "clock: daytime %d -> %s (work=%s rest=%s meal=%s)",

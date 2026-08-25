@@ -2,41 +2,63 @@ package com.hearthstead.entity.ai;
 
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.building.Production;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
- * The courier: moves non-food goods from the hearth to a warehouse.
+ * The courier: moves goods between the hearth, the warehouse and crafters
+ * short of their own raw material.
  *
- * <p><b>Deliberately one-directional this slice</b> (hearth → warehouse,
- * never the reverse and never fetch-to-worksite). MineColonies shipped a
- * courier/builder circular wait where each side blocked on the other
- * (issue #5333); a one-way courier cannot deadlock because nothing is
- * waiting on it. Two-way routing lands only once this is proven.
+ * <p><b>Two routes, never a request queue.</b> A courier either consolidates
+ * hearth goods into a warehouse, or restocks a crafter short of its own raw
+ * material from a warehouse that has some ({@link JobPriority} orders the
+ * choice) -- never the reverse of either, and never anything closer to a
+ * worksite than a building's own chests. MineColonies shipped a
+ * courier/builder circular wait where each side blocked on the other (issue
+ * #5333); nothing here can do that, because neither route ever waits ON
+ * anybody: a courier decides a destination from the world as it stands right
+ * now, delivers, and is done -- no request outlives the trip that satisfies
+ * it, and no building's own work goal ({@code CrafterWorkGoal}) ever blocks
+ * waiting for a courier (D-007: a building works alone; a courier is an
+ * optimisation on top of that, never a precondition for it).
  *
  * <p><b>Food never leaves the hearth</b> (D-A2a-1). {@code EatFromHearthGoal}
  * and {@code Settlement.foodCache} both read hearth contents, so draining
- * food into a warehouse would quietly starve the settlement.
+ * food into a warehouse would quietly starve the settlement. This is about
+ * the HEARTH specifically: a recipe's raw material can itself be a food item
+ * (raw beef, a potato) sitting in a warehouse a player filled by hand, and
+ * restocking a butcher or kitchen with it is fine -- that route never
+ * touches the hearth.
  *
  * <p><b>Chests are the truth</b> (D-A2a-3): goods are removed from the
- * hearth into the bag, and inserted into the warehouse destination-first
- * with the true leftover carried back. At every instant the items exist
- * in exactly one real container, so an interruption -- including the
- * courier dying, which drops the bag -- conserves them.
+ * source into the bag, and inserted into the destination-first with the true
+ * leftover carried back. At every instant the items exist in exactly one
+ * real container, so an interruption -- including the courier dying, which
+ * {@code SettlerEntity#die} drops the bag for (every profession, not just
+ * this one, so it is not duplicated here) -- conserves them.
  *
  * <p><b>The delivery target is a container, never the plaque</b>
  * (D-A2a-5). A warehouse has no beds, so {@code Building.anchor} is the
@@ -47,7 +69,8 @@ import java.util.List;
  * and re-triggered forever with the load stranded in her bag. The courier
  * now walks to a standable cell beside a real chest, and only stows once
  * she is <em>inside</em> the building's own bounds -- so goods cannot be
- * posted through a wall either.
+ * posted through a wall either. The same standard now applies to a
+ * crafter's own chests on the restock route.
  */
 public class CourierWorkGoal extends Goal {
 
@@ -59,8 +82,8 @@ public class CourierWorkGoal extends Goal {
     // SettlerEntity.getCarryCapacity(), the same number the sack is drawn
     // from (D-A2b-1). Two sources for one truth is how the plaque/settlement
     // split went wrong before (D-006), so the goal reads the entity's.
-    /** Reach to the drop-off chest, squared. Two blocks and a bit. */
-    private static final double DROP_OFF_REACH_SQR = 6.25;
+    /** Reach to a warehouse or crafter chest, squared. Two blocks and a bit. */
+    private static final double CHEST_REACH_SQR = 6.25;
     /** Reach to the hearth, squared. */
     private static final double HEARTH_REACH_SQR = 6.25;
     /**
@@ -88,8 +111,33 @@ public class CourierWorkGoal extends Goal {
     private static final int REPATH_INTERVAL = 15;
     /** Re-paths allowed before a leg is declared unreachable (~300 ticks). */
     private static final int HEARTH_STUCK_LIMIT = 20;
-    /** Same for the longer haul to the warehouse and home (~480 ticks). */
+    /** Same for a longer haul -- to a warehouse, a source or a crafter (~480 ticks). */
     private static final int HAUL_STUCK_LIMIT = 32;
+    /** How often {@link #findRestockJob} is even tried, so an idle courier
+     *  is not re-scanning every crafter's chests on every single tick. */
+    private static final int RESTOCK_LOOK_INTERVAL = 40;
+    /**
+     * How long a claimed restock job stays claimed without a heartbeat.
+     * Renewed every active tick ({@link #renewReservation}), so a courier
+     * genuinely working the job never sees it expire, however long her
+     * route takes; this only reclaims a job whose courier stopped ticking
+     * altogether (death, a permanent unbind) without ever reaching a normal
+     * release point. Sized well past a routine interruption (e.g. a fight)
+     * so a brief preemption never opens the double-fetch window this exists
+     * to close.
+     *
+     * <p>Known, accepted gap: this goal does not tick while it is not
+     * running, so a load held off-shift (see {@link #canUseCarrying}) or a
+     * courier who dies mid-trip stops renewing and the lease lapses after
+     * this many ticks even though the job is not really abandoned. The
+     * consequence is bounded and never touches item conservation: at worst
+     * a second courier restocks the same crafter again, which is a harmless
+     * surplus delivery, not a lost or duplicated item. A shorter TTL would
+     * recover a genuinely dead courier's job faster at the cost of lapsing
+     * during ordinary overnight holds more often; this favours surviving
+     * the ordinary case.
+     */
+    private static final int RESERVATION_TTL_TICKS = 1200;
     // Sound-sync contract (catalogue §0.4 / §5.1-5.4). Each value must agree
     // with the clip comment in SettlerAnimations and tools/anim_check.py.
     public static final int LIFT_GRIP_TICK = 8;
@@ -99,13 +147,65 @@ public class CourierWorkGoal extends Goal {
     public static final int CRATE_CREAK_PERIOD = 54;
     public static final int CRATE_CREAK_OFFSET = 9;
 
-    private enum Mode { TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING, RETURNING }
+    private enum Mode {
+        TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING, RETURNING,
+        TO_SOURCE, WITHDRAWING, TO_CRAFTER, DEPOSITING
+    }
+
+    /**
+     * The order a courier tries jobs in when nothing is already in her
+     * hands. Lower ordinal outranks higher: {@link #findRestockJob} is
+     * always tried before {@link #beginConsolidation}, so a crafter running
+     * dry on its own raw material is never left waiting behind routine
+     * tidying-up of the hearth.
+     *
+     * <p>This is a decision-time ordering only -- a trip already under way
+     * is always finished before a new one is picked (see
+     * {@link #canUseCarrying}), the same way the class doc's deadlock
+     * argument holds: nothing here ever pre-empts a trip mid-haul.
+     */
+    private enum JobPriority {
+        /**
+         * Food reaching the hearth. Never actually a job this goal runs:
+         * food never leaves the hearth once it is there (D-A2a-1), and
+         * {@code FarmerWorkGoal} delivers the harvest to the hearth
+         * directly, so there is nothing here to fetch or carry. Listed
+         * first anyway so the ladder reads as one complete, ordered thing
+         * rather than two lists that merely happen to agree -- and so a
+         * courier-carried food route, if one is ever added, already has its
+         * priority decided and documented.
+         */
+        FOOD_TO_HEARTH,
+        /**
+         * A crafter short of its own raw material, when a warehouse is
+         * holding some. Outranks consolidation: a smithy standing idle for
+         * want of iron sitting fifteen blocks away in a warehouse is a
+         * worse look than a warehouse chest one merge short of tidy.
+         */
+        CRAFTER_RESTOCK,
+        /** Plain hearth -> warehouse consolidation: the original, still-needed job. */
+        WAREHOUSE_CONSOLIDATION
+    }
 
     private final SettlerEntity settler;
     private Mode mode;
-    /** The chest being delivered to -- the real destination, not the plaque. */
+    private JobPriority job;
+    /** The chest being delivered to for consolidation -- never the plaque. */
     private BlockPos dropOff;
-    private java.util.UUID warehouseId;
+    private UUID warehouseId;
+    /** RESTOCK only: the warehouse chest raw material is withdrawn from. */
+    private BlockPos sourcePos;
+    /** RESTOCK only: which warehouse {@link #sourcePos} belongs to -- also
+     *  the fallback deposit target if the crafter cannot take the load. */
+    private UUID sourceWarehouseId;
+    /** RESTOCK only: the crafter building being restocked. */
+    private UUID craftBuildingId;
+    /** RESTOCK only: chest at the crafter to deposit into. */
+    private BlockPos craftDropOff;
+    /** RESTOCK only: the exact item this trip is reserved for. */
+    private Item reservedItem;
+    /** RESTOCK only: the ledger key held for this trip, if any. */
+    private RestockKey reservationKey;
     private int workTicks;
     private int setDownThudIn = -1;
     private int repathTimer;
@@ -113,12 +213,15 @@ public class CourierWorkGoal extends Goal {
     private long cooldownUntil = Long.MIN_VALUE;
     /** Consecutive abandoned routes; reset by any completed delivery. */
     private int consecutiveFailures;
+    private int restockCooldown;
     private boolean done;
 
     public CourierWorkGoal(SettlerEntity settler) {
         this.settler = settler;
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
+
+    // ---------------------------------------------------------- decision ---
 
     @Override
     public boolean canUse() {
@@ -136,40 +239,98 @@ public class CourierWorkGoal extends Goal {
         boolean onShift = settler.dayPhase().work()
             && settler.getEnergy() > 15
             && level.getGameTime() >= cooldownUntil;
-        if (!carrying && !onShift) {
+
+        if (carrying) {
+            return canUseCarrying(level, s, onShift);
+        }
+        if (!onShift) {
             return false; // nothing in hand and nothing to do: skip the lookup
+        }
+
+        // The priority ladder (JobPriority): try each tier in turn and take
+        // the first with real work. (Food never reaches this goal at all --
+        // see JobPriority.FOOD_TO_HEARTH -- so that tier has nothing to try.)
+        if (restockCooldown > 0) {
+            restockCooldown--;
+        } else {
+            restockCooldown = RESTOCK_LOOK_INTERVAL;
+            RestockJob restock = findRestockJob(level, s);
+            if (restock != null) {
+                beginRestock(restock);
+                return true;
+            }
+        }
+        return beginConsolidation(level, s);
+    }
+
+    /**
+     * A load already in the bag must be finished before anything new is
+     * decided, whichever tier put it there: which job it was is remembered
+     * in {@code job} across the stop()/start() an interruption causes, so
+     * this re-validates today's route rather than picking a fresh one.
+     */
+    private boolean canUseCarrying(ServerLevel level, Settlement s, boolean onShift) {
+        if (job == JobPriority.CRAFTER_RESTOCK) {
+            Building crafter = craftBuildingId == null ? null
+                : findBuildingById(s, craftBuildingId);
+            if (crafter == null || craftDropOff == null) {
+                // The crafter this was reserved for is gone: nowhere left to
+                // deliver to, so the raw material goes back to the warehouse
+                // rather than sitting out of circulation in a bag.
+                releaseReservation();
+                mode = Mode.RETURNING;
+                return true;
+            }
+            if (!onShift) {
+                return false; // hold the load until morning, same as consolidation
+            }
+            mode = Mode.TO_CRAFTER;
+            return true;
         }
         Building warehouse = pickWarehouse(s);
         BlockPos target = warehouse == null ? null : pickDropOff(level, warehouse);
-
-        // Carrying with nowhere to put it down: take the goods back to the
-        // hearth rather than sitting on them. Items in a bag are real, but
-        // they are out of circulation, and the settlement cannot see them.
-        if (carrying && target == null) {
+        if (target == null) {
             warehouseId = null;
             dropOff = null;
+            job = JobPriority.WAREHOUSE_CONSOLIDATION;
             mode = Mode.RETURNING;
             return true;
         }
         if (!onShift) {
             return false; // carrying off-shift: hold the load until morning
         }
-        if (target == null) {
-            return false; // idle visibly rather than thrash (MineColonies #2932)
-        }
         warehouseId = warehouse.id;
         dropOff = target;
+        job = JobPriority.WAREHOUSE_CONSOLIDATION;
+        mode = Mode.TO_WAREHOUSE;
+        return true;
+    }
 
-        // Already carrying? Finish the delivery before starting another.
-        if (carrying) {
-            mode = Mode.TO_WAREHOUSE;
-            return true;
+    private boolean beginConsolidation(ServerLevel level, Settlement s) {
+        Building warehouse = pickWarehouse(s);
+        BlockPos target = warehouse == null ? null : pickDropOff(level, warehouse);
+        if (target == null) {
+            return false; // idle visibly rather than thrash (MineColonies #2932)
         }
         if (!hearthHasHaulableGoods()) {
             return false;
         }
+        warehouseId = warehouse.id;
+        dropOff = target;
+        job = JobPriority.WAREHOUSE_CONSOLIDATION;
         mode = Mode.TO_HEARTH;
         return true;
+    }
+
+    private void beginRestock(RestockJob restock) {
+        job = JobPriority.CRAFTER_RESTOCK;
+        sourceWarehouseId = restock.warehouse().id;
+        sourcePos = restock.sourceChest();
+        craftBuildingId = restock.crafter().id;
+        craftDropOff = restock.craftChest();
+        reservedItem = restock.item();
+        reservationKey = restock.key();
+        mode = Mode.TO_SOURCE;
     }
 
     /** Prefers a warehouse this settler is actually employed at (D-A2a-4). */
@@ -236,6 +397,18 @@ public class CourierWorkGoal extends Goal {
         return n;
     }
 
+    private Building findBuildingById(Settlement s, UUID id) {
+        if (id == null) {
+            return null;
+        }
+        for (Building b : s.buildings) {
+            if (b.id.equals(id) && b.valid) {
+                return b;
+            }
+        }
+        return null;
+    }
+
     @Override
     public boolean canContinueToUse() {
         return !done && settler.isBound();
@@ -255,11 +428,20 @@ public class CourierWorkGoal extends Goal {
         switch (mode) {
             case TO_WAREHOUSE -> {
                 settler.setActivity(SettlerActivity.CARRYING);
-                pathToDropOff();
+                pathToChest(dropOff);
+            }
+            case TO_CRAFTER -> {
+                settler.setActivity(SettlerActivity.CARRYING);
+                pathToChest(craftDropOff);
+            }
+            case TO_SOURCE -> {
+                settler.setActivity(SettlerActivity.TRAVELING);
+                pathToChest(sourcePos);
             }
             case RETURNING -> {
                 settler.setActivity(SettlerActivity.CARRYING);
-                pathAbove(settler.getHearthPos());
+                pathAbove(job == JobPriority.CRAFTER_RESTOCK
+                    ? sourcePos : settler.getHearthPos());
             }
             default -> {
                 settler.setActivity(SettlerActivity.TRAVELING);
@@ -282,9 +464,10 @@ public class CourierWorkGoal extends Goal {
             pos.getZ() + 0.5, 0.95);
     }
 
-    private void pathToDropOff() {
-        if (dropOff != null && settler.level() instanceof ServerLevel level) {
-            pathToStand(approachTo(level, dropOff, settler.blockPosition()));
+    /** Walks toward a standable cell beside any chest leg of any route. */
+    private void pathToChest(BlockPos pos) {
+        if (pos != null && settler.level() instanceof ServerLevel level) {
+            pathToStand(approachTo(level, pos, settler.blockPosition()));
         }
     }
 
@@ -328,18 +511,29 @@ public class CourierWorkGoal extends Goal {
                 .getCollisionShape(level, pos.below()).isEmpty();
     }
 
+    // --------------------------------------------------------------- tick ---
+
     @Override
     public void tick() {
         if (setDownThudIn >= 0 && setDownThudIn-- == 0) {
             playAt(ModSounds.CRATE_DOWN.get(), 0.8F,
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
+        // A restock lease is a heartbeat, not a one-shot timer: as long as
+        // this goal is actively ticking the job, the lock cannot expire out
+        // from under her -- only a courier who stops ticking altogether
+        // (death, an interruption that never resumes) lets it lapse.
+        renewReservation();
         switch (mode) {
             case TO_HEARTH -> tickToHearth();
             case LOADING -> tickLoading();
             case TO_WAREHOUSE -> tickToWarehouse();
             case SORTING -> tickSorting();
             case RETURNING -> tickReturning();
+            case TO_SOURCE -> tickToSource();
+            case WITHDRAWING -> tickWithdrawing();
+            case TO_CRAFTER -> tickToCrafter();
+            case DEPOSITING -> tickDepositing();
         }
     }
 
@@ -407,11 +601,12 @@ public class CourierWorkGoal extends Goal {
             done = true;
             return;
         }
+        job = JobPriority.WAREHOUSE_CONSOLIDATION;
         mode = Mode.TO_WAREHOUSE;
         workTicks = 0;
         stuckChecks = 0;
         settler.setActivity(SettlerActivity.CARRYING);
-        pathToDropOff();
+        pathToChest(dropOff);
     }
 
     private void tickToWarehouse() {
@@ -420,36 +615,16 @@ public class CourierWorkGoal extends Goal {
             return;
         }
         Settlement s = settler.settlement();
-        Building warehouse = s == null ? null : findWarehouseById(s);
+        Building warehouse = s == null ? null : findBuildingById(s, warehouseId);
         if (warehouse == null) {
-            mode = Mode.RETURNING; // dissolved mid-trip: carry the goods home
-            stuckChecks = 0;
-            repathTimer = 0;
-            pathAbove(settler.getHearthPos());
+            beginReturn(); // dissolved mid-trip: carry the goods home
             return;
         }
-        // Laden footfalls and the occasional strained breath: the load is
-        // meant to be audible, not just visible (D-007).
         workTicks++;
-        if (settler.getDeltaMovement().horizontalDistanceSqr() > 1.0E-4) {
-            if (workTicks % HAUL_STEP_PERIOD == 0) {
-                playAt(ModSounds.HAUL_STEP.get(), 0.6F,
-                    0.95F + settler.getRandom().nextFloat() * 0.1F);
-            }
-            if (workTicks % HAUL_STRAIN_PERIOD == 0) {
-                playAt(ModSounds.HAUL_STRAIN.get(), 0.55F,
-                    0.95F + settler.getRandom().nextFloat() * 0.1F);
-            }
-            // Loaded wood flexing. Deliberately offset from the footfall
-            // period so the creak never lands on the same tick as a step.
-            if (workTicks % CRATE_CREAK_PERIOD == CRATE_CREAK_OFFSET) {
-                playAt(ModSounds.CRATE_CREAK.get(), 0.45F,
-                    0.95F + settler.getRandom().nextFloat() * 0.1F);
-            }
-        }
+        playHaulSounds();
         settler.getLookControl().setLookAt(dropOff.getX() + 0.5,
             dropOff.getY() + 0.6, dropOff.getZ() + 0.5);
-        if (hasArrivedAt(warehouse)) {
+        if (hasArrived(warehouse, dropOff)) {
             settler.getNavigation().stop();
             // COURIER_SET_DOWN starts now; its contact is SET_DOWN_TICK
             // ticks in, so the thud is scheduled rather than played here
@@ -468,23 +643,52 @@ public class CourierWorkGoal extends Goal {
                 // rest the route so this is not an invisible busy-loop.
                 giveUp();
             } else {
-                pathToDropOff();
+                pathToChest(dropOff);
             }
         }
     }
 
     /**
-     * Arrival means <em>in the warehouse, at a chest</em> -- being within
-     * reach through a wall is not arriving. The building's bounds come from
-     * the plaque's room scan and include its shell, so a settler in the
-     * doorway counts as inside while one outside the wall does not.
+     * Arrival means <em>inside the building, at the chest</em> -- being
+     * within reach through a wall is not arriving. The building's bounds
+     * come from the plaque's room scan and include its shell, so a settler
+     * in the doorway counts as inside while one outside the wall does not.
+     * Shared by every leg with a chest destination -- a restock delivery
+     * walking through a crafter's wall would be the exact same wedge this
+     * was written to close for consolidation (KF-013).
      */
-    private boolean hasArrivedAt(Building warehouse) {
+    private boolean hasArrived(Building building, BlockPos target) {
         BlockPos at = settler.blockPosition();
-        if (warehouse.bounds != null && !warehouse.bounds.isInside(at)) {
+        if (building.bounds != null && !building.bounds.isInside(at)) {
             return false;
         }
-        return at.distSqr(dropOff) <= DROP_OFF_REACH_SQR;
+        return at.distSqr(target) <= CHEST_REACH_SQR;
+    }
+
+    /**
+     * Laden footfalls and the occasional strained breath while under load:
+     * the load is meant to be audible, not just visible (D-007). Shared by
+     * every haul leg -- a restock delivery carries real weight exactly like
+     * a consolidation one.
+     */
+    private void playHaulSounds() {
+        if (settler.getDeltaMovement().horizontalDistanceSqr() <= 1.0E-4) {
+            return;
+        }
+        if (workTicks % HAUL_STEP_PERIOD == 0) {
+            playAt(ModSounds.HAUL_STEP.get(), 0.6F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
+        if (workTicks % HAUL_STRAIN_PERIOD == 0) {
+            playAt(ModSounds.HAUL_STRAIN.get(), 0.55F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
+        // Loaded wood flexing. Deliberately offset from the footfall period
+        // so the creak never lands on the same tick as a step.
+        if (workTicks % CRATE_CREAK_PERIOD == CRATE_CREAK_OFFSET) {
+            playAt(ModSounds.CRATE_CREAK.get(), 0.45F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
     }
 
     /** One stack per cycle into the warehouse chests, moving at tick 16. */
@@ -498,13 +702,9 @@ public class CourierWorkGoal extends Goal {
             return;
         }
         Settlement s = settler.settlement();
-        Building warehouse = s == null ? null : findWarehouseById(s);
+        Building warehouse = s == null ? null : findBuildingById(s, warehouseId);
         if (warehouse == null) {
-            mode = Mode.RETURNING; // dissolved mid-delivery: take them home
-            stuckChecks = 0;
-            repathTimer = 0;
-            settler.setActivity(SettlerActivity.CARRYING);
-            pathAbove(settler.getHearthPos());
+            beginReturn(); // dissolved mid-delivery: take them home
             return;
         }
         WarehouseStorage storage = WarehouseStorage.of(level, warehouse);
@@ -521,12 +721,7 @@ public class CourierWorkGoal extends Goal {
             settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
             settler.bag.setItem(i, leftover);
             if (!leftover.isEmpty()) {
-                // Warehouse full: stop, and carry what is left back home.
-                mode = Mode.RETURNING;
-                stuckChecks = 0;
-                repathTimer = 0;
-                settler.setActivity(SettlerActivity.CARRYING);
-                pathAbove(settler.getHearthPos());
+                beginReturn(); // warehouse full: stop, and carry what is left back home
             }
             return; // one stack per cycle -- the animation beat
         }
@@ -534,52 +729,312 @@ public class CourierWorkGoal extends Goal {
         done = true; // bag empty: delivery complete
     }
 
+    // ------------------------------------------------------ restock legs ---
+
+    private void tickToSource() {
+        if (sourcePos == null || !(settler.level() instanceof ServerLevel level)) {
+            done = true;
+            releaseReservation();
+            return;
+        }
+        Settlement s = settler.settlement();
+        Building warehouse = s == null ? null : findBuildingById(s, sourceWarehouseId);
+        if (warehouse == null) {
+            // The source warehouse dissolved mid-trip. Nothing has been
+            // taken yet -- the bag is still empty at this point in the
+            // route -- so there is nothing to lose; just stand down.
+            done = true;
+            releaseReservation();
+            return;
+        }
+        settler.getLookControl().setLookAt(sourcePos.getX() + 0.5,
+            sourcePos.getY() + 0.6, sourcePos.getZ() + 0.5);
+        if (hasArrived(warehouse, sourcePos)) {
+            settler.getNavigation().stop();
+            mode = Mode.WITHDRAWING;
+            workTicks = 0;
+            settler.setActivity(SettlerActivity.SORTING);
+        } else if (--repathTimer <= 0) {
+            repathTimer = REPATH_INTERVAL;
+            if (++stuckChecks > HAUL_STUCK_LIMIT) {
+                giveUp();
+            } else {
+                pathToChest(sourcePos);
+            }
+        }
+    }
+
+    /** Lifts one bag-load of the reserved item out of the source chest. */
+    private void tickWithdrawing() {
+        workTicks++;
+        if (workTicks == LIFT_GRIP_TICK) {
+            settler.triggerCourierLift();
+            playAt(ModSounds.CRATE_GRIP.get(), 0.7F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
+        if (workTicks < SORT_PERIOD / 2) {
+            return;
+        }
+        if (!(settler.level() instanceof ServerLevel level)) {
+            done = true;
+            releaseReservation();
+            return;
+        }
+        if (!(level.getBlockEntity(sourcePos) instanceof Container container)) {
+            // The chest is gone by the time we arrived -- nothing has been
+            // taken yet, so nothing is lost. Stand down rather than assume.
+            done = true;
+            releaseReservation();
+            return;
+        }
+        int capacity = settler.getCarryCapacity();
+        for (int slot = 0; slot < container.getContainerSize() && bagCount() < capacity; slot++) {
+            ItemStack stack = container.getItem(slot);
+            // Reserved by exact ITEM, not by the recipe's whole ingredient:
+            // this exact item was confirmed sitting in this exact chest when
+            // the job was claimed, so that is what gets fetched -- not just
+            // anything else the recipe's tag would also accept.
+            if (stack.isEmpty() || !stack.is(reservedItem)) {
+                continue;
+            }
+            int want = Math.min(stack.getCount(), capacity - bagCount());
+            // Destination-first (D-A2a-3): remove from the real chest, bank
+            // into the bag, and give back whatever the bag would not take,
+            // so an interruption between these lines still leaves the item
+            // somewhere real.
+            ItemStack removed = container.removeItem(slot, want);
+            if (removed.isEmpty()) {
+                continue;
+            }
+            ItemStack leftover = settler.bag.addItem(removed);
+            giveBackToChest(container, slot, leftover);
+            playAt(ModSounds.ITEM_PICKUP.get(), 0.5F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+        }
+        if (bagCount() <= 0) {
+            // Reserved, but empty-handed on arrival -- a player took it by
+            // hand between the reservation and now, or rearranged the
+            // chest. Chest truth is re-read here, never assumed from
+            // reservation time; nothing was picked up, so nothing is lost.
+            done = true;
+            releaseReservation();
+            return;
+        }
+        mode = Mode.TO_CRAFTER;
+        workTicks = 0;
+        stuckChecks = 0;
+        settler.setActivity(SettlerActivity.CARRYING);
+        pathToChest(craftDropOff);
+    }
+
     /**
-     * Carries an undeliverable load back to the hearth and puts it down.
-     * The failure mode this exists to prevent is the quiet one: a courier
-     * wandering off with the settlement's goods locked in her bag.
+     * Puts back what the bag would not take, merging onto whatever this
+     * exact slot still holds rather than overwriting it. {@code want} can be
+     * less than the whole stack (the bag's own capacity was the limit, not
+     * the chest's), which leaves a remainder in the slot that a bare
+     * {@code setItem} would silently discard -- FIX: this exists so a
+     * courier topping off mid-stack never quietly drops the rest of it.
+     */
+    private static void giveBackToChest(Container container, int slot, ItemStack leftover) {
+        if (leftover.isEmpty()) {
+            return;
+        }
+        ItemStack remaining = container.getItem(slot);
+        if (remaining.isEmpty()) {
+            container.setItem(slot, leftover);
+        } else {
+            remaining.grow(leftover.getCount());
+        }
+        container.setChanged();
+    }
+
+    private void tickToCrafter() {
+        if (craftDropOff == null || !(settler.level() instanceof ServerLevel level)) {
+            done = true;
+            releaseReservation();
+            return;
+        }
+        Settlement s = settler.settlement();
+        Building crafter = s == null ? null : findBuildingById(s, craftBuildingId);
+        if (crafter == null) {
+            // Dissolved mid-trip: the raw material goes back to the
+            // warehouse it came from, not into a building that no longer
+            // exists.
+            beginReturn();
+            return;
+        }
+        workTicks++;
+        playHaulSounds();
+        settler.getLookControl().setLookAt(craftDropOff.getX() + 0.5,
+            craftDropOff.getY() + 0.6, craftDropOff.getZ() + 0.5);
+        if (hasArrived(crafter, craftDropOff)) {
+            settler.getNavigation().stop();
+            settler.triggerCourierSetDown();
+            setDownThudIn = SET_DOWN_TICK;
+            mode = Mode.DEPOSITING;
+            workTicks = 0;
+            settler.setActivity(SettlerActivity.SORTING);
+        } else if (--repathTimer <= 0) {
+            repathTimer = REPATH_INTERVAL;
+            if (++stuckChecks > HAUL_STUCK_LIMIT) {
+                giveUp();
+            } else {
+                pathToChest(craftDropOff);
+            }
+        }
+    }
+
+    private void tickDepositing() {
+        workTicks++;
+        if (workTicks % SORT_PERIOD != SORT_MOVE_TICK) {
+            return;
+        }
+        if (!(settler.level() instanceof ServerLevel level)) {
+            done = true;
+            releaseReservation();
+            return;
+        }
+        Settlement s = settler.settlement();
+        Building crafter = s == null ? null : findBuildingById(s, craftBuildingId);
+        if (crafter == null) {
+            beginReturn();
+            return;
+        }
+        // Reuses the warehouse's own destination-first insert:
+        // WarehouseIndex is not actually warehouse-specific -- a building's
+        // containers are just its bounds' chests -- so the same conserving
+        // transfer that keeps consolidation honest keeps a restock delivery
+        // honest too, rather than a second insert implementation to trust.
+        WarehouseStorage storage = WarehouseStorage.of(level, crafter);
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack leftover = storage.insert(level, crafter, stack.copy());
+            playAt(ModSounds.CHEST_STOW.get(), 0.65F,
+                0.95F + settler.getRandom().nextFloat() * 0.1F);
+            settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
+            settler.bag.setItem(i, leftover);
+            if (!leftover.isEmpty()) {
+                // Crafter's chests filled mid-delivery: the rest goes back
+                // to the warehouse, not into the void.
+                beginReturn();
+            }
+            return;
+        }
+        // Delivered: a later courier's scan sees the crafter's real, now
+        // lower need, so holding the lease any further protects nothing.
+        releaseReservation();
+        done = true;
+    }
+
+    // ---------------------------------------------------------- failure ---
+
+    /**
+     * Carries an undeliverable load back to where it came from and puts it
+     * down. Where "back" means depends on the job: a consolidation load
+     * goes to the hearth it was lifted from; a restock load goes to the
+     * warehouse it was lifted from, never to the hearth -- putting raw
+     * material there would misplace it, since the hearth is read as "goods
+     * awaiting their first haul", not general storage.
+     *
+     * <p>The failure mode this exists to prevent is the quiet one: a
+     * courier wandering off with the settlement's goods locked in her bag.
      */
     private void tickReturning() {
         if (bagCount() <= 0) {
             done = true;
             return;
         }
-        BlockPos hearthPos = settler.getHearthPos();
-        HearthBlockEntity hearth = settler.hearth();
-        if (hearthPos == null || hearth == null) {
-            // No hearth to return to -- a razed settlement, which raids are
-            // meant to be able to cause. Keep the load and rest the route:
-            // without the cooldown, canUse() re-selects RETURNING on the very
-            // next tick and this becomes a one-tick busy loop.
+        boolean toWarehouse = job == JobPriority.CRAFTER_RESTOCK;
+        BlockPos returnPos = toWarehouse ? sourcePos : settler.getHearthPos();
+        boolean nowhereToGo = returnPos == null
+            || (!toWarehouse && settler.hearth() == null);
+        if (nowhereToGo) {
+            // No hearth (or, for a restock load, no source position at all)
+            // -- a razed settlement, which raids are meant to be able to
+            // cause. Keep the load and rest the route: without the
+            // cooldown, canUse() re-selects RETURNING on the very next tick
+            // and this becomes a one-tick busy loop.
             restRoute();
             done = true;
             return;
         }
-        settler.getLookControl().setLookAt(hearthPos.getX() + 0.5,
-            hearthPos.getY() + 0.6, hearthPos.getZ() + 0.5);
-        if (settler.blockPosition().distSqr(hearthPos) <= HEARTH_REACH_SQR) {
+        double reachSqr = toWarehouse ? CHEST_REACH_SQR : HEARTH_REACH_SQR;
+        settler.getLookControl().setLookAt(returnPos.getX() + 0.5,
+            returnPos.getY() + 0.6, returnPos.getZ() + 0.5);
+        if (settler.blockPosition().distSqr(returnPos) <= reachSqr) {
             settler.getNavigation().stop();
-            // Destination-first again: the hearth takes the stack before the
-            // bag slot is overwritten with whatever it could not hold.
-            for (int i = 0; i < settler.bag.getContainerSize(); i++) {
-                ItemStack stack = settler.bag.getItem(i);
-                if (stack.isEmpty()) {
-                    continue;
-                }
-                settler.bag.setItem(i, hearth.insertGoods(stack.copy()));
-            }
+            depositReturnedLoad(toWarehouse);
             playAt(ModSounds.CHEST_STOW.get(), 0.65F,
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
+            if (bagCount() > 0) {
+                // FIX: even the fallback container can be full (or gone) --
+                // e.g. the warehouse this restock trip came from is now
+                // packed too. Without this, the original consolidation path
+                // had no rest here at all, so a full hearth and a full
+                // warehouse would ping-pong a courier between them every
+                // shift with no cooldown -- the same busy loop
+                // RETRY_COOLDOWN exists to prevent on every other leg.
+                restRoute();
+            }
             done = true;
         } else if (--repathTimer <= 0) {
             repathTimer = REPATH_INTERVAL;
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
-                restRoute(); // cannot even get home; the bag keeps the goods
+                restRoute();
                 done = true;
             } else {
-                pathAbove(hearthPos);
+                pathAbove(returnPos);
             }
         }
+    }
+
+    private void depositReturnedLoad(boolean toWarehouse) {
+        if (!(settler.level() instanceof ServerLevel level)) {
+            return;
+        }
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (toWarehouse) {
+                Settlement s = settler.settlement();
+                Building warehouse = s == null ? null
+                    : findBuildingById(s, sourceWarehouseId);
+                if (warehouse == null) {
+                    continue; // nothing to insert into: keep it in the bag
+                }
+                settler.bag.setItem(i,
+                    WarehouseStorage.of(level, warehouse).insert(level, warehouse, stack.copy()));
+            } else {
+                HearthBlockEntity hearth = settler.hearth();
+                if (hearth == null) {
+                    continue;
+                }
+                settler.bag.setItem(i, hearth.insertGoods(stack.copy()));
+            }
+        }
+    }
+
+    /**
+     * Sends whatever is left in the bag back to where it can safely rest,
+     * rather than pressing on toward a destination that just proved
+     * unreachable, full, or gone.
+     */
+    private void beginReturn() {
+        if (job == JobPriority.CRAFTER_RESTOCK) {
+            // The delivery attempt is decided either way from here -- a
+            // second courier's scan will see the crafter's real, current
+            // need, so holding the lease any further protects nothing.
+            releaseReservation();
+        }
+        mode = Mode.RETURNING;
+        stuckChecks = 0;
+        repathTimer = 0;
+        settler.setActivity(SettlerActivity.CARRYING);
+        pathAbove(job == JobPriority.CRAFTER_RESTOCK ? sourcePos : settler.getHearthPos());
     }
 
     /**
@@ -590,13 +1045,10 @@ public class CourierWorkGoal extends Goal {
     private void giveUp() {
         restRoute();
         if (bagCount() > 0) {
-            mode = Mode.RETURNING;
-            stuckChecks = 0;
-            repathTimer = 0;
-            settler.setActivity(SettlerActivity.CARRYING);
-            pathAbove(settler.getHearthPos());
+            beginReturn();
         } else {
             done = true;
+            releaseReservation();
         }
     }
 
@@ -617,18 +1069,6 @@ public class CourierWorkGoal extends Goal {
             + ":rest" + rest + ":run" + consecutiveFailures);
     }
 
-    private Building findWarehouseById(Settlement s) {
-        if (warehouseId == null) {
-            return null;
-        }
-        for (Building b : s.buildings) {
-            if (b.id.equals(warehouseId) && b.valid) {
-                return b;
-            }
-        }
-        return null;
-    }
-
     private void playAt(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
         settler.level().playSound(null, settler.getX(), settler.getY(), settler.getZ(),
             sound, net.minecraft.sounds.SoundSource.NEUTRAL, volume, pitch);
@@ -638,5 +1078,230 @@ public class CourierWorkGoal extends Goal {
     public void stop() {
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
+        // Deliberately does NOT release a restock reservation here. This
+        // goal can be stopped by a higher-priority interruption (e.g.
+        // combat) and resumed on the very next opportunity with the SAME
+        // job still in these fields (mode/job/sourcePos/... all survive
+        // stop()/start()) -- an early release here would open exactly the
+        // double-fetch window a second courier's scan is meant to be locked
+        // out of. The lease (RESERVATION_TTL_TICKS, renewed every active
+        // tick) is what actually reclaims a job whose courier never comes
+        // back -- the same reasoning {@code SettlerEntity#die} bag-drop
+        // already applies at the entity level: a courier who dies mid-
+        // restock leaves her reservation to expire on the lease rather than
+        // being released from here, since die() does not run this goal's
+        // stop() either.
+    }
+
+    // ------------------------------------------------------ restock scan ---
+
+    /**
+     * The first crafter building genuinely short of a raw material one of
+     * the settlement's warehouses is holding, with nobody else already
+     * fetching it for that crafter.
+     *
+     * <p>"First", not "best" -- the same tradeoff {@code
+     * TidyWarehouseGoal#findMerge} makes and for the same reason: a courier
+     * doing her rounds is not solving an assignment problem.
+     *
+     * <p>Reserves the job it returns before returning it, in the SAME
+     * synchronous call. Minecraft's server tick is single-threaded, so
+     * nothing else can observe the gap between "found it" and "claimed it"
+     * the way two real threads racing on a lock could -- the ledger exists
+     * to stop a SECOND courier's {@code canUse()}, evaluated later in the
+     * same or a following tick, from picking the identical job, not to
+     * guard against real concurrency. FIX: this closes the double-fetch
+     * race the task called out -- two couriers independently deciding, in
+     * the same tick before either has moved, to fetch the same scarce stock
+     * for the same crafter.
+     *
+     * <p>Bounded like every other world read here: each building's own
+     * chests and each warehouse's chests are read through
+     * {@link WarehouseIndex}, which caps at
+     * {@link WarehouseIndex#MAX_CONTAINERS}, and the outer loops are over
+     * the settlement's own building list -- there is no per-tick cost that
+     * grows with how much the settlement owns, only with how many buildings
+     * it has, and this whole method is itself only tried once every
+     * {@link #RESTOCK_LOOK_INTERVAL} ticks per idle courier.
+     */
+    private RestockJob findRestockJob(ServerLevel level, Settlement s) {
+        long now = level.getGameTime();
+        for (Building crafter : s.buildings) {
+            if (!crafter.valid || !Production.produces(crafter.type)) {
+                continue;
+            }
+            List<Held> mine = liveContainers(level, crafter);
+            if (mine.isEmpty()) {
+                continue;
+            }
+            for (Production.Recipe recipe : Production.of(crafter.type)) {
+                Ingredient want = recipe.input();
+                if (countMatching(mine, want) >= recipe.inputCount()
+                    || !roomFor(mine, want)) {
+                    continue; // not short, or nowhere to put more even if fetched
+                }
+                for (Building warehouse : s.buildings) {
+                    if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
+                        continue;
+                    }
+                    List<Held> theirs = liveContainers(level, warehouse);
+                    Held stock = findStock(theirs, want);
+                    if (stock == null) {
+                        continue;
+                    }
+                    Item item = matchingItem(stock.container(), want);
+                    if (item == null) {
+                        continue;
+                    }
+                    RestockKey key = new RestockKey(crafter.id, item);
+                    if (isReservedByOther(key, now)) {
+                        continue; // another courier already has this job
+                    }
+                    if (!reserve(key, now)) {
+                        continue; // lost a same-tick race to another courier's claim
+                    }
+                    return new RestockJob(crafter, mine.get(0).pos(),
+                        warehouse, stock.pos(), item, key);
+                }
+            }
+        }
+        return null;
+    }
+
+    private record Held(BlockPos pos, Container container) {
+    }
+
+    private record RestockJob(Building crafter, BlockPos craftChest, Building warehouse,
+                              BlockPos sourceChest, Item item, RestockKey key) {
+    }
+
+    private static List<Held> liveContainers(ServerLevel level, Building building) {
+        List<Held> found = new ArrayList<>();
+        for (BlockPos pos : WarehouseIndex.containers(level, building)) {
+            if (level.getBlockEntity(pos) instanceof Container c) {
+                found.add(new Held(pos, c));
+            }
+        }
+        return found;
+    }
+
+    private static int countMatching(List<Held> containers, Ingredient ingredient) {
+        int total = 0;
+        for (Held h : containers) {
+            Container c = h.container();
+            for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                ItemStack stack = c.getItem(slot);
+                if (!stack.isEmpty() && ingredient.test(stack)) {
+                    total += stack.getCount();
+                }
+            }
+        }
+        return total;
+    }
+
+    private static boolean roomFor(List<Held> containers, Ingredient ingredient) {
+        for (Held h : containers) {
+            Container c = h.container();
+            for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                ItemStack stack = c.getItem(slot);
+                if (stack.isEmpty()) {
+                    return true;
+                }
+                if (ingredient.test(stack) && stack.getCount() < stack.getMaxStackSize()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static Held findStock(List<Held> containers, Ingredient ingredient) {
+        for (Held h : containers) {
+            Container c = h.container();
+            for (int slot = 0; slot < c.getContainerSize(); slot++) {
+                ItemStack stack = c.getItem(slot);
+                if (!stack.isEmpty() && ingredient.test(stack)) {
+                    return h;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Item matchingItem(Container container, Ingredient ingredient) {
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (!stack.isEmpty() && ingredient.test(stack)) {
+                return stack.getItem();
+            }
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------- reservation ---
+
+    /** Which crafter, and which exact item, a restock trip is claimed for. */
+    private record RestockKey(UUID crafterId, Item item) {
+    }
+
+    private record Reservation(UUID courier, long expiresAtTick) {
+    }
+
+    /**
+     * Every claimed restock job in the game, across every courier and every
+     * settlement. Static like {@code WarehouseStorage#CACHE}: this is intent
+     * ("who is handling this"), never a second copy of chest contents, so it
+     * carries no per-world lifecycle of its own -- a stale entry for a
+     * settlement that no longer exists just sits unreferenced until its
+     * lease lapses.
+     */
+    private static final Map<RestockKey, Reservation> RESERVATIONS = new HashMap<>();
+
+    private boolean isReservedByOther(RestockKey key, long now) {
+        Reservation held = RESERVATIONS.get(key);
+        return held != null && held.expiresAtTick() > now
+            && !held.courier().equals(settler.getUUID());
+    }
+
+    private boolean reserve(RestockKey key, long now) {
+        Reservation held = RESERVATIONS.get(key);
+        if (held != null && held.expiresAtTick() > now
+            && !held.courier().equals(settler.getUUID())) {
+            return false;
+        }
+        RESERVATIONS.put(key, new Reservation(settler.getUUID(), now + RESERVATION_TTL_TICKS));
+        return true;
+    }
+
+    private void renewReservation() {
+        if (reservationKey == null || !(settler.level() instanceof ServerLevel level)) {
+            return;
+        }
+        RESERVATIONS.put(reservationKey,
+            new Reservation(settler.getUUID(), level.getGameTime() + RESERVATION_TTL_TICKS));
+    }
+
+    private void releaseReservation() {
+        if (reservationKey == null) {
+            return;
+        }
+        Reservation held = RESERVATIONS.get(reservationKey);
+        if (held != null && held.courier().equals(settler.getUUID())) {
+            RESERVATIONS.remove(reservationKey);
+        }
+        reservationKey = null;
+    }
+
+    /**
+     * Test-only window into the ledger. A GameTest cannot otherwise tell
+     * "the second courier was locked out" from "the second courier just
+     * found an already-emptied chest" -- with a single stock stack fully
+     * consumable by one trip, chest truth means both outcomes look
+     * identical from the outside (the loser is never visibly different
+     * whether or not she was ever allowed to try). This looks at the lock
+     * itself instead.
+     */
+    public static boolean restockJobIsHeld(UUID crafterId, Item item) {
+        return RESERVATIONS.containsKey(new RestockKey(crafterId, item));
     }
 }

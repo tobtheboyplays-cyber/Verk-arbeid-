@@ -1,0 +1,307 @@
+{
+  "name": "settler_screen_nb",
+  "width": 256,
+  "height": 322,
+  "elements": [
+    {
+      "t": "window",
+      "x": 0,
+      "y": 0,
+      "w": 256,
+      "h": 0
+    },
+    {
+      "t": "inset",
+      "x": 8,
+      "y": 8,
+      "w": 50,
+      "h": 56
+    },
+    {
+      "t": "label",
+      "x": 66,
+      "y": 8,
+      "text": "Gislebert the Younger",
+      "tone": "text_strong",
+      "box": 182,
+      "id": "name"
+    },
+    {
+      "t": "label",
+      "x": 75,
+      "y": 20,
+      "text": "Gruvearbeider",
+      "box": 173,
+      "id": "profession"
+    },
+    {
+      "t": "label",
+      "x": 66,
+      "y": 32,
+      "text": "N\u00e5: Sorterer lageret",
+      "tone": "text_muted",
+      "box": 182,
+      "id": "activity"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 68,
+      "w": 240,
+      "h": 14
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 70,
+      "text": "Ordf\u00f8rer \u2014 N\u00f8ysomt arbeid (setter seg inn)",
+      "tone": "accent",
+      "box": 232,
+      "id": "mayor_badge"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 86,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 92,
+      "text": "Sult",
+      "box": 44,
+      "id": "need[0]"
+    },
+    {
+      "t": "bar",
+      "x": 52,
+      "y": 92,
+      "w": 166,
+      "h": 6,
+      "value": 0.42,
+      "tone": "warn"
+    },
+    {
+      "t": "label",
+      "x": 222,
+      "y": 92,
+      "text": "100",
+      "tone": "text_muted",
+      "box": 26,
+      "align": "right",
+      "id": "need_val[0]"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 104,
+      "text": "Energi",
+      "box": 44,
+      "id": "need[1]"
+    },
+    {
+      "t": "bar",
+      "x": 52,
+      "y": 104,
+      "w": 166,
+      "h": 6,
+      "value": 0.42,
+      "tone": "warn"
+    },
+    {
+      "t": "label",
+      "x": 222,
+      "y": 104,
+      "text": "100",
+      "tone": "text_muted",
+      "box": 26,
+      "align": "right",
+      "id": "need_val[1]"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 116,
+      "text": "Moral",
+      "box": 44,
+      "id": "need[2]"
+    },
+    {
+      "t": "bar",
+      "x": 52,
+      "y": 116,
+      "w": 166,
+      "h": 6,
+      "value": 0.42,
+      "tone": "warn"
+    },
+    {
+      "t": "label",
+      "x": 222,
+      "y": 116,
+      "text": "100",
+      "tone": "text_muted",
+      "box": 26,
+      "align": "right",
+      "id": "need_val[2]"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 132,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 138,
+      "text": "Utholdenhet (naturlig lag)",
+      "tone": "accent",
+      "box": 140,
+      "id": "attr[0]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 139,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 150,
+      "text": "Utholdenhet",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[1]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 151,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 162,
+      "text": "Utholdenhet",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[2]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 163,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 174,
+      "text": "Utholdenhet",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[3]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 175,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 186,
+      "text": "Utholdenhet",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[4]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 187,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 202,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 208,
+      "text": "Strong back, Watchful, Quick study",
+      "tone": "text_muted",
+      "box": 240,
+      "id": "traits(informational-self-guarded)"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 220,
+      "text": "Arbeider ved Vaktt\u00e5rn \u2014 Nattevakt",
+      "box": 240,
+      "id": "employment"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 236,
+      "text": "Denne bosetteren h\u00f8rer enn\u00e5 ikke til noen",
+      "tone": "warn",
+      "box": 240,
+      "id": "refusal_line[0]"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 245,
+      "text": "bygd",
+      "tone": "warn",
+      "box": 240,
+      "id": "refusal_line[1]"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 264,
+      "w": 240
+    },
+    {
+      "t": "button",
+      "x": 8,
+      "y": 270,
+      "w": 240,
+      "h": 20,
+      "text": "Utnevn til ordf\u00f8rer"
+    },
+    {
+      "t": "button",
+      "x": 8,
+      "y": 294,
+      "w": 64,
+      "h": 20,
+      "text": "Si opp"
+    },
+    {
+      "t": "button",
+      "x": 184,
+      "y": 294,
+      "w": 64,
+      "h": 20,
+      "text": "Lukk"
+    }
+  ]
+}

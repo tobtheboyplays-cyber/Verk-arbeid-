@@ -1,0 +1,29 @@
+BLOCKED: tools/hearthstead-qa full cannot run at this moment
+When: 2026-08-25T19:24:06Z
+
+Failing command: tools/hearthstead-qa full
+Error/evidence: not a tool failure — a protocol conflict. Three parallel
+Sonnet workers (fast-quality mode, user-authorized) are actively editing
+fingerprinted sources RIGHT NOW:
+ - logistics worker: entity/ai/CourierWorkGoal.java, TidyWarehouseGoal.java,
+   network/Storage*, client/screen/StorageScreen.java (StorageScreen.java
+   currently mid-edit and not compiling)
+ - animation worker: client/model/SettlerAnimations.java, docs/ANIMATION_CATALOGUE.md
+ - job-limits worker: entity/Effort.java (new), SettlerEntity.java, five work goals
+qa/PROTOCOL.md forbids running a suite while sources are being edited, and a
+run now would be STALE against its own fingerprint before it finished.
+
+Work completed meanwhile (committed 6921be9, pushed to
+claude/hearthstead-settlement-mod-vbdb9n): fleet wave 1 integration —
+signature motions, 5 generated trade sounds, 9 trade GameTests, settler
+sheet + mayor tab UIs wired, raid slice, handbook rewrite, KF-018 column
+scan (live-verified: 38 logs chest-true), settler nametag fix, door-pathing
+fix (RoadNavigation.setCanOpenDoors — root cause of three live freezes),
+all python validators green (695/695), compile green except the logistics
+worker's in-flight StorageScreen edit.
+
+Exact resume action: when the three workers report done, run
+/tmp/claude-0/-home-user-Verk-arbeid-/aea5ce91-1a3f-534c-a58e-c3c772f0e0bc/scratchpad/integrate.sh
+(compile → validators → jar → live stop → gametest → quick), fix-loop
+failures with the owning workers, then tools/hearthstead-qa full twice for
+green_streak >= 2, delete this file, commit and push.

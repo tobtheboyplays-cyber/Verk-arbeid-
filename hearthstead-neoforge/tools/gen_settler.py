@@ -108,6 +108,10 @@ PROFESSION_OUTFITS = {
     "mason":     dict(headgear="hood", hood_wool="stone", bracers=True,
                       bracer_wool="stone"),
     "fletcher":  dict(headgear="bare", apron=True, apron_wool="forest"),
+    # RECRUIT-1: the innkeeper reads as the warm, unarmoured host -- a linen
+    # hood and a amber-toned apron, nothing martial, nothing workshop-worn.
+    "innkeeper": dict(headgear="hood", hood_wool="linen", apron=True,
+                      apron_wool="amber"),
     "weaver":    dict(headgear="hood", hood_wool="wheat", apron=True,
                       apron_wool="straw"),
     "tanner":    dict(headgear="bare", apron=True, apron_wool="leather",

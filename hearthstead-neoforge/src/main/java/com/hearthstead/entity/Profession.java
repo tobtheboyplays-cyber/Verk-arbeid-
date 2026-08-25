@@ -29,7 +29,13 @@ public enum Profession {
     TANNER(15, "tanner", () -> ItemStack.EMPTY, 0x7A5230),
     // A starter trade in both references, and the one this roster was
     // missing. The pick stays in hand: it is what reads at distance.
-    MINER(16, "miner", () -> new ItemStack(Items.IRON_PICKAXE), 0x62604F);
+    MINER(16, "miner", () -> new ItemStack(Items.IRON_PICKAXE), 0x62604F),
+    // SLICE RECRUIT-1: the settlement's other half of A2's recruiting chain
+    // (DESIGN.md system 8) -- somebody has to stand behind the bar for the
+    // tavern to be more than an empty room. Hands stay free, same as
+    // COURIER: hospitality is a manner, not a tool, and there is nothing to
+    // hold that reads at a glance the way a hoe or an axe does.
+    INNKEEPER(17, "innkeeper", () -> ItemStack.EMPTY, 0xC08A3E);
 
     public static final Profession[] BY_ID = values();
 

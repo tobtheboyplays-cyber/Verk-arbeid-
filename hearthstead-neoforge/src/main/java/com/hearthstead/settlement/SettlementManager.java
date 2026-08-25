@@ -1,6 +1,7 @@
 package com.hearthstead.settlement;
 
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
@@ -13,7 +14,11 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -27,6 +32,39 @@ public final class SettlementManager {
     /** GameTests found settlements in cramped test structures; the spacing
      *  rule would make every test after the first fail. Never true in play. */
     public static boolean ignoreFoundingDistance = false;
+
+    /**
+     * What joining costs, in village-grown goods (DESIGN.md system 8: "recruit
+     * by paying a price in village-grown goods"). Paid whole, from the
+     * hearth's own inventory, at the moment a waiting guest is admitted.
+     *
+     * <p><b>Why bread and planks.</b> Bread is what every settlement has from
+     * its first harvest — three founders with a farmhouse can pay it before
+     * their first traveler even arrives. Oak planks are the one good stacked
+     * on top: cheap enough that an afternoon at the sawmill (or a player's own
+     * axe and crafting table) buries the cost completely, but a settlement
+     * with no production running yet has to genuinely wait and stock up
+     * first. Wool would have made the same point, but it needs a weaver AND
+     * sheep, which is a taller order than this slice's "young settlement can
+     * still just about afford it" is aiming for. Together the two items are a
+     * price a subsistence camp feels and a thriving settlement never notices
+     * — which is exactly the shape a "price" is supposed to have here.
+     */
+    private static final ItemStack[] RECRUIT_PRICE = {
+        new ItemStack(Items.BREAD, 4),
+        new ItemStack(Items.OAK_PLANKS, 8),
+    };
+
+    /**
+     * How long a guest waits at the tavern (or the hearth, tavern-less)
+     * before giving up on a settlement that cannot pay. 2.5 game days: long
+     * enough that a settlement mid-harvest gets a real second chance, short
+     * enough that an unpayable settlement is not haunted by the same guest
+     * forever. Doubled while an innkeeper is on shift (see
+     * {@link #tickWaitingTraveler}) — hospitality buys a guest more time to
+     * wait, not a cheaper price; the price never moves.
+     */
+    private static final long GUEST_PATIENCE_TICKS = 60_000L;
 
     public static SettlementSavedData data(ServerLevel level) {
         return SettlementSavedData.get(level);
@@ -140,7 +178,14 @@ public final class SettlementManager {
         return settler;
     }
 
-    /** A traveler reached the hearth and joins the settlement. */
+    /**
+     * A waiting guest has been paid for and joins the settlement.
+     *
+     * <p>Payment itself is the caller's job ({@link #tickWaitingTraveler}
+     * deducts {@link #RECRUIT_PRICE} before ever calling this) — by the time
+     * this runs the price is already gone from the hearth, so this method
+     * only ever does the joining, the same as it always has.
+     */
     public static void convertTraveler(ServerLevel level, SettlerEntity settler) {
         Settlement s = byId(level, settler.getTargetSettlementId());
         if (s == null || s.population() >= s.capacity()) {
@@ -150,9 +195,6 @@ public final class SettlementManager {
         settler.bindTo(s.id, s.center);
         s.putRecord(settler.getUUID(), settler.getSettlerName(), Profession.NONE);
         s.travelerId = null;
-        if (level.getBlockEntity(s.center) instanceof HearthBlockEntity hearth) {
-            hearth.consumeFood(3);
-        }
         settler.celebrate();
         level.playSound(null, s.center, ModSounds.SETTLER_RECRUITED.get(),
             SoundSource.NEUTRAL, 1.0F, 1.0F);
@@ -172,13 +214,11 @@ public final class SettlementManager {
             s.moraleCache = total / members.size();
         }
 
-        // A traveler already walking in?
+        Building tavern = firstValidTavern(s);
+
+        // A guest already waiting?
         if (s.travelerId != null) {
-            Entity traveler = level.getEntity(s.travelerId);
-            boolean expired = level.getGameTime() - s.travelerSinceGameTime > 6000;
-            if (traveler == null && expired) {
-                s.travelerId = null;
-            }
+            tickWaitingTraveler(level, s, tavern);
             return;
         }
 
@@ -189,7 +229,16 @@ public final class SettlementManager {
             if (s.recruitTarget <= 0) {
                 s.recruitTarget = 200 + level.random.nextInt(80);
             }
-            s.recruitProgress += s.moraleCache >= 80 ? 2 : 1;
+            int gain = s.moraleCache >= 80 ? 2 : 1;
+            if (tavern != null) {
+                // A tavern is the front door travelers actually notice; a
+                // hospitality-minded settlement (an innkeeper on shift)
+                // is noticed further still. Scales the SAME gauge rather
+                // than adding a second one, so the hearth's recruit bar
+                // stays the one number that tells the whole story.
+                gain += tavern.workers.isEmpty() ? 1 : 2;
+            }
+            s.recruitProgress += gain;
             if (s.recruitProgress >= s.recruitTarget) {
                 s.recruitProgress = 0;
                 s.recruitTarget = 200 + level.random.nextInt(80);
@@ -203,6 +252,108 @@ public final class SettlementManager {
             s.recruitProgress--;
         }
         data(level).setDirty();
+    }
+
+    /**
+     * A guest is standing at the tavern (or the hearth, tavern-less), waiting
+     * to be let in. Admits them the moment the settlement can pay
+     * {@link #RECRUIT_PRICE}; otherwise lets them keep waiting up to their
+     * patience, doubled while an innkeeper is on shift — checked straight off
+     * {@link Building#workers}, never a flag kept in step by hand (Employment's
+     * own invariant: the worker list is the only record of who is employed).
+     *
+     * <p>Payment is only ever attempted once the guest has actually reached
+     * the waiting spot, so "joins only once they wait there" is a fact about
+     * the world, not just a fact about the timer.
+     */
+    private static void tickWaitingTraveler(ServerLevel level, Settlement s,
+                                            @Nullable Building tavern) {
+        long waited = level.getGameTime() - s.travelerSinceGameTime;
+        long patience = tavern != null && !tavern.workers.isEmpty()
+            ? GUEST_PATIENCE_TICKS * 2 : GUEST_PATIENCE_TICKS;
+
+        Entity entity = level.getEntity(s.travelerId);
+        if (!(entity instanceof SettlerEntity guest) || !guest.isAlive()) {
+            // Chunk unloaded, or the guest is gone for some other reason.
+            // Only give up tracking them once their patience would have run
+            // out anyway, rather than holding the slot open forever.
+            if (waited > patience) {
+                s.travelerId = null;
+                data(level).setDirty();
+            }
+            return;
+        }
+
+        BlockPos waitingSpot = tavern != null ? tavern.anchor : s.center;
+        boolean arrived = waitingSpot != null
+            && guest.blockPosition().distSqr(waitingSpot) <= 9;
+        if (arrived && level.getBlockEntity(s.center) instanceof HearthBlockEntity hearth
+            && canPayRecruitPrice(hearth.getInventory())) {
+            payRecruitPrice(hearth.getInventory());
+            convertTraveler(level, guest);
+            return;
+        }
+
+        if (waited > patience) {
+            s.travelerId = null;
+            String name = guest.getSettlerName();
+            guest.discard();
+            broadcast(level, s, Component.translatable("hearthstead.message.traveler_left", name));
+            data(level).setDirty();
+        }
+    }
+
+    /** The first valid TAVERN building in this settlement, or null. */
+    @Nullable
+    private static Building firstValidTavern(Settlement s) {
+        for (Building b : s.buildings) {
+            if (b.valid && b.type == BuildingType.TAVERN && b.anchor != null) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    // ------------------------------------------------------- the price ---
+
+    private static boolean canPayRecruitPrice(ItemStackHandler inventory) {
+        for (ItemStack cost : RECRUIT_PRICE) {
+            if (countItem(inventory, cost.getItem()) < cost.getCount()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Only ever called after {@link #canPayRecruitPrice} said yes. */
+    private static void payRecruitPrice(ItemStackHandler inventory) {
+        for (ItemStack cost : RECRUIT_PRICE) {
+            extractExact(inventory, cost.getItem(), cost.getCount());
+        }
+    }
+
+    private static int countItem(ItemStackHandler inventory, Item item) {
+        int total = 0;
+        for (int i = 0; i < inventory.getSlots(); i++) {
+            ItemStack stack = inventory.getStackInSlot(i);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    /** Extracts real stacks out of real slots — chest truth (INV-3). */
+    private static void extractExact(ItemStackHandler inventory, Item item, int amount) {
+        int remaining = amount;
+        for (int i = 0; i < inventory.getSlots() && remaining > 0; i++) {
+            if (!inventory.getStackInSlot(i).is(item)) {
+                continue;
+            }
+            int took = inventory.extractItem(i, remaining,
+                false).getCount();
+            remaining -= took;
+        }
     }
 
     public static void raiseAlert(ServerLevel level, Settlement s, BlockPos threatPos) {

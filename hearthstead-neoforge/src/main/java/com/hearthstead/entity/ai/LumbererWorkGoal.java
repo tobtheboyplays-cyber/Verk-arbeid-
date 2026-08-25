@@ -83,7 +83,12 @@ public class LumbererWorkGoal extends Goal {
         return settler.getProfession() == Profession.LUMBERER
             && settler.isBound()
             && settler.dayPhase().work()
-            && settler.getEnergy() > 15;
+            && settler.getEnergy() > 15
+            // The daily labor pool (docs/project/PLAN_EFFORT.md): once
+            // spent, no new tree is started -- a whole tree is charged as
+            // one unit of work (see finishTree/tickChop), so this is what
+            // actually stops "the lumberjack felling forever".
+            && !settler.isEffortSpent();
     }
 
     @Override
@@ -337,6 +342,12 @@ public class LumbererWorkGoal extends Goal {
             }
             treeLogs = treeLogs.subList(1, treeLogs.size());
             if (treeLogs.isEmpty()) {
+                // The whole tree, not each log, is the unit of work -- a
+                // giant jungle trunk costs the same 3 as a single oak
+                // (PLAN_EFFORT.md §2), so felling never becomes cheaper or
+                // more expensive per swing depending on how tall the tree
+                // happened to be.
+                settler.spendEffort(3);
                 startLimbing();
             }
         }
@@ -358,6 +369,8 @@ public class LumbererWorkGoal extends Goal {
         }
         if (limbTicks >= LIMB_DURATION) {
             limbTicks = 0;
+            // The limbing stint is its own, smaller unit of work.
+            settler.spendEffort(1);
             finishTree();
         }
     }

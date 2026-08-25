@@ -100,7 +100,12 @@ public class HandbookScreen extends Screen {
     private static final int PANEL_W = 320;
     private static final int PANEL_H = 264;
     private static final int PAD = HsUiTokens.PAD;
-    private static final int SIDE_W = 78;
+    // 78 clipped the Norwegian sidebar entry "Grunnleggelse" (72px against
+    // the 70px labelIn box, SIDE_W - 8) by 2px. 84 clears it; the 6px taken
+    // from CONTENT_W still leaves the widest chapter's prose at 135px of a
+    // 152px wrap budget in the worst-case (nb attributes2) -- see the
+    // ui_preview specs under tools/ui/specs/.
+    private static final int SIDE_W = 84;
     private static final int GAP = 6;
     private static final int CONTENT_X = PAD + SIDE_W + GAP;
     private static final int CONTENT_W = PANEL_W - CONTENT_X - PAD;
