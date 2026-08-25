@@ -359,6 +359,15 @@ public final class Production {
      * <p>Deliberately a pure read — it changes nothing — so a work goal can
      * ask "is there anything to do?" every tick without side effects.
      */
+    /**
+     * How much of an output counts as a working stock -- below it, the recipe
+     * that makes it keeps the bench in list order (the fed path first); above
+     * it, the scarcest output wins. Deliberately the same eight as the
+     * courier's keep-back: both answer "how much of a thing does a workshop
+     * keep on hand before the surplus is somebody else's problem".
+     */
+    private static final int WORKING_RESERVE = 8;
+
     @Nullable
     public static Recipe ready(ServerLevel level, Building building) {
         List<Recipe> recipes = of(building.type);
@@ -372,16 +381,29 @@ public final class Production {
         Recipe best = null;
         int bestStock = Integer.MAX_VALUE;
         for (Recipe recipe : recipes) {
-            if (count(containers, recipe) >= recipe.inputCount()
-                && hasRoomFor(containers, recipe)
-                && hasFuelFor(containers, building.type, recipe)) {
-                int stock = countItem(containers, recipe.output());
-                // Strictly less: an equal-stock later entry loses, so the
-                // fed path's listed-first preference survives the tie.
-                if (stock < bestStock) {
-                    best = recipe;
-                    bestStock = stock;
-                }
+            if (count(containers, recipe) < recipe.inputCount()
+                || !hasRoomFor(containers, recipe)
+                || !hasFuelFor(containers, building.type, recipe)) {
+                continue;
+            }
+            int stock = countItem(containers, recipe.output());
+            // List order wins until a WORKING RESERVE of that output exists.
+            // Without this the selector abandoned a recipe the moment its
+            // first batch landed: the sawmill made two beams, noticed planks
+            // were scarcer, and never finished the beam order -- caught by
+            // ChainsGameTests#threeBuildingChainConservesItemsEndToEnd, and
+            // exactly the kind of specification conflict the protocol says to
+            // resolve in the code rather than in the test. FLOWS lists the
+            // fed path first because it should be preferred, so it keeps the
+            // bench until the building holds a real stock of it; only then do
+            // siblings get their turn, which is the starvation the need-aware
+            // policy exists to cure.
+            if (stock < WORKING_RESERVE) {
+                return recipe;
+            }
+            if (stock < bestStock) {
+                best = recipe;
+                bestStock = stock;
             }
         }
         return best;
