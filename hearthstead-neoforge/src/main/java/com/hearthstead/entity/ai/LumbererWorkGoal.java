@@ -239,6 +239,14 @@ public class LumbererWorkGoal extends Goal {
             settler.setActivity(SettlerActivity.HAULING_LOG);
             pathToHearth();
         } else {
+            // The walk to the tree is its own leg, same as the haul home is
+            // (above) -- without this the activity is left at whatever it
+            // was before this goal claimed the flag (IDLE, most of the
+            // time), so a lumberer who is genuinely en route to a tree
+            // reads exactly like one who is doing nothing at all. Matches
+            // GoToPostGoal.start()/CrafterWorkGoal.start(), which both set
+            // an activity the instant they take over.
+            settler.setActivity(SettlerActivity.TRAVELING);
             pathToTree();
         }
     }
@@ -295,7 +303,15 @@ public class LumbererWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
             if (++stuckChecks > 6) {
-                done = true; // unreachable tree; rescan later
+                // Unreachable tree; rescan later. Recorded rather than
+                // endured (SettlerEntity#recordRouteFailure's whole reason
+                // to exist, per GoToPostGoal's own use of it): a lumberer
+                // who silently gives up on a tree it cannot path to reads
+                // identically to one that never found a tree at all, and
+                // KF-020 spent real investigation time unable to tell those
+                // two apart from the outside.
+                settler.recordRouteFailure("tree_unreachable");
+                done = true;
             } else {
                 pathToTree();
             }

@@ -199,6 +199,20 @@ public class RepairWorkGoal extends Goal {
             && RaidDirector.hasScarAt(level, settlement.id, scarPos);
     }
 
+    /**
+     * Without this, a running goal only ticks on every OTHER real tick
+     * (vanilla's half-rate default for goals that do not ask for more),
+     * which would quietly double {@link #REPAIR_TICKS} in practice -- the
+     * same "work but stall" defect KF-020 found in {@code CrafterWorkGoal},
+     * whose class doc explains it in full. {@code REPAIR_TICKS} is already
+     * calibrated to whole clip cycles assuming real-tick pacing, so this
+     * goal needs the same override its sibling work goals all carry.
+     */
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
     @Override
     public void start() {
         repairTicks = 0;

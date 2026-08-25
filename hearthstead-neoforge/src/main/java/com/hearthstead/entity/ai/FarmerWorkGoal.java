@@ -271,12 +271,37 @@ public class FarmerWorkGoal extends Goal {
      * goal was already doing.
      */
     private boolean isWithinTendedPlot(BlockPos pos) {
+        BlockPos anchor;
+        int half;
         Building farmhouse = tendedFarmhouse();
-        if (farmhouse == null || farmhouse.anchor == null) {
-            return false;
+        if (farmhouse != null && farmhouse.anchor != null) {
+            anchor = farmhouse.anchor;
+            half = tendedHalfSide(farmhouse);
+        } else {
+            // No real farmhouse to anchor to. Production code only ever
+            // reaches FARMER through Employment.hire, which always leaves a
+            // real Building behind -- so this is either a fixture-appointed
+            // farmer (SettlerEntity#assignProfession, whose whole point per
+            // its own class doc is that "GameTests need a farmer without
+            // first building a farmhouse around them") or a real farmer
+            // whose employer was just torn down and has not been refreshed
+            // yet. Either way, THE TENDED PLOT's own invariant is "bounded,
+            // never the whole settlement" -- not "requires a building" --
+            // so falling back to the settlement's own heart at the plot's
+            // full cap keeps that invariant (still bounded, never unbounded
+            // scanning or terraforming) instead of silently discarding
+            // every crop and leaving a farmer standing over one that will
+            // never be tended. The cap alone, not the DEXTERITY-scaled
+            // formula: there is no employer to read a skill-earned size
+            // from, and a fixture farmer's crops are not guaranteed to sit
+            // inside the small base square a low roll would otherwise give.
+            Settlement s = settler.settlement();
+            if (s == null) {
+                return false;
+            }
+            anchor = s.center;
+            half = TENDED_SIDE_CAP / 2;
         }
-        int half = tendedHalfSide(farmhouse);
-        BlockPos anchor = farmhouse.anchor;
         return Math.abs(pos.getX() - anchor.getX()) <= half
             && Math.abs(pos.getZ() - anchor.getZ()) <= half;
     }

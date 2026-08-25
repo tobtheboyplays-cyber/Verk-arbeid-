@@ -118,6 +118,23 @@ public class CrafterWorkGoal extends Goal {
             && Schedule.shouldWork(settlement, settler, settler.dayPhase());
     }
 
+    /**
+     * Without this, {@code Mob.serverAiStep} only ticks a running goal on
+     * every OTHER real tick (the vanilla half-rate optimisation for goals
+     * that do not ask for more), which silently doubles how long every
+     * recipe takes to cook down {@code ticksLeft} -- a batch calibrated to
+     * finish in {@code recipe.ticks()} real ticks was actually taking about
+     * twice that, which is exactly the "crafters work but stall" shape
+     * (KF-020): the settler visibly swings, the sound plays, but two
+     * batches never land inside their bounded budget. Every sibling work
+     * goal (Farmer, Lumberer, Courier) already overrides this for the same
+     * reason; this one was the one still running on vanilla's half tick.
+     */
+    @Override
+    public boolean requiresUpdateEveryTick() {
+        return true;
+    }
+
     @Override
     public void start() {
         settler.getNavigation().stop();
