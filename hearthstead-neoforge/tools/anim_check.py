@@ -259,6 +259,97 @@ def check_pipeline_present_in_model(model_path, needle):
 TICK_CONSTANT_DECL_RE_TMPL = r'\b{name}\s*=\s*(\d+)\s*;'
 
 
+# The crafter trades' sound-sync contract (audit F8). CrafterWorkGoal fires
+# one sound per motion loop at Employment.soundContactOf(type) -- a symbolic
+# contact tick, not a literal "% P == T" in an AI goal file, so check 13
+# cannot see it. This check parses BOTH Employment switches instead and
+# asserts the one wrong answer can never come back: the seam. Rows here are
+# the accents the catalogue documents EXACTLY (S7.2, S8.1, S18.4, S20.3,
+# S20.4); the (est.) rows in Employment are structural-checked only
+# (in-range, present) until their clips get exact accent lines.
+CRAFTER_DOCUMENTED = {
+    "WORK_STIR": ("COOK_STIR", 1.20),
+    "WORK_CHISEL": ("MASON_CHISEL", 0.50),
+    "WORK_MINE": ("MINE_PICK", 0.45),
+    "WORK_HAMMER": ("HAMMER_ANVIL", 0.45),
+    "WORK_FLETCH": ("FLETCHER_FLETCH", 0.75),
+}
+
+EMPLOYMENT_PATH = os.path.join(
+    ROOT, "src/main/java/com/hearthstead/settlement/Employment.java")
+CRAFTER_GOAL_PATH = os.path.join(
+    ROOT, "src/main/java/com/hearthstead/entity/ai/CrafterWorkGoal.java")
+
+
+def parse_employment_switch(text, method_name):
+    """The explicit WORK_* -> int cases of one switch-bearing method."""
+    start = text.find("int " + method_name)
+    if start < 0:
+        return None
+    nxt = text.find("public static", start + 1)
+    body = text[start:nxt if nxt > 0 else len(text)]
+    return dict((m.group(1), int(m.group(2))) for m in
+                re.finditer(r"case (WORK_\w+) -> (\d+);", body))
+
+
+def check_crafter_sound_contracts(defs, errors, warns):
+    try:
+        emp = strip_comments(io_read(EMPLOYMENT_PATH))
+        # strip_comments here too: the goal's own WHY comment names the old
+        # "% period == 0" form as the thing it replaced.
+        goal = strip_comments(io_read(CRAFTER_GOAL_PATH))
+    except OSError as e:
+        errors.append(f"crafter sound contract: cannot read source: {e}")
+        return
+    periods = parse_employment_switch(emp, "soundPeriodOf")
+    contacts = parse_employment_switch(emp, "soundContactOf")
+    if periods is None or contacts is None:
+        errors.append("crafter sound contract: Employment.soundPeriodOf/"
+                      "soundContactOf not found -- the F8 fix regressed")
+        return
+    if "Employment.soundContactOf" not in goal:
+        errors.append("CrafterWorkGoal no longer fires on "
+                      "Employment.soundContactOf -- the F8 fix regressed")
+    if re.search(r"% period == 0\b", goal):
+        errors.append("CrafterWorkGoal contains '% period == 0' -- the loop-"
+                      "seam trigger is back (audit F8)")
+    for act, period in periods.items():
+        contact = contacts.get(act)
+        if contact is None:
+            errors.append(f"{act}: has a sound period ({period}) but no "
+                          f"explicit contact tick in soundContactOf")
+            continue
+        if not (1 <= contact <= period - 1):
+            errors.append(f"{act}: contact tick {contact} is outside "
+                          f"[1, {period - 1}] -- it aliases onto the loop "
+                          f"seam, the one place the sound must never fire")
+        doc = CRAFTER_DOCUMENTED.get(act)
+        if doc:
+            clip, accent_s = doc
+            expect = round(accent_s * 20)
+            if contact != expect:
+                errors.append(f"{act}: catalogue documents {clip}'s accent at "
+                              f"{accent_s}s (tick {expect}) but "
+                              f"soundContactOf says {contact}")
+            d = defs.get(clip)
+            if d is not None:
+                if round(d["length"] * 20) != period:
+                    errors.append(f"{act}: {clip} is {d['length']}s but "
+                                  f"soundPeriodOf says {period}")
+                near = any(abs(f[0] - accent_s) <= 0.10
+                           for c in d["channels"] for f in c[2])
+                if not near:
+                    warns.append(f"{act}: {clip} has no keyframe within 0.10s "
+                                 f"of the documented accent {accent_s}s -- "
+                                 f"retimed clip? true up catalogue + "
+                                 f"soundContactOf together")
+
+
+def io_read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def check_entity_sound_contracts(defs, sounds_data, errors, warns):
     """ENTITY_SOUND_CONTRACTS: sound-sync contracts driven by a server-side
     scheduler or a one-shot trigger rather than a single AI-goal's repeating
@@ -464,6 +555,9 @@ def main():
 
     # 17.3 (extended): entity-scheduler / one-shot sound contracts.
     check_entity_sound_contracts(defs, sounds_data, errors, warns)
+
+    # 17.3 (crafter trades, audit F8): the Employment-table contract.
+    check_crafter_sound_contracts(defs, errors, warns)
 
     # 17.4-24: head-damping table cross-check. Structural, not a bare
     # substring search: scoped to the actual `damp = ...F;` assignment
