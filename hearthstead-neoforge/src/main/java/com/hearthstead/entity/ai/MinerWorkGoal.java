@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -167,17 +168,32 @@ public class MinerWorkGoal extends Goal {
             return;
         }
         List<Container> containers = containers(level, mine);
-        ItemStack drop = new ItemStack(state.getBlock().asItem());
-        if (!fits(containers, drop)) {
-            // Checked again at the last moment: the chests may have filled
-            // while this block was being cut.
-            target = null;
-            return;
+        // WHY (smelter audit, CRITICAL): this used to be
+        // `new ItemStack(state.getBlock().asItem())` — the *placeable block
+        // item* (minecraft:iron_ore, minecraft:stone, ...), not what mining
+        // actually yields. Production's SMELTER recipes take RAW_IRON /
+        // RAW_COPPER / RAW_GOLD and the MASON takes COBBLESTONE/STONE, so an
+        // automated mine could never feed a smelter. Chest truth means the
+        // chest holds what a player would have mined: run the real loot
+        // table (Block.getDrops) with a miner's honest tool.
+        List<ItemStack> drops = minedDrops(level, target, state);
+        for (ItemStack drop : drops) {
+            if (!fits(containers, drop)) {
+                // Checked again at the last moment: the chests may have filled
+                // while this block was being cut.
+                target = null;
+                return;
+            }
         }
         level.destroyBlock(target, false);
-        ItemStack left = insert(containers, drop);
-        if (!left.isEmpty()) {
-            Block.popResource(level, mine.anchor, left);
+        for (ItemStack drop : drops) {
+            ItemStack left = insert(containers, drop);
+            if (!left.isEmpty()) {
+                // INV-3: items are conserved. If the chests filled between
+                // the fits() check and now (or two drops raced for one
+                // slot), the overflow lands on the floor, never in the void.
+                Block.popResource(level, mine.anchor, left);
+            }
         }
         settler.train(Attribute.STRENGTH, 1.0F);
         // One mined block is one batch here (the goal already re-scans for
@@ -188,6 +204,21 @@ public class MinerWorkGoal extends Goal {
     }
 
     // ------------------------------------------------------------ helpers ---
+
+    /**
+     * What mining this block actually yields, straight from the loot table.
+     *
+     * <p>The tool is a plain iron pickaxe — a miner's honest kit: no silk
+     * touch (stone drops cobblestone, ore drops raw ore), no fortune (counts
+     * stay predictable). Public so {@code MinerDropsGameTests} can drive the
+     * exact same computation deterministically against a real
+     * {@link ServerLevel}.
+     */
+    public static List<ItemStack> minedDrops(ServerLevel level, BlockPos pos,
+                                             BlockState state) {
+        return Block.getDrops(state, level, pos, level.getBlockEntity(pos),
+            null, new ItemStack(Items.IRON_PICKAXE));
+    }
 
     private static List<Container> containers(ServerLevel level, Building building) {
         List<Container> found = new ArrayList<>();

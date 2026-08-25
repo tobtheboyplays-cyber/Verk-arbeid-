@@ -102,10 +102,11 @@ public class TradeSawyerGameTests {
      * settler hired into it, and planks that did not exist before — with no
      * lumber camp and no warehouse anywhere in the world (D-007).
      *
-     * <p>Also the conservation proof for this trade: every plank the chest
-     * gains must be accounted for by a log the chest gave up, at the
-     * recipe's own ratio (one log in, six planks out), never more and never
-     * fewer (INV-3) — and the settler must actually be seen doing the work
+     * <p>Also the conservation proof for this trade: every plank or timber
+     * beam the chest gains must be accounted for by logs the chest gave up,
+     * at each recipe's own ratio (one log in, six planks out; three logs in,
+     * two beams out — the need-aware selector alternates them), never more
+     * and never fewer (INV-3) — and the settler must actually be seen doing the work
      * (motion {@code WORK_SAW}), so a settler who did nothing cannot pass
      * this test by the recipe running itself.
      */
@@ -139,16 +140,25 @@ public class TradeSawyerGameTests {
                 sawSawing[0] = true;
             }
             int planks = countItem(chest, net.minecraft.world.item.Items.OAK_PLANKS);
+            int beams = countItem(chest,
+                com.hearthstead.registry.ModItems.TIMBER_BEAM.get());
             int logsLeft = countItem(chest, net.minecraft.world.item.Items.OAK_LOG);
             int consumed = startLogs - logsLeft;
-            if (planks > 0) {
+            if (planks > 0 || beams > 0) {
                 helper.assertTrue(consumed > 0,
-                    "planks appeared without a single log leaving the chest — "
+                    "output appeared without a single log leaving the chest — "
                         + "that is duplication, not production");
-                helper.assertTrue(planks == consumed * 6,
-                    "conservation broken: " + consumed + " log(s) gone must leave "
-                        + "exactly " + (consumed * 6) + " plank(s), chest holds "
-                        + planks);
+                // The need-aware selector interleaves the sawmill's two oak
+                // recipes (3 logs -> 2 beams, 1 log -> 6 planks), so the
+                // ledger must balance across BOTH outputs, not assume planks
+                // alone: every consumed log is either 1/6 of the planks or
+                // 3/2 of the beams, exactly.
+                helper.assertTrue(planks % 6 == 0 && beams % 2 == 0,
+                    "outputs must arrive in whole batches: planks=" + planks
+                        + " beams=" + beams);
+                helper.assertTrue(consumed == planks / 6 + (beams / 2) * 3,
+                    "conservation broken: " + consumed + " log(s) gone vs "
+                        + planks + " plank(s) + " + beams + " beam(s)");
             }
             helper.assertTrue(planks > 0,
                 "a hired sawyer standing in a sawmill full of oak logs must "

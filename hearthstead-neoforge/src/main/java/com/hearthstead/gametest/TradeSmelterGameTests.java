@@ -36,9 +36,10 @@ import java.util.UUID;
  * <p>It also checks the two things a chest-truth economy can get wrong
  * silently: that {@link com.hearthstead.entity.SettlerActivity#WORK_STOKE} is
  * actually observed on the settler rather than the output appearing while
- * they idle, and that the exchange conserves items exactly — one raw iron
- * consumed for one iron ingot produced, never a net gain or a silent loss
- * (INV-3, chest truth: logistics must conserve items).
+ * they idle, and that the 1:1 iron recipe conserves items exactly — one raw
+ * iron consumed for one iron ingot produced, never a net gain or a silent
+ * loss (INV-3). The seed stays under the iron_bloom threshold so the bloom
+ * recipe (a deliberate yield multiplier) cannot muddy this proof.
  */
 @GameTestHolder(Hearthstead.MODID)
 @PrefixGameTestTemplate(false)
@@ -135,7 +136,12 @@ public class TradeSmelterGameTests {
             helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
         helper.assertTrue(be instanceof Container, "the arena chest should be a container");
         Container chest = (Container) be;
-        chest.setItem(0, new ItemStack(Items.RAW_IRON, 10));
+        // Two raw iron, deliberately BELOW iron_bloom's threshold of three:
+        // with the need-aware selector the bloom recipe would otherwise run
+        // first (its +1-item yield is by design, not a conservation bug) and
+        // this test is the 1:1 path's proof. ChainsGameTests owns the bloom
+        // ledger; here two in must become exactly two out.
+        chest.setItem(0, new ItemStack(Items.RAW_IRON, 2));
         int before = countAll(chest);
 
         SettlerEntity brann = settler(helper, s, "Brann", 4, 4);
