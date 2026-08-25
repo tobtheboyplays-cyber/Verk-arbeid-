@@ -70,7 +70,8 @@ floor to zero fails five of them, each naming its rule.
 
 ## Next concrete action
 
-Full ×2 for `green_streak=2` on step 1, then **A3 step 2** per
+**GATE: PASS (green_streak=2)** at fingerprint `20260825T020219Z`, 44/44
+GameTests. Next: **A3 step 2** per
 `docs/project/PLAN_A3_RAIDS.md`: the first faction, its captain, and the
 Korn objective. Everything it needs to attack — a warehouse, real chests,
 real goods — already exists and is verified.
