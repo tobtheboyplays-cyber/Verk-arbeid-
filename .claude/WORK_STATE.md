@@ -80,30 +80,30 @@ shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at `20260825T065401Z`, 62/62.
+**GATE: PASS (green_streak=2)** at `20260825T074448Z`, 63/63.
 
-**PLAQUE-2 step 1 is done: the survey reaches the client.** That was the root
-gap behind "three plaques in three states look identical" — `saveAdditional`
-carried type/state/revision/plan and never the requirements, so the renderer
-had nothing to draw. `getUpdateTag` now sends (id, have, needed) triples,
-`BuildingType.requirementById` rebuilds each line client-side, and `survey()`
-calls `sendBlockUpdated` so a bed placed in front of the player ticks its
-line over immediately instead of waiting for a chunk reload.
+**PLAQUE-2 steps 1-2 done.** The survey now crosses to the client
+(`getUpdateTag` carries id/have/needed triples; `survey()` calls
+`sendBlockUpdated`). The plaque is portrait rather than square. And
+`plaque_plan.png` — the parchment with house elevation and floor plan, drawn
+long ago by the asset pipeline — was **referenced by nothing**; the three lit
+glow variants now show it, so a fitted plaque reads as a drawing under glass
+and an empty one as an empty well.
 
-**Next, PLAQUE-2 steps 2-5** per `docs/project/PLAN_PLAQUE_2.md`:
-2. the taller block model + parchment sheet texture (deterministic pipeline),
-3. the in-world sheet renderer — picture, title, live requirement lines,
-4. per-type pictures and per-requirement icons,
-5. the right-click screen rebuilt to match.
+**Correction on record:** my earlier claim that the plaque showed nothing was
+a measurement error — I `data merge`d the BE's `State`, which never calls
+`survey()`, and `updateGlow()` is what writes the `glow` property. The lamp
+(EMPTY/RED/AMBER/GREEN, amber = partial) already worked. `theLampTracksTheSurvey`
+now pins it so that cannot recur.
 
-Acceptance is unchanged and is the check that failed today: three plaques in
-three states must be **visibly different in a screenshot, with no command
-run**.
+**Next: PLAQUE-2 steps 3-5** — the block entity renderer drawing the TITLE and
+the per-requirement lines with counts and ticks on the sheet face. That is the
+part the mockup is really about, and the only part still missing: the lamp says
+*whether*, the sheet must say *what*. Then per-type pictures, then the
+right-click screen.
 
-**KF-015 is OPEN** — a raid can resolve as repelled while raiders are alive
-in unloaded chunks, because resolution asks a bounded box query. Recorded as
-a design question, not patched at speed. It belongs to A3's remaining work
-(telegraph, guard response, the scar) alongside this.
+**KF-015 is OPEN** — a raid can resolve as repelled while raiders live in
+unloaded chunks. Design question, recorded not patched.
 
 ## SLICE A2b — the courier's sack — DONE
 
