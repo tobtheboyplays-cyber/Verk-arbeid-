@@ -14,6 +14,7 @@
   "item.hearthstead.handbook.tooltip": "En kort veiledning i å grunnlegge og stelle en bosetning",
   "item.hearthstead.settler_spawn_egg": "Nybygger-spawnegg",
   "entity.hearthstead.settler": "Nybygger",
+  "entity.hearthstead.raider": "Røver",
   "container.hearthstead.hearth": "Bosetningsarne",
   "hearthstead.profession.none": "Uten yrke",
   "hearthstead.profession.farmer": "Bonde",

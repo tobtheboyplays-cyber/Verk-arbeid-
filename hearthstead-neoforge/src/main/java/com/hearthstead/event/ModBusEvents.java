@@ -20,6 +20,8 @@ public final class ModBusEvents {
     @SubscribeEvent
     public static void onAttributeCreation(EntityAttributeCreationEvent event) {
         event.put(ModEntities.SETTLER.get(), SettlerEntity.createAttributes().build());
+        event.put(ModEntities.RAIDER.get(),
+            com.hearthstead.entity.RaiderEntity.createAttributes().build());
     }
 
     @SubscribeEvent

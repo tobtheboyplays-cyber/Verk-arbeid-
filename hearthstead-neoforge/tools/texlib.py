@@ -186,6 +186,25 @@ FACE_LIGHT = {"top": 1.14, "bottom": 0.62, "front": 1.0,
               "back": 0.82, "right": 0.90, "left": 0.90}
 
 
+def lit(color, face):
+    return shade(color, FACE_LIGHT[face])
+
+
+def woven(img, x, y, w, h, colors, rng, face, base_idx=3):
+    """painter(face, x, y, w, h) paints unlit; lighting applied by painter."""
+    px = img.load()
+    n = len(colors)
+    for j in range(h):
+        for i in range(w):
+            idx = base_idx
+            r = rng.random()
+            if r < 0.16:
+                idx = max(0, base_idx - 1)
+            elif r < 0.22:
+                idx = min(n - 1, base_idx + 1)
+            px[x + i, y + j] = lit(colors[idx], face)
+
+
 def box_faces(u, v, w, h, d):
     """Vanilla box UV layout -> face name to (x, y, width, height) rects.
 

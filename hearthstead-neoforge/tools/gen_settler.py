@@ -27,7 +27,8 @@ import os
 import zlib
 
 sys.path.insert(0, os.path.dirname(__file__))
-from texlib import ramp, shade, mix, new_image, put, box_faces, FACE_LIGHT, save
+from texlib import (ramp, shade, mix, new_image, put, box_faces, FACE_LIGHT,
+                    save, lit, woven)
 
 SEED_BASE = 1420
 
@@ -99,25 +100,6 @@ LEGACY_CLOTHING_FOR = {"none": 0, "farmer": 2, "lumberer": 1, "guard": 3}
 
 def seed_for(*parts):
     return zlib.crc32(":".join(str(p) for p in parts).encode("utf-8")) & 0xFFFF | SEED_BASE
-
-
-def lit(color, face):
-    return shade(color, FACE_LIGHT[face])
-
-
-def woven(img, x, y, w, h, colors, rng, face, base_idx=3):
-    """painter(face, x, y, w, h) paints unlit; lighting applied by painter."""
-    px = img.load()
-    n = len(colors)
-    for j in range(h):
-        for i in range(w):
-            idx = base_idx
-            r = rng.random()
-            if r < 0.16:
-                idx = max(0, base_idx - 1)
-            elif r < 0.22:
-                idx = min(n - 1, base_idx + 1)
-            px[x + i, y + j] = lit(colors[idx], face)
 
 
 def compose(*layers):

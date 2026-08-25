@@ -1,6 +1,7 @@
 package com.hearthstead.registry;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -19,6 +20,13 @@ public final class ModEntities {
                 .sized(0.62F, 1.95F)
                 .clientTrackingRange(10)
                 .build("settler"));
+
+    public static final DeferredHolder<EntityType<?>, EntityType<RaiderEntity>> RAIDER =
+        ENTITY_TYPES.register("raider",
+            () -> EntityType.Builder.of(RaiderEntity::new, MobCategory.MONSTER)
+                .sized(0.6F, 1.9F)
+                .clientTrackingRange(12)
+                .build("raider"));
 
     public static void register(IEventBus bus) {
         ENTITY_TYPES.register(bus);

@@ -14,6 +14,7 @@
   "item.hearthstead.handbook.tooltip": "A short guide to founding and tending a settlement",
   "item.hearthstead.settler_spawn_egg": "Settler Spawn Egg",
   "entity.hearthstead.settler": "Settler",
+  "entity.hearthstead.raider": "Raider",
   "container.hearthstead.hearth": "Settlement Hearth",
   "hearthstead.profession.none": "Unassigned",
   "hearthstead.profession.farmer": "Farmer",

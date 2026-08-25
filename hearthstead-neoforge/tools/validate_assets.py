@@ -62,6 +62,11 @@ BLOCKITEM_LANG_ALLOWLIST: set[str] = set()
 TEXTURE_CONFIG = {
     # Exact size for entity textures (default applies to all under
     # textures/entity/ unless overridden per-file below).
+    # Fallback only. The real expectation is READ FROM THE MODEL -- see
+    # entity_atlas_sizes_from_models(). A hardcoded size cannot catch the
+    # bug that actually matters (a model declaring one atlas while its
+    # texture is another), and it wrongly rejects any entity whose rig is
+    # legitimately a different size.
     "entity_default_size": (128, 64),
     # Per-file overrides, keyed by path relative to textures/entity/,
     # e.g. "settler/settler_child.png": (64, 32)
@@ -631,6 +636,39 @@ def check_sounds(sound_events: dict[str, str], langs: dict) -> None:
 # 8. Textures
 # --------------------------------------------------------------------------
 
+_ENTITY_ATLAS_CACHE: dict[str, tuple[int, int]] | None = None
+
+
+def entity_atlas_sizes_from_models() -> dict[str, tuple[int, int]]:
+    """Atlas size per entity, read from each model's own LayerDefinition.
+
+    The model is the authority: it declares
+    ``LayerDefinition.create(mesh, W, H)`` and the texture must match it.
+    Reading the number here means a model and its texture can never silently
+    disagree, and an entity with a legitimately different rig size does not
+    have to be added to a hand-maintained override list.
+
+    Keyed by the layer's own name -- ``Hearthstead.id("settler")`` -> the
+    ``settler/`` texture folder.
+    """
+    global _ENTITY_ATLAS_CACHE
+    if _ENTITY_ATLAS_CACHE is not None:
+        return _ENTITY_ATLAS_CACHE
+    sizes: dict[str, tuple[int, int]] = {}
+    model_dir = JAVA_ROOT / "com" / "hearthstead" / "client" / "model"
+    if model_dir.is_dir():
+        for java in sorted(model_dir.glob("*Model.java")):
+            text = java.read_text(encoding="utf-8", errors="replace")
+            layer = re.search(r'ModelLayerLocation\s*\(\s*Hearthstead\.id\s*\(\s*"([a-z_]+)"',
+                              text)
+            size = re.search(r"LayerDefinition\.create\s*\(\s*\w+\s*,\s*(\d+)\s*,\s*(\d+)\s*\)",
+                             text)
+            if layer and size:
+                sizes[layer.group(1)] = (int(size.group(1)), int(size.group(2)))
+    _ENTITY_ATLAS_CACHE = sizes
+    return sizes
+
+
 def check_textures() -> None:
     if not RES_ROOT.is_dir():
         info("Textures", "no resources directory — skipped")
@@ -720,10 +758,20 @@ def check_textures() -> None:
                 key = str(png.relative_to(tex_root))
             except ValueError:
                 key = png.name
-            expected = TEXTURE_CONFIG["entity_sizes"].get(
-                key, TEXTURE_CONFIG["entity_default_size"])
+            folder = key.split("/")[0] if "/" in key else ""
+            model_sizes = entity_atlas_sizes_from_models()
+            if key in TEXTURE_CONFIG["entity_sizes"]:
+                expected = TEXTURE_CONFIG["entity_sizes"][key]
+                source = "override"
+            elif folder in model_sizes:
+                expected = model_sizes[folder]
+                source = f"{folder} model"
+            else:
+                expected = TEXTURE_CONFIG["entity_default_size"]
+                source = "default"
             check("Textures", (w, h) == tuple(expected),
-                  f"{rel(png)} is {w}x{h} (expected {expected[0]}x{expected[1]})")
+                  f"{rel(png)} is {w}x{h} (expected {expected[0]}x{expected[1]}"
+                  f" per {source})")
         elif category == "gui":
             mw, mh = TEXTURE_CONFIG["gui_max_size"]
             check("Textures", w <= mw and h <= mh,

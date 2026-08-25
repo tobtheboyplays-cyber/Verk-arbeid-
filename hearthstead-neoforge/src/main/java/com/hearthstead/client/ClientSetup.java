@@ -25,11 +25,15 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onRegisterLayers(EntityRenderersEvent.RegisterLayerDefinitions event) {
         event.registerLayerDefinition(SettlerModel.LAYER, SettlerModel::createBodyLayer);
+        event.registerLayerDefinition(com.hearthstead.client.model.RaiderModel.LAYER,
+            com.hearthstead.client.model.RaiderModel::createBodyLayer);
     }
 
     @SubscribeEvent
     public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
         event.registerEntityRenderer(ModEntities.SETTLER.get(), SettlerRenderer::new);
+        event.registerEntityRenderer(ModEntities.RAIDER.get(),
+            com.hearthstead.client.render.RaiderRenderer::new);
     }
 
     @SubscribeEvent
