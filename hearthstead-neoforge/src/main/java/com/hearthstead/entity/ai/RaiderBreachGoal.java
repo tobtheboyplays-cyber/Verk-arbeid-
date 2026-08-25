@@ -208,18 +208,21 @@ public class RaiderBreachGoal extends Goal {
     @Nullable
     private BlockPos findBreachCandidate(ServerLevel level, Settlement settlement) {
         BlockPos origin = raider.blockPosition();
-        BlockPos underfoot = origin.below();
         BlockPos bestDoor = null;
         double bestDoorDist = Double.MAX_VALUE;
         BlockPos bestWall = null;
         double bestWallDist = Double.MAX_VALUE;
         for (int dx = -SEARCH_RADIUS; dx <= SEARCH_RADIUS; dx++) {
             for (int dz = -SEARCH_RADIUS; dz <= SEARCH_RADIUS; dz++) {
-                for (int dy = -1; dy <= 2; dy++) {
+                // dy starts at 0 (the raider's own foot level), never below
+                // it: a raider "breaching" the floor it stands on would read
+                // as digging, not as forcing a way through, and every real
+                // door/wall candidate is at foot level or above anyway.
+                for (int dy = 0; dy <= 2; dy++) {
                     BlockPos pos = origin.offset(dx, dy, dz);
                     double distSqr = origin.distSqr(pos);
-                    if (distSqr > REACH_SQR || pos.equals(underfoot)) {
-                        continue; // out of reach, or the ground it stands on
+                    if (distSqr > REACH_SQR) {
+                        continue; // out of reach
                     }
                     if (!withinSettlement(settlement, pos)) {
                         continue; // never breach outside the settlement itself
