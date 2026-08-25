@@ -259,22 +259,35 @@ public class CourierWorkGoal extends Goal {
 
     private void pathToDropOff() {
         if (dropOff != null && settler.level() instanceof ServerLevel level) {
-            pathToStand(approachTo(level, dropOff));
+            pathToStand(approachTo(level, dropOff, settler.blockPosition()));
         }
     }
 
     /**
-     * A standable cell beside the chest. A chest itself is never walkable,
-     * and the cell above it is only walkable for a barrel, so aiming at the
-     * container block leaves the navigator to guess -- and outside a sealed
-     * room its guess is the wrong side of the wall.
+     * A standable cell beside the chest, preferring the side the courier is
+     * already on. A chest itself is never walkable, and the cell above it is
+     * only walkable for a barrel, so aiming at the container block leaves the
+     * navigator to guess -- and outside a sealed room its guess is the wrong
+     * side of the wall. Picking the nearest open side also avoids sending her
+     * around a chest that is flush against one.
      */
-    private static BlockPos approachTo(ServerLevel level, BlockPos container) {
+    private static BlockPos approachTo(ServerLevel level, BlockPos container,
+                                       BlockPos from) {
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
         for (Direction dir : Direction.Plane.HORIZONTAL) {
             BlockPos side = container.relative(dir);
-            if (isStandable(level, side)) {
-                return side;
+            if (!isStandable(level, side)) {
+                continue;
             }
+            double d = from.distSqr(side);
+            if (d < bestDist) {
+                bestDist = d;
+                best = side;
+            }
+        }
+        if (best != null) {
+            return best;
         }
         if (isStandable(level, container.above())) {
             return container.above();
@@ -504,7 +517,12 @@ public class CourierWorkGoal extends Goal {
         BlockPos hearthPos = settler.getHearthPos();
         HearthBlockEntity hearth = settler.hearth();
         if (hearthPos == null || hearth == null) {
-            done = true; // keep the load; the bag is persisted and drops on death
+            // No hearth to return to -- a razed settlement, which raids are
+            // meant to be able to cause. Keep the load and rest the route:
+            // without the cooldown, canUse() re-selects RETURNING on the very
+            // next tick and this becomes a one-tick busy loop.
+            restRoute();
+            done = true;
             return;
         }
         settler.getLookControl().setLookAt(hearthPos.getX() + 0.5,
@@ -526,7 +544,8 @@ public class CourierWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
             if (++stuckChecks > 12) {
-                done = true; // cannot even get home; the bag keeps the goods
+                restRoute(); // cannot even get home; the bag keeps the goods
+                done = true;
             } else {
                 pathAbove(hearthPos);
             }
@@ -539,7 +558,7 @@ public class CourierWorkGoal extends Goal {
      * the very next tick, and bring any load home first.
      */
     private void giveUp() {
-        cooldownUntil = settler.level().getGameTime() + RETRY_COOLDOWN_TICKS;
+        restRoute();
         if (bagCount() > 0) {
             mode = Mode.RETURNING;
             stuckChecks = 0;
@@ -549,6 +568,16 @@ public class CourierWorkGoal extends Goal {
         } else {
             done = true;
         }
+    }
+
+    /**
+     * Stops this goal being re-selectable for {@link #RETRY_COOLDOWN_TICKS}.
+     * Every path that abandons a trip goes through here: a goal that ends and
+     * immediately qualifies again is the wedge shape from KF-013, not a fix
+     * for it.
+     */
+    private void restRoute() {
+        cooldownUntil = settler.level().getGameTime() + RETRY_COOLDOWN_TICKS;
     }
 
     private Building findWarehouseById(Settlement s) {

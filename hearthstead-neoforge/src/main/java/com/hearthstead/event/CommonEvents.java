@@ -12,6 +12,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.warehouse.WarehouseStorage;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.BedBlock;
@@ -20,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 import java.lang.reflect.Field;
@@ -38,6 +40,19 @@ public final class CommonEvents {
     public static void onFarmlandTrample(BlockEvent.FarmlandTrampleEvent event) {
         if (event.getEntity() instanceof SettlerEntity) {
             event.setCanceled(true);
+        }
+    }
+
+    /**
+     * Drops every warehouse index when a level unloads. The cache is static
+     * and holds block positions, so without this a single-player client that
+     * leaves one world and opens another carries the first world's chest
+     * positions with it.
+     */
+    @SubscribeEvent
+    public static void onLevelUnload(LevelEvent.Unload event) {
+        if (event.getLevel() instanceof ServerLevel) {
+            WarehouseStorage.clearAll();
         }
     }
 

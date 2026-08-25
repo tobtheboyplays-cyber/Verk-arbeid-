@@ -295,11 +295,15 @@ public class CourierGameTests {
             helper.absolutePos(new BlockPos(11, 3, 11)));
         final int[] seen = {0};
         final String[] postedFrom = {null};
+        final boolean[] everInside = {false};
 
         helper.succeedWhen(() -> {
             Container chest = containerAt(helper, chestRel);
             helper.assertTrue(chest != null, "warehouse chest should exist");
             int delivered = countIn(chest, Items.OAK_LOG);
+            if (interior.isInside(bud.blockPosition())) {
+                everInside[0] = true;
+            }
             // Where the courier stood at the moment the count rose is the
             // whole question. Checking "was she ever inside" is not enough:
             // she can post through the wall and wander in afterwards.
@@ -312,10 +316,34 @@ public class CourierGameTests {
             helper.assertTrue(postedFrom[0] == null,
                 "the courier must walk into the warehouse, not post goods "
                     + "through the wall -- stowed from " + postedFrom[0]);
+            // A bare "saw 0" says nothing about WHY. Everything needed to
+            // tell "never got in" from "ran out of energy" from "never
+            // started" goes in the message, because a timeout is the only
+            // place this state is ever visible.
             helper.assertTrue(delivered >= 6,
                 "all 6 logs should reach the sealed warehouse, saw " + delivered
-                    + " (act=" + bud.getActivity() + ")");
+                    + " [act=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " energy=" + String.format("%.1f", bud.getEnergy())
+                    + " bag=" + bagCount(bud)
+                    + " everInside=" + everInside[0]
+                    + " doorOpen=" + doorOpen(helper, new BlockPos(9, 1, 6))
+                    + "]");
         });
+    }
+
+    private static int bagCount(SettlerEntity settler) {
+        int n = 0;
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            n += settler.bag.getItem(i).getCount();
+        }
+        return n;
+    }
+
+    private static boolean doorOpen(GameTestHelper helper, BlockPos rel) {
+        BlockState state = helper.getLevel().getBlockState(helper.absolutePos(rel));
+        return state.getBlock() instanceof DoorBlock
+            && state.getValue(DoorBlock.OPEN);
     }
 
     /**

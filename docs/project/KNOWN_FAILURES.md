@@ -650,3 +650,66 @@ geometry the player supplies, the test must supply that geometry too —
 and `docs/project/REFERENCE_ANALYSIS.md` must not claim a reference mod's
 failure is "avoided by design" until a test reproduces that failure's
 actual shape.
+
+---
+
+## KF-014 — `courierEntersASealedWarehouseAndDelivers` failed once and has not reproduced
+
+**Status:** OPEN, not root-caused. Observed **once in ten runs**. Recorded
+rather than quietly re-run, because an intermittent test is a bad judge and
+the next reader deserves to know it was seen.
+
+**The one failure** (during a `fast` run, immediately after the KF-013
+follow-up edits landed):
+
+```
+courierentersasealedwarehouseanddelivers failed! all 6 logs should reach
+the sealed warehouse, saw 0 (act=IDLE)
+```
+
+The very next isolated `gametest` run passed, as did eight more after it
+(five consecutive `gametest` runs plus three consecutive `fast` runs).
+
+**Hypotheses tested and RULED OUT — each with evidence, not reasoning:**
+
+1. **The 2400-tick budget is marginal.** Ruled out by probe: the timeout was
+   temporarily cut to **900** ticks and the test still passed, so a normal
+   run finishes in well under a third of its budget. `timeoutTicks` was
+   restored to 2400 immediately; it was never inflated.
+2. **A higher-priority goal starves the courier.** Ruled out by reading the
+   goal table: `CourierWorkGoal` sits at priority 6, above `BoundedStrollGoal`
+   (8) and the look goals (9, 10). `RestAtNightGoal` (5) cannot fire — the
+   test runs at dayTime 2000 and ends before dusk.
+3. **The `energy <= 15` gate closes mid-trip.** Ruled out arithmetically from
+   the real constants: energy starts at 90 and the courier's activities
+   (CARRYING / SORTING / TRAVELING) are **not** in `tickNeeds()`'s `working`
+   set, so the drain is 0.02/tick — 3750 ticks to reach the gate, well past
+   the timeout.
+4. **A hungry courier abandons the load to eat.** Ruled out by reading
+   `EatFromHearthGoal.canUse()`: hunger does cross its threshold (80 at
+   0.04/tick reaches 40 around tick 1000), but the goal returns false and
+   sets a 100-tick cooldown when `hearth.countFoodUnits() <= 0`, and the
+   sealed-warehouse hearth holds only logs. It never takes the MOVE flag.
+
+**What remains:** pathfinding and door-interaction nondeterminism.
+`DoorInteractGoal.canUse()` requires `mob.horizontalCollision` — the settler
+must physically bump the door before it opens — and `WalkNodeEvaluator`
+refuses diagonal movement through a `WALKABLE_DOOR` node
+(`isDiagonalValid`). GameTests in one batch run concurrently in adjacent
+arenas and share the level's random source, so the AI's draws differ between
+runs. That is the plausible remaining cause and it is **not confirmed**.
+
+**Diagnostics are armed.** The timeout message now carries everything needed
+to tell these apart on the next occurrence:
+
+```
+saw 0 [act=… pos=… energy=… bag=… everInside=… doorOpen=…]
+```
+
+`everInside` distinguishes "never got through the door" from "got in and
+stalled"; `doorOpen` says whether the door was ever operated at all;
+`bag` says whether she even loaded.
+
+**Do not** raise the timeout, loosen the assertions, or delete the test in
+response to a recurrence. Read the diagnostic line first — it was added for
+exactly that moment.

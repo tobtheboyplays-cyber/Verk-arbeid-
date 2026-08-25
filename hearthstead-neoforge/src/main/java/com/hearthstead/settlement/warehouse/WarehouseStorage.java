@@ -61,12 +61,19 @@ public final class WarehouseStorage {
     /**
      * The index for this building, refreshed if it is older than
      * {@link #REFRESH_INTERVAL_TICKS}. Cheap to call every tick.
+     *
+     * <p>The age is an absolute difference on purpose. The cache is static
+     * and survives a world unload within one JVM, so a later world can
+     * report a game time <em>earlier</em> than the stamp left by the last
+     * one. A signed comparison reads that as "refreshed in the future" and
+     * hands back block positions from a world that is gone.
      */
     public static WarehouseStorage of(ServerLevel level, Building building) {
         WarehouseStorage storage =
             CACHE.computeIfAbsent(building.id, WarehouseStorage::new);
         if (!storage.everRefreshed
-            || level.getGameTime() - storage.lastRefreshTick >= REFRESH_INTERVAL_TICKS) {
+            || Math.abs(level.getGameTime() - storage.lastRefreshTick)
+                >= REFRESH_INTERVAL_TICKS) {
             storage.refresh(level, building);
         }
         return storage;
