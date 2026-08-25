@@ -6,10 +6,10 @@ Ingen GATE-1 før krav 1-5 er lukket.
 | # | krav | alv | ansvar | status |
 |---|---|---|---|---|
 | 1 | Null suite-bevis for hele flåte-æraen; siste full RØD | 1 | koordinator: VERIFY-1 gametest + full ×2 på HEAD etter bølge R | venter på bølge R |
-| 2 | Forskning død 3×: scholar-goal uregistrert, lang-nøkler mangler, bonuser ukoblet | 1 | polermester-R (goal-linje + nøkler); NY: RESEARCH-WIRE (bonuskonsumenter) | 2/3 i arbeid |
+| 2 | Forskning død 3×: scholar-goal uregistrert, lang-nøkler mangler, bonuser ukoblet | 1 | polermester-R (goal-linje + nøkler); koordinator (bonuser) | **bonuser LANDET** 6b9fc25; goal-linje + nøkler hos polermester |
 | 3 | Ingen spiser kokkens mat (mat ekskludert fra frakt) | 1 | FOOD-1R rute 5 | **LANDET** b844016 |
 | 4 | Vaktrustning trylles + usynlig | 1 | ARMOR-1R (synlig); NY: chest-true armoury-kjede | **synlig LANDET** 4caef43; chest-true kjede gjenstår |
-| 5 | 27/33 bygg uten survival-oppskrift | 1 | NY: RECIPES-1 etter COSTS.md-tierne | spawnes nå |
+| 5 | 27/33 bygg uten survival-oppskrift | 1 | RECIPES-1 | **LANDET** 1b885b4 (alle 33, ratchet-test) |
 | 6 | Håndbok/advancements dekker ikke halve modden | 2 | NY: HANDBOOK-2 (nøkler via handoff — polermester eier lang) | kø |
 | 7 | Verktøy trylles, ingen slitasje (F2) | 2 | kø: TOOLS-1 (SettlerEntity — etter polermester) | kø |
 | 8 | Rekruttpris krevde eksakt EIK | 2 | koordinator | FIKSET (tag #minecraft:planks) |

@@ -25,13 +25,33 @@ real containers — Hearthstead has no abstract points to spend.*
 ### Build Plans (crafted, static recipes — discounts cannot apply at a
 crafting table, so plans are priced LOW; the real cost of a building is the
 architecture the player builds around the plaque)
-| plan tier | examples | recipe |
+
+SHIPPED 2026-08-25 (RECIPES-1, Byggherre-dom #1 krav 5): all 33 registered
+BuildingTypes are craftable, every ingredient bare vanilla and obtainable in
+the first days — no mod intermediate, because a fresh world must reach the
+smithy before the mod's own economy runs. Every plan carries paper + feather
+(the writ) plus its domain sample; tier shows in the paper count and the
+sample's value. `BuildPlanRecipeGameTests` is the ratchet: a 34th building
+fails the suite until it is priced here.
+
+**Deviation from this document, deliberate:** the skilled tier said "iron
+nugget". Vanilla 1.21.1 cannot craft a nugget from an ingot (only by melting
+a finished tool, or by loot), so a nugget price would force a day-one player
+to destroy a tool. Ingots carry the same signal without the trap: 1 for
+skilled, 2 for martial.
+
+| tier | paper | buildings and their sample |
 |---|---|---|
-| hearthside | house, lodging, well | 1 paper + 1 plank |
-| working | farmhouse, lumber camp, warehouse, bakery, mill, tavern | 2 paper + 2 planks + 1 sample of the trade's good (wheat / log / bread …) |
-| skilled | smithy, mason, weaver, tannery, fletcher, carpenter, sawyer, smelter, mine, kitchen, brewery | 3 paper + 2 planks + 1 iron nugget |
-| civic | dining hall, school, library, architects' study, infirmary, market | 4 paper + 4 planks + 1 book |
-| martial | barracks, watchtower, armoury | 3 paper + 2 planks + 1 iron ingot |
+| hearthside | 1 | house (#planks) · lodging (bed) · well (stick) |
+| working | 1 | farmhouse (seeds) · lumber_camp (#logs) · warehouse (chest) · bakery (wheat+coal) · mill (2 wheat) · tavern (2 bread) · pasture (wheat+#wool) · butcher (porkchop) · fishery (string) · hunters_lodge (arrow) |
+| skilled | 1 | smithy (2 ingot) · smelter (cobble+coal) · mason (2 stone) · weaver (2 string) · tannery (2 leather) · fletcher (flint+stick) · carpenter (2 #planks) · sawmill (2 #logs) · mine (2 raw_iron) · kitchen (beef+coal) · brewery (sugar+bottle) |
+| civic | 2 | architects_study (book) · dining_hall (book+bread) · infirmary (book+bottle) · market (book+emerald) · school (2 books) · library (3 books) |
+| martial | 2 | barracks (ingot+#wool) · watchtower (ingot+arrow) · armoury (2 ingots) |
+
+All wood is tagged (`#minecraft:planks`, `#minecraft:logs`, `#minecraft:wool`)
+— the exact-oak trap that stopped a birch-forest settlement from recruiting
+is not repeated here. All 33 ingredient multisets are pairwise distinct, so
+no shapeless recipe can shadow another.
 
 ### Recruiting (charged chest-true from the hearth when a traveler joins)
 Base: **4 bread + 8 planks** (a bed's worth of boards and a week of meals —
