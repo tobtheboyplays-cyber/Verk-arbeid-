@@ -142,6 +142,7 @@ public class WarehouseGameTests {
         Container chest = containerAt(helper, new BlockPos(3, 1, 3));
         helper.assertTrue(chest != null, "the arena chest should be a container");
         chest.setItem(0, new ItemStack(Items.WHEAT, 7));
+        chest.setItem(1, new ItemStack(Items.CHARCOAL, 2));  // the oven burns (FUEL-1)
 
         var recipe = com.hearthstead.building.Production.ready(helper.getLevel(), bakery);
         helper.assertTrue(recipe != null,
@@ -179,16 +180,25 @@ public class WarehouseGameTests {
         Container chest = containerAt(helper, new BlockPos(3, 1, 3));
         helper.assertTrue(chest != null, "the arena chest should be a container");
 
-        // 1. Nothing to work with: no recipe, and no change.
+        // 1. Nothing to work with: no recipe, and no change. Fuel is
+        // present throughout this test on purpose -- otherwise every refusal
+        // below would pass for the wrong reason (no firewood) instead of the
+        // reason under test (short of grain, then no room).
         chest.setItem(0, new ItemStack(Items.WHEAT, 2));          // one short
+        chest.setItem(1, new ItemStack(Items.CHARCOAL, 1));
         helper.assertTrue(
             com.hearthstead.building.Production.ready(helper.getLevel(), bakery) == null,
             "two wheat is not enough for a loaf, so there is no work");
         int before = allItems(helper, 12);
-        helper.assertTrue(before == 2, "precondition: 2 items, saw " + before);
+        helper.assertTrue(before == 3, "precondition: 3 items, saw " + before);
 
         // 2. A full larder: the recipe must refuse rather than void the loaf.
-        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+        // Slot 0 stays a full stack of fuel, so the larder is genuinely FULL
+        // and the bakery genuinely CAN burn -- only the missing room is left
+        // to refuse on.
+        chest.setItem(0, new ItemStack(Items.CHARCOAL,
+            Items.CHARCOAL.getDefaultMaxStackSize()));
+        for (int slot = 1; slot < chest.getContainerSize(); slot++) {
             chest.setItem(slot, new ItemStack(Items.WHEAT, Items.WHEAT.getDefaultMaxStackSize()));
         }
         int packed = allItems(helper, 12);

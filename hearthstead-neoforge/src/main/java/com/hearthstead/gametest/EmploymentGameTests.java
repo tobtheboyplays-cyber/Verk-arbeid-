@@ -503,6 +503,9 @@ public class EmploymentGameTests {
         net.minecraft.world.Container chest = (net.minecraft.world.Container) be;
         chest.setItem(0, new net.minecraft.world.item.ItemStack(
             net.minecraft.world.item.Items.WHEAT, 12));
+        // The oven burns fuel since FUEL-1 (DESIGN R20): four loaves' worth.
+        chest.setItem(1, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.CHARCOAL, 4));
 
         SettlerEntity astrid = settler(helper, s, "Astrid", 4, 4);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, bakery, astrid).ok(),

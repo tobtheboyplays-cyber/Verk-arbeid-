@@ -142,6 +142,9 @@ public class TradeSmelterGameTests {
         // this test is the 1:1 path's proof. ChainsGameTests owns the bloom
         // ledger; here two in must become exactly two out.
         chest.setItem(0, new ItemStack(Items.RAW_IRON, 2));
+        // Fuel, since FUEL-1 landed: a forge burns one charcoal per batch
+        // (DESIGN R20 upkeep). Two, so both smelts can run.
+        chest.setItem(1, new ItemStack(Items.CHARCOAL, 2));
         int before = countAll(chest);
 
         SettlerEntity brann = settler(helper, s, "Brann", 4, 4);
@@ -165,13 +168,16 @@ public class TradeSmelterGameTests {
             int ingots = countOf(chest, Items.IRON_INGOT);
             int raw = countOf(chest, Items.RAW_IRON);
             int total = countAll(chest);
-            // Item conservation (chest truth, INV-3): one raw iron becomes one
-            // iron ingot, so the chest's grand total must never move — not up
-            // (duplication) and not down (a silent loss).
-            helper.assertTrue(total == before,
-                "smelting must conserve items exactly: started with " + before
-                    + ", chest now holds " + total
-                    + " (raw=" + raw + " ingots=" + ingots + ")");
+            // Item conservation (chest truth, INV-3): one raw iron becomes
+            // one iron ingot, and one charcoal BURNS per batch -- the single
+            // sanctioned sink (Fuel's class doc). So the grand total may fall
+            // by exactly the number of ingots made and by nothing else:
+            // never up (duplication), never further down (a silent loss).
+            helper.assertTrue(total == before - ingots,
+                "smelting must conserve items exactly (minus burned fuel): "
+                    + "started with " + before + ", made " + ingots
+                    + " ingot(s), so the chest must hold " + (before - ingots)
+                    + " but holds " + total + " (raw=" + raw + ")");
             helper.assertTrue(ingots > 0,
                 "a hired smelter standing at a forge full of raw iron must "
                     + "produce ingots (activity=" + brann.getActivity() + ")");

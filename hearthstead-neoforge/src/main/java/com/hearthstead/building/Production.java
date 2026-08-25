@@ -5,6 +5,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -39,8 +40,20 @@ import java.util.Map;
  * only when there is somewhere to put the result, the inputs come out of real
  * slots, and the output goes into real slots. If the output cannot be placed
  * after the inputs are gone — which should be impossible, because room is
- * checked first — it is dropped into the world rather than voided. There is no
- * path through this class that reduces the number of items in the world.
+ * checked first — it is dropped into the world rather than voided.
+ *
+ * <p><b>THE ONE SANCTIONED EXCEPTION — burned fuel.</b> At a burning
+ * building ({@link Fuel#burns}) each finished batch also consumes
+ * {@link Fuel#perBatch} fuel from the same chests, and that fuel is
+ * DESTROYED, deliberately and in exactly one place ({@link #run}). This is
+ * the vanilla furnace's own bargain — coal in, nothing of the coal out,
+ * finished goods instead — and it is the "firewood/warmth" upkeep flow
+ * DESIGN.md pillar 2 / R20 decided. It converts to finished goods, it never
+ * silently vanishes on a failure path (every refusal and race gives fuel
+ * back), and no OTHER path through this class reduces the number of items
+ * in the world. Tests that assert whole-chest conservation over a burning
+ * building must account for it: total shrinks by exactly perBatch per
+ * completed batch, never more.
  *
  * <p><b>D-009 — domains, not recipe lists.</b> Inputs are matched with
  * {@link Ingredient}, so a recipe can accept a whole tag rather than one item.
@@ -121,14 +134,50 @@ public final class Production {
         // FIRST with a threshold (3 raw iron) higher than the plain smelt's
         // (1), so a small stockpile still smelts straight to ingots and only
         // a comfortable surplus gets batched into bloom for the smithy to
-        // finish (see SMITHY below). 3 raw iron -> 4 bloom -> (smithy) 4
-        // ingot is the yield side of the multiplier; the tick side is on the
-        // smithy recipe that spends the bloom.
+        // finish (see SMITHY below).
+        //
+        // FED-PATH ARITHMETIC (owner-critic verdict #1 / krav 10 -- the
+        // FLOWS.md x1.5-x2 band, measured END TO END, not per recipe):
+        //   rough:  1 raw -> 1 ingot in 200t            = 200 t/ingot
+        //   fed:    3 raw -> 4 bloom in 160t, then the
+        //           smithy finishes 2 bloom -> 2 ingot
+        //           in 160t, twice:  160 + 2x160 = 480t
+        //           for 4 ingots                        = 120 t/ingot
+        //   advantage: 200/120 = x1.67 -- inside the band, and a real one.
+        // Ore rides along at 3 raw -> 4 ingots (x1.33), and FUEL counts too:
+        // the fed chain burns 3 batches' fuel per 4 ingots (0.75/ingot)
+        // against the rough path's 1/ingot (x1.33 on firewood).
+        // FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand
+        // asserts the x1.5 floor and x2.0 ceiling as RATIOS over this very
+        // table, so a retune that drifts out of the band fails the suite,
+        // not the review.
         put(BuildingType.SMELTER,
-            new Recipe("iron_bloom", Ingredient.of(Items.RAW_IRON), 3, ModItems.IRON_BLOOM.get(), 4, 200),
+            new Recipe("iron_bloom", Ingredient.of(Items.RAW_IRON), 3, ModItems.IRON_BLOOM.get(), 4, 160),
             new Recipe("iron", Ingredient.of(Items.RAW_IRON), 1, Items.IRON_INGOT, 1, 200),
             new Recipe("copper", Ingredient.of(Items.RAW_COPPER), 1, Items.COPPER_INGOT, 1, 200),
-            new Recipe("gold", Ingredient.of(Items.RAW_GOLD), 1, Items.GOLD_INGOT, 1, 240));
+            new Recipe("gold", Ingredient.of(Items.RAW_GOLD), 1, Items.GOLD_INGOT, 1, 240),
+            // FUEL (DESIGN.md pillar 2 / R20, "firewood/warmth"): the smelter
+            // chars any log into charcoal — dense, stackable firewood the
+            // couriers can carry to every burning building. Listed LAST so
+            // ore work keeps precedence on need-aware ties; a whole tag
+            // (LOGS) as input, so no biome's wood is locked out (D-009).
+            //
+            // This is the COLD-START EXEMPT recipe: it is the only recipe at
+            // a burning building that ready()/run() do NOT gate on fuel, and
+            // it burns none, because the log IS the fire — it chars in its
+            // own heat. Without the exemption the settlement deadlocks from
+            // any fuel-empty state: making fuel would require fuel, forever.
+            //
+            // Acyclicity (FLOWS.md "no value mints", ChainsGameTests (d)):
+            // log -> charcoal adds no cycle to the goods DAG — charcoal is
+            // an input to NO recipe, so it is a sink node. The apparent
+            // self-loop ("charcoal is fuel, and fuel makes charcoal") lives
+            // only in the FUEL ledger, and the exemption is exactly what
+            // keeps that loop safe: charcoal creation consumes only its log
+            // (1:1, value-conserving), while charcoal CONSUMPTION is pure
+            // destruction (the sanctioned sink above) — every trip around
+            // the "loop" strictly loses a log and mints nothing.
+            new Recipe("charcoal", Ingredient.of(ItemTags.LOGS), 1, Items.CHARCOAL, 1, 90));
 
         // The kitchen turns what the settlement has into something worth
         // sitting down to. Until the Meal item exists (D-008) it cooks, which
@@ -181,12 +230,15 @@ public final class Production {
         // buildings existed.
         //
         // SLICE CHAINS: bloom_ingot finishes the smelter's iron_bloom into a
-        // proper ingot -- the smelter<->smithy edge FLOWS.md names -- at half
-        // the smelter's own ticks per ingot (100 vs 200). Its input
+        // proper ingot -- the smelter<->smithy edge FLOWS.md names -- at 80
+        // ticks per ingot (160t for 2) against the rough smelt's 200. This
+        // is the smithy half of the end-to-end x1.67 fed-path arithmetic
+        // spelled out on the SMELTER's iron_bloom entry above; retune the
+        // pair together or the band test in FuelGameTests fails. Its input
         // (IRON_BLOOM) never collides with the four tool recipes' IRON_INGOT,
         // so it is simply additional smithy work, not a competitor to them.
         put(BuildingType.SMITHY,
-            new Recipe("bloom_ingot", Ingredient.of(ModItems.IRON_BLOOM.get()), 2, Items.IRON_INGOT, 2, 200),
+            new Recipe("bloom_ingot", Ingredient.of(ModItems.IRON_BLOOM.get()), 2, Items.IRON_INGOT, 2, 160),
             new Recipe("axe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_AXE, 1, 300),
             new Recipe("pickaxe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_PICKAXE, 1, 300),
             new Recipe("hoe", Ingredient.of(Items.IRON_INGOT), 2, Items.IRON_HOE, 1, 240),
@@ -258,6 +310,14 @@ public final class Production {
      * same output is listed first and still wins whenever its intermediate
      * ingredient exists — bread_flour over bread, never the other way.
      *
+     * <p><b>Fire is part of "satisfiable".</b> At a burning building
+     * ({@link Fuel#burns}) a recipe joins the need-aware contest only if the
+     * chests also hold at least {@link Fuel#perBatch} fuel — a cold forge
+     * has no candidates at all, not a candidate it will fail to run. The
+     * one exception is the smelter's {@code charcoal} recipe (see its table
+     * entry): fuel-MAKING is exempt from the fuel gate, or an empty-handed
+     * settlement could never light its first fire.
+     *
      * <p>Deliberately a pure read — it changes nothing — so a work goal can
      * ask "is there anything to do?" every tick without side effects.
      */
@@ -275,7 +335,8 @@ public final class Production {
         int bestStock = Integer.MAX_VALUE;
         for (Recipe recipe : recipes) {
             if (count(containers, recipe) >= recipe.inputCount()
-                && hasRoomFor(containers, recipe)) {
+                && hasRoomFor(containers, recipe)
+                && hasFuelFor(containers, building.type, recipe)) {
                 int stock = countItem(containers, recipe.output());
                 // Strictly less: an equal-stock later entry loses, so the
                 // fed path's listed-first preference survives the tie.
@@ -289,6 +350,42 @@ public final class Production {
     }
 
     /**
+     * Whether this building is idle for want of FIREWOOD specifically: some
+     * recipe's inputs are in the chests and its output has room — it would
+     * run right now — but every such recipe is fuel-gated and the fuel is
+     * not there. False whenever anything CAN run (including the charcoal
+     * cold-start), and false when the problem is inputs or space rather
+     * than fire.
+     *
+     * <p>A pure read, like {@link #ready}, for diagnostics and courier
+     * prioritisation: "this workshop is cold" is a different call to action
+     * than "this workshop is empty", and the settlement should be able to
+     * say which without side effects.
+     */
+    public static boolean starvedForFuel(ServerLevel level, Building building) {
+        if (!Fuel.burns(building.type) || building.bounds == null) {
+            return false;
+        }
+        if (ready(level, building) != null) {
+            return false;
+        }
+        List<Container> containers = containersOf(level, building);
+        if (containers.isEmpty()) {
+            return false;
+        }
+        for (Recipe recipe : of(building.type)) {
+            // Inputs there, room there, and yet ready() had no candidates:
+            // the only gate left standing is fuel.
+            if (count(containers, recipe) >= recipe.inputCount()
+                && hasRoomFor(containers, recipe)
+                && !hasFuelFor(containers, building.type, recipe)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Runs one recipe: takes the inputs out of the building's chests and puts
      * the output back.
      *
@@ -298,13 +395,26 @@ public final class Production {
      * the check and the write — and it drops rather than voids, because INV-3
      * says items are conserved and a race is not an excuse.
      *
+     * <p><b>Fuel burns in the same transaction.</b> At a burning building a
+     * fuel-gated recipe (see {@link #fuelGated}) also removes
+     * {@link Fuel#perBatch} fuel here, atomically with the inputs: refuse
+     * up front if the fuel is not there, and if a race empties the fuel
+     * slots between the check and the take, EVERYTHING already removed —
+     * fuel and inputs alike — goes back exactly as it was. Only a batch
+     * that fully completes burns anything. The burned fuel is then simply
+     * gone: THE ONE SANCTIONED ITEM SINK (see the class doc's INV-3 note) —
+     * it converted to finished goods, the way a vanilla furnace's coal does.
+     *
      * @return whether the recipe actually ran
      */
     public static boolean run(ServerLevel level, Building building, Recipe recipe) {
         List<Container> containers = containersOf(level, building);
+        boolean burns = fuelGated(building.type, recipe);
+        int fuelNeeded = burns ? Fuel.perBatch(building.type) : 0;
         if (containers.isEmpty()
             || count(containers, recipe) < recipe.inputCount()
-            || !hasRoomFor(containers, recipe)) {
+            || !hasRoomFor(containers, recipe)
+            || (burns && countFuel(containers) < fuelNeeded)) {
             return false;
         }
         int taken = take(containers, recipe, recipe.inputCount());
@@ -313,6 +423,31 @@ public final class Production {
             // leave the world exactly as we found it.
             giveBack(level, building, containers, recipe, taken);
             return false;
+        }
+        if (burns) {
+            // Exact stacks recorded, because fuel is a KIND (charcoal, coal,
+            // any log) and a give-back must return the very items it took,
+            // not a normalised substitute.
+            List<ItemStack> fuelTaken = takeFuel(containers, fuelNeeded);
+            int fuelGot = 0;
+            for (ItemStack stack : fuelTaken) {
+                fuelGot += stack.getCount();
+            }
+            if (fuelGot < fuelNeeded) {
+                // The race path: the fire went out under us. Undo the whole
+                // transaction — fuel first, then the inputs — and refuse.
+                for (ItemStack stack : fuelTaken) {
+                    ItemStack left = insert(containers, stack);
+                    if (!left.isEmpty()) {
+                        Block.popResource(level, building.anchor, left);
+                    }
+                }
+                giveBack(level, building, containers, recipe, taken);
+                return false;
+            }
+            // The batch is now certain: the fuel just taken is DESTROYED,
+            // deliberately — no re-insert, no drop. This line is the one
+            // sanctioned item sink (INV-3 note in the class doc).
         }
         ItemStack output = new ItemStack(recipe.output(), recipe.outputCount());
         ItemStack left = insert(containers, output);
@@ -323,6 +458,75 @@ public final class Production {
     }
 
     // ------------------------------------------------------------ helpers ---
+
+    /**
+     * The cold-start exemption: the one recipe at a burning building that
+     * the fuel gate never touches. Making fuel cannot require fuel — from
+     * any all-chests-cold state the settlement would deadlock permanently,
+     * with every forge waiting for the charcoal none of them may make. The
+     * physical story holds too: the log chars in its own fire.
+     */
+    private static final String FUEL_EXEMPT_RECIPE = "charcoal";
+
+    /**
+     * Whether this recipe, at this kind of building, must burn fuel to run.
+     * Only the four burning trades ({@link Fuel#burns}), and never the
+     * {@link #FUEL_EXEMPT_RECIPE} cold-start recipe.
+     */
+    private static boolean fuelGated(BuildingType type, Recipe recipe) {
+        return Fuel.burns(type) && !FUEL_EXEMPT_RECIPE.equals(recipe.id());
+    }
+
+    /** The fuel half of "satisfiable": trivially true for anything not
+     *  fuel-gated. (No current gated recipe's INPUT is itself a fuel item —
+     *  the only overlap, logs into charcoal, is the exempt recipe — so
+     *  counting inputs and fuel independently cannot double-promise one
+     *  stack; if a future recipe overlaps, run()'s race path still gives
+     *  everything back rather than half-running.) */
+    private static boolean hasFuelFor(List<Container> containers,
+                                      BuildingType type, Recipe recipe) {
+        return !fuelGated(type, recipe)
+            || countFuel(containers) >= Fuel.perBatch(type);
+    }
+
+    /** How much fuel of any kind the building's chests hold. */
+    private static int countFuel(List<Container> containers) {
+        int total = 0;
+        for (Container container : containers) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (Fuel.isFuel(stack)) {
+                    total += stack.getCount();
+                }
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Removes up to {@code wanted} fuel items and returns EXACTLY what was
+     * taken, stack by stack, so the race path in {@link #run} can put back
+     * the very items it removed — fuel is a kind, not one item, and a
+     * give-back that swapped spruce logs for oak would violate chest truth
+     * in spirit even while conserving the count.
+     */
+    private static List<ItemStack> takeFuel(List<Container> containers, int wanted) {
+        List<ItemStack> taken = new ArrayList<>();
+        int got = 0;
+        for (Container container : containers) {
+            for (int slot = 0; slot < container.getContainerSize() && got < wanted; slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (!Fuel.isFuel(stack)) {
+                    continue;
+                }
+                int move = Math.min(wanted - got, stack.getCount());
+                taken.add(stack.copyWithCount(move));
+                container.removeItem(slot, move);
+                got += move;
+            }
+        }
+        return taken;
+    }
 
     private static List<Container> containersOf(ServerLevel level, Building building) {
         List<Container> found = new ArrayList<>();
@@ -402,8 +606,12 @@ public final class Production {
     /** Puts back what a half-finished withdrawal took. */
     private static void giveBack(ServerLevel level, Building building,
                                  List<Container> containers, Recipe recipe, int amount) {
-        // The ingredient may match several items; return the first it accepts,
-        // which for every recipe in the table above is the only one it accepts.
+        // The ingredient may match several items; return the first it
+        // accepts. For every single-item recipe that IS the item taken; for
+        // a tag recipe (charcoal's LOGS) a race-path give-back may normalise
+        // wood species to the tag's first member — count-conserving, and
+        // reachable only on the impossible-in-practice race. (Fuel give-back
+        // in run() is exact by contrast, because takeFuel records stacks.)
         ItemStack[] accepted = recipe.input().getItems();
         if (accepted.length == 0 || amount <= 0) {
             return;

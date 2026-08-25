@@ -183,6 +183,9 @@ public class ChainsGameTests {
         // Trial 1: grain only. D-007 — must still work, with zero flour
         // anywhere in the building or the world.
         wheatChest.setItem(0, new ItemStack(Items.WHEAT, 5));
+        // An oven burns (FUEL-1): fuel in both bakeries so this comparison
+        // stays about flour vs grain, not about who has firewood.
+        wheatChest.setItem(1, new ItemStack(Items.CHARCOAL, 4));
         Production.Recipe rough = Production.ready(helper.getLevel(), wheatBakery);
         helper.assertTrue(rough != null, "a bakery holding only wheat has work to do");
         helper.assertTrue(rough.id().equals("bread"),
@@ -194,6 +197,7 @@ public class ChainsGameTests {
 
         // Trial 2: flour only, same building type, same tick cost.
         flourChest.setItem(0, new ItemStack(ModItems.FLOUR.get(), 4));
+        flourChest.setItem(1, new ItemStack(Items.CHARCOAL, 4));
         Production.Recipe fed = Production.ready(helper.getLevel(), flourBakery);
         helper.assertTrue(fed != null, "a bakery holding flour has work to do");
         helper.assertTrue(fed.id().equals("bread_flour"),
