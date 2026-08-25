@@ -46,8 +46,13 @@ public class EatFromHearthGoal extends Goal {
             return false;
         }
         float hunger = settler.getHunger();
-        boolean hungry = hunger < 40
-            || (settler.dayPhase() == SettlerEntity.DayPhase.EVENING && hunger < 75);
+        // Hunger drives eating at any hour, but the village also eats TOGETHER
+        // at midday and again in the evening -- a settler who is merely
+        // peckish will still come to the table. That shared sitting is what
+        // makes a dining hall worth building and what fills the square at
+        // noon; without it everyone grazes alone whenever their own bar dips.
+        boolean mealtime = settler.dayPhase().meal() || settler.dayPhase().social();
+        boolean hungry = hunger < 40 || (mealtime && hunger < 75);
         if (!hungry) {
             return false;
         }

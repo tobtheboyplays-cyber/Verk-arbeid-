@@ -4,6 +4,7 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.Schedule;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.level.levelgen.Heightmap;
@@ -26,10 +27,16 @@ public class GuardPatrolGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return settler.getProfession() == Profession.GUARD
-            && settler.getTarget() == null
-            && settler.getEnergy() > 10
-            && settler.settlement() != null;
+        if (settler.getProfession() != Profession.GUARD
+            || settler.getTarget() != null
+            || settler.getEnergy() <= 10) {
+            return false;
+        }
+        Settlement settlement = settler.settlement();
+        // Half the garrison stands the night watch. Off-watch guards fall
+        // through to the ordinary day -- meals, the tavern, their own bed.
+        return settlement != null
+            && Schedule.onWatch(settlement, settler, settler.dayPhase());
     }
 
     @Override

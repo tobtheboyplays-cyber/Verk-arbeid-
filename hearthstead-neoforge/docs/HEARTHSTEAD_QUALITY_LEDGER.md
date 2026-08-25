@@ -154,3 +154,45 @@ the new behaviour positively rather than asserting less.
 **No working / not-working line was built**, per the owner's correction. The
 lamp in the board already carries that signal, and carries it across a village
 square where a word cannot.
+
+---
+
+## Iteration 8 — specification correction: the village clock
+
+**What changed.** `SettlerEntity.DayPhase` (WORK / EVENING / REST) was replaced
+by the settlement-wide `DayPhase` with six phases, adding a waking phase before
+dawn and a midday meal. This is a product change the owner asked for: *"når det
+er «jobbtid» så drar de til jobb. Ettermiddag så er det mat så kveld legge seg."*
+
+**What it broke, and why that is not a test being weakened.** Two fixtures were
+pinned to the old boundaries:
+
+- `settlerWakesAtDawnWithRecoveredEnergy` set the clock to 23000 with the
+  comment *"REST phase, close to dawn (23500)"*. Under the new clock 23000 is
+  RISE, so the settler correctly never went to bed. The fixture moved to 22600 —
+  still deep in REST, a few hundred ticks short of the new dawn. **The
+  assertion is unchanged**: drive a full night through dawn and require a
+  natural wake with recovered energy.
+- `settlerSleepsInClaimedBed` failed as collateral. It shares a level, and
+  therefore a day time, with the test above through the `night` batch; once the
+  other test stopped being in REST, this one's settler was walked off to the
+  gathering point. Fixing the first fixture fixed both.
+
+Neither test was skipped, loosened or deleted, and neither assertion was
+touched. What moved was a clock reading that the specification itself moved.
+
+**What it caught that was a real defect.** `aFullSackSlowsTheCarrier` failed
+because the new `GoToPostGoal` was walking a *laden* courier to the gathering
+point, where he set the goods down. That is a genuine bug in the new feature —
+the schedule must never override a job in progress — and the fix is in the
+goal, not the test: a settler carrying anything is not re-posted. The first
+attempt at that fix read the synced carry load, which is published from
+`aiStep` **after** the goals have already run, so on a settler's first tick it
+still said zero while the sack was full. Reading the container is the only
+answer that is true on every tick.
+
+**Mutation evidence.** Both new load-bearing rules were mutation-proven in one
+run: setting `OFF_ROAD_MALUS` to zero failed
+`settlersTakeTheLongWayRoundToStayOnTheRoad`, and removing the vacate step from
+`Employment.hire` failed `noSettlerHoldsTwoPosts` and
+`takingAWorkerNamesTheLoss`. Restored, 89/89 green.

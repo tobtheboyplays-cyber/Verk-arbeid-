@@ -67,7 +67,7 @@ public class FarmerWorkGoal extends Goal {
     private boolean workConditions() {
         return settler.getProfession() == Profession.FARMER
             && settler.isBound()
-            && settler.dayPhase() == SettlerEntity.DayPhase.WORK
+            && settler.dayPhase().work()
             && settler.getEnergy() > 15;
     }
 

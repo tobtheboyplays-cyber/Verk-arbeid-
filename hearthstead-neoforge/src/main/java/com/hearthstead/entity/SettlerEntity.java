@@ -17,7 +17,9 @@ import com.hearthstead.entity.ai.TravelerJoinGoal;
 import com.hearthstead.network.OpenSettlerScreenPayload;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.DayPhase;
 import com.hearthstead.settlement.SettlementManager;
+import com.hearthstead.entity.ai.GoToPostGoal;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
@@ -131,6 +133,12 @@ public class SettlerEntity extends PathfinderMob {
     @Nullable
     private BlockPos claimedBed;
     private boolean traveler;
+    /** Rolled once, then earned. See {@link SettlerAttributes}. */
+    /** Last block a footfall was counted on; see {@link #wearPath()}. */
+    private BlockPos lastFootfall;
+    private SettlerAttributes attributes;
+    /** What they are like, and what it costs them. See {@link Trait}. */
+    private java.util.EnumSet<Trait> traits = java.util.EnumSet.noneOf(Trait.class);
     public final SimpleContainer bag = new SimpleContainer(BAG_SIZE);
     private int voiceCooldown;
 
@@ -221,6 +229,7 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(3, new GuardRespondToAlertGoal(this));
         goalSelector.addGoal(4, new EatFromHearthGoal(this));
         goalSelector.addGoal(5, new RestAtNightGoal(this));
+        goalSelector.addGoal(6, new GoToPostGoal(this));
         goalSelector.addGoal(6, new FarmerWorkGoal(this));
         goalSelector.addGoal(6, new LumbererWorkGoal(this));
         goalSelector.addGoal(6, new CourierWorkGoal(this));
@@ -269,8 +278,18 @@ public class SettlerEntity extends PathfinderMob {
         return entityData.get(DATA_MORALE);
     }
 
+    /**
+     * Moves morale, through whatever this settler's temperament does to it.
+     *
+     * <p>STOIC dampens both directions, which is the trade-off: hard to
+     * dishearten and hard to cheer. Scaling only the losses would have made it
+     * a pure advantage, and a trait that is only an advantage is a stat point
+     * with a name.
+     */
     public void addMorale(float delta) {
-        entityData.set(DATA_MORALE, Mth.clamp(getMorale() + delta, 0.0F, 100.0F));
+        float scaled = delta * (delta < 0.0F
+            ? Trait.moraleDecay(traits()) : Trait.moraleGain(traits()));
+        entityData.set(DATA_MORALE, Mth.clamp(getMorale() + scaled, 0.0F, 100.0F));
     }
 
     public int getAppearanceSeed() {
@@ -381,16 +400,69 @@ public class SettlerEntity extends PathfinderMob {
             && level().getBlockEntity(hearthPos) instanceof HearthBlockEntity be ? be : null;
     }
 
-    public void assignProfession(Profession profession) {
+    /**
+     * Sets the synced projection of this settler's trade.
+     *
+     * <p>D-011: employment itself lives in {@link com.hearthstead.settlement.Building#workers}
+     * and nowhere else. What is stored here is the <b>projection</b> the client
+     * needs — the outfit, the tool in the hand, the animation set — recomputed
+     * on the server whenever employment changes, exactly the way the plaque's
+     * occupancy is. It is never consulted to decide who works where.
+     *
+     * <p>Deliberately silent: no morale, no sound, no celebration. Those belong
+     * to the events ({@link #onHired}, {@link #onDismissed}), not to keeping a
+     * projection in step — otherwise a settler cheers every time a chunk
+     * reloads.
+     */
+    public void setProfessionProjection(Profession profession) {
+        if (getProfession() == profession) {
+            return;
+        }
         entityData.set(DATA_PROFESSION, profession.id());
         setItemSlot(EquipmentSlot.MAINHAND, profession.tool());
         setDropChance(EquipmentSlot.MAINHAND, 0.0F);
+        if (level() instanceof ServerLevel serverLevel) {
+            SettlementManager.noteProfessionChange(serverLevel, this);
+        }
+    }
+
+    /** Taking up a post: the good day. */
+    public void onHired(ServerLevel level, com.hearthstead.settlement.Building building) {
+        addMorale(10.0F);
+        celebrate();
+        level.playSound(null, blockPosition(), ModSounds.PROFESSION_ASSIGNED.get(),
+            SoundSource.NEUTRAL, 1.0F, 1.0F);
+    }
+
+    /**
+     * Being let go.
+     *
+     * <p>Dismissal has weight on purpose (PLAN_EMPLOYMENT 3.5). In
+     * MineColonies firing is a button with no consequence, which makes
+     * managing people feel like editing a spreadsheet. Here it costs the
+     * settler morale and they walk out of the building in front of you.
+     */
+    public void onDismissed(ServerLevel level, com.hearthstead.settlement.Building building) {
+        addMorale(-8.0F);
+        setActivity(SettlerActivity.IDLE);
+        getNavigation().stop();
+    }
+
+    /**
+     * Fixture helper: appoints a trade directly, with the ceremony.
+     *
+     * <p>Production code must go through
+     * {@link com.hearthstead.settlement.Employment#hire}, which is the only
+     * thing that can change who works where. This exists because GameTests
+     * need a farmer without first building a farmhouse around them.
+     */
+    public void assignProfession(Profession profession) {
+        setProfessionProjection(profession);
         addMorale(10.0F);
         celebrate();
         if (level() instanceof ServerLevel serverLevel) {
             serverLevel.playSound(null, blockPosition(), ModSounds.PROFESSION_ASSIGNED.get(),
                 SoundSource.NEUTRAL, 1.0F, 1.0F);
-            SettlementManager.noteProfessionChange(serverLevel, this);
         }
     }
 
@@ -405,21 +477,71 @@ public class SettlerEntity extends PathfinderMob {
     // ------------------------------------------------------------- needs ---
 
     /** Rough day schedule; guards ignore the REST phase. */
-    public enum DayPhase {
-        WORK, EVENING, REST;
-
-        public static DayPhase of(long dayTime) {
-            long t = dayTime % 24000L;
-            if (t >= 12700 && t < 23500) {
-                return REST;
-            }
-            if (t >= 11500 && t < 12700) {
-                return EVENING;
-            }
-            return WORK;
+    /**
+     * The five numbers. Rolled lazily so a settler summoned by a test or a
+     * command is never without them.
+     */
+    public SettlerAttributes attributes() {
+        if (attributes == null) {
+            attributes = SettlerAttributes.roll(getRandom());
+            applySlowStart();
         }
+        return attributes;
     }
 
+    public java.util.EnumSet<Trait> traits() {
+        if (traits.isEmpty()) {
+            traits = Trait.roll(getRandom());
+        }
+        return traits;
+    }
+
+    public int attribute(Attribute attribute) {
+        return attributes().get(attribute);
+    }
+
+    /**
+     * Does work that trains an attribute.
+     *
+     * <p>Call this from a work goal when an action <i>completes</i> — a chop
+     * landed, a delivery made, a blow struck. Never on a timer: a settler
+     * should get stronger because they did the work, not because they stood in
+     * the right room, and "learning by doing" is only true if doing is what is
+     * counted.
+     */
+    public void train(Attribute attribute, float units) {
+        attributes().train(attribute, units, Trait.growth(traits()));
+    }
+
+    /** QUICK_STUDY buys its growth with a point off every attribute. */
+    private void applySlowStart() {
+        if (!Trait.any(traits(), Trait.Flag.SLOW_START)) {
+            return;
+        }
+        attributes.penalise(1);
+    }
+
+    @Override
+    protected net.minecraft.world.entity.ai.navigation.PathNavigation
+            createNavigation(net.minecraft.world.level.Level level) {
+        return new com.hearthstead.entity.path.RoadNavigation(this, level);
+    }
+
+    /**
+     * Whether this settler will go out of their way to stay on a path.
+     *
+     * <p>Everyone does, except while there is something to fight or flee.
+     * Nobody follows the road with a raider in the wheat, and a settler who
+     * detoured along a path while running for their life would look ridiculous
+     * — so combat and panic take the straight line.
+     */
+    public boolean prefersRoads() {
+        return getTarget() == null
+            && getActivity() != SettlerActivity.COMBAT
+            && getActivity() != SettlerActivity.FLEEING;
+    }
+
+    /** The village clock. One rhythm for everyone — see {@link DayPhase}. */
     public DayPhase dayPhase() {
         return DayPhase.of(level().getDayTime());
     }
@@ -436,7 +558,8 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.PATROLLING
             || activity == SettlerActivity.COMBAT;
 
-        setHunger(getHunger() - (working ? 0.10F : 0.04F));
+        setHunger(getHunger()
+            - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
         if (activity == SettlerActivity.SLEEPING) {
             // A claimed bed must beat rough hearth-side rest, and a sleeper
             // that cannot regain energy can never satisfy RestAtNightGoal's
@@ -500,6 +623,7 @@ public class SettlerEntity extends PathfinderMob {
             }
             tickAccents();
             syncCarryLoad();
+            wearPath();
             if (voiceCooldown > 0) {
                 voiceCooldown--;
             }
@@ -554,6 +678,22 @@ public class SettlerEntity extends PathfinderMob {
      * slots, so a recompute is cheaper than keeping every caller honest, and
      * a missed call would silently desync the sack from the goods.
      */
+    /**
+     * Counts one footfall where the settler is standing, once per block they
+     * walk onto. Gated on the position actually changing so a sleeper never
+     * digs a track under their own bed.
+     */
+    private void wearPath() {
+        BlockPos here = blockPosition();
+        if (here.equals(lastFootfall)) {
+            return;
+        }
+        lastFootfall = here;
+        if (onGround() && level() instanceof ServerLevel serverLevel) {
+            com.hearthstead.entity.path.PathWear.step(serverLevel, this);
+        }
+    }
+
     private void syncCarryLoad() {
         int total = 0;
         for (int i = 0; i < bag.getContainerSize(); i++) {
@@ -831,6 +971,12 @@ public class SettlerEntity extends PathfinderMob {
         tag.putFloat("Morale", getMorale());
         tag.putInt("Appearance", getAppearanceSeed());
         tag.putBoolean("Traveler", traveler);
+        tag.put("Attributes", attributes().save());
+        net.minecraft.nbt.ListTag traitTag = new net.minecraft.nbt.ListTag();
+        for (String key : Trait.keys(traits())) {
+            traitTag.add(net.minecraft.nbt.StringTag.valueOf(key));
+        }
+        tag.put("Traits", traitTag);
         if (settlementId != null) {
             tag.putUUID("SettlementId", settlementId);
         }
@@ -862,6 +1008,15 @@ public class SettlerEntity extends PathfinderMob {
         entityData.set(DATA_APPEARANCE_SEED,
             tag.contains("Appearance") ? tag.getInt("Appearance") : getUUID().hashCode());
         traveler = tag.getBoolean("Traveler");
+        // Traits first: rolling attributes consults SLOW_START.
+        java.util.List<String> traitKeys = new java.util.ArrayList<>();
+        net.minecraft.nbt.ListTag storedTraits = tag.getList("Traits", 8);
+        for (int i = 0; i < storedTraits.size(); i++) {
+            traitKeys.add(storedTraits.getString(i));
+        }
+        traits = traitKeys.isEmpty() ? Trait.roll(getRandom())
+            : Trait.fromKeys(traitKeys);
+        attributes = SettlerAttributes.load(tag.getCompound("Attributes"), getRandom());
         settlementId = tag.hasUUID("SettlementId") ? tag.getUUID("SettlementId") : null;
         targetSettlementId = tag.hasUUID("TargetSettlementId")
             ? tag.getUUID("TargetSettlementId") : null;

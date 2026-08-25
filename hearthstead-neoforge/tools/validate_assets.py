@@ -976,6 +976,7 @@ PIPELINE_GENERATORS = [
     "gen_gui.py",
     "gen_plaque.py",
     "gen_structures.py",
+    "gen_ui.py",
 ]
 
 
@@ -999,7 +1000,11 @@ def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tupl
     return tmp, None
 
 
-_PIPELINE_OUTPUT_SUFFIXES = (".png", ".nbt")
+# .mcmeta is half of a GUI sprite's contract -- a panel whose scaling rule
+# drifted is as broken as one whose pixels did. .java is here because
+# gen_ui.py emits HsUiTokens.java from the same tokens the offline preview
+# reads, and that file being stale is precisely how a preview starts lying.
+_PIPELINE_OUTPUT_SUFFIXES = (".png", ".nbt", ".mcmeta", ".java")
 
 
 def check_pipeline() -> None:
@@ -1080,6 +1085,52 @@ def check_pipeline() -> None:
         finally:
             shutil.rmtree(tmp_a, ignore_errors=True)
             shutil.rmtree(tmp_b, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
+# 15. No dead controls
+# --------------------------------------------------------------------------
+
+# D-014, the owner's standing UI standard: "viktig at alle knappene gjor noe og
+# har en mening". A button that does nothing is worse than a missing one -- the
+# player presses it, nothing happens, and they stop trusting the screen. A
+# control that cannot act right now must be visibly DISABLED, not silently
+# inert.
+#
+# This catches the mechanical half of that rule: a press handler whose body is
+# empty. It cannot judge whether an action is meaningful -- that is review's
+# job -- but "this button is wired to nothing" is decidable, and it is the
+# failure that actually ships.
+_CLIENT_SRC = PROJECT_ROOT / "src/main/java/com/hearthstead/client"
+
+# Button.builder(label, b -> {}) / HsButton.normal(..., () -> {}) and the
+# block-bodied spellings of the same nothing.
+_EMPTY_HANDLER = re.compile(
+    r"(?:\([^()]*\)|\w+)\s*->\s*\{\s*\}"
+)
+
+
+def check_dead_controls() -> None:
+    if not _CLIENT_SRC.is_dir():
+        return
+    offenders = []
+    for path in sorted(_CLIENT_SRC.rglob("*.java")):
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("//") or stripped.startswith("*"):
+                continue
+            if not _EMPTY_HANDLER.search(line):
+                continue
+            # Only controls: a no-op lambda passed to something button-shaped.
+            if not re.search(r"[Bb]utton|onPress|\.builder\(|Checkbox|Tab\b", line):
+                continue
+            offenders.append(f"{path.relative_to(PROJECT_ROOT)}:{lineno}: {stripped[:90]}")
+    check("UI", not offenders,
+          "no dead controls: every button in client/ is wired to an action"
+          if not offenders
+          else "dead control(s) — a button wired to an empty handler (D-014). "
+               "Give it an action or disable it with a reason: "
+               + "; ".join(offenders))
 
 
 # --------------------------------------------------------------------------
@@ -1263,6 +1314,7 @@ def main(argv: list[str] | None = None) -> int:
     check_structures()
     check_pipeline()
     check_appearance_binding()
+    check_dead_controls()
 
     # 13. Menus / BlockEntities: no resource requirement — informational.
     info("Info", f"menus registered: {len(registries['menus'])}")

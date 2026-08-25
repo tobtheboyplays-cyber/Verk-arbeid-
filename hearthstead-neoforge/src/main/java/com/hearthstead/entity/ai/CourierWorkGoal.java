@@ -133,7 +133,7 @@ public class CourierWorkGoal extends Goal {
             return false;
         }
         boolean carrying = bagCount() > 0;
-        boolean onShift = settler.dayPhase() == SettlerEntity.DayPhase.WORK
+        boolean onShift = settler.dayPhase().work()
             && settler.getEnergy() > 15
             && level.getGameTime() >= cooldownUntil;
         if (!carrying && !onShift) {

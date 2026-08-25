@@ -125,6 +125,11 @@ public final class BuildingManager {
                 settler.addMorale(-6.0F);
             }
         }
+        // A settler pointing at a building that no longer exists is the exact
+        // class of bug KF-013 and KF-014 both were. Freeing the workers in the
+        // same operation that removes the building makes it impossible rather
+        // than findable (D-011).
+        Employment.freeWorkers(level, settlement, building);
         settlement.buildings.remove(building);
         buildingsDissolved++;
         data.setDirty();

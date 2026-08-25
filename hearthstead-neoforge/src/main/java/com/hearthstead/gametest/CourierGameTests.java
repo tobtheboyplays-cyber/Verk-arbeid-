@@ -371,7 +371,14 @@ public class CourierGameTests {
             double ladenSpeed = laden.getAttributeValue(Attributes.MOVEMENT_SPEED);
             helper.assertTrue(ladenSpeed < emptySpeed,
                 "a full sack must slow the carrier: " + ladenSpeed
-                    + " vs " + emptySpeed);
+                    + " vs " + emptySpeed
+                    + " [laden load=" + laden.getCarryLoad()
+                    + "/" + laden.getCarryCapacity()
+                    + " frac=" + laden.carryFraction()
+                    + " bagSlot0=" + laden.bag.getItem(0)
+                    + " act=" + laden.getActivity()
+                    + " | empty load=" + empty.getCarryLoad()
+                    + " frac=" + empty.carryFraction() + "]");
             helper.assertTrue(halfSpeed < emptySpeed && halfSpeed > ladenSpeed,
                 "and the penalty must scale with the load: half=" + halfSpeed
                     + " full=" + ladenSpeed + " empty=" + emptySpeed);

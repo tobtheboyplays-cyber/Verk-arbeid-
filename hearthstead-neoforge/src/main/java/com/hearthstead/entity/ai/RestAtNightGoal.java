@@ -5,6 +5,7 @@ import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.BuildingManager;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.Schedule;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
@@ -29,9 +30,21 @@ public class RestAtNightGoal extends Goal {
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP));
     }
 
+    /**
+     * The village's own bedtime, not the sky's.
+     *
+     * <p>Civilians sleep through the rest phase. Guards sleep on the opposite
+     * half of the clock from their watch — see {@link Schedule#shouldSleep} —
+     * so a raid at two in the morning meets guards who are already awake
+     * rather than a settlement of sleepers.
+     */
     private boolean nightCurfew() {
-        return settler.getProfession() != Profession.GUARD
-            && settler.dayPhase() == SettlerEntity.DayPhase.REST;
+        Settlement settlement = settler.settlement();
+        if (settlement == null) {
+            return settler.getProfession() != Profession.GUARD
+                && settler.dayPhase().rest();
+        }
+        return Schedule.shouldSleep(settlement, settler, settler.dayPhase());
     }
 
     @Override

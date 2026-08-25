@@ -1233,7 +1233,13 @@ public class HearthsteadGameTests {
      *  again -- not still SLEEPING once energy has recovered past dawn. */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night")
     public void settlerWakesAtDawnWithRecoveredEnergy(GameTestHelper helper) {
-        helper.getLevel().setDayTime(23000); // REST phase, close to dawn (23500)
+        // Still deep in REST, a few hundred ticks short of RISE at 23000.
+        // The village clock (DayPhase) now opens a waking phase before
+        // dawn instead of running REST straight into working hours, so
+        // "just before waking" moved earlier. The assertion below is
+        // unchanged: drive a full night through dawn and require a
+        // natural wake with recovered energy.
+        helper.getLevel().setDayTime(22600);
         buildArena(helper, 16, 16);
         BlockPos hearthRel = new BlockPos(2, 1, 2);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());

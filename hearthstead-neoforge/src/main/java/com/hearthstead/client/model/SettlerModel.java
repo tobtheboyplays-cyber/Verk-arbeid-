@@ -135,7 +135,7 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         SettlerActivity activity = entity.getActivity();
         boolean climbing = entity.onClimbable();
         boolean lowHealth = entity.getHealth() < entity.getMaxHealth() * 0.4F;
-        boolean night = entity.dayPhase() == SettlerEntity.DayPhase.REST;
+        boolean night = entity.dayPhase().rest();
         boolean dark = entity.level().getRawBrightness(entity.blockPosition(), 0) <= 4;
 
         if (climbing) {

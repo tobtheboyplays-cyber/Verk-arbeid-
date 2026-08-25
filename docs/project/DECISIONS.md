@@ -298,6 +298,12 @@ building its trade.
 **Cost, stated plainly.** This deletes items, recipes, sprites and lang keys.
 The mod is private and unreleased, so no save in the world depends on them.
 
+**Sequencing, which is not optional.** The writ is removed **after** the hire
+screen works, never before. Deleting it first would leave a build in which no
+settler can be given a job at all — the replacement has to be standing before
+the old thing comes down. Until then the writ remains as the working path and
+`Employment` is the one used by everything new.
+
 **Affects.** `item/`, recipes, the creative tab, en_us + nb_no, and every
 GameTest that calls `assignProfession` directly.
 
@@ -320,3 +326,30 @@ with a name and an off switch — never as a hidden default.
 
 **Affects.** The hire service, the plaque screen, and anything later tempted to
 "helpfully" fill an empty post.
+
+---
+
+## D-014 — No dead controls
+
+**Decision.** Every button, tab and clickable thing in a Hearthstead screen
+performs a real action. A control that cannot act right now is **visibly
+disabled and says why**. There are no placeholder buttons, no decorative
+controls and no "coming soon".
+
+**Reason.** Owner's standing standard, 2026-08-25: *"Viktig at alle knappene
+gjør noe og har en mening."* A button that does nothing is worse than a missing
+one — the player presses it, nothing happens, and from then on they do not
+trust the screen. Trust in a UI is spent, not earned back.
+
+**How it is enforced.** `validate_assets.py`'s `check_dead_controls` fails the
+build on any press handler in `client/` with an empty body. That is the
+mechanical half — "wired to nothing" is decidable. Whether an action is
+*meaningful* is a review judgement and belongs to the release gate. The check
+was mutation-proven when it was written: a `Button.builder(..., b -> {})` added
+to `PlaqueScreen` failed it by name and line.
+
+**Corollary.** Disabled is a first-class state, not an afterthought — which is
+why the UI kit ships a `button_disabled` sprite and `HsButton` draws it. A
+disabled button that looks enabled is the same lie by another route.
+
+**Affects.** Every screen, and the `minecraft-ui` skill.
