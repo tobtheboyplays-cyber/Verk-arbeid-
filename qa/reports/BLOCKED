@@ -1,21 +1,25 @@
-BLOCKED: mid-fleet integration hold (updated 2026-08-25T20:3x)
+BLOCKED: mid-fleet integration hold (updated 2026-08-25T20:5x)
 
-Two workers are still editing their exclusively-owned files; committing
-them mid-edit would land half-written code. Everything else IS committed
-and pushed (branch claude/hearthstead-settlement-mod-vbdb9n, through
-43a02a7).
+Five workers are editing their exclusively-owned files; committing them
+mid-edit would land half-written code. Everything else IS committed and
+pushed (branch claude/hearthstead-settlement-mod-vbdb9n).
 
 In-flight owners and their uncommitted files:
 - polermester (cycle 1): SettlerAnimations.java, SettlerEntity.java,
-  SettlerNetwork.java, SettlerSnapshotPayload.java, both lang files,
-  gen_settler.py + all settler/skin-layer PNGs, ANIMATION_CATALOGUE.md.
-- FARMER-BOOTSTRAP: FarmerWorkGoal.java (+ its new gametest file).
+  SettlerNetwork/SettlerSnapshotPayload, SettlerScreen/StorageScreen (+2
+  more screens possible), both lang files, gen_settler.py + settler/skin
+  PNGs (incl. new scholar/miller/brewer outfits), ANIMATION_CATALOGUE.md.
+- FUEL-1: Production.java, CrafterWorkGoal.java, new Fuel.java + gametest.
+- REPAIR-1: raid/RaidDirector.java, new RepairWorkGoal.java + gametest.
+- FOOD-1: CourierWorkGoal.java + new gametest (codes against Fuel.java's
+  frozen contract — compiles only once FUEL-1 lands too).
+- ARMOR-VISIBLE: new SettlerArmorLayer/SettlerArmorModel, SettlerRenderer
+  (registration line), new tools/gen_armor.py + armor PNGs. Scope upgraded
+  by user to real 3D armor geometry.
 
-Exact resume action when they report done: compile probe, validate_assets,
-anim_check, commit per worker, then tools/hearthstead-qa gametest
-(VERIFY-1), fix-loop failures with the owning workers, then full x2 for
-green_streak >= 2, delete this file, commit and push.
-
-No QA suite may run right now: the fingerprint would be of half-written
-sources, and the controller forbids editing fingerprinted sources during a
-run in the other direction too.
+Resume action on each landing: compile probe (FOOD-1+FUEL-1 jointly),
+validators, commit per worker. When ALL land: tools/hearthstead-qa
+gametest (VERIFY-1), fix-loop with owners, coordinator adds the deferred
+SettlerEntity goal-registration lines (Scholar + Repair), then full x2 for
+green_streak >= 2, delete this file, commit and push. No QA suite may run
+while fingerprinted sources are mid-edit.
