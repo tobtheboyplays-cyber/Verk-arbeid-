@@ -219,6 +219,9 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 18.4 | `HAMMER_ANVIL` | 1.00 | L | A2 |
 | 18.5 | `SAW` | 1.10 | L | A2 |
 | 18.6 | `FINE_WORK` | 0.90 | L | A2 |
+| 18.7 | `GATHER_LOG` | 1.10 | 1 | A2 |
+| 18.8 | `OVEN_TEND` | 1.60 | L | A2 |
+| 18.9 | `SOW_BROADCAST` | 1.40 | L | A2 |
 | 13.3 | `EMERGENCY_REPAIR` | 1.80 | L | A3 |
 | 13.4 | `EMERGENCY_CARRY_DOWNED` (+`DOWNED`) | 2.20 | L+ | A3 |
 | 13.5 | `EMERGENCY_COWER` (+`COWER_FLINCH`) | 2.60 | L | A3 |
@@ -2743,3 +2746,28 @@ Deliberately the opposite of everything above: small amplitude, high frequency,
 head down at 27–29°, torso almost still. It is in the set to make the heavy
 clips read heavy — a village where every trade swings from the shoulder has no
 scale to it. Two passes per loop so the hands look busy rather than metronomic.
+
+### 18.7 `GATHER_LOG` — the lumberjack stoops *(1.10 s, one-shot)*
+
+Felling was only ever half the job. The half that makes it read as *work* is
+what happens after the tree comes down: the knees bend, the back takes the
+weight, and the settler comes up **slower than they went down** — 0.35 s to
+drop, 0.55 s to rise. That asymmetry is the whole clip, because standing up
+under a log is not the reverse of bending over. Root drops 2.4 px.
+
+### 18.8 `OVEN_TEND` — the baker's peel *(1.60 s, loop)*
+
+The signature is the **flip**. Both hands drive the peel forward into the oven
+mouth, hold three ticks while the loaf goes in, then the wrists snap over — a
+fast roll on the arms' Z axis (±46°) that nothing else in the mod does. The
+torso then leans away as the heat comes back. That recoil is the beat you
+actually recognise a baker by.
+
+### 18.9 `SOW_BROADCAST` — the farmer casts seed *(1.40 s, loop)*
+
+The oldest sowing motion there is, and it makes a farmer readable at fifty
+blocks. The off hand cradles the seed bag at the hip, the right hand dips into
+it, then sweeps across the body in a wide arc and opens. The **release** is the
+beat — the arm parks two ticks at the end of the arc while the seed leaves the
+hand — and the torso rotates a full 42° across the stroke, because the arc
+comes from the hips or it comes from nowhere.

@@ -282,7 +282,10 @@ public class FarmerWorkGoal extends Goal {
                 .is(Blocks.FARMLAND)) {
                 mode = Mode.PLANTING;
                 workTicks = 0;
-                settler.setActivity(SettlerActivity.WORK_PLANT);
+                // D-016: the farmer's signature. Broadcasting seed by
+                // hand reads at fifty blocks; pressing one seed into
+                // one hole does not.
+                settler.setActivity(SettlerActivity.WORK_SOW);
             } else if (bagCount() >= BAG_TRIGGER) {
                 mode = Mode.TO_HEARTH;
                 settler.setActivity(SettlerActivity.IDLE);

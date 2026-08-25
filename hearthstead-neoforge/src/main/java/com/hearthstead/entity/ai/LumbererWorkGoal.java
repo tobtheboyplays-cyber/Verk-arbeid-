@@ -274,6 +274,17 @@ public class LumbererWorkGoal extends Goal {
                 BlockState logState = serverLevel.getBlockState(topLog);
                 if (logState.is(BlockTags.LOGS_THAT_BURN)) {
                     serverLevel.destroyBlock(topLog, false);
+                    // Point 8 of the job standard: one felled log is one unit
+                    // of work, and it is counted HERE -- at the moment the log
+                    // comes down, not on a timer while the settler stands
+                    // near a tree. Learning by doing is only true if doing is
+                    // what gets counted.
+                    settler.train(com.hearthstead.entity.Attribute.STRENGTH, 1.0F);
+                    // And then they stoop for it. Felling was only ever half
+                    // the job (D-016) -- the stoop is triggered at the moment
+                    // the log comes down, so it always lands on a log that
+                    // actually exists.
+                    settler.triggerGatherLog();
                     ItemStack logItem = new ItemStack(logState.getBlock().asItem());
                     ItemStack leftover = settler.bag.addItem(logItem);
                     if (!leftover.isEmpty()) {

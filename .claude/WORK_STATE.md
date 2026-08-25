@@ -105,6 +105,30 @@ block entered. `docs/project/PLAN_DAILY_RHYTHM.md`.
 the vacate step both failed by name. Ledger iteration 8 records the clock
 specification correction.
 
+## THE JOB STANDARD — `docs/project/JOB_STANDARD.md`. **Read this first.**
+
+Eleven points that define a finished job (trade, standalone work, a goal that
+takes real time, its own signature motion, catalogued first, a distinct sound
+on the accent frame, an outfit, training on completion, a place at every hour,
+both languages, named + mutation-proven tests).
+
+**It is executable.** `tools/job_audit.py` scores every trade and fails the
+build for anything on the CERTIFIED list that slipped. Certification is a
+ratchet: a trade goes on the list the day it passes all eleven and can never
+quietly regress. **`lumberer` is certified — it is the reference.**
+
+`tools/anim_preview.py` reads every clip against the craft standard (seam, pop,
+beat at contact, torso lead, overshoot) with no rendering and nothing
+installed; `--strict` is wired into `validate_assets`, with a recorded
+exception list rather than silent passes. It caught two real defects the hour
+it was written. For eyes, `tools/blockbench/` drives real Blockbench headless.
+
+**D-016 — every trade gets its own signature motion.** Shared motions (D-015)
+are only a base to start from. Owner-named and built: `GATHER_LOG` (the
+lumberjack stoops for the log — rises slower than it drops), `OVEN_TEND` (the
+baker's peel, with the wrist-snap flip), `SOW_BROADCAST` (seed cast in a wide
+arc from the hips). **Twelve trades still on a base motion.**
+
 ## Design decisions taken this session
 
 Full text in `docs/project/DECISIONS.md`; the one-line versions:

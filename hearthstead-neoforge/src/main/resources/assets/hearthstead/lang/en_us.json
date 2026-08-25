@@ -295,5 +295,8 @@
   "hearthstead.profession.mason": "Mason",
   "hearthstead.profession.fletcher": "Fletcher",
   "hearthstead.profession.weaver": "Weaver",
-  "hearthstead.profession.tanner": "Tanner"
+  "hearthstead.profession.tanner": "Tanner",
+  "hearthstead.activity.gathering_log": "Gathering wood",
+  "hearthstead.activity.work_oven": "Working the oven",
+  "hearthstead.activity.work_sow": "Sowing"
 }

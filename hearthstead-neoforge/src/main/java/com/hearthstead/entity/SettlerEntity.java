@@ -181,6 +181,10 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState hammerState = new AnimationState();
     public final AnimationState sawState = new AnimationState();
     public final AnimationState fineWorkState = new AnimationState();
+    // D-016 signature motions.
+    public final AnimationState gatherState = new AnimationState();
+    public final AnimationState ovenState = new AnimationState();
+    public final AnimationState sowState = new AnimationState();
     public final AnimationState sortState = new AnimationState();
     public final AnimationState liftState = new AnimationState();
     public final AnimationState setDownState = new AnimationState();
@@ -474,6 +478,19 @@ public class SettlerEntity extends PathfinderMob {
         }
     }
 
+    /**
+     * The lumberjack stoops for the log they just felled.
+     *
+     * <p>Triggered at the moment the log comes down, not on a timer, so the
+     * stoop always lands on a log that actually exists.
+     */
+    public void triggerGatherLog() {
+        if (!level().isClientSide) {
+            setActivity(SettlerActivity.GATHERING_LOG);
+        }
+        gatherState.start(tickCount);
+    }
+
     public void celebrate() {
         if (!level().isClientSide && celebrateBroadcastIn < 0 && celebrateAge < 0) {
             // Catalogue §14: stagger celebration starts by up to 20 ticks per
@@ -570,7 +587,9 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_STOKE
             || activity == SettlerActivity.WORK_HAMMER
             || activity == SettlerActivity.WORK_SAW
-            || activity == SettlerActivity.WORK_WEAVE;
+            || activity == SettlerActivity.WORK_WEAVE
+            || activity == SettlerActivity.WORK_OVEN
+            || activity == SettlerActivity.WORK_SOW;
 
         setHunger(getHunger()
             - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
@@ -774,6 +793,13 @@ public class SettlerEntity extends PathfinderMob {
         hammerState.animateWhen(activity == SettlerActivity.WORK_HAMMER && !moving, tickCount);
         sawState.animateWhen(activity == SettlerActivity.WORK_SAW && !moving, tickCount);
         fineWorkState.animateWhen(activity == SettlerActivity.WORK_WEAVE && !moving, tickCount);
+        ovenState.animateWhen(activity == SettlerActivity.WORK_OVEN && !moving, tickCount);
+        sowState.animateWhen(activity == SettlerActivity.WORK_SOW && !moving, tickCount);
+        // GATHER_LOG is a one-shot: triggered when a log actually comes down,
+        // and expiring on its own clock like CELEBRATE does.
+        if (gatherState.isStarted() && gatherState.getAccumulatedTime() > 1150L) {
+            gatherState.stop();
+        }
 
         // One-shots expire on their own clock.
         if (meleeState.isStarted() && meleeState.getAccumulatedTime() > 500L) {

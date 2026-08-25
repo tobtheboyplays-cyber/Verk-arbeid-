@@ -353,3 +353,38 @@ why the UI kit ships a `button_disabled` sprite and `HsButton` draws it. A
 disabled button that looks enabled is the same lie by another route.
 
 **Affects.** Every screen, and the `minecraft-ui` skill.
+
+---
+
+## D-016 — Every trade gets its own signature motion
+
+**Decision.** Each job has **one motion nobody else has** — the beat you
+recognise it by from across the square. D-015's motion-sharing stands only as a
+*base* a trade starts from, never as where it ends up.
+
+**Reason.** Owner, 2026-08-25: *"Vil at alle som jobber har kule animasjoner …
+pass på alle har sin distinkte ting. Da virker moden gjennomtenkt."* And the
+reasoning is right: a village where two trades move identically reads as a
+village where nobody thought about either of them. Distinctness is not
+decoration here — it is the thing that makes the settlement look considered.
+
+**What supersedes what.** D-015 argued that a butcher and a tanner make the
+same stroke, which is true of the *physics* and beside the point for the
+*reading*. The clips stay as the shared base; each trade then gets its
+signature on top, and the trade is not finished (job standard, point 4) until
+it has one.
+
+**The first three, named by the owner.**
+- **Lumberjack** — `GATHER_LOG`: felling was half the job; the stoop for the
+  log is the other half, and it rises slower than it drops.
+- **Baker** — `OVEN_TEND`: the peel goes in, holds, and the wrists snap over.
+  Nothing else in the mod rolls the arms on Z.
+- **Farmer** — `SOW_BROADCAST`: seed cast by hand in a wide arc driven from
+  the hips, with the release as the beat.
+
+**How it is enforced.** `tools/job_audit.py` point 4, and `anim_preview.py`
+holds every new clip to the craft standard — an accelerating wind-up, a torso
+that leads, a real beat, a recovery that overshoots.
+
+**Affects.** Every trade still on a shared base motion: cook, butcher, smelter,
+smith, sawyer, carpenter, mason, fletcher, weaver, tanner, courier, guard.

@@ -1582,7 +1582,7 @@ public final class SettlerAnimations {
             new Keyframe(0.00F, KeyframeAnimations.degreeVec(10, 4, 0), CATMULLROM),
             new Keyframe(0.20F, KeyframeAnimations.degreeVec(-6, 12, 0), CATMULLROM),
             new Keyframe(0.30F, KeyframeAnimations.degreeVec(-14, 14, 0), CATMULLROM),
-            new Keyframe(0.45F, KeyframeAnimations.degreeVec(28, -6, 0), LINEAR),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(28, -6, 0), LINEAR),
             new Keyframe(0.60F, KeyframeAnimations.degreeVec(25, -5, 0), LINEAR),
             new Keyframe(0.80F, KeyframeAnimations.degreeVec(4, 8, 0), CATMULLROM),
             new Keyframe(1.00F, KeyframeAnimations.degreeVec(10, 4, 0), CATMULLROM)))
@@ -1717,5 +1717,205 @@ public final class SettlerAnimations {
         .addAnimation("root", new AnimationChannel(POSITION,
             new Keyframe(0.00F, KeyframeAnimations.posVec(0, -0.35F, 0), CATMULLROM),
             new Keyframe(0.90F, KeyframeAnimations.posVec(0, -0.35F, 0), CATMULLROM)))
+        .build();
+
+    // ================================================================== //
+    // Signature motions (D-016). Every trade gets the ONE thing it does  //
+    // that nobody else does -- the beat you recognise from across the    //
+    // square. Owner, 2026-08-25: "pass på alle har sin distinkte ting.   //
+    // Da virker moden gjennomtenkt."                                     //
+    // ================================================================== //
+
+    /**
+     * Lumberjack: stooping to gather the log they just felled.
+     *
+     * <p>Felling was only ever half the job. The half that makes it read as
+     * work is what happens after the tree comes down — the knees bend, the
+     * back takes the weight, and the settler comes up slower than they went
+     * down. That asymmetry is the whole clip: 0.35 s to drop, 0.55 s to rise,
+     * because a log is heavy and standing up under one is not the reverse of
+     * bending over. One-shot, 1.10 s.
+     */
+    public static final AnimationDefinition GATHER_LOG = AnimationDefinition.Builder
+        .withLength(1.10F)
+        .addAnimation("right_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-8, -6, -3), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(-30, -10, -4), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(-92, -18, -6), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-90, -18, -6), LINEAR),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(-62, -14, -5), CATMULLROM),
+            new Keyframe(0.90F, KeyframeAnimations.degreeVec(-70, -15, -5), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(-8, -6, -3), CATMULLROM)))
+        .addAnimation("left_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-8, 6, 3), CATMULLROM),
+            new Keyframe(0.20F, KeyframeAnimations.degreeVec(-30, 10, 4), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(-92, 18, 6), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-90, 18, 6), LINEAR),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(-62, 14, 5), CATMULLROM),
+            new Keyframe(0.90F, KeyframeAnimations.degreeVec(-70, 15, 5), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(-8, 6, 3), CATMULLROM)))
+        .addAnimation("torso", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM),
+            new Keyframe(0.15F, KeyframeAnimations.degreeVec(18, 0, 0), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(52, 0, 0), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(50, 0, 0), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(16, 0, 0), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM)))
+        .addAnimation("head", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(26, 0, 0), CATMULLROM),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM)))
+        .addAnimation("right_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-4, 0, -3), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(-34, 0, -6), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-33, 0, -6), LINEAR),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-6, 0, -3), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(-4, 0, -3), CATMULLROM)))
+        .addAnimation("left_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(4, 0, 3), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(30, 0, 6), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(29, 0, 6), LINEAR),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(4, 0, 3), CATMULLROM)))
+        .addAnimation("cloak", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.degreeVec(34, 0, 0), CATMULLROM),
+            new Keyframe(0.55F, KeyframeAnimations.degreeVec(30, 0, 0), CATMULLROM),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(-8, 0, 0), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM)))
+        .addAnimation("root", new AnimationChannel(POSITION,
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.posVec(0, -2.4F, 0.5F), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.posVec(0, -2.35F, 0.5F), LINEAR),
+            new Keyframe(0.90F, KeyframeAnimations.posVec(0, -0.3F, 0), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
+        .build();
+
+    /**
+     * Baker: working the oven with a peel.
+     *
+     * <p>The signature is the <b>flip</b>. Both hands drive the peel forward
+     * into the oven mouth, hold there for three ticks while the loaf goes in,
+     * and then the wrists snap over — a fast roll on the arms' Z axis that
+     * nothing else in the mod does. The torso leans away as the heat comes
+     * back, which is the beat you actually recognise a baker by. 1.60 s loop.
+     */
+    public static final AnimationDefinition OVEN_TEND = AnimationDefinition.Builder
+        .withLength(1.60F).looping()
+        .addAnimation("right_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-52, -14, 4), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(-44, -15, 5), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-96, -9, 2), CATMULLROM),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(-94, -9, 2), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(-88, -8, 46), LINEAR),
+            new Keyframe(0.90F, KeyframeAnimations.degreeVec(-86, -8, 44), LINEAR),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(-40, -16, -6), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(-56, -14, 6), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(-52, -14, 4), CATMULLROM)))
+        .addAnimation("left_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-52, 14, -4), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(-44, 15, -5), CATMULLROM),
+            new Keyframe(0.50F, KeyframeAnimations.degreeVec(-96, 9, -2), CATMULLROM),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(-94, 9, -2), LINEAR),
+            new Keyframe(0.80F, KeyframeAnimations.degreeVec(-88, 8, -46), LINEAR),
+            new Keyframe(0.90F, KeyframeAnimations.degreeVec(-86, 8, -44), LINEAR),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(-40, 16, 6), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(-56, 14, -6), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(-52, 14, -4), CATMULLROM)))
+        .addAnimation("torso", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(10, 0, 0), CATMULLROM),
+            new Keyframe(0.40F, KeyframeAnimations.degreeVec(24, 0, 0), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(26, 0, 0), LINEAR),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(24, 0, 0), LINEAR),
+            new Keyframe(1.05F, KeyframeAnimations.degreeVec(-10, 0, 0), CATMULLROM),
+            new Keyframe(1.30F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(10, 0, 0), CATMULLROM)))
+        .addAnimation("head", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(14, 0, 0), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(20, 0, 0), CATMULLROM),
+            new Keyframe(1.05F, KeyframeAnimations.degreeVec(-4, 5, 0), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(14, 0, 0), CATMULLROM)))
+        .addAnimation("right_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-7, 0, -3), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-11, 0, -3), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(-7, 0, -3), CATMULLROM)))
+        .addAnimation("left_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM)))
+        .addAnimation("cloak", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(15, 0, 0), CATMULLROM),
+            new Keyframe(1.05F, KeyframeAnimations.degreeVec(-9, 0, 0), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM)))
+        .addAnimation("root", new AnimationChannel(POSITION,
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.posVec(0, -0.4F, 0.45F), LINEAR),
+            new Keyframe(0.75F, KeyframeAnimations.posVec(0, -0.35F, 0.45F), LINEAR),
+            new Keyframe(1.05F, KeyframeAnimations.posVec(0, 0.15F, -0.4F), CATMULLROM),
+            new Keyframe(1.60F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
+        .build();
+
+    /**
+     * Farmer: broadcasting seed by hand.
+     *
+     * <p>The oldest sowing motion there is, and it makes a farmer readable at
+     * fifty blocks: the off hand cradles the seed bag at the hip, the right
+     * hand dips into it, and then sweeps across the body in a wide arc and
+     * opens. The <b>release</b> is the beat — the arm parks for two ticks at
+     * the end of the arc while the seed leaves the hand — and the torso
+     * rotates a full 30 degrees to drive it, because the arc comes from the
+     * hips or it comes from nowhere. 1.40 s loop.
+     */
+    public static final AnimationDefinition SOW_BROADCAST = AnimationDefinition.Builder
+        .withLength(1.40F).looping()
+        .addAnimation("right_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-16, 28, 22), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(-34, 40, 30), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-30, 44, 33), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-58, -34, -18), LINEAR),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(-56, -36, -19), LINEAR),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-40, -46, -26), CATMULLROM),
+            new Keyframe(1.10F, KeyframeAnimations.degreeVec(-10, 8, 10), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(-16, 28, 22), CATMULLROM)))
+        .addAnimation("left_arm", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-64, 26, -14), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-68, 28, -15), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-66, 27, -15), LINEAR),
+            new Keyframe(1.00F, KeyframeAnimations.degreeVec(-62, 25, -13), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(-64, 26, -14), CATMULLROM)))
+        .addAnimation("torso", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(6, 10, 0), CATMULLROM),
+            new Keyframe(0.30F, KeyframeAnimations.degreeVec(4, 22, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(3, 24, 0), CATMULLROM),
+            new Keyframe(0.55F, KeyframeAnimations.degreeVec(8, -18, 0), LINEAR),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(7, -17, 0), LINEAR),
+            new Keyframe(0.95F, KeyframeAnimations.degreeVec(5, -6, 0), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(6, 10, 0), CATMULLROM)))
+        .addAnimation("head", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(10, 12, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(12, 20, 0), CATMULLROM),
+            new Keyframe(0.65F, KeyframeAnimations.degreeVec(14, -14, 0), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(10, 12, 0), CATMULLROM)))
+        .addAnimation("right_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-5, 4, -3), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(-9, -6, -4), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(-5, 4, -3), CATMULLROM)))
+        .addAnimation("left_leg", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(5, -4, 3), CATMULLROM),
+            new Keyframe(0.60F, KeyframeAnimations.degreeVec(8, 6, 4), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(5, -4, 3), CATMULLROM)))
+        .addAnimation("cloak", new AnimationChannel(ROTATION,
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(3, 0, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(16, 0, 0), CATMULLROM),
+            new Keyframe(1.05F, KeyframeAnimations.degreeVec(5, 0, 0), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.degreeVec(3, 0, 0), CATMULLROM)))
+        .addAnimation("root", new AnimationChannel(POSITION,
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.45F, KeyframeAnimations.posVec(-0.3F, 0.1F, 0), CATMULLROM),
+            new Keyframe(0.65F, KeyframeAnimations.posVec(0.35F, -0.15F, 0), CATMULLROM),
+            new Keyframe(1.40F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
         .build();
 }

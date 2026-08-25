@@ -123,7 +123,8 @@ public final class Employment {
      */
     public static SettlerActivity motionOf(BuildingType type) {
         return switch (tradeOf(type)) {
-            case BAKER, COOK -> SettlerActivity.WORK_KNEAD;
+            case BAKER -> SettlerActivity.WORK_OVEN;
+            case COOK -> SettlerActivity.WORK_KNEAD;
             case BUTCHER, TANNER -> SettlerActivity.WORK_CLEAVE;
             case SMELTER -> SettlerActivity.WORK_STOKE;
             case SMITH, MASON -> SettlerActivity.WORK_HAMMER;

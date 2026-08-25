@@ -34,7 +34,12 @@ public enum SettlerActivity {
     WORK_STOKE("work_stoke"),
     WORK_HAMMER("work_hammer"),
     WORK_SAW("work_saw"),
-    WORK_WEAVE("work_weave");
+    WORK_WEAVE("work_weave"),
+    // D-016 signature motions: the one thing each trade does that nobody
+    // else does. Same wire-format rule -- append only.
+    GATHERING_LOG("gathering_log"),
+    WORK_OVEN("work_oven"),
+    WORK_SOW("work_sow");
 
     public static final SettlerActivity[] BY_ID = values();
 

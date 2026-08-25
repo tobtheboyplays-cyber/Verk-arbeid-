@@ -1110,6 +1110,24 @@ _EMPTY_HANDLER = re.compile(
 )
 
 
+def check_sibling_tool(script: str, args: list[str], what: str) -> None:
+    """Runs another tool in tools/ and folds its verdict into this report.
+
+    Standards that live in a tool nobody is required to run decay within a
+    month. These two are required.
+    """
+    path = Path(__file__).resolve().parent / script
+    if not path.is_file():
+        check("Standards", False, f"{script} is missing -- {what} is unenforced")
+        return
+    proc = subprocess.run([sys.executable, str(path), *args],
+                          capture_output=True, text=True, timeout=120)
+    ok = proc.returncode == 0
+    detail = (proc.stdout or proc.stderr or "").strip().splitlines()
+    tail = " | ".join(line.strip() for line in detail[-4:]) if detail else ""
+    check("Standards", ok, what if ok else f"{what} -- {tail}")
+
+
 def check_dead_controls() -> None:
     if not _CLIENT_SRC.is_dir():
         return
@@ -1315,6 +1333,12 @@ def main(argv: list[str] | None = None) -> int:
     check_pipeline()
     check_appearance_binding()
     check_dead_controls()
+    check_sibling_tool("anim_preview.py", ["--strict"],
+                       "every animation meets the craft standard "
+                       "(.claude/skills/animation-quality)")
+    check_sibling_tool("job_audit.py", [],
+                       "every certified job meets the job standard "
+                       "(docs/project/JOB_STANDARD.md)")
 
     # 13. Menus / BlockEntities: no resource requirement — informational.
     info("Info", f"menus registered: {len(registries['menus'])}")

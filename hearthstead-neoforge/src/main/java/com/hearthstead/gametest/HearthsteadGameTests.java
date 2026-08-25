@@ -243,12 +243,12 @@ public class HearthsteadGameTests {
             if (farmer.getActivity() == SettlerActivity.WORK_HARVEST) {
                 sawHarvest[0] = true;
             }
-            if (farmer.getActivity() == SettlerActivity.WORK_PLANT) {
+            if (farmer.getActivity() == SettlerActivity.WORK_SOW) {
                 sawPlant[0] = true;
             }
             helper.assertTrue(sawHarvest[0], "farmer should pass through WORK_HARVEST "
                 + "(act=" + farmer.getActivity() + " planted=" + sawPlant[0] + ")");
-            helper.assertTrue(sawPlant[0], "farmer should pass through WORK_PLANT after "
+            helper.assertTrue(sawPlant[0], "farmer should pass through WORK_SOW after "
                 + "harvesting (act=" + farmer.getActivity() + ")");
         });
     }

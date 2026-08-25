@@ -295,5 +295,8 @@
   "hearthstead.profession.mason": "Murer",
   "hearthstead.profession.fletcher": "Pilmaker",
   "hearthstead.profession.weaver": "Vever",
-  "hearthstead.profession.tanner": "Garver"
+  "hearthstead.profession.tanner": "Garver",
+  "hearthstead.activity.gathering_log": "Samler ved",
+  "hearthstead.activity.work_oven": "Steller ovnen",
+  "hearthstead.activity.work_sow": "Sår"
 }

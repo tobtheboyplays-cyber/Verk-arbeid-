@@ -261,6 +261,9 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.hammerState, SettlerAnimations.HAMMER_ANVIL, ageInTicks + (id % 20));
         animate(entity.sawState, SettlerAnimations.SAW, ageInTicks + (id % 22));
         animate(entity.fineWorkState, SettlerAnimations.FINE_WORK, ageInTicks + (id % 18));
+        animate(entity.ovenState, SettlerAnimations.OVEN_TEND, ageInTicks + (id % 32));
+        animate(entity.sowState, SettlerAnimations.SOW_BROADCAST, ageInTicks + (id % 28));
+        animate(entity.gatherState, SettlerAnimations.GATHER_LOG, ageInTicks);
         // COURIER_SORT: a stationary work clip, the same pattern as
         // chopState/farmState above -- sortState is already gated on
         // activity==SORTING && !moving (SettlerEntity), so WALK's own

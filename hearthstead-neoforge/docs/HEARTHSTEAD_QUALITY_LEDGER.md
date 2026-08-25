@@ -196,3 +196,31 @@ run: setting `OFF_ROAD_MALUS` to zero failed
 `settlersTakeTheLongWayRoundToStayOnTheRoad`, and removing the vacate step from
 `Employment.hire` failed `noSettlerHoldsTwoPosts` and
 `takingAWorkerNamesTheLoss`. Restored, 89/89 green.
+
+---
+
+## Iteration 9 — specification correction: the farmer sows by hand
+
+**What changed.** The farmer's planting step now sets `WORK_SOW`
+(`SOW_BROADCAST`) instead of `WORK_PLANT` (`FARM_PLANT`). This is a product
+change the owner asked for directly: *"Farmer lager en strø animation at han
+kaster ut strø for å legge ut nye seed."* Broadcasting seed reads at fifty
+blocks; pressing one seed into one hole does not — and D-016 makes a distinct
+signature motion part of what finishing a job means.
+
+**What it broke.** `farmerReplantsAfterHarvest` asserted the farmer passes
+through `WORK_PLANT`. The assertion — that the farmer visibly enters a planting
+activity after harvesting, rather than silently refilling the field — is
+unchanged; only the name of the activity it watches for moved, because the
+activity itself moved. Nothing was skipped, loosened or deleted.
+
+**FARM_PLANT is not deleted.** It stays authored and catalogued, unused for
+now. A clip with no caller is not a defect; deleting a good clip to tidy a
+report would be.
+
+**Tool evidence.** `anim_preview.py` — new this iteration — read all three new
+signature clips as clean against the craft standard, and caught two real
+defects while it was being built: `HAMMER_ANVIL`'s torso peaked *on* the
+contact tick instead of before it, and `GATHER_LOG` ended away from its start
+pose, which would have snapped the settler when the one-shot expired. Both are
+fixed. `MELEE` carries a recorded exception rather than a silent pass.
