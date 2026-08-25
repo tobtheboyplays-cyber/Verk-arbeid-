@@ -1,25 +1,25 @@
-BLOCKED: mid-fleet integration hold (updated 2026-08-25T20:5x)
+BLOCKED: full/gametest suites cannot run mid-fleet (fingerprinted sources
+are actively owned by parallel workers). Wave respawned 2026-08-25 ~21:30Z
+after the container re-provision killed the previous instances (their
+uncommitted partials were lost with the old working tree; all pushed work
+survived at 6cad478).
 
-Five workers are editing their exclusively-owned files; committing them
-mid-edit would land half-written code. Everything else IS committed and
-pushed (branch claude/hearthstead-settlement-mod-vbdb9n).
-
-In-flight owners and their uncommitted files:
-- polermester (cycle 1): SettlerAnimations.java, SettlerEntity.java,
-  SettlerNetwork/SettlerSnapshotPayload, SettlerScreen/StorageScreen (+2
-  more screens possible), both lang files, gen_settler.py + settler/skin
-  PNGs (incl. new scholar/miller/brewer outfits), ANIMATION_CATALOGUE.md.
-- FUEL-1: Production.java, CrafterWorkGoal.java, new Fuel.java + gametest.
-- REPAIR-1: raid/RaidDirector.java, new RepairWorkGoal.java + gametest.
-- FOOD-1: CourierWorkGoal.java + new gametest (codes against Fuel.java's
-  frozen contract — compiles only once FUEL-1 lands too).
-- ARMOR-VISIBLE: new SettlerArmorLayer/SettlerArmorModel, SettlerRenderer
-  (registration line), new tools/gen_armor.py + armor PNGs. Scope upgraded
-  by user to real 3D armor geometry.
-
-Resume action on each landing: compile probe (FOOD-1+FUEL-1 jointly),
-validators, commit per worker. When ALL land: tools/hearthstead-qa
-gametest (VERIFY-1), fix-loop with owners, coordinator adds the deferred
-SettlerEntity goal-registration lines (Scholar + Repair), then full x2 for
-green_streak >= 2, delete this file, commit and push. No QA suite may run
-while fingerprinted sources are mid-edit.
+In-flight ownership (respawned wave R):
+- polermester-R (cycle 1): SettlerAnimations, SettlerModel, SettlerEntity,
+  4 screens subset, gen_settler.py, gen_sounds.py, BOTH lang files,
+  SettlerSnapshotPayload/SettlerNetwork, ANIMATION_CATALOGUE.md, ModSounds
+  + sounds.json.
+- FUEL-1R: Production.java, CrafterWorkGoal.java, building/Fuel.java (new),
+  gametest/FuelGameTests.java (new).
+- FOOD-1R: CourierWorkGoal.java, gametest/CourierFoodRouteGameTests.java (new).
+- REPAIR-1R: settlement/raid/RaidDirector.java, entity/ai/RepairWorkGoal.java
+  (new), gametest/RepairGameTests.java (new).
+- ARMOR-1R: client/render/SettlerArmorLayer.java (new), SettlerRenderer.java
+  (registration line only), tools/gen_armor.py (new) + armor overlay PNGs.
+- ARCHER-1R: Profession.java, Employment.java, entity/ArcherRank.java (new),
+  entity/ai/ArcherAttackGoal.java (new), gametest/ArcherGameTests.java (new),
+  BuildingType.java (only if needed), WATCHTOWER→BARRACKS substitutions in
+  existing gametests.
+- byggherren #1: read-only critic, owns nothing.
+Everything else is free. Coordinator compiles, commits, deletes this file
+at integration, then runs VERIFY-1.
