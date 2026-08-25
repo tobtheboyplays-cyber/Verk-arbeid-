@@ -78,6 +78,15 @@ public class AdvancementGameTests {
         BlockPos wallAbs = helper.absolutePos(wallRel);
 
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        // Stand the mock player at the wall before using the item: a mock
+        // spawns at the world origin, and BlockItem.place refuses a placement
+        // the player could not physically reach. Without this the item's own
+        // path never runs, so PLACED_BLOCK never fires and the test fails on
+        // its own precondition rather than on the advancement.
+        BlockPos standRel = wallRel.relative(Direction.NORTH, 2);
+        player.setPos(helper.absolutePos(standRel).getX() + 0.5,
+            helper.absolutePos(standRel).getY(),
+            helper.absolutePos(standRel).getZ() + 0.5);
         ItemStack plaque = new ItemStack(ModItems.PLAQUE.get());
         BlockHitResult hit = new BlockHitResult(
             Vec3.atCenterOf(wallAbs), Direction.NORTH, wallAbs, false);
