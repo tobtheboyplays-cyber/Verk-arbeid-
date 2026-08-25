@@ -66,7 +66,14 @@ public class GoToPostGoal extends Goal {
             return false;
         }
         // Already there: say no, so the trade goals can have the movement flag.
-        if (settler.blockPosition().closerThan(post.where(), Schedule.AT_POST)) {
+        boolean already = settler.blockPosition().closerThan(post.where(), Schedule.AT_POST);
+        if ("Astrid".equals(settler.getSettlerName())) {
+            double dist = Math.sqrt(settler.blockPosition().distSqr(post.where()));
+            System.out.println("GTP_DEBUG canUse name=" + settler.getSettlerName()
+                + " pos=" + settler.blockPosition() + " post=" + post.where()
+                + " reason=" + post.reason() + " dist=" + dist + " already=" + already);
+        }
+        if (already) {
             return false;
         }
         posting = post;
@@ -107,6 +114,11 @@ public class GoToPostGoal extends Goal {
         walkedTicks = 0;
         repathTimer = 0;
         settler.setActivity(posting.activity());
+        if ("Astrid".equals(settler.getSettlerName())) {
+            System.out.println("GTP_DEBUG start name=" + settler.getSettlerName()
+                + " pos=" + settler.blockPosition() + " post=" + posting.where()
+                + " reason=" + posting.reason());
+        }
         path();
     }
 
@@ -133,6 +145,13 @@ public class GoToPostGoal extends Goal {
         BlockPos where = posting.where();
         boolean moving = settler.getNavigation().moveTo(
             where.getX() + 0.5, where.getY(), where.getZ() + 0.5, 0.85);
+        if ("Astrid".equals(settler.getSettlerName())) {
+            System.out.println("GTP_DEBUG path name=" + settler.getSettlerName()
+                + " pos=" + settler.blockPosition() + " where=" + where
+                + " moving=" + moving + " walkedTicks=" + walkedTicks
+                + " navDone=" + settler.getNavigation().isDone()
+                + " path=" + settler.getNavigation().getPath());
+        }
         if (!moving) {
             // No path at all is worth saying immediately; waiting out the
             // patience timer would just delay the same answer.

@@ -127,6 +127,14 @@ public class RaiderEntity extends Monster {
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
         goalSelector.addGoal(1, new OpenDoorGoal(this, false));
+        // SLICE RAIDER-BREACH: priority 1, not 2 -- a raider that cannot make
+        // progress must be able to interrupt whichever of the priority-2/3
+        // goals below is holding MOVE and start chopping, and the
+        // GoalSelector only lets a goal steal a flag from one with a
+        // strictly GREATER priority number (WrappedGoal#canBeReplacedBy).
+        // Harmless alongside OpenDoorGoal, which holds no flags at all.
+        goalSelector.addGoal(1,
+            new com.hearthstead.entity.ai.RaiderBreachGoal(this));
         // Above melee: a raid that came for the stores goes for the stores.
         // Fighting is what happens on the way, not the point.
         goalSelector.addGoal(2,
