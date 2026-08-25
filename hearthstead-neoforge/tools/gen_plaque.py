@@ -45,15 +45,32 @@ per-face shading supplies the large-scale lighting.
                          carries a lit rim and a shaded pool.
   plaque_iron.png        corner brackets. Peen dashes along +X (set
                          "rotation": 90 on arms that run vertically), forge
-                         scale, rivet crowns on a 32px pitch. Seamless.
+                         scale, rivet crowns on a 32px pitch. NOT seamless
+                         across the whole sheet any more: the four 32px
+                         quadrants each carry their OWN baked top-left-key
+                         brightness, because the block model's four corner
+                         brackets are separate elements that all face the
+                         same way and so light identically in-world --
+                         without this the bracket at every corner came out
+                         the same flat grey regardless of which corner it
+                         sat in. Each quadrant stays internally tileable.
   plaque_socket.png      recessed well, EMPTY. Near-black floor, banded cast
                          shadow from the top/left, four brass clip tongues.
-  plaque_plan.png        recessed well, plan FITTED. Parchment over the whole
-                         face, no frame -- the frame is real geometry now. A
-                         header elevation and a ruled line at the top; the
-                         field below is left CLEAR on purpose, because
-                         PlaqueRenderer writes the title and the live
-                         requirement lines onto it in game.
+  plaque_plan.png        recessed well, plan FITTED but UNFINISHED (glow RED
+                         or AMBER: survey has not passed yet). Plain
+                         parchment, untrimmed -- torn edges biting a little
+                         past the standard deckle, raw stock not yet squared
+                         for the wall. No frame baked in -- the frame is real
+                         geometry now -- and the field is left CLEAR on
+                         purpose, because PlaqueRenderer writes the title
+                         and the live requirement lines onto it in game.
+  plaque_plan_sealed.png recessed well, plan FITTED and REGISTERED (glow
+                         GREEN). Same clear field, but trimmed square rather
+                         than torn, and crowned with a pressed red wax seal
+                         bottom-centre carrying an embossed hearth sigil.
+                         PlaqueRenderer reserves a SEAL_CLEARANCE strip above
+                         it for this glow state alone, so the picture and the
+                         (short, registered-state) writing never draw over it.
 
   plaque_lamp_{off,red,amber,green}.png (block/, 64x64, FOUR not three)
                          The status lamp element added to block/plaque_base:
@@ -175,6 +192,7 @@ SEED_MAT_LAMP_OFF = 4115
 SEED_MAT_LAMP_RED = 4116
 SEED_MAT_LAMP_AMBER = 4117
 SEED_MAT_LAMP_GREEN = 4118
+SEED_MAT_PLAN_SEALED = 4119
 
 
 def cell_noise(i, j, m=31):
@@ -319,9 +337,17 @@ def rivet(img, cx, cy, r, light, mat=None, crown=None):
     A full seating ring reads as a hole at this scale, so the shadow is a
     crescent under the down-right rim and nothing more. `mat` defaults to the
     forged-iron ramp; pass BRASS for the plan clips.
+
+    The crown pixel used to default to BONE[0] -- the DARKEST bone tone,
+    which sits under the already-brighter mat[4] the core loop paints one
+    line above, so the "highlight" was quietly dimming the rivet instead of
+    capping it. BONE[4] is the actual glint: this is the one pixel per
+    rivet, across every bracket on the board, where forged iron catches
+    hard light -- it is what stops a corner bracket reading as a dark smudge
+    from across a room.
     """
     mat = IRON if mat is None else mat
-    crown = BONE[0] if crown is None else crown
+    crown = BONE[4] if crown is None else crown
     core = disc(cx + 0.5, cy + 0.5, r)
     for (px, py) in disc(cx + 0.5, cy + 0.5, r + 0.7) - core:
         if (px - cx) + (py - cy) > 0:
@@ -330,7 +356,7 @@ def rivet(img, cx, cy, r, light, mat=None, crown=None):
         k = (px - cx) + (py - cy)
         c = mat[4] if k <= -r * 0.3 else (mat[3] if k <= r * 0.4 else mat[2])
         put(img, px, py, shade(c, light))
-    put(img, cx - 1, cy - 1, shade(crown, light))
+    put(img, cx - 1, cy - 1, shade(crown, light * 1.05))
 
 
 def corner_bracket(img, cx, cy, sx, sy, arm, thick, light, rivets=2,
@@ -398,8 +424,19 @@ def brass_molding(img, x, y, w, h, t, light=1.0):
 
 # --------------------------------------------------------------- parchment ---
 
-def parchment_sheet(img, x, y, w, h, rng):
-    """Laid parchment: fibre, a warm top-left bias, and a deckle edge."""
+def parchment_sheet(img, x, y, w, h, rng, edge_rough=1):
+    """Laid parchment: fibre, a warm top-left bias, and a deckle edge.
+
+    `edge_rough` reads the sheet's own state, the same way the block's glow
+    does, so the material tells the same story the lamp does:
+      0   TRIMMED -- a clerk has squared this page for the wall. Plain 1px
+          ruled border, no tear. Used for the REGISTERED sheet.
+      1   the original single-pixel torn edge (default, unchanged, so every
+          existing call site keeps its exact prior look).
+      2+  UNTRIMMED -- raw stock, never squared: a few notches bite 2-3px
+          into the field and fibre wisps straggle past the nominal border.
+          Used for the sheet while it is still being surveyed.
+    """
     for j in range(h):
         for i in range(w):
             idx = 3
@@ -420,6 +457,18 @@ def parchment_sheet(img, x, y, w, h, rng):
         put(img, fx, fy, PARCH[1])
         if rng.random() < 0.5:
             put(img, fx + 1, fy, PARCH[2])
+
+    if edge_rough <= 0:
+        # Trimmed: a plain ruled border, the way a page actually looks once
+        # someone has squared it off with a blade rather than torn it by hand.
+        for i in range(w):
+            put(img, x + i, y, PARCH[1])
+            put(img, x + i, y + h - 1, PARCH[0])
+        for j in range(h):
+            put(img, x, y + j, PARCH[1])
+            put(img, x + w - 1, y + j, PARCH[0])
+        return
+
     # Deckle edge: torn, never a ruler-straight line.
     for i in range(w):
         if (i * 7) % 5 < 2:
@@ -435,6 +484,89 @@ def parchment_sheet(img, x, y, w, h, rng):
         else:
             put(img, x, y + j, PARCH[2])
             put(img, x + w - 1, y + j, PARCH[0])
+
+    if edge_rough >= 2:
+        # Untrimmed: real torn notches biting into the field -- a shadowed
+        # gap with a bright frayed fibre at its tip -- rather than the 1px
+        # deckle's mild tone-swap, which all but vanished once it had to
+        # compete with the field's own grain noise at normal view distance.
+        # Positions are a function of k, not of rng, so the pattern stays
+        # fixed however many random draws ran before it (determinism must
+        # not depend on call order).
+        shadow = shade(PARCH[0], 0.6)
+        notches = max(2, w // 9)
+        for k in range(notches):
+            nx = (k * 17 + 3) % max(1, w - 5)
+            depth = min(2 + (k % 3), h // 3)
+            width = 2 + (k % 2)
+            for d in range(depth):
+                c = PARCH[4] if d == depth - 1 else shadow
+                for wdx in range(width):
+                    put(img, x + nx + wdx, y + d, c)
+                    put(img, x + nx + wdx, y + h - 1 - d, c)
+        wisps = max(2, h // 10)
+        for k in range(wisps):
+            ny = (k * 13 + 5) % max(1, h - 5)
+            depth = min(2 + (k % 3), w // 3)
+            width = 2 + (k % 2)
+            for d in range(depth):
+                c = PARCH[4] if d == depth - 1 else shadow
+                for wdy in range(width):
+                    put(img, x + d, y + ny + wdy, c)
+                    put(img, x + w - 1 - d, y + ny + wdy, c)
+
+
+def wax_seal(img, cx, cy, r=7):
+    """A pressed wax seal: an organic dripped disc in crimson, carrying a
+    small embossed hearth sigil -- flame over hearthstones -- struck into it
+    while it was still soft.
+
+    The outer edge wobbles per-pixel off a true circle (real wax settles
+    unevenly, it does not set as a geometric disc), and the sigil is cut as
+    GROOVES -- a shadow tone then a lit rim one step brighter, `carved_bead`'s
+    trick again at seal scale -- because a seal is PRESSED, not painted; flat
+    ink on top of it would read as a sticker.
+    """
+    for j in range(cy - r - 2, cy + r + 3):
+        for i in range(cx - r - 2, cx + r + 3):
+            dx, dy = i - cx, j - cy
+            d = math.hypot(dx, dy)
+            wobble = (cell_noise(i, j, 7) - 3) * 0.35   # organic drip edge
+            if d > r + wobble:
+                continue
+            k = dx + dy
+            if k <= -r * 0.5:
+                idx = 4
+            elif k <= 0:
+                idx = 3
+            elif k <= r * 0.5:
+                idx = 2
+            else:
+                idx = 1
+            c = CRIM[idx]
+            if d > r + wobble - 1.4:
+                c = shade(c, 0.70)          # the wax's own rolled, thicker rim
+            if cell_noise(i, j, 11) == 0:
+                c = shade(c, 0.86)          # a fleck where it cooled unevenly
+            put(img, i, j, c)
+    for (px, py) in disc(cx - r * 0.32, cy - r * 0.32, r * 0.22):
+        put(img, px, py, shade(CRIM[4], 1.10))   # the die's flat struck the light
+
+    dark, rim = shade(CRIM[0], 0.85), shade(CRIM[3], 1.08)
+
+    def groove(dx, dy):
+        put(img, cx + dx, cy + dy, dark)
+
+    def lit(dx, dy):
+        put(img, cx + dx, cy + dy, rim)
+
+    for dy, half in ((-4, 0), (-3, 1), (-2, 1), (-1, 2), (0, 2)):  # the flame
+        for dx in range(-half, half + 1):
+            groove(dx, dy)
+        lit(-half - 1, dy)
+    for dx in range(-3, 4):                     # the hearth ledge beneath it
+        groove(dx, 1)
+        lit(dx, 2)
 
 
 def blueprint_full(img, ox, oy):
@@ -812,6 +944,26 @@ def gen_materials():
         put(img, i, 63, shade(OAK[0], 0.88))
         put(img, 0, i, shade(OAK[3], 1.06))
         put(img, 63, i, shade(OAK[0], 0.90))
+    # The hanging nail. Of this whole 64x64 face, only two slivers ever clear
+    # the brass frame and the corner brackets to reach the player's eye: a
+    # thin band above the frame (rows 0-4, cols 17-47) and a wider one below
+    # it either side of the lamp. The top band is exactly where a plaque
+    # would actually be nailed to the wall, so that is where the nail goes --
+    # an iron head with the same bright-crown trick as the corner rivets,
+    # and a soft cord-shadow falling away under it, rather than more grain
+    # spent on a spot that is never seen.
+    # A handful of scattered, dithered pixels one step darker than the grain
+    # -- not a solid fill, which at this size read as a slab of black rather
+    # than a shadow -- drawn BEFORE the nail so its own crown and crescent
+    # stay the crispest thing in the strip.
+    for (dx, dy, keep) in ((0, 2, 26), (-1, 2, 16), (1, 2, 14), (0, 3, 18),
+                           (-1, 3, 9), (1, 3, 8), (0, 4, 9)):
+        if cell_noise(32 + dx, dy, 31) < keep:
+            put(img, 32 + dx, dy, shade(OAK[1], 0.88))
+    rivet(img, 32, 1, 1.3, 1.15)
+    for (cx, tail) in ((30, -1), (34, 1)):        # two small leather cord tails
+        for k in range(3):
+            put(img, cx + tail * (k // 2), 2 + k, LEATHER[1 if k % 2 else 2])
     save(img, f"{ASSETS}/textures/block/plaque_board.png")
 
     # --- 2. board edge: END grain, short strokes across the thickness -------
@@ -886,28 +1038,62 @@ def gen_materials():
     # --- 4. hand-forged iron: peen dashes along +X, studs on a 32px pitch ---
     # Dashes run along +X. On bracket arms that run vertically set
     # "rotation": 90 so the planishing follows the strap.
+    #
+    # The block model's four corner brackets are separate elements, but they
+    # all sample THIS one texture -- each bracket's own front face crops a
+    # different QUADRANT of it (upper-left bracket <- texture's top-left,
+    # upper-right <- top-right, lower-left <- bottom-left, lower-right <-
+    # bottom-right; see plaque_base.json's per-corner uv rects). Every other
+    # material in this file gets the top-left key light for free from
+    # Minecraft's own per-face shading; these four don't, because all four
+    # brackets face the same way and light identically regardless of which
+    # corner they sit in. So the light has to be BAKED IN per quadrant here,
+    # or all four corners come out the same flat grey and the board reads as
+    # having a smudge at each corner instead of four lit, forged brackets.
     img = new_image(64, 64)
+    QUAD_LIGHT = {(0, 0): 1.22, (1, 0): 1.00, (0, 1): 0.92, (1, 1): 0.72}
     for j in range(64):
         for i in range(64):
-            idx = 2
+            light = QUAD_LIGHT[(i // 32, j // 32)]
+            # Base tone sits a step darker than before (idx 1, not 2), so
+            # the dash highlights actually separate from the field instead
+            # of the whole strap reading as one flat mid-grey noise -- iron
+            # this dark needs its lit strokes to be the ONLY bright thing,
+            # the way a real hammered strap is mostly shadow with a few
+            # catching lines.
+            idx = 1
             if (i % 8) < 5:                     # 5px dashes, held for 4 rows
                 phase = ((i // 8) % 8 + (j // 4) % 4) % 5
                 if phase == 0:
-                    idx = 3
+                    idx = 4                      # the lit stroke, full bright
                 elif phase == 2:
-                    idx = 1
+                    idx = 0                      # a real dark groove
             if cell_noise(i, j, 13) == 0:
                 idx = max(0, idx - 1)
             elif cell_noise(i, j, 19) == 5:
                 idx = min(4, idx + 1)
-            put(img, i, j, IRON[idx])
+            put(img, i, j, shade(IRON[idx], light))
     for j in range(64):                         # forge scale, dark and matte
         for i in range(64):
             if cell_noise(i, j, 29) == 3:
-                put(img, i, j, shade(IRON[0], 1.05))
-    for cy in (16, 48):                         # rivet crowns + shadow crescents
-        for cx in (16, 48):
-            rivet(img, cx, cy, 2.6, 1.0)
+                light = QUAD_LIGHT[(i // 32, j // 32)]
+                put(img, i, j, shade(IRON[0], 1.05 * light))
+    # Outer arris: a crisp bright rim top/left, a dark one bottom/right, on
+    # every one of the four 32px quadrants independently -- this is what
+    # sells "raised, hammered plate" rather than "flat grey square" once the
+    # bracket is a real 3D block only a couple of pixels across on screen.
+    for qy in (0, 32):
+        for qx in (0, 32):
+            light = QUAD_LIGHT[(qx // 32, qy // 32)]
+            for k in range(32):
+                put(img, qx + k, qy, shade(IRON[4], light * 1.12))
+                put(img, qx, qy + k, shade(IRON[4], light * 1.08))
+                put(img, qx + k, qy + 31, shade(IRON[0], light * 0.75))
+                put(img, qx + 31, qy + k, shade(IRON[0], light * 0.75))
+    # Rivet crowns + shadow crescents, one per quadrant, each lit to match
+    # its corner and sized up so the domed head reads at real block scale.
+    for (cx, cy) in ((16, 16), (48, 16), (16, 48), (48, 48)):
+        rivet(img, cx, cy, 3.1, QUAD_LIGHT[(cx // 32, cy // 32)])
     save(img, f"{ASSETS}/textures/block/plaque_iron.png")
 
     # --- 5. empty socket face: a hole with depth, four brass clips waiting --
@@ -964,14 +1150,34 @@ def gen_materials():
     save(img, f"{ASSETS}/textures/block/plaque_socket.png")
 
     # --- 6. plan face: a plan SHEET, not just a drawing ---------------------
-    # Plain parchment, and nothing else. Everything on the sheet is drawn by
-    # PlaqueRenderer over the top of it: the building's picture, sized to
-    # whatever space the writing does not need, and the writing itself. A
-    # ruled line used to be baked in here to divide the two, which pinned the
-    # picture to a fixed band however little text there was.
+    # Everything ON the sheet -- the building's picture, the title, the
+    # requirement lines -- is drawn by PlaqueRenderer over the top of this at
+    # runtime, because it has to update the moment a settler carries in the
+    # missing bed. A ruled line used to be baked in here to divide picture
+    # from writing, which pinned the picture to a fixed band however little
+    # text there was; the texture below carries only what stays true for the
+    # sheet's whole life -- the parchment itself, and (for a registered
+    # building) the seal that never moves once it is struck.
+    #
+    # UNFINISHED (RED and AMBER glow: the plan is fitted but the room has
+    # not passed survey yet) gets an UNTRIMMED sheet -- raw stock, torn
+    # edges biting a little deeper than the standard deckle. GREEN swaps in
+    # the sealed variant below instead of this one.
     img = new_image(64, 64)
-    parchment_sheet(img, 0, 0, 64, 64, random.Random(SEED_MAT_PLAN))
+    parchment_sheet(img, 0, 0, 64, 64, random.Random(SEED_MAT_PLAN),
+                    edge_rough=2)
     save(img, f"{ASSETS}/textures/block/plaque_plan.png")
+
+    # REGISTERED (GREEN glow) gets a TRIMMED sheet -- squared for the wall,
+    # not raw stock -- crowned with a pressed wax seal, bottom-centre, low
+    # enough on the panel that PlaqueRenderer's SEAL_CLEARANCE (reserved only
+    # for this state) keeps the occupancy line and the picture from ever
+    # drawing over it.
+    img = new_image(64, 64)
+    parchment_sheet(img, 0, 0, 64, 64, random.Random(SEED_MAT_PLAN_SEALED),
+                    edge_rough=0)
+    wax_seal(img, 32, 53, r=7)
+    save(img, f"{ASSETS}/textures/block/plaque_plan_sealed.png")
 
 
 LAMP_VARIANTS = (
@@ -1526,12 +1732,16 @@ MATERIALS = [
      'use "rotation": 90 on the left/right edge faces'),
     ("plaque_brass", "raised inner frame", "seamless (16-periodic); 8px "
      "planished dimples so a 3px lip still reads"),
-    ("plaque_iron", "corner brackets", "seamless; peen dashes along +X, "
+    ("plaque_iron", "corner brackets", "NOT seamless: each 32px quadrant "
+     'carries its own top-left-key brightness (see the four elements\' uv), '
      'use "rotation": 90 on vertical arms; studs on a 32px pitch'),
     ("plaque_socket", "recessed well, empty", "full-face; four brass clips, "
      "banded cast shadow top/left"),
-    ("plaque_plan", "recessed well, plan fitted", "full-face; header "
-     "elevation + rule, then a clear field the renderer writes on"),
+    ("plaque_plan", "recessed well, plan fitted, UNFINISHED (glow red/amber)",
+     "full-face; untrimmed torn edges, clear field the renderer writes on"),
+    ("plaque_plan_sealed", "recessed well, plan fitted, REGISTERED (green)",
+     "full-face; trimmed edges + bottom-centre wax seal; renderer reserves "
+     "SEAL_CLEARANCE above it for this state only"),
     ("plaque_lamp_off", "status lamp, EMPTY", "full-face; unlit glass, dark "
      "iron bezel — never a warning colour on a blank board"),
     ("plaque_lamp_red", "status lamp, unlinked/orphaned", "full-face; same "
