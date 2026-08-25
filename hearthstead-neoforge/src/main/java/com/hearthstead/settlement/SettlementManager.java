@@ -289,6 +289,16 @@ public final class SettlementManager {
             && guest.blockPosition().distSqr(waitingSpot) <= 9;
         if (arrived && level.getBlockEntity(s.center) instanceof HearthBlockEntity hearth
             && canPayRecruitPrice(hearth.getInventory())) {
+            // Capacity is checked BEFORE the price leaves the hearth. The
+            // audit wave found the old order paid first and let
+            // convertTraveler discard the guest at a full settlement --
+            // four bread and eight planks burned for nobody, silently. A
+            // full house is not a sale: the guest keeps waiting (a bed may
+            // yet be built or freed before their patience runs out), and
+            // the goods stay where they are.
+            if (s.population() >= s.capacity()) {
+                return;
+            }
             payRecruitPrice(hearth.getInventory());
             convertTraveler(level, guest);
             return;

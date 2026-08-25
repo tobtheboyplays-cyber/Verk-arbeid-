@@ -31,7 +31,7 @@ DOCS = os.path.join(HERE, "..", "docs")
 # these passes all eleven points; from here the build fails if any of them
 # stops passing.
 CERTIFIED = {"lumberer", "farmer", "courier", "guard", "miner", "baker",
-             "smith"}
+             "smith", "fletcher"}
 
 POINTS = ["trade", "work", "goal", "motion", "catalogue", "sound",
           "outfit", "trains", "schedule", "lang", "tests"]

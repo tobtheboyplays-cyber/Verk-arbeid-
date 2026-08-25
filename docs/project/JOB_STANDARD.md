@@ -91,7 +91,7 @@ you first, and every one of them passes all eleven points:
 | cook | not yet | stirs the pot in a circle (§20.1); borrows the kneader's sound |
 | carpenter | not yet | planes with the torso leading (§20.2); borrows the saw's sound |
 | mason | not yet | taps the chisel, impact-checked (§20.3); borrows the pick's sound |
-| fletcher | not yet | seats feathers in three pinches (§20.4); borrows the loom's sound |
+| fletcher | **yes** | seats feathers in three pinches (§20.4), each timed to its own generated rustle |
 | tanner | not yet | scrapes the hide two-handed (§20.5); borrows the saw's sound |
 | butcher, smelter, sawyer, weaver | not yet | own motion, sound and work; need their own GameTest |
 

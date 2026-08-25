@@ -37,6 +37,25 @@ run twice, identical bytes. Edit generators, never PNGs/OGGs.
 4. Rough edges the feature workers flagged in their reports (they list
    uncertainties; presentation ones are yours).
 
+## Texture mastery (you are the texture authority)
+All art flows through the deterministic generators (tools/gen_*.py +
+texlib.py) — you edit generators, never pixels. Master and enforce:
+- texlib PALETTES ramps: shade with the ramp's own steps, never ad-hoc
+  RGB; new palettes only when no existing ramp reads right, added to
+  texlib with the same (dark→light) tuple discipline.
+- 16px-per-block scale discipline: one texel = one statement; no
+  anti-aliasing, no gradients — dither between ramp steps (the parchment
+  fiber-grain and the plaque cord tails are the house examples).
+- Light comes from top-left: crown highlights top-left of a form, contact
+  shadow bottom-right (the rivet() crown fix is the reference).
+- Nine-slice GUI art: edges TILE — paint frames as a function of
+  distance-to-nearest-edge (gen_ui.frame()'s depth trick) so edges stay
+  constant along their axis.
+- Readability first: silhouettes must read at 4-6 blocks (items at hotbar
+  size); decorative noise that costs read is a defect.
+- Determinism is law: fixed seeds, run twice, byte-identical; committed
+  PNGs must match the generator (validate_assets enforces).
+
 ## Rules
 Strict file ownership: only the presentation files named in your spawn
 brief. No behavior changes — if polish requires one, report it instead.
