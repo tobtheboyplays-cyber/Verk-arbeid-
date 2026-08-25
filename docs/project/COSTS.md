@@ -20,6 +20,13 @@ real containers — Hearthstead has no abstract points to spend.*
    half its steady price (the mod teaches through the first purchase);
    scaling beyond that is gentle and linear, never exponential.
 
+**How discounts stack (settled by implementation, 2026-08-25):** additively,
+then capped at -50%. This document's own worked example — an innkeeper and a
+dining hall turning 4 bread + 8 planks into 2 + 4 — only reproduces under
+addition; multiplicative stacking lands at -43.75%. The discount amount
+rounds up so the price rounds down (the player's favour), and no line ever
+falls below one item.
+
 ## Price tables (v1 numbers — one balance pass expected after live play)
 
 ### Build Plans (crafted, static recipes — discounts cannot apply at a
@@ -86,11 +93,11 @@ the raid slice prices against the same laws.
 
 ## Implementation map (who owns which number today)
 - Recruiting: SettlementManager.RECRUIT_PRICE (+ innkeeper patience hook
-  already landed). Discount hooks: FOLLOW-UP — move to Costs.java.
+  already landed). Discount hooks: SHIPPED in Costs.discountsFor (2026-08-25).
 - Research: settlement/research project tables (in flight).
 - Build plans: recipe JSONs (static — align tiers in a recipe pass).
 - Mayor feast: NOT implemented — follow-up in Mayor.appoint.
-- **Costs.java (follow-up slice)**: one central class computing
+- **Costs.java (SHIPPED 2026-08-25)**: one central class computing
   (base, hooks[], captotal) so every screen can show the same
   itemized "price → your price" breakdown, with the discount lines named.
   No number may live hard-coded in a goal once Costs.java exists.
