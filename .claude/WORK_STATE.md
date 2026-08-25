@@ -1,71 +1,56 @@
-# WORK_STATE — 2026-08-25 evening (ultracode fleet session)
+# WORK_STATE — 2026-08-25 late evening (ultracode fleet session)
 
 ## Mode
-Ultracode ON (user-authorized). Coordinator (this session) + parallel Sonnet
-workers under strict file ownership. User's operating loop: coordinator
-plays/tests live, feeds findings to workers, spawns a worker per problem.
+Ultracode ON permanently (user). Coordinator + parallel Sonnet workers under
+strict file ownership; coordinator compiles/commits/runs QA, workers never
+touch gradle. User loop: coordinator plays/tests, feeds findings to workers.
+Standing user directives: premium only; core-loop playability is THE focus;
+ASK USER before any `playtest` suite run (other suites fine); showcase video
+when this wave lands ("var veldig nice"); nameplates show profession
+("tydeligere for jobben" — LANDED).
 
 ## Committed & pushed (branch claude/hearthstead-settlement-mod-vbdb9n, PR #1)
-- 6921be9 fleet wave 1 (motions, sounds, 9 trade tests, settler/mayor UI,
-  raids depth, column scan KF-018, showcase tooling, nametag fix)
-- 426b627 door pathing fix (RoadNavigation.setCanOpenDoors — root cause of
-  three live freezes) + D-007b renumber
+Latest: PLAN_CIRCULATION wave-2 synthesis; animation-quality skill v2;
+1917340 miner real-loot fix + smelter/sawyer test reconciliation; e6bc6d8
+Prøvebenken research system + need-aware Production.ready() + profession
+nameplate; d4c8962 recruit conservation; earlier: plaque beautification,
+fleet wave 3, door fix 426b627.
 
-## Live evidence session 20260825T183505Z — village "Heatherbrook"
-PROVEN live on the pre-fleet jar: founding → plaque survey → hire;
-lumberjack full cycle via column scan (hearth logs 0→38); farmer harvest+
-replant+delivery (wheat in hearth); eating (bread 48→35→15 at meal, morale
-68→87); traveler recruiting (pop 3→6: Cedric, Isolde, Wilmot +1); homes
-via house plaques (3 registered); plaque-break dissolution (3→2, clean);
-desire paths worn (7 dirt_path in the walked corridor); mine + barracks
-registered, miner + guard hired. KNOWN on this old jar: settlers freeze at
-CLOSED DOORS (courier Eira, miner Isolde, two at house doors) — FIXED in
-426b627, deploys with the next jar.
+## Agents in flight
+- polermester cycle 1 (owns SettlerAnimations, SettlerModel, SettlerEntity
+  anim wiring, 4 screens subset, gen_settler/gen_sounds, BOTH lang files,
+  SettlerSnapshotPayload/Network). Queued addenda: guard sword stance
+  ("selvsikker og kontrolert", use skill v2 §2.2 Pflug recipe), better base
+  skins, research lang keys (scratchpad/research_lang_keys.md), ScholarWorkGoal
+  registration line, outfit_scholar/miller/brewer.
+- FARMER-BOOTSTRAP (FarmerWorkGoal + new gametest): first-planting, seed
+  reserve, replant 28t.
+- GUARD-PROGRESSION (GuardRank/Melee/Leap/Patrol/Schedule + new gametest):
+  STRENGTH training, night-watch sleep gap, leap fizzle, hostile-only splash.
+- COURIER-R2 (CourierWorkGoal + new gametest): workshop outputs → warehouse,
+  keep-back 8 (MINE 0).
+- RESEARCH-TEX + RESEARCH-UI: skill drafts → scratchpad (anim draft LANDED,
+  installed as animation-quality v2).
 
-## Fleet in flight (9 workers; feedback loops via SendMessage)
-- W9 anim punch-up: ALL work clips bigger/heavier + user: CHOP must swing
-  FROM THE SIDE like a real feller. Owns SettlerAnimations + catalogue.
-- W10 job-limits: "Dagsverk" effort pool (stamina-scaled, sleep-quality
-  refill) + farmer's skill-scaled tended plot (3x3→11x11) + lumberjack
-  sapling replanting. Owns SettlerEntity + five work goals + Effort.
-- W11 recruit: tavern attraction, goods price from hearth (chest-true),
-  INNKEEPER trade. Owns Employment/Profession/SettlementManager/TravelerJoinGoal.
-- W12 ui-polish: measured text budgets (mcfont/ui_preview, en+nb) over
-  Settler/Hearth/Handbook/Plaque screens + plaque screen DECORATION (user:
-  "veldig tamt") + Summon button on People tab.
-- W13 saga-captains: named raid captains (deterministic roster, epithets
-  earned from raidLog, death→lieutenant grudge succession, captain texture
-  via gen_raider.py). Owns saga/, Settlement, RaidDirector, Raider*.
-- W14 chains: FLOUR/MALT/IRON_BLOOM/TIMBER_BEAM/CURED_HIDE/WOOL_BOLT per
-  docs/project/FLOWS.md (binding). Owns Production/ModItems/gen_blocks_items.
-- W15 fastboot: production-style client install (display :98 sandbox),
-  live2.sh swap-in candidate. Owns qa/scripts/client_install.sh + live2.sh.
-- W16 summons: user mechanic — summon worker to workplace, GLOW while
-  responding. Owns Summons/RespondToSummonsGoal/PlaqueAction/PlaqueNetwork.
-- W17 plaque-art: physical plaque beautification (gen_plaque.py + renderer).
-DONE: W1-W8 (wave 1), W5 logistics (reservation ledger, tidy convergence,
-StorageScreen HsUi, door regression test).
+## Next actions (order)
+1. Land remaining fix workers → compile-probe → commit each.
+2. polermester lands → compile, validate_assets, commit; THEN VERIFY-1:
+   tools/hearthstead-qa gametest, fix-loop with owners.
+3. Install texture/UI skill drafts after review (SKILLS-1 #39).
+4. REVIEW-ALL (#40) + IDLE-1 (#41, polermester cycle 2 headline).
+5. FILM-2 showcase video for user (#29) on the new jar; then GATE-1 full ×2.
+Delete qa/reports/BLOCKED at integration (documents mid-fleet block).
 
-## Design authority written this session
-docs/project/FLOWS.md — the economy constitution (multiply-never-gate,
-three rings, courier routes, tool wear, acyclicity). Binding for W14+.
-
-## Integration runbook (when W9+W10 land — they gate the jar)
-scratchpad/integrate.sh: compile → validators → jar → live stop →
-gametest → quick → live start → showcase.sh village + anim-all → films.
-Then full x2 (green_streak >= 2) + RELEASE_GATE (GATE-1). qa/reports/BLOCKED
-documents why full cannot run mid-fleet; DELETE it at integration.
-
-## Findings queue (not yet coded)
-- Room scanner does not follow ladder shafts below floor (mine's own shaft
-  ladders read 0/3) — design question, wave 3.
-- Loose leaf-decay saplings litter the ground (W10's replant reduces;
-  consider courier groundskeeping later).
-- /hearthstead mayor from console replies silently (UI supersedes; low).
-- Guard armor gated by rank + Vaktkaptein salute = task #35 (blocked on
-  W10/W11 files).
-
-## Coordinator-owned integration duties
-Goal registration line for RespondToSummonsGoal (W16 reports it);
-lang merges from every worker report (en+nb); ModBusEvents wiring done for
-Settler/HearthMayor payloads; task list #27-#35 tracks the schedule.
+## Key facts (avoid re-deriving)
+- Production.ready() is need-aware; ties keep list order (fed paths win).
+- Miner banks loot via Block.getDrops(iron pickaxe); smelter test seeds 2
+  raw iron (below bloom threshold); sawyer ledger spans planks+beams.
+- Research: 6 projects, SCHOLAR(18)/MILLER(19)/BREWER(20); bonus consumers
+  (Production ticks, farm growth, guard training) intentionally unwired —
+  integration later; 2 research gametests need ScholarWorkGoal registration.
+- Guard audit: rank armor is server-real but INVISIBLE (no armor layer on
+  custom model) — queued slice ARMOR-VISIBLE; Shield Bash/Rally unbuilt.
+- Slices queued in PLAN_CIRCULATION wave-2: REPAIR-1, FUEL-1,
+  ARMOR-VISIBLE, GUARD-3, FARM-COMPOST, STONE-VARIETY.
+- Live tmux hsqa-live may still hold the OLD jar — restart with new jar
+  before filming.
