@@ -2,7 +2,7 @@
 
 *Execution checklist for FILM-2 (task #29). Every scene names its driver
 commands so filming is mechanical. All takes via showcase.sh/live2.sh, F3+D
-before rolling, nameplates ON (no F1). Target: 12-14 clips, 6-8 min total.*
+before rolling, nameplates ON (no F1). Target: 14-18 clips, 7-9 min total. Scenes 15-18 require FIXWAVE-3 landed.*
 
 | # | scene | proves | camera & driver |
 |---|---|---|---|
@@ -20,6 +20,10 @@ before rolling, nameplates ON (no F1). Target: 12-14 clips, 6-8 min total.*
 | 12 | Raid: dusk scout omen → wave led by NAMED captain → guard leap → morning report | A3+saga | pressure forced via data; two cams: gate + plaza |
 | 13 | Research desk: lectern screen, start Bedre Gjær, scholar works | W20 | UI capture + study interior 15s |
 | 14 | Grounded drops: felled-tree saplings LYING flat | W19 | macro shot 8s |
+| 15 | Guard close-up: confident low-guard stance, salute to the captain, rank armor tiers side by side | stance retune + GUARD-2 + ARMOR-VISIBLE | slow orbit 15s; lineup recruit→captain 10s |
+| 16 | Farmer bootstrap: empty plot + seeds in chest → till → FIRST planting (FARM_PLANT) → field appears | FARMER-BOOTSTRAP | fixed frame timelapse 40s |
+| 17 | Economy in motion: bread baked (fuel burning), courier hauls it to the warehouse, then the FOOD run to a hungry hearth | FUEL-1 + R2 + FOOD-1 | follow-cam one full courier round, 45s |
+| 18 | Aftermath: raid scars + the repair dugnad — mason and idle settlers fixing the wall, stone leaving the chest | REPAIR-1 | extends scene 12; morning-after wide 25s |
 
 Post: concat clips (ffmpeg concat demuxer) → showcase.mp4; contact sheet per
 clip stays in evidence. Deliver clips 4, 6, 11, 12 individually to the user
