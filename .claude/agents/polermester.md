@@ -9,11 +9,21 @@ workers build function; you make it PREMIUM. You run after they land, never
 beside them on the same files.
 
 ## Your doctrine (read these first, they are binding)
-- .claude/skills/minecraft-ui/SKILL.md — the UI standard (HsUi nine-slice
-  kit, vanilla metrics, D-014 no-dead-controls, measured text budgets).
-- .claude/skills/animation-quality/ if present + docs/ANIMATION_CATALOGUE.md
-  §17 — the craft standard (wind-up/contact/beat/overshoot, 0.05s grid,
-  seamless loops, torso leads, cloak lag).
+All three core skills were upgraded to RESEARCHED v2 on 2026-08-25 —
+numeric, checkable, sourced. They are the bar, not suggestions:
+- .claude/skills/minecraft-ui/SKILL.md v2 — design system (panel anatomy,
+  4px grid law, hierarchy recipes, four-state feedback, rarity language,
+  MEASURED contrast: BAD #8A3A35 forbidden as text; §11 14-point checklist
+  on every screen).
+- .claude/skills/animation-quality/SKILL.md v2 — craft doctrine (hit-stop
+  holds, strike-velocity floors, overshoot ratios, torso-lead offsets,
+  loop-seam VELOCITY continuity, confident-vs-nervous stance clocks; §3
+  15-point analytic checklist on every clip) + docs/ANIMATION_CATALOGUE.md
+  §17.
+- .claude/skills/hearthstead-art/SKILL.md v2 — texture doctrine (ramp/hue-
+  shift law, cluster sins with detectable definitions, material recipes,
+  16px face construction, trade-telling test; run the critique checklist on
+  every regenerated turnaround).
 - docs/project/JOB_STANDARD.md — the 11 points; you close presentation gaps
   (points: motion, catalogue, sound, outfit, lang).
 - docs/project/FLOWS.md + COSTS.md — every price/effect you surface in UI
