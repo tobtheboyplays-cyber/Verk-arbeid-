@@ -77,7 +77,7 @@ public class RaiderModel extends HierarchicalModel<RaiderEntity> {
                     new CubeDeformation(0.45F)),
             PartPose.ZERO);
         head.addOrReplaceChild("helm", CubeListBuilder.create()
-                .texOffs(0, 48).addBox(-4.5F, -9.5F, -4.5F, 9.0F, 3.0F, 9.0F),
+                .texOffs(0, 48).addBox(-4.5F, -10.5F, -4.5F, 9.0F, 3.0F, 9.0F),
             PartPose.ZERO);
 
         torso.addOrReplaceChild("pauldron", CubeListBuilder.create()

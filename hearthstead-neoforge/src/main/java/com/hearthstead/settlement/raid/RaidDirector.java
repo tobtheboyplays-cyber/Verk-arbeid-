@@ -4,6 +4,7 @@ import com.hearthstead.Hearthstead;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Difficulty;
 import net.minecraft.util.RandomSource;
 
 /**
@@ -45,6 +46,24 @@ public final class RaidDirector {
     public static final int MAX_REMEMBERED_CAPTAINS = 5;
 
     private RaidDirector() {
+    }
+
+    /**
+     * Whether raids are possible at this difficulty at all.
+     *
+     * <p>On Peaceful, {@code Monster.shouldDespawnInPeaceful()} is true and
+     * vanilla discards every hostile on the next tick — so a raider would
+     * spawn and vanish before it took a step. Found by looking at the game:
+     * the QA world runs Peaceful, raiders were reported "Summoned" and were
+     * gone a tick later.
+     *
+     * <p>Without this gate the schedule would keep accumulating pressure and
+     * announcing BELEIRING in the Tingbok while nothing could ever arrive —
+     * a threat display that is quietly lying to the player, which is worse
+     * than no threat at all.
+     */
+    public static boolean raidsPossibleAt(Difficulty difficulty) {
+        return difficulty != Difficulty.PEACEFUL;
     }
 
     /**
@@ -116,6 +135,9 @@ public final class RaidDirector {
      * per night, so a re-entrant or duplicated tick cannot double-roll.
      */
     public static void tick(ServerLevel level, Settlement settlement) {
+        if (!raidsPossibleAt(level.getDifficulty())) {
+            return; // peaceful: no raiders can exist, so no pressure either
+        }
         long dayTime = level.getDayTime();
         if (!isRollTime(dayTime)) {
             return; // not yet tonight

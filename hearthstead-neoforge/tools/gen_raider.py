@@ -55,28 +55,45 @@ def seed_for(*parts):
 def build(captain):
     img = new_image(64, 64)
     rng = random.Random(seed_for("raider", captain))
-    skin = ramp("skin_deep" if captain else "skin_tan")
+    # The captain wears a helm whose brim shades the brow, so his face
+    # needs a lighter base than the hooded grunt or it goes muddy.
+    skin = ramp("skin_tan" if captain else "skin")
     cloth = ramp("charcoal")
     leather = ramp("leather")
-    iron = ramp("iron_forged")
+    iron = ramp("iron")
     accent = ramp("crimson" if captain else "ember")
+    # Eyes are always amber, never the faction accent: crimson eyes on
+    # tan skin have no contrast and simply vanish, while the same amber
+    # that carries in a hood slit also carries under a helm brim.
+    eye = ramp("ember")
 
-    # head: gaunt, with a shadowed brow so the face reads from a distance
+    # head: gaunt, with a shadowed brow. Deliberately NOT an alternating
+    # two-tone -- a strict checkerboard reads as pixel noise at entity scale
+    # rather than as skin, which is exactly how the first version looked in
+    # game. Sparse variation over one base tone instead.
     u, v, w, h, d = UV["head"]
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
-        for j in range(fh):
-            for i in range(fw):
-                put(img, x + i, y + j, lit(skin[2 + (i + j) % 2], face))
+        woven(img, x, y, fw, fh, skin, rng, face, base_idx=2)
     x, y, fw, fh = faces["front"]
+    # A heavy brow line, then the eyes beneath it -- the whole face reads
+    # from the brow shadow, so it survives being small and backlit.
     for i in range(fw):
-        put(img, x + i, y + 2, lit(shade(skin[1], 0.65), "front"))
-    put(img, x + 2, y + 3, lit(accent[3], "front"))
-    put(img, x + fw - 3, y + 3, lit(accent[3], "front"))
+        put(img, x + i, y + 2, lit(shade(skin[1], 0.55), "front"))
+    for i in (1, 2, fw - 3, fw - 2):
+        put(img, x + i, y + 3, lit(shade(skin[0], 0.7), "front"))
+    put(img, x + 2, y + 3, lit(eye[4], "front"))
+    put(img, x + fw - 3, y + 3, lit(eye[4], "front"))
+    # Cheek hollows and a set mouth.
+    put(img, x + 1, y + 4, lit(shade(skin[1], 0.8), "front"))
+    put(img, x + fw - 2, y + 4, lit(shade(skin[1], 0.8), "front"))
+    for i in range(3, fw - 3):
+        put(img, x + i, y + 6, lit(shade(skin[0], 0.85), "front"))
     # a scar, on the captain only: an identity you can see before the fight
     if captain:
-        for j in range(1, 5):
-            put(img, x + 5, y + j, lit(shade(skin[0], 0.8), "front"))
+        for j in range(1, 6):
+            put(img, x + 5, y + j, lit(shade(skin[0], 0.72), "front"))
+        put(img, x + 5, y + 3, lit(accent[1], "front"))
 
     # hood: deep, sits low over the brow
     u, v, w, h, d = UV["hood"]

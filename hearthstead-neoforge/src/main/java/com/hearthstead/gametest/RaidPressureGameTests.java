@@ -366,6 +366,26 @@ public class RaidPressureGameTests {
         helper.succeed();
     }
 
+    /**
+     * On Peaceful nothing hostile can exist, so the schedule must not run
+     * at all. Found by playing, not by testing: raiders reported
+     * "Summoned" and were discarded a tick later, which would have left the
+     * Tingbok announcing a siege that could never arrive.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void peacefulMeansNoRaidsAndNoPressure(GameTestHelper helper) {
+        helper.assertTrue(!RaidDirector.raidsPossibleAt(
+                net.minecraft.world.Difficulty.PEACEFUL),
+            "raids must be impossible on peaceful");
+        for (var d : net.minecraft.world.Difficulty.values()) {
+            if (d != net.minecraft.world.Difficulty.PEACEFUL) {
+                helper.assertTrue(RaidDirector.raidsPossibleAt(d),
+                    "raids must be possible on " + d);
+            }
+        }
+        helper.succeed();
+    }
+
     /** A fresh settlement must not inherit the morning-after grace. */
     @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
     public void aNewSettlementIsRaidableOnItsFirstQualifyingNight(GameTestHelper helper) {
