@@ -80,22 +80,28 @@ shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at `20260825T052006Z`, 59/59. A3 steps 1-3b
-done: the schedule, the enemies, and a raid that arrives and resolves.
+**GATE: PASS (green_streak=2)** at `20260825T060303Z`, 61/61.
 
-**A3 step 3c** is next: the KORN objective — raiders path to the warehouse,
-take goods out of real chests into their own inventory, and carry them off.
-Theft must be physical (chest truth), so a raid that succeeds leaves the
-warehouse genuinely emptier. Losing must call `recordLost()` + the captain's
-`recordVictory()`, the mirror of the repel path already built and tested.
+A3 steps 1-3c are done: the schedule with no safe night, named captains with
+objectives and grudges, a band that arrives on a varying bearing and
+resolves, and **physical theft** — raiders take goods out of real chests
+into real inventories, drop them when killed, and whether they got away
+decides whether pressure rises or eases.
 
-**Then PLAQUE-2** (`docs/project/PLAN_PLAQUE_2.md`, task #23) — user-specified
-and marked Core, with a mockup at `docs/project/plaque_reference.png`. Root
-gap already verified in game: three plaques in three different states render
-identically, because the requirement statuses are computed server-side and
-never reach the renderer.
+**KF-014 is RESOLVED** — root-caused on its fourth occurrence. The GameTest
+fixtures registered warehouses at anchors with no plaque block, and
+`BuildingManager`'s sweep correctly dissolved them mid-test ("no plaque, no
+building", D-005). Fixtures now hang a real plaque. Ten consecutive clean
+runs after the fix, against a rate that had reached ~1 in 4.
 
-**KF-014 remains open** and is the one honest loose end — see KNOWN_FAILURES.
+**Next: PLAQUE-2** (`docs/project/PLAN_PLAQUE_2.md`, task #23) — user
+specified, marked Core, mockup at `docs/project/plaque_reference.png`. The
+root gap is already proven in game: three plaques in three different states
+render identically, because the requirement statuses are computed
+server-side and never reach the renderer. Build order starts with that sync.
+
+Remaining A3 after that: the telegraph (scouts, the Tingbok stage), guard
+response and the horn wheel, and the scar (burn state, camps to raid back).
 
 ## SLICE A2b — the courier's sack — DONE
 
