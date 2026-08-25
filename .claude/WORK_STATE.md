@@ -80,28 +80,30 @@ shift fails the captain test naming the exact angle.
 
 ## Next concrete action
 
-**GATE: PASS (green_streak=2)** at `20260825T060303Z`, 61/61.
+**GATE: PASS (green_streak=2)** at `20260825T065401Z`, 62/62.
 
-A3 steps 1-3c are done: the schedule with no safe night, named captains with
-objectives and grudges, a band that arrives on a varying bearing and
-resolves, and **physical theft** — raiders take goods out of real chests
-into real inventories, drop them when killed, and whether they got away
-decides whether pressure rises or eases.
+**PLAQUE-2 step 1 is done: the survey reaches the client.** That was the root
+gap behind "three plaques in three states look identical" — `saveAdditional`
+carried type/state/revision/plan and never the requirements, so the renderer
+had nothing to draw. `getUpdateTag` now sends (id, have, needed) triples,
+`BuildingType.requirementById` rebuilds each line client-side, and `survey()`
+calls `sendBlockUpdated` so a bed placed in front of the player ticks its
+line over immediately instead of waiting for a chunk reload.
 
-**KF-014 is RESOLVED** — root-caused on its fourth occurrence. The GameTest
-fixtures registered warehouses at anchors with no plaque block, and
-`BuildingManager`'s sweep correctly dissolved them mid-test ("no plaque, no
-building", D-005). Fixtures now hang a real plaque. Ten consecutive clean
-runs after the fix, against a rate that had reached ~1 in 4.
+**Next, PLAQUE-2 steps 2-5** per `docs/project/PLAN_PLAQUE_2.md`:
+2. the taller block model + parchment sheet texture (deterministic pipeline),
+3. the in-world sheet renderer — picture, title, live requirement lines,
+4. per-type pictures and per-requirement icons,
+5. the right-click screen rebuilt to match.
 
-**Next: PLAQUE-2** (`docs/project/PLAN_PLAQUE_2.md`, task #23) — user
-specified, marked Core, mockup at `docs/project/plaque_reference.png`. The
-root gap is already proven in game: three plaques in three different states
-render identically, because the requirement statuses are computed
-server-side and never reach the renderer. Build order starts with that sync.
+Acceptance is unchanged and is the check that failed today: three plaques in
+three states must be **visibly different in a screenshot, with no command
+run**.
 
-Remaining A3 after that: the telegraph (scouts, the Tingbok stage), guard
-response and the horn wheel, and the scar (burn state, camps to raid back).
+**KF-015 is OPEN** — a raid can resolve as repelled while raiders are alive
+in unloaded chunks, because resolution asks a bounded box query. Recorded as
+a design question, not patched at speed. It belongs to A3's remaining work
+(telegraph, guard response, the scar) alongside this.
 
 ## SLICE A2b — the courier's sack — DONE
 
