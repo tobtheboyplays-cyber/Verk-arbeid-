@@ -188,6 +188,11 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState mineState = new AnimationState();
     public final AnimationState leapState = new AnimationState();
     public final AnimationState sortState = new AnimationState();
+    public final AnimationState stirState = new AnimationState();
+    public final AnimationState planeState = new AnimationState();
+    public final AnimationState chiselState = new AnimationState();
+    public final AnimationState fletchState = new AnimationState();
+    public final AnimationState scrapeState = new AnimationState();
     public final AnimationState liftState = new AnimationState();
     public final AnimationState setDownState = new AnimationState();
 
@@ -609,7 +614,12 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_WEAVE
             || activity == SettlerActivity.WORK_OVEN
             || activity == SettlerActivity.WORK_SOW
-            || activity == SettlerActivity.WORK_MINE;
+            || activity == SettlerActivity.WORK_MINE
+            || activity == SettlerActivity.WORK_STIR
+            || activity == SettlerActivity.WORK_PLANE
+            || activity == SettlerActivity.WORK_CHISEL
+            || activity == SettlerActivity.WORK_FLETCH
+            || activity == SettlerActivity.WORK_SCRAPE;
 
         setHunger(getHunger()
             - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
@@ -825,6 +835,11 @@ public class SettlerEntity extends PathfinderMob {
         ovenState.animateWhen(activity == SettlerActivity.WORK_OVEN && !moving, tickCount);
         sowState.animateWhen(activity == SettlerActivity.WORK_SOW && !moving, tickCount);
         mineState.animateWhen(activity == SettlerActivity.WORK_MINE && !moving, tickCount);
+        stirState.animateWhen(activity == SettlerActivity.WORK_STIR && !moving, tickCount);
+        planeState.animateWhen(activity == SettlerActivity.WORK_PLANE && !moving, tickCount);
+        chiselState.animateWhen(activity == SettlerActivity.WORK_CHISEL && !moving, tickCount);
+        fletchState.animateWhen(activity == SettlerActivity.WORK_FLETCH && !moving, tickCount);
+        scrapeState.animateWhen(activity == SettlerActivity.WORK_SCRAPE && !moving, tickCount);
         // GATHER_LOG is a one-shot: triggered when a log actually comes down,
         // and expiring on its own clock like CELEBRATE does.
         if (leapState.isStarted() && leapState.getAccumulatedTime() > 1350L) {
@@ -983,6 +998,10 @@ public class SettlerEntity extends PathfinderMob {
             }
             net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
                 serverPlayer, new OpenSettlerScreenPayload(getId()));
+            // Sent right after: the screen opens on the first packet and the
+            // second fills in what is not on the synced entity data (D-014 —
+            // it must never sit there with attributes and employment blank).
+            com.hearthstead.network.SettlerNetwork.openFor(serverPlayer, this);
         }
         return InteractionResult.sidedSuccess(level().isClientSide);
     }

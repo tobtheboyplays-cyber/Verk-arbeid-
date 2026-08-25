@@ -61,6 +61,25 @@ public class Settlement {
      * pressure rising and easing.
      */
     public boolean raidLootEscaped;
+    /**
+     * What the raid currently in progress has taken and who it has hurt,
+     * tallied live as it happens ({@code RaiderLootGoal}'s successful
+     * withdrawal, {@code RaiderEntity#doHurtTarget}) and folded into a
+     * {@link com.hearthstead.settlement.raid.RaidLogEntry} then reset to
+     * zero when {@code RaidDirector#resolveIfOver} closes the raid out. Never
+     * a running lifetime total -- always "this raid, so far".
+     */
+    public int raidItemsStolenTonight;
+    public int raidSettlersHurtTonight;
+    /**
+     * The settlement's memory of raids past: the morning defense report,
+     * kept rather than only ever spoken once in chat (D-A3-8's "scar").
+     * Capped in {@code RaidDirector#recordAftermath} the same way the enemy
+     * gallery is capped -- a settlement remembers its history, not an
+     * unbounded diary.
+     */
+    public final List<com.hearthstead.settlement.raid.RaidLogEntry> raidLog =
+        new ArrayList<>();
 
     /** Average morale of currently loaded members, refreshed every second. */
     public int moraleCache = 60;
@@ -194,6 +213,13 @@ public class Settlement {
             tag.put("PendingRaid", pendingRaid.writeNbt());
         }
         tag.putBoolean("RaidLootEscaped", raidLootEscaped);
+        tag.putInt("RaidItemsStolenTonight", raidItemsStolenTonight);
+        tag.putInt("RaidSettlersHurtTonight", raidSettlersHurtTonight);
+        ListTag raidLogList = new ListTag();
+        for (com.hearthstead.settlement.raid.RaidLogEntry e : raidLog) {
+            raidLogList.add(e.writeNbt());
+        }
+        tag.put("RaidLog", raidLogList);
         return tag;
     }
 
@@ -237,6 +263,15 @@ public class Settlement {
                 .readNbt(captainList.getCompound(i)));
         }
         s.raidLootEscaped = tag.getBoolean("RaidLootEscaped");
+        // New keys; absent on an older save defaults to zero/empty, which is
+        // exactly right -- an old save has no raid mid-flight and no history.
+        s.raidItemsStolenTonight = tag.getInt("RaidItemsStolenTonight");
+        s.raidSettlersHurtTonight = tag.getInt("RaidSettlersHurtTonight");
+        ListTag raidLogList = tag.getList("RaidLog", Tag.TAG_COMPOUND);
+        for (int i = 0; i < raidLogList.size(); i++) {
+            s.raidLog.add(com.hearthstead.settlement.raid.RaidLogEntry
+                .readNbt(raidLogList.getCompound(i)));
+        }
         if (tag.contains("PendingRaid")) {
             s.pendingRaid = com.hearthstead.settlement.raid.RaidPlan
                 .readNbt(tag.getCompound("PendingRaid"));

@@ -84,6 +84,20 @@ public final class RaidPressure {
      */
     private int nightsSinceRaid = 99;
     private long lastRolledNight = Long.MIN_VALUE;
+    /**
+     * The night index a telegraph omen ({@link com.hearthstead.settlement.raid.RaidTelegraph})
+     * is scheduled for, or {@code Long.MIN_VALUE} when none is pending. Set
+     * 1-2 nights ahead of when it fires, so the scout at the treeline and the
+     * bard's unease genuinely give warning rather than firing the same hour
+     * a raid lands (DESIGN.md: "telegraphed 1-2 days ahead"). Deliberately
+     * NOT tied to whether a raid actually happens that far out -- the roll
+     * that decides that stays nightly and independent, so an omen is a sign
+     * of danger, never a guarantee either way (D-A3-1: no night is provably
+     * safe, and none becomes provably raided either).
+     */
+    private long forecastNight = Long.MIN_VALUE;
+    /** The last night an omen was actually shown, so it fires once per forecast. */
+    private long lastTelegraphedNight = Long.MIN_VALUE;
 
     public int pressure() {
         return pressure;
@@ -95,6 +109,24 @@ public final class RaidPressure {
 
     public long lastRolledNight() {
         return lastRolledNight;
+    }
+
+    public long forecastNight() {
+        return forecastNight;
+    }
+
+    public long lastTelegraphedNight() {
+        return lastTelegraphedNight;
+    }
+
+    /** Called by {@code RaidTelegraph} when it commits to warning about a future night. */
+    public void scheduleForecast(long night) {
+        forecastNight = night;
+    }
+
+    /** Called by {@code RaidTelegraph} once the omen for {@code night} has actually appeared. */
+    public void markTelegraphed(long night) {
+        lastTelegraphedNight = night;
     }
 
     public Stage stage() {
@@ -210,6 +242,8 @@ public final class RaidPressure {
         this.pressure = other.pressure;
         this.nightsSinceRaid = other.nightsSinceRaid;
         this.lastRolledNight = other.lastRolledNight;
+        this.forecastNight = other.forecastNight;
+        this.lastTelegraphedNight = other.lastTelegraphedNight;
     }
 
     /** Test and debug seam; never called by the simulation itself. */
@@ -222,6 +256,8 @@ public final class RaidPressure {
         tag.putInt("Pressure", pressure);
         tag.putInt("NightsSinceRaid", nightsSinceRaid);
         tag.putLong("LastRolledNight", lastRolledNight);
+        tag.putLong("ForecastNight", forecastNight);
+        tag.putLong("LastTelegraphedNight", lastTelegraphedNight);
         return tag;
     }
 
@@ -231,6 +267,12 @@ public final class RaidPressure {
         p.nightsSinceRaid = tag.getInt("NightsSinceRaid");
         p.lastRolledNight = tag.contains("LastRolledNight")
             ? tag.getLong("LastRolledNight") : Long.MIN_VALUE;
+        // Both new keys: absent on an older save, and Long.MIN_VALUE (no
+        // omen pending / none yet shown) is exactly the right default.
+        p.forecastNight = tag.contains("ForecastNight")
+            ? tag.getLong("ForecastNight") : Long.MIN_VALUE;
+        p.lastTelegraphedNight = tag.contains("LastTelegraphedNight")
+            ? tag.getLong("LastTelegraphedNight") : Long.MIN_VALUE;
         return p;
     }
 }

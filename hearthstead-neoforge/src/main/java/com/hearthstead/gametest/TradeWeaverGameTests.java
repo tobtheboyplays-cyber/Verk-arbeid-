@@ -1,0 +1,171 @@
+package com.hearthstead.gametest;
+
+import com.hearthstead.Hearthstead;
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.entity.Profession;
+import com.hearthstead.registry.ModEntities;
+import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
+import com.hearthstead.settlement.Settlement;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
+
+/**
+ * The weaver's production loop, end to end: a room with string in its
+ * chest, a settler hired into it, and wool that did not exist before.
+ *
+ * <p>Mirrors {@code EmploymentGameTests#aHiredBakerActuallyBakes} — same
+ * discipline, a different trade ({@link BuildingType#WEAVER},
+ * {@link Profession#WEAVER}, motion {@code WORK_WEAVE}) — proving that
+ * D-007 (a building works alone: no separate source of string needs to
+ * exist anywhere else in the world) and INV-3 (chest truth: nothing is ever
+ * destroyed or duplicated) hold for THIS trade specifically, not merely for
+ * the one already under test in that file.
+ *
+ * <p>The building is a bare {@link Building} record, exactly as
+ * {@code EmploymentGameTests} builds its crafters — deliberately bypassing
+ * the plaque survey (which would additionally require a real loom and
+ * cauldron in the room), because {@code Production} only ever reads a
+ * building's own containers and this test's job is the recipe loop, not the
+ * survey that already has its own coverage.
+ */
+@GameTestHolder(Hearthstead.MODID)
+@PrefixGameTestTemplate(false)
+public class TradeWeaverGameTests {
+
+    private static void floor(GameTestHelper helper, int size) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE_BRICKS);
+            }
+        }
+    }
+
+    /**
+     * A settlement the entity layer can actually find.
+     *
+     * <p>Registered with {@link com.hearthstead.settlement.SettlementSavedData},
+     * because {@code settler.settlement()} resolves by id through the manager:
+     * a bare Settlement object is invisible to every goal, and the symptom is
+     * a settler who simply stands there with no error anywhere. Radius kept
+     * small (6) so this test's settlement cannot hijack a neighbouring
+     * arena's hearth (GameTest arenas sit close together and
+     * SettlementManager.at() resolves by radius).
+     */
+    private static Settlement settlement(GameTestHelper helper) {
+        com.hearthstead.settlement.SettlementSavedData data =
+            com.hearthstead.settlement.SettlementSavedData.get(helper.getLevel());
+        Settlement s = new Settlement(UUID.randomUUID(), "Testholm",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 6;
+        data.settlements.put(s.id, s);
+        data.setDirty();
+        return s;
+    }
+
+    private static Building building(GameTestHelper helper, Settlement s,
+                                     BuildingType type, int x, int z) {
+        BlockPos anchor = helper.absolutePos(new BlockPos(x, 1, z));
+        Building building = new Building(UUID.randomUUID(), type,
+            helper.absolutePos(new BlockPos(x, 2, z)), anchor,
+            BoundingBox.fromCorners(anchor, anchor.offset(3, 2, 3)));
+        building.valid = true;
+        s.buildings.add(building);
+        return building;
+    }
+
+    private static SettlerEntity settler(GameTestHelper helper, Settlement s,
+                                         String name, int x, int z) {
+        SettlerEntity settler = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(x, 1, z));
+        settler.setSettlerName(name);
+        settler.bindTo(s.id, s.center);
+        s.putRecord(settler.getUUID(), name, Profession.NONE);
+        return settler;
+    }
+
+    private static int countItem(net.minecraft.world.Container container,
+                                 net.minecraft.world.item.Item item) {
+        int total = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            net.minecraft.world.item.ItemStack stack = container.getItem(slot);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    /**
+     * The whole loop, end to end: a room with string in its chest, a
+     * settler hired into it, and white wool that did not exist before — with
+     * no separate string source anywhere in the world (D-007).
+     *
+     * <p>Also the conservation proof for this trade: every unit of wool the
+     * chest gains must be accounted for by string the chest gave up, at the
+     * recipe's own ratio (four string in, one wool out), never more and
+     * never fewer (INV-3) — and the settler must actually be seen doing the
+     * work (motion {@code WORK_WEAVE}), so a settler who did nothing cannot
+     * pass this test by the recipe running itself.
+     *
+     * <p>Only string goes in the chest, never wool: the weaver's second
+     * recipe (wool into a banner) needs six wool to fire, far more than this
+     * short window produces, so which recipe runs is never in doubt.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 600)
+    public void aHiredWeaverActuallyWeaves(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building weaver = building(helper, s, BuildingType.WEAVER, 4, 4);
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
+        net.minecraft.world.level.block.entity.BlockEntity be =
+            helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
+        helper.assertTrue(be instanceof net.minecraft.world.Container,
+            "the arena chest should be a container");
+        net.minecraft.world.Container chest = (net.minecraft.world.Container) be;
+        int startString = 20;
+        chest.setItem(0, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.STRING, startString));
+
+        SettlerEntity astrid = settler(helper, s, "Astrid", 4, 4);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, weaver, astrid).ok(),
+            "a weaver's building must be able to take a weaver");
+        helper.assertTrue(astrid.getProfession() == Profession.WEAVER,
+            "hired into the loom room, they weave");
+
+        // Mid-morning: working hours, so the trade goal is allowed to run.
+        helper.getLevel().setDayTime(3000);
+
+        final boolean[] sawWeaving = {false};
+        helper.succeedWhen(() -> {
+            if (astrid.getActivity() == com.hearthstead.entity.SettlerActivity.WORK_WEAVE) {
+                sawWeaving[0] = true;
+            }
+            int wool = countItem(chest, net.minecraft.world.item.Items.WHITE_WOOL);
+            int stringLeft = countItem(chest, net.minecraft.world.item.Items.STRING);
+            int consumed = startString - stringLeft;
+            if (wool > 0) {
+                helper.assertTrue(consumed > 0,
+                    "wool appeared without a single string leaving the chest — "
+                        + "that is duplication, not production");
+                helper.assertTrue(wool == consumed / 4 && consumed % 4 == 0,
+                    "conservation broken: " + consumed + " string gone must leave "
+                        + "exactly " + (consumed / 4) + " wool, chest holds " + wool);
+            }
+            helper.assertTrue(wool > 0,
+                "a hired weaver standing in a loom room full of string must "
+                    + "produce wool (activity=" + astrid.getActivity() + ")");
+            helper.assertTrue(sawWeaving[0],
+                "the weaver must actually pass through WORK_WEAVE while doing "
+                    + "it, not produce output with no motion of its own");
+        });
+    }
+}

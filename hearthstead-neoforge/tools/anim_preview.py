@@ -49,6 +49,7 @@ HOLD_DEG = 6.0
 # rules; a walk cycle or an idle obviously is not.
 IMPACT_CLIPS = {
     "CHOP", "LIMB_BRANCHES", "FARM_TILL", "MELEE", "CLEAVE", "HAMMER_ANVIL",
+    "MASON_CHISEL",
 }
 ARMS = ("right_arm", "left_arm")
 

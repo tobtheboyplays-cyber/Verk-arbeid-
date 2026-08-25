@@ -5,6 +5,7 @@ import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.AABB;
@@ -48,6 +49,13 @@ public final class RaidDirector {
 
     /** Captains one settlement will remember at once. */
     public static final int MAX_REMEMBERED_CAPTAINS = 5;
+
+    /**
+     * Past raids one settlement keeps in its morning-report history at once
+     * (D-A3-8's "scar", bounded the same way the enemy gallery is bounded):
+     * a settlement remembers its history, not an unbounded diary.
+     */
+    public static final int MAX_RAID_LOG = 8;
 
     /** Band size bounds. A raid is a band with a leader, never a horde. */
     public static final int MIN_BAND = 2;
@@ -118,17 +126,35 @@ public final class RaidDirector {
     }
 
     /**
-     * How many raiders come. Grows with what the settlement is worth and
-     * with the captain's own record, and is hard-capped: MineColonies allows
-     * up to 80 raiders by default and players report the result as a slog,
-     * so this deliberately stays a band you can name rather than a wave you
-     * can only survive.
+     * How many raiders come. Grows with what the settlement is worth, with
+     * the captain's own record, AND with how besieged the settlement
+     * currently reads (D-A3-3: escalation must be legible in the stage, not
+     * only felt through wealth) -- hard-capped regardless: MineColonies
+     * allows up to 80 raiders by default and players report the result as a
+     * slog, so this deliberately stays a band you can name rather than a
+     * wave you can only survive.
      */
     public static int bandSizeFor(Settlement settlement, RaidCaptain captain) {
         int fromWorth = MIN_BAND
             + RaidPressure.worthOf(settlement) / WORTH_PER_RAIDER;
-        int scaled = Math.round(fromWorth * Math.min(captain.menace(), 2.0F));
-        return Mth.clamp(scaled, MIN_BAND, MAX_BAND);
+        float stageWeight = stageBandMultiplier(settlement.raidPressure.stage());
+        float scaled = fromWorth * Math.min(captain.menace(), 2.0F) * stageWeight;
+        return Mth.clamp(Math.round(scaled), MIN_BAND, MAX_BAND);
+    }
+
+    /**
+     * Extra weight the siege stage itself adds to a band, on top of worth
+     * and the captain's record. The same modest settlement pulls a visibly
+     * bigger band once it is under Varsel or Beleiring than it would at
+     * Rolig -- escalation you can read in the Tingbok, not just in hindsight.
+     */
+    public static float stageBandMultiplier(RaidPressure.Stage stage) {
+        return switch (stage) {
+            case ROLIG -> 1.0F;
+            case URO -> 1.15F;
+            case VARSEL -> 1.35F;
+            case BELEIRING -> 1.6F;
+        };
     }
 
     /**
@@ -307,6 +333,7 @@ public final class RaidDirector {
         }
         settlement.pendingRaid = null;
         settlement.raidLootEscaped = false;
+        recordAftermath(level, settlement, plan, captain, !lost);
         SettlementSavedData.get(level).setDirty();
         Hearthstead.LOGGER.info(
             "Raid on {} is over -- {} {} (pressure now {}, stage {})",
@@ -315,6 +342,45 @@ public final class RaidDirector {
             settlement.raidPressure.pressure(),
             settlement.raidPressure.stage().id());
         return true;
+    }
+
+    /**
+     * The scar (D-A3-8) and the aftermath the design calls for: "repair
+     * dugnad + defense report". This is the report half -- what was stolen,
+     * who was hurt, and what the threat reads as now, both logged on the
+     * settlement (a capped history, {@link #MAX_RAID_LOG}) and read out to
+     * every nearby player, the same morning the raid actually ended rather
+     * than only ever visible through {@code /hearthstead info}.
+     *
+     * <p>The tallies are read here and reset here: they describe exactly
+     * one raid, accumulated live as it happened ({@code RaiderLootGoal}'s
+     * successful withdrawal, {@code RaiderEntity#doHurtTarget}), never a
+     * running lifetime total.
+     */
+    private static void recordAftermath(ServerLevel level, Settlement settlement,
+                                        RaidPlan plan, RaidCaptain captain, boolean held) {
+        String captainName = captain == null ? "?" : captain.name();
+        String stageAfter = settlement.raidPressure.stage().id();
+        RaidLogEntry entry = new RaidLogEntry(plan.night(), captainName,
+            plan.objective().id(), held, settlement.raidItemsStolenTonight,
+            settlement.raidSettlersHurtTonight, stageAfter);
+        settlement.raidLog.add(entry);
+        while (settlement.raidLog.size() > MAX_RAID_LOG) {
+            settlement.raidLog.remove(0); // oldest history fades first
+        }
+
+        Component stage = Component.translatable("hearthstead.raid.stage." + stageAfter);
+        Component report = held
+            ? Component.translatable("hearthstead.message.raid_defense_held",
+                settlement.name, settlement.raidSettlersHurtTonight,
+                settlement.raidItemsStolenTonight, stage)
+            : Component.translatable("hearthstead.message.raid_defense_lost",
+                settlement.name, captainName, settlement.raidItemsStolenTonight,
+                settlement.raidSettlersHurtTonight, stage);
+        RaidBroadcast.send(level, settlement, report);
+
+        settlement.raidItemsStolenTonight = 0;
+        settlement.raidSettlersHurtTonight = 0;
     }
 
     /**
@@ -375,6 +441,11 @@ public final class RaidDirector {
             resolveIfOver(level, settlement);
             return;
         }
+        // Before tonight's own roll: the telegraph. Checked every tick like
+        // the roll below, but it fires on its own schedule (RaidTelegraph),
+        // which is why it is not gated behind isRollTime -- dusk (its fire
+        // time) is strictly earlier in the day than ROLL_AT_DAYTIME.
+        RaidTelegraph.tick(level, settlement);
         long dayTime = level.getDayTime();
         if (!isRollTime(dayTime)) {
             return; // not yet tonight
@@ -387,6 +458,12 @@ public final class RaidDirector {
         boolean raid = pressure.rollForNight(settlement, night,
             level.getRandom().nextDouble());
         SettlementSavedData.get(level).setDirty();
+        if (!raid) {
+            // A quiet night is still a night the dread can grow on: maybe
+            // commit to an omen 1-2 nights from now (RaidTelegraph). Never
+            // when tonight itself raided -- the raid IS the omen fulfilled.
+            RaidTelegraph.rollForecast(settlement, night, level.getRandom().nextDouble());
+        }
         if (raid) {
             RaidPlan plan = planRaid(level, settlement, night);
             settlement.pendingRaid = plan;
@@ -397,8 +474,7 @@ public final class RaidDirector {
             // looking like the roll never ran.
             Hearthstead.LOGGER.info(
                 "Raid scheduled for {} on night {}: {} comes for {} from {}"
-                    + " degrees (pressure {}, stage {}, menace {})"
-                    + " -- no raiders exist yet (A3 step 2)",
+                    + " degrees (pressure {}, stage {}, menace {})",
                 settlement.name, night,
                 captain == null ? "?" : captain.name(),
                 plan.objective().id(), Math.round(plan.approachDegrees()),

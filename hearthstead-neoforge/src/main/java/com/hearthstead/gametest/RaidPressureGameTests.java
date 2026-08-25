@@ -10,6 +10,7 @@ import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.raid.RaidPlan;
 import com.hearthstead.settlement.raid.RaidPressure;
+import com.hearthstead.settlement.raid.RaidTelegraph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -394,6 +395,109 @@ public class RaidPressureGameTests {
             "a founding settlement has not just survived a raid");
         helper.assertTrue(s.raidPressure.rollForNight(s, 1L, 0.0),
             "so night one is available");
+        helper.succeed();
+    }
+
+    // ---------------------------------------------------------- SLICE A3-RAIDS ---
+    // Telegraphing: the scout at the treeline and the bard's unease
+    // (DESIGN.md: "escalating, telegraphed 1-2 days ahead"). Deliberately
+    // NOT a predictor of the actual nightly roll -- see RaidTelegraph's
+    // class doc for why that would reintroduce a provably-safe schedule.
+
+    /** An omen is a sign of real pressure, not ambient noise -- a calm settlement gets none. */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void omensAreNeverScheduledOnACalmNight(GameTestHelper helper) {
+        Settlement s = settlement(8, 3);
+        helper.assertTrue(s.raidPressure.stage() == RaidPressure.Stage.ROLIG,
+            "a fresh settlement reads as ROLIG");
+        // roll=0.0 would clear any positive chance, so a true here would
+        // mean the calm gate is not actually gating anything.
+        helper.assertTrue(!RaidTelegraph.rollForecast(s, 1L, 0.0),
+            "a calm settlement must never get a telegraph omen");
+        helper.assertTrue(s.raidPressure.forecastNight() < 1L,
+            "and nothing should have been scheduled");
+        helper.succeed();
+    }
+
+    /**
+     * Escalation applies to dread, too: a tenser settlement gets warned more
+     * often, and Beleiring gives less lead time -- a designed crescendo, the
+     * same shape as D-A3-4 letting consecutive raid nights through at that
+     * stage.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void omensEscalateWithPressureAndGiveOneToTwoNightsWarning(GameTestHelper helper) {
+        Settlement uro = settlement(8, 3);
+        uro.raidPressure.setPressureForTesting(RaidPressure.URO_THRESHOLD);
+        helper.assertTrue(RaidTelegraph.rollForecast(uro, 10L, 0.0),
+            "a roll of 0.0 must always beat a positive schedule chance");
+        helper.assertTrue(uro.raidPressure.forecastNight() == 12L,
+            "Uro should warn two nights out, got night "
+                + uro.raidPressure.forecastNight() + " from night 10");
+
+        Settlement siege = settlement(8, 3);
+        siege.raidPressure.setPressureForTesting(RaidPressure.BELEIRING_THRESHOLD);
+        helper.assertTrue(RaidTelegraph.rollForecast(siege, 10L, 0.0),
+            "Beleiring must also schedule an omen");
+        helper.assertTrue(siege.raidPressure.forecastNight() == 11L,
+            "but give LESS warning at the top of the curve -- got "
+                + siege.raidPressure.forecastNight());
+        helper.succeed();
+    }
+
+    /** Only one omen is ever pending: it must not be re-rolled out from under itself. */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void onlyOneOmenIsPendingAtOnce(GameTestHelper helper) {
+        Settlement s = settlement(8, 3);
+        s.raidPressure.setPressureForTesting(RaidPressure.URO_THRESHOLD);
+        helper.assertTrue(RaidTelegraph.rollForecast(s, 1L, 0.0), "first ask schedules");
+        long first = s.raidPressure.forecastNight();
+        helper.assertTrue(!RaidTelegraph.rollForecast(s, 2L, 0.0),
+            "a second ask before the first omen has fired must not reschedule it");
+        helper.assertTrue(s.raidPressure.forecastNight() == first,
+            "the original forecast must be undisturbed, got "
+                + s.raidPressure.forecastNight() + " expected " + first);
+        helper.succeed();
+    }
+
+    /**
+     * The dusk gate is pure arithmetic, tested directly rather than by
+     * setting the shared level's day time -- exactly like
+     * {@link RaidDirector#isRollTime}, and for the same reason (a batch of
+     * concurrently running tests shares one level's clock).
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void theTelegraphFiresAtDuskBeforeTheNightlyRoll(GameTestHelper helper) {
+        helper.assertTrue(!RaidTelegraph.isDuskOrLater(RaidTelegraph.DUSK_TIME - 1L),
+            "a moment before dusk must not yet be dusk");
+        helper.assertTrue(RaidTelegraph.isDuskOrLater(RaidTelegraph.DUSK_TIME),
+            "dusk itself counts");
+        helper.assertTrue(RaidTelegraph.isDuskOrLater(RaidDirector.ROLL_AT_DAYTIME),
+            "and the omen must have fired by the time the roll itself is due, "
+                + "since dusk is strictly earlier in the day");
+        helper.assertTrue(RaidTelegraph.isDuskOrLater(23999L), "so does pre-dawn");
+        helper.assertTrue(!RaidTelegraph.isDuskOrLater(24000L * 4 + 6000L),
+            "and it repeats every day rather than staying true forever, "
+                + "just like the roll gate does");
+        helper.succeed();
+    }
+
+    /** Forecast and telegraph state is settlement state, and must survive a reload too. */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void telegraphStateSurvivesSaveAndReload(GameTestHelper helper) {
+        Settlement s = settlement(8, 3);
+        s.raidPressure.setPressureForTesting(RaidPressure.VARSEL_THRESHOLD);
+        helper.assertTrue(RaidTelegraph.rollForecast(s, 4L, 0.0), "schedules an omen");
+        s.raidPressure.markTelegraphed(s.raidPressure.forecastNight());
+
+        Settlement reloaded = Settlement.readNbt(s.writeNbt());
+        helper.assertTrue(
+            reloaded.raidPressure.forecastNight() == s.raidPressure.forecastNight(),
+            "the forecast night must round-trip, got "
+                + reloaded.raidPressure.forecastNight());
+        helper.assertTrue(reloaded.raidPressure.lastTelegraphedNight()
+                == s.raidPressure.lastTelegraphedNight(),
+            "as must the last night an omen was actually shown");
         helper.succeed();
     }
 }

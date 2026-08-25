@@ -30,7 +30,8 @@ DOCS = os.path.join(HERE, "..", "docs")
 # The starter pack, the set both references hand you first. Every one of
 # these passes all eleven points; from here the build fails if any of them
 # stops passing.
-CERTIFIED = {"lumberer", "farmer", "courier", "guard", "miner", "baker"}
+CERTIFIED = {"lumberer", "farmer", "courier", "guard", "miner", "baker",
+             "smith"}
 
 POINTS = ["trade", "work", "goal", "motion", "catalogue", "sound",
           "outfit", "trains", "schedule", "lang", "tests"]
@@ -170,6 +171,12 @@ MOTION_CLIP = {
     "WORK_OVEN": "OVEN_TEND",
     "WORK_MINE": "MINE_PICK",
     "WORK_SOW": "SOW_BROADCAST",
+    # VISUAL-2: the five signature motions that ended the borrowing (D-016).
+    "WORK_STIR": "COOK_STIR",
+    "WORK_PLANE": "CARPENTER_PLANE",
+    "WORK_CHISEL": "MASON_CHISEL",
+    "WORK_FLETCH": "FLETCHER_FLETCH",
+    "WORK_SCRAPE": "TANNER_SCRAPE",
 }
 
 

@@ -1,13 +1,17 @@
 package com.hearthstead.entity.ai;
 
 import com.hearthstead.entity.RaiderEntity;
+import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.building.BuildingType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ItemParticleOption;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
@@ -196,6 +200,7 @@ public class RaiderLootGoal extends Goal {
             // Destination first: the raider holds it before the chest loses
             // it, so an interruption at any instant conserves the item.
             ItemStack taken = store.removeItem(slot, stack.getCount());
+            ItemStack shown = taken.copy(); // for the particle below, before addItem can mutate it
             ItemStack leftover = raider.loot.addItem(taken);
             if (!leftover.isEmpty()) {
                 store.setItem(slot, leftover); // full: put back what will not fit
@@ -204,6 +209,15 @@ public class RaiderLootGoal extends Goal {
                 repathTimer = 0;
             }
             store.setChanged();
+            // Visible on purpose (INV: chest truth). The count in the chest
+            // going down is not enough on its own -- the task asks that a
+            // raider "visibly take items", so the grab itself throws stuff
+            // toward the raider's hands rather than vanishing silently.
+            level.sendParticles(new ItemParticleOption(ParticleTypes.ITEM, shown),
+                target.getX() + 0.5, target.getY() + 0.8, target.getZ() + 0.5,
+                8, 0.15, 0.25, 0.15, 0.06);
+            level.playSound(null, target, ModSounds.ITEM_PICKUP.get(),
+                SoundSource.HOSTILE, 0.7F, 0.8F + raider.getRandom().nextFloat() * 0.2F);
             return;
         }
         // Nothing left here. Leave with whatever was taken.
@@ -228,8 +242,11 @@ public class RaiderLootGoal extends Goal {
         }
         double escapeAt = s.radius + ESCAPE_MARGIN;
         if (raider.blockPosition().distSqr(s.center) >= escapeAt * escapeAt) {
-            // Got away. The settlement finds out it has lost the goods.
+            // Got away. The settlement finds out it has lost the goods, and
+            // the morning report (RaidDirector#recordAftermath) learns how
+            // much -- read and reset there, tallied live here as it happens.
             s.raidLootEscaped = true;
+            s.raidItemsStolenTonight += raider.lootCount();
             raider.discard();
             done = true;
             return;

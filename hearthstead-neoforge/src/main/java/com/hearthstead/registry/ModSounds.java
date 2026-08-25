@@ -45,6 +45,20 @@ public final class ModSounds {
         register("cleaver_chop");
     public static final DeferredHolder<SoundEvent, SoundEvent> LOOM_CLACK =
         register("loom_clack");
+
+    // JOB_STANDARD point 6 -- the last five trades' own voices (catalogue
+    // §20): cook, carpenter, mason, fletcher, tanner no longer borrow.
+    public static final DeferredHolder<SoundEvent, SoundEvent> POT_STIR =
+        register("pot_stir");
+    public static final DeferredHolder<SoundEvent, SoundEvent> PLANE_SHAVE =
+        register("plane_shave");
+    public static final DeferredHolder<SoundEvent, SoundEvent> CHISEL_TAP =
+        register("chisel_tap");
+    public static final DeferredHolder<SoundEvent, SoundEvent> FEATHER_PINCH =
+        register("feather_pinch");
+    public static final DeferredHolder<SoundEvent, SoundEvent> HIDE_SCRAPE =
+        register("hide_scrape");
+
     public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_HM =
         register("settler_hm");
 

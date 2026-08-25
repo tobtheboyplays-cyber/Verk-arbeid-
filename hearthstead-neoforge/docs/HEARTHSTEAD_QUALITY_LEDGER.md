@@ -224,3 +224,133 @@ defects while it was being built: `HAMMER_ANVIL`'s torso peaked *on* the
 contact tick instead of before it, and `GATHER_LOG` ended away from its start
 pose, which would have snapped the settler when the one-shot expired. Both are
 fixed. `MELEE` carries a recorded exception rather than a silent pass.
+
+---
+
+## Iteration 10 — KF-018 (lumberjack scan), D-016 closed, and an invisible
+## nameplate regression found by a pig
+
+### KF-018 — the lumberjack starved on sparse maps; uphill trees were invisible forever
+
+**What was wrong, with the numbers.** `LumbererWorkGoal.canUse` scanned for a
+tree base with `WorkScanner.scan`, whose offset table is the full **97 × 97 ×
+9 = 84,681** positions around the settlement (`WorkScanner.MAX_RADIUS=48`,
+`Y_BAND=4`). At a 512-position budget per call and a scan roughly every four
+to six seconds (`scanCooldown = 80 + random(40)` ticks), one full sweep took
+**about fourteen minutes** — a settler in a thin wood stood idle nearly a
+quarter hour before noticing the tree behind him. Worse, the vertical band
+was centred on the **hearth's own Y**, so a tree four blocks up a slope sat
+outside the ±4 band and was never found — not slow, *permanently invisible*.
+Both numbers and the "fourteen minutes" figure are stated in the fix's own
+doc comment (`WorkScanner.java`), not recomputed for this entry.
+
+**Fix.** `WorkScanner.scanColumns` — a second offset table of horizontal
+**columns only** (9,409 of them, `side² = 97²`), independent of any Y
+anchor. `LumbererWorkGoal.trunkInColumn` reads the heightmap
+(`MOTION_BLOCKING_NO_LEAVES`) once per column and only descends the trunk
+when the surface block is itself a log, capped at `TRUNK_DESCENT = 32` so a
+decorative column can never be chased to bedrock. The code's own comment
+puts a typical sweep at "about twelve calls" versus the old "a hundred and
+sixty-five" — an average-case figure (the scan can stop once it has found
+`maxResults=6` bases), not a worst-case one; the sparse-map case that KF-018
+is about still needs to walk close to the full 9,409-column table, which is
+still an order of magnitude cheaper than the old 84,681-position volume.
+
+**Files.** `src/main/java/com/hearthstead/entity/ai/WorkScanner.java`
+(`scanColumns`, `columnTable`), `src/main/java/com/hearthstead/entity/ai/
+LumbererWorkGoal.java` (`trunkInColumn`, `TRUNK_DESCENT`).
+
+**Not yet recorded in `docs/project/KNOWN_FAILURES.md`** — that file is
+outside this worker's ownership this session; the KF-018 identifier exists
+only in code comments right now and should be written up there by whoever
+owns it next.
+
+### D-016 closed in full — the last five signature motions
+
+The five trades still on a borrowed motion (`COOK`, `CARPENTER`, `MASON`,
+`FLETCHER`, `TANNER`) got their own: `COOK_STIR`, `CARPENTER_PLANE`,
+`MASON_CHISEL` (the impact-checked clip — `tools/anim_preview.py`'s
+`IMPACT_CLIPS` set, held to the wind-up/beat/overshoot standard),
+`FLETCHER_FLETCH`, `TANNER_SCRAPE` — all authored in
+`docs/ANIMATION_CATALOGUE.md` §20 and `SettlerAnimations.java`.
+
+`SettlerActivity` gained `WORK_STIR/PLANE/CHISEL/FLETCH/SCRAPE`, **appended
+after the existing values**, per the enum's own standing rule ("ordinals of
+the values above must never shift, this is the wire format" —
+`SettlerEntity.DATA_ACTIVITY` is ordinal-keyed). `Employment.motionOf` was
+updated so every one of the twelve `Production`-backed trades now maps to a
+distinct `SettlerActivity`/clip pair — no two trades share a work loop
+anywhere in that switch. Recorded as **D-017**.
+
+`tools/anim_preview.py` read all 44 catalogued clips clean (`44 of 44 clips
+read clean`, re-run independently for this entry), and `tools/job_audit.py`
+gained **smith** as its seventh CERTIFIED trade (verified against the
+working diff:
+`CERTIFIED = {"lumberer","farmer","courier","guard","miner","baker","smith"}`).
+
+**What is not yet true, stated plainly so it is not overclaimed later.** The
+five trades above have their motion but **not** certification: each still
+borrows another trade's work sound (`docs/ANIMATION_CATALOGUE.md` §20: "that
+debt keeps these five jobs out of the certified list until their own voices
+land"), confirmed unchanged in `docs/project/JOB_STANDARD.md`'s trade table
+— all five read "not yet". Motion-complete and job-certified are different
+claims; only the first is true for cook/carpenter/mason/fletcher/tanner as of
+this iteration.
+
+### An invisible rendering regression, found by a pig standing next to a settler
+
+`SettlerRenderer.renderNameTag` still used the 1.20-era
+`pose.scale(-0.025F, -0.025F, 0.025F)` mirror. On 1.21 that negative X scale
+flips every glyph quad to face away from the camera, so the whole name tag
+was culled — silently, with no error, no log line, nothing to grep for. It
+had been broken since the 1.21 port and nothing had ever proven a settler's
+name actually rendered.
+
+**Proof.** A vanilla pig's name tag rendered normally standing beside a
+named-but-invisible settler in the same shot — evidence session
+`qa/reports/artifacts/live/20260825T183505Z` (`shots/pigtest.png`,
+`shots/nameclose.png`, `shots/nameclose2.png`). Comparing against an entity
+that is known-good ruled out camera, font and distance as the cause and
+pointed straight at the scale sign.
+
+**Fix.** Positive X scale and the 1.21 `EntityAttachment.NAME_TAG` point
+(`entity.getAttachments().getNullable(EntityAttachment.NAME_TAG, 0, …)`)
+replace the manual offset. Also fixed in the same pass: `shouldShowName` now
+branches on `entity.isCustomNameVisible()` — an explicitly flagged settler
+(lineups, a player-named settler) gets vanilla's full range (`4096.0` sqr =
+64 blocks), everyone else keeps the original `150.0` sqr intimate range.
+
+**Same evidence session also found the showcase forceload lesson** (stage
+chunks unloaded → `getHeightmapPos` answers the world floor at Y=-64 → a
+whole lineup spawns inside bedrock and suffocates, reporting "N settlers
+posed" over an empty field) — `qa/scripts/showcase.sh` now force-loads the
+stage before building or spawning on it. Both findings share the one
+timestamp because both were made in the same continuous live session, not a
+citation error.
+
+### Showcase tooling landed this session
+
+`/hearthstead pose|pulse|lineup` (`HearthsteadCommand`) let an operator pose
+any settler into any of the 33 catalogued poses, spawn a labelled lineup
+page, or re-fire a one-shot, without touching the AI. `qa/scripts/showcase.sh`
+wraps this into turnkey filmed scenes against a live session. **Recorded as
+D-018**: `applyPose` calls `settler.setNoAi(true)` and writes the
+activity/profession projection directly, bypassing goal selection entirely —
+so this is a viewing aid, never a test oracle, and no GameTest may
+pose-then-assert. Verified: no `GameTest` in the tree currently calls `pose`.
+
+### Quality gate — honest status: in progress, not clean
+
+`qa/reports/latest.json` (most recent full run, `20260825T172412Z` →
+`173813Z`): **overall PASS, `green_streak: 1`** — one short of the ≥2 the
+contract requires for any completion claim. Since that run, source has
+changed substantially and remains **uncommitted**: `WorkScanner.java`,
+`LumbererWorkGoal.java`, `SettlerRenderer.java`, `HearthsteadCommand.java`,
+`SettlerAnimations.java`, `Employment.java`, `SettlerActivity.java`,
+`SettlerEntity.java`, `SettlerModel.java`, `Schedule.java`, both lang files,
+`docs/ANIMATION_CATALOGUE.md`, `tools/anim_preview.py`, `tools/job_audit.py`,
+plus four new untracked GameTest files and the new `showcase.sh`. **No full
+run has been made against the current source fingerprint at all** — the
+`full ×2 + gate` requirement has not merely regressed, it has not started.
+This is stated here rather than left implicit so no downstream claim treats
+`latest.json`'s PASS as covering the current tree.

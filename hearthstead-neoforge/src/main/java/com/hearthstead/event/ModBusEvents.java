@@ -58,6 +58,28 @@ public final class ModBusEvents {
                     com.hearthstead.network.StorageNetwork.handleRequest(player);
                 }
             }));
+        registrar.playToClient(com.hearthstead.network.SettlerSnapshotPayload.TYPE,
+            com.hearthstead.network.SettlerSnapshotPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showSettlerSnapshot(payload)));
+        registrar.playToServer(com.hearthstead.network.SettlerActionPayload.TYPE,
+            com.hearthstead.network.SettlerActionPayload.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.SettlerNetwork.handle(player, payload);
+                }
+            }));
+        registrar.playToClient(com.hearthstead.network.HearthMayorSnapshot.TYPE,
+            com.hearthstead.network.HearthMayorSnapshot.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showHearthMayor(payload)));
+        registrar.playToServer(com.hearthstead.network.HearthMayorAction.TYPE,
+            com.hearthstead.network.HearthMayorAction.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.HearthNetwork.handle(player, payload);
+                }
+            }));
     }
 
     private ModBusEvents() {

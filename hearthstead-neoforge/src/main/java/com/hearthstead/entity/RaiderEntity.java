@@ -2,6 +2,7 @@ package com.hearthstead.entity;
 
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
+import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidObjective;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
@@ -53,6 +54,9 @@ public class RaiderEntity extends Monster {
         SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Byte> DATA_OBJECTIVE =
         SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BYTE);
+    /** The telegraph: a scout at the treeline, not a raider assigned to a plan. */
+    private static final EntityDataAccessor<Boolean> DATA_SCOUT =
+        SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BOOLEAN);
 
     /** Health and damage a captain carries over an ordinary follower. */
     public static final float CAPTAIN_HEALTH_BONUS = 14.0F;
@@ -105,15 +109,24 @@ public class RaiderEntity extends Monster {
         // Fighting is what happens on the way, not the point.
         goalSelector.addGoal(2,
             new com.hearthstead.entity.ai.RaiderLootGoal(this));
+        // Mutually exclusive with the loot goal above (objective() can never
+        // be KORN on an unassigned scout), so sharing priority 2 is safe.
+        goalSelector.addGoal(2,
+            new com.hearthstead.entity.ai.RaiderScoutGoal(this));
         goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
 
         targetSelector.addGoal(1, new HurtByTargetGoal(this));
+        // A scout never STARTS a fight -- it is an omen, not a free
+        // skirmish (D-A3's telegraph step). It still defends itself: the
+        // HurtByTargetGoal above and MeleeAttackGoal below are untouched.
         targetSelector.addGoal(2,
-            new NearestAttackableTargetGoal<>(this, SettlerEntity.class, true));
+            new NearestAttackableTargetGoal<>(this, SettlerEntity.class, true,
+                target -> !isScout()));
         targetSelector.addGoal(3,
-            new NearestAttackableTargetGoal<>(this, Player.class, true));
+            new NearestAttackableTargetGoal<>(this, Player.class, true,
+                target -> !isScout()));
     }
 
     @Override
@@ -122,10 +135,27 @@ public class RaiderEntity extends Monster {
         builder.define(DATA_CAPTAIN, false);
         builder.define(DATA_MENACE, 1.0F);
         builder.define(DATA_OBJECTIVE, (byte) RaidObjective.BLOD.ordinal());
+        builder.define(DATA_SCOUT, false);
     }
 
     public boolean isCaptain() {
         return entityData.get(DATA_CAPTAIN);
+    }
+
+    public boolean isScout() {
+        return entityData.get(DATA_SCOUT);
+    }
+
+    /**
+     * Arms this raider as a telegraph scout (D-A3's "Telegraphing"): no
+     * captain, no objective, no menace scaling -- it is not part of a raid
+     * plan, only an omen that one may be close. See
+     * {@link com.hearthstead.settlement.raid.RaidTelegraph#spawnScout} and
+     * {@link com.hearthstead.entity.ai.RaiderScoutGoal}.
+     */
+    public void markScout(UUID settlement) {
+        this.settlementId = settlement;
+        entityData.set(DATA_SCOUT, true);
     }
 
     public float menace() {
@@ -191,6 +221,27 @@ public class RaiderEntity extends Monster {
         return !(target instanceof RaiderEntity) && super.canAttack(target);
     }
 
+    /**
+     * Tallies a landed hit on a settler for the morning defense report
+     * (D-A3-8 / the task's "Aftermath"). Scoped to a LIVE raid on purpose
+     * ({@code settlement.pendingRaid != null}): a scout that gets attacked
+     * and fights back (see {@link com.hearthstead.entity.ai.RaiderScoutGoal})
+     * must never inflate a report for a raid that never actually happened.
+     */
+    @Override
+    public boolean doHurtTarget(net.minecraft.world.entity.Entity target) {
+        boolean hit = super.doHurtTarget(target);
+        if (hit && target instanceof SettlerEntity
+            && level() instanceof ServerLevel server) {
+            Settlement s = settlement();
+            if (s != null && s.pendingRaid != null) {
+                s.raidSettlersHurtTonight++;
+                SettlementSavedData.get(server).setDirty();
+            }
+        }
+        return hit;
+    }
+
     @Override
     public boolean removeWhenFarAway(double distance) {
         return false; // a raid that despawns is a raid that never happened
@@ -236,6 +287,7 @@ public class RaiderEntity extends Monster {
         tag.putBoolean("Captain", isCaptain());
         tag.putFloat("Menace", menace());
         tag.putByte("Objective", (byte) objective().ordinal());
+        tag.putBoolean("Scout", isScout());
     }
 
     @Override
@@ -249,5 +301,8 @@ public class RaiderEntity extends Monster {
         entityData.set(DATA_CAPTAIN, tag.getBoolean("Captain"));
         entityData.set(DATA_MENACE, Mth.clamp(tag.getFloat("Menace"), 1.0F, MAX_MENACE));
         entityData.set(DATA_OBJECTIVE, tag.getByte("Objective"));
+        // Absent on an older save (before scouts existed); default false is
+        // exactly right -- an old raider was never a scout.
+        entityData.set(DATA_SCOUT, tag.getBoolean("Scout"));
     }
 }

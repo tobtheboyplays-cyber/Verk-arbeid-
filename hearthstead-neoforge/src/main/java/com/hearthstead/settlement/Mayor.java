@@ -6,6 +6,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The mayor: one settler who speaks for the settlement, and whose character
@@ -126,6 +128,23 @@ public final class Mayor {
     /** The boon this settler would eventually bring, for the UI to show. */
     public static Boon boonOf(SettlerEntity settler) {
         return Boon.of(settler.attributes().knack());
+    }
+
+    /**
+     * Everyone in the settlement who could take the seat -- everyone but
+     * whoever holds it now. Lives here rather than in the network glue so
+     * the hearth screen's Mayor tab and any future caller share one
+     * definition of "candidate" instead of each re-deriving it.
+     */
+    public static List<SettlerEntity> candidates(ServerLevel level, Settlement settlement) {
+        SettlerEntity mayor = find(level, settlement);
+        List<SettlerEntity> candidates = new ArrayList<>();
+        for (SettlerEntity settler : SettlementManager.loadedMembers(level, settlement)) {
+            if (mayor == null || !settler.getUUID().equals(mayor.getUUID())) {
+                candidates.add(settler);
+            }
+        }
+        return candidates;
     }
 
     /**

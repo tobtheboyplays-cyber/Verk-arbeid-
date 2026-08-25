@@ -46,18 +46,35 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
 
     @Override
     protected boolean shouldShowName(SettlerEntity entity) {
-        return entityRenderDispatcher.distanceToSqr(entity) < 150.0
-            && Minecraft.renderNames();
+        if (!Minecraft.renderNames()) {
+            return false;
+        }
+        // An explicitly flagged name (lineups, debugging, a player naming a
+        // settler) carries vanilla's full 64-block range; the ambient
+        // everyone-nearby-is-named behaviour keeps its short, intimate one.
+        double range = entity.isCustomNameVisible() ? 4096.0 : 150.0;
+        return entityRenderDispatcher.distanceToSqr(entity) < range;
     }
 
     @Override
     protected void renderNameTag(SettlerEntity entity, Component name, PoseStack pose,
                                  MultiBufferSource buffers, int packedLight,
                                  float partialTick) {
+        // 1.21 convention: POSITIVE x scale and the NAME_TAG attachment
+        // point. The old 1.20-era scale(-0.025F, ...) mirror makes every
+        // glyph quad back-facing on 1.21, and the text is culled invisibly
+        // -- proven live (20260825T183505Z): a vanilla pig's tag rendered
+        // while a settler's, drawn by this method, did not.
+        net.minecraft.world.phys.Vec3 attach = entity.getAttachments().getNullable(
+            net.minecraft.world.entity.EntityAttachment.NAME_TAG, 0,
+            entity.getViewYRot(partialTick));
+        if (attach == null) {
+            return;
+        }
         pose.pushPose();
-        pose.translate(0.0F, entity.getBbHeight() + 0.55F, 0.0F);
+        pose.translate(attach.x, attach.y + 0.5, attach.z);
         pose.mulPose(entityRenderDispatcher.cameraOrientation());
-        pose.scale(-0.025F, -0.025F, 0.025F);
+        pose.scale(0.025F, -0.025F, 0.025F);
         Matrix4f matrix = pose.last().pose();
         Font font = getFont();
         int background = (int) (Minecraft.getInstance().options
@@ -66,7 +83,7 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
         float x = -font.width(name) / 2.0F;
         font.drawInBatch(name, x, 0, 0x20FFFFFF, false, matrix, buffers,
             Font.DisplayMode.SEE_THROUGH, background, packedLight);
-        font.drawInBatch(name, x, 0, 0xFFFFFF, false, matrix, buffers,
+        font.drawInBatch(name, x, 0, 0xFFFFFFFF, false, matrix, buffers,
             Font.DisplayMode.NORMAL, 0, packedLight);
 
         // Second line while targeted: profession and current doing.

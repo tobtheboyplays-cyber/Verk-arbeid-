@@ -354,6 +354,26 @@ def ping(dur, f0, tau, rng, amp=1.0):
     return out
 
 
+def bubble_pop(rng, dur=0.055):
+    """One low stew bubble bursting: a fast downward pitch chirp with a quick
+    decay (used for the cook's pot -- nothing else in the mod pops)."""
+    n = n_samples(dur)
+    f0 = rng.uniform(190.0, 260.0)
+    f1 = f0 * rng.uniform(0.35, 0.50)
+    ph = 0.0
+    out = []
+    ap = out.append
+    for i in range(n):
+        t = i / SR
+        f = f0 + (f1 - f0) * min(1.0, t / (dur * 0.55))
+        ph += TWO_PI * f / SR
+        ap(math.sin(ph) * math.exp(-t / (dur * 0.30)))
+    na = max(1, n_samples(0.0015))
+    for i in range(min(na, n)):
+        out[i] *= i / na
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Sound renderers — each returns an un-normalized float buffer;
 # finalize() trims to the target duration and applies fades/normalization.
@@ -1083,6 +1103,144 @@ def render_loom_clack(rng, dur, variant=0):
     return soft_clip(mix, 1.05)
 
 
+# ---------------------------------------------------------------------------
+# JOB_STANDARD point 6 -- the last five borrowed voices. Each of these fills
+# its whole clip loop (duration == the trade's soundPeriodOf, in seconds) and
+# places its accent at the exact clip-time the catalogue keys the motion to,
+# because CrafterWorkGoal retriggers the SoundEvent once per loop at a fixed
+# phase -- the timing has to live inside the OGG, not in the trigger.
+# ---------------------------------------------------------------------------
+
+def render_pot_stir(rng, dur, variant=0):
+    """Cook: a wooden spoon dragged in a circle through a bubbling pot. One
+    scrape swell per loop, cresting at the far side of the ellipse where a
+    real stir accelerates through the thick of it, with the stew bubbling
+    under it the whole time. Nothing else in the mod moves a sound in a
+    circle -- that is the signature, not a re-tuned press."""
+    n = n_samples(dur)
+    center = 620.0 if variant == 0 else 560.0
+    stir = biquad_bp(white_noise(rng, dur), center, 0.85)
+    stir = one_pole_lp(stir, 2000)
+    out = []
+    ap = out.append
+    for i in range(n):
+        p = i / n
+        # One lobe spanning the whole loop, floor at the near side (loop
+        # boundary), crest at the far side (mid-loop) -- the ellipse.
+        swell = 0.26 + 0.74 * (math.sin(math.pi * p) ** 1.3)
+        ap(stir[i] * swell)
+    mix = []
+    mix_at(mix, out, 0.0, 0.5)
+    # The catch: the spoon clips the iron rim right at the swell's crest.
+    catch = biquad_bp(white_noise(rng, 0.05), 2500.0 * rng.uniform(0.95, 1.05), 2.0)
+    ce = env_exp(len(catch), attack=0.0015, tau=0.02)
+    mix_at(mix, [catch[i] * ce[i] for i in range(len(catch))], 0.5 * dur - 0.01, 0.32)
+    # Bubbles: sparse low pops through the whole simmer.
+    for k in range(9):
+        t = (k + rng.uniform(0.15, 0.85)) * dur / 9.0
+        mix_at(mix, bubble_pop(rng), t, rng.uniform(0.15, 0.30))
+    return soft_clip(mix, 1.05)
+
+
+def render_plane_shave(rng, dur, variant=0):
+    """Carpenter: one plane stroke -- a long shaving hiss with the grain
+    catching irregularly on the way past, fast and loud on the push, held
+    while the shaving clears, then a light, quiet drag on the way back.
+    The irregular (non-periodic) grain catch is what keeps this from being
+    saw_stroke's even tooth-tremolo re-pitched -- a plane shears through in
+    one continuous pass, a saw bites back and forth."""
+    n = n_samples(dur)
+    hp_edge = 2200.0 if variant == 0 else 2500.0
+    hiss = one_pole_lp(one_pole_hp(white_noise(rng, dur), hp_edge), 7500)
+    grain = biquad_bp(white_noise(rng, dur), 1050.0 * rng.uniform(0.95, 1.05), 1.5)
+    fl = flutter_env(n, rng, rate=46.0 + 6.0 * variant, depth=0.8)
+    out = []
+    ap = out.append
+    for i in range(n):
+        p = (i / SR) / dur
+        if p < 0.40:
+            env, grain_amt = (p / 0.40) ** 0.75, 0.55
+        elif p < 0.50:
+            env, grain_amt = 1.0, 0.45
+        else:
+            env = max(0.0, 1.0 - (p - 0.50) / 0.50) ** 1.4 * 0.42
+            grain_amt = 0.10
+        ap(hiss[i] * env * (0.6 + 0.4 * fl[i]) + grain[i] * env * grain_amt * fl[i])
+    return soft_clip(out, 1.1)
+
+
+def render_chisel_tap(rng, dur, variant=0):
+    """Mason: one bright chisel tap on stone, landing exactly where the
+    catalogue's mallet strike does (0.50 s into the 1.05 s loop) -- silence
+    through the wind-up, then a tight metallic tink, a duller stone bite a
+    hair later, and a couple of grit specks as the chip comes free. The
+    genuine metallic ring (bell partials) is what separates this from
+    pick_strike's flat, toneless tick -- a mallet on a chisel handle rings,
+    a swung pick point does not."""
+    strike_t = 0.50
+    f0 = 2200.0 if variant == 0 else 1950.0
+    mix = []
+    tink = bell_tone(0.05, f0, rng, tau=0.030,
+                      partials=((1.0, 1.0, 1.0), (2.4, 0.42, 0.5), (4.1, 0.16, 0.3)))
+    mix_at(mix, tink, strike_t, 0.62)
+    bite = biquad_bp(white_noise(rng, 0.04), 780.0 * rng.uniform(0.95, 1.05), 4.0)
+    be = env_exp(len(bite), attack=0.0008, tau=0.014)
+    mix_at(mix, [bite[i] * be[i] for i in range(len(bite))], strike_t + 0.0015, 0.55)
+    for _ in range(3):
+        g = one_pole_hp(white_noise(rng, 0.004), 5500)
+        ge = env_exp(len(g), attack=0.0004, tau=0.0018)
+        mix_at(mix, [g[i] * ge[i] for i in range(len(g))],
+               strike_t + 0.02 + rng.uniform(0.0, 0.10), rng.uniform(0.10, 0.22))
+    return soft_clip(mix, 1.2)
+
+
+def render_feather_pinch(rng, dur, variant=0):
+    """Fletcher: three tiny pinches seating feathers against the shaft, on
+    the catalogue's own irregular rhythm (0.35 / 0.75 / 1.20 s of the 1.60 s
+    loop) rather than a metronome. Each pinch is a soft airy rustle plus the
+    faint press of a fingertip -- no metal, no wood, because fine work reads
+    through stillness and small events, not a sweep. The smallest, quietest
+    story of the five on purpose."""
+    times = (0.35, 0.75, 1.20)
+    mix = []
+    for k, t in enumerate(times):
+        c = (5200.0 if k != 1 else 4700.0) * rng.uniform(0.92, 1.08) * (1.0 + 0.03 * variant)
+        rustle = noise_burst(rng, 0.045, c, 1.0, attack=0.001, tau=0.018,
+                             flutter_rate=130.0, flutter_depth=0.7)
+        mix_at(mix, rustle, t, 0.55 + 0.10 * k)
+        press = one_pole_lp(white_noise(rng, 0.03), 650.0)
+        pe = env_exp(len(press), attack=0.001, tau=0.012)
+        mix_at(mix, [press[i] * pe[i] for i in range(len(press))], t + 0.002, 0.30)
+    return mix
+
+
+def render_hide_scrape(rng, dur, variant=0):
+    """Tanner: a two-handed scraper drawn hard down the hide -- the heaviest
+    loop of the five, shoulders rather than fingers. One long fibrous drag
+    that ramps in as the arms commit, holds while the stroke finishes at the
+    bottom, then lifts off quiet. Pitched a full register below plane_shave's
+    hiss and saw_stroke's rasp so it reads as leather under load, not wood."""
+    n = n_samples(dur)
+    center = 420.0 if variant == 0 else 370.0
+    fiber = one_pole_lp(biquad_bp(white_noise(rng, dur), center, 0.7), 1400)
+    body = one_pole_lp(white_noise(rng, dur), 220.0)
+    fl = flutter_env(n, rng, rate=26.0 + 3.0 * variant, depth=0.55)
+    out = []
+    ap = out.append
+    for i in range(n):
+        p = (i / SR) / dur
+        if p < 0.15:
+            env = (p / 0.15) ** 0.8
+        elif p < 0.75:
+            env = 1.0
+        elif p < 0.85:
+            env = 0.85
+        else:
+            env = max(0.0, 1.0 - (p - 0.85) / 0.15) ** 1.2 * 0.75
+        ap((fiber[i] * (0.7 + 0.3 * fl[i]) + 0.4 * body[i]) * env)
+    return soft_clip(out, 1.1)
+
+
 SOUND_SPECS = [
     ("hearth_founded",      3.0, render_hearth_founded,     {}, 0.70),
     ("profession_assigned", 1.2, render_profession_assigned, {}, 0.70),
@@ -1110,6 +1268,20 @@ SOUND_SPECS = [
     ("cleaver_chop",        0.25, render_cleaver_chop, {"variant": 0}, 0.66),
     ("cleaver_chop2",       0.25, render_cleaver_chop, {"variant": 1}, 0.66),
     ("loom_clack",          0.30, render_loom_clack, {"variant": 0}, 0.52),
+    # JOB_STANDARD point 6 -- the last five borrowed voices (§20 of the
+    # catalogue). Each spec's duration is the trade's soundPeriodOf in
+    # seconds, exactly, so the accent placed inside the render lands where
+    # CrafterWorkGoal's one-per-loop trigger actually plays it.
+    ("pot_stir",             1.50, render_pot_stir, {"variant": 0}, 0.60),
+    ("pot_stir2",            1.50, render_pot_stir, {"variant": 1}, 0.60),
+    ("plane_shave",          1.30, render_plane_shave, {"variant": 0}, 0.58),
+    ("plane_shave2",         1.30, render_plane_shave, {"variant": 1}, 0.58),
+    ("chisel_tap",           1.05, render_chisel_tap, {"variant": 0}, 0.70),
+    ("chisel_tap2",          1.05, render_chisel_tap, {"variant": 1}, 0.70),
+    ("feather_pinch",        1.60, render_feather_pinch, {"variant": 0}, 0.55),
+    ("feather_pinch2",       1.60, render_feather_pinch, {"variant": 1}, 0.55),
+    ("hide_scrape",          1.20, render_hide_scrape, {"variant": 0}, 0.65),
+    ("hide_scrape2",         1.20, render_hide_scrape, {"variant": 1}, 0.65),
     ("settler_hm",          0.7, render_settler_hm, {"variant": 0}, 0.35),
     ("settler_hm2",         0.7, render_settler_hm, {"variant": 1}, 0.35),
     # SLICE ANIM-1 additions.
@@ -1228,6 +1400,41 @@ SOUNDS_JSON_DATA = {
     "loom_clack": {
         "sounds": [{"name": "hearthstead:loom_clack", "volume": 0.75}],
         "subtitle": "subtitles.hearthstead.loom_clack",
+    },
+    "pot_stir": {
+        "sounds": [
+            {"name": "hearthstead:pot_stir", "volume": 0.8},
+            {"name": "hearthstead:pot_stir2", "volume": 0.8},
+        ],
+        "subtitle": "subtitles.hearthstead.pot_stir",
+    },
+    "plane_shave": {
+        "sounds": [
+            {"name": "hearthstead:plane_shave", "volume": 0.8},
+            {"name": "hearthstead:plane_shave2", "volume": 0.8},
+        ],
+        "subtitle": "subtitles.hearthstead.plane_shave",
+    },
+    "chisel_tap": {
+        "sounds": [
+            {"name": "hearthstead:chisel_tap", "volume": 0.85},
+            {"name": "hearthstead:chisel_tap2", "volume": 0.85},
+        ],
+        "subtitle": "subtitles.hearthstead.chisel_tap",
+    },
+    "feather_pinch": {
+        "sounds": [
+            {"name": "hearthstead:feather_pinch", "volume": 0.7},
+            {"name": "hearthstead:feather_pinch2", "volume": 0.7},
+        ],
+        "subtitle": "subtitles.hearthstead.feather_pinch",
+    },
+    "hide_scrape": {
+        "sounds": [
+            {"name": "hearthstead:hide_scrape", "volume": 0.85},
+            {"name": "hearthstead:hide_scrape2", "volume": 0.85},
+        ],
+        "subtitle": "subtitles.hearthstead.hide_scrape",
     },
     "settler_hm": {
         "sounds": [

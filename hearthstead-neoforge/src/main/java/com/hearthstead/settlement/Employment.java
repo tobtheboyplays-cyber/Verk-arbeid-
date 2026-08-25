@@ -125,13 +125,17 @@ public final class Employment {
     public static SettlerActivity motionOf(BuildingType type) {
         return switch (tradeOf(type)) {
             case BAKER -> SettlerActivity.WORK_OVEN;
-            case COOK -> SettlerActivity.WORK_KNEAD;
-            case BUTCHER, TANNER -> SettlerActivity.WORK_CLEAVE;
+            case COOK -> SettlerActivity.WORK_STIR;
+            case BUTCHER -> SettlerActivity.WORK_CLEAVE;
+            case TANNER -> SettlerActivity.WORK_SCRAPE;
             case SMELTER -> SettlerActivity.WORK_STOKE;
             case MINER -> SettlerActivity.WORK_MINE;
-            case SMITH, MASON -> SettlerActivity.WORK_HAMMER;
-            case SAWYER, CARPENTER -> SettlerActivity.WORK_SAW;
-            case WEAVER, FLETCHER -> SettlerActivity.WORK_WEAVE;
+            case SMITH -> SettlerActivity.WORK_HAMMER;
+            case MASON -> SettlerActivity.WORK_CHISEL;
+            case SAWYER -> SettlerActivity.WORK_SAW;
+            case CARPENTER -> SettlerActivity.WORK_PLANE;
+            case WEAVER -> SettlerActivity.WORK_WEAVE;
+            case FLETCHER -> SettlerActivity.WORK_FLETCH;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -145,6 +149,25 @@ public final class Employment {
      * re-tuned, because subtle variations of the same noise smear into one
      * noise at any distance.
      */
+    /**
+     * Whether this trade's work actually happens AT its building.
+     *
+     * <p>A baker bakes in the bakery and a miner cuts stone under the mine
+     * entrance, so sending them to their building is sending them to work. A
+     * farmer's work is in the fields and a lumberjack's is wherever the trees
+     * are — for them the building is a base, not a workplace.
+     *
+     * <p>Found by watching: a hired lumberjack orbited his camp instead of
+     * felling anything, because the schedule reclaimed him the moment each
+     * felling stint ended.
+     */
+    public static boolean worksAtTheBuilding(BuildingType type) {
+        return switch (tradeOf(type)) {
+            case FARMER, LUMBERER -> false;
+            default -> true;
+        };
+    }
+
     public static net.minecraft.sounds.SoundEvent soundOf(BuildingType type) {
         return switch (motionOf(type)) {
             case WORK_HAMMER -> com.hearthstead.registry.ModSounds.ANVIL_RING.get();
@@ -155,6 +178,14 @@ public final class Employment {
             case WORK_CLEAVE -> com.hearthstead.registry.ModSounds.CLEAVER_CHOP.get();
             case WORK_WEAVE -> com.hearthstead.registry.ModSounds.LOOM_CLACK.get();
             case WORK_MINE -> com.hearthstead.registry.ModSounds.PICK_STRIKE.get();
+            // The last five trades' own voices (JOB_STANDARD point 6,
+            // catalogue §20): each is a different physical story synthesized
+            // for its own motion, not a neighbour's sound re-tuned.
+            case WORK_STIR -> com.hearthstead.registry.ModSounds.POT_STIR.get();
+            case WORK_PLANE -> com.hearthstead.registry.ModSounds.PLANE_SHAVE.get();
+            case WORK_CHISEL -> com.hearthstead.registry.ModSounds.CHISEL_TAP.get();
+            case WORK_FLETCH -> com.hearthstead.registry.ModSounds.FEATHER_PINCH.get();
+            case WORK_SCRAPE -> com.hearthstead.registry.ModSounds.HIDE_SCRAPE.get();
             default -> com.hearthstead.registry.ModSounds.KNEAD_PRESS.get();
         };
     }
@@ -173,6 +204,11 @@ public final class Employment {
             case WORK_CLEAVE -> 17;
             case WORK_WEAVE -> 18;
             case WORK_MINE -> 19;
+            case WORK_STIR -> 30;
+            case WORK_PLANE -> 26;
+            case WORK_CHISEL -> 21;
+            case WORK_FLETCH -> 32;
+            case WORK_SCRAPE -> 24;
             default -> 24;
         };
     }

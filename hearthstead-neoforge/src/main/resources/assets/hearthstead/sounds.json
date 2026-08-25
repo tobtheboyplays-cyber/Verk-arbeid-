@@ -179,6 +179,71 @@
     ],
     "subtitle": "subtitles.hearthstead.loom_clack"
   },
+  "pot_stir": {
+    "sounds": [
+      {
+        "name": "hearthstead:pot_stir",
+        "volume": 0.8
+      },
+      {
+        "name": "hearthstead:pot_stir2",
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.pot_stir"
+  },
+  "plane_shave": {
+    "sounds": [
+      {
+        "name": "hearthstead:plane_shave",
+        "volume": 0.8
+      },
+      {
+        "name": "hearthstead:plane_shave2",
+        "volume": 0.8
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.plane_shave"
+  },
+  "chisel_tap": {
+    "sounds": [
+      {
+        "name": "hearthstead:chisel_tap",
+        "volume": 0.85
+      },
+      {
+        "name": "hearthstead:chisel_tap2",
+        "volume": 0.85
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.chisel_tap"
+  },
+  "feather_pinch": {
+    "sounds": [
+      {
+        "name": "hearthstead:feather_pinch",
+        "volume": 0.7
+      },
+      {
+        "name": "hearthstead:feather_pinch2",
+        "volume": 0.7
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.feather_pinch"
+  },
+  "hide_scrape": {
+    "sounds": [
+      {
+        "name": "hearthstead:hide_scrape",
+        "volume": 0.85
+      },
+      {
+        "name": "hearthstead:hide_scrape2",
+        "volume": 0.85
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.hide_scrape"
+  },
   "settler_hm": {
     "sounds": [
       {

@@ -5,6 +5,57 @@ affects, and any migration concern.
 
 ---
 
+## D-018 — Showcase pose/pulse/lineup are a viewing aid, never a test oracle
+
+**Decision.** `/hearthstead pose`, `pulse` and `lineup`
+(`HearthsteadCommand`, this session) let an operator put any settler into
+any of the 33 catalogued poses on demand, for filming and eyeballing. **No
+GameTest may call `pose` and then assert on the result.**
+
+**Reason.** `applyPose` calls `settler.setNoAi(true)` and writes the
+activity/profession projection directly onto the entity, skipping goal
+selection entirely. A posed settler is wearing the job's costume, not doing
+the job. Asserting after a pose would prove the poser works, not that any
+settler's own AI ever reaches that state — the one thing a GameTest exists
+to check.
+
+**Rejected.** Reusing showcase as a cheap animation regression check (pose
+every clip, screenshot, diff) — tempting because the wiring already exists,
+but it would silently certify clips no AI path ever plays.
+
+**Affects.** `HearthsteadCommand`, `qa/scripts/showcase.sh`, and every
+future animation GameTest — assert on the activity a settler's own goal
+selected, never on a posed one.
+
+---
+
+## D-017 — The D-016 motion invariant now holds for every trade; certification stays a separate, still-open claim
+
+**Decision.** `Employment.motionOf` maps every trade that runs through
+`Production` to a distinct `SettlerActivity` — the switch has twelve arms
+and twelve different clips, none shared. D-016's "twelve trades still on a
+base motion" note is closed: cook → `WORK_STIR`, carpenter → `WORK_PLANE`,
+mason → `WORK_CHISEL`, fletcher → `WORK_FLETCH`, tanner → `WORK_SCRAPE`
+(`docs/ANIMATION_CATALOGUE.md` §20), on top of the seven landed earlier in
+the same slice.
+
+**Reason.** Motion distinctness is not the same claim as "the job is done."
+`tools/job_audit.py`'s CERTIFIED set gained only **smith** this round (its
+seventh member); cook, carpenter, mason, fletcher and tanner stay off it —
+each still borrows another trade's work sound, and job standard point 6 ("a
+distinct sound") is unmet until that debt is paid. Recording both halves
+here stops a future pass from either re-deriving which trades still owe
+work, or over-claiming "D-016 done" as "five more jobs certified."
+
+**Affects.** `SettlerActivity` (the five new activities are **appended**,
+per the enum's own "ordinals... must never shift" rule —
+`SettlerEntity.DATA_ACTIVITY` is ordinal-keyed wire format),
+`Employment.motionOf` and `.soundOf`, `tools/job_audit.py`'s `MOTION_CLIP`
+table, `JOB_STANDARD.md`'s trade table (five rows now read "not yet" with a
+named **sound** debt, not a motion debt).
+
+---
+
 ## D-007 — A courier's load is visible, and carry capacity is a real mechanic
 
 **Decision** (owner directive, A2a). The courier wears a visible load sack.

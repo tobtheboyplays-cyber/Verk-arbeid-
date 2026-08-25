@@ -40,7 +40,14 @@ public enum SettlerActivity {
     GATHERING_LOG("gathering_log"),
     WORK_OVEN("work_oven"),
     WORK_SOW("work_sow"),
-    WORK_MINE("work_mine");
+    WORK_MINE("work_mine"),
+    // D-016 completion (VISUAL-2): the last five trades that still shared a
+    // neighbour's motion get their own. Same wire-format rule -- append only.
+    WORK_STIR("work_stir"),
+    WORK_PLANE("work_plane"),
+    WORK_CHISEL("work_chisel"),
+    WORK_FLETCH("work_fletch"),
+    WORK_SCRAPE("work_scrape");
 
     public static final SettlerActivity[] BY_ID = values();
 

@@ -47,6 +47,25 @@ public final class ClientHooks {
         }
     }
 
+    /** A settler snapshot arrived; only an already-open sheet consumes it. */
+    public static void showSettlerSnapshot(com.hearthstead.network.SettlerSnapshotPayload snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen instanceof com.hearthstead.client.screen.SettlerScreen open) {
+            open.update(snapshot);
+        }
+    }
+
+    /**
+     * A mayor-seat snapshot arrived. Update-only: the hearth screen is opened
+     * by the normal container flow, never by this payload.
+     */
+    public static void showHearthMayor(com.hearthstead.network.HearthMayorSnapshot snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen instanceof com.hearthstead.client.screen.HearthScreen open) {
+            open.updateMayor(snapshot);
+        }
+    }
+
     private ClientHooks() {
     }
 }

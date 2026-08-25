@@ -12,8 +12,11 @@ import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidCaptain;
 import com.hearthstead.settlement.raid.RaidDirector;
+import com.hearthstead.settlement.raid.RaidLogEntry;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.raid.RaidPlan;
+import com.hearthstead.settlement.raid.RaidPressure;
+import com.hearthstead.settlement.raid.RaidTelegraph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -382,5 +385,177 @@ public class RaiderGameTests {
             guard.getTarget() == raider || raider.getTarget() == guard,
             "a guard and a raider inside the settlement should engage; guard="
                 + guard.getTarget() + " raider=" + raider.getTarget()));
+    }
+
+    // ---------------------------------------------------------- SLICE A3-RAIDS ---
+
+    /**
+     * D-A3-3: escalation must be legible in the stage, not only felt through
+     * wealth. The same settlement, unchanged in every other way, must pull a
+     * visibly bigger band once it reads as besieged.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void bandSizeEscalatesWithPressureStage(GameTestHelper helper) {
+        Settlement calm = new Settlement(UUID.randomUUID(), "Calm", BlockPos.ZERO);
+        Settlement besieged = new Settlement(UUID.randomUUID(), "Besieged", BlockPos.ZERO);
+        for (int i = 0; i < 6; i++) {
+            calm.putRecord(UUID.randomUUID(), "C" + i, Profession.NONE);
+            besieged.putRecord(UUID.randomUUID(), "B" + i, Profession.NONE);
+        }
+        besieged.raidPressure.setPressureForTesting(RaidPressure.BELEIRING_THRESHOLD);
+        var random = helper.getLevel().getRandom();
+        RaidCaptain captain = RaidCaptain.generate(random);
+        int calmBand = RaidDirector.bandSizeFor(calm, captain);
+        int siegeBand = RaidDirector.bandSizeFor(besieged, captain);
+        helper.assertTrue(siegeBand > calmBand,
+            "the same settlement under siege must pull a bigger band than a "
+                + "calm one: siege=" + siegeBand + " calm=" + calmBand);
+        helper.assertTrue(siegeBand <= RaidDirector.MAX_BAND,
+            "and escalation must still respect the performance cap, got " + siegeBand);
+        helper.succeed();
+    }
+
+    /**
+     * The aftermath report (D-A3-8 / "Aftermath"): what a lost raid actually
+     * cost must be readable afterward, not only felt in the moment.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    public void aLostRaidLeavesAReportOfWhatWasStolenAndWhoWasHurt(GameTestHelper helper) {
+        buildArena(helper, 12);
+        Settlement s = makeSettlement(helper, new BlockPos(6, 1, 6));
+        for (int i = 0; i < 6; i++) {
+            s.putRecord(UUID.randomUUID(), "S" + i, Profession.NONE);
+        }
+        var level = helper.getLevel();
+        RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
+        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 5L);
+        s.raidLootEscaped = true;
+        s.raidItemsStolenTonight = 7;
+        s.raidSettlersHurtTonight = 2;
+
+        helper.assertTrue(RaidDirector.resolveIfOver(level, s),
+            "with nobody left the raid resolves");
+        helper.assertTrue(!s.raidLog.isEmpty(), "the morning must leave a record");
+        RaidLogEntry entry = s.raidLog.get(s.raidLog.size() - 1);
+        helper.assertTrue(!entry.held(), "the settlement lost this one");
+        helper.assertTrue(entry.itemsStolen() == 7,
+            "the report must say what was taken, got " + entry.itemsStolen());
+        helper.assertTrue(entry.settlersHurt() == 2,
+            "and who was hurt, got " + entry.settlersHurt());
+        helper.assertTrue(entry.captainName().equals(captain.name()),
+            "and who led it, got " + entry.captainName());
+        helper.assertTrue(s.raidItemsStolenTonight == 0 && s.raidSettlersHurtTonight == 0,
+            "tallies must reset so tomorrow's raid starts honest");
+        helper.succeed();
+    }
+
+    /** The other outcome must read differently: held means nothing was taken. */
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    public void aHeldRaidIsLoggedAsHeldWithoutStolenGoods(GameTestHelper helper) {
+        buildArena(helper, 12);
+        Settlement s = makeSettlement(helper, new BlockPos(6, 1, 6));
+        for (int i = 0; i < 6; i++) {
+            s.putRecord(UUID.randomUUID(), "S" + i, Profession.NONE);
+        }
+        var level = helper.getLevel();
+        RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
+        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 6L);
+        s.raidSettlersHurtTonight = 1;
+        // raidLootEscaped is left false: nothing got away with the goods.
+
+        helper.assertTrue(RaidDirector.resolveIfOver(level, s),
+            "with nobody left the raid resolves");
+        RaidLogEntry entry = s.raidLog.get(s.raidLog.size() - 1);
+        helper.assertTrue(entry.held(), "nothing escaped, so the settlement held");
+        helper.assertTrue(entry.itemsStolen() == 0,
+            "held must mean nothing was stolen, got " + entry.itemsStolen());
+        helper.assertTrue(entry.settlersHurt() == 1,
+            "but people can still be hurt in a raid that is repelled, got "
+                + entry.settlersHurt());
+        helper.succeed();
+    }
+
+    /** The report is a history, not an unbounded diary -- capped like the enemy gallery. */
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    public void theRaidLogStaysBounded(GameTestHelper helper) {
+        Settlement s = new Settlement(UUID.randomUUID(), "Logtown", BlockPos.ZERO);
+        var level = helper.getLevel();
+        for (int i = 0; i < RaidDirector.MAX_RAID_LOG + 5; i++) {
+            RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
+            s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, i);
+            helper.assertTrue(RaidDirector.resolveIfOver(level, s),
+                "an empty band resolves immediately");
+        }
+        helper.assertTrue(s.raidLog.size() <= RaidDirector.MAX_RAID_LOG,
+            "the raid log must stay bounded, got " + s.raidLog.size());
+        helper.succeed();
+    }
+
+    /**
+     * A hit landed as part of a live raid must count toward the morning
+     * report; the same raider swinging outside a raid (a scout defending
+     * itself, say) must not inflate one that never happened.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "day")
+    public void hurtingASettlerIsOnlyTalliedDuringALiveRaid(GameTestHelper helper) {
+        buildArena(helper, 10);
+        Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
+        SettlerEntity outsideRaid = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(6, 1, 5));
+        outsideRaid.setSettlerName("Kari");
+        outsideRaid.bindTo(s.id, s.center);
+        s.putRecord(outsideRaid.getUUID(), outsideRaid.getSettlerName(), Profession.NONE);
+        SettlerEntity duringRaid = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(7, 1, 5));
+        duringRaid.setSettlerName("Ola");
+        duringRaid.bindTo(s.id, s.center);
+        s.putRecord(duringRaid.getUUID(), duringRaid.getSettlerName(), Profession.NONE);
+
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(4, 1, 5));
+        raider.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+
+        raider.doHurtTarget(outsideRaid);
+        helper.assertTrue(s.raidSettlersHurtTonight == 0,
+            "a hit outside a live raid must not be tallied, got "
+                + s.raidSettlersHurtTonight);
+
+        s.pendingRaid = new RaidPlan(UUID.randomUUID(), RaidObjective.BLOD, 0.0F, 1L);
+        raider.doHurtTarget(duringRaid);
+        helper.assertTrue(s.raidSettlersHurtTonight == 1,
+            "a hit during a live raid must be tallied for the defense report, got "
+                + s.raidSettlersHurtTonight);
+        helper.succeed();
+    }
+
+    /**
+     * Telegraphing (D-A3's "1-2 days ahead"): a scout is a real, findable
+     * RaiderEntity, but it must never itself start the fight it is warning
+     * the settlement about.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400, batch = "day")
+    public void scoutsAreOmensAndDoNotHuntEvenNextToSettlers(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
+        SettlerEntity guard = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(9, 1, 7));
+        guard.setSettlerName("Vakt");
+        guard.bindTo(s.id, s.center);
+        s.putRecord(guard.getUUID(), guard.getSettlerName(), Profession.NONE);
+        guard.assignProfession(Profession.GUARD);
+
+        RaiderEntity scout = RaidTelegraph.spawnScout(helper.getLevel(), s);
+        helper.assertTrue(scout != null, "the omen must actually appear");
+        helper.assertTrue(scout.isScout(), "and be flagged as a scout, not a raider");
+
+        // Control: an ordinary raider in the same arena must still hunt, so
+        // a null target on the scout proves the guard, not just an empty test.
+        RaiderEntity control = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(9, 1, 9));
+        control.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(control.getTarget() == guard || guard.getTarget() == control,
+                "control check: an ordinary raider must still hunt, or this "
+                    + "test proves nothing");
+            helper.assertTrue(scout.getTarget() == null,
+                "a scout is an omen, not a fight -- it must never initiate "
+                    + "one, got target=" + scout.getTarget());
+        });
     }
 }

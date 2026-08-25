@@ -106,6 +106,12 @@ public final class Schedule {
         if (phase.work()) {
             Building work = Employment.employerOf(settlement, settler.getUUID());
             if (work != null && work.valid) {
+                // Only if the work is actually THERE. A farmer's fields and
+                // a lumberjack's trees are not, and posting them to the
+                // building has them walk back to the shed between stints.
+                if (!Employment.worksAtTheBuilding(work.type)) {
+                    return null;
+                }
                 return new Posting(work.anchor, SettlerActivity.TRAVELING, "work");
             }
             // Unemployed in working hours: they gather where the idle gather,

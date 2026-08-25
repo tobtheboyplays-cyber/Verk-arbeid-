@@ -264,6 +264,11 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.ovenState, SettlerAnimations.OVEN_TEND, ageInTicks + (id % 32));
         animate(entity.sowState, SettlerAnimations.SOW_BROADCAST, ageInTicks + (id % 28));
         animate(entity.mineState, SettlerAnimations.MINE_PICK, ageInTicks + (id % 19));
+        animate(entity.stirState, SettlerAnimations.COOK_STIR, ageInTicks + (id % 30));
+        animate(entity.planeState, SettlerAnimations.CARPENTER_PLANE, ageInTicks + (id % 26));
+        animate(entity.chiselState, SettlerAnimations.MASON_CHISEL, ageInTicks + (id % 21));
+        animate(entity.fletchState, SettlerAnimations.FLETCHER_FLETCH, ageInTicks + (id % 32));
+        animate(entity.scrapeState, SettlerAnimations.TANNER_SCRAPE, ageInTicks + (id % 24));
         animate(entity.leapState, SettlerAnimations.LEAP_STRIKE, ageInTicks);
         animate(entity.gatherState, SettlerAnimations.GATHER_LOG, ageInTicks);
         // COURIER_SORT: a stationary work clip, the same pattern as

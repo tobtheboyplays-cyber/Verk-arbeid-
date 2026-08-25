@@ -76,7 +76,7 @@ A trade is **certified** when all eleven points pass. `tools/job_audit.py`
 holds the list and fails on regression, so certification is a ratchet rather
 than a claim.
 
-**The starter pack is certified.** These six are the set both references hand
+**The starter pack is certified.** These are the set both references hand
 you first, and every one of them passes all eleven points:
 
 | trade | certified | its signature |
@@ -87,7 +87,17 @@ you first, and every one of them passes all eleven points:
 | guard | **yes** | patrols in earshot; ranks up into cleave and the leap strike |
 | miner | **yes** | cuts stone, and stops when there is nowhere to put it |
 | baker | **yes** | works the oven with a peel, and flips it |
-| cook, butcher, smelter, smith, sawyer, carpenter, mason, fletcher, weaver, tanner | not yet | have work, sound and motion; need their own signature clip and tests |
+| smith | **yes** | rings the anvil — wind-up, strike, beat, recover |
+| cook | not yet | stirs the pot in a circle (§20.1); borrows the kneader's sound |
+| carpenter | not yet | planes with the torso leading (§20.2); borrows the saw's sound |
+| mason | not yet | taps the chisel, impact-checked (§20.3); borrows the pick's sound |
+| fletcher | not yet | seats feathers in three pinches (§20.4); borrows the loom's sound |
+| tanner | not yet | scrapes the hide two-handed (§20.5); borrows the saw's sound |
+| butcher, smelter, sawyer, weaver | not yet | own motion, sound and work; need their own GameTest |
+
+Every trade now has its **own signature motion** (D-016 complete — §18–§20 of
+the catalogue). What still gates certification is honest: five trades borrow a
+neighbour's sound, and nine lack a trade-specific GameTest.
 
 ## Why this shape
 

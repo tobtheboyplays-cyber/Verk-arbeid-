@@ -7,15 +7,20 @@ import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Settlement;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
+
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -99,7 +104,8 @@ public class LumbererWorkGoal extends Goal {
             return false;
         }
         scanCooldown = 80 + settler.getRandom().nextInt(40);
-        List<BlockPos> bases = scanner.scan(s.center, s.radius, 512, 6, this::isTreeBase);
+        List<BlockPos> bases = scanner.scanColumns(s.center, s.radius, 512, 6,
+            this::trunkInColumn);
         for (BlockPos base : bases) {
             List<BlockPos> logs = validateTree(base);
             if (!logs.isEmpty()) {
@@ -112,6 +118,43 @@ public class LumbererWorkGoal extends Goal {
         }
         return false;
     }
+
+
+    /**
+     * Looks for the foot of a trunk in one column of the settlement.
+     *
+     * <p>Reads the surface once and stops there for the overwhelming majority
+     * of columns, which hold grass or a roof and no tree at all. Only when the
+     * top of the column is itself a log does this walk down the trunk, so the
+     * expensive part of the search is paid on trees and nowhere else.
+     *
+     * <p>The descent is capped: a jungle giant is about thirty logs tall, and
+     * a cap well under that is the difference between "no tree here" and a
+     * scan that follows a decorative column down to bedrock.
+     */
+    @Nullable
+    private BlockPos trunkInColumn(BlockPos column) {
+        Level level = settler.level();
+        if (!level.hasChunkAt(column)) {
+            return null;
+        }
+        BlockPos surface = level.getHeightmapPos(
+            Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column);
+        BlockPos.MutableBlockPos cursor = surface.mutable().move(Direction.DOWN);
+        if (!level.getBlockState(cursor).is(BlockTags.LOGS_THAT_BURN)) {
+            return null;
+        }
+        for (int step = 0; step < TRUNK_DESCENT; step++) {
+            BlockPos below = cursor.below();
+            if (!level.getBlockState(below).is(BlockTags.LOGS_THAT_BURN)) {
+                return isTreeBase(cursor) ? cursor.immutable() : null;
+            }
+            cursor.move(Direction.DOWN);
+        }
+        return null;
+    }
+
+    private static final int TRUNK_DESCENT = 32;
 
     private boolean isTreeBase(BlockPos pos) {
         BlockState state = settler.level().getBlockState(pos);

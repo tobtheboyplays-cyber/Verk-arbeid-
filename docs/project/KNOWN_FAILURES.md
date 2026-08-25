@@ -888,3 +888,36 @@ recorded here.
 **Do not** treat a green suite as evidence this is resolved. It is a real
 gap in raid resolution, and it belongs to the raid slice's remaining work
 alongside the telegraph and the scar.
+
+## KF-018 — the lumberjack's tree scan starved on sparse maps
+
+**Status:** FIXED (2026-08-25), verified live.
+
+**The evidence.** In live scene 20260825T180116Z a hired lumberjack stood
+idle beside four planted oaks for the entire session. No exception, no route
+failure — `LumbererWorkGoal.canUse` simply never found a tree.
+
+**Root cause, two independent halves.** The volume scan
+(`WorkScanner.scan`) walks a 97×97×9 offset table — 84 681 positions — at
+512 positions per call, one call every 4–6 seconds: a full sweep of the
+settlement takes about fourteen minutes of standing still. Worse, the
+vertical band (±4) is anchored to the *hearth's* Y, so a tree four blocks up
+a slope was invisible forever, not merely late.
+
+**The fix.** `WorkScanner.scanColumns`: anything that grows out of the
+ground is found by asking each *column* what is on top of it —
+`getHeightmapPos` per column, 9 409 columns, a sweep in ~12 calls — and
+elevation stops mattering because the surface is wherever the surface is.
+`LumbererWorkGoal.trunkInColumn` walks down from the surface only when the
+surface block is itself a log (capped at `TRUNK_DESCENT = 32`), so the
+expensive part is paid only on columns that hold a trunk.
+
+**Live proof** (20260825T183505Z, village "Heatherbrook"): hired lumberjack
+walked to a `place feature`-planted oak within seconds of daylight, felled
+it (trunk verified gone), and hauled repeatedly — the hearth's inventory
+grew 0 → 11 → 16 → 27 oak logs across three checks, chest-true.
+
+**The trap this leaves behind.** `scanColumns` sees only the surface: work
+UNDER a roof (a tree farm in a hall, logs in a cave) is invisible to it.
+The lumberjack accepts that trade — natural trees stand under the sky — but
+no underground trade may adopt the column scan without reading this entry.
