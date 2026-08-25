@@ -956,3 +956,44 @@ RestAtNightGoal). Anything found in SettlerEntity is reported, not patched
 their goal-registration lines (repair ×2) or blocked behind this same
 arrival bug (fuel ×3, miner drops ×2, farmer seed reserve). Two tests were
 FIXED tonight (`ahiredsmelteractuallysmelts`, `workshopoutputkeepsitskeepback`).
+
+
+### KF-019 update — the first layer was the harness, not the mod
+
+**2026-08-25 23:00Z.** Root cause of the twenty "settlers never arrive"
+failures: GameTests grouped in one batch spawn together and tick
+CONCURRENTLY in a single ServerLevel, and `setDayTime` is global — so every
+test that set a time silently rewrote the premise of every sibling running
+beside it. Three sleep tests shared batch "night" and set 16000, 22600 and
+22600 on the same clock; thirteen more classes declared no batch at all and
+landed in `defaultBatch` with up to fifty strangers. A settler standing
+exactly on their own post reported TRAVELING because the day phase moved
+under them mid-test.
+
+Fixed by giving every daytime-sensitive class its own batch and splitting
+the three night tests. A second, real product defect was found alongside it
+and fixed: `GoToPostGoal.stop()` never reset the activity, so a settler who
+arrived — or was pulled off by a combat target — stayed pinned at TRAVELING
+until some other goal happened to overwrite it.
+
+Suite went 31 → 21 failures of 194. The live harness had been right all
+along: the mod's loop worked, the suite was lying about it.
+
+**The honest lesson, recorded because it cost a night:** an unrun suite is
+not a passing suite, and a suite that has never been isolated can fail for
+reasons that have nothing to do with the code under test. Neither excuse
+survives contact with evidence — which is why the evidence had to be run.
+
+### KF-020 — crafters stall mid-chain; farmer and lumberer stand idle at real work
+
+**Second layer, visible only once KF-019 cleared.** Crafters do work but
+stall: two batches that should finish in 2×ticks+40 take the full 841-tick
+window (cook budget 240, mason 360, tanner 400; carpenter and fletcher the
+same shape). Farmer and lumberer stand at a mature crop and a standing tree
+with `act=IDLE` and do nothing at all.
+
+Leading hypothesis (unproven, owned by STALL-1): a higher-priority goal is
+starving the trade goals. `EatFromHearthGoal` sits above them and these
+arenas have no hearth, so a `canUse()` that returns true while it can never
+succeed would hold the slot forever. `RepairWorkGoal` was just registered
+at priority 5, above the trades at 6, and claims unemployed settlers.
