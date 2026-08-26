@@ -54,7 +54,15 @@ public enum SettlerActivity {
     // clips: shearing is not fishing is not loosing a shot.
     WORK_SHEAR("work_shear"),
     WORK_FISH("work_fish"),
-    WORK_HUNT("work_hunt");
+    WORK_HUNT("work_hunt"),
+    // ARCHER-2 follow-up (2026-08-26, owner's bug report): "no arrows in the
+    // tower = no shooting" is correct (chest truth); standing there with no
+    // signal why is not. A distinct activity so the nameplate/sheet -- which
+    // already render SettlerActivity#displayName() generically, no renderer
+    // change needed -- say "Out of Arrows" instead of silently reading
+    // "Combat" while nothing happens. Same wire-format rule: append only,
+    // never reorder.
+    OUT_OF_AMMO("out_of_ammo");
 
     public static final SettlerActivity[] BY_ID = values();
 

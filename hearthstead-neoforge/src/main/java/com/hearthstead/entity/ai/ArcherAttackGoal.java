@@ -12,7 +12,9 @@ import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
@@ -108,6 +110,14 @@ public class ArcherAttackGoal extends Goal {
      *  one bounded AABB query per interval, never per tick (budgeted). */
     private static final int RETARGET_INTERVAL = 10;
 
+    /** How far the "out of arrows" line reaches, in blocks -- narrower than
+     *  {@code RaidBroadcast}'s settlement-wide radius+32 on purpose: this is
+     *  a post-specific complaint ("this tower is empty"), not settlement
+     *  news, so it should only reach someone standing near enough to have
+     *  noticed the archer in the first place. See class doc "Starving
+     *  speaks". */
+    private static final double ANNOUNCE_RANGE = 12.0;
+
     private final SettlerEntity settler;
 
     /** Arrows in hand. Chest-true: every increment came out of a tower
@@ -121,6 +131,12 @@ public class ArcherAttackGoal extends Goal {
      *  the Power Shot before it exists. */
     private boolean drawingPowerShot;
     private boolean drawingTripleShot;
+    /** True for the span of ONE continuous starvation episode: set the
+     *  first tick a live target goes unshot for want of arrows, cleared the
+     *  moment the rack has arrows again (restock succeeds) or this goal
+     *  stops. Gates the player-facing line to once per episode rather than
+     *  once per tick -- see {@link #reportOutOfAmmo}. */
+    private boolean outOfAmmoAnnounced;
 
     // Test seams (ArcherGameTests): cadence and ammo are asserted through
     // these, because "design for testability" beats poking at private state.
@@ -178,6 +194,7 @@ public class ArcherAttackGoal extends Goal {
         settler.setActivity(SettlerActivity.COMBAT);
         drawTicks = 0;
         recoverTicks = 0;
+        outOfAmmoAnnounced = false;
         planNextVolley();
     }
 
@@ -193,10 +210,23 @@ public class ArcherAttackGoal extends Goal {
             // No arrows in hand and none reachable: walk to the tower rack.
             // "No arrows in the tower = no shooting" is the honest outcome —
             // the archer stands their post empty-handed rather than the
-            // arrows appearing from nowhere.
+            // arrows appearing from nowhere. But standing there silently is
+            // NOT honest -- see class doc "Starving speaks" (owner's bug
+            // report, 2026-08-26: a hired archer facing zombies "did
+            // nothing" with no signal why). Say so instead.
+            reportOutOfAmmo(level);
             walkTowardsTower(level);
             drawTicks = 0;
             return;
+        }
+        if (outOfAmmoAnnounced) {
+            // The rack has arrows again: this starvation episode is over.
+            // Clearing the flag here (not just on stop/start) is what makes
+            // the NEXT empty spell against the SAME target announce fresh,
+            // rather than staying silently "already told them once" for the
+            // rest of the fight.
+            outOfAmmoAnnounced = false;
+            settler.setActivity(SettlerActivity.COMBAT);
         }
 
         double distance = settler.distanceTo(target);
@@ -245,6 +275,7 @@ public class ArcherAttackGoal extends Goal {
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
         drawTicks = 0;
+        outOfAmmoAnnounced = false;
         LivingEntity target = settler.getTarget();
         if (target != null && !target.isAlive()) {
             settler.setTarget(null);
@@ -447,6 +478,48 @@ public class ArcherAttackGoal extends Goal {
     }
 
     /**
+     * "No arrows in the tower = no shooting" is the correct call (chest
+     * truth) -- but saying nothing about it is the defect the owner's bug
+     * report actually named: a hired archer standing at post, target in
+     * sight, doing nothing, gives the player zero signal that the mod is
+     * behaving correctly rather than being broken.
+     *
+     * <h2>Starving speaks</h2>
+     *
+     * <p>Two channels, both bounded to ONE continuous starvation episode by
+     * {@link #outOfAmmoAnnounced} (cleared the instant the rack has arrows
+     * again, in {@code tick()}, and on {@link #start()}/{@link #stop()}):
+     *
+     * <ul>
+     *   <li>The settler's {@code SettlerActivity} flips to
+     *       {@link SettlerActivity#OUT_OF_AMMO} every tick this branch runs
+     *       -- cheap and idempotent, so it stays true, not just "was true
+     *       once" -- which the nameplate/sheet already render for free
+     *       through {@code SettlerActivity#displayName()}
+     *       ({@code SettlerRenderer} reads {@code getActivity()} generically,
+     *       no per-activity renderer code needed).
+     *   <li>A chat line to players near enough to plausibly be watching this
+     *       archer ({@link #ANNOUNCE_RANGE}), fired ONCE per episode -- the
+     *       same "say it, don't spam it" shape {@code RaidBroadcast} uses
+     *       for settlement-wide lines, narrowed here to a post-specific
+     *       radius rather than the whole settlement.
+     * </ul>
+     */
+    private void reportOutOfAmmo(ServerLevel level) {
+        settler.setActivity(SettlerActivity.OUT_OF_AMMO);
+        if (outOfAmmoAnnounced) {
+            return;
+        }
+        outOfAmmoAnnounced = true;
+        Component message = Component.translatable("hearthstead.archer.no_arrows");
+        for (ServerPlayer player : level.players()) {
+            if (player.distanceToSqr(settler) <= ANNOUNCE_RANGE * ANNOUNCE_RANGE) {
+                player.displayClientMessage(message, false);
+            }
+        }
+    }
+
+    /**
      * Fills the quiver from the tower's own chests, arrow for arrow.
      *
      * <p>Chest truth: the only source is a container inside the WATCHTOWER's
@@ -576,5 +649,11 @@ public class ArcherAttackGoal extends Goal {
     /** Arrows currently in hand. */
     public int quiverCount() {
         return quiver;
+    }
+
+    /** Whether the current starvation episode (if any) has already sent its
+     *  one player-facing line -- see {@link #reportOutOfAmmo}. */
+    public boolean outOfAmmoAnnounced() {
+        return outOfAmmoAnnounced;
     }
 }

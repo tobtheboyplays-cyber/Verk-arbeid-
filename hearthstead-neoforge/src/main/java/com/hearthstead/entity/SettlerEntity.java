@@ -1152,8 +1152,13 @@ public class SettlerEntity extends PathfinderMob {
         eatState.animateWhen(activity == SettlerActivity.EATING, tickCount);
         restState.animateWhen(activity == SettlerActivity.RESTING && !isSleeping(),
             tickCount);
+        // OUT_OF_AMMO keeps the stance: an archer standing at post with an
+        // empty rack still holds the guard pose -- dropping to the plain
+        // idle there made the starving state read as a broken settler,
+        // which is the exact misread the activity exists to prevent.
         stanceState.animateWhen((activity == SettlerActivity.PATROLLING
-            || activity == SettlerActivity.COMBAT) && !moving, tickCount);
+            || activity == SettlerActivity.COMBAT
+            || activity == SettlerActivity.OUT_OF_AMMO) && !moving, tickCount);
 
         // SLICE ANIM-1 additions.
         plantState.animateWhen(activity == SettlerActivity.WORK_PLANT && !moving, tickCount);
