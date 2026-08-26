@@ -1055,3 +1055,39 @@ quietly reopen the door.
 and now the priority:** the three lumberjack tests — felling a tree is the
 first thing a player does, and KF-018 records this exact area as fixed and
 live-verified, so either that regressed or it never covered the arena case.
+
+
+### KF-022 — the lumberjack could only see trees standing in the open
+
+**2026-08-26 01:18Z, run 20260826T011756Z: 11 of 194 red.** Root cause,
+proven by a live column dump rather than by reading: `trunkInColumn` read
+the `MOTION_BLOCKING_NO_LEAVES` surface and treated the block beneath it as
+"the trunk, or there is no tree here". A GameTest arena is roofed with
+barrier blocks, so the surface was the roof — and the scan gave up three
+blocks of air and one leaf above four perfectly good oak logs.
+
+**This was never a test defect.** A tree under a natural overhang, under a
+player-built platform, or with a snow layer over its canopy is exactly the
+same shape, and until tonight this mod could not see any of them. The
+descent now walks past whatever is not a log before following the trunk
+down, sharing one TRUNK_DESCENT budget so a decorative column still cannot
+be walked to bedrock. The three fixtures are byte-for-byte unchanged,
+because they were never wrong.
+
+KF-018 recorded this area as fixed and live-verified, and that was true —
+live trees stand in the open. The arena case it never covered is this one.
+
+### The night's trajectory, for the record
+
+31 -> 25 -> 21 -> 20 -> 22 -> 24 -> 17 -> 14 -> **11** of 194, and the
+three big causes were: tests sharing one world clock, raiders walking into
+the neighbours' arenas, and a scanner that assumed nothing is ever above a
+tree. Two of those three were the harness lying about the mod. The third
+was a real blind spot in the game that no amount of reading had found and
+only a live dump did.
+
+**Still open (11):** the two new raider-breach tests, the courier's restock
+and starving-hearth routes, the fuel band test, the smelter/butcher churn,
+the summon payload error, `homeInvalidatedWhenWallBroken` ("no sequences
+finished"), the plaque advancement's mock-player placement, and the
+bystander pig that is REMOVED rather than damaged.
