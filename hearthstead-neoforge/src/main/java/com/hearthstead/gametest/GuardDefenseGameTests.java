@@ -142,15 +142,32 @@ public class GuardDefenseGameTests {
         // abandoning an existing fight. Only once that is confirmed does the
         // second raider become a threat to a settler, one runnable so the
         // ordering (check, then arm the threat) is not left to chance.
-        helper.runAtTickTime(30, () -> {
-            helper.assertTrue(guard.getTarget() == idleAndNear,
-                "setup: the guard must start on the nearer idle raider, got " + guard.getTarget());
-            laterAttacker.setTarget(victim);
+        // WAIT for the first engagement rather than assuming a tick for it.
+        // This used to be runAtTickTime(30, ...), which failed roughly one run
+        // in three: vanilla's TargetGoal randomises its own first-check
+        // interval, so "has the guard acquired anything by tick 30" is a race,
+        // not a fact. The fix is not a bigger number -- that only moves the
+        // race -- but polling for the condition the test actually depends on.
+        //
+        // Nothing is weakened. Both original assertions survive verbatim: the
+        // guard must engage the near idle raider FIRST (otherwise a later
+        // switch proves nothing about abandoning a fight), and only once that
+        // is true is the far raider armed against a settler. If the first
+        // engagement never happens, the setup assertion keeps failing until
+        // the timeout and the test still fails with its own message.
+        boolean[] armed = {false};
+        helper.succeedWhen(() -> {
+            if (!armed[0]) {
+                helper.assertTrue(guard.getTarget() == idleAndNear,
+                    "setup: the guard must start on the nearer idle raider, got "
+                        + guard.getTarget());
+                laterAttacker.setTarget(victim);
+                armed[0] = true;
+            }
+            helper.assertTrue(armed[0] && guard.getTarget() == laterAttacker,
+                "an already-engaged guard must switch to intercept a raider that starts "
+                    + "attacking a settler, even though it is farther away; got "
+                    + guard.getTarget());
         });
-
-        helper.succeedWhen(() -> helper.assertTrue(guard.getTarget() == laterAttacker,
-            "an already-engaged guard must switch to intercept a raider that starts "
-                + "attacking a settler, even though it is farther away; got "
-                + guard.getTarget()));
     }
 }
