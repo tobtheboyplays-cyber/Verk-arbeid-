@@ -149,6 +149,33 @@ public class GuardTrainingGameTests {
         float pigHealth = bystander.getHealth();
         guard.setTarget(raider);
 
+        // TEMP DIAGNOSTIC (strip before landing): the pig has been observed
+        // removed (not damaged) by t=150 with no attacker on record. Log this
+        // arena's own structure bounds plus a checkpoint trail every 10 ticks
+        // so a run pins the exact tick (and whatever else is nearby then) at
+        // which the pig disappears. Grep gametest.log for "[HS-DIAG]".
+        net.minecraft.world.phys.AABB arenaBounds = helper.getBounds();
+        com.hearthstead.Hearthstead.LOGGER.info(
+            "[HS-DIAG] cleave test start pigUuid={} pigPos={} arenaBounds={}",
+            bystander.getUUID(), bystander.blockPosition(), arenaBounds);
+        for (int t = 10; t <= 150; t += 10) {
+            final int tick = t;
+            helper.runAfterDelay(tick, () -> {
+                java.util.List<net.minecraft.world.entity.Entity> nearby =
+                    helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Entity.class,
+                        arenaBounds.inflate(3.0),
+                        e -> e != guard && e != raider && e != bystander);
+                com.hearthstead.Hearthstead.LOGGER.info(
+                    "[HS-DIAG] t={} pigRemoved={} pigAlive={} pigHealth={} removalReason={}"
+                        + " pigPos={} otherEntitiesNearby={}",
+                    tick, bystander.isRemoved(), bystander.isAlive(),
+                    bystander.isRemoved() ? -1.0F : bystander.getHealth(),
+                    bystander.getRemovalReason(),
+                    bystander.isRemoved() ? "n/a" : bystander.blockPosition().toShortString(),
+                    nearby);
+            });
+        }
+
         // Long enough for several swings (one per 20-tick attack cooldown),
         // so this asserts across many cleave attempts, not one lucky miss.
         helper.runAfterDelay(150, () -> {
@@ -168,6 +195,7 @@ public class GuardTrainingGameTests {
                     + " attacker=" + (bystander.getLastDamageSource() == null
                         ? "none" : String.valueOf(bystander.getLastDamageSource().getEntity()))
                     + " removed=" + bystander.isRemoved()
+                    + " removalReason=" + bystander.getRemovalReason()
                     + " pos=" + bystander.blockPosition().toShortString());
             helper.succeed();
         });

@@ -381,6 +381,83 @@ public class LogisticsGameTests {
         });
     }
 
+    // --------------------------------------------------- arrival regression ---
+
+    /**
+     * LIVE REGRESSION (coordinator diagnostic, run 20260826T013935Z):
+     * {@code hasArrived} used to require {@code building.bounds.isInside(at)}
+     * before it looked at distance at all -- but {@link CourierWorkGoal}'s own
+     * approach-cell picker only guarantees a standable cell TOUCHING the
+     * chest, not one inside the building's own recorded box, and the world's
+     * navigator resolves that request to the last walkable node next to an
+     * obstruction, which can land one step short of the requested cell. Proof
+     * from the field: a courier parked one block outside a 3x3x3 fixture box,
+     * two blocks from the chest, navigation reporting DONE -- and 33 repaths
+     * against a length-1 path that went nowhere, because a containment gate
+     * checked first can never be satisfied by a courier who has gone exactly
+     * as far toward the chest as the world lets her.
+     *
+     * <p>This pins it without relying on that navigator quirk reproducing:
+     * the crafter's registered bounds here are drawn to the chest's own
+     * single cell, narrower than ANY position a courier could physically
+     * stand at (nobody stands inside a chest), so {@code isInside(at)} is
+     * false for every tick of this delivery, by construction. Delivery must
+     * still complete purely on the reach test -- the exact shape of "a target
+     * the navigator cannot stand on", generalised past one specific field
+     * report so a regression here cannot silently return.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "logistics_day")
+    public void restockDeliversWhenTheOnlyStandableCellIsOutsideTheCraftersBounds(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = registerSettlement(helper, hearthRel, 6);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+
+        Building warehouse = addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
+        helper.setBlock(new BlockPos(5, 1, 3), Blocks.CHEST);
+        Container source = containerAt(helper, new BlockPos(5, 1, 3));
+        helper.assertTrue(source != null, "arena warehouse chest should exist");
+        source.setItem(0, new ItemStack(Items.IRON_INGOT, 12));
+
+        // The crafter's bounds are the chest's own single cell -- no
+        // standable approach cell can ever be "inside" a box that small.
+        BlockPos smithyChestRel = new BlockPos(3, 1, 6);
+        addBuilding(helper, s, BuildingType.SMITHY,
+            smithyChestRel, smithyChestRel, new BlockPos(2, 1, 5));
+        helper.setBlock(smithyChestRel, Blocks.CHEST);
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        helper.assertTrue(com.hearthstead.settlement.Employment
+            .hire(helper.getLevel(), s, warehouse, bud).ok(),
+            "the warehouse must be able to take the courier");
+
+        helper.succeedWhen(() -> {
+            Container smithyChest = containerAt(helper, smithyChestRel);
+            Container warehouseChest = containerAt(helper, new BlockPos(5, 1, 3));
+            int atSmithy = countIn(smithyChest, Items.IRON_INGOT);
+            int atWarehouse = countIn(warehouseChest, Items.IRON_INGOT);
+            int total = atSmithy + atWarehouse + bagCount(bud);
+            helper.assertTrue(total == 12,
+                "iron ingots must be conserved even when no standable position "
+                    + "is ever inside the crafter's registered bounds, saw " + total
+                    + " [smithy=" + atSmithy + " warehouse=" + atWarehouse
+                    + " bag=" + bagCount(bud) + "]");
+            helper.assertTrue(atSmithy == 12,
+                "delivery must complete on the reach test alone when the "
+                    + "registered bounds can never contain a standing courier, saw "
+                    + atSmithy + " [act=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+        });
+    }
+
     // ------------------------------------------------- navigation regression ---
 
     /**

@@ -1335,7 +1335,22 @@ public class HearthsteadGameTests {
         });
     }
 
-    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 600)
+    /**
+     * Timeout sized for {@code PlaqueBlockEntity}'s survey grace window
+     * (found live 20260825T183505Z, see {@code PlaqueBlockEntity.GRACE_SURVEYS}):
+     * a standing building now rides out {@code GRACE_SURVEYS} (3) consecutive
+     * bad readings before it actually unlinks, so tearing the hole is only
+     * the FIRST failed survey, forgiven on the spot. Getting to the 4th --
+     * the one that finally invalidates -- takes three more surveys off
+     * {@code PlaqueBlockEntity.SURVEY_INTERVAL}'s own 200-tick clock, since
+     * nothing in this test pokes the plaque again after the initial nudge
+     * (deliberately: a real broken wall isn't re-nudged either, it just sits
+     * broken until the next periodic tick finds it still broken). Worst case
+     * that is 4 * 200 = 800 ticks after the break, so 600 (the old timeout,
+     * sized before the grace window existed) was never going to make it --
+     * this test was failing on its own clock, not on the invalidation logic.
+     */
+    @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 1000)
     public void homeInvalidatedWhenWallBroken(GameTestHelper helper) {
         buildArena(helper, 16, 16);
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 12);

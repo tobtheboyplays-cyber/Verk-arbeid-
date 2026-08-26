@@ -21,6 +21,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -82,9 +83,13 @@ import java.util.function.Predicate;
  * to the outside of the wall, never satisfied the arrival radius, gave up
  * and re-triggered forever with the load stranded in her bag. The courier
  * now walks to a standable cell beside a real chest, and only stows once
- * she is <em>inside</em> the building's own bounds -- so goods cannot be
- * posted through a wall either. The same standard now applies to a
- * crafter's own chests on the restock route.
+ * she is genuinely within reach of it -- so goods cannot be posted through
+ * a wall either (see {@link #hasArrived}, which keeps that promise with a
+ * reach test rather than requiring literal containment in the building's
+ * own recorded bounds -- a strict containment gate could be permanently
+ * unsatisfiable when the only standable cell beside the chest lands just
+ * outside it). The same standard now applies to a crafter's own chests on
+ * the restock route.
  */
 public class CourierWorkGoal extends Goal {
 
@@ -857,20 +862,53 @@ public class CourierWorkGoal extends Goal {
     }
 
     /**
-     * Arrival means <em>inside the building, at the chest</em> -- being
-     * within reach through a wall is not arriving. The building's bounds
-     * come from the plaque's room scan and include its shell, so a settler
-     * in the doorway counts as inside while one outside the wall does not.
-     * Shared by every leg with a chest destination -- a restock delivery
-     * walking through a crafter's wall would be the exact same wedge this
-     * was written to close for consolidation (KF-013).
+     * Arrival is a REACH test, not a containment test -- being within reach
+     * through a real wall is not arriving, but a courier standing exactly as
+     * close to the chest as the world lets her stand always is, whether or
+     * not that spot is inside the building's own recorded box.
+     *
+     * <p>LIVE REGRESSION (coordinator diagnostic, run 20260826T013935Z): a
+     * strict {@code bounds.isInside(at)} gate used to be checked FIRST and
+     * failed the whole test on its own, before distance was ever looked at.
+     * {@link #approachTo} already puts the courier on a standable cell
+     * touching the container -- but the navigator resolves that request to
+     * the last WALKABLE node next to an obstruction (a chest, a wall), which
+     * can land one step short of the requested cell. When the container sits
+     * flush on the edge of the building's own bounds (routine for a chest
+     * against the near wall of a room), landing one step short lands OUTSIDE
+     * the box -- two blocks from the chest, navigation reporting DONE, and a
+     * predicate that can never be satisfied however long she waits: 33
+     * repaths against a length-1 path going nowhere, twice, on two different
+     * legs (TO_CRAFTER and TO_SOURCE), before giving up for good with the
+     * goods never delivered. Bounds is now only a cheap fast path for the
+     * common case of genuinely being inside; outside it, the SAME reach
+     * radius that always gated the fast path is what still keeps this from
+     * being satisfied through an actual sealed wall -- {@link #approachTo}
+     * never puts her somewhere convenient on the far side of one, so a
+     * courier reaching this by the fallback has always gone exactly as far
+     * toward the container as she physically could.
      */
     private boolean hasArrived(Building building, BlockPos target) {
         BlockPos at = settler.blockPosition();
-        if (building.bounds != null && !building.bounds.isInside(at)) {
-            return false;
+        if (building.bounds == null || building.bounds.isInside(at)) {
+            return at.distSqr(target) <= CHEST_REACH_SQR;
         }
-        return at.distSqr(target) <= CHEST_REACH_SQR;
+        return at.distSqr(target) <= CHEST_REACH_SQR
+            || distSqrToBounds(at, building.bounds) <= CHEST_REACH_SQR;
+    }
+
+    /**
+     * Squared distance from a point to the nearest point ON a bounding box
+     * -- zero when the point is already inside it. Each axis clamps
+     * independently, which is the standard point-to-AABB distance: the gap
+     * on an axis the point is already within the box's span on is zero, so
+     * only the axes it actually protrudes on contribute.
+     */
+    private static double distSqrToBounds(BlockPos at, BoundingBox bounds) {
+        double dx = Math.max(0, Math.max(bounds.minX() - at.getX(), at.getX() - bounds.maxX()));
+        double dy = Math.max(0, Math.max(bounds.minY() - at.getY(), at.getY() - bounds.maxY()));
+        double dz = Math.max(0, Math.max(bounds.minZ() - at.getZ(), at.getZ() - bounds.maxZ()));
+        return dx * dx + dy * dy + dz * dz;
     }
 
     /**
@@ -971,8 +1009,6 @@ public class CourierWorkGoal extends Goal {
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
                 giveUp();
             } else {
-                // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-                tempLogRepath("TO_SOURCE", sourcePos, source);
                 pathToChest(sourcePos);
             }
         }
@@ -1188,8 +1224,6 @@ public class CourierWorkGoal extends Goal {
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
                 giveUp();
             } else {
-                // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-                tempLogRepath("TO_CRAFTER", craftDropOff, crafter);
                 pathToChest(craftDropOff);
             }
         }
@@ -1435,58 +1469,7 @@ public class CourierWorkGoal extends Goal {
         // A courier that quietly stops working is indistinguishable from one
         // that has nothing to do. Say which leg failed (KF-014).
         settler.recordRouteFailure("courier:" + mode + ":stuck" + stuckChecks
-            + ":rest" + rest + ":run" + consecutiveFailures
-            // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-            + tempStuckDiagnostic());
-    }
-
-    // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-    private void tempLogRepath(String leg, BlockPos target, Building building) {
-        BlockPos at = settler.blockPosition();
-        boolean inBounds = building == null || building.bounds == null
-            || building.bounds.isInside(at);
-        com.hearthstead.Hearthstead.LOGGER.info(
-            "COURIER-DIAG {} run{} stuck{} at={} target={} d2={} inBounds={} "
-                + "navDone={} navStuck={} pathEntity={}",
-            leg, consecutiveFailures + 1, stuckChecks, at.toShortString(),
-            target.toShortString(), at.distSqr(target), inBounds,
-            settler.getNavigation().isDone(), settler.getNavigation().isStuck(),
-            settler.getNavigation().getPath());
-    }
-
-    // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-    private String tempStuckDiagnostic() {
-        BlockPos at = settler.blockPosition();
-        Settlement s = settler.settlement();
-        BlockPos target = null;
-        Building building = null;
-        switch (mode) {
-            case TO_CRAFTER -> {
-                target = craftDropOff;
-                building = s == null ? null : findBuildingById(s, craftBuildingId);
-            }
-            case TO_SOURCE, WITHDRAWING -> {
-                target = sourcePos;
-                building = s == null ? null : findBuildingById(s, sourceWarehouseId);
-            }
-            case TO_WAREHOUSE, SORTING -> {
-                target = dropOff;
-                building = s == null ? null : findBuildingById(s, warehouseId);
-            }
-            case TO_HEARTH, RETURNING -> target = settler.getHearthPos();
-            default -> { }
-        }
-        if (target == null) {
-            return ":diagTarget=null";
-        }
-        boolean inBounds = building == null || building.bounds == null
-            || building.bounds.isInside(at);
-        String boundsStr = building == null ? "n/a" : String.valueOf(building.bounds);
-        return ":diagAt=" + at.toShortString() + ":diagTarget=" + target.toShortString()
-            + ":diagD2=" + at.distSqr(target) + ":diagBldFound=" + (building != null)
-            + ":diagInBounds=" + inBounds + ":diagBounds=" + boundsStr
-            + ":diagNavDone=" + settler.getNavigation().isDone()
-            + ":diagNavStuck=" + settler.getNavigation().isStuck();
+            + ":rest" + rest + ":run" + consecutiveFailures);
     }
 
     private void playAt(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {

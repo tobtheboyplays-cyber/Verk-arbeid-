@@ -93,13 +93,42 @@ public class AdvancementGameTests {
         UseOnContext ctx = new UseOnContext(
             helper.getLevel(), player, InteractionHand.MAIN_HAND, plaque, hit);
 
+        // TEMP DIAGNOSTIC (strip before landing): walk BlockItem.place's own
+        // gates by hand so a failed placement says WHICH gate refused it,
+        // instead of just "the block isn't there". Grep gametest.log for
+        // "[HS-DIAG]".
+        net.minecraft.world.item.context.BlockPlaceContext bpc =
+            new net.minecraft.world.item.context.BlockPlaceContext(ctx);
+        net.minecraft.world.level.block.state.BlockState placementState =
+            ModBlocks.PLAQUE.get().getStateForPlacement(bpc);
+        com.hearthstead.Hearthstead.LOGGER.info(
+            "[HS-DIAG] clickedPos={} replaceClicked={} canPlace={} placementState={}"
+                + " wallBlockState={} wallAbs={} playerPos={} playerLevel={} arenaLevel={}",
+            bpc.getClickedPos(), bpc.replacingClickedOnBlock(), bpc.canPlace(),
+            placementState, helper.getLevel().getBlockState(wallAbs), wallAbs,
+            player.position(), player.level().dimension().location(),
+            helper.getLevel().dimension().location());
+        if (placementState != null) {
+            com.hearthstead.Hearthstead.LOGGER.info(
+                "[HS-DIAG] canSurvive={} isUnobstructed={}",
+                placementState.canSurvive(helper.getLevel(), bpc.getClickedPos()),
+                helper.getLevel().isUnobstructed(placementState, bpc.getClickedPos(),
+                    net.minecraft.world.phys.shapes.CollisionContext.of(player)));
+        }
+
+        net.minecraft.world.InteractionResult placeResult;
         try {
-            plaque.getItem().useOn(ctx);
+            placeResult = plaque.getItem().useOn(ctx);
         } catch (UnsupportedOperationException e) {
+            placeResult = null;
             if (e.getMessage() == null || !e.getMessage().contains("may not be sent")) {
                 throw e;
             }
         }
+        com.hearthstead.Hearthstead.LOGGER.info(
+            "[HS-DIAG] useOn result={} wallBlockStateAfter={} placedBlockState={}",
+            placeResult, helper.getLevel().getBlockState(wallAbs),
+            helper.getLevel().getBlockState(wallAbs.relative(Direction.NORTH)));
 
         BlockPos placedRel = wallRel.relative(Direction.NORTH);
         helper.assertBlockState(placedRel,

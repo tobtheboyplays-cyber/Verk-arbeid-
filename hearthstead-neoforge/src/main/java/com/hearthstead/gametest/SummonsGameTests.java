@@ -244,8 +244,28 @@ public class SummonsGameTests {
                 + "PlaqueNetwork's reach check to mean anything");
         player.setPos(plaqueAbs.getX() + 0.5, plaqueAbs.getY(), plaqueAbs.getZ() + 0.5);
 
-        PlaqueNetwork.handle(player, new PlaqueAction(plaqueAbs, PlaqueAction.Kind.SUMMON,
-            stranger.getUUID(), plaque.revision()));
+        // PlaqueNetwork.handle() always answers with a fresh PlaqueSnapshot
+        // (refused or not -- the screen still needs to redraw), the same
+        // send AdvancementGameTests.hangingAPlaqueGrantsTheFirstStepsAdvancement
+        // already tolerates: makeMockServerPlayerInLevel's Connection never
+        // completes NeoForge's real handshake, so this mod's first
+        // server-to-client payload to it is refused with an
+        // UnsupportedOperationException. That is a property of the fake
+        // connection, not of the refusal logic under test here -- the
+        // refusal itself (Summons.call is never reached) already happened
+        // before the send is attempted, so this only silences the expected
+        // send failure; any other exception still propagates. Fixing this in
+        // production (e.g. skipping the send for a disconnected player)
+        // would hide a real player's screen going stale, so the tolerance
+        // belongs here, not in PlaqueNetwork.
+        try {
+            PlaqueNetwork.handle(player, new PlaqueAction(plaqueAbs, PlaqueAction.Kind.SUMMON,
+                stranger.getUUID(), plaque.revision()));
+        } catch (UnsupportedOperationException e) {
+            if (e.getMessage() == null || !e.getMessage().contains("may not be sent")) {
+                throw e;
+            }
+        }
 
         helper.assertFalse(Summons.active(stranger),
             "a SUMMON for a settler this building does not employ must be refused");
