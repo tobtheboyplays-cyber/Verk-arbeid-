@@ -290,6 +290,13 @@ def build(variant, captain, marked=False):
             # Rope lashing along the bottom rim -- crude, not fitted.
             for i in range(0, fw, 3):
                 put(img, x + i, y + fh - 1, lit(leather[3], face))
+    if brute:
+        # Iron still needs its one stop-4 catchlight (top-left-ish) or the
+        # whole crude plate reads as a dark smudge at distance -- crude
+        # does not mean unlit, it means the ONLY lit pixel instead of a
+        # whole polished row.
+        fx, fy, _, _ = box_faces(*UV["pauldron"])["front"]
+        put(img, fx + 1, fy, lit(iron[4], "front"))
     u, v, w, h, d = UV["helm"]
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
@@ -306,6 +313,8 @@ def build(variant, captain, marked=False):
     if brute:
         # A trophy fang mounted on the brow -- crude, taken, not forged in.
         put(img, x + fw // 2, y, lit(bone[4], "front"))
+        # And iron's own stop-4 catchlight, same rule as the pauldron above.
+        put(img, x + 1, y, lit(iron[4], "front"))
 
     if marked:
         # A proven leader's mark: a bright band across the pauldron rim, on
