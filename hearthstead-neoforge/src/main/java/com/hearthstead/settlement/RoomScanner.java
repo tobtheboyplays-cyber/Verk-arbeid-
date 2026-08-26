@@ -194,11 +194,24 @@ public final class RoomScanner {
         int lights = 0;
         boolean enclosed = true;
         boolean skyLeak = false;
-        // First position the fill itself recorded as the break — the exact
-        // cell that tripped the extent/height/volume cap below, or the
-        // interior cell the roof test found bare overhead. Recorded, not
-        // hunted for: both are cells the scan already visits, so this adds
-        // no extra world reads and never widens the flood fill.
+        // The break position the fill itself recorded — the cell that
+        // tripped the extent/height/volume cap below, or the interior cell
+        // the roof test found bare overhead. Recorded, not hunted for: both
+        // are cells the scan already visits, so this adds no extra world
+        // reads and never widens the flood fill.
+        //
+        // A single leaked cell can trip these caps far from the actual
+        // breach: once a 1-block roof gap lets the fill out, it does not
+        // stay in that column — it also spreads SIDEWAYS above the roof
+        // line, and in an open world that sideways sprawl has vastly more
+        // room to grow than the narrow vertical path back down through the
+        // gap, so it is very often the sprawl (not the climb) that trips
+        // MAX_VOLUME first. Recording "whichever cell was being processed
+        // at that moment" then names some arbitrary point out in the
+        // sprawl, not the hole. So instead of the first trip, both track
+        // the CLOSEST trip to `interior`: the gap itself, being adjacent to
+        // the room, is always nearer to the seed than anything reached by
+        // first passing through the gap and then spreading out from there.
         BlockPos leakPos = null;
         BlockPos skyLeakPos = null;
 
@@ -214,7 +227,8 @@ public final class RoomScanner {
             BlockPos current = frontier.poll();
             if (filled.size() > MAX_VOLUME) {
                 enclosed = false;
-                if (leakPos == null) {
+                if (leakPos == null
+                    || interior.distSqr(current) < interior.distSqr(leakPos)) {
                     leakPos = current.immutable();
                 }
                 break;
@@ -235,7 +249,8 @@ public final class RoomScanner {
                     || Math.abs(next.getZ() - interior.getZ()) > MAX_EXTENT
                     || Math.abs(next.getY() - interior.getY()) > MAX_HEIGHT) {
                     enclosed = false;
-                    if (leakPos == null) {
+                    if (leakPos == null
+                        || interior.distSqr(next) < interior.distSqr(leakPos)) {
                         leakPos = next.immutable();
                     }
                     continue;
@@ -270,14 +285,24 @@ public final class RoomScanner {
         // solid overhead — that is the roof. Done geometrically so the answer
         // never depends on how far the light engine has caught up, and so a
         // glass or slab roof counts exactly like a stone one.
+        //
+        // Scans every uncovered top-of-column cell rather than stopping at
+        // the first one `filled` happens to iterate (a HashSet, so that
+        // order is arbitrary) and keeps the one closest to `interior` — for
+        // the same reason `leakPos` above does: a sprawl above the roof can
+        // put far more uncovered cells out in the open than the single
+        // column the room actually leaks through, and the closest one is
+        // reliably that column, not an arbitrary point in the sprawl.
         for (BlockPos cell : filled) {
             if (filled.contains(cell.above())) {
                 continue; // not the top of its column
             }
             if (!hasCoverAbove(level, cell)) {
                 skyLeak = true;
-                skyLeakPos = cell.immutable();
-                break;
+                if (skyLeakPos == null
+                    || interior.distSqr(cell) < interior.distSqr(skyLeakPos)) {
+                    skyLeakPos = cell.immutable();
+                }
             }
         }
 

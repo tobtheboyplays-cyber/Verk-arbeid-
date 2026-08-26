@@ -112,15 +112,28 @@ public class RoomScannerGameTests {
         helper.setBlock(o.offset(3, 1, 0), Blocks.OAK_DOOR.defaultBlockState());
         helper.setBlock(o.offset(3, 2, 0), Blocks.OAK_DOOR.defaultBlockState()
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
-        // Warehouse furnishing: 4 storage blocks, 2 lights (both counted
-        // whether they sit on the floor, as boundary furniture, or free-
-        // standing in the interior air the flood fill actually walks).
+        // Warehouse furnishing, with real margin over the requirement
+        // (storage 4, lights 2): 6 storage blocks, 3 lights, so a single
+        // off-by-one in this fixture's own geometry does not read as a
+        // RoomScanner defect the way it did the first time (WAREHOUSE was
+        // measured LINKED_INCOMPLETE against a fixture sized exactly to the
+        // minimum, with no assertion on the actual numbers to say which
+        // requirement came up short). Torches sit on the solid floor (y1,
+        // directly above the y0 stone) rather than floating in open
+        // interior air: a standing torch needs solid support BELOW it
+        // (TorchBlock#canSurvive), and floating placement is exactly the
+        // kind of thing `helper.setBlock` is known to place without ever
+        // validating in this codebase (see GameTestFixtures#placePlaque's
+        // own KF-021 note on the same pitfall for the plaque block).
         helper.setBlock(o.offset(1, 1, 1), Blocks.CHEST);
         helper.setBlock(o.offset(2, 1, 1), Blocks.CHEST);
+        helper.setBlock(o.offset(1, 1, 2), Blocks.CHEST);
         helper.setBlock(o.offset(4, 1, 1), Blocks.BARREL);
         helper.setBlock(o.offset(5, 1, 1), Blocks.BARREL);
-        helper.setBlock(o.offset(1, 3, 5), Blocks.TORCH);
-        helper.setBlock(o.offset(5, 3, 5), Blocks.TORCH);
+        helper.setBlock(o.offset(5, 1, 2), Blocks.BARREL);
+        helper.setBlock(o.offset(3, 1, 1), Blocks.TORCH);
+        helper.setBlock(o.offset(3, 1, 5), Blocks.TORCH);
+        helper.setBlock(o.offset(1, 1, 4), Blocks.TORCH);
     }
 
     /** A 7x7 warehouse shell standing in open air: no overburden, so a
@@ -143,12 +156,40 @@ public class RoomScannerGameTests {
         helper.setBlock(o.offset(3, 1, 0), Blocks.OAK_DOOR.defaultBlockState());
         helper.setBlock(o.offset(3, 2, 0), Blocks.OAK_DOOR.defaultBlockState()
             .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+        // Same margin and floor-supported torches as buildUndergroundWarehouse.
         helper.setBlock(o.offset(1, 1, 1), Blocks.CHEST);
         helper.setBlock(o.offset(2, 1, 1), Blocks.CHEST);
+        helper.setBlock(o.offset(1, 1, 2), Blocks.CHEST);
         helper.setBlock(o.offset(4, 1, 1), Blocks.BARREL);
         helper.setBlock(o.offset(5, 1, 1), Blocks.BARREL);
-        helper.setBlock(o.offset(1, 3, 5), Blocks.TORCH);
-        helper.setBlock(o.offset(5, 3, 5), Blocks.TORCH);
+        helper.setBlock(o.offset(5, 1, 2), Blocks.BARREL);
+        helper.setBlock(o.offset(1, 1, 4), Blocks.TORCH);
+        helper.setBlock(o.offset(5, 1, 4), Blocks.TORCH);
+        helper.setBlock(o.offset(3, 1, 5), Blocks.TORCH);
+    }
+
+    /**
+     * A narrow, fully-walled 1x1 shaft directly above {@code roofHoleRel},
+     * running from the roof up to well past {@code RoomScanner.MAX_HEIGHT}.
+     * Without this, "open above the hole" means open into the GameTest
+     * template's own space -- which is bounded (every GameTest arena sits
+     * inside an invisible containment volume), so once the flood fill clears
+     * the roof it can ALSO spread sideways at that height across the whole
+     * template, and which cap trips first (and where) then depends on the
+     * template's own unknown size rather than on the hole. Walling the shaft
+     * removes that dependency entirely: the only way out is straight up,
+     * so the extent/height cap is what trips, in the hole's own column, every
+     * time -- matching a real player's mistake (a bare unroofed gap with open
+     * sky above, not a sideways-connected cavity).
+     */
+    private static void buildChimney(GameTestHelper helper, BlockPos roofHoleRel) {
+        for (int y = roofHoleRel.getY() + 1; y <= roofHoleRel.getY() + 13; y++) {
+            BlockPos centre = new BlockPos(roofHoleRel.getX(), y, roofHoleRel.getZ());
+            helper.setBlock(centre.north(), Blocks.STONE_BRICKS);
+            helper.setBlock(centre.south(), Blocks.STONE_BRICKS);
+            helper.setBlock(centre.east(), Blocks.STONE_BRICKS);
+            helper.setBlock(centre.west(), Blocks.STONE_BRICKS);
+        }
     }
 
     /** Hangs a fitted warehouse plaque outside the room's north wall,
@@ -173,6 +214,19 @@ public class RoomScannerGameTests {
         helper.assertTrue(be instanceof PlaqueBlockEntity,
             "the plaque block entity should exist");
         return (PlaqueBlockEntity) be;
+    }
+
+    /** Every requirement's have/needed/met, for a failure message that says
+     *  exactly which one came up short instead of leaving the next reader to
+     *  re-derive it from the fixture's own block placement by hand. */
+    private static String surveyDump(PlaqueBlockEntity plaque) {
+        StringBuilder sb = new StringBuilder();
+        for (com.hearthstead.building.Requirement.Status status : plaque.lastSurvey()) {
+            sb.append(status.requirement().id()).append('=').append(status.have())
+                .append('/').append(status.needed())
+                .append(status.met() ? "(met) " : "(SHORT) ");
+        }
+        return sb.length() == 0 ? "<no survey recorded>" : sb.toString();
     }
 
     /**
@@ -205,18 +259,31 @@ public class RoomScannerGameTests {
                 "a roof of solid rock is cover, whatever sits above IT in turn");
             helper.assertTrue(direct.volume() <= RoomScanner.MAX_HOME_VOLUME,
                 "the carved room, not the rock around it, is what gets measured");
+            // The gap in the first version of this test: every WAREHOUSE
+            // requirement was checked EXCEPT floor_space's lower bound, so a
+            // fixture that happened to fall short of 25 interior cells would
+            // pass every assertion here and only surface as a mysterious
+            // LINKED_INCOMPLETE from the plaque three lines later.
+            helper.assertTrue(direct.volume() >= 25,
+                "the room must clear WAREHOUSE's own floor_space(25), got volume="
+                    + direct.volume());
             helper.assertTrue(direct.doors() >= 1, "the door must be found");
-            helper.assertTrue(direct.lights() >= 2, "both torches must be found");
+            helper.assertTrue(direct.lights() >= 2, "the torches must be found, got "
+                + direct.lights());
             helper.assertTrue(
                 direct.countBlocks(java.util.List.of(Blocks.CHEST, Blocks.BARREL)) >= 4,
-                "all four storage blocks must be found");
+                "the storage blocks must be found, got "
+                    + direct.countBlocks(java.util.List.of(Blocks.CHEST, Blocks.BARREL)));
 
             BlockPos plaqueRel = hangWarehousePlaque(helper, o);
             PlaqueBlockEntity plaque = plaqueAt(helper, plaqueRel);
+            helper.assertTrue(plaque.type() == BuildingType.WAREHOUSE,
+                "the fitted plan must stamp the plaque WAREHOUSE, got " + plaque.type());
             plaque.survey(helper.getLevel());
             helper.assertTrue(plaque.state() == PlaqueState.LINKED_VALID,
                 "an underground warehouse must register exactly like an above-ground "
-                    + "one -- got " + plaque.state() + " reason=" + plaque.lastScanReason());
+                    + "one -- got " + plaque.state() + " reason=" + plaque.lastScanReason()
+                    + " survey=" + surveyDump(plaque));
             helper.succeed();
         });
     }
@@ -235,17 +302,29 @@ public class RoomScannerGameTests {
         settlement(helper);
         BlockPos o = new BlockPos(4, 0, 4);
         buildOpenWarehouse(helper, o);
-        // The deliberate hole: one roof block gone, dead centre, open
-        // straight up into the test arena with nothing above to catch it.
+        // The deliberate hole: one roof block gone, dead centre. A narrow
+        // walled shaft directly above it, past MAX_HEIGHT, is what makes the
+        // leak land in the extent/height cap deterministically instead of
+        // depending on how far away the GameTest template's own invisible
+        // containment happens to sit (see buildChimney's own doc).
         BlockPos holeRel = o.offset(3, 4, 3);
         helper.setBlock(holeRel, Blocks.AIR);
+        buildChimney(helper, holeRel);
 
         helper.runAfterDelay(20, () -> {
             RoomScanner.Result direct = RoomScanner.scan(helper.getLevel(),
                 helper.absolutePos(o.offset(1, 1, 1)));
             helper.assertTrue(direct != null, "the room still has a real interior");
-            helper.assertTrue(!direct.validHome(),
-                "a room with a hole in its roof must not read as a valid home");
+            // NOT validHome(): that also requires a bed, which no warehouse
+            // ever has, so it is true here regardless of the hole and proves
+            // nothing about the leak. The real geometric pass/fail is
+            // enclosed && !skyLeak && volume within MAX_HOME_VOLUME.
+            boolean geometricallyValid = direct.enclosed() && !direct.skyLeak()
+                && direct.volume() <= RoomScanner.MAX_HOME_VOLUME;
+            helper.assertTrue(!geometricallyValid,
+                "a room with a hole in its roof must not pass the geometric scan -- "
+                    + "enclosed=" + direct.enclosed() + " skyLeak=" + direct.skyLeak()
+                    + " volume=" + direct.volume());
             net.minecraft.network.chat.Component failure = direct.geometryFailure();
             helper.assertTrue(failure != null,
                 "the scan recorded enough to explain why -- geometryFailure() must "
