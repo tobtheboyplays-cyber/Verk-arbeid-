@@ -365,6 +365,10 @@ public class PlaqueScreen extends Screen {
 
     private void drawRequirements(GuiGraphics graphics) {
         List<PlaqueSnapshot.RequirementLine> lines = snapshot.requirements();
+        if (lines.isEmpty()) {
+            drawNoRoomCard(graphics);
+            return;
+        }
         for (int row = 0; row < ROWS && row + scroll < lines.size(); row++) {
             PlaqueSnapshot.RequirementLine line = lines.get(row + scroll);
             int y = top + LIST_TOP + row * CARD_STEP;
@@ -391,6 +395,28 @@ public class PlaqueScreen extends Screen {
                     : Math.min(5, line.have() * 5 / Math.max(1, line.needed())),
                 5, met ? HsUi.Tone.GOOD : HsUi.Tone.WARN);
         }
+    }
+
+    /**
+     * The room itself did not scan — not enclosed, open to the sky, too big,
+     * or nothing found near the plaque at all — so there is no
+     * per-requirement checklist to draw. Before this the tab simply had
+     * nothing here; "No room found" (5:27, the owner's underground
+     * warehouse) explained neither what nor where. Now it names the
+     * plaque's state and, whenever the server computed one, exactly why —
+     * {@link PlaqueSnapshot#scanReason()}, the same sentence the chat
+     * message and the physical sheet's fallback line now carry too.
+     */
+    private void drawNoRoomCard(GuiGraphics graphics) {
+        int y = top + LIST_TOP;
+        HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, false);
+        boolean hasReason = snapshot.scanReason().isPresent();
+        HsUi.labelIn(graphics, font,
+            Component.translatable("hearthstead.plaque.state." + snapshot.state()),
+            left + TEXT_X, y + (hasReason ? 9 : 15),
+            COST_BOX, HsUiTokens.WARN);
+        snapshot.scanReason().ifPresent(reason -> HsUi.labelIn(graphics, font, reason,
+            left + TEXT_X, y + 22, COST_BOX, HsUiTokens.TEXT_MUTED));
     }
 
     private void drawPeople(GuiGraphics graphics, int mouseX, int mouseY) {

@@ -223,7 +223,8 @@ public final class PlaqueNetwork {
             plaque.state().id(), plaque.revision(),
             building == null ? 1 : building.level,
             List.copyOf(requirements), List.copyOf(occupants), List.copyOf(candidates),
-            capacity, mayManage(player, settlement));
+            capacity, mayManage(player, settlement),
+            java.util.Optional.ofNullable(plaque.lastScanReason()));
     }
 
     /** Empty when the settler could move in; otherwise why they cannot. */

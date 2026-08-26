@@ -74,7 +74,8 @@ public final class RoomScanner {
     public record Result(BoundingBox bounds, int volume, List<BlockPos> beds,
                          int doors, int lights, int furnishingScore,
                          boolean enclosed, boolean skyLeak,
-                         java.util.Map<Block, Integer> blockCounts) {
+                         java.util.Map<Block, Integer> blockCounts,
+                         @Nullable BlockPos leakPos, @Nullable BlockPos skyLeakPos) {
 
         /**
          * How many blocks of the given kinds stand in this room. Building
@@ -101,6 +102,46 @@ public final class RoomScanner {
         public boolean validHome() {
             return enclosed && !skyLeak && volume <= MAX_HOME_VOLUME
                 && !beds.isEmpty() && doors > 0 && lights > 0;
+        }
+
+        /**
+         * A player-facing explanation of WHY the geometric scan itself
+         * failed — {@code null} when the room passed every geometric check
+         * (enclosed, roofed, within {@link #MAX_HOME_VOLUME}), in which case
+         * any remaining failure is a per-type requirement (a bed, a door)
+         * and already named by the checklist in {@link #missing()} and by
+         * the per-requirement lines the plaque shows.
+         *
+         * <p>Unlike {@link #missing()} (a terse, unused-by-any-caller debug
+         * string), this names WHERE using the exact cell the flood fill or
+         * the roof test recorded the break at ({@link #leakPos},
+         * {@link #skyLeakPos}) — recorded during the ONE scan that already
+         * ran, never a second look at the world — so "no room found" becomes
+         * a place a player can walk to and fix instead of a dead end.
+         */
+        @Nullable
+        public net.minecraft.network.chat.Component geometryFailure() {
+            if (!enclosed) {
+                return leakPos != null
+                    ? net.minecraft.network.chat.Component.translatable(
+                        "hearthstead.plaque.scan.leak",
+                        leakPos.getX(), leakPos.getY(), leakPos.getZ())
+                    : net.minecraft.network.chat.Component.translatable(
+                        "hearthstead.plaque.scan.leak_unknown");
+            }
+            if (skyLeak) {
+                return skyLeakPos != null
+                    ? net.minecraft.network.chat.Component.translatable(
+                        "hearthstead.plaque.scan.sky_leak",
+                        skyLeakPos.getX(), skyLeakPos.getY(), skyLeakPos.getZ())
+                    : net.minecraft.network.chat.Component.translatable(
+                        "hearthstead.plaque.scan.sky_leak_unknown");
+            }
+            if (volume > MAX_HOME_VOLUME) {
+                return net.minecraft.network.chat.Component.translatable(
+                    "hearthstead.plaque.scan.oversized", volume, MAX_HOME_VOLUME);
+            }
+            return null;
         }
 
         /** Player-facing reason a room is not a home yet (empty when valid). */
@@ -153,6 +194,13 @@ public final class RoomScanner {
         int lights = 0;
         boolean enclosed = true;
         boolean skyLeak = false;
+        // First position the fill itself recorded as the break — the exact
+        // cell that tripped the extent/height/volume cap below, or the
+        // interior cell the roof test found bare overhead. Recorded, not
+        // hunted for: both are cells the scan already visits, so this adds
+        // no extra world reads and never widens the flood fill.
+        BlockPos leakPos = null;
+        BlockPos skyLeakPos = null;
 
         Deque<BlockPos> frontier = new ArrayDeque<>();
         frontier.add(interior);
@@ -166,6 +214,9 @@ public final class RoomScanner {
             BlockPos current = frontier.poll();
             if (filled.size() > MAX_VOLUME) {
                 enclosed = false;
+                if (leakPos == null) {
+                    leakPos = current.immutable();
+                }
                 break;
             }
             BlockState currentState = level.getBlockState(current);
@@ -184,6 +235,9 @@ public final class RoomScanner {
                     || Math.abs(next.getZ() - interior.getZ()) > MAX_EXTENT
                     || Math.abs(next.getY() - interior.getY()) > MAX_HEIGHT) {
                     enclosed = false;
+                    if (leakPos == null) {
+                        leakPos = next.immutable();
+                    }
                     continue;
                 }
                 BlockState state = level.getBlockState(next);
@@ -222,6 +276,7 @@ public final class RoomScanner {
             }
             if (!hasCoverAbove(level, cell)) {
                 skyLeak = true;
+                skyLeakPos = cell.immutable();
                 break;
             }
         }
@@ -242,7 +297,7 @@ public final class RoomScanner {
             maxX + 1, maxY + 1, maxZ + 1);
         return new Result(bounds, filled.size(), beds, distinctDoors.size(), lights,
             Math.min(8, furnishingHits.size()), enclosed, skyLeak,
-            java.util.Map.copyOf(blockCounts));
+            java.util.Map.copyOf(blockCounts), leakPos, skyLeakPos);
     }
 
     private static void classifyContents(ServerLevel level, BlockPos pos,

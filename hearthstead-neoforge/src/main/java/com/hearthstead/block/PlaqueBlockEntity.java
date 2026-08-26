@@ -70,6 +70,18 @@ public class PlaqueBlockEntity extends BlockEntity {
     private int revision;
     private long nextSurveyTick;
     private List<Requirement.Status> lastSurvey = List.of();
+    /**
+     * Why the LAST outright scan failure happened — {@code null} whenever
+     * the room passed its geometric checks, whatever the plaque's state is
+     * otherwise. Derived exactly like {@link #lastSurvey}: recomputed by
+     * every {@link #survey}, put on the wire, never saved. Before this, a
+     * room that failed to enclose or roof produced an empty
+     * {@link #lastSurvey} and the sheet fell back to the bare state name
+     * ("No room found") with nothing about why — {@link RoomScanner.Result}
+     * had already computed the reason, it just never left this class.
+     */
+    @Nullable
+    private Component lastScanReason;
 
     /**
      * Who is in the building this plaque declares, and how many fit.
@@ -132,6 +144,12 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     public List<Requirement.Status> lastSurvey() {
         return lastSurvey;
+    }
+
+    /** Why the last outright scan failure happened; {@code null} when N/A. */
+    @Nullable
+    public Component lastScanReason() {
+        return lastScanReason;
     }
 
     /** Settlers in the building now — 0 unless it is registered. */
@@ -220,6 +238,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         dissolveBuilding(level, remover);
         insertedPlan = ItemStack.EMPTY;
         lastSurvey = List.of();
+        lastScanReason = null;
         occupants = 0;
         capacity = 0;
         state = PlaqueState.EMPTY;
@@ -256,11 +275,27 @@ public class PlaqueBlockEntity extends BlockEntity {
 
         if (result == null || !result.enclosed() || result.skyLeak()
             || result.volume() > RoomScanner.MAX_HOME_VOLUME) {
+            // Computed every survey, grace or not, so the sheet and the
+            // screen always explain the CURRENT scan rather than a stale
+            // one from before the grace window opened.
+            Component reason = result == null
+                ? Component.translatable("hearthstead.plaque.scan.no_interior")
+                : result.geometryFailure();
+            if (!java.util.Objects.equals(reason, lastScanReason)) {
+                // Fires once per NEW reason, not every 10s survey tick: the
+                // exact moment the owner hit at 5:27 (fit a Build Plan, get
+                // "No room found") is state == previous == UNLINKED already
+                // (insertPlan sets the state before this scan even runs), so
+                // announce()'s state != previous gate would never catch it.
+                announceScanReason(level, reason);
+            }
+            lastScanReason = reason;
             if (!graceHolds(level, PlaqueState.PLAN_INSERTED_UNLINKED)) {
                 lastSurvey = List.of();
                 unlink(level, PlaqueState.PLAN_INSERTED_UNLINKED);
             }
         } else {
+            lastScanReason = null;
             List<Requirement.Status> statuses = new ArrayList<>();
             boolean allMet = true;
             for (Requirement requirement : type.requirements()) {
@@ -521,6 +556,28 @@ public class PlaqueBlockEntity extends BlockEntity {
             level.playSound(null, worldPosition,
                 net.minecraft.sounds.SoundEvents.ITEM_FRAME_REMOVE_ITEM,
                 SoundSource.BLOCKS, 0.7F, 0.8F);
+        }
+    }
+
+    /** How far a player may stand and still be told why a scan just failed. */
+    private static final double SCAN_REASON_RADIUS_SQ = 12.0 * 12.0;
+
+    /**
+     * Tells whoever is nearby WHY the scan just failed — almost always the
+     * player who is standing right there having just fitted a Build Plan.
+     * "No room found" told the owner nothing at 5:27; this is the fix: the
+     * same {@link RoomScanner.Result#geometryFailure()} sentence that now
+     * also sits on the sheet and the plaque screen, said out loud once, the
+     * moment it becomes true, instead of only on request.
+     */
+    private void announceScanReason(ServerLevel level, Component reason) {
+        double cx = worldPosition.getX() + 0.5;
+        double cy = worldPosition.getY() + 0.5;
+        double cz = worldPosition.getZ() + 0.5;
+        for (ServerPlayer nearby : level.players()) {
+            if (nearby.distanceToSqr(cx, cy, cz) <= SCAN_REASON_RADIUS_SQ) {
+                nearby.displayClientMessage(reason, false);
+            }
         }
     }
 

@@ -2,12 +2,15 @@ package com.hearthstead.network;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -19,13 +22,24 @@ import java.util.UUID;
  * requirement is met — so it is told, and it renders only what it was told.
  * The {@code revision} it receives comes back with every action, which is how
  * a click made against a stale screen gets refused.
+ *
+ * <p>{@code scanReason}, when present, is why the room itself did not
+ * validate — not enclosed, open to the sky, or the space runs on — named with
+ * the exact cell {@link com.hearthstead.settlement.RoomScanner} recorded the
+ * break at ({@code RoomScanner.Result#geometryFailure()}). It is empty
+ * whenever {@code requirements} is non-empty: a room that passed its
+ * geometric checks reports what it is missing through the per-requirement
+ * list instead, exactly like {@code refusal} on {@code SettlerSnapshotPayload}
+ * carries a reason as a real {@link Component} so it renders in the player's
+ * own language.
  */
 public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
                              int revision, int level,
                              List<RequirementLine> requirements,
                              List<Occupant> occupants,
                              List<Candidate> candidates,
-                             int capacity, boolean mayManage)
+                             int capacity, boolean mayManage,
+                             Optional<Component> scanReason)
     implements CustomPacketPayload {
 
     public static final Type<PlaqueSnapshot> TYPE = new Type<>(
@@ -117,6 +131,7 @@ public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
         }
         buf.writeVarInt(snapshot.capacity);
         buf.writeBoolean(snapshot.mayManage);
+        ComponentSerialization.OPTIONAL_STREAM_CODEC.encode(buf, snapshot.scanReason);
     }
 
     private static PlaqueSnapshot read(RegistryFriendlyByteBuf buf) {
@@ -140,9 +155,12 @@ public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
         for (int i = 0; i < candidateCount; i++) {
             candidates.add(Candidate.CODEC.decode(buf));
         }
+        int capacity = buf.readVarInt();
+        boolean mayManage = buf.readBoolean();
+        Optional<Component> scanReason = ComponentSerialization.OPTIONAL_STREAM_CODEC.decode(buf);
         return new PlaqueSnapshot(pos, type, state, revision, level,
             List.copyOf(requirements), List.copyOf(occupants), List.copyOf(candidates),
-            buf.readVarInt(), buf.readBoolean());
+            capacity, mayManage, scanReason);
     }
 
     @Override
