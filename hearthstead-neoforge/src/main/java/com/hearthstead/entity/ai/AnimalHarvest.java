@@ -67,11 +67,30 @@ final class AnimalHarvest {
      * call; nothing is left half-dead for a caller to finish off later.
      */
     static List<ItemStack> kill(ServerLevel level, LivingEntity target, DamageSource source) {
-        Collection<ItemEntity> previous = target.captureDrops(new ArrayList<>());
-        target.hurt(source, target.getHealth() + 1.0F);
-        Collection<ItemEntity> captured = target.captureDrops(previous);
-        List<ItemStack> drops = new ArrayList<>(captured.size());
-        for (ItemEntity item : captured) {
+        // Read from OUR OWN sink, never from what the second captureDrops
+        // call hands back.
+        //
+        // LIVE CRASH (run 20260826T063349Z, first suite run after the
+        // hunter landed): the second call returned null and the whole
+        // GameTest server went down on
+        // "Cannot invoke Collection.size() because captured is null" --
+        // 207 tests reduced to no result at all. The reason is
+        // re-entrancy: LivingEntity#die does this same save/swap/restore
+        // dance internally around dropAllDeathLoot, so by the time hurt()
+        // returns, the field is no longer whatever we put there and its
+        // value is not ours to reason about. Holding a reference to the
+        // list we passed in sidesteps the question entirely, and the
+        // restore below is in a finally so a throw inside hurt() can never
+        // leave this entity capturing drops forever.
+        List<ItemEntity> sink = new ArrayList<>();
+        Collection<ItemEntity> previous = target.captureDrops(sink);
+        try {
+            target.hurt(source, target.getHealth() + 1.0F);
+        } finally {
+            target.captureDrops(previous);
+        }
+        List<ItemStack> drops = new ArrayList<>(sink.size());
+        for (ItemEntity item : sink) {
             drops.add(item.getItem());
         }
         return drops;
