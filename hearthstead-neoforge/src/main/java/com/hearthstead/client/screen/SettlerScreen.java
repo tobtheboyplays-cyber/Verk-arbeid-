@@ -14,8 +14,10 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import java.util.List;
@@ -77,6 +79,13 @@ public class SettlerScreen extends Screen {
     private static final int NEED_PCT_W = 26;
     private static final int NEED_BAR_H = 6;
     private static final int MAYOR_BADGE_H = ROW + 2;
+
+    // -- the bag: a fixed-shape row of BAG_SIZE ghost slots, the same 18px
+    //    slot HsUi and StorageScreen already use. Reserved unconditionally
+    //    (see the class doc and layout()) so an empty bag is a row of empty
+    //    slots under its own label rather than a hole in the panel.
+    private static final int BAG_SLOTS = SettlerEntity.BAG_SIZE;
+    private static final int BAG_SLOT_STEP = HsUiTokens.SLOT + 2;
 
     private static final int BTN_W = 64;
 
@@ -243,6 +252,7 @@ public class SettlerScreen extends Screen {
         drawTraits(g, left + PAD, l.traitsTop, mouseX, mouseY);
         drawEmployment(g, left + PAD, l.employmentTop);
         drawRefusal(g, left + PAD, l.refusalTop);
+        drawBag(g, left + PAD, l.bagLabelTop, l.bagSlotsTop);
 
         HsUi.divider(g, left + PAD, l.dividerD, CONTENT_W);
 
@@ -401,6 +411,36 @@ public class SettlerScreen extends Screen {
             g.drawWordWrap(font, refusal, x, y, CONTENT_W, HsUiTokens.WARN));
     }
 
+    /**
+     * The settler's bag: what they are actually carrying, as real ghost
+     * slots (a slot background, the item, and its vanilla count overlay) —
+     * read-only, nothing here is clickable or moves an item. Chest truth:
+     * every slot here is a real {@code ItemStack} in {@code SettlerEntity}'s
+     * bag container, not a display fiction, so this can never disagree with
+     * what a hearth deposit actually collects.
+     */
+    private void drawBag(GuiGraphics g, int x, int labelY, int slotsY) {
+        HsUi.labelIn(g, font, Component.translatable("hearthstead.settler.bag"), x, labelY,
+            CONTENT_W, HsUiTokens.TEXT);
+        if (snapshot == null) {
+            return;
+        }
+        List<Integer> ids = snapshot.bagItemIds();
+        List<Integer> counts = snapshot.bagCounts();
+        for (int i = 0; i < BAG_SLOTS; i++) {
+            int slotX = x + i * BAG_SLOT_STEP;
+            HsUi.slot(g, slotX, slotsY);
+            int count = i < counts.size() ? counts.get(i) : 0;
+            if (count <= 0) {
+                continue; // an empty slot: the slot sprite alone says so
+            }
+            int itemId = i < ids.size() ? ids.get(i) : 0;
+            ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.byId(itemId), count);
+            g.renderItem(stack, slotX + 1, slotsY + 1);
+            g.renderItemDecorations(font, stack, slotX + 1, slotsY + 1);
+        }
+    }
+
     // -------------------------------------------------------------- helpers --
 
     /** Both call sites already guard {@code snapshot != null} before reaching here. */
@@ -482,6 +522,14 @@ public class SettlerScreen extends Screen {
         // as the mayor badge above.
         y += ROW * 2 + GUTTER;
 
+        l.bagLabelTop = y;
+        y += ROW;
+        l.bagSlotsTop = y;
+        // Reserved unconditionally at BAG_SLOTS wide, same fixed-shape
+        // discipline as everything else in this layout -- an empty bag is
+        // still BAG_SLOTS empty slots, never a shorter row.
+        y += HsUiTokens.SLOT + GUTTER;
+
         l.dividerD = y;
         y += HsUiTokens.DIVIDER_H + GUTTER;
 
@@ -509,6 +557,8 @@ public class SettlerScreen extends Screen {
         int traitsTop;
         int employmentTop;
         int refusalTop;
+        int bagLabelTop;
+        int bagSlotsTop;
         int dividerD;
         int appointTop;
         int footerTop;

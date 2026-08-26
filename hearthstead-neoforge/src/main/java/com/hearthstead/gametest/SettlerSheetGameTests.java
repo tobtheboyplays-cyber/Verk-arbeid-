@@ -18,11 +18,14 @@ import com.hearthstead.settlement.Mayor;
 import com.hearthstead.settlement.Settlement;
 import io.netty.buffer.Unpooled;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -214,6 +217,16 @@ public class SettlerSheetGameTests {
                     profession + ": trait ordinal " + ordinal + " names no trait");
             }
 
+            // -- the bag: fixed BAG_SIZE slots, reserved whether or not the
+            // settler is carrying anything, so the sheet's bag row is a
+            // fixed shape too (see SettlerScreen#layout).
+            helper.assertTrue(wire.bagItemIds().size() == SettlerEntity.BAG_SIZE,
+                profession + ": bag id list is " + wire.bagItemIds().size()
+                    + " slots, expected " + SettlerEntity.BAG_SIZE);
+            helper.assertTrue(wire.bagCounts().size() == SettlerEntity.BAG_SIZE,
+                profession + ": bag count list is " + wire.bagCounts().size()
+                    + " slots, expected " + SettlerEntity.BAG_SIZE);
+
             // -- the mayoral boon (drawn from boonKey with no fallback) --
             helper.assertTrue(!wire.boonKey().isBlank(),
                 profession + ": boonKey is empty, so the mayor badge would read "
@@ -287,6 +300,62 @@ public class SettlerSheetGameTests {
             "an unbound settler must carry no employer");
         helper.assertTrue(!stray.getSettlerName().isBlank(),
             "an unbound settler's sheet title would be blank");
+        helper.succeed();
+    }
+
+    /**
+     * The bag row on the sheet is fed from the settler's real, physically
+     * carried items (chest truth) — not a display fiction. Three known
+     * items go into three known bag slots; the snapshot must name exactly
+     * those items in those slots, with every other slot reading empty, and
+     * that must survive the wire unchanged.
+     */
+    @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
+    public void aSettlersBagCarriesExactlyWhatItHolds(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        SettlerEntity carrier = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(8, 1, 8));
+        carrier.setSettlerName("Baerer");
+        player.setPos(carrier.getX(), carrier.getY(), carrier.getZ());
+
+        helper.assertTrue(carrier.bag.getContainerSize() == SettlerEntity.BAG_SIZE,
+            "setup: this test assumes BAG_SIZE=" + SettlerEntity.BAG_SIZE
+                + " bag slots, container has " + carrier.bag.getContainerSize());
+        carrier.bag.setItem(0, new ItemStack(Items.WHEAT, 12));
+        carrier.bag.setItem(3, new ItemStack(Items.OAK_LOG, 5));
+        carrier.bag.setItem(7, new ItemStack(Items.IRON_INGOT, 1));
+
+        SettlerSnapshotPayload wire = throughTheWire(helper, snapshotOf(player, carrier));
+
+        helper.assertTrue(wire.bagItemIds().size() == SettlerEntity.BAG_SIZE
+                && wire.bagCounts().size() == SettlerEntity.BAG_SIZE,
+            "the bag snapshot must carry exactly " + SettlerEntity.BAG_SIZE + " slots, got "
+                + wire.bagItemIds().size() + " ids / " + wire.bagCounts().size() + " counts");
+
+        for (int i = 0; i < SettlerEntity.BAG_SIZE; i++) {
+            ItemStack expected = carrier.bag.getItem(i);
+            int expectedId = BuiltInRegistries.ITEM.getId(expected.getItem());
+            int expectedCount = expected.getCount();
+            helper.assertTrue(wire.bagItemIds().get(i) == expectedId,
+                "bag slot " + i + ": expected item id " + expectedId + " ("
+                    + BuiltInRegistries.ITEM.getKey(expected.getItem()) + "), snapshot said "
+                    + wire.bagItemIds().get(i));
+            helper.assertTrue(wire.bagCounts().get(i) == expectedCount,
+                "bag slot " + i + ": expected count " + expectedCount + ", snapshot said "
+                    + wire.bagCounts().get(i));
+        }
+        // The three filled slots, exactly, and no others.
+        int nonEmpty = 0;
+        for (int count : wire.bagCounts()) {
+            if (count > 0) {
+                nonEmpty++;
+            }
+        }
+        helper.assertTrue(nonEmpty == 3,
+            "expected exactly 3 non-empty bag slots on the snapshot, got " + nonEmpty);
+        Hearthstead.LOGGER.info(
+            "UI-DATA-1 settler bag: {} of {} slots carrying real items, survives the codec",
+            nonEmpty, SettlerEntity.BAG_SIZE);
         helper.succeed();
     }
 
@@ -377,6 +446,7 @@ public class SettlerSheetGameTests {
         keys.add("hearthstead.gui.energy");
         keys.add("hearthstead.gui.morale");
         keys.add("hearthstead.settler.attribute_knack");
+        keys.add("hearthstead.settler.bag");
         keys.add("hearthstead.settler.loading");
         keys.add("hearthstead.settler.mayor_badge");
         keys.add("hearthstead.settler.mayor_settling");
@@ -458,7 +528,8 @@ public class SettlerSheetGameTests {
         // through the same optional-component codec.
         SettlerSnapshotPayload withRefusal = new SettlerSnapshotPayload(
             after.entityId(), after.revision(), after.canManage(), after.attributeValues(),
-            after.knackOrdinal(), after.traitOrdinals(), after.employerBuildingId(),
+            after.knackOrdinal(), after.traitOrdinals(), after.bagItemIds(), after.bagCounts(),
+            after.employerBuildingId(),
             after.guardWatchNight(), after.isMayor(), after.mayorSettling(), after.mourning(),
             after.boonKey(),
             Optional.of(net.minecraft.network.chat.Component.translatable(

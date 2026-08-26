@@ -9,9 +9,11 @@ import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Mayor;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 import javax.annotation.Nullable;
@@ -94,12 +96,24 @@ public final class SettlerNetwork {
         }
         String boonKey = Mayor.Boon.of(attributes.knack()).key();
 
+        // The bag: real, physically carried items (chest truth), one slot
+        // in, one slot out -- sent whether or not the settler is bound to a
+        // settlement, since what they are carrying does not depend on that.
+        List<Integer> bagItemIds = new ArrayList<>(settler.bag.getContainerSize());
+        List<Integer> bagCounts = new ArrayList<>(settler.bag.getContainerSize());
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            bagItemIds.add(BuiltInRegistries.ITEM.getId(stack.getItem()));
+            bagCounts.add(stack.getCount());
+        }
+
         if (settlement == null) {
             // Unbound (a traveler, or a settler summoned outside any
             // settlement): nothing below is meaningful, so it is sent empty
             // rather than guessed at.
             return new SettlerSnapshotPayload(settler.getId(), 0, false,
                 List.copyOf(values), attributes.knack().ordinal(), List.copyOf(traitOrdinals),
+                List.copyOf(bagItemIds), List.copyOf(bagCounts),
                 "", false, false, false, false, boonKey, refusal);
         }
 
@@ -111,6 +125,7 @@ public final class SettlerNetwork {
 
         return new SettlerSnapshotPayload(settler.getId(), revisionOf(settlement, settler),
             true, List.copyOf(values), attributes.knack().ordinal(), List.copyOf(traitOrdinals),
+            List.copyOf(bagItemIds), List.copyOf(bagCounts),
             employer == null ? "" : employer.type.id(),
             Employment.watchOf(settlement, settler) == Employment.Watch.NIGHT,
             isMayor, mayorSettling, mourning, boonKey, refusal);

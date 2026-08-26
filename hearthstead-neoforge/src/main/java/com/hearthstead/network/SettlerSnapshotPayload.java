@@ -34,10 +34,21 @@ import java.util.Optional;
  * with — {@code Mayor.appoint}'s own refusal, or one composed here — sent as
  * a real {@link Component} so it renders in the player's language and is
  * shown on the screen itself (D-014: never a silent no-op).
+ *
+ * <p>{@code bagItemIds} and {@code bagCounts} are the settler's carried bag
+ * (see {@code SettlerEntity#bag}, {@code SettlerEntity#BAG_SIZE} slots),
+ * one entry per slot in slot order, empty slots sent as id 0 / count 0 —
+ * these are real, physically carried items (chest truth), never a display
+ * fiction. Sent as registry ids and counts rather than whole
+ * {@link net.minecraft.world.item.ItemStack}s because {@code ItemStack} has
+ * no {@code equals}/{@code hashCode} of its own, which would make this
+ * record's generated equality (used by the settler-sheet round-trip
+ * GameTests) compare bag slots by object identity instead of by content.
  */
 public record SettlerSnapshotPayload(int entityId, int revision, boolean canManage,
                                      List<Integer> attributeValues, int knackOrdinal,
-                                     List<Integer> traitOrdinals, String employerBuildingId,
+                                     List<Integer> traitOrdinals, List<Integer> bagItemIds,
+                                     List<Integer> bagCounts, String employerBuildingId,
                                      boolean guardWatchNight, boolean isMayor,
                                      boolean mayorSettling, boolean mourning, String boonKey,
                                      Optional<Component> refusal)
@@ -61,6 +72,14 @@ public record SettlerSnapshotPayload(int entityId, int revision, boolean canMana
         buf.writeVarInt(snapshot.traitOrdinals.size());
         for (int ordinal : snapshot.traitOrdinals) {
             buf.writeVarInt(ordinal);
+        }
+        buf.writeVarInt(snapshot.bagItemIds.size());
+        for (int id : snapshot.bagItemIds) {
+            buf.writeVarInt(id);
+        }
+        buf.writeVarInt(snapshot.bagCounts.size());
+        for (int count : snapshot.bagCounts) {
+            buf.writeVarInt(count);
         }
         buf.writeUtf(snapshot.employerBuildingId);
         buf.writeBoolean(snapshot.guardWatchNight);
@@ -86,6 +105,16 @@ public record SettlerSnapshotPayload(int entityId, int revision, boolean canMana
         for (int i = 0; i < traitCount; i++) {
             traitOrdinals.add(buf.readVarInt());
         }
+        int bagIdCount = buf.readVarInt();
+        List<Integer> bagItemIds = new ArrayList<>(bagIdCount);
+        for (int i = 0; i < bagIdCount; i++) {
+            bagItemIds.add(buf.readVarInt());
+        }
+        int bagCountCount = buf.readVarInt();
+        List<Integer> bagCounts = new ArrayList<>(bagCountCount);
+        for (int i = 0; i < bagCountCount; i++) {
+            bagCounts.add(buf.readVarInt());
+        }
         String employerBuildingId = buf.readUtf();
         boolean guardWatchNight = buf.readBoolean();
         boolean isMayor = buf.readBoolean();
@@ -95,6 +124,7 @@ public record SettlerSnapshotPayload(int entityId, int revision, boolean canMana
         Optional<Component> refusal = ComponentSerialization.OPTIONAL_STREAM_CODEC.decode(buf);
         return new SettlerSnapshotPayload(entityId, revision, canManage,
             List.copyOf(attributeValues), knackOrdinal, List.copyOf(traitOrdinals),
+            List.copyOf(bagItemIds), List.copyOf(bagCounts),
             employerBuildingId, guardWatchNight, isMayor, mayorSettling, mourning, boonKey,
             refusal);
     }
