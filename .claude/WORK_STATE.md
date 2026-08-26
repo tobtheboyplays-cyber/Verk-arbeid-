@@ -1,50 +1,50 @@
-# WORK_STATE — 2026-08-26 natt (Opus-økt, wave R)
+# WORK_STATE — 2026-08-26 natt (Opus-økt, wave R ferdig)
 
 ## Mode
-Ultracode-arbeidsform: koordinator + parallelle Sonnet-arbeidere, streng
-fileierskap; koordinator kompilerer/committer/kjører QA. Eieren sover —
-BYGGHERREN (mini-eieren) taler med eierens stemme til han er tilbake:
-.claude/agents/byggherren.md + docs/project/BYGGHERRENS_VILJE.md (alle
-eierens direktiver ordrett) + BYGGHERRE_DOM_1.md / _2_ANIM.md.
+Koordinator + parallelle Sonnet-arbeidere, streng fileierskap. Eieren sover.
+BYGGHERREN (.claude/agents/byggherren.md) taler med eierens stemme: dom #1
+og #2 i docs/project/BYGGHERRE_DOM_*.md, dom #3 er bestilt på nattens arbeid.
 
-## Landet og pushet i natt (alle mot Byggherre-dom #1)
-- Brenselsøkonomi (Fuel.java): smelter/bakeri/smie/bryggeri brenner; kull
-  fra tømmer er kaldstart-unntaket. Bloom-kjeden retunet til ekte x1.67.
-- Kurér-rute 5: mat lager→peis (under restock, over opprydding) + brensel-
-  etterfylling. Karusellen lukket (keep-back gulvet på brenselreserven).
-- Synlig rangrustning: SettlerArmorLayer + gen_armor.py (4 tiers).
-- Bueskytteren: WATCHTOWER-yrke, DEX-stige (Steady Hand/Power Shot/Triple
-  Shot), chest-true piler fra tårnets kister.
-- Profession.martial(): bueskytteren slutter å panikke/sove/ignorere alarm.
-- Reparasjonsdugnaden: arr registreres ved brann, mureren + ledige fikser
-  dem med ekte stein.
-- Forskningsbonusene KOBLET (Production-ticks, vaktdrill, Åkerskifte).
-- 33 survival-oppskrifter for byggeplaner + ratchet-test.
-- Costs.java: én pristabell + navngitte rabatter (additivt, cap -50%).
-- Rekruttpris godtar alle plankeslag.
-- Fire tester seeder brensel; FLOWS/PLAN_CHAINS/COSTS true-et opp.
+## VIKTIG ved oppstart
+Containeren er blitt tilbakestilt TO ganger i natt. Remote er sannheten:
+  git fetch origin claude/hearthstead-settlement-mod-vbdb9n
+  git reset --hard FETCH_HEAD
+Sjekk også `git branch --show-current` — hovedrepoet havnet én gang i
+detached HEAD med en commit utenfor grenen (reddet). Unngå `cd` inn i
+worktrees i bakgrunnskommandoer; bruk `git -C <sti>`.
 
-## I lufta
-- polermester-R: CHOP + PICKUP_STOW OMBYGGING (Byggherre-dom #2 gir
-  eksakte måltall), skins, 4 manglende outfits (scholar/miller/brewer/
-  archer), 5 signaturlyder, ALLE språknøkler (research + archer + rabatt),
-  3 goal-registreringer i SettlerEntity (Scholar 6, Archer 2, Repair 5).
-- ARMOURY-1: GuardRank chest-true (rustning kjøpes, trylles ikke).
-- HANDBOOK-2: håndbokkapitler + advancement-kjede.
-- RAIDER-BREACH: raidere som faktisk bryter dører og stjeler fra kister
-  (kaller RaidDirector.recordScar før hver ødeleggelse).
+## Landet og pushet i natt (alt mot Byggherre-dom #1)
+Brenselsøkonomi (Fuel.java, kull-kaldstart, bloom x1.67 med ratio-test) ·
+kurér-rute 5 (mat til peis + brensel, karusell lukket) · synlig rangrustning
+(SettlerArmorLayer + gen_armor.py) · rustning KJØPT fra våpenhuset, ikke
+trylt (ARMOURY-1) · bueskytteren med DEX-stige, Power/Triple Shot og
+chest-true piler · Profession.martial() · reparasjonsdugnaden · raidere som
+bryter dører og stjeler (arr FØR ødeleggelse) · forskningsbonusene koblet ·
+33 survival-oppskrifter med ratchet · Costs.java med navngitte rabatter ·
+håndbok: 6 kapitler + 2 advancements + 466 nøkler i paritet · polermester:
+CHOP og PICKUP_STOW ombygget til dom #2s måltall, lavgarde-sverdholdning,
+nye ansikter/hår, fire antrekk.
 
-## Bevis
-Gametest-suiten kjører i et RENT worktree på committed HEAD
-(scratchpad/verify-tree) — hovedtreet er låst av arbeiderne. Det er krav 1.
-Live-økt (hsqa-live) står med den GAMLE jaren; ny jar må bygges før film.
-Levert til eier i kveld: landsbyfilm + alle 5 animasjonssider.
+## Testtilstanden — les KF-019, KF-020, KF-021
+- KF-019 LØST: tester delte én verdensklokke (og verden). Hver testklasse
+  eier nå sin batch. Modden var aldri ødelagt; suiten løy.
+- KF-020 LØST: CrafterWorkGoal manglet requiresUpdateEveryTick(), så ALLE
+  oppskrifter tok dobbelt så lang tid i ekte spill. Ekte spillfeil.
+  FarmerWorkGoal krevde en arbeidsgiver for å se en avling — fallback lagt inn.
+- KF-021 ÅPEN og VIKTIGST: suiten er USTABIL. Seks kjøringer uten
+  kodeendring ga 31/25/21/20/22/24 feil, og medlemskapet byttet. Ingen gate
+  kan hvile på dette. FLAKE-1 jakter rotårsaken (hypotese: tilfeldige
+  attributtkast — Dagsverk-kapasitet er 20 + STAMINA/5, og bondens
+  tendede rute er DEX-skalert).
+- Fortsatt rødt uten kjent årsak: de tre lumberer-testene (instrumentert nå
+  med routeFailureNote), cleave-bystander (grisen FJERNES, tar ingen skade),
+  summon-payload, homeinvalidated, plakett-advancement.
 
 ## Neste
-1. Suiteresultat → fikseloop med eiende arbeidere.
-2. Land de fire siste → kompiler → commit → hovedtre-suite → slett BLOCKED.
-3. Ny jar → film scener 15-18 (SHOWCASE_PLAN) + «følg brødskiva»-klippet
-   (kjeden lukker seg faktisk: åker→peis→lager→mølle→bakeri→lager→peis).
-4. Ny Byggherre-dom på alt som landet. Så GATE-1 (full x2).
-Gjenstår ufordelt: krav 7 (verktøy chest-true + slitasje) — venter på at
-polermester slipper SettlerEntity.
+1. FLAKE-1 lander → stabiliser suiten → DA er tallene til å stole på.
+2. Byggherre-dom #3 → nye fikse-arbeidere per krav.
+3. Film: live-økt kjører på nattens jar. Levert til eier: landsbyfilm +
+   alle fem animasjonssider (side 0 fra gammel jar, 1-4 fra nattens).
+   Gjenstår SHOWCASE_PLAN-scenene 15-18 + «følg brødskiva» (kjeden lukker
+   seg: åker→peis→lager→mølle→bakeri→lager→peis→munn).
+4. Så GATE-1 (full x2, green_streak >= 2) — men ikke før KF-021 er lukket.
