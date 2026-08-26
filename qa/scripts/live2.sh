@@ -34,12 +34,19 @@
 #   live.sh status                is it up? what is on screen?
 #   live.sh shot <name>           capture the game window right now
 #   live.sh key <keys>            send keys (Escape, t, 1, w, shift+w)
-#   live.sh hold <key> <seconds>  hold a key down (walking, mining)
+#   live.sh hold <key> <seconds>  hold a key down (walking, sneaking) —
+#                                  self-verifying, see KF-035 below
+#   live.sh mine <seconds>        hold left click (mining/attacking) —
+#                                  self-verifying, see KF-035 below. Use this
+#                                  instead of raw mousedown/mouseup: it will
+#                                  not silently do nothing.
 #   live.sh type <text>           type text
 #   live.sh cmd <command>         run a command as the player (no leading /)
 #   live.sh scmd <command>        run a command on the server console (real TTY)
-#   live.sh click [left|right]    click at the centre of the screen
-#   live.sh look <dx> <dy>        turn the view
+#   live.sh click [left|right]    click at the centre of the screen (GUI
+#                                  slots too — NOT self-verifying, see
+#                                  ensure_grab's own comment for why)
+#   live.sh look <dx> <dy>        turn the view — self-verifying, see KF-035
 #   live.sh film <secs> [fps] [pan]  record motion (AC-5): clip.mp4 + labelled
 #                                  contact sheet + motion_ok verdict. `pan` is
 #                                  OPT-IN (default: static camera, so a truly
@@ -130,12 +137,129 @@ safe_regrab() {
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         return
     fi
-    srv_send "execute at $player run tp $player ~ 300 ~ $yaw -90"
-    sleep 3
-    focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+    # Fourth fix (2026-08-26, found by the first SURVIVAL playthrough, ported
+    # here from live.sh -- this twin had never received it and was carrying
+    # the exact same lethal-in-survival bug KF-030 fixed there):
+    # the Y=300 teleport is LETHAL outside creative mode. Every previous fix
+    # here was proven against a creative session, where flight is exempt and
+    # falling is harmless. In survival the same teleport leaves the player
+    # airborne with nothing under them: the vanilla anti-cheat kicked with
+    # "was kicked for floating too long" about four seconds after the
+    # teleport, the immediate rejoin was kicked again while still airborne,
+    # and the third rejoin caught the player mid-fall and killed them
+    # ("Dev fell from a high place"). That session's inventory happened to be
+    # empty; a later-game player would have dropped everything they carried
+    # at the death site. A camera helper must not be able to kill the player.
+    #
+    # So: only creative sessions get the teleport. In survival, the same
+    # goal -- put empty sky under the crosshair before the grab-restoring
+    # click -- is met by looking straight up in place. That is weaker (a roof
+    # or an overhang can still be in reach underground, which is exactly what
+    # the second fix above was written for), so when the player is NOT under
+    # open sky the click is skipped entirely rather than risking a broken
+    # block: a lost grab costs a retry, a broken plaque costs a silent
+    # re-survey nobody sees.
+    local mode sky
+    srv_send "data get entity $player playerGameType"
+    sleep 1
+    mode=$(grep -oP "$player has the following entity data: \K[0-9]+" \
+           "$inst/logs/latest.log" 2>/dev/null | tail -1)
+    if [ "$mode" = "1" ]; then
+        srv_send "execute at $player run tp $player ~ 300 ~ $yaw -90"
+        sleep 3
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+        srv_send "tp $player $x $y $z $yaw $pitch"
+        sleep 1
+        return
+    fi
+    # Survival (or unknown, which is treated as survival -- the safe
+    # assumption, since guessing creative is the one that kills).
+    srv_send "execute at $player run tp $player ~ ~ ~ $yaw -90"
+    sleep 1
+    srv_send "execute at $player positioned ~ ~2 ~ if block ~ ~ ~ air run say HSQA_SKY_CLEAR"
+    sleep 1
+    sky=$(grep -c "HSQA_SKY_CLEAR" "$inst/logs/latest.log" 2>/dev/null | tail -1)
+    if [ "${sky:-0}" -gt "$(cat "$STATE/sky_seen" 2>/dev/null || echo 0)" ]; then
+        echo "$sky" > "$STATE/sky_seen"
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+    else
+        echo "live2.sh: safe_regrab skipped the grab click (survival, no clear sky overhead)" >&2
+    fi
     srv_send "tp $player $x $y $z $yaw $pitch"
     sleep 1
 }
+
+# Reads a value back from the SERVER, never the screen -- ensure_grab below
+# exists specifically because trusting the client's own apparent state is
+# what let KF-035 go unnoticed for an entire round.
+read_yaw() { # <player> <inst> -> yaw, or empty
+    srv_send "data get entity $1 Rotation"
+    sleep 1
+    local rot
+    rot=$(grep -oP "$1 has the following entity data: \[\K[-0-9.]+f, [-0-9.]+f" \
+          "$2/logs/latest.log" 2>/dev/null | tail -1)
+    echo "$rot" | cut -d',' -f1 | tr -d 'f '
+}
+read_pos() { # <player> <inst> -> "x, y, z" (with trailing d's), or empty
+    srv_send "data get entity $1 Pos"
+    sleep 1
+    grep -oP "$1 has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d" \
+        "$2/logs/latest.log" 2>/dev/null | tail -1
+}
+
+# KF-035: verify-then-regrab, not regrab-and-hope. See KF-035 in
+# docs/project/KNOWN_FAILURES.md for the full evidence trail (found and
+# proven against live.sh; ported here unchanged since this twin shares the
+# identical safe_regrab/GLFW-grab machinery). Round 1 found that late in a
+# long session even a blind regrab click stopped helping -- not because the
+# click itself had stopped working, but because nothing ever checked
+# whether it had. This makes that check load-bearing and automatic.
+#
+# SAFE TO CALL ONLY WHEN NO GUI SCREEN IS OPEN: a regrab click while
+# chat/inventory/a crafting screen is open lands ON that screen, not on
+# safe empty space (the whole reason KF-009 cause 1 exists). That is why
+# this is wired into `look`/`hold`/`mine`/`cmd` and deliberately NOT wired
+# into `click`/`key`, which are also used for GUI slots and menu keys.
+ensure_grab() {
+    local inst player yaw0 yaw1 attempt max moved
+    inst=$(cat "$STATE/inst" 2>/dev/null)
+    player=$(cat "$STATE/player" 2>/dev/null)
+    if [ -z "$inst" ] || [ -z "$player" ]; then focus; return 0; fi
+    max="${HSQA_ENSURE_GRAB_ATTEMPTS:-5}"
+    attempt=1
+    # A while-loop, not `for attempt in $(seq 1 max)`: the budget counts
+    # REGRABS, and every regrab must be followed by one more check before
+    # giving up, or the very last regrab's own result is never verified.
+    while :; do
+        focus
+        yaw0=$(read_yaw "$player" "$inst")
+        xdotool mousemove_relative -- 40 0
+        sleep 0.3
+        yaw1=$(read_yaw "$player" "$inst")
+        xdotool mousemove_relative -- -40 0   # undo the probe: drift-neutral
+        moved=0
+        if [ -n "$yaw0" ] && [ -n "$yaw1" ]; then
+            moved=$(awk -v a="$yaw0" -v b="$yaw1" 'BEGIN{d=a-b; if(d<0)d=-d; print (d>0.5)?1:0}')
+        fi
+        if [ "$moved" = "1" ]; then
+            if [ "$attempt" -gt 1 ]; then
+                echo "ensure_grab: input alive again after $attempt check(s)" >&2
+                [ -n "${EV_DIR:-}" ] && check_pass "input_regrab" "recovered after $attempt checks (yaw $yaw0 -> $yaw1)"
+            fi
+            return 0
+        fi
+        if [ "$attempt" -ge "$((max + 1))" ]; then
+            echo "ensure_grab: input STILL dead after $max regrab attempts -- giving up, caller must surface this, not proceed as if fine" >&2
+            [ -n "${EV_DIR:-}" ] && check_fail "input_dead" "grab did not recover after $max regrab attempts"
+            return 1
+        fi
+        echo "ensure_grab: check $attempt -- grab looks dead (yaw $yaw0 -> $yaw1 unchanged), regrabbing (attempt $attempt/$max)" >&2
+        safe_regrab
+        sleep 0.5
+        attempt=$((attempt + 1))
+    done
+}
+
 # NOT pgrep -f on the -Dhsqa.instanceDir marker: proven live that a java
 # process launched via `@argfile` NEVER shows the argfile's contents in
 # /proc/PID/cmdline (java expands @-files internally, not the kernel/shell —
@@ -154,6 +278,10 @@ server_pid() {
 ev_dir_for_session() {
     [ -f "$STATE/ev_dir" ] && cat "$STATE/ev_dir"
 }
+# Available to every subcommand below (ensure_grab records checks against
+# it when set) without each one having to fetch it; `start` overwrites this
+# with its own freshly-`ev_init`'d value a few lines into its own case arm.
+EV_DIR=$(ev_dir_for_session)
 
 case "${1:-help}" in
 
@@ -174,6 +302,13 @@ start)
     ev_init "$ROLE"
     echo "$EV_DIR" > "$STATE/ev_dir"
     rm -f "$STATE/player"
+    # KF-035: $STATE/sky_seen is a monotonic "have I already seen this many
+    # HSQA_SKY_CLEAR lines" counter that safe_regrab (survival branch)
+    # writes but never resets. A value left over from a previous session can
+    # outrun what a new session's own fresh log will ever reach, silently
+    # disabling the survival-mode regrab click for the whole new session. A
+    # brand new instance/log deserves a brand new baseline.
+    rm -f "$STATE/sky_seen"
 
     if ! MSG=$(preflight_port "$PORT" "$ROLE"); then die port_preflight "$MSG"; fi
     check_pass port_preflight "port $PORT free before launch"
@@ -318,28 +453,54 @@ shot)
     ;;
 
 key)    focus; shift; xdotool key --clearmodifiers "$@"; echo "sent key: $*";;
-hold)   focus; xdotool keydown "$2"; sleep "${3:-1}"; xdotool keyup "$2"; echo "held $2 for ${3:-1}s";;
+hold)   # KF-035: verify the grab is alive BEFORE trusting a hold to do
+        # anything (see ensure_grab's own comment for the full mechanism).
+        # Safe here specifically because `hold` is only ever an in-world
+        # action (no GUI is ever driven by holding a key down).
+        ensure_grab
+        HOLD_INST=$(cat "$STATE/inst" 2>/dev/null); HOLD_PLAYER=$(cat "$STATE/player" 2>/dev/null)
+        HOLD_POS0=""
+        case "$2" in
+            w|a|s|d) [ -n "$HOLD_INST" ] && [ -n "$HOLD_PLAYER" ] && HOLD_POS0=$(read_pos "$HOLD_PLAYER" "$HOLD_INST");;
+        esac
+        focus; xdotool keydown "$2"; sleep "${3:-1}"; xdotool keyup "$2"
+        if [ -n "$HOLD_POS0" ]; then
+            HOLD_POS1=$(read_pos "$HOLD_PLAYER" "$HOLD_INST")
+            if [ "$HOLD_POS0" = "$HOLD_POS1" ]; then
+                echo "hold: position UNCHANGED after holding '$2' for ${3:-1}s ($HOLD_POS0) -- either blocked by geometry, or the grab died mid-hold despite the pre-check. Re-run 'hold' or 'look' to confirm before assuming it worked." >&2
+            else
+                echo "hold: confirmed movement ($HOLD_POS0 -> $HOLD_POS1)" >&2
+            fi
+        fi
+        echo "held $2 for ${3:-1}s";;
+mine)   # KF-035: a first-class mining/attack primitive. See live.sh's own
+        # comment for the full rationale; ported here unchanged.
+        ensure_grab
+        MINE_SECS="${2:-1.5}"
+        focus; xdotool mousemove 640 360
+        xdotool mousedown 1
+        sleep "$MINE_SECS"
+        xdotool mouseup 1
+        echo "mined (held left click) for ${MINE_SECS}s"
+        ensure_grab >/dev/null 2>&1 \
+            || echo "mine: input pipe is STILL dead after this mine, even after retries -- this is a WALL, not a misaim; do not keep retrying blind" >&2
+        ;;
 type)   focus; shift; xdotool type --delay 40 -- "$*"; echo "typed";;
 cmd)    focus; shift
         xdotool key --clearmodifiers t; sleep 1
         xdotool type --delay 30 -- "/$*"; sleep 1
         xdotool key --clearmodifiers Return; sleep 1
         # Chat releases the mouse grab and closing it doesn't reliably
-        # restore relative-look capture on its own — `safe_regrab` restores
-        # it without whatever the crosshair currently holds paying for it.
-        safe_regrab
+        # restore relative-look capture on its own. KF-035: verify it came
+        # back rather than assume a bare regrab click was enough.
+        ensure_grab
         echo "ran as player: /$*";;
 scmd)   shift; srv_send "$*"; echo "ran on server: $*";;
 click)  focus; xdotool mousemove 640 360
         xdotool click "$([ "${2:-left}" = right ] && echo 3 || echo 1)"; echo "clicked ${2:-left}";;
-look)   focus
-        # See playtest.sh's `move` handler: a prior grab-click does not
-        # reliably survive to a later `look` several commands on, and even
-        # an immediately-preceding click doesn't always take. Regrab-then-
-        # send twice: empirically far more reliable than either alone.
-        safe_regrab
-        xdotool mousemove_relative -- "${2:-0}" "${3:-0}"; sleep 1
-        safe_regrab
+look)   # KF-035: verify-then-move, not move-and-hope.
+        ensure_grab
+        focus
         xdotool mousemove_relative -- "${2:-0}" "${3:-0}"
         echo "looked $2 $3";;
 

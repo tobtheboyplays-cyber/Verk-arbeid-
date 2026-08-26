@@ -624,14 +624,28 @@ public class FarmerWorkGoal extends Goal {
                 SoundSource.NEUTRAL, 0.6F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
         if (workTicks >= plantDuration) {
-            if (settler.level() instanceof ServerLevel serverLevel && plantCrop instanceof CropBlock crop
-                && serverLevel.getBlockState(target).isAir()
-                && serverLevel.getBlockState(target.below()).is(Blocks.FARMLAND)) {
-                // The seed leaves the bag ONLY here, after every guard has
-                // passed, so a failed plant costs nothing and the item and
-                // the crop appear together or not at all.
-                if (consumeSeedFor(crop)) {
-                    serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
+            if (settler.level() instanceof ServerLevel serverLevel) {
+                if (plantCrop instanceof CropBlock crop
+                    && serverLevel.getBlockState(target).isAir()
+                    && serverLevel.getBlockState(target.below()).is(Blocks.FARMLAND)) {
+                    // The seed leaves the bag ONLY here, after every guard
+                    // has passed, so a failed plant costs nothing and the
+                    // item and the crop appear together or not at all.
+                    if (consumeSeedFor(crop)) {
+                        serverLevel.setBlock(target, crop.getStateForAge(0), Block.UPDATE_ALL);
+                    }
+                } else if (plantCrop == Blocks.SUGAR_CANE
+                    // GAPS-1: a fresh cane base, same "consume only after
+                    // every guard passes" contract as the crop branch above,
+                    // re-checked against vanilla's OWN placement rule
+                    // (isCaneSite) rather than trusting the poll's earlier
+                    // read -- the site could have changed in the ticks spent
+                    // walking and planting.
+                    && isCaneSite(target)) {
+                    if (consumeCaneFor()) {
+                        serverLevel.setBlock(target, Blocks.SUGAR_CANE.defaultBlockState(),
+                            Block.UPDATE_ALL);
+                    }
                 }
             }
             plantCrop = null;
@@ -648,7 +662,14 @@ public class FarmerWorkGoal extends Goal {
     }
 
     private void tickMaintainTravel() {
-        if (maintainTarget == null || !isMaintainable(maintainTarget)) {
+        // Re-validated against whichever rule actually produced this
+        // candidate: isMaintainable() knows nothing about cane sites (they
+        // are air, not farmland/dirt/grass -- see the class doc's sugar
+        // cane section for why that scan is kept wholly separate), so a
+        // cane journey re-checked against isMaintainable would always read
+        // "invalid" and abort before ever arriving.
+        if (maintainTarget == null
+            || (maintainIsCane ? !isCaneSite(maintainTarget) : !isMaintainable(maintainTarget))) {
             nextOrFinish();
             return;
         }
@@ -656,6 +677,18 @@ public class FarmerWorkGoal extends Goal {
             maintainTarget.getZ() + 0.5);
         if (settler.blockPosition().distSqr(maintainTarget) <= 6.5) {
             settler.getNavigation().stop();
+            if (maintainIsCane) {
+                // Standing at a legal, still-empty cane site: plant a fresh
+                // base stalk directly AT the target (unlike bare-farmland
+                // planting below, cane's target IS the air block it grows
+                // into, not the ground below it).
+                BlockPos canePos = maintainTarget;
+                maintainTarget = null;
+                if (!beginCanePlant(canePos)) {
+                    nextOrFinish(); // the cane left the bag since the poll
+                }
+                return;
+            }
             if (maintainIsPlant) {
                 // Standing at bare farmland inside the plot: plant it
                 // directly (farmer audit 2026-08-25 -- this tile used to be
@@ -731,6 +764,30 @@ public class FarmerWorkGoal extends Goal {
             return false;
         }
         plantCrop = ((BlockItem) settler.bag.getItem(slot).getItem()).getBlock();
+        plantDuration = FIRST_PLANT_DURATION;
+        target = pos;
+        mode = Mode.PLANTING;
+        workTicks = 0;
+        settler.setActivity(SettlerActivity.WORK_PLANT);
+        return true;
+    }
+
+    /**
+     * Starts planting a fresh cane base. Same PLANTING/{@link
+     * #FIRST_PLANT_DURATION} machinery {@link #beginFirstPlant} uses -- see
+     * this goal's class doc for why {@code WORK_PLANT} is a placeholder
+     * animation choice here, flagged rather than silently kept. The cane
+     * item leaves the bag only at the end of {@link #tickPlant}, behind
+     * every guard, the same contract every planting path in this goal keeps.
+     *
+     * @return false when the bag holds no sugar cane, so callers can fall
+     *         back to nextOrFinish().
+     */
+    private boolean beginCanePlant(BlockPos pos) {
+        if (caneBagSlot() < 0) {
+            return false;
+        }
+        plantCrop = Blocks.SUGAR_CANE;
         plantDuration = FIRST_PLANT_DURATION;
         target = pos;
         mode = Mode.PLANTING;
@@ -1055,6 +1112,83 @@ public class FarmerWorkGoal extends Goal {
             }
         }
         return anyBagSeedSlot() >= 0;
+    }
+
+    /** First bag slot holding raw sugar cane -- the "seed" a fresh cane base
+     *  is planted from, parallel to {@link #seedSlotFor} but for a block
+     *  that is not a {@link CropBlock} at all. */
+    private int caneBagSlot() {
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            if (settler.bag.getItem(i).is(Items.SUGAR_CANE)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Removes exactly one sugar cane from the bag for a fresh base
+     *  planting. Parallel to {@link #consumeSeedFor}. */
+    private boolean consumeCaneFor() {
+        int slot = caneBagSlot();
+        if (slot < 0) {
+            return false;
+        }
+        settler.bag.removeItem(slot, 1);
+        settler.train(com.hearthstead.entity.Attribute.DEXTERITY, 1.0F);
+        return true;
+    }
+
+    /**
+     * BOOTSTRAP CANE, parallel to {@link #ensureSeedInBag}: checks the bag
+     * first, then withdraws up to {@value #SEED_WITHDRAW_CAP} raw sugar cane
+     * from the farmhouse's OWN containers when the bag has none. A brand-new
+     * farmhouse still needs its first stalk delivered by hand (D-007: a
+     * building works alone, off its own chests) -- this only means the
+     * FARMER never has to be handed one directly, the same story the crop
+     * seed bootstrap already tells.
+     */
+    private boolean ensureCaneInBag() {
+        if (caneBagSlot() >= 0) {
+            return true;
+        }
+        Building farmhouse = tendedFarmhouse();
+        if (farmhouse == null || !(settler.level() instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+        int room = Math.min(SEED_WITHDRAW_CAP, BAG_TRIGGER - 1 - bagCount());
+        if (room <= 0) {
+            return false;
+        }
+        int withdrawn = 0;
+        for (BlockPos pos : WarehouseIndex.containers(serverLevel, farmhouse)) {
+            if (withdrawn >= room) {
+                break;
+            }
+            if (!(serverLevel.getBlockEntity(pos) instanceof Container chest)) {
+                continue;
+            }
+            for (int slot = 0; slot < chest.getContainerSize() && withdrawn < room; slot++) {
+                ItemStack stack = chest.getItem(slot);
+                if (!stack.is(Items.SUGAR_CANE)) {
+                    continue;
+                }
+                ItemStack taken = chest.removeItem(slot,
+                    Math.min(room - withdrawn, stack.getCount()));
+                int count = taken.getCount();
+                ItemStack leftover = settler.bag.addItem(taken);
+                withdrawn += count - leftover.getCount();
+                if (!leftover.isEmpty()) {
+                    ItemStack back = chest.getItem(slot);
+                    if (back.isEmpty()) {
+                        chest.setItem(slot, leftover);
+                    } else {
+                        back.grow(leftover.getCount());
+                        chest.setChanged();
+                    }
+                }
+            }
+        }
+        return caneBagSlot() >= 0;
     }
 
     /**
