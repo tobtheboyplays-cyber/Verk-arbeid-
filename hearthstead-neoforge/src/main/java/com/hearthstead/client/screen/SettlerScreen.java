@@ -225,19 +225,7 @@ public class SettlerScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // super.renderBackground, not renderBackground: Screen#render (called
-        // via super.render below, after the panel is drawn) unconditionally
-        // calls this.renderBackground(...) again on its own. Left as a plain
-        // virtual call, that second pass re-blurs and re-tints the ENTIRE
-        // framebuffer -- by then including this panel's own already-flushed
-        // background, text and rows, not just the 3D world -- which is
-        // exactly the "permanently blurred panel" defect (only the tooltip,
-        // drawn after both passes, stayed crisp). Qualifying with super.
-        // bypasses our own renderBackground override below and performs the
-        // one real background pass; that override then makes the second,
-        // redundant call from super.render() inert. See UI-BLUR
-        // investigation, 2026-08-26.
-        super.renderBackground(g, mouseX, mouseY, partialTick);
+        renderBackground(g, mouseX, mouseY, partialTick);
         pendingTooltip = null;
         Layout l = layout(top);
 
@@ -258,23 +246,11 @@ public class SettlerScreen extends Screen {
 
         HsUi.divider(g, left + PAD, l.dividerD, CONTENT_W);
 
-        super.render(g, mouseX, mouseY, partialTick);
+        HsUi.widgets(this, g, mouseX, mouseY, partialTick);
 
         if (pendingTooltip != null) {
             g.renderTooltip(font, pendingTooltip, mouseX, mouseY);
         }
-    }
-
-    /**
-     * Made inert on purpose -- see the comment in {@link #render}. The one
-     * real background pass happens there via {@code super.renderBackground},
-     * which this override does not intercept (an explicit {@code super.}
-     * call is not virtual dispatch); this only swallows the second,
-     * redundant call that {@code Screen#render} makes on its own.
-     */
-    @Override
-    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // no-op
     }
 
     private void drawHeader(GuiGraphics g, int mouseX, int mouseY, Layout l) {

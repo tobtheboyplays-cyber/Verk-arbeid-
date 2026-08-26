@@ -3,6 +3,8 @@ package com.hearthstead.client.ui;
 import com.hearthstead.Hearthstead;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Renderable;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -30,6 +32,47 @@ import net.minecraft.resources.ResourceLocation;
  * {@code tools/gen_ui.py}; edit the generator, never the PNG.
  */
 public final class HsUi {
+
+    /**
+     * Draws a screen's widgets WITHOUT repainting the blurred background --
+     * the thing {@code super.render()} cannot be used for once a screen has
+     * already drawn its own panel.
+     *
+     * <h2>Why this exists</h2>
+     *
+     * <p>Vanilla's {@code Screen#render} opens with
+     * {@code this.renderBackground(...)}, and in 1.21 that is not a cheap
+     * fill: it runs {@code renderBlurredBackground} and then
+     * {@code renderMenuBackground}. Every Hearthstead screen was written in
+     * the shape
+     *
+     * <pre>
+     *   renderBackground(...);   // blur + darken, pass 1
+     *   ...draw the whole panel...
+     *   super.render(...);       // blur + darken AGAIN, over the panel
+     * </pre>
+     *
+     * <p>so the second pass blurred and darkened everything the screen had
+     * just drawn, while the buttons -- rendered by that same
+     * {@code super.render} call, after its background -- came out crisp. That
+     * is exactly the symptom that was reported and twice misdiagnosed: a
+     * blurred panel with sharp buttons on top of it, on every screen at once.
+     * It was briefly blamed on the harness's software rasteriser, because
+     * vanilla's own pause menu also looks soft under llvmpipe. That was a
+     * true observation about a different thing; this double pass is real, it
+     * is ours, and it is visible on any hardware.
+     *
+     * <p>Calling this instead of {@code super.render(...)} keeps the draw
+     * order identical -- background, panel, widgets -- with exactly one
+     * background pass. {@code Screen#renderables} is public in 1.21.1, so
+     * this needs no access widener and no mixin.
+     */
+    public static void widgets(Screen screen, GuiGraphics g, int mouseX, int mouseY,
+                               float partialTick) {
+        for (Renderable renderable : screen.renderables) {
+            renderable.render(g, mouseX, mouseY, partialTick);
+        }
+    }
 
     // -- sprites ----------------------------------------------------------
 
