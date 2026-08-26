@@ -931,13 +931,40 @@ public class CourierWorkGoal extends Goal {
      */
     private boolean hasArrived(Building building, BlockPos target) {
         BlockPos at = settler.blockPosition();
+        boolean result;
+        String reason;
         if (building.bounds == null || building.bounds.isInside(at)) {
-            return at.distSqr(target) <= CHEST_REACH_SQR;
+            result = at.distSqr(target) <= CHEST_REACH_SQR;
+            reason = "fastpath-inside";
+        } else {
+            boolean withinReach = at.distSqr(target) <= CHEST_REACH_SQR
+                || distSqrToBounds(at, building.bounds) <= CHEST_REACH_SQR;
+            if (!withinReach) {
+                result = false;
+                reason = "outside-outOfReach";
+            } else {
+                result = hasClearPathTo(target);
+                reason = result ? "outside-reachAndLOS" : "outside-reachButBlocked";
+            }
         }
-        boolean withinReach = at.distSqr(target) <= CHEST_REACH_SQR
-            || distSqrToBounds(at, building.bounds) <= CHEST_REACH_SQR;
-        return withinReach && hasClearPathTo(target);
+        // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing. Logs only
+        // on a flip so the volume stays readable -- each line is either the
+        // moment she starts being considered arrived, or the moment she
+        // stops being considered arrived.
+        if (diagLastArrived == null || diagLastArrived.booleanValue() != result) {
+            diagLastArrived = result;
+            com.hearthstead.Hearthstead.LOGGER.info(
+                "COURIER-DIAG hasArrived={} reason={} mode={} at={} target={} "
+                    + "insideBounds={} navDone={} navStuck={}",
+                result, reason, mode, at.toShortString(), target.toShortString(),
+                building.bounds != null && building.bounds.isInside(at),
+                settler.getNavigation().isDone(), settler.getNavigation().isStuck());
+        }
+        return result;
     }
+
+    // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+    private Boolean diagLastArrived;
 
     /**
      * Whether nothing solid stands between the courier's eyes and

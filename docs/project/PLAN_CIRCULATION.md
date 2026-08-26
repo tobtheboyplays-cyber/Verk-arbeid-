@@ -6,19 +6,31 @@ and tests are strong, but GOODS DO NOT MOVE and EQUIPMENT IS MINTED. This
 plan makes FLOWS.md true instead of aspirational. Fix workers take slices
 of this document under strict file ownership.*
 
-## The five routes (extends the courier's JobPriority ladder)
+## The routes this plan adds (names, not numbers)
 
-R1 **SOURCE-OUT** (new): couriers collect from Ring-1 building chests
-(mine today; fishery/pasture when staffed) → warehouse. Without it the
-miner's stone is decorative (audit: dead-end output, mine chests).
-R2 **FOOD-IN** (new): prepared food moves TOWARD the hearth and dining
-hall only — split isHaulable into material-haulage vs food-delivery;
-bakery/kitchen/butcher cooked output → hearth (and dining hall). Preserves
-D-A2a-1's intent (food never drains AWAY from the hearth) while ending the
-audit's C1 ("nobody ever eats what the cook makes").
-R3 restock (exists), R4 consolidation (exists).
-R5 **MILITARY-OUT** (new): arrows/armor/tools → armoury, barracks,
-watchtower chests, so smithed goods physically arrive where consumed.
+*Route numbering was retired after Byggherre-dom #3 krav 11: this document
+numbered R1-R5 and `FLOWS.md` numbered 1-5, and the two lists disagreed, so
+"route 5" named the armoury leg here and the warehouse->hearth food leg
+there. `FLOWS.md` now holds the one canonical NAMED route map; this section
+only says what this plan adds to it. Names match
+`CourierWorkGoal.JobPriority` where a tier exists.*
+
+**SOURCE-OUT** (new): couriers collect from Ring-1 building chests (mine
+today; fishery/pasture when staffed) -> warehouse. Without it the miner's
+stone is decorative (audit: dead-end output, mine chests). The mine half
+shipped inside OUTPUT_COLLECTION; the gathering buildings are still to come.
+
+**FOOD_DELIVERY** (new, shipped): prepared food moves TOWARD the hearth and
+dining hall only -- `isHaulable` split into material-haulage vs
+food-delivery; bakery/kitchen/butcher cooked output -> hearth (and dining
+hall). Preserves D-A2a-1's intent (food never drains AWAY from the hearth)
+while ending the audit's C1, "nobody ever eats what the cook makes".
+
+**CRAFTER_RESTOCK** and **WAREHOUSE_CONSOLIDATION** already existed.
+
+**MILITARY-OUT** (new, not yet a tier): arrows/armor/tools -> armoury,
+barracks, watchtower chests, so smithed goods physically arrive where they
+are consumed.
 
 ## Consumption becomes chest-true
 
@@ -29,13 +41,13 @@ watchtower chests, so smithed goods physically arrive where consumed.
   fallback only.
 - **Tool wear v1**: work actions damage the held tool; a broken tool drops
   the settler to the crude fallback at ~70% work speed until a smithed
-  replacement arrives via R5/restock. The smithy becomes the tempo dial
+  replacement arrives via MILITARY-OUT/restock. The smithy becomes the tempo dial
   FLOWS promises — because demand is real.
 - **Guard armor**: GuardRank sets the CEILING; the ARMOURY chain sets
   availability. applyEquipment consumes real pieces (armoury/warehouse) up
   to rank; the in-code comment that already claims this becomes true.
   ARMOURY gets Production recipes (ingots+leather → pieces).
-- **Arrows**: watchtower/barracks stock arrows via R5 now; the archer
+- **Arrows**: watchtower/barracks stock arrows via MILITARY-OUT now; the archer
   class (D1) consumes them later — stocked racks first, shooters second.
 
 ## Input sources (Ring-1 completion)
@@ -70,7 +82,7 @@ watchtower chests, so smithed goods physically arrive where consumed.
 
 ## Sequencing for the fix wave (file-ownership slices)
 
-F1 courier routes R1/R2/R5 + isHaulable split (CourierWorkGoal + tests)
+F1 courier routes SOURCE-OUT/FOOD_DELIVERY/MILITARY-OUT + isHaulable split (CourierWorkGoal + tests)
 F2 tools chest-true + wear v1 (SettlerEntity equip path, Profession
    fallback, CrafterWorkGoal/goal hooks, smithy demand test)
 F3 guard armor chest-true + armoury recipes (GuardRank, Production)

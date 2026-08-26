@@ -61,23 +61,35 @@ double as the idle-hours social anchors.
 
 ## The physical routes (what couriers actually walk)
 
-1. **Sources → hearth** for food only (farmer delivers own harvest; food
-   never leaves the hearth — settlers eat there).
-2. **Sources → warehouse** for materials (courier fetches from the hearth's
-   overflow and gathering points).
-3. **Warehouse → refiner input chests** — the restock route with the
-   reservation ledger (no double-fetch, chest-true).
-4. **Refiner output → warehouse** — consolidation, the tidy loop.
-5. **Warehouse → hub chests** (dining hall meals, armoury arms) — same
-   restock machinery, hub-priority below food, above consolidation.
+**Routes are NAMED, never numbered.** They used to be numbered here and
+numbered differently in `PLAN_CIRCULATION.md`, so "route 5" meant the
+warehouse->hearth food leg in one document and the armoury leg in the other
+(Byggherre-dom #3, krav 11). The names below are the canonical ones, and
+they are the same strings the code uses -- `CourierWorkGoal.JobPriority` --
+so a route can be grepped instead of counted.
 
-Priority ladder (as encoded in CourierWorkGoal.JobPriority, 2026-08-25):
-crafter restock (ingredients AND fuel) → food delivery → output collection
-→ hearth consolidation. Restock outranks food deliberately: a crafter with
-an empty input chest is stopped DEAD this second, while the food route only
-fires once the larder is under a day's buffer (4 per living settler, capped
-at the hearth's 24 slots). Food still outranks tidying — a hungry village
-beats neat shelves.
+| route | leg | courier tier | state |
+|---|---|---|---|
+| **HARVEST-IN** | farmer's own harvest -> hearth | none: the farmer walks it herself, not the courier | live |
+| **CRAFTER_RESTOCK** | warehouse -> refiner input chest (ingredients AND fuel), reservation ledger, chest-true | tier 1 | live |
+| **FOOD_DELIVERY** | warehouse -> hearth larder when it runs LOW | tier 2 | live |
+| **OUTPUT_COLLECTION** | producer's output chest (and the mine's pure yield) -> warehouse | tier 3 | live |
+| **WAREHOUSE_CONSOLIDATION** | hearth overflow -> warehouse, the tidy loop | tier 4 | live |
+| **MILITARY-OUT** | warehouse -> armoury / barracks / watchtower chests, so smithed arms physically arrive where they are consumed | not yet a tier | planned |
+| **SOURCE-OUT** | Ring-1 gathering chests (fishery, pasture) -> warehouse | folded into OUTPUT_COLLECTION for the mine; the rest is planned | partial |
+
+The four live tiers are one ladder, in that order: **restock -> food ->
+collection -> consolidation.** Restock outranks food deliberately: a crafter
+with an empty input chest is stopped DEAD this second, while the food route
+only fires once the larder is under a day's buffer (4 per living settler,
+capped at the hearth's 24 slots) and `EatFromHearthGoal` keeps working down
+to the last loaf. Food still outranks tidying -- a hungry village beats neat
+shelves. Collection sits above tidying because a stranded output is stock the
+restock route cannot even see until it reaches a warehouse.
+
+The hearth is a one-way food valve: food moves TOWARD it and never away
+(D-A2a-1). MILITARY-OUT, when it is built, is the same restock machinery
+pointed at hub chests, and it belongs below food and above consolidation.
 
 ## The one cross-cutting loop: tool wear
 

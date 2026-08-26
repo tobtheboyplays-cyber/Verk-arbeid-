@@ -23,14 +23,14 @@ omvei rundt dem.
 | 1 | «LANDET»-lista motsies av egen suite | 1 | ERKJENT. Ingen ferdig-merking uten kjørings-id + fingeravtrykk. Blokkert på KF-021. |
 | 2 | KF-021 brukt som unnskyldning | 1 | ERKJENT, samme svar. FLAKE-1 jakter rotårsaken nå. |
 | 3 | Null nytt visuelt bevis (andre dom på rad) | 1 | Levert i natt: landsbyfilm + fem animasjonssider. Gjenstår: én ubrutt kjede på ny jar. |
-| 4 | Tømmerhogger-regresjon på KF-018 «FIXED» | 1 | ÅPEN, rotårsak ukjent. Instrumentert (routeFailureNote). Egen arbeider neste. |
+| 4 | Tømmerhogger-regresjon på KF-018 «FIXED» | 1 | LUKKET, KF-022. Rotårsak: trunkInColumn antok at ingenting står over et tre. Ekte blindsone i spillet, ikke testfeil. Fixturene uendret. |
 | 5 | Rangrustningens akseptbevis rødt | 2 | Blokkert på KF-021; testen fikk stocket våpenhus i natt. |
 | 6 | Costs.java overselger: 3 av 4 rader tomme | 2 | RIKTIG. Enten koble eller slutte å skryte. |
 | 7 | Kurér-konservering rød | 2 | Blokkert på KF-021. |
 | 8 | Forskningsbonusens persistens rød | 2 | Blokkert på KF-021. |
 | 9 | Plakett→advancement rød | 2 | Mock-spiller-plassering fikset i natt; uverifisert. |
-| 10 | Statusdokumenter henger etter | 2 | RIKTIG. WORK_STATE skal oppdateres i SAMME commit som landingen. |
-| 11 | Rute 5 heter to ting i dokumentasjonen | 3 | RIKTIG. PLAN_CIRCULATION R5 = MILITARY-OUT vs commit b844016 = mat/brensel. Ett rutekart. |
+| 10 | Statusdokumenter henger etter | 2 | RIKTIG, og innført. WORK_STATE oppdateres nå i samme commit som landingen; kravet er en regel i fila selv. |
+| 11 | Rute 5 heter to ting i dokumentasjonen | 3 | LUKKET. Nummereringen er pensjonert. FLOWS.md holder ett navngitt rutekart, navnene er CourierWorkGoal.JobPriority-konstantene, og PLAN_CIRCULATION peker på det. En rute kan grepes i stedet for telles. |
 | 12 | CHOP/PICKUP: tallene møtt, men ikke sett | 3 | Kritikeren regnet gjennom og bekreftet at dom #2s måltall ER møtt. Mangler film. |
 
 ## NESTE AMBISJON (kritikerens): «Følg pilen»
