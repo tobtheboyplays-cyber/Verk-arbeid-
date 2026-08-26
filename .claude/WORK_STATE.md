@@ -113,6 +113,21 @@ noen eksisterende rate.
    krav 10 (WORK_STATE oppdateres i samme commit som landinger), krav 11
    (rute 5 het to forskjellige ting i dokumentene).
 
+
+## Eierens instrukser (06:50Z, våken igjen)
+1. **Video når prosjektene rundes av** — filmes i det øyeblikk FLAKE-2s
+   full-kjøring nr. 2 slipper skjerm :99: side 5+6 (yrkes-idle), landsby,
+   scenene i SHOWCASE_PLAN. Raidernes egen film kommer når RAIDER-bølgen
+   lander.
+2. **Videre på core gameplay og en raid.**
+3. **Fiender skal se unike ut og være skumle med syke animasjoner** —
+   RAIDER-ANIM (modell/klipp/trigger + anim_check-utvidelse) og RAIDER-ART
+   (gen_raider.py, teksturmatrise, renderer-valg) kjører nå. Kontrakten
+   Variant {SKIRMISHER, BRUTE} + kaptein/saga-roller er committet (d2cb27c).
+4. **Logistikk er koordinatorens personlige ansvar** — docs/project/LOGISTICS.md
+   er kontrakten: vektklasser gjør plassering viktig, kurértimer/dag gjør
+   kostnaden synlig, Fraktboka + plakett-anslag gjør den lærbar. KF-027 først.
+
 ## Regler som ikke bøyes
 - All testkjøring gjennom `tools/hearthstead-qa` (rot, ikke moddmappa).
 - `playtest` krever at eieren spørres. `full`/`gametest`/`quick` gjør ikke.
