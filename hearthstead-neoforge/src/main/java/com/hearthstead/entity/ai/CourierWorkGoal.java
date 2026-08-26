@@ -891,13 +891,8 @@ public class CourierWorkGoal extends Goal {
      * through a real wall is not arriving, but a courier standing exactly as
      * close to the chest as the world lets her stand always is, whether or
      * not that spot is inside the building's own recorded box. Reach alone
-     * cannot tell those two cases apart, though: {@link #distSqrToBounds}
-     * being small is equally true of a courier one step short of a chest
-     * flush on this box's edge AND of a courier standing right outside a
-     * SEALED wall, incidentally within raw reach of the chest just inside
-     * it -- KF-013's exact wedge (D-A2a-5's own doc above). What actually
-     * tells them apart is whether anything solid stands in between, so the
-     * fallback below also demands a clear line of sight to the target,
+     * cannot tell those two cases apart on its own, so the fallback below
+     * also demands a clear line of sight to the target,
      * {@link #hasClearPathTo} -- the same physical test vanilla itself uses
      * to decide whether a block can be interacted with.
      *
@@ -921,50 +916,39 @@ public class CourierWorkGoal extends Goal {
      * OUTSIDE a sealed warehouse's one door read as "arrived" the moment she
      * was close enough to the wall, so she never opened the door and never
      * went in ({@code courierEntersASealedWarehouseAndDelivers},
-     * {@code courierOpensAClosedDoorToDeliver} both regressed). Bounds is
-     * now only a cheap fast path for the common case of genuinely being
-     * inside; outside it, BOTH a reach test and a clear ray to the target
-     * (through open air only, never through a wall) must hold -- a courier
-     * reaching this by the fallback has always gone exactly as far toward
-     * the container as the world lets her, with nothing solid between her
-     * and it.
+     * {@code courierOpensAClosedDoorToDeliver} both regressed).
+     *
+     * <p>ROOT CAUSE, third pass (run 20260826T020820Z, caught by a
+     * transition diagnostic rather than by reading): adding the ray did not
+     * fix it, because reach itself was measured against the wrong thing. The
+     * fallback used to accept {@code distSqrToBounds(at, building.bounds)
+     * <= CHEST_REACH_SQR} -- distance to the BUILDING'S BOX, not to the
+     * container -- so standing anywhere along the outside of a warehouse
+     * wall counted as reach, from which a diagonal ray could see the chest
+     * straight through the open doorway and call it clear. It WAS clear:
+     * she could see the chest. Seeing it is not reaching it. The diagnostic
+     * caught her six blocks from the chest and outside the walls,
+     * {@code hasArrived=true reason=outside-reachAndLOS}, posting goods
+     * through the wall the test is named after.
+     *
+     * <p>The box clause bought nothing even in the case it was written for:
+     * a courier one step short of a chest flush on the box's edge stands two
+     * blocks from that chest, and {@code CHEST_REACH_SQR} is 6.25 -- 2.5
+     * blocks -- so the container test already covers her. Reach is to the
+     * CONTAINER, always. Bounds is now only a cheap fast path for the common
+     * case of genuinely being inside; outside it, BOTH reach to the
+     * container and a clear ray to it must hold, so a courier who arrives by
+     * the fallback has gone exactly as far toward the chest as the world
+     * lets her, with nothing solid between her and it.
      */
     private boolean hasArrived(Building building, BlockPos target) {
         BlockPos at = settler.blockPosition();
-        boolean result;
-        String reason;
-        if (building.bounds == null || building.bounds.isInside(at)) {
-            result = at.distSqr(target) <= CHEST_REACH_SQR;
-            reason = "fastpath-inside";
-        } else {
-            boolean withinReach = at.distSqr(target) <= CHEST_REACH_SQR
-                || distSqrToBounds(at, building.bounds) <= CHEST_REACH_SQR;
-            if (!withinReach) {
-                result = false;
-                reason = "outside-outOfReach";
-            } else {
-                result = hasClearPathTo(target);
-                reason = result ? "outside-reachAndLOS" : "outside-reachButBlocked";
-            }
+        if (at.distSqr(target) > CHEST_REACH_SQR) {
+            return false;
         }
-        // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing. Logs only
-        // on a flip so the volume stays readable -- each line is either the
-        // moment she starts being considered arrived, or the moment she
-        // stops being considered arrived.
-        if (diagLastArrived == null || diagLastArrived.booleanValue() != result) {
-            diagLastArrived = result;
-            com.hearthstead.Hearthstead.LOGGER.info(
-                "COURIER-DIAG hasArrived={} reason={} mode={} at={} target={} "
-                    + "insideBounds={} navDone={} navStuck={}",
-                result, reason, mode, at.toShortString(), target.toShortString(),
-                building.bounds != null && building.bounds.isInside(at),
-                settler.getNavigation().isDone(), settler.getNavigation().isStuck());
-        }
-        return result;
+        return building.bounds == null || building.bounds.isInside(at)
+            || hasClearPathTo(target);
     }
-
-    // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-    private Boolean diagLastArrived;
 
     /**
      * Whether nothing solid stands between the courier's eyes and
@@ -986,20 +970,6 @@ public class CourierWorkGoal extends Goal {
         BlockHitResult hit = level.clip(new ClipContext(from, to,
             ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, settler));
         return hit.getType() == HitResult.Type.MISS || target.equals(hit.getBlockPos());
-    }
-
-    /**
-     * Squared distance from a point to the nearest point ON a bounding box
-     * -- zero when the point is already inside it. Each axis clamps
-     * independently, which is the standard point-to-AABB distance: the gap
-     * on an axis the point is already within the box's span on is zero, so
-     * only the axes it actually protrudes on contribute.
-     */
-    private static double distSqrToBounds(BlockPos at, BoundingBox bounds) {
-        double dx = Math.max(0, Math.max(bounds.minX() - at.getX(), at.getX() - bounds.maxX()));
-        double dy = Math.max(0, Math.max(bounds.minY() - at.getY(), at.getY() - bounds.maxY()));
-        double dz = Math.max(0, Math.max(bounds.minZ() - at.getZ(), at.getZ() - bounds.maxZ()));
-        return dx * dx + dy * dy + dz * dz;
     }
 
     /**
