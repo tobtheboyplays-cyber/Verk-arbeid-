@@ -1427,3 +1427,28 @@ green. The wipe is what makes the green mean something afterwards. Recorded
 because "we fixed the world contamination and the count went UP by one" is
 exactly the shape of result that gets quietly dropped, and the reason it went
 up is more useful than the number.
+
+### KF-026 — the animation suite reads a file the fingerprint does not cover
+
+**Found while reviewing what to change next, not by a failure. Recorded, not
+yet fixed, because fixing it now would invalidate a verification run in
+flight.**
+
+`tools/anim_check.py` decides the animation suite's verdict partly from
+`hearthstead-neoforge/docs/ANIMATION_CATALOGUE.md` — the catalogue-coverage
+check that failed on the 14 new trade idles until their §22 section was
+written. But the fingerprint covers `$MOD/src`, `$MOD/tools`, `$QA/scripts`,
+`$QA/scenarios`, the build files, `PROTOCOL.md` and (since KF-024) the
+controller. **`$MOD/docs` is not in it.**
+
+So the animation suite's answer can change — red to green, or green to red —
+with no fingerprint moving to say anything changed. That is the same hole as
+KF-024's third defect, one level along: a document that decides a verdict is
+part of the judge, whatever directory it lives in.
+
+The fix is to add the catalogue to both fingerprint implementations (they
+must stay byte-for-byte equivalent, and the drift guard added in KF-024 will
+now catch it if they do not). It is deliberately deferred: FLAKE-2 is running
+`full` twice right now to establish whether tonight's work gates, and moving
+the fingerprint mid-verification would throw away the evidence it is
+producing. It lands immediately after, and before any gate run that matters.

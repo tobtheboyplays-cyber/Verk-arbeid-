@@ -3,6 +3,7 @@ package com.hearthstead.gametest;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.building.Production;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.GuardRank;
 import com.hearthstead.entity.Profession;
@@ -28,6 +29,8 @@ import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
