@@ -1,4 +1,10 @@
-# Plan etter demoen — skrevet 17:55 mens eieren spiller
+# Plan etter demoen — skrevet 17:55, oppdatert 19:45 etter eierens filmede økt
+
+**FRYS (eierens ordre 19:35): «Vi legger ikke til noe mer nå. Nå skal alt vi
+har nå bli veldig bra.»** Ingen nye systemer. Alt arbeid er kvalitet, fiks og
+polering av det som finnes. Arkitekt-/plankjøpssystemet (eierens ønske fra
+filmen, 0:37+3:08, TekTopia-design) er PARKERT som første slice ETTER frysen
+— det er designet neste steg, ikke glemt.
 
 Eierens ordre: vent med alt, planlegg videre, store tilbakemeldinger kommer.
 Ingen kjøringer og ingen endringer før tilbakemeldingene er inne.
