@@ -199,9 +199,16 @@ public class RaiderEntity extends Monster {
         // A scout never STARTS a fight -- it is an omen, not a free
         // skirmish (D-A3's telegraph step). It still defends itself: the
         // HurtByTargetGoal above and MeleeAttackGoal below are untouched.
+        // KF-027: a raider's violence is scoped to the settlement its raid
+        // is against. Caught live: a raider from one GameTest's "Breachholm"
+        // raid walked into a different test's arena and murdered its courier
+        // mid-haul, and in the product the same unscoped selector would have
+        // any passing band aggro NPC neighbour villages (B2) it was never
+        // raiding. Retaliation stays universal -- HurtByTargetGoal above:
+        // anyone who strikes a raider is fair game, whoever they belong to.
         targetSelector.addGoal(2,
             new NearestAttackableTargetGoal<>(this, SettlerEntity.class, true,
-                target -> !isScout()));
+                target -> !isScout() && isMyWar(target)));
         targetSelector.addGoal(3,
             new NearestAttackableTargetGoal<>(this, Player.class, true,
                 target -> !isScout()));
@@ -267,6 +274,24 @@ public class RaiderEntity extends Monster {
 
     public UUID settlementId() {
         return settlementId;
+    }
+
+    /**
+     * Whether this settler belongs to the settlement this raider's raid is
+     * against. An UNBOUND raider (no raid -- hand-spawned, a stray) keeps
+     * the old any-settler menace so a bare spawn still bites; a BOUND one
+     * ignores other settlements' people entirely. An unbound settler is
+     * fair game either way -- raiders are not gentle with strangers.
+     */
+    private boolean isMyWar(net.minecraft.world.entity.LivingEntity target) {
+        if (settlementId == null) {
+            return true;
+        }
+        if (!(target instanceof SettlerEntity settler)) {
+            return true;
+        }
+        UUID theirs = settler.boundOrTargetSettlementId();
+        return theirs == null || settlementId.equals(theirs);
     }
 
     /** Where this raider is headed; the objective decides what that means. */

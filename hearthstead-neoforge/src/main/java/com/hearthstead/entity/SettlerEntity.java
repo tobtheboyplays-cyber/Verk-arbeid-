@@ -477,6 +477,18 @@ public class SettlerEntity extends PathfinderMob {
             ? SettlementManager.byId(serverLevel, settlementId) : null;
     }
 
+    /**
+     * The raw settlement binding, for identity checks that must not resolve
+     * the settlement object -- e.g. a raider deciding whether this settler
+     * is its war's business at all (KF-027). A traveler counts as belonging
+     * to the settlement they are walking toward: a raid that ignores the
+     * incoming recruit it was sent to strangle is not much of a siege.
+     */
+    @Nullable
+    public UUID boundOrTargetSettlementId() {
+        return settlementId != null ? settlementId : targetSettlementId;
+    }
+
     @Nullable
     public HearthBlockEntity hearth() {
         return hearthPos != null
