@@ -3193,3 +3193,132 @@ held 2.05–2.55 s) before returning to the roll.
 The knife wipes down the apron in one long stroke (2.20–2.45 s, arm to
 −74° on `x`), then taps the flat twice against the bench to test it's
 true (−58° / −62°, 2.60–2.75 s), torso and root dropping into each tap.
+
+## 23. Raiders
+
+Owner request: *"Enemies skal se unike ut og vaere skumle med syke
+animasjonene"* — enemies must look unique and be scary, with sick
+animations. Same standing order as §22: *"bare premium er standaren."*
+Before this section `RaiderModel` had no `AnimationDefinition` at all — a
+raider was a settler-shaped procedural swing wearing a different texture, so
+a raid where the villagers moved beautifully and the raiders shambled
+generically was backwards. Fear comes from motion.
+
+The rig is the counterpart to §0.1, not the same table: `root, torso, head,
+right_arm, left_arm, right_leg, left_leg` — seven bones, no `cloak`
+(`RaiderModel.createBodyLayer()` has none). `hood`, `helm` and `pauldron`
+are visibility-toggled (captain vs. grunt), never animation targets, the
+same rule §0.1 already gives the settler's `hood`/`hat_brim`.
+
+Two builds, one contract (`RaiderEntity.Variant`, committed separately):
+**SKIRMISHER** is the pack — lean, hooded, quick — and **BRUTE** is the
+door-breaker — fewer, slower, huge. The builds are shaped apart before a
+single frame of motion plays: `RaiderModel.setupAnim` scales the BRUTE's
+`torso`, `right_arm`/`left_arm`, `head` and `right_leg`/`left_leg` directly
+(broader and squashed-flatter chest, longer and thicker arms, a wider low
+skull, stockier legs) entirely on `ModelPart` `SCALE` — never `POSITION` or
+`ROTATION` — so that persistent shape can never be erased by a one-shot
+clearing a bone's motion underneath it, and never fights `animate()`'s
+additive rotation channels. A captain of either build stands a few degrees
+straighter than its troops (`RaiderModel`, a flat `−0.09` rad correction on
+`torso`/`head` after every clip below has run) — confidence is the tell,
+the same principle as §4.3's confident-vs-nervous `GUARD_STANCE` split:
+same skeleton, a shallower number, not a second pose.
+
+Below the geometry, exactly one locomotion clip is active per state
+(`STALK`/`BRUTE_MARCH`/`SPRINT`, mutually exclusive, same reasoning §1
+gives `WALK`/`WALK_HURRIED`/`RUN_PANIC`), `MENACE_IDLE` layers on top while
+stationary the same way `IDLE` layers under §22's trade idles, and the
+three one-shots (`BREACH_SLAM`, `RAIDER_STRIKE`, `LOOT_SNATCH`) reset only
+the bones they own — never a full `resetPose()`, which would erase the
+BRUTE's persistent scale along with whatever clip came before it.
+
+**`DEATH` is deliberately not in this section.** `RaiderRenderer` (not
+authored in this slice) does not override `LivingEntityRenderer`'s vanilla
+`setupRotations`, so a dying raider already gets vanilla's own whole-body
+Z-axis topple (`deathTime`-driven, up to 90° over roughly the first 0.6 s)
+applied at the render level, on top of anything a bone-level clip does. A
+real fall authored here would fight that outer roll rather than sell it —
+exactly the "if vanilla's death rotation fights you, say so and skip it"
+case. Fixing this means `RaiderRenderer` overriding `setupRotations`/
+`getFlipDegrees` to hand control to a clip instead; until that lands,
+raiders keep vanilla's own death roll.
+
+### 23.1 `STALK` — the pack closes in *(0.80 s, loop)*
+
+SKIRMISHER's walk, and nothing like the settler's upright, loose-armed
+`WALK`: the torso holds a heavy 24–28° forward crouch the whole cycle
+(against `WALK`'s 3°), `root` sits permanently 1.2 px low, and both hands
+stay tucked tight near the belt (±16° travel, not `WALK`'s freely swinging
+28°) with a `z`-axis knife-hand flex riding the same beat as the 38° leg
+stride. The head stays low and hunts a 24° arc side to side rather than
+tracking level.
+
+### 23.2 `BRUTE_MARCH` — the walk itself is the threat *(1.20 s, loop)*
+
+Slow and ground-eating: a 40° stride at a third again `STALK`'s cadence, a
+shoulder-led torso that twists a full 24° peak-to-peak (`y`) while holding
+a 28–32° forward lean, and a heavy asymmetric footfall — `torso` drops a
+full pixel on contact (0.30 s) and rises almost flat by 0.60 s before
+dropping 1.1 px on the next step. `root` rides a full 2 px lower than
+`STALK`'s, the BRUTE's low centre of gravity made literal.
+
+### 23.3 `SPRINT` — feral, all-out, arms trailing *(0.60 s, loop)*
+
+SKIRMISHER only, and only while actually closing on a live target
+(`RaiderModel`) — never for ordinary travel, which stays `STALK`. A 42°
+stride at sprint cadence, arms swept back to 46° and trailing rather than
+pumping front-to-back symmetrically (the two arms are never numerically
+mirrored), torso lean pushed to 32–34° with a fast 28° twist, and a nearly
+full-pixel bob every half-step. The head thrusts forward and stops hunting
+— sighted on one thing.
+
+### 23.4 `BREACH_SLAM` — the door-breaking blow *(1.50 s, one-shot)*
+
+BRUTE's signature: a huge wind-up (`right_arm` cocked to −165° by 0.35 s),
+a two-tick LINEAR strike that travels 215° in total (−160° to 55°, roughly
+108°/tick — solidly in heavy-impact range), a 3-tick LINEAR hold, then a
+controlled follow-through overshoot to 58° (13% past rest) before an ugly
+off-balance stagger (`torso` and both legs lurch the wrong way at 1.25 s)
+finally settles by 1.50 s. `torso` leads the arm by three ticks (peak at
+0.40 s, 30–50% of the arm's own range) and `root` drops a full 1.2 px
+extra at contact. Triggered from `RaiderBreachGoal` the instant the target
+actually gives way, so the scar and this clip's playback start the same
+tick — the clip's own internal impact keyframe lands a few ticks into that
+playback rather than on tick zero, the same shape as `MELEE`'s own
+precedent (§17.3) where the damage tick and the clip's visual accent are
+not literally identical either.
+
+### 23.5 `RAIDER_STRIKE` — the wild swing *(0.55 s, one-shot)*
+
+Both builds' ordinary melee attack, and deliberately less disciplined than
+the guard's `MELEE` (§4.4) — that contrast is the point. The wind-up
+travels further off-axis (`right_arm` to −175° with a 48° `z` twist, against
+`MELEE`'s cleaner −168° with none), the two-tick LINEAR strike swings 217°
+in total, and recovery does not return cleanly: it overshoots hard into a
+−58° sloppy backswing at 0.40 s before snapping home, instead of `MELEE`'s
+controlled ease back. Also plays when a SKIRMISHER breaches a door or wall
+(`RaiderBreachGoal`); the BRUTE's own breach gets `BREACH_SLAM` instead.
+
+### 23.6 `LOOT_SNATCH` — fast grab, look over the shoulder *(0.70 s, one-shot)*
+
+A quick two-tick LINEAR reach into the chest (`right_arm` to −100° by
+0.30 s), then the torso and head whip together into a hard look-back —
+head yaw to −50° held from 0.45 s to 0.60 s, well past `MENACE_IDLE`'s
+scan range, the clip's one clearly held pose (per §21's emote recipe:
+reach fast, hold the storytelling pose, release) — before snapping back to
+neutral by 0.70 s. Triggered from `RaiderLootGoal` the instant a stack
+actually leaves the chest.
+
+### 23.7 `MENACE_IDLE` — the stationary read *(4.20 s, loop)*
+
+What the player actually watches during the dusk telegraph, so it has to
+carry the dread on its own: shoulders roll on an asymmetric, out-of-phase
+clock (`right_arm` peaks at 1.10 s, `left_arm` at 1.55 s — never mirrored),
+the head hunts a full 42° arc side to side on an irregular timing (0.75 s,
+1.60 s, held 2.10 s, 3.00 s, 3.70 s — no even quarters), and the weight
+shifts foot to foot on its own ~1.9 s beat, independent of both. Every
+raider plays this while stopped and nothing else has claimed the pose —
+pack, brute, captain, and the telegraph scout at the treeline alike
+(`RaiderModel` gates it on `!moving` alone, no profession- or
+variant-specific condition).
