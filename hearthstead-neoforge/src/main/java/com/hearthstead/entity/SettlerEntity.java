@@ -1371,6 +1371,22 @@ public class SettlerEntity extends PathfinderMob {
     public void die(DamageSource cause) {
         super.die(cause);
         if (level() instanceof ServerLevel serverLevel) {
+            // Chest truth (2026-08-26 raid-night audit): a guard's armor is
+            // real kit an armourer forged, and GuardRank#applyEquipment sets
+            // every armor slot's drop chance to 0 so the settlement's
+            // investment cannot evaporate the first time a guard loses a
+            // fight -- vanilla's own dropEquipment then never rolls to drop
+            // it, and it never gets cleared from the slot either, so a dead,
+            // soon-to-be-removed entity simply took 24 iron ingots of plate
+            // with it: no drop, no return, a chest-truth-shaped hole. Return
+            // it home through the exact same armoury-then-warehouse-then-
+            // hearth chain an ordinary rank supersession already uses
+            // (GuardRank#clearEquipment) rather than dropping it loose on
+            // the ground the way RaiderEntity's stolen loot does: this kit
+            // was made for THIS settlement, so it goes back to the armoury
+            // that issued it, not to whoever happens to be standing over the
+            // body.
+            GuardRank.clearEquipment(this);
             // Item conservation: the carried bag is physically real. Before
             // couriers, losing ~8 wheat on death was cosmetic; once couriers
             // haul real goods it becomes a raid-driven item sink -- drop it.

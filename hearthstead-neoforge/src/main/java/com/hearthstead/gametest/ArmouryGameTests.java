@@ -352,6 +352,68 @@ public class ArmouryGameTests {
         });
     }
 
+    // -------------------------------------------- (d) a fallen guard's kit ---
+
+    /**
+     * (d) A fallen guard's kit must come home, not vanish. {@link
+     * GuardRank#applyEquipment} sets every armor slot's drop chance to 0 so
+     * a guard losing a fight cannot cost the settlement its investment in
+     * gear -- but before this fix that ALSO meant vanilla's own death-drop
+     * logic never rolled to drop it, and never cleared the slot either, so a
+     * dead, soon-to-be-removed entity simply took the kit with it: 24 iron
+     * ingots of plate, no drop, no return (2026-08-26 raid-night audit).
+     * {@code SettlerEntity#die} now returns it through the exact same
+     * armoury-then-warehouse-then-hearth chain an ordinary rank supersession
+     * already uses ({@link GuardRank#clearEquipment}), proven here with a
+     * real kill through the normal damage pipeline ({@code Entity#kill}, the
+     * same call {@code /kill} uses), not a bare call into {@code die()}
+     * directly -- the same idiom {@code SagaGameTests} uses for a captain's
+     * death.
+     */
+    @GameTest(batch = "armoury", template = "empty16", timeoutTicks = 400)
+    public void aFallenGuardsArmorReturnsToTheArmouryNotIntoTheVoid(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
+        building(helper, s, BuildingType.ARMOURY, 3, 3);
+        helper.setBlock(new BlockPos(4, 1, 3), Blocks.CHEST);
+        Container armouryChest = containerAt(helper, new BlockPos(4, 1, 3));
+        helper.assertTrue(armouryChest != null, "the armoury chest should be a container");
+
+        SettlerEntity guard = settler(helper, s, "Kaptein", 4, 4);
+        guard.assignProfession(Profession.GUARD);
+        // Fixture: already a fully-kitted Captain, full iron, as if an
+        // earlier promotion (outside this test) already withdrew every
+        // piece -- and its own drop-chance reset applied, the exact setting
+        // that made the kit unrecoverable before this fix.
+        for (EquipmentSlot slot : new EquipmentSlot[] {
+                EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET}) {
+            guard.setDropChance(slot, 0.0F);
+        }
+        guard.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
+        guard.setItemSlot(EquipmentSlot.CHEST, new ItemStack(Items.IRON_CHESTPLATE));
+        guard.setItemSlot(EquipmentSlot.LEGS, new ItemStack(Items.IRON_LEGGINGS));
+        guard.setItemSlot(EquipmentSlot.FEET, new ItemStack(Items.IRON_BOOTS));
+
+        guard.kill();
+
+        helper.assertTrue(countOf(armouryChest, Items.IRON_HELMET) == 1,
+            "the fallen guard's helmet must come home to the armoury, found "
+                + countOf(armouryChest, Items.IRON_HELMET));
+        helper.assertTrue(countOf(armouryChest, Items.IRON_CHESTPLATE) == 1,
+            "the fallen guard's chestplate must come home, found "
+                + countOf(armouryChest, Items.IRON_CHESTPLATE));
+        helper.assertTrue(countOf(armouryChest, Items.IRON_LEGGINGS) == 1,
+            "the fallen guard's leggings must come home, found "
+                + countOf(armouryChest, Items.IRON_LEGGINGS));
+        helper.assertTrue(countOf(armouryChest, Items.IRON_BOOTS) == 1,
+            "the fallen guard's boots must come home, found "
+                + countOf(armouryChest, Items.IRON_BOOTS));
+        helper.assertTrue(guard.getItemBySlot(EquipmentSlot.CHEST).isEmpty(),
+            "the dead guard's own slot must be cleared once the kit is "
+                + "actually returned, not merely left worn on a corpse");
+        helper.succeed();
+    }
+
     // ---------------------------------------------- (e) the armoury MAKES ---
     //
     // BALANCE_AUDIT.md finding 1 (BROKEN) / PLAN_CIRCULATION.md F3: (a)-(d)

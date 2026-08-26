@@ -352,6 +352,49 @@ public class CostsGameTests {
     }
 
     /**
+     * A mayor who is not currently loaded must still be charged for -- the
+     * KF-025 shape, now with a price attached (2026-08-26 raid-night audit).
+     * {@code Mayor.find} resolves the incumbent through {@code
+     * level.getEntity}, a LOADING fact, so appointing a successor while the
+     * incumbent's chunk happened to be unloaded used to skip the whole swap
+     * branch: no feast charged, no stand-down morale hit, yet the seat still
+     * changed hands -- a swap that silently succeeded free. Simulated here
+     * as an incumbent id with no entity in the level at all: {@code
+     * level.getEntity} returns null either way, so it is the exact
+     * observable state {@code Mayor.find} sees for a genuinely unloaded
+     * mayor. {@code settlement.mayorId} alone -- a SETTLEMENT fact -- now
+     * decides whether this is a swap, so the feast is charged regardless.
+     */
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    public void anUnloadedIncumbentMayorStillChargesTheFeast(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        Settlement s = settlement(helper, hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+
+        // On record as mayor, but no entity by that id exists in this level
+        // at all -- Mayor.find returns null for this exactly the way it
+        // would for a mayor asleep in an unloaded chunk.
+        s.mayorId = UUID.randomUUID();
+        s.mayorSince = level.getGameTime();
+
+        hearth.insertGoods(new ItemStack(Items.BREAD, 8));
+        SettlerEntity successor = settler(helper, s, "Etterfolger", 9, 8);
+        Component refusal = Mayor.appoint(level, s, successor);
+
+        helper.assertTrue(refusal == null,
+            "an unloaded incumbent must not silently block a payable swap");
+        helper.assertTrue(s.mayorId.equals(successor.getUUID()),
+            "the successor must hold the seat");
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
+            "the full feast must still be charged for an unloaded incumbent, "
+                + "found " + countInHearth(hearth, Items.BREAD));
+        helper.succeed();
+    }
+
+    /**
      * A village that cannot afford the feast does not get a new mayor: the
      * swap is refused with a reason, the old mayor keeps the seat, and the
      * hearth is left exactly as it was -- a swap that silently succeeded

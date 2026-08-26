@@ -449,7 +449,23 @@ public class RaiderGameTests {
         helper.succeed();
     }
 
-    /** The other outcome must read differently: held means nothing was taken. */
+    /**
+     * The other outcome must read differently: held means the raid failed
+     * at what it actually came for.
+     *
+     * <p><b>Fixed, 2026-08-26 raid-night audit.</b> This used to run the
+     * scenario under {@code RaidObjective.BLOD} and still assert {@code
+     * held()} with a settler hurt -- which was exactly the HIGH defect the
+     * audit found (a raid that hurts settlers reported as held) rather than
+     * a proof of anything intentional. The scenario this test actually
+     * means -- "someone can get hurt defending a raid that is nonetheless
+     * repelled" -- is true of {@code KORN}, whose own success signal is
+     * untouched loot ({@link Settlement#raidLootEscaped}), not of BLOD,
+     * whose own signal ({@link Settlement#raidSettlersHurtTonight}) is
+     * exactly the thing this test sets to 1. See
+     * {@code RaidPressureGameTests#aBlodRaidOnlyHoldsIfNobodyWasActuallyHurt}
+     * for BLOD's own now-correct behaviour.
+     */
     @GameTest(template = "empty16", timeoutTicks = 400, batch = "raider_a_held_raid_is_logged_as_held_without_stolen_goods")
     public void aHeldRaidIsLoggedAsHeldWithoutStolenGoods(GameTestHelper helper) {
         buildArena(helper, 12);
@@ -459,9 +475,11 @@ public class RaiderGameTests {
         }
         var level = helper.getLevel();
         RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
-        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 6L);
+        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 6L);
         s.raidSettlersHurtTonight = 1;
-        // raidLootEscaped is left false: nothing got away with the goods.
+        // raidLootEscaped is left false: nothing got away with the goods --
+        // KORN's own signal, so the raid holds even though a settler was
+        // hurt defending it.
 
         helper.assertTrue(RaidDirector.resolveIfOver(level, s),
             "with nobody left the raid resolves");

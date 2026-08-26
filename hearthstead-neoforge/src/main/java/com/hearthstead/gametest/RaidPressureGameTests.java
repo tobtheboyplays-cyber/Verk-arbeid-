@@ -7,6 +7,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.raid.RaidCaptain;
 import com.hearthstead.settlement.raid.RaidDirector;
+import com.hearthstead.settlement.raid.RaidLogEntry;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.raid.RaidPlan;
 import com.hearthstead.settlement.raid.RaidPressure;
@@ -142,6 +143,81 @@ public class RaidPressureGameTests {
         p.recordLost();
         helper.assertTrue(p.pressure() == 40 - RaidPressure.LOSS_RELIEF,
             "losing relieves some pressure, got " + p.pressure());
+        helper.succeed();
+    }
+
+    /**
+     * The HIGH defect the 2026-08-26 raid-night audit found:
+     * {@code resolveIfOver} used to read "held" purely from whether loot
+     * physically escaped -- a signal only KORN's loot goal ever sets -- so a
+     * BRANN band that burned every building it reached still had the
+     * settlement told it "held through the raid". Each objective is now
+     * judged against its own already-tracked evidence: for BRANN, whether
+     * anything actually burned ({@link RaidDirector#torchForArson}, the same
+     * mechanism {@code tickArson} drives during a live raid), not a
+     * KORN-shaped flag no BRANN raid ever touches.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_a_brann_raid_only_holds_if_nothing_actually_burned")
+    public void aBrannRaidOnlyHoldsIfNothingActuallyBurned(GameTestHelper helper) {
+        var level = helper.getLevel();
+
+        Settlement held = settlement(8, 3);
+        RaidCaptain heldCaptain = RaidDirector.pickCaptain(held, level.getRandom());
+        held.pendingRaid = new RaidPlan(heldCaptain.id(), RaidObjective.BRANN, 0.0F, 1L);
+        // No arson recorded this raid: the band never actually burned anything.
+        helper.assertTrue(RaidDirector.resolveIfOver(level, held),
+            "with nobody left the raid resolves");
+        RaidLogEntry heldEntry = held.raidLog.get(held.raidLog.size() - 1);
+        helper.assertTrue(heldEntry.held(),
+            "a BRANN band that burned nothing must be logged as held");
+
+        Settlement lost = settlement(8, 3);
+        RaidCaptain lostCaptain = RaidDirector.pickCaptain(lost, level.getRandom());
+        lost.pendingRaid = new RaidPlan(lostCaptain.id(), RaidObjective.BRANN, 0.0F, 2L);
+        RaidDirector.torchForArson(level, lost.id, new BlockPos(1, 1, 1));
+        helper.assertTrue(RaidDirector.resolveIfOver(level, lost),
+            "with nobody left the raid resolves");
+        RaidLogEntry lostEntry = lost.raidLog.get(lost.raidLog.size() - 1);
+        helper.assertTrue(!lostEntry.held(),
+            "a BRANN band that actually burned something must be logged as "
+                + "lost, even though nothing was \"stolen\" -- the exact bug "
+                + "this pins: the village can be gutted and told it won");
+        helper.succeed();
+    }
+
+    /**
+     * The same defect, BLOD's arm: {@code raidLootEscaped} (KORN's own
+     * signal) is never touched by a raid that only hunts settlers, so the
+     * old logic reported every BLOD raid as held no matter how many settlers
+     * it actually hurt. BLOD's own signal is {@link
+     * Settlement#raidSettlersHurtTonight}, already tallied live by {@code
+     * RaiderEntity#doHurtTarget} for exactly this raid.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_a_blod_raid_only_holds_if_nobody_was_actually_hurt")
+    public void aBlodRaidOnlyHoldsIfNobodyWasActuallyHurt(GameTestHelper helper) {
+        var level = helper.getLevel();
+
+        Settlement held = settlement(8, 3);
+        RaidCaptain heldCaptain = RaidDirector.pickCaptain(held, level.getRandom());
+        held.pendingRaid = new RaidPlan(heldCaptain.id(), RaidObjective.BLOD, 0.0F, 1L);
+        // raidSettlersHurtTonight is left at 0: nobody was actually caught.
+        helper.assertTrue(RaidDirector.resolveIfOver(level, held),
+            "with nobody left the raid resolves");
+        RaidLogEntry heldEntry = held.raidLog.get(held.raidLog.size() - 1);
+        helper.assertTrue(heldEntry.held(),
+            "a BLOD band that hurt nobody must be logged as held");
+
+        Settlement lost = settlement(8, 3);
+        RaidCaptain lostCaptain = RaidDirector.pickCaptain(lost, level.getRandom());
+        lost.pendingRaid = new RaidPlan(lostCaptain.id(), RaidObjective.BLOD, 0.0F, 2L);
+        lost.raidSettlersHurtTonight = 1; // a settler was actually caught
+        helper.assertTrue(RaidDirector.resolveIfOver(level, lost),
+            "with nobody left the raid resolves");
+        RaidLogEntry lostEntry = lost.raidLog.get(lost.raidLog.size() - 1);
+        helper.assertTrue(!lostEntry.held(),
+            "a BLOD band that actually hurt a settler must be logged as "
+                + "lost, even though nothing was \"stolen\" -- the exact bug "
+                + "this pins");
         helper.succeed();
     }
 

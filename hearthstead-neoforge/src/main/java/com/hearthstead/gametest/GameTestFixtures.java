@@ -7,6 +7,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 import java.util.UUID;
@@ -99,13 +100,41 @@ public final class GameTestFixtures {
      * this class (and any hand-built fixture with non-standard bounds) routes
      * through, so the plaque itself can never be the thing a new fixture
      * forgets.
+     *
+     * <p><b>Fixed, 2026-08-26 raid-night audit -- the KF-021 side door.</b>
+     * {@code helper.setBlock} places the plaque at its default state
+     * ({@code FACING=NORTH}), which bypasses {@link PlaqueBlock#canSurvive}
+     * entirely -- placement never runs {@code getStateForPlacement}'s own
+     * check. {@code canSurvive} requires a face-sturdy block on the side
+     * {@code FACING} points away from (south, for the default NORTH), and
+     * every arena is air there, so setup PASSED while quietly leaving a
+     * plaque the game itself considers illegal: the very next neighbour
+     * update at that south position deletes it via {@code updateShape}, and
+     * {@code BuildingManager.tick} then dissolves the building mid-test --
+     * reopening KF-021 through a side door, in the one helper written to
+     * close it. A real, sturdy support block placed south of the plaque
+     * FIRST, matching the plaque's own default NORTH facing, is what makes
+     * this placement one the game actually agrees is legal, not merely one
+     * it did not immediately reject.
      */
     public static void placePlaque(GameTestHelper helper, BlockPos plaqueRel) {
+        // The plaque's own default state is FACING=NORTH, so its required
+        // support sits to the south (PlaqueBlock#canSurvive: the block
+        // behind the side FACING points away from). Any ordinary full,
+        // face-sturdy block works; stone bricks match the floor these
+        // arenas already build elsewhere.
+        helper.setBlock(plaqueRel.south(), Blocks.STONE_BRICKS);
         helper.setBlock(plaqueRel, ModBlocks.PLAQUE.get());
         helper.assertBlockState(plaqueRel,
             state -> state.getBlock() instanceof PlaqueBlock,
             () -> "GameTestFixtures.placePlaque placed a plaque at " + plaqueRel
                 + " but it is not there — the building this makes would be "
                 + "dissolved by BuildingManager's sweep the moment it runs");
+        helper.assertBlockState(plaqueRel,
+            state -> state.canSurvive(helper.getLevel(), helper.absolutePos(plaqueRel)),
+            () -> "GameTestFixtures.placePlaque placed a plaque at " + plaqueRel
+                + " that cannot survive its own canSurvive check -- the next "
+                + "neighbour update would delete it and dissolve the building "
+                + "mid-test (KF-021's side door)");
     }
 }

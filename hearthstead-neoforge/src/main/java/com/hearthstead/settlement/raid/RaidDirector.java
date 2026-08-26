@@ -402,11 +402,19 @@ public final class RaidDirector {
             return false; // still going
         }
         RaidCaptain captain = captainOf(settlement, plan.captainId());
+        // Read BEFORE resetArson (below) clears it -- the arson tally is
+        // this raid's own already-tracked BRANN signal, and it must feed
+        // objectiveSucceeded while it is still live.
+        int arsonCount = RaidScars.get(level).arsonThisRaid(settlement.id);
         // Whether the settlement HELD is not about who died -- it is about
-        // whether the raiders got what they came for. A band that leaves with
-        // the stores has won even if it left bodies behind, and one wiped out
-        // empty-handed has lost even if it killed settlers doing it.
-        boolean lost = settlement.raidLootEscaped;
+        // whether the raiders got what they came for, AND that has to be
+        // judged against THIS raid's own objective (2026-08-26 raid-night
+        // audit): a BRANN band that burns nothing failed even though nothing
+        // was "stolen" (raidLootEscaped is a KORN-only signal, never set by
+        // arson or by hunting settlers), so keying every objective off it
+        // let a raid that gutted the village still broadcast "held through
+        // the raid". See objectiveSucceeded for the per-objective signal.
+        boolean lost = objectiveSucceeded(plan.objective(), settlement, arsonCount);
         if (lost) {
             settlement.raidPressure.recordLost();
             if (captain != null) {
@@ -433,7 +441,7 @@ public final class RaidDirector {
         // repair dugnad's work queue, and they outlive the raid until a
         // settler actually fixes them (RepairWorkGoal).
         RaidScars.get(level).resetArson(settlement.id);
-        recordAftermath(level, settlement, plan, captain, !lost, captainSlain);
+        recordAftermath(level, settlement, plan, captain, !lost, captainSlain, arsonCount);
         SettlementSavedData.get(level).setDirty();
         Hearthstead.LOGGER.info(
             "Raid on {} is over -- {} {} (pressure now {}, stage {})",
@@ -451,6 +459,49 @@ public final class RaidDirector {
                 scarCount, settlement.name);
         }
         return true;
+    }
+
+    /**
+     * Whether THIS raid's objective actually succeeded -- the single source
+     * {@link #resolveIfOver} judges "held" from (2026-08-26 raid-night
+     * audit). Before this method existed, the whole settlement's fate was
+     * read off {@link Settlement#raidLootEscaped} alone, a flag only ever
+     * set by {@code RaiderLootGoal}'s successful withdrawal (KORN). A BRANN
+     * band that burned every building it reached, or a BLOD band that hurt
+     * every settler it could catch, left that flag false and so was reported
+     * as repelled -- the game asserting an outcome nothing in the world
+     * backed.
+     *
+     * <p>Each arm reads the signal that objective's own raider goal already
+     * tracks, live, for exactly this raid -- nothing new is invented:
+     * <ul>
+     *   <li>{@code KORN} -- {@link Settlement#raidLootEscaped}, set the
+     *       instant a laden raider gets clear ({@code RaiderLootGoal}).
+     *   <li>{@code BLOD} -- {@link Settlement#raidSettlersHurtTonight},
+     *       incremented on every landed hit during a live raid
+     *       ({@code RaiderEntity#doHurtTarget}); a hurt settler already
+     *       covers a downed one, since the killing blow is itself a landed
+     *       hit before death is resolved.
+     *   <li>{@code BRANN} -- {@code arsonCount}, this raid's own torching
+     *       tally ({@link RaidScars#arsonThisRaid}, filled by
+     *       {@link #tickArson}), read by the caller before the ledger resets
+     *       it for the next raid.
+     * </ul>
+     *
+     * <p>{@code LOSEPENGER} is disarmed ({@link RaidObjective#isAvailableAt})
+     * and {@link #planRaid} can never choose it, so this arm is unreachable
+     * from a live roll -- kept only so a raid plan persisted from before the
+     * disarm still resolves sanely on an old save, falling back to the same
+     * loot signal every objective used before this method existed.
+     */
+    private static boolean objectiveSucceeded(RaidObjective objective, Settlement settlement,
+                                               int arsonCount) {
+        return switch (objective) {
+            case KORN -> settlement.raidLootEscaped;
+            case BLOD -> settlement.raidSettlersHurtTonight > 0;
+            case BRANN -> arsonCount > 0;
+            case LOSEPENGER -> settlement.raidLootEscaped;
+        };
     }
 
     /**
@@ -476,10 +527,15 @@ public final class RaidDirector {
      * earned/upgraded epithet for a raid that got away with the goods --
      * all of it before the log entry and report below are built, so both
      * read the outcome honestly.
+     *
+     * @param arsonCount this raid's own torching tally, captured by the
+     *                   caller before {@link RaidScars#resetArson} clears
+     *                   it -- BRANN's report reads it directly rather than
+     *                   re-deriving "held" from the generic KORN wording.
      */
     private static void recordAftermath(ServerLevel level, Settlement settlement,
                                         RaidPlan plan, RaidCaptain captain, boolean held,
-                                        boolean captainSlain) {
+                                        boolean captainSlain, int arsonCount) {
         String captainName = CaptainRoster.recordRaidOutcome(level, settlement, captain,
             plan.objective(), held, captainSlain, level.getRandom());
         String stageAfter = settlement.raidPressure.stage().id();
@@ -492,17 +548,48 @@ public final class RaidDirector {
         }
 
         Component stage = Component.translatable("hearthstead.raid.stage." + stageAfter);
-        Component report = held
-            ? Component.translatable("hearthstead.message.raid_defense_held",
-                settlement.name, settlement.raidSettlersHurtTonight,
-                settlement.raidItemsStolenTonight, stage)
-            : Component.translatable("hearthstead.message.raid_defense_lost",
-                settlement.name, captainName, settlement.raidItemsStolenTonight,
-                settlement.raidSettlersHurtTonight, stage);
+        Component report = reportFor(plan.objective(), held, settlement, captainName,
+            arsonCount, stage);
         RaidBroadcast.send(level, settlement, report);
 
         settlement.raidItemsStolenTonight = 0;
         settlement.raidSettlersHurtTonight = 0;
+    }
+
+    /**
+     * The morning report's own wording, matched to what this raid's
+     * objective actually is (2026-08-26 raid-night audit) -- the generic
+     * "item(s) were stolen" phrasing read as a non sequitur (always zero,
+     * never explained) for a BRANN raid that held, and actively hid the
+     * building damage for one that did not, since nothing about arson was
+     * ever named. KORN keeps the original wording verbatim -- stolen goods
+     * are exactly what a KORN raid is about -- and the disarmed LOSEPENGER
+     * arm (unreachable, see {@link #objectiveSucceeded}) falls back to it
+     * too, matching this method's behaviour before objectives were split.
+     */
+    private static Component reportFor(RaidObjective objective, boolean held,
+                                       Settlement settlement, String captainName,
+                                       int arsonCount, Component stage) {
+        return switch (objective) {
+            case BLOD -> held
+                ? Component.translatable("hearthstead.message.raid_defense_held_blod",
+                    settlement.name, stage)
+                : Component.translatable("hearthstead.message.raid_defense_lost_blod",
+                    settlement.name, captainName, settlement.raidSettlersHurtTonight, stage);
+            case BRANN -> held
+                ? Component.translatable("hearthstead.message.raid_defense_held_brann",
+                    settlement.name, settlement.raidSettlersHurtTonight, stage)
+                : Component.translatable("hearthstead.message.raid_defense_lost_brann",
+                    settlement.name, captainName, arsonCount,
+                    settlement.raidSettlersHurtTonight, stage);
+            default -> held // KORN, and the unreachable disarmed LOSEPENGER
+                ? Component.translatable("hearthstead.message.raid_defense_held",
+                    settlement.name, settlement.raidSettlersHurtTonight,
+                    settlement.raidItemsStolenTonight, stage)
+                : Component.translatable("hearthstead.message.raid_defense_lost",
+                    settlement.name, captainName, settlement.raidItemsStolenTonight,
+                    settlement.raidSettlersHurtTonight, stage);
+        };
     }
 
     /**
@@ -747,18 +834,39 @@ public final class RaidDirector {
                 if (site == null) {
                     continue;
                 }
-                BlockState original = level.getBlockState(site);
-                recordScar(level, settlement.id, site, original);
-                level.setBlock(site, BaseFireBlock.getState(level, site), 3);
-                book.countArson(settlement.id);
+                String burned = level.getBlockState(site).getBlock().getName().getString();
+                torchForArson(level, settlement.id, site);
                 Hearthstead.LOGGER.info(
                     "Raiders torch {} at {} in {} ({} of {} torchings this raid)",
-                    original.getBlock().getName().getString(), site,
-                    settlement.name, book.arsonThisRaid(settlement.id),
+                    burned, site, settlement.name, book.arsonThisRaid(settlement.id),
                     ARSON_PER_RAID);
                 return; // one torching per settlement tick: watchable, not a flash
             }
         }
+    }
+
+    /**
+     * Torches one block on a raid's behalf: records its scar FIRST (so the
+     * repair dugnad knows what stood in the hole), turns it to fire, then
+     * counts it against {@link #ARSON_PER_RAID}. The single mechanism that
+     * actually burns anything -- {@link #tickArson} calls this once it has
+     * picked a site, and nothing else may set a settlement block alight on a
+     * raid's behalf.
+     *
+     * <p>Public so a GameTest proving what a BRANN raid's own success signal
+     * ({@link #objectiveSucceeded}) does can drive the EXACT mechanism a real
+     * raid drives -- {@code SagaGameTests#aVictoriousRaidGrowsTheLeaderAndEarnsAnEpithet}
+     * calls this directly rather than reaching past it into
+     * {@link RaidScars}'s package-private counter, so the state that test
+     * builds is one a real BRANN raid can actually produce, not a shortcut
+     * around the mechanism that produces it.
+     */
+    public static void torchForArson(ServerLevel level, java.util.UUID settlementId,
+                                     BlockPos site) {
+        BlockState original = level.getBlockState(site);
+        recordScar(level, settlementId, site, original);
+        level.setBlock(site, BaseFireBlock.getState(level, site), 3);
+        RaidScars.get(level).countArson(settlementId);
     }
 
     /**

@@ -26,19 +26,18 @@ import java.util.UUID;
  * hidden stats -- everything a captain IS reads from a broadcast or a
  * report).
  *
- * <p><b>Known gap, found by the 2026-08-26 raid-night audit (KF-031's
- * sibling finding, not yet its own entry).</b> {@code earnEpithetFrom} is
- * only ever called with {@code !held}, and {@link com.hearthstead.settlement.raid.RaidDirector#resolveIfOver}
- * computes {@code held} purely from whether loot physically escaped
- * (KORN). No raid ever sets that flag for BRANN, BLOD or the disarmed
- * LOSEPENGER, so {@link #epithetsFor}'s BRANN and BLOD pairs -- "the
- * Torch"/"Ember-Bringer", "Red-Handed"/"the Reaper" -- describe real raider
- * behaviour (raiders genuinely burn and genuinely hurt settlers) but are
- * currently UNREACHABLE: no BRANN or BLOD captain can ever earn one, no
- * matter what their raid actually did. Left as-is rather than papered over
- * pending an owner decision on whether "held" should become objective-aware
- * -- see the audit report for the exact mechanism and the fix this would
- * take.
+ * <p><b>Fixed, 2026-08-26 raid-night audit.</b> {@code earnEpithetFrom} is
+ * only ever called with {@code !held}, and until this fix
+ * {@link com.hearthstead.settlement.raid.RaidDirector#resolveIfOver}
+ * computed {@code held} purely from whether loot physically escaped (KORN),
+ * so {@link #epithetsFor}'s BRANN and BLOD pairs -- "the Torch"/"Ember-Bringer",
+ * "Red-Handed"/"the Reaper" -- were UNREACHABLE no matter what a raid
+ * actually did. {@code resolveIfOver} now judges {@code held} against each
+ * objective's own already-tracked signal (arson count for BRANN, a settler
+ * actually hurt for BLOD, loot escaped for KORN -- see
+ * {@code RaidDirector#objectiveSucceeded}), so a BRANN captain who actually
+ * burns something, or a BLOD captain who actually lands a hit, now earns
+ * these epithets the same way a KORN captain always could.
  */
 public final class Captain {
 

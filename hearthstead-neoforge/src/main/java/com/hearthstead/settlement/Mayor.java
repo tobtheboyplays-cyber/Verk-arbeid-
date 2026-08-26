@@ -163,6 +163,18 @@ public final class Mayor {
      * all stay untouched -- because a swap that silently succeeds without
      * the goods is exactly the value mint FLOWS.md forbids.
      *
+     * <p><b>Fixed, 2026-08-26 raid-night audit (the KF-025 shape, now with a
+     * price attached).</b> Whether this is a swap used to be decided by
+     * {@code find(level, settlement) != null} -- a LOADING fact, since
+     * {@link #find} is backed by {@code level.getEntity(uuid)}, which
+     * returns null the instant the incumbent mayor's chunk is not loaded.
+     * Appoint a replacement while the old mayor sleeps in an unloaded chunk
+     * and the whole swap branch was skipped: no feast charged, no stand-down
+     * morale hit, yet {@code settlement.mayorId} was overwritten and the
+     * swap succeeded free. It now branches on {@code settlement.mayorId !=
+     * null} -- a SETTLEMENT fact, true or false the same way whether or not
+     * the incumbent happens to be in memory right now.
+     *
      * @return null on success, or the reason it was refused
      */
     @Nullable
@@ -174,16 +186,24 @@ public final class Mayor {
         if (settlement.mayorId != null && settlement.mayorId.equals(settler.getUUID())) {
             return Component.translatable("hearthstead.mayor.refused.already");
         }
-        SettlerEntity previous = find(level, settlement);
+        boolean isSwap = settlement.mayorId != null;
         HearthBlockEntity hearth = null;
         Costs.Price feastPrice = null;
-        if (previous != null) {
+        if (isSwap) {
             // A swap, not a first appointment -- COSTS.md's feast applies,
             // and it must be paid BEFORE anything about the seat changes.
+            // Whether the incumbent is actually loaded right now never
+            // enters into it: the seat being occupied is what prices the
+            // feast, not whether that occupant is standing nearby.
             feastPrice = Costs.afterDiscounts(Costs.mayorFeast(),
                 Costs.discountsFor(level, settlement, Costs.PriceKey.MAYOR_FEAST));
-            if (!(level.getBlockEntity(settlement.center) instanceof HearthBlockEntity h)
-                || !Costs.canPay(h.getInventory(), feastPrice)) {
+            if (!(level.getBlockEntity(settlement.center) instanceof HearthBlockEntity h)) {
+                // Distinct from "cannot afford": the hearth genuinely cannot
+                // be reached right now (unloaded, destroyed, mid-placement),
+                // which is not the same claim as "the goods are not there".
+                return Component.translatable("hearthstead.mayor.refused.hearth_unavailable");
+            }
+            if (!Costs.canPay(h.getInventory(), feastPrice)) {
                 return Component.translatable("hearthstead.mayor.refused.cannot_afford_feast");
             }
             hearth = h;
@@ -193,7 +213,7 @@ public final class Mayor {
         }
         settlement.mayorId = settler.getUUID();
         settlement.mayorSince = level.getGameTime();
-        if (previous != null) {
+        if (isSwap) {
             // Standing somebody down is a small public unkindness, not a
             // free swap.
             for (SettlerEntity member : SettlementManager.loadedMembers(level, settlement)) {
