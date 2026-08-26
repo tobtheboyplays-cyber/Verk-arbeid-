@@ -257,6 +257,88 @@ public class SettlerSheetGameTests {
     }
 
     /**
+     * A settler bound to no settlement — a traveler, or one summoned outside
+     * any settlement — still fills every row the sheet draws. This is the
+     * branch {@code SettlerNetwork#snapshot} takes when it cannot see a
+     * settlement, and it is the one that sends empty strings on purpose.
+     */
+    @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
+    public void anUnboundSettlerStillFillsTheWholeSheet(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        SettlerEntity stray = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(8, 1, 8));
+        stray.setSettlerName("Wanderer");
+        player.setPos(stray.getX(), stray.getY(), stray.getZ());
+
+        SettlerSnapshotPayload wire = throughTheWire(helper, snapshotOf(player, stray));
+        helper.assertTrue(!wire.canManage(),
+            "an unbound settler must not offer management");
+        helper.assertTrue(wire.attributeValues().size() == Attribute.COUNT,
+            "an unbound settler's attribute block is short: " + wire.attributeValues().size());
+        for (int v : wire.attributeValues()) {
+            helper.assertTrue(v >= 1, "an unbound settler has a zero attribute: " + v);
+        }
+        helper.assertTrue(!wire.traitOrdinals().isEmpty(),
+            "an unbound settler's trait row would be empty");
+        helper.assertTrue(!wire.boonKey().isBlank(),
+            "an unbound settler carries no boon key, so a mayor badge would read "
+                + "'hearthstead.mayor.boon.'");
+        helper.assertTrue(wire.employerBuildingId().isEmpty(),
+            "an unbound settler must carry no employer");
+        helper.assertTrue(!stray.getSettlerName().isBlank(),
+            "an unbound settler's sheet title would be blank");
+        helper.succeed();
+    }
+
+    /**
+     * The watch shift is real for archers, not only for guards.
+     *
+     * <p>{@code Employment#watchOf} is deliberately trade-agnostic — a
+     * two-archer watchtower splits into a day and a night archer by exactly
+     * the rule a barracks garrison uses — and the snapshot carries
+     * {@code guardWatchNight} for them. This records that data existing, so
+     * that {@code SettlerScreen#drawEmployment}'s
+     * {@code getProfession() == Profession.GUARD} gate can be judged against
+     * the facts rather than against intent.
+     */
+    @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
+    public void archersCarryARealWatchShiftLikeGuardsDo(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        Building tower = GameTestFixtures.register(helper, s, BuildingType.WATCHTOWER, 2, 2);
+        SettlerEntity first = settler(helper, s, "Dag", 6, 6);
+        SettlerEntity second = settler(helper, s, "Natt", 7, 6);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, first).ok(),
+            "setup: the first archer was not hired");
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, second).ok(),
+            "setup: the second archer was not hired");
+
+        helper.assertTrue(first.getProfession() == Profession.ARCHER
+                && second.getProfession() == Profession.ARCHER,
+            "setup: a watchtower hires archers, got " + first.getProfession());
+        helper.assertTrue(first.getProfession().martial(),
+            "an archer is a martial trade");
+        helper.assertTrue(first.getProfession() != Profession.GUARD,
+            "an archer is not a GUARD, which is what SettlerScreen#drawEmployment tests");
+
+        Employment.Watch a = Employment.watchOf(s, first);
+        Employment.Watch b = Employment.watchOf(s, second);
+        helper.assertTrue(a != b,
+            "two archers in one tower must split the clock, got " + a + " and " + b);
+
+        player.setPos(second.getX(), second.getY(), second.getZ());
+        SettlerSnapshotPayload wire = throughTheWire(helper, snapshotOf(player, second));
+        helper.assertTrue(wire.guardWatchNight() == (b == Employment.Watch.NIGHT),
+            "the snapshot's guardWatchNight disagrees with Employment.watchOf for an archer");
+        Hearthstead.LOGGER.info(
+            "UI-DATA-1 archer watch: {} stands {}, {} stands {}; snapshot.guardWatchNight={} "
+                + "-- SettlerScreen#drawEmployment only draws this row when profession==GUARD",
+            first.getSettlerName(), a, second.getSettlerName(), b, wire.guardWatchNight());
+        helper.succeed();
+    }
+
+    /**
      * Every translation key {@code SettlerScreen} can ask for exists, in both
      * shipped languages, and is not blank. Read out of the shipped resources
      * themselves, so this measures what ships rather than what the code hoped
