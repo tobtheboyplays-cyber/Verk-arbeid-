@@ -573,9 +573,10 @@ public class ChainsGameTests {
         helper.assertTrue(countOf(chest, ModItems.MALT.get()) == 1,
             "two of the three malt should be spent, one left over; saw "
                 + countOf(chest, ModItems.MALT.get()));
-        helper.assertTrue(countOf(chest, ModItems.ALE.get()) == 2,
-            "2 malt at 2:2 should leave exactly 2 ale; saw "
-                + countOf(chest, ModItems.ALE.get()));
+        helper.assertTrue(countOf(chest, ModItems.ALE.get()) == 3,
+            "2 malt at 2:3 should leave exactly 3 ale (JOB 3's corrected "
+                + "retune — BREWERY's own comment has the effort arithmetic); "
+                + "saw " + countOf(chest, ModItems.ALE.get()));
         helper.succeed();
     }
 

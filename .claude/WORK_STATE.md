@@ -20,41 +20,43 @@ biter, og koordinatoren committer ved HVER rapport. Ingenting ligger
 ucommittet over tid. Worktrees under scratchpad/ overlever ikke; bare
 remote gjør det.
 
-## Testtilstanden — KF-021 er LØST
-**All 202 required tests passed**, fire kjøringer på rad i FLAKE-2s tre.
-Rotårsak: 22 fikstur-filer registrerte en `Building` uten å henge plakett,
-og `BuildingManager` oppløste dem korrekt én per 20 tikk — testene slettet
-sine egne bygninger. Ett felles sted nå (`GameTestFixtures`) som plasserer
-plaketten OG hevder den er der ved oppsett. Netto -153 linjer.
-Andre halvdel: `run/world` ble aldri vasket (217 MB tilbake til 23. august).
-Kontrolleren vasker den nå før hver kjøring.
+## Testtilstanden (07:30Z, runde 1)
+**213 tester, alle grønne unntatt to kjente** — `ahiredhunterhuntsbutnever
+breaksthefloor` og `ahiredfisheractuallyfishes`, begge eid av TRADES-1.
+KF-021 er løst (fiksturene oppløste sine egne bygninger); vakta mot
+plakettløse fiksturer har alt fanget én ekte regresjon etter det.
 
-**Fortsatt åpent:** én rød i én av fire kjøringer — KF-027, åtte jernbarrer
-ikke gjort rede for i kurér-konserveringstesten. Behandles som mulig brudd
-på chest truth, ikke som flake. CONSERVE-1 jakter den i eget tre.
+## Åpne arbeidere (runde 1)
+- SPILLER-1 — survival-gjennomspilling på jar fra fe889ed, med kamera.
+  Har alt funnet KF-030: kamera-hjelperen drepte spilleren i survival.
+- TRADES-1 — hvorfor jegeren og fiskeren nekter å starte (egne porter,
+  ikke arbeidsløkkene). Eget tre.
+- ECON-1 — regner om de fôrede rutene mot DAGSVERK etter at tikk-målingen
+  viste seg å måle feil akse. Eget tre.
+- RAID-1 — jaktmål for blodraid + vaktenes sivile-først-prioritering.
+  Løsepenge-løgnen (KF-031) og epitetene er alt avvæpnet.
+- Gjennomgang av nattas 6590-linjers diff: fem linser, tre skeptikere per
+  funn, og et spørsmål til slutt om hva ingen av linsene så på.
 
-## Landet i natt (verifisert, ikke bare kompilert der det står)
-- Kurér-klyngen lukket: rekkevidde måles til KISTA, ikke til bygningens boks
-  (KF-023). Fire tester grønne.
-- KF-021 løst (over).
-- 14 yrkesmatchede idle-animasjoner, alle 21 yrker, katalogen §22 skrevet,
-  `anim_check` PASS.
-- MAYOR_FEAST og REPAIR koblet chest-true; reparasjonsrabatt = «noen arr gror
-  gratis», deterministisk teller.
-- Våpenhuset: 8 rustningsoppskrifter + ARMOURER-yrket, så kjeden lukker seg
-  fra garveri/smeltehytte til vaktens kropp.
-- QA-dommeren strammet: full rosterlagring (var `head -5`), kontrolleren inn i
-  fingeravtrykket, driftvakt mellom de to fingeravtrykks-implementasjonene
-  (testet ved å ødelegges med vilje).
-- BALANCE_AUDIT.md: 367 linjer regnestykker, ni funn.
+## Landet i runde 1
+- Tre nye yrker: gjeter, fisker, jeger — egne klipp, ekte tilbakeholdenhet
+  (artsgulv, vann-minimum, flokk-gulv).
+- Fire vegger revet: sykestua mistet Nether, mølla lager papir, markedets
+  emerald byttet, tre døde varer fikk bruk.
+- Forskningen ble ekte: kutter dagsverk, ikke bare et tikk-tak ingen når.
+- Rustningskjeden lukket: oppskrifter + ARMOURER-yrket + ansettelse.
+- Raiderne: to bygg, sju klipp, skumle teksturer, vold skopet til eget raid.
+- Kurér-klyngen lukket: rekkevidde måles til kista, ikke bygningens boks.
+- Dommeren strammet tre ganger: full roster, kontrolleren fingeravtrykket,
+  statisk vakt mot plakettløse fiksturer.
+- Weight.java skrevet (logistikkens grunnstein, ikke koblet ennå med vilje).
 
-## Åpne tråder
-- KF-027 (åtte barrer) — CONSERVE-1.
-- FLAKE-2: `full` x2 + statisk vakt mot plakettløse fiksturer.
-- Film: side 5 og 6 bygget, venter på at klienten slipper skjerm :99.
-- KF-026: ANIMATION_CATALOGUE.md avgjør en dom men er ikke i fingeravtrykket.
-- Balansefunn 2 (forskning som ikke gjør noe) — utsatt til suiten er stabil.
-- MILITARY-OUT-ruta er fortsatt ubygget.
+## Viktigste lærdom i runde 1
+**Sømmene mellom parallelle arbeidere er der feilene bor.** ECON-1 målte
+fôrede ruter i tikk mens RESEARCH-1 i parallell fikset nettopp det at tikk
+ikke binder noe. Ingen av dem gjorde feil i sin egen fil. Dokumentet begge
+leste målte feil akse. Derfor gjennomgangen med fem linser — og derfor
+spørsmålet «hva så ingen på?» til slutt.
 
 ## Merk om oppgavelisten
 Verktøyets task-liste nullstilles sammen med containeren og har gjort det
