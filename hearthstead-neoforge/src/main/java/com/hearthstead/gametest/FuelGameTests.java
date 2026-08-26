@@ -457,7 +457,22 @@ public class FuelGameTests {
                 + " (want 0 — one burned per batch)");
 
         moveAll(smelterChest, smithyChest, ModItems.IRON_BLOOM.get());
-        smithyChest.setItem(1, new ItemStack(Items.CHARCOAL,
+        // Into a slot that is provably EMPTY, never a fixed index: the blooms
+        // arrive as more than one stack, setItem(1, ...) overwrote the second
+        // one, and four of them vanished before the smithy could forge them.
+        // A fixture that destroys its own goods fails the very conservation
+        // law the test exists to check -- and it took a diagnostic naming
+        // "bloom=0/2" to see it, because run() refuses on missing input,
+        // missing fuel and no room alike without saying which.
+        int fuelSlot = -1;
+        for (int slot = 0; slot < smithyChest.getContainerSize(); slot++) {
+            if (smithyChest.getItem(slot).isEmpty()) {
+                fuelSlot = slot;
+                break;
+            }
+        }
+        helper.assertTrue(fuelSlot >= 0, "the smithy chest must have room for fuel");
+        smithyChest.setItem(fuelSlot, new ItemStack(Items.CHARCOAL,
             finishBatches * Fuel.perBatch(BuildingType.SMITHY)));
         for (int i = 0; i < finishBatches; i++) {
             helper.assertTrue(Production.run(helper.getLevel(), smithy, finish),
