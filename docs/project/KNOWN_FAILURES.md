@@ -1984,3 +1984,164 @@ and the tally is now unambiguous: **on this project, reading generates
 hypotheses and only running generates findings.**
 
 Four consecutive clean runs: `All 211 required tests passed`.
+
+---
+
+## KF-035 — the input-decay WALL: GLFW's grab desyncs, and it self-heals
+
+**Status: MITIGATED (verify-and-retry shipped; root X/GLFW cause not fully
+pinned).** **Severity:** was BLOCKER — this is round 1's dominant, session-
+ending finding (KF-032's closing note), the single largest time cost of that
+round, and the one thing standing between the harness and the lumberjack
+milestone. **Owner: HARNESS-2, round 2, 2026-08-26.**
+
+### The mechanism (confirmed live, not assumed)
+
+Round 1 described the symptom precisely: `mousedown`/`keydown` "increasingly
+do nothing at all — not misaimed, unreceived." Driving a fresh, real
+survival session (a leftover round-1 session first, then a clean `start` on
+a real `normal`-type world) and instrumenting every layer between `xdotool`
+and the game found the actual mechanism:
+
+**GLFW's X11 disabled-cursor input-capture grab on the Minecraft client
+silently desyncs from its own capture state.** When it does, *every*
+world-control input goes dead together — WASD, jump, mouse-look, mouse
+buttons — while *screen-gated* keyboard input (opening chat with `t`,
+typing into it, `Return`, `F3`) keeps working normally the entire time.
+That split is the fingerprint: whatever is broken is specifically the
+grabbed-camera-control gate, not a general input pipe, not X11, and not
+`xdotool`. Proven, not inferred:
+
+1. **X11-level delivery was independently confirmed intact at the exact
+   moment gameplay input was dead.** With the Minecraft window definitely
+   not responding to held WASD or `mousedown`, a bare `xev` window was
+   focused and sent the identical `xdotool`-synthesized key — it received a
+   real `KeyPress`, `synthetic NO`, immediately. This rules out the X
+   server and `xdotool`'s XTEST path as the fault; the event is delivered
+   correctly and the client simply never acts on it.
+2. **A JVM thread dump (`kill -QUIT`) during a dead-input window showed the
+   render thread `RUNNABLE`, mid-frame in `GameRenderer.render` →
+   `glDrawElements`** — not blocked, not deadlocked, not in GC. It is
+   genuinely running the game loop; it is just not reacting to input that
+   reached it.
+3. **Chat vs. world-control input diverges exactly as the mechanism
+   predicts.** A chat round-trip (`t`, type, `Return`) reached the server
+   as real text every time, even in the same window where WASD/look/click
+   had just done nothing — because opening chat forces GLFW's cursor into
+   normal mode independent of whatever the disabled-cursor grab's own state
+   was, sidestepping the desync rather than exercising it.
+4. **A single real click into the window (`mousemove` to centre + `click
+   1`) instantly and completely restored BOTH mouse-look and WASD movement
+   together**, every time this was tried — confirmed via screenshot diffs
+   (look) and server-authoritative `data get entity Pos` (movement), not
+   by trusting the screen.
+
+### No single deterministic trigger pinned down — and a real reason why not
+
+Isolated fault-injection (a held `mousedown` with concurrent `import`
+screenshot capture, at various intensities, up to 8 rapid-fire screenshots
+during one hold) reproduced the dead state exactly once and failed to
+reproduce it on several repeats of the same pattern. What *did* correlate,
+measured directly: this environment's client renders at ~11fps / ~92%
+CPU("GPU") even near-idle on `llvmpipe` software GL, on a 4-core sandbox —
+and, discovered mid-session by an untouched, unrelated `M
+hearthstead-neoforge/src/main/java/.../FarmerWorkGoal.java` appearing in
+the working tree and an auto-swept `HARNESS-2 in flight` commit landing
+without this session running `git commit`: **this sandbox is shared,
+multi-tenant, and other concurrent sessions were building and running their
+own Minecraft servers/clients on the same box at the same time.**
+`uptime` read **load average 10.57 on 4 cores** during this round's one
+genuine, budget-exhausting recovery failure (below) — 2.5x oversubscribed,
+entirely from tenants this harness cannot see or control. The render-thread
+contention that makes the grab's internal bookkeeping race is real, but its
+size is not something any one script can bound. This is the "genuine
+external limitation" the fix below is designed around, not against.
+
+### The fix: verify, don't assume — `qa/scripts/live.sh` and `live2.sh`
+
+Round 1's harness already had a regrab click (`safe_regrab`, KF-009/KF-030);
+what it never had was a way to tell whether that click had *worked*. A
+caller kept sending input into a window that had gone quietly deaf, with no
+signal anywhere. The fix adds `ensure_grab()`: nudge the camera a small
+amount, read the player's own rotation back from the **server** (never the
+screen), undo the nudge (drift-neutral), and if it didn't move, `safe_regrab`
+and check again — up to `HSQA_ENSURE_GRAB_ATTEMPTS` (default 5) regrabs,
+every attempt and every outcome recorded as a real `check_pass`/`check_fail`
+in the session's evidence, not silent. Wired into `look`, `hold`, and a new
+first-class `mine <seconds>` primitive (mining/attacking — round 1's
+`PLAYTHROUGH_PROTOCOL.md` had told drivers to bypass this script entirely
+and send raw `mousedown`/`mouseup` for exactly this action; that gap is now
+closed), and into `cmd` in place of its old blind `safe_regrab`. Deliberately
+**not** wired into `click`/`key`, which are also used for GUI slots and menu
+keys — a regrab click while a screen is open lands on the screen, not on
+safe empty space (KF-009 cause 1's exact risk).
+
+**A bug in the fix itself, caught before it shipped.** The first version's
+retry loop checked, then regrabbed, for a fixed count — meaning the *last*
+regrab's own result was never re-verified. Live evidence caught it directly:
+it reported "still dead after 5 attempts" while a manual check moments later
+showed the grab was in fact alive — the 5th regrab had worked; nothing had
+re-checked it. That false negative would have told a caller to treat a
+perfectly good session as a WALL. Fixed by restructuring so the budget
+counts regrabs and every regrab is always followed by one more check before
+giving up.
+
+**A second, independent bug found in the same code path.**
+`$STATE/sky_seen` (the survival-mode safe_regrab's "have I already seen a
+clear-sky reading" counter, added by KF-030) is written but was never reset
+between sessions. It compares against the fresh per-instance log's own
+count on every call, so a value left over from a long previous session can
+outrun what a short new session's log will ever reach — silently disabling
+the survival-mode regrab click for an entire new session with zero error.
+Fixed: `start` now removes it, in both `live.sh` and `live2.sh`.
+
+**Not every "input dead" is this bug.** Late in the proving session the
+player was killed by a zombie (real night, real mob spawning, difficulty
+normal) and several `input_dead` failures during that window were the
+player legitimately sitting on the "You Died!" screen — a screen `ensure_grab`
+has no way to distinguish from a desynced grab, so it retries uselessly
+until a human clicks Respawn. Recorded here rather than folded into the
+mechanism above because conflating "no gameplay effect because the screen
+is a menu" with "no gameplay effect because the grab died" would be exactly
+the kind of unearned claim this ledger exists to catch. A future
+improvement could special-case `Health == 0`; not done tonight, named for
+whoever picks this up next.
+
+### Proof: driven live, not asserted
+
+A fresh `start` on `HSQA_LEVEL_TYPE=normal` (a real snowy-taiga world, not
+flat), survival + normal difficulty, was driven through founding, camera
+turns, confirmed WASD movement (`hold` reporting real before/after server
+positions), real mining (`mine` growing inventory counts verified via
+`data get`, not screenshots), a full day-to-night transition, and a real
+death and respawn — a longer and more varied session than round 1's
+active-play window, entirely through the new primitives. The session's own
+`.checks.jsonl` recorded **9 genuine `input_regrab` recoveries** (2-6
+checks each, all during real, unscripted play — not fault injection) and
+**7 genuine `input_dead` exhaustions**, several during the measured
+load-average-10-on-4-cores window and the death-screen window above. Every
+one of those 16 events is a line of durable evidence; in round 1 the
+identical failures left no trace anywhere and were only noticed by a human
+watching the game stop responding.
+
+**What this does and does not claim.** The fix does not make the GLFW
+desync stop happening — nothing this harness controls can promise that
+under genuine, external multi-tenant CPU contention. What it does is turn a
+silent, worsening, eventually-unrecoverable failure (round 1's shape) into
+a visible, bounded, self-healing one: every dead-input window this round
+was followed by either an automatic recovery within budget or a loud,
+logged failure that the very next command recovered from cleanly — the
+session was never stuck the way round 1's was. `docs/project/
+PLAYTHROUGH_PROTOCOL.md`'s old advice to reach for raw `mousedown`/`mouseup`
+for mining is superseded by `mine`; that document should be updated by
+whoever runs round 2's playthrough to point at it instead.
+
+**Left open for round 3 or later, named rather than guessed at:** the exact
+GLFW-internal state transition that desyncs is still not identified (would
+require instrumenting or decompiling GLFW's X11 platform layer, out of
+scope for a harness-only investigation); whether raising
+`HSQA_ENSURE_GRAB_ATTEMPTS` or backing off on detected contention
+(`uptime`'s load average) would meaningfully shrink the 7 genuine exhaustions
+seen this round, versus the death-screen confound accounting for most of
+them, is untested; and a `Health == 0` special case in `ensure_grab` would
+close the one confirmed non-bug source of `input_dead` noise.
