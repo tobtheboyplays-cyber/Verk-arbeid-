@@ -1091,3 +1091,41 @@ and starving-hearth routes, the fuel band test, the smelter/butcher churn,
 the summon payload error, `homeInvalidatedWhenWallBroken` ("no sequences
 finished"), the plaque advancement's mock-player placement, and the
 bystander pig that is REMOVED rather than damaged.
+
+### KF-023 — the courier delivered one bag and then stranded the rest forever
+
+**2026-08-26 02:00Z, run after 298fc11: 4 of 196 red**, all four in the
+courier cluster. The restock route was instrumented and the log settles the
+argument without a single line of reading:
+
+```
+COURIER-DIAG restock-skip crafter=SMELTER recipe=iron_bloom have=10 need=3 roomFor=true
+COURIER-DIAG restock-skip crafter=SMELTER recipe=iron       have=10 need=1 roomFor=true
+COURIER-DIAG restock-skip crafter=SMELTER recipe=iron_bloom have=10 need=3 roomFor=true
+```
+
+The restock predicate asked "is this crafter SHORT of any recipe minimum?"
+One courier bag is eight items and the largest minimum on that bench is
+three, so the first delivery clears every minimum at once and the crafter is
+never short again. `roomFor=true` — the chest has space, the goods exist,
+the route is walkable, and the courier declines the trip forever. The
+remaining stock strands in the warehouse and the conservation test that
+counts every item across the full route fails not because items were
+destroyed but because they never moved.
+
+"Short of the minimum" is the wrong question. A minimum is a floor for
+*starting* a batch, not a target for *stocking* a bench; the fuel route
+already knew this and reserves whole batches ahead (`FUEL_RESERVE_BATCHES`).
+The restock route was the only one still asking the floor question.
+
+Two sibling failures — `courierEntersASealedWarehouseAndDelivers` and
+`courierOpensAClosedDoorToDeliver` — are a *different* defect in the same
+cluster and are tracked with this one because they were found in the same
+run: the arrival predicate became a reach-plus-line-of-sight test (5d881b0,
+correctly, after a courier was live-witnessed frozen at a 0.31-block
+standoff outside a shed), and both door tests stayed red afterwards. The
+suspects on the table are whether the sight ray is now too strict from
+*inside* a room as well — it runs from eye height to the container's block
+centre, which for a chest one block away can clip the wall above it — and
+whether the door-opening goal still gets its chance to run once arrival
+correctly reports false.

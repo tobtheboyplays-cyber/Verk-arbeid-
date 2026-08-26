@@ -188,6 +188,27 @@ public class CourierWorkGoal extends Goal {
      * {@link #FOOD_PER_SETTLER} buys the larder a day of margin.
      */
     public static final int FUEL_RESERVE_BATCHES = 4;
+    /**
+     * RESTOCK (raw material): how many batches' worth of a recipe's own
+     * input a crafter is topped up to before the courier stops fetching
+     * more. Field evidence (coordinator diagnostic, run 20260826): checking
+     * a crafter against a single batch's {@code inputCount()} means the
+     * FIRST delivery -- a full bag, since withdrawal is not itself
+     * recipe-capped -- already clears every recipe's minimum, so the
+     * courier never comes back and any remaining warehouse stock strands
+     * there for good. A workshop that only ever holds enough for one
+     * attempt stalls the moment a courier is busy elsewhere (another
+     * crafter's turn, a raid, a farther delivery) even with the warehouse
+     * still full. Four batches is the same margin {@link #FUEL_RESERVE_BATCHES}
+     * already buys a firebox, for the identical reason -- a courier's round
+     * trip can span several hundred ticks, and production should never idle
+     * while the next load is on the road. (Not coincidentally: four batches
+     * of the smithy's 3-ingot recipes is 12, exactly what
+     * {@code LogisticsGameTests#restockConservesItemsAcrossTheFullRoute}
+     * seeds -- that test was always proving this number, before this
+     * constant existed to match it.)
+     */
+    public static final int MATERIAL_RESERVE_BATCHES = 4;
 
     /**
      * The hearth larder's LOW mark: {@link #FOOD_PER_SETTLER} meals for each
@@ -1586,14 +1607,10 @@ public class CourierWorkGoal extends Goal {
             if (Production.produces(crafter.type)) {
                 for (Production.Recipe recipe : Production.of(crafter.type)) {
                     Ingredient want = recipe.input();
-                    if (countMatching(mine, want) >= recipe.inputCount()
-                        || !roomFor(mine, want)) {
-                        // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
-                        com.hearthstead.Hearthstead.LOGGER.info(
-                            "COURIER-DIAG restock-skip crafter={} recipe={} have={} "
-                                + "need={} roomFor={}",
-                            crafter.type, recipe.id(), countMatching(mine, want),
-                            recipe.inputCount(), roomFor(mine, want));
+                    // Short means "below MATERIAL_RESERVE_BATCHES batches",
+                    // not "below one" -- see that constant's own reasoning.
+                    int keep = MATERIAL_RESERVE_BATCHES * recipe.inputCount();
+                    if (countMatching(mine, want) >= keep || !roomFor(mine, want)) {
                         continue; // not short, or nowhere to put more even if fetched
                     }
                     RestockJob claimed = claimRestockFrom(level, s, crafter, mine, want, now);
