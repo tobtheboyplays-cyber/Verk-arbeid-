@@ -163,9 +163,15 @@ public class ChainsGameTests {
     /**
      * SURVIVAL_AUDIT.md F7: the library's 81-paper bill was permanent
      * hand-labour forever because no recipe anywhere made paper. The mill's
-     * new "paper" entry closes that -- chest-true, exactly like the flour
-     * job right beside it: three sugar cane leave for exactly two paper, in
-     * the mill's own chest, nothing more or less.
+     * "paper" entry closes that -- chest-true: two sugar cane leave for
+     * exactly three paper, in the mill's own chest, nothing more or less.
+     *
+     * <p>GAPS-1, CORRECTED: the ratio used to be 3-in/2-out -- LESS paper
+     * than vanilla's own hand-craft (3 cane -> 3 paper, 1:1, instant, no
+     * building required), so the mill was strictly worse than crafting by
+     * hand and F7 was never actually eased in play. See the mill's own
+     * table-entry comment in {@code Production.java} for the full
+     * arithmetic; this test's own numbers follow that fix.
      *
      * <p>Registered through {@link GameTestFixtures#register} rather than
      * this file's bare {@link #building} helper -- the task that added this

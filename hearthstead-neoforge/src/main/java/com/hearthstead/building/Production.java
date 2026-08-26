@@ -115,20 +115,61 @@ public final class Production {
         // alternate on need like the smelter's ore trio below, never
         // starving each other; see Production#ready's fedPair check).
         //
-        // PRICE ANCHORED TO THE MILL'S OWN FLOUR ENTRY (the one register on
-        // this building, used twice): same 3-in/2-out ratio, same ticks.
-        // Deliberately worse than vanilla's own hand-craft (3 sugar cane ->
-        // 3 paper, 1:1, instant, at a crafting table) BY RATIO: a mill
-        // should relieve the player of paper-farming drudgery, not
-        // out-produce their own crafting table's EXCHANGE RATE -- if it
-        // did, a settlement could mint paper value for free just by
-        // routing cane through a miller instead of a player's own hands.
-        // Sugar cane is not itself the OUTPUT of any recipe in this table,
-        // so this only adds a leaf edge off it; paper is not an INPUT to
-        // anything here either, so it stays a leaf on its own end too -- no
-        // cycle either direction (ChainsGameTests
-        // #noValueMintingCycleInProductionTable covers it automatically,
-        // and millGrindsSugarCaneIntoPaperChestTrue proves the ledger).
+        // GAPS-1, CORRECTED (raid-night/survival-audit follow-up,
+        // 2026-08-26): the ORIGINAL register here (3 cane -> 2 paper, the
+        // same 3-in/2-out shape as flour) read as "eases F7" in
+        // SURVIVAL_AUDIT.md's own follow-up note, but never actually did.
+        // Vanilla's own crafting-table recipe is 3 sugar cane -> 3 paper,
+        // 1:1, INSTANT, at a table the player already has -- so the old
+        // mill register handed back LESS paper for the SAME cane than
+        // simply crafting it by hand, for the added cost of a miller's
+        // effort and a courier's walk. A recipe strictly worse than the
+        // free alternative it exists to replace is never actually used: no
+        // rational player routes cane through a settler to get back fewer
+        // sheets than crafting it themselves would give, so F7's "grind
+        // eased" claim was never true in play -- the closed WALL was a
+        // GRIND wearing a SMOOTH label, exactly the failure mode
+        // SURVIVAL_AUDIT.md's own closing note warns against ("a satisfying
+        // sentence that can hide a GRIND arriving in its place"). The old
+        // comment's worry -- that beating vanilla's ratio would "mint free
+        // value" -- proves too much: it would forbid the mill from EVER
+        // being worth using, since matching 1:1 buys nothing over hand-
+        // crafting either (same yield, plus a settler's effort and a
+        // courier's walk spent for it), and every other upstream recipe in
+        // this table (flour included) already prices a settler's labour as
+        // WORTH something over the player's own hands, or nobody would ever
+        // build the building.
+        //
+        // FIXED: 2 sugar cane -> 3 paper (1.5 paper/cane against vanilla's
+        // 1.0), the same "2 in -> 3 out" shape ale_malt/leather_cured/
+        // bloom_ingot below already use to land a fed recipe inside FLOWS.md's
+        // x1.5-x2 advantage band -- landing exactly at the x1.5 floor here,
+        // deliberately not higher: this compares against a FREE, external,
+        // unbounded hand-craft rather than another Production recipe (there
+        // is no "rough" paper recipe in this table to out-compete), so the
+        // safety margin the other fed pairs get from comparing effort against
+        // effort does not apply the same way -- staying at the floor keeps
+        // the mill "worth using" without turning cane into a value-minting
+        // loop. The threshold also drops (2 vs the old 3), so a genuinely
+        // small delivery still runs a batch rather than sitting idle for a
+        // third cane that may never come.
+        //
+        // The mill alone was still only half of F7's actual defect: nothing
+        // in this economy grew sugar cane at all before this pass either --
+        // see FarmerWorkGoal's own cane-tending extension (isMatureCane /
+        // isCaneSite), the other half of this fix. Ticks stay 40 (matches
+        // flour's own JOB-3 cut) -- not the lever either recipe's value ever
+        // came from (see the flour entry's own note below for why a crafter's
+        // flat 2-effort-per-batch cost, not the clock, is what a batch really
+        // costs; ChainsGameTests#millGrindsSugarCaneIntoPaperChestTrue's own
+        // arithmetic needed updating for the new ratio, not for ticks).
+        //
+        // Acyclicity unchanged: sugar cane is not itself the OUTPUT of any
+        // recipe in this table, so this only adds a leaf edge off it; paper
+        // is not an INPUT to anything here either, so it stays a leaf on its
+        // own end too -- no cycle either direction
+        // (ChainsGameTests#noValueMintingCycleInProductionTable covers it
+        // automatically).
         //
         // JOB 3, CORRECTED (coordinator caught the first pass measuring the
         // wrong axis -- see BAKERY below for the full story): both entries
@@ -142,17 +183,9 @@ public final class Production {
         // benefit: a miller pulled off the bench mid-batch loses less
         // half-finished work, and the clip visibly runs quicker, which is
         // real for the settler even though it buys no extra flour or paper.
-        //
-        // PAPER'S OWN PROPERTY, RE-VERIFIED AFTER THE TICK CUT: "worse than
-        // vanilla's hand-craft (3 cane -> 3 paper, 1:1, instant) so the mill
-        // never mints free value" is a claim about the EXCHANGE RATE (3-in/
-        // 2-out here vs vanilla's 1:1), not about speed -- vanilla's own
-        // hand-craft is already instant, so no tick count here could ever
-        // make the mill "faster" in the sense that mattered. The ratio is
-        // untouched by this edit, so the property holds exactly as before.
         put(BuildingType.MILL,
             new Recipe("flour", Ingredient.of(Items.WHEAT), 3, ModItems.FLOUR.get(), 2, 40),
-            new Recipe("paper", Ingredient.of(Items.SUGAR_CANE), 3, Items.PAPER, 2, 40));
+            new Recipe("paper", Ingredient.of(Items.SUGAR_CANE), 2, Items.PAPER, 3, 40));
 
         // Chain A, food. Three wheat to a loaf: the same ratio vanilla uses,
         // so a player already knows the exchange rate -- and it stays exactly
