@@ -79,3 +79,50 @@ ten minutes.
 asserts at a fixed 30-tick mark that a target has been acquired, but vanilla's
 `TargetGoal` randomises its first-check interval — a race, 1 fail in 3 runs.
 Fixed before the demo; a flaky test in a demo build is a lie waiting to be told.
+
+---
+
+# Closing status — 15:15 Oslo
+
+Written against the rule above: **what must not happen is reporting all five
+as met when three were only read.** So each line below says how it was
+proven, and where the proof stops.
+
+| # | criterion | status | how |
+|---|---|---|---|
+| 1 | Every starting job | **MET** | chest-true GameTest per profession, through the real hire-and-goal path. Five gaps were found and closed getting here (LUMBERER, GUARD, SMITH, MILLER, BREWER). |
+| 2 | The watchtower | **MET** | chest-true GameTest including Triple Shot, which had no coverage at all before today. |
+| 3 | All animations | **THREE DEAD CLIPS FOUND AND FIXED — one defect left** | see below. |
+| 4 | Warehouse and courier | **MET, and more than before** | all four routes chest-true. The weight table was also wired today, so layout finally changes throughput. |
+| 5 | Settler UI, every profession | **MET headless; one screen still overflows** | all 26 profession sheets built and checked headless; the sheet's guiScale-3 clipping is fixed and seen. |
+
+## Criterion 3, honestly
+
+This is the one that moved most, and it moved because three clips that had
+been written, reviewed and committed **could never play at all**:
+
+- **The raider's SPRINT.** The renderer decided the charge from
+  `getTarget()`, which is server-only and always null on the client. Every
+  skirmisher crept at the player at walking pace, through the kill. Filmed
+  before the fix.
+- **The lumberjack's GATHER_LOG.** Same root cause, plus worse: the server
+  also parked him in an activity with no clip gate, and nothing put it back.
+  After his first log he stood motionless in the bare rig for the rest of
+  the tree — the first worker anyone hires.
+- **The guard's LEAP_STRIKE.** A leaping sergeant played the plain walk
+  cycle through the air.
+
+All three are fixed and guarded by tests that assert the tell distinguishing
+the two idioms, so this class cannot come back silently.
+
+**Where the proof stops:** the fixes are proven reachable, not yet *seen*.
+The before-film exists for the raider; the after-film does not, because the
+machine has been running the certification gate. That is the honest gap.
+
+**Still wrong, and the owner will see it:** sugar-cane farming plays the
+wheat clips — a kneel-into-the-soil motion aimed at the ground beside a plant
+that stands vertically. It does not break; it looks borrowed, because it is.
+And `CELEBRATING` is never set by any code, so the hire celebration sums on
+top of a full trade idle instead of the light breath layer it was authored
+against — visible as an arm passing through the torso on the first hire.
+Found today, not yet fixed.
