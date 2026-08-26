@@ -1210,3 +1210,31 @@ changed code runs in that test.**
 Four batches stays. `restockConservesItemsAcrossTheFullRoute` asserts
 `atSmithy == 12` — every ingot must arrive — and 12 is exactly 4 x the
 smithy's 3-ingot recipe, so that test was always asking for this number.
+
+### The courier cluster is closed — verified, not asserted
+
+**Run 20260826T041906Z at commit a6638eb, clean worktree at pushed HEAD:
+14 red of 196, and not one of them is a courier test.** All four that were
+red before it — `courierEntersASealedWarehouseAndDelivers`,
+`courierOpensAClosedDoorToDeliver`, `restockConservesItemsAcrossTheFullRoute`,
+`restockDeliversWhenTheOnlyStandableCellIsOutsideTheCraftersBounds` — pass
+on the one change described above. The whole cluster came down to measuring
+reach against the wrong object.
+
+What remains is a single shape, and it has an owner:
+
+```
+barelogsstillbecomecharcoalcoldstart     ahiredsmelteractuallysmelts
+firewoodfedsmeltersmeltswithanexactledger ahiredmasonchiselsstoneintobricks
+ahiredcookstirspotatoesintobakedpotatoes  ahiredtannerscrapeshidesintoleather
+anemployedscholaractuallyadvancestheproject farmerbootstrapsabrandnewplotfromchestseeds
+completionexposesthebonusandsurvivesreload  ahiredcarpenterplanessticksintoladders
+aminedironorearrivesasrawiron              ahiredbakeractuallybakes
+aminedstonearrivesascobblestone            amasonrepairsaraidscarconsumingexactlyonebrick
+```
+
+Fourteen tests, no couriers, no raids, no plaques: **a hired worker that does
+not work.** Whether that is one cause or several is FLAKE-2's question, and
+the count itself is still not a comparison — the same commit has produced 4,
+10, 14 and 20 red tonight in different trees. The three-run baseline comes
+first; every number after it is measured against that.

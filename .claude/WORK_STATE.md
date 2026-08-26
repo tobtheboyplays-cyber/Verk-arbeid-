@@ -21,25 +21,19 @@ ucommittet over tid. Worktrees under scratchpad/ overlever ikke; bare
 remote gjør det.
 
 ## Testtilstanden — dette er det som teller
-**4 røde av 196** (kjøring etter 298fc11). Alle fire i kurér-klyngen:
-  courierEntersASealedWarehouseAndDelivers
-  courierOpensAClosedDoorToDeliver
-  restockConservesItemsAcrossTheFullRoute
-  restockDeliversWhenTheOnlyStandableCellIsOutsideTheCraftersBounds
-Kveldens bane: 31 → 25 → 21 → 20 → 22 → 24 → 17 → 14 → 11 → 6 → **4**.
+**14 røde av 196** (kjøring 20260826T041906Z, commit a6638eb, ren worktree
+på pushet HEAD). **Ingen av dem er kurér-tester.** Hele kurér-klyngen er
+lukket: rekkevidde ble målt mot bygningens boks i stedet for mot kista, så
+en kurér seks blokker unna og utenfor veggen telte som framme.
 
-Lukkede rotårsaker i natt (alle i docs/project/KNOWN_FAILURES.md):
-- KF-019: testene delte én verdensklokke og én verden → batch per testklasse.
-  Modden var aldri ødelagt; suiten løy.
-- KF-020: CrafterWorkGoal manglet requiresUpdateEveryTick() → ALLE oppskrifter
-  gikk i halv fart i ekte spill. Ekte spillfeil, ikke testfeil.
-- KF-021: raidere gytte 26-38 blokker ut på en tilfeldig bue og vandret inn i
-  nabo-arenaene → én batch per raid-test. Sju tester ble grønne av det alene.
-- KF-022: trunkInColumn antok at ingenting står over et tre. Trær under
-  utheng, plattformer eller snø var usynlige for hele modden.
-- KF-023 (ÅPEN, under arbeid): kuréren leverte én sekk og strandet resten for
-  alltid — restock spurte «mangler benken minimum?», og én sekk (8) dekker
-  hvert minimum (maks 3) på første tur. Bevis i loggen, ikke i lesning.
+De 14 som står igjen har én form: **en ansatt arbeider som ikke arbeider.**
+Smelter, koker, murer, garver, snekker, baker, gruvearbeider (x2), bonde,
+skriver, forskningsfullføring, kull-kaldstart, jern-hovedbok, reparasjon.
+Ingen kurér, ingen raid, ingen plakett. FLAKE-2 eier dette.
+
+**Tallet er fortsatt ikke en sammenligning.** Samme commit har gitt 4, 10,
+14 og 20 røde i natt i ulike trær. Tre-kjørings-baselinen kommer først; alt
+etter den måles mot den.
 
 ## Åpne arbeidere akkurat nå
 - COURIER-FIX — eier CourierWorkGoal.java + kurér-testene. Alle fire røde er
