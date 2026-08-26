@@ -130,6 +130,12 @@ suite_doctor() {
     command -v ffmpeg >/dev/null || problems+="ffmpeg-missing(film-blocked) "
     python3 "$QA/hooks/test_bash_guard.py" >/dev/null 2>&1 || problems+="bash_guard-selftest-failed "
     bash "$QA/scripts/reap.sh" selftest >/dev/null 2>&1 || problems+="reap-matcher-selftest-failed "
+    # KF-021: a GameTest fixture that registers a live settlement and
+    # hand-builds a Building but never places a plaque is one edit away from
+    # BuildingManager's sweep silently dissolving it. Run the script
+    # directly (python3 qa/scripts/check_fixture_plaques.py) for the full,
+    # per-file explanation this terse tag doesn't carry.
+    python3 "$QA/scripts/check_fixture_plaques.py" >/dev/null 2>&1 || problems+="fixture-plaque-guard-failed "
     if [ -z "$problems" ]; then record doctor PASS "toolchain ok"
     else record doctor FAIL "$problems"; return 1; fi
 }
