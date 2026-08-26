@@ -438,6 +438,31 @@ Verdict: FAIL — rebuilt install did not pass playtest. Backup kept at $backup
 
 export HSQA_REPORTS="$REPORTS" HSQA_PROTO="$PROTOCOL_VERSION"
 
+# The fingerprint is computed in two places -- fingerprint() above and
+# hsqa_fingerprint() in qa/scripts/lib_harness.sh -- and PROTOCOL.md says
+# they MUST stay byte-for-byte equivalent, because a manifest's fingerprint
+# is only meaningful if it is comparable to latest.json's. Until now nothing
+# CHECKED that, and the requirement was a comment. Adding the controller
+# itself to the fingerprint (2026-08-26, KF-024) changed one of the two and
+# nearly drifted them silently; the near-miss is the reason this exists.
+# A judge whose two clocks disagree cannot tell whether anything changed, so
+# it refuses to sit rather than guess.
+assert_fingerprint_twins() {
+    local a b
+    a="$(fingerprint)"
+    b="$(HSQA_REPO="$REPO" hsqa_fingerprint)"
+    if [ "$a" != "$b" ]; then
+        echo "FATAL: the two fingerprint implementations disagree." >&2
+        echo "  tools/hearthstead-qa   : $a" >&2
+        echo "  qa/scripts/lib_harness : $b" >&2
+        echo "They must stay byte-for-byte equivalent (qa/PROTOCOL.md)." >&2
+        echo "Fix the drift before any suite runs -- every manifest written" >&2
+        echo "while they disagree records a fingerprint nothing can compare." >&2
+        exit 2
+    fi
+}
+assert_fingerprint_twins
+
 case "${1:-help}" in
     # Every single-suite command must EXIT NON-ZERO on failure: a caller that
     # checks $? (CI, a wrapper script, a human) must never read a red suite as

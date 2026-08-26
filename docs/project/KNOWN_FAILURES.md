@@ -1274,3 +1274,31 @@ the manifests carrying them cannot be retroactively trusted. Where a count
 in this document came from GameTestServer's own summary line it stands; where
 it came from a manifest it does not. The suite has been more red than it
 said, never less.
+
+### KF-024, part two — the fingerprint has two clocks, and nothing compared them
+
+Fixing KF-024 nearly caused a worse defect than the one it fixed. The
+fingerprint is computed **twice** — `fingerprint()` in `tools/hearthstead-qa`
+and `hsqa_fingerprint()` in `qa/scripts/lib_harness.sh` — and `qa/PROTOCOL.md`
+says in plain words that the two MUST stay byte-for-byte equivalent, because a
+manifest's fingerprint is only meaningful if it can be compared to
+`latest.json`'s. Adding the controller to the fingerprint changed **one** of
+the two. The requirement was a comment; nothing enforced it. Every manifest
+written after that point would have recorded a fingerprint nothing could
+compare, and no suite would have gone red to say so.
+
+Caught by reading PROTOCOL.md rather than by any check, which is the point.
+Both implementations now include the controller, verified equal by
+computation (`f6a62524…` from each), and the controller refuses to run at all
+when they disagree:
+
+```
+FATAL: the two fingerprint implementations disagree.
+  tools/hearthstead-qa   : a6a8176f…
+  qa/scripts/lib_harness : 5288be76…
+```
+
+**The guard was tested by breaking it on purpose** — the twin was edited in a
+throwaway worktree, and the controller exited 2 and ran nothing. A guard
+nobody has watched fail is not a guard; it is a comment with a shell around
+it, which is exactly what the equivalence requirement had been until tonight.

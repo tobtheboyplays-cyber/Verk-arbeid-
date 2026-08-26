@@ -34,7 +34,7 @@ hsqa_fingerprint() {
            -type f -not -path '*/__pycache__/*' 2>/dev/null \
         | sort | xargs sha256sum 2>/dev/null
       sha256sum "$mod/build.gradle" "$mod/gradle.properties" "$mod/settings.gradle" \
-                "$qa/PROTOCOL.md" 2>/dev/null
+                "$qa/PROTOCOL.md" "$HSQA_REPO/tools/hearthstead-qa" 2>/dev/null
     } | sha256sum | cut -d' ' -f1
 }
 hsqa_dirty_hash() {
