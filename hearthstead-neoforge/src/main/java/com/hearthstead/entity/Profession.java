@@ -65,7 +65,23 @@ public enum Profession {
     // is worse than no table (D-014). A crafting trade, so hands stay free
     // like every other one above -- the hammer at the anvil is what
     // identifies them, not an item at the hip.
-    ARMOURER(22, "armourer", () -> ItemStack.EMPTY, 0x6E7A8A);
+    ARMOURER(22, "armourer", () -> ItemStack.EMPTY, 0x6E7A8A),
+    // TRADES-1 (SURVIVAL_AUDIT F1 / PLAN_CIRCULATION "Input sources (Ring-1
+    // completion)"): PASTURE, FISHERY and HUNTERS_LODGE have stood since
+    // BuildingType was written with no trade that could ever staff them --
+    // "the worker code was never written, not just unwired." These three
+    // close that: the settlement's own wool, eggs, fish, hides and meat now
+    // have a producer, instead of leaving the weaver, tanner and butcher to
+    // live on whatever the player hands them directly.
+    //
+    // Tools are the real, honest kit for each job -- SHEARS reads as
+    // "shepherd" at a glance the same way IRON_AXE reads as "lumberer", the
+    // FISHING_ROD is literally the trade, and the BOW matches the lodge's
+    // own plaque emblem (BuildingType.HUNTERS_LODGE) and HUNTER_LOOSE's
+    // draw-and-loose clip.
+    HERDER(23, "herder", () -> new ItemStack(Items.SHEARS), 0x8B9A6B),
+    FISHER(24, "fisher", () -> new ItemStack(Items.FISHING_ROD), 0x3E7C8A),
+    HUNTER(25, "hunter", () -> new ItemStack(Items.BOW), 0x5C4A32);
 
     public static final Profession[] BY_ID = values();
 

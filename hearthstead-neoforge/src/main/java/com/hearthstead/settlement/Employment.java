@@ -148,6 +148,17 @@ public final class Employment {
         // MILITARY-OUT-adjacent" entry. Same shape of follow-up as MILL and
         // BREWERY just above.
         TRADES.put(BuildingType.ARMOURY, Profession.ARMOURER);
+
+        // TRADES-1 (SURVIVAL_AUDIT F1): PASTURE, FISHERY and HUNTERS_LODGE
+        // named alongside FARMHOUSE/LUMBER_CAMP/MINE as Ring-1 sources in
+        // FLOWS.md, but had "no worker code at all, wired or not" -- these
+        // three buildings could be planned, built and validated, and would
+        // then sit empty forever. HerderWorkGoal/FisherWorkGoal/HunterWorkGoal
+        // are the goals built for their shapes (none is Production-shaped, so
+        // none runs through CrafterWorkGoal).
+        TRADES.put(BuildingType.PASTURE, Profession.HERDER);
+        TRADES.put(BuildingType.FISHERY, Profession.FISHER);
+        TRADES.put(BuildingType.HUNTERS_LODGE, Profession.HUNTER);
     }
 
     /**
@@ -210,6 +221,22 @@ public final class Employment {
             // free -- no separate entry needed in any of the three tables
             // below.
             case ARMOURER -> SettlerActivity.WORK_HAMMER;
+            // TRADES-1: none of these three run through CrafterWorkGoal (no
+            // Production recipe backs any of them -- there is real world to
+            // work, not a bench), so this table entry exists for the same
+            // reason MINER's own motionOf entry does even though
+            // MinerWorkGoal also sets its activity directly: a documented,
+            // queryable answer to "what does this trade do" for tests and
+            // any future UI, and the invariant this file's own
+            // everyTradeHasWorkAndAMotionOfItsOwn test enforces (no trade
+            // reads as standing still). Each maps to that trade's actual
+            // SIGNATURE action -- shearing, casting, loosing a shot -- the
+            // other three HERDER actions (feeding, egg collection, culling)
+            // reuse WORK_SOW/PICKUP_STOW/WORK_CLEAVE directly in
+            // HerderWorkGoal, justified there.
+            case HERDER -> SettlerActivity.WORK_SHEAR;
+            case FISHER -> SettlerActivity.WORK_FISH;
+            case HUNTER -> SettlerActivity.WORK_HUNT;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -237,7 +264,14 @@ public final class Employment {
      */
     public static boolean worksAtTheBuilding(BuildingType type) {
         return switch (tradeOf(type)) {
-            case FARMER, LUMBERER -> false;
+            // FISHER works the water's edge and HUNTER ranges the wild --
+            // neither is ever standing at their own building while working,
+            // the same shape as FARMER/LUMBERER above. HERDER is the
+            // opposite: the paddock IS the building's own bounds, so a
+            // herder tending it is standing at their post exactly the way a
+            // miner cutting under the mine entrance is (MINE isn't listed
+            // here either, for the same reason -- see MinerWorkGoal).
+            case FARMER, LUMBERER, FISHER, HUNTER -> false;
             default -> true;
         };
     }
@@ -283,6 +317,18 @@ public final class Employment {
             // there is no bespoke tavern sound yet -- the same stow-and-shift
             // clink reads as a bar being kept, not a stack being counted.
             case SORTING -> com.hearthstead.registry.ModSounds.CHEST_STOW.get();
+            // TRADES-1: reused, same as the block above -- no new sound
+            // assets, each a documented borrow. HerderWorkGoal/FisherWorkGoal/
+            // HunterWorkGoal play these directly rather than through this
+            // table (none is CrafterWorkGoal-shaped), so these entries exist
+            // for the same documentation/query reason motionOf's do.
+            // HIDE_SCRAPE's rasp is the closest existing sound to blade-on-
+            // wool; WATER_POUR is already the mod's one water sound; a bow's
+            // string has no existing catalogue entry, so PICK_STRIKE's sharp
+            // transient stands in for the loose.
+            case WORK_SHEAR -> com.hearthstead.registry.ModSounds.HIDE_SCRAPE.get();
+            case WORK_FISH -> com.hearthstead.registry.ModSounds.WATER_POUR.get();
+            case WORK_HUNT -> com.hearthstead.registry.ModSounds.PICK_STRIKE.get();
             default -> com.hearthstead.registry.ModSounds.KNEAD_PRESS.get();
         };
     }
@@ -311,6 +357,13 @@ public final class Employment {
             case WORK_CHISEL -> 21;
             case WORK_FLETCH -> 32;
             case WORK_SCRAPE -> 24;
+            // TRADES-1: each trade's own clip length in ticks (HERDER_SHEAR
+            // 1.00s, FISHER_CAST 2.00s, HUNTER_LOOSE 1.20s) -- see the same
+            // entries' comment on soundOf above for why this table exists
+            // even though none of the three goals reads it directly.
+            case WORK_SHEAR -> 20;
+            case WORK_FISH -> 40;
+            case WORK_HUNT -> 24;
             default -> 24;
         };
     }
@@ -353,6 +406,14 @@ public final class Employment {
             case WORK_CHISEL -> 10;  // §20.3: strike lands 0.45-0.50s, hold from 0.50s
             case WORK_FLETCH -> 15;  // §20.4: middle pinch of three, t=0.75s
             case WORK_SCRAPE -> 13;  // §20.5: two-tick hold at the stroke's bottom (est.)
+            // TRADES-1: HERDER_SHEAR's snip lands at t=0.45s of its 1.00s
+            // loop; FISHER_CAST's bite at t=1.45s of its 2.00s loop;
+            // HUNTER_LOOSE's release at t=0.70s of its 1.20s loop -- all
+            // exact accent ticks straight from each clip's own keyframes
+            // (catalogue §24), not estimates.
+            case WORK_SHEAR -> 9;
+            case WORK_FISH -> 29;
+            case WORK_HUNT -> 14;
             default -> 12;           // never 0: the seam is the one wrong answer
         };
     }
@@ -369,7 +430,11 @@ public final class Employment {
                  // Coordinator addendum: grinding grain and working a mash
                  // are the same "fine manual work" this whole group already
                  // covers, not a strength or judgement trade.
-                 MILLER, BREWER -> Attribute.DEXTERITY;
+                 MILLER, BREWER,
+                 // TRADES-1: shearing, baiting a line and reading a paddock
+                 // are hands, not force -- the same fine-manual-work group
+                 // FARMER already anchors.
+                 HERDER, FISHER -> Attribute.DEXTERITY;
             // Keeping guests waiting happily is a social skill, not a
             // physical one -- the same reason WITS is what fitness for the
             // post is measured against below, in keyAttributeOf's default.
@@ -384,6 +449,11 @@ public final class Employment {
             // trade's own work must be what climbs its ladder (the exact
             // lesson GuardRank's training constants document for STRENGTH).
             case ARCHER -> Attribute.DEXTERITY;
+            // TRADES-1: a hunt is stalking and a clean shot, the same
+            // hands-not-force reasoning as ARCHER right above -- named
+            // explicitly rather than folded into the big DEXTERITY group for
+            // the same reason ARCHER is.
+            case HUNTER -> Attribute.DEXTERITY;
             default -> Attribute.WITS;
         };
     }

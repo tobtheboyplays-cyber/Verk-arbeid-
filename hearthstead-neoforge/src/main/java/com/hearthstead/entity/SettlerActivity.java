@@ -47,7 +47,14 @@ public enum SettlerActivity {
     WORK_PLANE("work_plane"),
     WORK_CHISEL("work_chisel"),
     WORK_FLETCH("work_fletch"),
-    WORK_SCRAPE("work_scrape");
+    WORK_SCRAPE("work_scrape"),
+    // TRADES-1 (SURVIVAL_AUDIT F1): the three Ring-1 gathering trades this
+    // roster was missing (herder/fisher/hunter). Same wire-format rule --
+    // append only, never reorder. Three different verbs, three different
+    // clips: shearing is not fishing is not loosing a shot.
+    WORK_SHEAR("work_shear"),
+    WORK_FISH("work_fish"),
+    WORK_HUNT("work_hunt");
 
     public static final SettlerActivity[] BY_ID = values();
 
