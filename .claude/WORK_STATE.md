@@ -20,43 +20,47 @@ biter, og koordinatoren committer ved HVER rapport. Ingenting ligger
 ucommittet over tid. Worktrees under scratchpad/ overlever ikke; bare
 remote gjør det.
 
-## Testtilstanden (07:30Z, runde 1)
-**213 tester, alle grønne unntatt to kjente** — `ahiredhunterhuntsbutnever
-breaksthefloor` og `ahiredfisheractuallyfishes`, begge eid av TRADES-1.
-KF-021 er løst (fiksturene oppløste sine egne bygninger); vakta mot
-plakettløse fiksturer har alt fanget én ekte regresjon etter det.
+## RUNDE 1 LUKKET — 226 av 226 grønne (08:35Z)
+Hele suiten grønn på det integrerte treet. 207 → 226 tester i løpet av runden.
 
-## Åpne arbeidere (runde 1)
-- SPILLER-1 — survival-gjennomspilling på jar fra fe889ed, med kamera.
-  Har alt funnet KF-030: kamera-hjelperen drepte spilleren i survival.
-- TRADES-1 — hvorfor jegeren og fiskeren nekter å starte (egne porter,
-  ikke arbeidsløkkene). Eget tre.
-- ECON-1 — regner om de fôrede rutene mot DAGSVERK etter at tikk-målingen
-  viste seg å måle feil akse. Eget tre.
-- RAID-1 — jaktmål for blodraid + vaktenes sivile-først-prioritering.
-  Løsepenge-løgnen (KF-031) og epitetene er alt avvæpnet.
-- Gjennomgang av nattas 6590-linjers diff: fem linser, tre skeptikere per
-  funn, og et spørsmål til slutt om hva ingen av linsene så på.
+**Hva runde 1 fant og fikset:**
+- Tre yrker som ikke fantes (gjeter, fisker, jeger) — nå ekte, med egne
+  klipp og ekte tilbakeholdenhet.
+- Fire vegger i survival: Nether foran sykestua, papir uten produsent,
+  markedets seed-flaks, tre døde varer.
+- Forskning som ikke gjorde noe: kuttet tikk mot et tak ingen når. Nå
+  dagsverk, deterministisk.
+- Fôrede ruter målt i feil akse — to av dem ga NULL. Nå byttekurs.
+- Jernkjeden, «modellen alle kopierte», lå under gulvet: ×1,33 → ×2,0.
+- Kurér-sømmen: sankernes mat var uhentbar, og to ruter sloss om samme
+  stabel i evighet.
+- Løsepengeraidet og kapteintitlene som løy om hendelser som aldri skjedde.
+- Blodraid som aldri beveget seg; vakter som ignorerte sivile.
+- Rustningskjeden lukket ende til ende.
 
-## Landet i runde 1
-- Tre nye yrker: gjeter, fisker, jeger — egne klipp, ekte tilbakeholdenhet
-  (artsgulv, vann-minimum, flokk-gulv).
-- Fire vegger revet: sykestua mistet Nether, mølla lager papir, markedets
-  emerald byttet, tre døde varer fikk bruk.
-- Forskningen ble ekte: kutter dagsverk, ikke bare et tikk-tak ingen når.
-- Rustningskjeden lukket: oppskrifter + ARMOURER-yrket + ansettelse.
-- Raiderne: to bygg, sju klipp, skumle teksturer, vold skopet til eget raid.
-- Kurér-klyngen lukket: rekkevidde måles til kista, ikke bygningens boks.
-- Dommeren strammet tre ganger: full roster, kontrolleren fingeravtrykket,
-  statisk vakt mot plakettløse fiksturer.
-- Weight.java skrevet (logistikkens grunnstein, ikke koblet ennå med vilje).
+**Hva runde 1 lærte, som er verdt mer enn fiksene:**
+1. **Sømmene mellom parallelle arbeidere er der feilene bor.** Hver arbeider
+   korrekt i egne filer, feil på tvers. Blocker-en (sankermat ingen kurér
+   henter) og karusellen er begge av den formen.
+2. **Lesning lager hypoteser; bare kjøring lager funn.** Tre ganger i natt
+   tapte en selvsikker lesning mot et levende spor — inkludert to av mine
+   egne pekepinner (KF-034).
+3. **Et dokument som måler feil akse villeder alle som leser det.** Tikk-
+   båndet forplantet seg til fire kjeder og en grønn test som attesterte en
+   egenskap spillet ikke hadde.
+4. **Spillet må aldri rapportere noe som ikke skjedde.** Løsepenger, epiteter,
+   «held gjennom raidet», en manifest med avkortet roster — samme klasse.
 
-## Viktigste lærdom i runde 1
-**Sømmene mellom parallelle arbeidere er der feilene bor.** ECON-1 målte
-fôrede ruter i tikk mens RESEARCH-1 i parallell fikset nettopp det at tikk
-ikke binder noe. Ingen av dem gjorde feil i sin egen fil. Dokumentet begge
-leste målte feil akse. Derfor gjennomgangen med fem linser — og derfor
-spørsmålet «hva så ingen på?» til slutt.
+## Åpne, inn i runde 2
+- HONEST-1 kjører: raid som aldri kan tapes, ordførerfesten ved ulastet
+  ordfører, rustning slettet ved død, plaketten i en tilstand spillet nekter.
+- Gjennomspilling runde 2: harnesset har nå ekte verden (KF-032) og
+  survival-trygg kamerahjelper (KF-030). Åpen blokkering: inndata forfaller
+  over lange økter — ingen rotårsak ennå.
+- Weight er skrevet, ikke koblet. Fraktboka og kurértimer står igjen.
+- BRANN-raid har fortsatt ingen bevegelse (samme hull jakt-målet lukket
+  for BLOD).
+- Mølla lager papir dårligere enn håndverk, og ingen dyrker sukkerrør.
 
 ## Merk om oppgavelisten
 Verktøyets task-liste nullstilles sammen med containeren og har gjort det
