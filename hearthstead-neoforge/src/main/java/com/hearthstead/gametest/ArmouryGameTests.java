@@ -348,4 +348,157 @@ public class ArmouryGameTests {
                     + " after=" + totalAfter);
         });
     }
+
+    // ---------------------------------------------- (e) the armoury MAKES ---
+    //
+    // BALANCE_AUDIT.md finding 1 (BROKEN) / PLAN_CIRCULATION.md F3: (a)-(d)
+    // above proved GuardRank withdraws real stock and conjures nothing --
+    // but nothing ever PUT stock there. Production.of(ARMOURY) was empty:
+    // the smithy made only axe/pickaxe/hoe/sword, so every armour piece a
+    // guard would ever wear had to be placed by the player's own hand. These
+    // prove the maker half exists and is chest-true, in the same direct
+    // Production.ready()/Production.run() idiom ChainsGameTests uses for
+    // every other recipe-table proof in this repository: no settler, no
+    // CrafterWorkGoal, no ticks to wait out (run() is one synchronous
+    // transaction) -- purely "materials in this building's own chest in,
+    // real armour out, exactly the items consumed leave", which is what
+    // would go red the instant these eight recipes were removed from the
+    // table (Production.ready() would return null forever with the chest
+    // still full, exactly like a village that never got a smithy).
+
+    private static Set<String> ranRecipeIds(GameTestHelper helper, Building armoury) {
+        Set<String> ran = new HashSet<>();
+        Production.Recipe recipe;
+        int guard = 0;
+        while ((recipe = Production.ready(helper.getLevel(), armoury)) != null && guard++ < 32) {
+            helper.assertTrue(Production.run(helper.getLevel(), armoury, recipe),
+                "ready() offered " + recipe.id() + " but run() refused it");
+            ran.add(recipe.id());
+        }
+        return ran;
+    }
+
+    /**
+     * (e) Leather armour, forged from leather alone — no tannery, no
+     * smelter, no smithy anywhere in the world (D-007: a building works
+     * alone). Twenty-four leather is exactly enough for one of each of the
+     * four leather pieces (5 helmet + 8 chestplate + 7 leggings + 4 boots);
+     * running the armoury down to idle must turn every last one of them into
+     * real armour sitting in the real chest, and leave no leather behind.
+     */
+    @GameTest(batch = "armoury", template = "empty16", timeoutTicks = 100)
+    public void theArmouryForgesEachLeatherPieceFromLeatherAloneChestTrue(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
+        Building armoury = building(helper, s, BuildingType.ARMOURY, 3, 3);
+        helper.setBlock(new BlockPos(4, 1, 3), Blocks.CHEST);
+        Container chest = containerAt(helper, new BlockPos(4, 1, 3));
+        helper.assertTrue(chest != null, "the armoury chest should be a container");
+        chest.setItem(0, new ItemStack(Items.LEATHER, 24));
+
+        Set<String> ran = ranRecipeIds(helper, armoury);
+
+        helper.assertTrue(ran.equals(Set.of(
+                "leather_helmet", "leather_chestplate", "leather_leggings", "leather_boots")),
+            "expected exactly the four leather recipes to run once each, ran " + ran);
+        helper.assertTrue(countOf(chest, Items.LEATHER) == 0,
+            "all 24 leather must be spent, left " + countOf(chest, Items.LEATHER));
+        helper.assertTrue(countOf(chest, Items.LEATHER_HELMET) == 1
+                && countOf(chest, Items.LEATHER_CHESTPLATE) == 1
+                && countOf(chest, Items.LEATHER_LEGGINGS) == 1
+                && countOf(chest, Items.LEATHER_BOOTS) == 1,
+            "one of each leather piece must be sitting in the chest: helmet="
+                + countOf(chest, Items.LEATHER_HELMET) + " chestplate="
+                + countOf(chest, Items.LEATHER_CHESTPLATE) + " leggings="
+                + countOf(chest, Items.LEATHER_LEGGINGS) + " boots="
+                + countOf(chest, Items.LEATHER_BOOTS));
+        helper.succeed();
+    }
+
+    /**
+     * (f) Iron armour, forged from ingots alone — the mirror of (e), no mine
+     * and no smelter anywhere in the world either. Twenty-four iron ingots
+     * is exactly enough for one of each of the four iron pieces, same 5/8/7/4
+     * count as the leather line (the vanilla exchange rate both tiers
+     * anchor to, see Production's ARMOURY comment) — proving the SAME table
+     * drives both materials rather than a bespoke iron path.
+     */
+    @GameTest(batch = "armoury", template = "empty16", timeoutTicks = 100)
+    public void theArmouryForgesEachIronPieceFromIngotsAloneChestTrue(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
+        Building armoury = building(helper, s, BuildingType.ARMOURY, 3, 3);
+        helper.setBlock(new BlockPos(4, 1, 3), Blocks.CHEST);
+        Container chest = containerAt(helper, new BlockPos(4, 1, 3));
+        helper.assertTrue(chest != null, "the armoury chest should be a container");
+        chest.setItem(0, new ItemStack(Items.IRON_INGOT, 24));
+
+        Set<String> ran = ranRecipeIds(helper, armoury);
+
+        helper.assertTrue(ran.equals(Set.of(
+                "iron_helmet", "iron_chestplate", "iron_leggings", "iron_boots")),
+            "expected exactly the four iron recipes to run once each, ran " + ran);
+        helper.assertTrue(countOf(chest, Items.IRON_INGOT) == 0,
+            "all 24 iron ingots must be spent, left " + countOf(chest, Items.IRON_INGOT));
+        helper.assertTrue(countOf(chest, Items.IRON_HELMET) == 1
+                && countOf(chest, Items.IRON_CHESTPLATE) == 1
+                && countOf(chest, Items.IRON_LEGGINGS) == 1
+                && countOf(chest, Items.IRON_BOOTS) == 1,
+            "one of each iron piece must be sitting in the chest: helmet="
+                + countOf(chest, Items.IRON_HELMET) + " chestplate="
+                + countOf(chest, Items.IRON_CHESTPLATE) + " leggings="
+                + countOf(chest, Items.IRON_LEGGINGS) + " boots="
+                + countOf(chest, Items.IRON_BOOTS));
+        helper.succeed();
+    }
+
+    /**
+     * (g) The ladder holds, read off the live table rather than asserted by
+     * comment: every iron piece costs strictly more ticks than its leather
+     * counterpart, and a full iron kit costs strictly more than a full
+     * leather kit — "leather is what a spearman wears and iron plate is
+     * what a captain wears" only means something if the captain's kit is
+     * actually the more expensive one to forge. Also pins the input counts
+     * (5/8/7/4, vanilla's own helmet/chestplate/leggings/boots exchange
+     * rate) against a silent retune breaking the vanilla-familiar anchor.
+     */
+    @GameTest(batch = "armoury", template = "empty16", timeoutTicks = 20)
+    public void theArmouryPricesIronMeaningfullyAboveLeatherPerPieceAndPerKit(GameTestHelper helper) {
+        java.util.List<Production.Recipe> recipes = Production.of(BuildingType.ARMOURY);
+        helper.assertTrue(recipes.size() == 8,
+            "the armoury should know exactly eight recipes, found " + recipes.size());
+
+        int[] counts = {5, 8, 7, 4}; // helmet, chestplate, leggings, boots
+        String[] slots = {"helmet", "chestplate", "leggings", "boots"};
+        int leatherTicks = 0;
+        int ironTicks = 0;
+        for (int i = 0; i < slots.length; i++) {
+            Production.Recipe leather = recipeById(recipes, "leather_" + slots[i]);
+            Production.Recipe iron = recipeById(recipes, "iron_" + slots[i]);
+            helper.assertTrue(leather != null && iron != null,
+                "missing a " + slots[i] + " recipe on one of the two tiers");
+            helper.assertTrue(leather.inputCount() == counts[i] && iron.inputCount() == counts[i],
+                slots[i] + " should cost " + counts[i] + " material on both tiers (vanilla's own "
+                    + "count), got leather=" + leather.inputCount() + " iron=" + iron.inputCount());
+            helper.assertTrue(iron.ticks() > leather.ticks(),
+                "iron " + slots[i] + " (" + iron.ticks() + "t) must cost strictly more than "
+                    + "leather " + slots[i] + " (" + leather.ticks() + "t) — the ladder");
+            leatherTicks += leather.ticks();
+            ironTicks += iron.ticks();
+        }
+        helper.assertTrue(ironTicks > leatherTicks,
+            "a full iron kit (" + ironTicks + "t) must cost strictly more than a full "
+                + "leather kit (" + leatherTicks + "t) to forge — a village that can field "
+                + "a captain as easily as a spearman has no ladder");
+        helper.succeed();
+    }
+
+    private static Production.Recipe recipeById(java.util.List<Production.Recipe> recipes, String id) {
+        for (Production.Recipe recipe : recipes) {
+            if (recipe.id().equals(id)) {
+                return recipe;
+            }
+        }
+        return null;
+    }
 }

@@ -35,6 +35,24 @@ place to hide a lie, so there are none. Scene 20 is the owner's. Both are
 gated on the last courier failures closing — a chain film cannot be shot
 while the courier's arrival predicate is under repair.
 
+## Before you film: one command can kill another's client
+
+`qa/scripts/live.sh` runs on a **hardcoded display, `:99`**, and both its
+`start` and its `stop` begin with `pkill -9 -f "Xvfb :99"` — deliberately,
+because Xvfb ignores SIGHUP and a leftover server used to collide with the
+next start. The consequence is that filming is not safe to run concurrently
+with anything else that boots a client: `tools/hearthstead-qa full` includes
+both `suite_client` and `suite_playtest`, so **starting a live session while
+a `full` run is in progress will kill that run's client mid-suite**, and a
+`full` starting while you are filming will kill your session and your take.
+
+There is no lock enforcing this. Serialize by hand: film only when no suite
+is running, and do not start a suite while a live session is up. Checked
+2026-08-26, after nearly doing exactly this — a filming run and a two-round
+`full` verification were queued to overlap, and the only thing that caught it
+was reading `live.sh` for an unrelated reason.
+
+
 Post: concat clips (ffmpeg concat demuxer) → showcase.mp4; contact sheet per
 clip stays in evidence. Deliver clips 4, 6, 11, 12, 19 and 20 individually to the user
 as well — they are the requested proof pieces.
