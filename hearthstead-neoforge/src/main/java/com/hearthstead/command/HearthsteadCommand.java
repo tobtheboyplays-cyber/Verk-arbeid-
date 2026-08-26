@@ -340,6 +340,47 @@ public final class HearthsteadCommand {
             com.hearthstead.entity.SettlerActivity.FLEEING, "Fleeing"),
         new Pose("idle", com.hearthstead.entity.Profession.NONE,
             com.hearthstead.entity.SettlerActivity.IDLE, "Idle"),
+        // Trade idles (14 new clips; owner: "vil ogsa ha idle animations som
+        // matcher jobben"). These are activity IDLE with profession != NONE,
+        // not a WORK_* activity -- SettlerEntity.setupAnimationStates() gates
+        // exactly one of the fourteen AnimationDefinitions per profession.
+        // Several clips are shared by more than one profession there
+        // (GUARD/ARCHER -> IDLE_SENTRY, SMITH/SMELTER -> IDLE_FORGE,
+        // BAKER/MILLER -> IDLE_BAKER, COOK/BREWER -> IDLE_COOK,
+        // MASON/CARPENTER/SAWYER -> IDLE_SIGHT_EDGE, BUTCHER/TANNER ->
+        // IDLE_BLADE_BENCH); each row below poses the first profession
+        // listed in that gate, so the pose key matches the
+        // AnimationDefinition constant it exercises. Two lineup pages
+        // (SHOWCASE_PLAN.md scenes 21-22): frontier/field trades, then
+        // hearth/bench trades -- 7 and 7, not an arbitrary cut.
+        new Pose("idle_farmer", com.hearthstead.entity.Profession.FARMER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Farmer - idle"),
+        new Pose("idle_lumberer", com.hearthstead.entity.Profession.LUMBERER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Lumberjack - idle"),
+        new Pose("idle_miner", com.hearthstead.entity.Profession.MINER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Miner - idle"),
+        new Pose("idle_courier", com.hearthstead.entity.Profession.COURIER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Courier - idle"),
+        new Pose("idle_sentry", com.hearthstead.entity.Profession.GUARD,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Guard - idle (sentry)"),
+        new Pose("idle_fletcher", com.hearthstead.entity.Profession.FLETCHER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Fletcher - idle"),
+        new Pose("idle_sight_edge", com.hearthstead.entity.Profession.MASON,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Mason - idle (sight edge)"),
+        new Pose("idle_forge", com.hearthstead.entity.Profession.SMITH,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Smith - idle (forge)"),
+        new Pose("idle_baker", com.hearthstead.entity.Profession.BAKER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Baker - idle"),
+        new Pose("idle_cook", com.hearthstead.entity.Profession.COOK,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Cook - idle"),
+        new Pose("idle_weaver", com.hearthstead.entity.Profession.WEAVER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Weaver - idle"),
+        new Pose("idle_blade_bench", com.hearthstead.entity.Profession.BUTCHER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Butcher - idle (bench)"),
+        new Pose("idle_scholar", com.hearthstead.entity.Profession.SCHOLAR,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Scholar - idle"),
+        new Pose("idle_innkeeper", com.hearthstead.entity.Profession.INNKEEPER,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Innkeeper - idle"),
     };
 
     private static final int LINEUP_PER_PAGE = 7;
@@ -414,6 +455,16 @@ public final class HearthsteadCommand {
      * <p>A gather stoop and a sergeant's leap both end on their own clock, by
      * design -- they are punctuation, not loops. Holding one open would mean
      * lying about the clip. So the camera pulses them instead.
+     *
+     * <p>Deliberately keyed on activity alone (GATHERING_LOG / COMBAT), not
+     * on activity-or-IDLE: IDLE_LUMBERER (the "idle_lumberer" pose) is a
+     * profession LUMBERER settler legitimately sitting at activity IDLE, and
+     * it is a LOOPING clip -- pulsing it would yank it into the one-shot
+     * gather stoop every 2s and the trade-idle lineup pages would never show
+     * their own clip on camera. Fixed here rather than left for the new
+     * pages to inherit (found while wiring lineup pages 5-6, SHOWCASE_PLAN.md
+     * scenes 21-22): the old bound matched nothing in the pre-existing POSES
+     * array (no prior pose was LUMBERER+IDLE), so this was latent until now.
      */
     private static int pulse(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
@@ -422,8 +473,7 @@ public final class HearthsteadCommand {
                 source.getPosition(), 64.0)) {
             com.hearthstead.entity.SettlerActivity activity = settler.getActivity();
             if (settler.getProfession() == com.hearthstead.entity.Profession.LUMBERER
-                && (activity == com.hearthstead.entity.SettlerActivity.IDLE
-                    || activity == com.hearthstead.entity.SettlerActivity.GATHERING_LOG)) {
+                && activity == com.hearthstead.entity.SettlerActivity.GATHERING_LOG) {
                 settler.triggerGatherLog();
                 fired++;
             } else if (settler.getProfession() == com.hearthstead.entity.Profession.GUARD

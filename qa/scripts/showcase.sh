@@ -7,8 +7,11 @@
 # operator slow. Each scene here is one command with the knowledge baked in,
 # so driving the camera needs no expertise at all:
 #
-#   showcase.sh anim <page>     lineup page 0..3, camera placed, filmed 10s
-#   showcase.sh anim-all        all four pages back to back
+#   showcase.sh anim <page>     lineup page 0..6, camera placed, filmed 10s
+#                                (0-4: the 33 work/haulage/guard/life poses;
+#                                5-6: the 14 profession-matched trade idles,
+#                                7 frontier/field then 7 hearth/bench)
+#   showcase.sh anim-all        all seven pages back to back
 #   showcase.sh village         found a settlement + trees + 5 settlers
 #   showcase.sh camp            build & register the lumber camp, hire
 #   showcase.sh clean           kill all settlers, clear the stage
@@ -75,7 +78,7 @@ anim)
     exit $RC
     ;;
 anim-all)
-    for p in 0 1 2 3 4; do "$0" anim "$p" || exit 1; done
+    for p in 0 1 2 3 4 5 6; do "$0" anim "$p" || exit 1; done
     ;;
 village)
     # The proven core-demo sequence (evidence: live 20260825T183505Z —
