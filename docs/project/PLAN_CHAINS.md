@@ -66,7 +66,7 @@ Existing (untouched) recipes are omitted from ratios below; see
 | SMELTER | **iron_bloom** | raw_iron×3 → IRON_BLOOM×4 | 160 | fed-source, higher threshold than plain smelt (retuned 200→160, see band rule) |
 | SMELTER | **charcoal** | any log×1 → CHARCOAL×1 | 90 | fuel; listed LAST, and the one recipe exempt from the fuel gate (cold start) |
 | SMELTER | iron *(unchanged)* | raw_iron×1 → iron_ingot×1 | 200 | rough |
-| SMITHY | **bloom_ingot** | IRON_BLOOM×2 → iron_ingot×2 | 160 | finishes the bloom (80 ticks/ingot; retuned 200→160) |
+| SMITHY | **bloom_ingot** | IRON_BLOOM×2 → iron_ingot×3 | 160 | finishes the bloom (retuned 2026-08-26: output 2→3, see band rule — this is now the same effort-based fix as bread_flour/leather_cured/ale_malt, not the ticks-only retune the row used to describe) |
 | SMITHY | axe/pickaxe/hoe/sword *(unchanged)* | iron_ingot → tool | 240–300 | unaffected — a different input item, cannot collide |
 | SAWMILL | **timber_beam** | oak_log×3 → TIMBER_BEAM×2 | 180 | listed first, higher threshold (3) than plank recipes' (1) |
 | SAWMILL | planks/spruce/birch *(unchanged)* | log×1 → planks×6 | 120 | rough, protected |
@@ -105,16 +105,29 @@ GOOD PER DOWNSTREAM BATCH, measured as total effort across every building
 in the chain (upstream batches included) per unit of final output — never
 by finishing a batch sooner. The original bullet points below (halving
 ticks for bread/barrel/leather/ale, and the "already correct" ×1.67 for the
-bloom→ingot route) are UNVERIFIED on this metric and should not be trusted
+bloom→ingot route) were UNVERIFIED on this metric and should not be trusted
 without re-deriving them the way `ChainsGameTests
-#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings` now does for
-the four pairs it owns. Spot-checking the bloom→ingot route specifically:
-computed in effort the same way, it comes out to ≈×1.33 — BELOW the ×1.5
-floor this very section claimed it cleared. `FuelGameTests
-#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand` still asserts its band in
-ticks, unchanged, and is the SAME mismeasurement this section is now
-correcting for its own four pairs. Flagged, not fixed here — SMELTER/
-SMITHY's recipes and that test belong to other workers.
+#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings` does for the
+four pairs it owns.
+
+**UPDATE, 2026-08-26 (IRON-1): the bloom→ingot route re-derived and fixed
+too, closing the gap this section used to flag.** Computed in effort the
+same way, the route's OLD numbers (bloom_ingot: 2 IRON_BLOOM → 2 iron_ingot)
+came out to ≈×1.33 — BELOW the ×1.5 floor this section used to claim it
+cleared, despite reading ×1.67 in ticks. `FuelGameTests
+#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand` asserted that band in
+ticks, unchanged — the SAME mismeasurement this section corrected for its
+own four pairs, in the file everyone (including this document) pointed to
+as the model the whole slice had followed. Fixed the same lever as the
+other four: `bloom_ingot`'s output raised 2→3 (ticks left at 160), landing
+the effort ratio at exactly ×2.0 — see `Production.java`'s SMELTER/SMITHY
+comments for the full arithmetic. The test is renamed
+`FuelGameTests#bloomFedPathClearsTheFlowsBandMeasuredAsEffortAcrossAllBuildings`
+and now asserts the band in effort, reusing `ChainsGameTests`'
+`directEffortPerUnit`/`chainEffortPerUnit` formulas (duplicated locally —
+those helpers are `private` and outside this file's/that test's ownership
+to widen). Iron is no longer an exception to this rule; it is governed by
+it, the same as the other four chains.
 
 FLOUR and WOOL_BOLT are "pure upstream" goods (mirroring FLOWS.md's own
 `mill: — (pure upstream)` row) with no rough/fed pair on the SAME output

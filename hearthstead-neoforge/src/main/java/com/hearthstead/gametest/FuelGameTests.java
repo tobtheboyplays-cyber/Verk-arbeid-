@@ -59,10 +59,22 @@ import java.util.UUID;
  *     the identical ready()/run() pair live through a hired settler;</li>
  * <li>(e) the FLOWS.md BAND — seeded ABOVE the bloom threshold, the
  *     smelter–smithy fed path is physically run end to end (fuel and all)
- *     and its ticks-per-ingot advantage over the rough smelt is asserted as
- *     a RATIO read off the very recipes that ran — at least ×1.5, at most
- *     ×2 — so a future tick retune that drifts out of the band fails here,
- *     whatever the numbers become (owner-critic verdict #1 / krav 10).</li>
+ *     and its EFFORT-per-ingot advantage over the rough smelt is asserted
+ *     as a RATIO read off the very recipes that ran — at least ×1.5, at
+ *     most ×2 — so a future retune that drifts out of the band fails here,
+ *     whatever the numbers become. CORRECTED 2026-08-26: this used to
+ *     assert the band in TICKS (owner-critic verdict #1 / krav 10), which
+ *     is not the resource that binds a crafter's day — a batch costs a
+ *     FLAT 2 effort regardless of ticks ({@code CrafterWorkGoal},
+ *     {@code settler.effort().spendResearched(2, ...)}) — so a ticks ratio
+ *     can certify a property the game does not have, and did: the OLD
+ *     recipe numbers read ×1.67 in ticks but ≈×1.33 in effort, BELOW the
+ *     floor this test claimed to prove. See
+ *     {@link #bloomFedPathClearsTheFlowsBandMeasuredAsEffortAcrossAllBuildings}
+ *     (renamed to say what it measures, matching
+ *     {@code ChainsGameTests#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings})
+ *     and {@link com.hearthstead.building.Production}'s SMELTER/SMITHY
+ *     comments for the corrected arithmetic.</li>
  * </ul>
  */
 @GameTestHolder(Hearthstead.MODID)
@@ -382,6 +394,35 @@ public class FuelGameTests {
         return 0;
     }
 
+    /** What one completed batch costs a crafter, whatever building or
+     *  recipe — {@code CrafterWorkGoal}'s own flat baseline. Duplicated from
+     *  {@code ChainsGameTests#CRAFT_EFFORT} rather than shared, because that
+     *  file's helpers are {@code private} and it is not this worker's file
+     *  to widen; keep this constant and the two methods below numerically
+     *  identical to their {@code ChainsGameTests} originals so both files
+     *  measure the chain the same way. */
+    private static final double CRAFT_EFFORT = 2.0;
+
+    /** Effort per unit of a rough recipe with NO upstream building — a raw
+     *  Ring-1 drop straight into the recipe. Mirrors
+     *  {@code ChainsGameTests#directEffortPerUnit} exactly. */
+    private static double directEffortPerUnit(int outputPerBatch) {
+        return CRAFT_EFFORT / outputPerBatch;
+    }
+
+    /** Effort per unit of FINAL output for a two-step chain: an upstream
+     *  batch (producing {@code upstreamOutPerBatch} of the intermediate)
+     *  feeding a downstream batch (consuming {@code downstreamInPerBatch} of
+     *  it for {@code downstreamOutPerBatch} of the final good). Batches are
+     *  treated as fractionally divisible, the same idealization
+     *  BALANCE_AUDIT.md's own arithmetic uses. Mirrors
+     *  {@code ChainsGameTests#chainEffortPerUnit} exactly. */
+    private static double chainEffortPerUnit(int upstreamOutPerBatch, int downstreamInPerBatch,
+                                             int downstreamOutPerBatch) {
+        double upstreamBatchesNeeded = (double) downstreamInPerBatch / upstreamOutPerBatch;
+        return (CRAFT_EFFORT * upstreamBatchesNeeded + CRAFT_EFFORT) / downstreamOutPerBatch;
+    }
+
     /**
      * The FLOWS.md band, proven by running the chain — not by trusting the
      * comment that claims it. Seeded ABOVE the bloom threshold (two full
@@ -389,17 +430,38 @@ public class FuelGameTests {
      * deliberately stays below it), the smelter batches bloom, a
      * hand-simulated courier hops it to the smithy, and the smithy finishes
      * it into ingots — every batch physically executed through
-     * {@link Production#run} with its fuel really burned. The tick and fuel
+     * {@link Production#run} with its fuel really burned. The fuel and ore
      * ledgers are then read off the SAME recipe records that ran, and the
-     * verdict is a ratio, not a constant: ticks-per-ingot on the fed path
-     * must beat the rough smelt by at least ×1.5 and by no more than ×2
-     * ("multiply, never gate" — the rough path has to stay worth using),
-     * and the fed path may not spend more firewood or more ore per ingot
-     * either. Retune any of the three recipes and this test re-derives the
-     * arithmetic; only leaving the band fails it.
+     * headline verdict is EFFORT per ingot, not ticks: total crafter effort
+     * across BOTH buildings (upstream batches included), per unit of final
+     * output — {@link #directEffortPerUnit} for the rough smelt (no
+     * upstream building), {@link #chainEffortPerUnit} for the bloom→
+     * bloom_ingot pair, the exact method {@code ChainsGameTests
+     * #fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings} uses for
+     * bread/leather/ale/barrel, duplicated here rather than shared (that
+     * file's helpers are private and not this worker's to widen).
+     *
+     * <p>CORRECTED 2026-08-26: this test used to sum TICKS end to end and
+     * call a ×1.67 tick ratio the FLOWS.md band. That is not the resource
+     * that binds a crafter's day — a batch costs a FLAT 2 effort regardless
+     * of ticks ({@code CrafterWorkGoal}, {@code Effort#spendResearched}) —
+     * and the OLD recipe numbers (bloom_ingot 2 bloom → 2 ingot) landed at
+     * ≈×1.33 in effort, BELOW the ×1.5 floor this test wrongly certified as
+     * clearing it, the same defect {@code
+     * ChainsGameTests#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings}
+     * found and fixed for its own four chains. Fixed the same way here:
+     * bloom_ingot now yields 3 ingot per 2 bloom (was 2) — more final good
+     * per downstream batch, ticks untouched — landing the effort ratio at
+     * exactly ×2.0 (see {@code Production}'s SMELTER/SMITHY comments for
+     * the full arithmetic). The verdict is still a ratio, not a constant:
+     * at least ×1.5, at most ×2 ("multiply, never gate" — the rough path
+     * has to stay worth using), and the fed path may not spend more
+     * firewood or more ore per ingot either. Retune any of the three
+     * recipes and this test re-derives the arithmetic; only leaving the
+     * band fails it.
      */
     @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 200)
-    public void bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand(GameTestHelper helper) {
+    public void bloomFedPathClearsTheFlowsBandMeasuredAsEffortAcrossAllBuildings(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
         Building smelter = building(helper, s, BuildingType.SMELTER, 2, 2);
@@ -491,27 +553,32 @@ public class FuelGameTests {
                 + countOf(smithyChest, ModItems.IRON_BLOOM.get()) + " charcoal="
                 + countOf(smithyChest, Items.CHARCOAL));
 
-        // --- the ledgers, read off the recipes that just ran ---
-        int fedTicks = bloomBatches * bloom.ticks() + finishBatches * finish.ticks();
-        int roughTicks = roughBatches * rough.ticks();
+        // --- the fuel/ore ledgers, read off the recipes that just ran ---
         int fedFuel = bloomBatches * Fuel.perBatch(BuildingType.SMELTER)
             + finishBatches * Fuel.perBatch(BuildingType.SMITHY);
         int roughFuel = roughBatches * Fuel.perBatch(BuildingType.SMELTER);
         int roughOre = roughBatches * rough.inputCount();
 
-        helper.assertTrue(2 * roughTicks >= 3 * fedTicks,
-            "the fed path must be at least a x1.5 tick advantage end to end "
-                + "(FLOWS.md band floor): rough=" + roughTicks + "t vs fed="
-                + fedTicks + "t for the same " + ingots + " ingots");
-        helper.assertTrue(roughTicks <= 2 * fedTicks,
-            "and no more than x2 (multiply, never gate — the rough path must "
-                + "stay worth using): rough=" + roughTicks + "t vs fed="
-                + fedTicks + "t");
         helper.assertTrue(fedFuel <= roughFuel,
             "the fed path may not burn more firewood for the same ingots: fed="
                 + fedFuel + " vs rough=" + roughFuel);
         helper.assertTrue(rawSeeded <= roughOre,
             "nor eat more ore: fed=" + rawSeeded + " vs rough=" + roughOre);
+
+        // --- the headline verdict: EFFORT per ingot, not ticks ---
+        // Read off the recipe table directly (not off bloomBatches/
+        // finishBatches, which are this run's arena seed) so the ratio is
+        // the table's design ratio, the same idealization ChainsGameTests
+        // uses for its own four chains.
+        double roughEffortPerUnit = directEffortPerUnit(rough.outputCount());
+        double fedEffortPerUnit = chainEffortPerUnit(bloom.outputCount(),
+            finish.inputCount(), finish.outputCount());
+        double ratio = roughEffortPerUnit / fedEffortPerUnit;
+        helper.assertTrue(ratio >= 1.5 && ratio <= 2.0,
+            "iron's fed path must clear FLOWS.md's x1.5-x2 band measured in "
+                + "EFFORT across both buildings (not ticks): rough="
+                + roughEffortPerUnit + " effort/ingot fed=" + fedEffortPerUnit
+                + " effort/ingot ratio=" + ratio);
         helper.succeed();
     }
 

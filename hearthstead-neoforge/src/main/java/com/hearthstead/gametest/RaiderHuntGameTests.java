@@ -97,26 +97,49 @@ public class RaiderHuntGameTests {
     @GameTest(template = "empty16", timeoutTicks = 100, batch = "raider_hunt_the_scan_is_bounded_and_prefers_the_nearest_candidate")
     public void theScanIsBoundedAndPrefersTheNearestCandidate(GameTestHelper helper) {
         buildArena(helper, 16);
-        Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 0, "Huntholm");
-        RaiderEntity raider = spawnBlodRaider(helper, s, new BlockPos(2, 1, 2));
+        BlockPos centerRel = new BlockPos(2, 1, 2);
+        Settlement s = makeSettlement(helper, centerRel, 0, "Huntholm");
+        RaiderEntity raider = spawnBlodRaider(helper, s, centerRel);
 
-        // Within bound (distance 8 <= 16): must win.
-        SettlerEntity near = spawnSettler(helper, s, new BlockPos(2, 1, 10), "Near");
-        // Past bound (distance ~18.4 > 16, diagonal so it still fits the
-        // 16-wide arena): must never be picked, however "nearest living
-        // entity ignoring bounds" bookkeeping would have read.
-        SettlerEntity far = spawnSettler(helper, s, new BlockPos(15, 1, 15), "Far");
+        // Within bound (distance 8, bound is radius(0)+16=16): must win.
+        BlockPos nearRel = new BlockPos(2, 1, 10);
+        spawnSettler(helper, s, nearRel, "Near");
+        // Past bound (distance ~18.4, diagonal so it still fits the 16-wide
+        // arena): must never be picked, however "nearest living entity
+        // ignoring bounds" bookkeeping would have read.
+        spawnSettler(helper, s, new BlockPos(15, 1, 15), "Far");
 
-        helper.succeedWhen(() -> {
-            BlockPos objective = raider.objectivePos();
-            helper.assertTrue(objective != null, "the hunt must have set an objective by now");
-            helper.assertTrue(!objective.equals(helper.absolutePos(new BlockPos(15, 1, 15))),
-                "a candidate outside the bounded scan must never be picked, got " + objective);
-            helper.assertTrue(objective.equals(near.blockPosition())
-                    || objective.equals(helper.absolutePos(new BlockPos(2, 1, 10))),
-                "the nearest in-bound settler must win, got " + objective
-                    + " (near is at " + near.blockPosition() + ")");
-        });
+        // Driven directly rather than through the real goal selector and
+        // real ticks: at this close range and open sight, vanilla's OWN
+        // target acquisition (RaiderEntity's targetSelector, mustSee=true)
+        // would legitimately grab the near settler as a live combat target
+        // within the first few ticks -- correct behaviour, but it would
+        // stop RaiderHuntGoal from ever starting at all (its canUse()
+        // requires getTarget()==null), so objectivePos would silently stay
+        // at its spawn-time default and this test would be proving nothing
+        // about the scan. Calling tick() directly exercises exactly the
+        // scan-and-bound logic this test is about, isolated from that race
+        // -- the handoff itself is covered separately by
+        // stepsAsideTheInstantALiveTargetExists.
+        RaiderHuntGoal hunt = huntGoalOf(raider);
+        helper.assertTrue(hunt != null, "RaiderHuntGoal must be registered on every raider");
+        hunt.tick();
+        hunt.tick();
+
+        int bound = 0 + RaiderHuntGoal.HUNT_SCAN_MARGIN; // settlement radius 0 + the goal's own margin
+        int boundSqr = bound * bound;
+        BlockPos objective = raider.objectivePos();
+        BlockPos nearAbs = helper.absolutePos(nearRel);
+        helper.assertTrue(objective != null, "the hunt must have set an objective by now");
+        helper.assertTrue(s.center.distSqr(objective) <= boundSqr,
+            "whatever the scan picked must be inside its own bound, got " + objective
+                + " (" + Math.sqrt(s.center.distSqr(objective)) + " blocks from centre)");
+        // Specific, not just in-bound: it must be the NEAR settler, not the
+        // settlement-centre fallback.
+        helper.assertTrue(nearAbs.distSqr(objective) <= 4,
+            "the nearest in-bound settler must win over the fallback centre, got "
+                + objective + " (near settler spawned at " + nearAbs + ")");
+        helper.succeed();
     }
 
     /**
@@ -135,14 +158,14 @@ public class RaiderHuntGameTests {
         RaiderEntity raider = spawnBlodRaider(helper, mine, new BlockPos(2, 1, 2));
 
         // Right next to the raider, but not its war -- must be ignored.
-        spawnSettler(helper, theirs, new BlockPos(3, 1, 2), "NotMyWar");
+        SettlerEntity notMyWar = spawnSettler(helper, theirs, new BlockPos(3, 1, 2), "NotMyWar");
 
         helper.succeedWhen(() -> {
             BlockPos objective = raider.objectivePos();
             helper.assertTrue(objective != null, "the hunt must have set an objective by now");
-            helper.assertTrue(!objective.equals(helper.absolutePos(new BlockPos(3, 1, 2))),
+            helper.assertTrue(notMyWar.blockPosition().distSqr(objective) > 4,
                 "a settler from another settlement must never become the hunt target, got "
-                    + objective);
+                    + objective + " (their settler is at " + notMyWar.blockPosition() + ")");
             // Nothing of its OWN settlement is in range, so the honest
             // fallback is the settlement centre -- see RaiderHuntGoal#tick.
             helper.assertTrue(objective.equals(mine.center),

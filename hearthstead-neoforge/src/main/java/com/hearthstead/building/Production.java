@@ -240,21 +240,45 @@ public final class Production {
         // a comfortable surplus gets batched into bloom for the smithy to
         // finish (see SMITHY below).
         //
-        // FED-PATH ARITHMETIC (owner-critic verdict #1 / krav 10 -- the
-        // FLOWS.md x1.5-x2 band, measured END TO END, not per recipe):
-        //   rough:  1 raw -> 1 ingot in 200t            = 200 t/ingot
-        //   fed:    3 raw -> 4 bloom in 160t, then the
-        //           smithy finishes 2 bloom -> 2 ingot
-        //           in 160t, twice:  160 + 2x160 = 480t
-        //           for 4 ingots                        = 120 t/ingot
-        //   advantage: 200/120 = x1.67 -- inside the band, and a real one.
-        // Ore rides along at 3 raw -> 4 ingots (x1.33), and FUEL counts too:
-        // the fed chain burns 3 batches' fuel per 4 ingots (0.75/ingot)
-        // against the rough path's 1/ingot (x1.33 on firewood).
-        // FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand
-        // asserts the x1.5 floor and x2.0 ceiling as RATIOS over this very
-        // table, so a retune that drifts out of the band fails the suite,
-        // not the review.
+        // FED-PATH ARITHMETIC -- CORRECTED 2026-08-26, the original version
+        // of this comment (owner-critic verdict #1 / krav 10) measured the
+        // wrong axis, the same mistake PLAN_CHAINS.md's now-struck-through
+        // "tick-cost rule" made for bread/leather/ale/barrel: it summed
+        // TICKS end to end and called a x1.67 tick ratio the band. A
+        // crafter's batch costs a FLAT 2 effort regardless of ticks
+        // (CrafterWorkGoal, settler.effort().spendResearched(2, ...)), and
+        // effort -- not the clock -- is what caps a working day
+        // (BALANCE_AUDIT.md finding 2). Computed on the real metric (total
+        // EFFORT across every building in the chain, per unit of FINAL
+        // output -- ChainsGameTests#directEffortPerUnit /
+        // #chainEffortPerUnit, the same method FuelGameTests now reuses),
+        // the OLD numbers here (bloom 3->4, bloom_ingot 2->2) landed at
+        // ~x1.33 -- BELOW the x1.5 floor, despite the x1.67 TICK ratio
+        // looking fine. FLOWS.md and PLAN_CHAINS.md both cited this pair as
+        // "the model that was done right"; it was the same defect as the
+        // three chains fixed beside it, just with a ratio that happened to
+        // clear 1.0 in ticks instead of landing exactly at it.
+        //   rough:  1 raw -> 1 ingot/batch, no upstream    = 2 effort/ingot
+        //   fed:    3 raw -> 4 bloom/batch (unchanged), the smithy's
+        //           bloom_ingot finishes 2 bloom -> 3 ingot/batch (fixed
+        //           below, was 2 -- the same lever as bread_flour/
+        //           leather_cured/ale_malt: more final good per DOWNSTREAM
+        //           batch, never a shorter clip):
+        //             upstream batches needed per finishing batch = 2/4 = 0.5
+        //             (2 effort * 0.5 + 2 effort) / 3 ingot   = 1 effort/ingot
+        //   advantage: 2 / 1 = x2.0 -- inside FLOWS.md's x1.5-x2 band (at
+        //   the ceiling; the rough path still costs exactly double, so it
+        //   stays worth using -- "multiply, never gate").
+        // Ore rides along better too: 1.5 raw iron feeds one finishing
+        // batch's 3 ingots, so 0.5 raw/ingot against the rough path's
+        // 1/ingot. FUEL likewise improves: the fed chain burns 1.5 fuel per
+        // 3 ingots (0.5/ingot) against the rough path's 1/ingot -- both
+        // still strictly better than the rough path, so neither the
+        // "no more ore" nor "no more fuel" side-constraint needed touching.
+        // FuelGameTests#bloomFedPathClearsTheFlowsBandMeasuredAsEffortAcrossAllBuildings
+        // asserts the x1.5 floor and x2.0 ceiling as an EFFORT ratio over
+        // this very table (not ticks), so a retune that drifts out of the
+        // band fails the suite, not the review.
         put(BuildingType.SMELTER,
             new Recipe("iron_bloom", Ingredient.of(Items.RAW_IRON), 3, ModItems.IRON_BLOOM.get(), 4, 160),
             new Recipe("iron", Ingredient.of(Items.RAW_IRON), 1, Items.IRON_INGOT, 1, 200),
@@ -393,15 +417,21 @@ public final class Production {
         // buildings existed.
         //
         // SLICE CHAINS: bloom_ingot finishes the smelter's iron_bloom into a
-        // proper ingot -- the smelter<->smithy edge FLOWS.md names -- at 80
-        // ticks per ingot (160t for 2) against the rough smelt's 200. This
-        // is the smithy half of the end-to-end x1.67 fed-path arithmetic
-        // spelled out on the SMELTER's iron_bloom entry above; retune the
-        // pair together or the band test in FuelGameTests fails. Its input
-        // (IRON_BLOOM) never collides with the four tool recipes' IRON_INGOT,
-        // so it is simply additional smithy work, not a competitor to them.
+        // proper ingot -- the smelter<->smithy edge FLOWS.md names. This is
+        // the smithy half of the end-to-end fed-path arithmetic spelled out
+        // on the SMELTER's iron_bloom entry above; retune the pair together
+        // or the band test in FuelGameTests fails. Its input (IRON_BLOOM)
+        // never collides with the four tool recipes' IRON_INGOT, so it is
+        // simply additional smithy work, not a competitor to them.
+        //
+        // OUTPUT RAISED 2 -> 3 (2026-08-26): the ticks (160, unchanged) were
+        // never the lever -- see the SMELTER comment for the full effort
+        // arithmetic and why the OLD 2->2 (a plain 1:1 finish, x1.33 in
+        // effort) sat below FLOWS.md's x1.5 floor despite reading x1.67 in
+        // ticks. Same fix as bread_flour/leather_cured/ale_malt: more final
+        // ingot per finishing batch, ticks left alone.
         put(BuildingType.SMITHY,
-            new Recipe("bloom_ingot", Ingredient.of(ModItems.IRON_BLOOM.get()), 2, Items.IRON_INGOT, 2, 160),
+            new Recipe("bloom_ingot", Ingredient.of(ModItems.IRON_BLOOM.get()), 2, Items.IRON_INGOT, 3, 160),
             new Recipe("axe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_AXE, 1, 300),
             new Recipe("pickaxe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_PICKAXE, 1, 300),
             new Recipe("hoe", Ingredient.of(Items.IRON_INGOT), 2, Items.IRON_HOE, 1, 240),

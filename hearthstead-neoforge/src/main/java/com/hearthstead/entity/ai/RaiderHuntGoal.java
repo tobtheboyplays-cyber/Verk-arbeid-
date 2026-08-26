@@ -80,8 +80,10 @@ public class RaiderHuntGoal extends Goal {
 
     /** How far past the settlement's own radius the search still looks --
      * narrower than {@code RaidDirector#RAID_BOUNDS_MARGIN} (48) on purpose;
-     * see the class doc's "bounded means bounded" section. */
-    private static final int HUNT_SCAN_MARGIN = 16;
+     * see the class doc's "bounded means bounded" section. Public so the
+     * GameTests assert against this exact number rather than a duplicated
+     * copy that could silently drift from it. */
+    public static final int HUNT_SCAN_MARGIN = 16;
     /** How often the bounded scan re-runs. Cheap (one box query) but still
      * not free, so this is a cooldown, never a per-tick cost. */
     private static final int RESCAN_INTERVAL = 30;
