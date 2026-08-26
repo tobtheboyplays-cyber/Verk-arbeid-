@@ -1881,3 +1881,57 @@ even regrab-and-retry stops working. No root cause yet. It is the single
 biggest obstacle to round 2 reaching the lumberjack milestone, and it is
 logged rather than worked around, per the standing rule that a harness fought
 in silence gets fought again next round.
+
+### KF-033 — the adversarial review, and the honest yield
+
+**2026-08-26.** Five independent lenses read the night's `298fc11..HEAD` diff
+(78 files, 6590 insertions); every finding was then attacked by three
+skeptics with different angles, majority-refuted findings discarded. 75
+agents. **Ten findings survived; twelve were killed.** Ten across 6590 lines
+is a thin yield and it is reported as thin rather than padded.
+
+The two that matter most are both **seam defects — each worker correct inside
+its own files, and wrong across the boundary**:
+
+**BLOCKER — the three new gathering trades produce into chests no courier
+will ever open.** `CourierWorkGoal.findCollectionJob` skips any building that
+is neither a MINE nor has a `Production` table; PASTURE, FISHERY and
+HUNTERS_LODGE have no `Production` entry because they gather rather than
+craft. So the fisher's cod, the herder's wool and eggs and the hunter's meat
+sit in their own chests forever, and no settler can ever eat any of it. The
+trades worker built three correct trades. The courier worker had, months
+earlier, written a correct gate. Nobody owned the space between them.
+
+**HIGH — the restock top-up now exceeds the collection keep-back**, so for any
+item that is both an output and an input of one building (the mason's STONE,
+the smithy's IRON_INGOT, the weaver's WOOL) two courier routes shuttle the
+same stack back and forth forever. `MATERIAL_RESERVE_BATCHES × inputCount` is
+16 against an `OUTPUT_KEEP_BACK` of 8; before that constant existed the
+threshold was 4 and the band `[4,8]` was stable. `keepBackFor` already carries
+exactly this anti-carousel guard for fuel and was never extended to
+materials. Restock is the top priority, so a courier locked in the shuttle
+consumes settlement logistics capacity indefinitely.
+
+Also confirmed: the mayor's feast is skipped whenever the incumbent is
+unloaded (the KF-025 shape, now with a price attached); the mill's paper
+recipe is *worse* than hand-crafting and no settler grows sugar cane, so the
+wall it was added to remove is still standing; guard armour is destroyed on
+death with no drop; `RaiderModel` reads `Mob.getTarget()` client-side where
+it is always null, so the authored SPRINT clip never plays; the
+fixture-plaque guard's regex matches an ITEM and matches inside comments; and
+`GameTestFixtures.placePlaque` sets a plaque state `PlaqueBlock.canSurvive`
+would refuse, which any later neighbour update deletes.
+
+**The most valuable section of the report was the one naming what nobody
+looked at.** All five lenses were static and single-file: the three new work
+goals were never audited as *running code* (the family that produced a
+server-killing NPE the same night); the raid rewrite's targeting was never
+read at all, and its failure mode is the inverse of a bug — raiders that now
+ignore legitimate targets — which nothing static can see; the day-scale
+throughput ledger was attempted by two lenses and **both were refuted for
+arithmetic errors**, meaning it is unexamined rather than clean; and **nobody
+opened a `298fc11` world on HEAD**, which is the cheapest high-yield check
+available and the only one whose failure mode is unrecoverable for a player.
+
+That last omission is the finding about the review itself: a panel of readers
+will exhaustively read, and will not think to run.
