@@ -276,6 +276,77 @@ public final class Production {
         put(BuildingType.TANNERY,
             new Recipe("leather_cured", Ingredient.of(ModItems.CURED_HIDE.get()), 2, Items.LEATHER, 2, 180),
             new Recipe("leather", Ingredient.of(Items.RABBIT_HIDE), 4, Items.LEATHER, 1, 180));
+
+        // BALANCE_AUDIT.md finding 1 (BROKEN) / PLAN_CIRCULATION.md F3: the
+        // armoury building has existed since BuildingType was written, and
+        // GuardRank.applyEquipment has withdrawn real pieces from its chests
+        // since owner-critic verdict #1 krav 4 -- but nothing ever PUT a
+        // piece there. Every armour item the guard ladder can wear had to be
+        // placed by the player's own hand; the village could not arm itself.
+        // These eight recipes are that maker. (GuardRank's own equipment
+        // table -- SPEARMAN through CAPTAIN -- actually asks for eight
+        // distinct items, not the seven the audit named: LEATHER_LEGGINGS
+        // is VETERAN's own piece and was missing from the audit's list too.)
+        //
+        // INPUTS ARE GOODS THIS ECONOMY ALREADY MAKES (design constraint):
+        // LEATHER from the TANNERY (rough: rabbit hide; fed: the butcher's
+        // cured hide), IRON_INGOT from the SMELTER (rough: raw iron; fed:
+        // the smithy's bloom finish). No new material, no new building --
+        // exactly the two goods FLOWS.md's "tannery -> armoury" and
+        // "smithy -> armoury" table rows already promise a consumer for.
+        //
+        // MATERIAL COUNTS ANCHOR TO VANILLA'S OWN CRAFTING-TABLE RECIPE
+        // (same idiom as BAKERY's 3-wheat loaf above: "the same ratio
+        // vanilla uses, so a player already knows the exchange rate"):
+        // helmet 5, chestplate 8, leggings 7, boots 4 -- identical for the
+        // leather and iron line, so the two tiers read as the same kit in a
+        // different metal, exactly like the visible ramp GuardRank's own
+        // class doc describes ("a leather vest, then full leather, then
+        // iron creeping in").
+        //
+        // TICK COST ANCHORS TO THE SMITHY'S OWN REGISTER, split by tier so
+        // the guard ladder stays a LADDER (design constraint: "leather must
+        // be meaningfully cheaper than iron, or a village that can field a
+        // captain as easily as a spearman has no ladder"):
+        //   - IRON pieces run at 130 ticks/ingot -- exactly the smithy's
+        //     sword rate (2 IRON_INGOT -> 260 ticks, SMITHY table above).
+        //     Iron armour is priced as "another smithy-grade forging job",
+        //     not a discount on one.
+        //   - LEATHER pieces run at 80 ticks/leather -- a deliberately
+        //     cheaper bench rate than iron's 130, on TOP of leather's own
+        //     upstream being cheaper to begin with (tannery's rough leather
+        //     is 180t for 1, against the smelter's rough ingot at 200t for
+        //     1, and the tannery's cured-hide fed path at 90t/2=45t per
+        //     unit beats the smithy's own bloom-finish fed ingot at
+        //     160t/2=80t per unit). The two gaps compound: iron is slower
+        //     to grow AND slower to forge, so a full leather Veteran kit
+        //     (24 leather, 1920 ticks total) is cheaper on both axes than a
+        //     full iron Captain kit (24 ingots, 3120 ticks total) -- a real
+        //     ladder, not just a label change on the same cost.
+        // (ticks = materialCount * rate, both tiers, so the ladder holds at
+        // every piece, not just the kit total: helmet 400 vs 650, boots 320
+        // vs 520, leggings 560 vs 910, chestplate 640 vs 1040.)
+        //
+        // ACYCLICITY (FLOWS.md "no value mints", ChainsGameTests (d)): every
+        // output here (the eight armour items) is a SINK -- none of them is
+        // ever an INPUT to any recipe in this table, in ANY building, so
+        // this only ever adds new leaf edges off LEATHER and IRON_INGOT.
+        // Neither of those two items gains a path back to itself or to any
+        // of its own ancestors (WHEAT/RABBIT/RABBIT_HIDE/CURED_HIDE for
+        // leather; RAW_IRON/IRON_BLOOM for iron): a guard wears the armour
+        // or GuardRank returns it to a chest on supersession, and either way
+        // it never re-enters Production as an ingredient. No cycle is
+        // reachable; ArmouryGameTests and the existing static DFS proof both
+        // hold.
+        put(BuildingType.ARMOURY,
+            new Recipe("leather_helmet", Ingredient.of(Items.LEATHER), 5, Items.LEATHER_HELMET, 1, 400),
+            new Recipe("leather_chestplate", Ingredient.of(Items.LEATHER), 8, Items.LEATHER_CHESTPLATE, 1, 640),
+            new Recipe("leather_leggings", Ingredient.of(Items.LEATHER), 7, Items.LEATHER_LEGGINGS, 1, 560),
+            new Recipe("leather_boots", Ingredient.of(Items.LEATHER), 4, Items.LEATHER_BOOTS, 1, 320),
+            new Recipe("iron_helmet", Ingredient.of(Items.IRON_INGOT), 5, Items.IRON_HELMET, 1, 650),
+            new Recipe("iron_chestplate", Ingredient.of(Items.IRON_INGOT), 8, Items.IRON_CHESTPLATE, 1, 1040),
+            new Recipe("iron_leggings", Ingredient.of(Items.IRON_INGOT), 7, Items.IRON_LEGGINGS, 1, 910),
+            new Recipe("iron_boots", Ingredient.of(Items.IRON_INGOT), 4, Items.IRON_BOOTS, 1, 520));
     }
 
     private static void put(BuildingType type, Recipe... recipes) {
