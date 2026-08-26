@@ -169,18 +169,24 @@ public class RoomScannerGameTests {
     }
 
     /**
-     * A narrow, fully-walled 1x1 shaft directly above {@code roofHoleRel},
-     * running from the roof up to well past {@code RoomScanner.MAX_HEIGHT}.
-     * Without this, "open above the hole" means open into the GameTest
-     * template's own space -- which is bounded (every GameTest arena sits
-     * inside an invisible containment volume), so once the flood fill clears
-     * the roof it can ALSO spread sideways at that height across the whole
-     * template, and which cap trips first (and where) then depends on the
-     * template's own unknown size rather than on the hole. Walling the shaft
-     * removes that dependency entirely: the only way out is straight up,
-     * so the extent/height cap is what trips, in the hole's own column, every
-     * time -- matching a real player's mistake (a bare unroofed gap with open
-     * sky above, not a sideways-connected cavity).
+     * A narrow, fully-walled 1x1 shaft directly above {@code roofHoleRel}.
+     * Without this, once the flood fill clears the roof it ALSO spreads
+     * sideways at that height across the whole arena, and the recorded break
+     * position then depends on the arena rather than on the hole. Walling
+     * the shaft removes that dependency: the only way out is straight up, in
+     * the hole's own column, every time -- matching a real player's mistake
+     * (a bare unroofed gap with open sky above, not a sideways cavity).
+     *
+     * <p>What actually names the leak here is the ROOF TEST, not the
+     * extent/height cap: this arena ({@code empty16}) is only 8 blocks tall
+     * and the GameTest containment shell encases it in barriers, so the fill
+     * stops UNDER the barrier ceiling long before {@code MAX_HEIGHT} can
+     * trip. {@code hasCoverAbove} treats a barrier as world-edge (sky),
+     * never as a roof -- that is what makes the shaft's top cell read as
+     * open sky inside an encased arena exactly like it would under the real
+     * overworld sky. Before that rule the barrier ceiling counted as cover,
+     * and a room with a hole in its roof scanned enclosed AND roofed --
+     * this test's original red.
      */
     private static void buildChimney(GameTestHelper helper, BlockPos roofHoleRel) {
         for (int y = roofHoleRel.getY() + 1; y <= roofHoleRel.getY() + 13; y++) {

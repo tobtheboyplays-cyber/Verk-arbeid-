@@ -369,18 +369,45 @@ public class PlaqueBlockEntity extends BlockEntity {
             worldPosition.relative(facing.getOpposite(), 2),      // hung outside, thin wall
             worldPosition.relative(facing.getOpposite(), 3),      // ...thick wall
         };
+        // A candidate only wins OUTRIGHT when it is a room by D-004's measure
+        // AND satisfies every one of the plan's requirements. Geometry alone
+        // is not enough: hung on the outside of an underground room, the
+        // "hung inside" candidate normalizes backward into the plaque's own
+        // one-cell niche — enclosed by rock on every side, roofed by rock,
+        // volume 1 — which is a geometrically perfect "room" that can never
+        // satisfy any plan. Short-circuiting on it reported the owner's
+        // buried warehouse as LINKED_INCOMPLETE with a survey measured
+        // against a single air cell (storage 0/4, floor_space 1/25) while
+        // the real room sat one candidate later, through the wall.
+        //
+        // When no candidate wins outright, the one whose survey comes
+        // CLOSEST wins the right to explain itself: most requirements met
+        // first, geometric validity as the tiebreak. That preference order
+        // is what puts the actionable diagnosis on the sheet — a leaking
+        // real room (all furniture found, one hole) explains the player's
+        // actual mistake; a sprawl or a niche explains nothing.
         RoomScanner.Result best = null;
+        int bestScore = -1;
         for (BlockPos seed : candidates) {
             RoomScanner.Result result = RoomScanner.scan(level, seed);
             if (result == null) {
                 continue;
             }
-            if (result.enclosed() && !result.skyLeak()
-                && result.volume() <= RoomScanner.MAX_HOME_VOLUME) {
-                return result; // a real room wins immediately
+            boolean geometric = result.enclosed() && !result.skyLeak()
+                && result.volume() <= RoomScanner.MAX_HOME_VOLUME;
+            int met = 0;
+            for (com.hearthstead.building.Requirement requirement : type.requirements()) {
+                if (requirement.measure(result).met()) {
+                    met++;
+                }
             }
-            if (best == null) {
-                best = result; // keep the best near-miss so the UI can explain it
+            if (geometric && met == type.requirements().size()) {
+                return result; // a real, complete room wins immediately
+            }
+            int score = met * 2 + (geometric ? 1 : 0);
+            if (score > bestScore) {
+                best = result;
+                bestScore = score;
             }
         }
         return best;

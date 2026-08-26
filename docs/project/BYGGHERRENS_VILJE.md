@@ -72,6 +72,25 @@ det nyeste + «core gameplay først».
   retune-runde — den er altså fortsatt ikke god nok. Alvorlighet 1 på
   presentasjonssiden.)
 
+## Ferske ordrer (2026-08-26 kveld, ny sesjon — gjelder foran frysen der de
+## eksplisitt bestiller noe)
+- Anker-mekanikk, ordrett: «vil ha tektopia sin måte å få bygniger å jobber
+  på med det skal ikke koste emeralds. Så vil jeg ha minecolonies sin måte
+  å kjøpe settlers på. Så tavern er kritisk for å få nye settlers»
+  → TAVERN-GATE-slicen (PLAN_TAVERN_GATE.md): tavernaen er porten for nye
+  settlers; ingenting koster emeralds, noensinne (vokter-test).
+- Total-overhaul-bestillingen, ordrett: «Vil at du skal planlegge og fikse
+  alle problemene jeg har. Vil at du gir en TOTAL UI OVERHAUL grunnet den
+  er kjempe stygg. Finn noe fine referanser ute på interenett å ta fra de.
+  ANIMASJON OVERHAUL. FInn en god løsning der. Deretter CORE GAMPLAY finn
+  en god løsning slik at det er en god playable demo. Sett kravene til en
+  god demo og sett igang å balance og fiks det vi har til nå»
+- «Textures også må bli 100 bedre»
+- «ikke start på nytt» — alt overhaul-arbeid skjer i den eksisterende
+  hearthstead-neoforge-kodebasen. Aldri omstart, aldri ny mod.
+- Bekreftet at koordinatoren har referansetilgang: prototypen i repoet,
+  TekTopia/MineColonies åpen kildekode, internettreferanser for UI.
+
 ## Ta-over-mandatet (natt/fravær)
 Eieren: «Få mini mi til å ta over å lese alt jeg har skrevet før slik den
 vet hva jeg vil ha.» Når eieren er borte taler Byggherren med eierens

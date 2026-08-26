@@ -374,13 +374,26 @@ public final class RoomScanner {
      * True when something solid stands above {@code pos} within roof range.
      * A roof further away than the fill's own height cap is not this room's
      * roof, so the search stops there.
+     *
+     * <p>A BARRIER is never a roof. Barriers are unobtainable in survival;
+     * the one place the scanner meets them is a GameTest arena, whose
+     * containment shell encases every test structure in barrier walls and a
+     * barrier ceiling. Counting that shell as cover made an 8-block-tall
+     * arena a world where no roof hole could ever read as open sky — the
+     * scan's answer depended on the arena, not the room. Treating barrier
+     * as world-edge (sky) restores the overworld's own semantics inside a
+     * test arena and changes nothing a player can ever build.
      */
     private static boolean hasCoverAbove(ServerLevel level, BlockPos pos) {
         BlockPos.MutableBlockPos probe = pos.mutable();
         int top = Math.min(level.getMaxBuildHeight() - 1, pos.getY() + MAX_HEIGHT);
         for (int y = pos.getY() + 1; y <= top; y++) {
             probe.setY(y);
-            if (!level.getBlockState(probe).getCollisionShape(level, probe).isEmpty()) {
+            BlockState state = level.getBlockState(probe);
+            if (state.is(Blocks.BARRIER)) {
+                return false;
+            }
+            if (!state.getCollisionShape(level, probe).isEmpty()) {
                 return true;
             }
         }
