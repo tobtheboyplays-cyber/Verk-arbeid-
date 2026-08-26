@@ -10,6 +10,7 @@ import com.hearthstead.entity.ai.RepairWorkGoal;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
@@ -360,5 +361,159 @@ public class RepairGameTests {
             RaidDirector.clearScar(level, id, scar.pos());
         }
         helper.succeed();
+    }
+
+    // ---------------------------------------------- COSTS-2: free mends ---
+
+    /**
+     * Four scars, a lone unemployed repairer, neither a mason nor a sawmill
+     * registered -- so {@code Costs.PriceKey#REPAIR} earns no hook at all
+     * and NOTHING is ever free. Every one of the four scars must pull its
+     * own brick from the hearth (chest truth: counted in the hearth's real
+     * inventory, never an internal tally), the negative case
+     * {@code aMasonHookMendsEveryFourthScarFree} depends on for contrast.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "repair_day")
+    public void noMasonOrSawmillMeansEveryScarConsumesAMaterial(GameTestHelper helper) {
+        helper.getLevel().setDayTime(3000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(7, 1, 7);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.bindSettlement(s.id);
+        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 4));
+
+        SettlerEntity aslak = settler(helper, s, "Aslak", 3, 3);
+        helper.assertTrue(aslak.getProfession() == Profession.NONE,
+            "no mason building means the dugnad is entirely the unemployed");
+        List<Costs.Discount> discounts =
+            Costs.discountsFor(helper.getLevel(), s, Costs.PriceKey.REPAIR);
+        helper.assertTrue(discounts.isEmpty(),
+            "an undecorated settlement must earn no REPAIR hook, found " + discounts.size());
+
+        List<BlockPos> scarRels = List.of(new BlockPos(2, 1, 4), new BlockPos(4, 1, 2),
+            new BlockPos(2, 1, 2), new BlockPos(4, 1, 4));
+        for (BlockPos rel : scarRels) {
+            RaidDirector.recordScar(helper.getLevel(), s.id,
+                helper.absolutePos(rel), Blocks.STONE_BRICKS.defaultBlockState());
+        }
+
+        helper.succeedWhen(() -> {
+            int closed = 0;
+            for (BlockPos rel : scarRels) {
+                if (helper.getBlockState(rel).is(Blocks.STONE_BRICKS)) {
+                    closed++;
+                }
+            }
+            helper.assertTrue(closed == 4, "all four scars must eventually mend, closed=" + closed);
+            int left = countInHearth(hearth, Items.STONE_BRICKS);
+            helper.assertTrue(left == 0,
+                "with no discount hook every one of the four scars must pay -- "
+                    + "all 4 bricks must be gone, left " + left);
+            helper.assertTrue(RaidDirector.scarsOf(helper.getLevel(), s.id).isEmpty(),
+                "all four scars must close on the ledger");
+        });
+    }
+
+    /**
+     * Same four scars, the same lone repairer, but a MASON now stands
+     * registered and valid (unstaffed on purpose -- {@link Costs#discountsFor}'s
+     * REPAIR case needs only the building, never a worker). The hearth is
+     * stocked generously (10 bricks for 4 scars) so material scarcity can
+     * never be mistaken for the discount -- if the fourth scar mends with
+     * material still sitting in the hearth unspent, that is the waiver
+     * working, not a shortage.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "repair_day")
+    public void aMasonHookMendsEveryFourthScarFree(GameTestHelper helper) {
+        helper.getLevel().setDayTime(3000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(7, 1, 7);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.bindSettlement(s.id);
+        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 10));
+        building(helper, s, BuildingType.MASON, 10, 10);
+
+        settler(helper, s, "Aslak", 3, 3);
+        List<Costs.Discount> discounts =
+            Costs.discountsFor(helper.getLevel(), s, Costs.PriceKey.REPAIR);
+        helper.assertTrue(discounts.size() == 1 && discounts.get(0).percent() == 25,
+            "a registered mason alone must earn exactly the named 25% hook, found "
+                + discounts);
+
+        List<BlockPos> scarRels = List.of(new BlockPos(2, 1, 4), new BlockPos(4, 1, 2),
+            new BlockPos(2, 1, 2), new BlockPos(4, 1, 4));
+        for (BlockPos rel : scarRels) {
+            RaidDirector.recordScar(helper.getLevel(), s.id,
+                helper.absolutePos(rel), Blocks.STONE_BRICKS.defaultBlockState());
+        }
+
+        helper.succeedWhen(() -> {
+            int closed = 0;
+            for (BlockPos rel : scarRels) {
+                if (helper.getBlockState(rel).is(Blocks.STONE_BRICKS)) {
+                    closed++;
+                }
+            }
+            helper.assertTrue(closed == 4, "all four scars must mend, closed=" + closed);
+            int consumed = 10 - countInHearth(hearth, Items.STONE_BRICKS);
+            helper.assertTrue(consumed == 3,
+                "the fourth scar must mend without spending material -- exactly "
+                    + "3 of 4 scars' worth of brick may leave the hearth, consumed "
+                    + consumed);
+        });
+    }
+
+    /**
+     * Both a MASON and a SAWMILL registered lands the capped 50% (two named
+     * 25% hooks, COSTS.md's stacking law), so every SECOND of four scars
+     * must mend free rather than every fourth.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "repair_day")
+    public void masonAndSawmillTogetherMendEverySecondScarFree(GameTestHelper helper) {
+        helper.getLevel().setDayTime(3000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(7, 1, 7);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.bindSettlement(s.id);
+        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 10));
+        building(helper, s, BuildingType.MASON, 10, 2);
+        building(helper, s, BuildingType.SAWMILL, 2, 10);
+
+        settler(helper, s, "Aslak", 3, 3);
+        List<Costs.Discount> discounts =
+            Costs.discountsFor(helper.getLevel(), s, Costs.PriceKey.REPAIR);
+        helper.assertTrue(discounts.size() == 2 && Costs.discountPercent(discounts) == 50,
+            "mason plus sawmill must land on the capped 50%, found " + discounts);
+
+        List<BlockPos> scarRels = List.of(new BlockPos(2, 1, 4), new BlockPos(4, 1, 2),
+            new BlockPos(2, 1, 2), new BlockPos(4, 1, 4));
+        for (BlockPos rel : scarRels) {
+            RaidDirector.recordScar(helper.getLevel(), s.id,
+                helper.absolutePos(rel), Blocks.STONE_BRICKS.defaultBlockState());
+        }
+
+        helper.succeedWhen(() -> {
+            int closed = 0;
+            for (BlockPos rel : scarRels) {
+                if (helper.getBlockState(rel).is(Blocks.STONE_BRICKS)) {
+                    closed++;
+                }
+            }
+            helper.assertTrue(closed == 4, "all four scars must mend, closed=" + closed);
+            int consumed = 10 - countInHearth(hearth, Items.STONE_BRICKS);
+            helper.assertTrue(consumed == 2,
+                "every second scar must mend free at the capped 50% -- exactly "
+                    + "2 of 4 scars' worth of brick may leave the hearth, consumed "
+                    + consumed);
+        });
     }
 }

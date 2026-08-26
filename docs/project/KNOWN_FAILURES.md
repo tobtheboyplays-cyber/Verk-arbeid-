@@ -1320,3 +1320,61 @@ FATAL: the two fingerprint implementations disagree.
 throwaway worktree, and the controller exited 2 and ran nothing. A guard
 nobody has watched fail is not a guard; it is a comment with a shell around
 it, which is exactly what the equivalence requirement had been until tonight.
+
+### KF-021 — SOLVED. The suite was dissolving the buildings it was testing
+
+**2026-08-26 05:00Z, proven live by FLAKE-2 with one instrumented `println`,
+not by reading.** Two causes, one mechanism, and between them they account
+for every number this document has recorded tonight.
+
+**Cause 1 — the fixtures never satisfied the product's own precondition.**
+`BuildingManager.tick()` sweeps ONE building per 20 ticks across every
+settlement in the save, and dissolves any whose `plaquePos` no longer holds a
+`PlaqueBlock`. That is correct and must stay: *the plaque is the surveyor; no
+plaque, no building* (D-005). It is properly guarded against the chunk-unload
+case (`level.isLoaded(plaquePos)` at BuildingManager:104), so it cannot
+dissolve a real player's village while they are away.
+
+But roughly 23 GameTest fixture files construct a `Building` directly and
+`settlement.buildings.add(...)` it **without ever placing a plaque block**.
+The sweep reaches one of them and correctly deletes it. Caught in the act:
+
+```
+ahiredsmelteractuallysmelts failed! activity=IDLE
+BM-DIAG dissolve type=smelter settlement=Testholm tick=4880
+        workers=1 sweepCursor=244 totalBuildings=441
+```
+
+"Testholm" is the settlement name that test hardcodes. It was its own
+building being deleted underneath it. After that `Employment.employerOf()`
+returns null forever, `CrafterWorkGoal.canUse()` is false forever, and the
+settler stands there with its inputs untouched — **"a hired worker that does
+not work"**, exactly the signature, including the tests that were never
+effort-shaped: the scholar, both miner tests, the farmer bootstrap, the
+mason's repair scar. One fixture defect, not an attribute margin.
+
+This is KF-014's pattern recurring project-wide, because that fix was applied
+only to the courier and warehouse fixtures and never generalized.
+
+**Cause 2 — the world was never wiped, so every run inherited the last one.**
+`runGameTestServer` reuses `hearthstead-neoforge/run/world` and nothing ever
+cleared it. The main tree's had reached **217 MB**, holding settlements and
+buildings dating back to 23 August. Measured across two back-to-back runs
+with no code change: `hearthstead_settlements.dat` 52080 → 65905 bytes, poi
+region files 28 → 34.
+
+That is what made it a *flake* rather than a deterministic failure. Whether
+the sweep cursor reaches any particular test's building inside that test's
+lifetime depends on how many buildings the save holds — 441 in the
+instrumented run — which depends on every fixture that ran before it **and on
+every run that ever ran before that**. Same commit, 1 / 12 / 14 / 20 red.
+
+**Neither fix weakens anything.** The invariant stays enforced; the fixtures
+are changed to build what the game actually requires a building to be — the
+same argument KF-013 and KF-014 already made. Wiping the world makes each run
+independent, which is the definition of a suite you can gate on.
+
+**Batch order was ruled out by direct measurement**, not by argument: all 84
+`Running test batch` lines are byte-identical across three consecutive runs.
+That was my hypothesis and it was wrong; recording it because a ruled-out
+cause is worth as much as a found one to whoever reads this next.

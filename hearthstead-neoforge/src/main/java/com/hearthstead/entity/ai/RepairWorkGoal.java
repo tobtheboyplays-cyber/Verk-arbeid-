@@ -292,9 +292,12 @@ public class RepairWorkGoal extends Goal {
 
     /**
      * The moment the work is done: consume one matching item (chest truth,
-     * read live at this instant) and stand the original block back up. If
-     * the material vanished while we chiselled, the scar simply stays open
-     * for a later trip — nothing is consumed, nothing appears.
+     * read live at this instant) and stand the original block back up --
+     * unless this is one of the free mends the mason/sawmill discount earns
+     * (see {@link #shouldMendFree}), in which case nothing is taken at all.
+     * If the material vanished while we chiselled and this scar was NOT
+     * free, the scar simply stays open for a later trip — nothing is
+     * consumed, nothing appears.
      */
     private void finishRepair(ServerLevel level) {
         Settlement settlement = settler.settlement();
@@ -314,12 +317,17 @@ public class RepairWorkGoal extends Goal {
             scarPos = null;
             return;
         }
-        if (!consumeOne(level, settlement, scarOriginal)) {
-            // No material after all: the scar stays open for a later trip.
+        boolean free = shouldMendFree(level, settlement);
+        if (!free && !consumeOne(level, settlement, scarOriginal)) {
+            // No material after all, and this scar wasn't one of the free
+            // ones either: the scar stays open for a later trip. Nothing
+            // was spent, so the running tally below must not move either --
+            // only real, completed mends count toward the next free one.
             releaseClaim();
             scarPos = null;
             return;
         }
+        SCAR_MENDS.merge(settlement.id, 1, Integer::sum);
         level.setBlock(scarPos, scarOriginal, 3);
         RaidDirector.clearScar(level, settlement.id, scarPos);
         // Doing the job makes you better at it -- the mason's own attribute
@@ -330,6 +338,37 @@ public class RepairWorkGoal extends Goal {
         settler.spendEffort(2);
         releaseClaim();
         scarPos = null;
+    }
+
+    // ---------------------------------------------------- mend-free tally ---
+
+    /**
+     * Running count of scars actually mended per settlement, feeding
+     * {@link #shouldMendFree} -- not persisted, the same reasoning as
+     * {@link #CLAIMS}: a discount opportunity forgotten across a server
+     * restart is not the kind of thing a raid ledger needs to survive.
+     */
+    private static final Map<UUID, Integer> SCAR_MENDS = new HashMap<>();
+
+    /**
+     * Whether the scar about to finish should mend WITHOUT consuming any
+     * material -- the mason -25% / sawmill -25% hooks
+     * ({@code Costs.PriceKey#REPAIR}) made real (class doc, "some scars mend
+     * free"). Deterministic on purpose: every
+     * {@code 100 / discountPercent}th completed mend for this settlement is
+     * free -- the 4th at the capped 25% (one hook), the 2nd at the capped
+     * 50% (both) -- so the same settlement in the same state always gets the
+     * same answer, never a coin flip.
+     */
+    private boolean shouldMendFree(ServerLevel level, Settlement settlement) {
+        int percent = Costs.discountPercent(
+            Costs.discountsFor(level, settlement, Costs.PriceKey.REPAIR));
+        if (percent <= 0) {
+            return false;
+        }
+        int interval = 100 / percent; // 4 at 25%, 2 at 50% -- exact both times
+        int next = SCAR_MENDS.getOrDefault(settlement.id, 0) + 1;
+        return next % interval == 0;
     }
 
     // ------------------------------------------------------- scar choice ---

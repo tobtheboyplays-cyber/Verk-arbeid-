@@ -214,6 +214,30 @@ public class SettlerEntity extends PathfinderMob {
      *  on the ground. One-shot, see {@link #EV_PICKUP}/{@link #triggerPickup()}. */
     public final AnimationState pickupState = new AnimationState();
 
+    // Trade idles (owner: "vil ogsa ha idle animations som matcher jobben").
+    // Fourteen self-contained loops covering all 21 employed professions --
+    // see SettlerAnimations' own comment on the set. Each is mutually
+    // exclusive with idleState AND with every other state in this group:
+    // exactly one plays at a time, gated by profession in
+    // setupAnimationStates() below. One state per CLIP, not per profession,
+    // the same "one state per motion" rule the CHAINS-1 craft states above
+    // already follow -- GUARD and ARCHER share idleSentryState, SMITH and
+    // SMELTER share idleForgeState, and so on.
+    public final AnimationState idleFarmerState = new AnimationState();
+    public final AnimationState idleLumbererState = new AnimationState();
+    public final AnimationState idleSentryState = new AnimationState();
+    public final AnimationState idleCourierState = new AnimationState();
+    public final AnimationState idleForgeState = new AnimationState();
+    public final AnimationState idleBakerState = new AnimationState();
+    public final AnimationState idleCookState = new AnimationState();
+    public final AnimationState idleSightEdgeState = new AnimationState();
+    public final AnimationState idleFletcherState = new AnimationState();
+    public final AnimationState idleMinerState = new AnimationState();
+    public final AnimationState idleScholarState = new AnimationState();
+    public final AnimationState idleInnkeeperState = new AnimationState();
+    public final AnimationState idleWeaverState = new AnimationState();
+    public final AnimationState idleBladeBenchState = new AnimationState();
+
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
         setPersistenceRequired();

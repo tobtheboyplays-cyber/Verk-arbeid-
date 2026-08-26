@@ -10,12 +10,14 @@ import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Employment;
+import com.hearthstead.settlement.Mayor;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.item.Item;
@@ -314,6 +316,118 @@ public class CostsGameTests {
         helper.assertTrue(countInHearth(hearth, Items.BIRCH_PLANKS) == 0,
             "the birch planks price must be gone, found "
                 + countInHearth(hearth, Items.BIRCH_PLANKS));
+        helper.succeed();
+    }
+
+    // ---------------------------------------------- COSTS-2: the feast ---
+
+    /**
+     * The FIRST appointment to an empty seat is free (COSTS.md "Mayor swap:
+     * the feast"), and a SECOND appointment while one already sits charges
+     * the full, undiscounted 8-bread feast -- exactly that amount leaves the
+     * hearth, chest-true.
+     */
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    public void appointingASecondMayorChargesTheFullFeastFromTheHearth(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        Settlement s = settlement(helper, hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+
+        SettlerEntity first = settler(helper, s, "Forste", 8, 8);
+        helper.assertTrue(Mayor.appoint(level, s, first) == null,
+            "the first appointment to an empty seat must be free");
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
+            "an empty seat's appointment must not touch the hearth at all");
+
+        hearth.insertGoods(new ItemStack(Items.BREAD, 8));
+        SettlerEntity second = settler(helper, s, "Andre", 9, 8);
+        Component refusal = Mayor.appoint(level, s, second);
+
+        helper.assertTrue(refusal == null, "the full feast is payable and the swap must succeed");
+        helper.assertTrue(s.mayorId.equals(second.getUUID()), "the new mayor must hold the seat");
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
+            "the full 8-bread feast must be entirely gone, found "
+                + countInHearth(hearth, Items.BREAD));
+        helper.succeed();
+    }
+
+    /**
+     * A village that cannot afford the feast does not get a new mayor: the
+     * swap is refused with a reason, the old mayor keeps the seat, and the
+     * hearth is left exactly as it was -- a swap that silently succeeded
+     * without the goods is exactly the value mint FLOWS.md forbids.
+     */
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    public void aVillageThatCannotAffordTheFeastKeepsItsMayor(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        Settlement s = settlement(helper, hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+
+        SettlerEntity first = settler(helper, s, "Forste", 8, 8);
+        helper.assertTrue(Mayor.appoint(level, s, first) == null,
+            "the first appointment to an empty seat must be free");
+
+        hearth.insertGoods(new ItemStack(Items.BREAD, 3)); // short of the 8-bread feast
+        SettlerEntity second = settler(helper, s, "Andre", 9, 8);
+        Component refusal = Mayor.appoint(level, s, second);
+
+        helper.assertTrue(refusal != null,
+            "a village that cannot pay the feast must be refused, with a reason");
+        helper.assertTrue(s.mayorId.equals(first.getUUID()),
+            "the old mayor must keep the seat -- a refused swap changes nothing");
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 3,
+            "a refused feast must not touch the hearth at all, found "
+                + countInHearth(hearth, Items.BREAD));
+        helper.succeed();
+    }
+
+    /**
+     * A registered dining hall earns the NAMED
+     * "hearthstead.discount.mayor_feast_dining_hall" hook at -50% (COSTS.md:
+     * "the feast is cheaper where feasts are normal"), and exactly the
+     * discounted amount (4 bread, half of 8) leaves the hearth for the swap
+     * to succeed -- not the full price.
+     */
+    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    public void diningHallHalvesTheFeastAndOnlyTheDiscountedAmountLeavesTheChest(
+            GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        BlockPos hallRel = new BlockPos(10, 1, 10);
+        Settlement s = settlement(helper, hearthRel);
+        building(helper, s, BuildingType.DINING_HALL, hallRel.getX(), hallRel.getZ());
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+
+        SettlerEntity first = settler(helper, s, "Forste", 8, 8);
+        helper.assertTrue(Mayor.appoint(level, s, first) == null,
+            "the first appointment to an empty seat must be free");
+
+        List<Costs.Discount> discounts =
+            Costs.discountsFor(level, s, Costs.PriceKey.MAYOR_FEAST);
+        helper.assertTrue(discounts.size() == 1
+                && discounts.get(0).translationKey()
+                    .equals("hearthstead.discount.mayor_feast_dining_hall")
+                && discounts.get(0).percent() == 50,
+            "a dining hall must earn exactly the named -50% feast hook, found " + discounts);
+
+        hearth.insertGoods(new ItemStack(Items.BREAD, 4)); // exactly the discounted price
+        SettlerEntity second = settler(helper, s, "Andre", 9, 8);
+        Component refusal = Mayor.appoint(level, s, second);
+
+        helper.assertTrue(refusal == null,
+            "the discounted feast alone must be enough for the swap to succeed");
+        helper.assertTrue(s.mayorId.equals(second.getUUID()), "the new mayor must hold the seat");
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
+            "exactly the discounted 4-bread feast must be spent, found "
+                + countInHearth(hearth, Items.BREAD));
         helper.succeed();
     }
 }

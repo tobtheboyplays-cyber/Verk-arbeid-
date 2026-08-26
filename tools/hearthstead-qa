@@ -161,7 +161,31 @@ suite_build() {
     fi
 }
 
+# GameTests must start from an EMPTY world, every time.
+#
+# They did not, until 2026-08-26. `runGameTestServer` reuses
+# hearthstead-neoforge/run/world, and nothing ever cleared it: the main
+# tree's had grown to 217 MB of accumulated settlements, buildings and
+# entities dating back to 23 August, and a fresh worktree reached 14 MB in
+# two runs. FLAKE-2 measured the growth directly across two back-to-back
+# invocations with no code change --
+# run/world/data/hearthstead_settlements.dat 52080 -> 65905 bytes, poi
+# region files 28 -> 34.
+#
+# That is not untidiness, it is the reproducibility bug. BuildingManager
+# sweeps ONE building per 20 ticks across every settlement in the save and
+# dissolves any whose plaque block is missing (D-005, correctly). Which
+# building the cursor reaches in a given test's lifetime depends on how many
+# buildings the save holds -- 441 in one run FLAKE-2 instrumented -- so a
+# suite carrying yesterday's buildings gives a different answer than one
+# starting clean, and the same commit produced 1, 12, 14 and 20 red tonight.
+# A run whose result depends on what the last run left behind cannot gate
+# anything.
+#
+# Only `world` is removed. mods/, config/ and server.properties are the
+# installation, not the state under test.
 run_gametests() { # extra JVM props via $1
+    rm -rf "$MOD/run/world"
     (cd "$MOD" && ./gradlew runGameTestServer > "$RUN_DIR/gametest.log" 2>&1)
 }
 
@@ -238,6 +262,7 @@ suite_behavior() {
     mkdir -p "$RUN_DIR"
     local trace="$RUN_DIR/trace-raw.jsonl"
     rm -f "$trace"
+    rm -rf "$MOD/run/world"   # same reason as run_gametests above
     (cd "$MOD" && HSQA_TRACE=1 HSQA_TRACE_FILE="$trace" ./gradlew runGameTestServer \
         > "$RUN_DIR/behavior.log" 2>&1)
     if ! grep -q "required tests passed" "$RUN_DIR/behavior.log"; then
