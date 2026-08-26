@@ -1935,3 +1935,52 @@ available and the only one whose failure mode is unrecoverable for a player.
 
 That last omission is the finding about the review itself: a panel of readers
 will exhaustively read, and will not think to run.
+
+### KF-034 — my hypothesis was wrong twice, and the real causes were better
+
+**2026-08-26.** The hunter and the fisher tests were the last two red for
+hours. I gave the worker two confident steers from reading the gates. Both
+were wrong, and recording that is the point of this entry.
+
+**The hunter — I said the herd was seeded below the floor.** It was not.
+`MIN_SPECIES_POPULATION` was correctly refusing at `alive=4`, exactly as
+designed. The real bug was in `tickHunt`/`tickForage`, which set `done=true`
+after one action instead of checking the bag: a single kill yields 2-4 items
+against a `BAG_TRIGGER` of 6, and once the floor legitimately stops further
+hunting there is no second kill to top it off — so **real loot sat in the
+settler's bag forever while she read as IDLE.** The floor was never the
+problem; it was the thing that made the real bug visible. Fixed by returning
+to the lodge whenever the bag holds anything at all.
+
+**The fisher — I said the pond was too small or the box mis-centred.** Four
+compounding bugs, none of them that, found by live per-tick tracing:
+1. `empty16` is not a cleared void — real generated stone sat where the
+   fixture assumed air.
+2. `findFishingSpot` picked the *first* dockable tile in scan order, which
+   could route the pathfinder straight through the water.
+3. **The dock stood flush with the water, and the pond flooded it.** Open air
+   beside a live source block is a valid spread target; over the run the
+   fisher's own pond swallowed the tile she was standing on and ordinary
+   flowing-water physics pushed her off (`waterSeen` 2 → 115 mid-run). Fixed
+   at the goal level by recognising a raised-bank shore — the ordinary
+   vanilla shoreline shape — and by carving ponds into solid floor instead of
+   floating them in the walking layer.
+4. Even fishing perfectly (6 clean catches), she then sat TRAVELING forever:
+   the chest was one block **outside** the building's bounds, so
+   `WarehouseIndex.containers()` found nothing and every deposit trip
+   silently emptied nothing and restarted.
+
+Neither threshold moved. The puddle-refusal test still passes, and it passes
+because the geometry no longer lets water spread — not because the bar was
+lowered.
+
+**The lesson, which is about me and not about the worker.** Both my steers
+were plausible, both were derived from reading the code, and both would have
+sent someone to change a threshold that was doing its job. The worker ignored
+the conclusion and kept the method — instrument, trace live, fix one cause,
+re-run, repeat — and found four real bugs where I had guessed one imaginary
+one. That is the third time tonight a confident read lost to a live trace,
+and the tally is now unambiguous: **on this project, reading generates
+hypotheses and only running generates findings.**
+
+Four consecutive clean runs: `All 211 required tests passed`.
