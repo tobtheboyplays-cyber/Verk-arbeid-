@@ -21,7 +21,11 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -865,7 +869,16 @@ public class CourierWorkGoal extends Goal {
      * Arrival is a REACH test, not a containment test -- being within reach
      * through a real wall is not arriving, but a courier standing exactly as
      * close to the chest as the world lets her stand always is, whether or
-     * not that spot is inside the building's own recorded box.
+     * not that spot is inside the building's own recorded box. Reach alone
+     * cannot tell those two cases apart, though: {@link #distSqrToBounds}
+     * being small is equally true of a courier one step short of a chest
+     * flush on this box's edge AND of a courier standing right outside a
+     * SEALED wall, incidentally within raw reach of the chest just inside
+     * it -- KF-013's exact wedge (D-A2a-5's own doc above). What actually
+     * tells them apart is whether anything solid stands in between, so the
+     * fallback below also demands a clear line of sight to the target,
+     * {@link #hasClearPathTo} -- the same physical test vanilla itself uses
+     * to decide whether a block can be interacted with.
      *
      * <p>LIVE REGRESSION (coordinator diagnostic, run 20260826T013935Z): a
      * strict {@code bounds.isInside(at)} gate used to be checked FIRST and
@@ -880,21 +893,51 @@ public class CourierWorkGoal extends Goal {
      * predicate that can never be satisfied however long she waits: 33
      * repaths against a length-1 path going nowhere, twice, on two different
      * legs (TO_CRAFTER and TO_SOURCE), before giving up for good with the
-     * goods never delivered. Bounds is now only a cheap fast path for the
-     * common case of genuinely being inside; outside it, the SAME reach
-     * radius that always gated the fast path is what still keeps this from
-     * being satisfied through an actual sealed wall -- {@link #approachTo}
-     * never puts her somewhere convenient on the far side of one, so a
-     * courier reaching this by the fallback has always gone exactly as far
-     * toward the container as she physically could.
+     * goods never delivered.
+     *
+     * <p>A follow-up run (20260826T0141-ish) showed the first fix's blind
+     * spot: with reach alone (no line-of-sight demand), a courier idling
+     * OUTSIDE a sealed warehouse's one door read as "arrived" the moment she
+     * was close enough to the wall, so she never opened the door and never
+     * went in ({@code courierEntersASealedWarehouseAndDelivers},
+     * {@code courierOpensAClosedDoorToDeliver} both regressed). Bounds is
+     * now only a cheap fast path for the common case of genuinely being
+     * inside; outside it, BOTH a reach test and a clear ray to the target
+     * (through open air only, never through a wall) must hold -- a courier
+     * reaching this by the fallback has always gone exactly as far toward
+     * the container as the world lets her, with nothing solid between her
+     * and it.
      */
     private boolean hasArrived(Building building, BlockPos target) {
         BlockPos at = settler.blockPosition();
         if (building.bounds == null || building.bounds.isInside(at)) {
             return at.distSqr(target) <= CHEST_REACH_SQR;
         }
-        return at.distSqr(target) <= CHEST_REACH_SQR
+        boolean withinReach = at.distSqr(target) <= CHEST_REACH_SQR
             || distSqrToBounds(at, building.bounds) <= CHEST_REACH_SQR;
+        return withinReach && hasClearPathTo(target);
+    }
+
+    /**
+     * Whether nothing solid stands between the courier's eyes and
+     * {@code target} -- a straight-line ray cast with real block collision,
+     * the same physical test vanilla itself uses to decide whether a block
+     * is interactable (e.g. {@code Level.clip} under a player's own reach
+     * check). A miss, or a hit that lands ON the target block itself
+     * (the ordinary case: the ray reaches the chest and stops there,
+     * because the chest has collision), both count as clear; a hit on
+     * anything else means a wall, a door or some other obstruction is
+     * genuinely between her and the chest.
+     */
+    private boolean hasClearPathTo(BlockPos target) {
+        if (!(settler.level() instanceof ServerLevel level)) {
+            return false;
+        }
+        Vec3 from = settler.getEyePosition();
+        Vec3 to = Vec3.atCenterOf(target);
+        BlockHitResult hit = level.clip(new ClipContext(from, to,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, settler));
+        return hit.getType() == HitResult.Type.MISS || target.equals(hit.getBlockPos());
     }
 
     /**
@@ -1545,6 +1588,12 @@ public class CourierWorkGoal extends Goal {
                     Ingredient want = recipe.input();
                     if (countMatching(mine, want) >= recipe.inputCount()
                         || !roomFor(mine, want)) {
+                        // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+                        com.hearthstead.Hearthstead.LOGGER.info(
+                            "COURIER-DIAG restock-skip crafter={} recipe={} have={} "
+                                + "need={} roomFor={}",
+                            crafter.type, recipe.id(), countMatching(mine, want),
+                            recipe.inputCount(), roomFor(mine, want));
                         continue; // not short, or nowhere to put more even if fetched
                     }
                     RestockJob claimed = claimRestockFrom(level, s, crafter, mine, want, now);

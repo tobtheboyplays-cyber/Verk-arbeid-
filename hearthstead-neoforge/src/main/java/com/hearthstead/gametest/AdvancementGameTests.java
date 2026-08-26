@@ -70,19 +70,39 @@ public class AdvancementGameTests {
      * The block placement and the advancement grant are both plain
      * server-side state that already happened before any packet send is
      * attempted, so this only silences that expected failure.
+     *
+     * <p>Diagnosed 20260826: {@code BlockItem.place}'s own {@code canPlace()}
+     * gate was refusing the placement (returning {@code FAIL} with no
+     * exception) because the arena's own floor/platform already filled the
+     * cell this test assumed was air -- {@code canSurvive} and {@code
+     * isUnobstructed} both checked out fine against the wall, the target
+     * cell itself just wasn't empty. Cleared explicitly and proven air below,
+     * so a regression here fails on that precondition instead of silently
+     * returning {@code FAIL} and reading as a broken advancement.
      */
     @GameTest(batch = "advancement", template = "empty16", timeoutTicks = 100)
     public void hangingAPlaqueGrantsTheFirstStepsAdvancement(GameTestHelper helper) {
         BlockPos wallRel = new BlockPos(2, 1, 2);
         helper.setBlock(wallRel, Blocks.STONE_BRICKS);
         BlockPos wallAbs = helper.absolutePos(wallRel);
+        // The cell the plaque is meant to land in, one step off the wall's
+        // clicked face. Cleared explicitly rather than trusted: the arena's
+        // own floor/platform can fill it regardless of what the template
+        // nominally puts there (see the class javadoc above).
+        BlockPos placedRel = wallRel.relative(Direction.NORTH);
+        helper.setBlock(placedRel, Blocks.AIR);
+        helper.assertBlockState(placedRel,
+            net.minecraft.world.level.block.state.BlockState::isAir,
+            () -> "setup: the plaque's target cell must be air before it is clicked");
 
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        // Stand the mock player at the wall before using the item: a mock
-        // spawns at the world origin, and BlockItem.place refuses a placement
-        // the player could not physically reach. Without this the item's own
-        // path never runs, so PLACED_BLOCK never fires and the test fails on
-        // its own precondition rather than on the advancement.
+        // Stand the mock player at the wall before using the item. Not
+        // load-bearing for BlockItem.place itself -- confirmed by reading
+        // BlockPlaceContext/BlockItem: there is no reach check in that path
+        // at all, so a prior fix here that stood the player near the wall
+        // "for reach" (afb996e) was chasing the wrong mechanism (the real
+        // one was the buried target cell above). Kept anyway so the fixture
+        // matches how a player would actually stand to place this.
         BlockPos standRel = wallRel.relative(Direction.NORTH, 2);
         player.setPos(helper.absolutePos(standRel).getX() + 0.5,
             helper.absolutePos(standRel).getY(),
@@ -93,44 +113,14 @@ public class AdvancementGameTests {
         UseOnContext ctx = new UseOnContext(
             helper.getLevel(), player, InteractionHand.MAIN_HAND, plaque, hit);
 
-        // TEMP DIAGNOSTIC (strip before landing): walk BlockItem.place's own
-        // gates by hand so a failed placement says WHICH gate refused it,
-        // instead of just "the block isn't there". Grep gametest.log for
-        // "[HS-DIAG]".
-        net.minecraft.world.item.context.BlockPlaceContext bpc =
-            new net.minecraft.world.item.context.BlockPlaceContext(ctx);
-        net.minecraft.world.level.block.state.BlockState placementState =
-            ModBlocks.PLAQUE.get().getStateForPlacement(bpc);
-        com.hearthstead.Hearthstead.LOGGER.info(
-            "[HS-DIAG] clickedPos={} replaceClicked={} canPlace={} placementState={}"
-                + " wallBlockState={} wallAbs={} playerPos={} playerLevel={} arenaLevel={}",
-            bpc.getClickedPos(), bpc.replacingClickedOnBlock(), bpc.canPlace(),
-            placementState, helper.getLevel().getBlockState(wallAbs), wallAbs,
-            player.position(), player.level().dimension().location(),
-            helper.getLevel().dimension().location());
-        if (placementState != null) {
-            com.hearthstead.Hearthstead.LOGGER.info(
-                "[HS-DIAG] canSurvive={} isUnobstructed={}",
-                placementState.canSurvive(helper.getLevel(), bpc.getClickedPos()),
-                helper.getLevel().isUnobstructed(placementState, bpc.getClickedPos(),
-                    net.minecraft.world.phys.shapes.CollisionContext.of(player)));
-        }
-
-        net.minecraft.world.InteractionResult placeResult;
         try {
-            placeResult = plaque.getItem().useOn(ctx);
+            plaque.getItem().useOn(ctx);
         } catch (UnsupportedOperationException e) {
-            placeResult = null;
             if (e.getMessage() == null || !e.getMessage().contains("may not be sent")) {
                 throw e;
             }
         }
-        com.hearthstead.Hearthstead.LOGGER.info(
-            "[HS-DIAG] useOn result={} wallBlockStateAfter={} placedBlockState={}",
-            placeResult, helper.getLevel().getBlockState(wallAbs),
-            helper.getLevel().getBlockState(wallAbs.relative(Direction.NORTH)));
 
-        BlockPos placedRel = wallRel.relative(Direction.NORTH);
         helper.assertBlockState(placedRel,
             state -> state.is(ModBlocks.PLAQUE.get()),
             () -> "the plaque item must actually place its block for this test to mean anything");

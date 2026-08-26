@@ -129,6 +129,18 @@ public class GuardTrainingGameTests {
      * parked no-AI right beside the guard — well inside cleave's 2.2-block
      * reach — through many swings, and must come out at full health while
      * the raider demonstrably does not.
+     *
+     * <p>Diagnosed 20260826: the pig was never hit at all. It was buried in
+     * the arena's own floor/platform at its nominal spawn cell and took
+     * vanilla suffocation damage (1 HP every 10 ticks, {@code
+     * DamageTypes.IN_WALL}) until it died and read as a mystery removal --
+     * a real cleave bug would have left an attacker on the damage source,
+     * this left none. Same class of fixture bug as {@code
+     * AdvancementGameTests.hangingAPlaqueGrantsTheFirstStepsAdvancement}'s
+     * buried target cell. The spawn cell is cleared explicitly below and
+     * checked at full health before any waiting, so a fixture that buries
+     * its own control animal fails loudly right there instead of looking
+     * like a cleave bug two hundred lines away.
      */
     @GameTest(batch = "guard_training", template = "empty16", timeoutTicks = 400)
     public void cleaveSplashNeverHitsABystander(GameTestHelper helper) {
@@ -144,37 +156,19 @@ public class GuardTrainingGameTests {
         RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(4, 1, 4));
         raider.setNoAi(true);
         float raiderMax = raider.getMaxHealth();
-        Pig bystander = helper.spawn(EntityType.PIG, new BlockPos(5, 1, 5));
+        // The pig's own cell, cleared explicitly rather than trusted -- the
+        // arena's floor/platform can fill the cell a spawn call assumes is
+        // air (see the class javadoc above).
+        BlockPos pigSpawn = new BlockPos(5, 1, 5);
+        helper.setBlock(pigSpawn, Blocks.AIR);
+        Pig bystander = helper.spawn(EntityType.PIG, pigSpawn);
         bystander.setNoAi(true);
         float pigHealth = bystander.getHealth();
+        helper.assertTrue(pigHealth == bystander.getMaxHealth(),
+            "fixture sanity: the bystander must spawn at full health, not "
+                + pigHealth + "/" + bystander.getMaxHealth()
+                + " -- its spawn cell may be buried in the arena floor");
         guard.setTarget(raider);
-
-        // TEMP DIAGNOSTIC (strip before landing): the pig has been observed
-        // removed (not damaged) by t=150 with no attacker on record. Log this
-        // arena's own structure bounds plus a checkpoint trail every 10 ticks
-        // so a run pins the exact tick (and whatever else is nearby then) at
-        // which the pig disappears. Grep gametest.log for "[HS-DIAG]".
-        net.minecraft.world.phys.AABB arenaBounds = helper.getBounds();
-        com.hearthstead.Hearthstead.LOGGER.info(
-            "[HS-DIAG] cleave test start pigUuid={} pigPos={} arenaBounds={}",
-            bystander.getUUID(), bystander.blockPosition(), arenaBounds);
-        for (int t = 10; t <= 150; t += 10) {
-            final int tick = t;
-            helper.runAfterDelay(tick, () -> {
-                java.util.List<net.minecraft.world.entity.Entity> nearby =
-                    helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.Entity.class,
-                        arenaBounds.inflate(3.0),
-                        e -> e != guard && e != raider && e != bystander);
-                com.hearthstead.Hearthstead.LOGGER.info(
-                    "[HS-DIAG] t={} pigRemoved={} pigAlive={} pigHealth={} removalReason={}"
-                        + " pigPos={} otherEntitiesNearby={}",
-                    tick, bystander.isRemoved(), bystander.isAlive(),
-                    bystander.isRemoved() ? -1.0F : bystander.getHealth(),
-                    bystander.getRemovalReason(),
-                    bystander.isRemoved() ? "n/a" : bystander.blockPosition().toShortString(),
-                    nearby);
-            });
-        }
 
         // Long enough for several swings (one per 20-tick attack cooldown),
         // so this asserts across many cleave attempts, not one lucky miss.
