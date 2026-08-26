@@ -1129,3 +1129,33 @@ suspects on the table are whether the sight ray is now too strict from
 centre, which for a chest one block away can clip the wall above it — and
 whether the door-opening goal still gets its chance to run once arrival
 correctly reports false.
+
+### KF-021, reopened with a cleaner measurement (2026-08-26 02:12Z)
+
+The batching fixes (KF-019, KF-021's raid-arena half) removed most of the
+churn but not the cause. Commit 298fc11, run twice, nothing changed between
+them:
+
+| where | red | membership |
+|---|---|---|
+| main tree, 02:00Z | **4** | the four courier tests |
+| a fresh worktree at the same commit, 02:12Z | **10** | those four, plus the cook, the smelter, the tanner, the carpenter, and both archer tests |
+
+The six extra tests share one shape: **the worker is IDLE with its inputs
+sitting right there** (`saw 0 (raw=2 charcoal=2)`, `act=IDLE potato=3
+baked=0`). The two archer tests are the DEX-scaled ones. That points back at
+the thing the earlier investigation looked at and cleared: settler attributes
+roll from an unseeded per-entity `RandomSource`, effort capacity is
+`20 + STAMINA/5` at 2 effort per crafting batch, and the archer's cadence is
+DEX-scaled. The earlier conclusion — that the crafter tests carried a
+fivefold effort margin, so the dice could not decide them — is now suspect
+and is being re-measured rather than inherited.
+
+There are no wall-clock or nanosecond budgets anywhere in the simulation, so
+machine load should not be able to change a tick-determinate outcome. If it
+turns out that it does, that is the finding, not a footnote.
+
+**FLAKE-2 owns this**, in its own worktree, starting from a three-run
+baseline of one unchanged commit — because until the same source produces the
+same number twice, every other verdict in this document is provisional,
+including the good ones.
