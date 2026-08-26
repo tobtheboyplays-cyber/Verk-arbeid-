@@ -252,7 +252,15 @@ gametest_evidence() { # $1 = log, $2 = failures file
 # as though it were the truth.
 gametest_failcount() { # $1 = log
     local n
-    n=$(grep -oP '^\S+ \S+ \S+ \K[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
+    # Anchor on the emitter, not on a token count. The first version of this
+    # counted three whitespace-separated tokens before the number -- and
+    # GameTestServer's own prefix is "[time] [Server thread/INFO]
+    # [minecraft/GameTestServer]:", which has a space INSIDE the second
+    # bracket, so the anchored pattern never matched a single real log and
+    # the unanchored fallback below did all the work silently. Caught by an
+    # adversarial review, not by a failure: a fallback that always fires
+    # looks exactly like a primary that always works.
+    n=$(grep -oP 'GameTestServer\]: \K[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
     if [ -z "$n" ]; then
         n=$(grep -oP '[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
     fi

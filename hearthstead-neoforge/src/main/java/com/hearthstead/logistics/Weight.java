@@ -64,14 +64,16 @@ public final class Weight {
     /**
      * A courier's carrying budget, in the units above.
      *
-     * <p>Chosen against the bag that already exists: {@code
-     * SettlerEntity.BAG_SIZE} is 8 slots, so a full bag of ORDINARY goods
-     * (8 × 2 = 16) spends exactly this budget and <b>nothing changes for the
-     * median load</b> — every chain balanced before today keeps its settled
-     * throughput. LIGHT cargo stays slot-bound (8 × 1 = 8, well under),
-     * while HEAVY fills the budget at 4 slots and DEAD_WEIGHT at under 3.
-     * The table therefore bites precisely where the design wants it to — on
-     * stone and ore — and leaves bread alone.
+     * <p>Chosen against the carry limit that already exists: a courier's
+     * {@code SettlerEntity.BASE_CARRY_CAPACITY} is <b>8 items</b> (not 8
+     * stacks — the bag has 8 slots, but the capacity that governs a load is
+     * counted in items). Eight ORDINARY items cost 8 × 2 = 16, exactly this
+     * budget, so <b>nothing changes for the median load</b> and every chain
+     * balanced before today keeps its settled throughput. HEAVY fills the
+     * budget at 4 items, DEAD_WEIGHT at 2. LIGHT would allow 16, so for
+     * light cargo the carry capacity binds first and weight never does —
+     * which is the intent: the table bites on stone and ore and leaves
+     * grain and bread alone.
      */
     public static final int BAG_BUDGET = 16;
 
@@ -136,13 +138,20 @@ public final class Weight {
      * (KF-023): the restock route declined a trip on a technicality and the
      * remaining stock sat there for the rest of the game.
      */
-    public static int perLoad(ItemStack stack, int slots, int maxStackSize) {
+    public static int perLoad(ItemStack stack, int carryCapacity) {
         int unit = of(stack);
         if (unit <= 0) {
             return 0;
         }
-        int bySlots = slots * maxStackSize;
+        // carryCapacity is in ITEMS, matching SettlerEntity's own
+        // DATA_CARRY_CAPACITY. The first draft of this method took
+        // (slots, maxStackSize) and multiplied them, which produced 512 for
+        // a standard bag — a number the weight budget can never reach, so
+        // the slot limit was dead and every load was weight-bound including
+        // the light ones the design meant to leave alone. Caught by review
+        // before the first caller existed; taking the capacity directly
+        // removes the ambiguity rather than documenting around it.
         int byWeight = BAG_BUDGET / unit;
-        return Math.max(1, Math.min(bySlots, byWeight));
+        return Math.max(1, Math.min(carryCapacity, byWeight));
     }
 }
