@@ -126,6 +126,12 @@ public class ArcherAttackGoal extends Goal {
     // these, because "design for testability" beats poking at private state.
     private int shotsFired;
     private int powerShotsFired;
+    // ACCEPT-JOBS audit (2026-08-26): Triple Shot had zero test coverage --
+    // only powerShotsFired existed as a seam, so nothing could tell a MASTER
+    // archer's 5th-volley fan apart from an ordinary shot without reaching
+    // into private state. Same seam shape as powerShotsFired, one cycle
+    // later.
+    private int tripleShotsFired;
 
     public ArcherAttackGoal(SettlerEntity settler) {
         this.settler = settler;
@@ -324,6 +330,8 @@ public class ArcherAttackGoal extends Goal {
         shotsFired++;
         if (power) {
             powerShotsFired++;
+        } else if (drawingTripleShot) {
+            tripleShotsFired++;
         }
         // One volley loosed is one unit of the trade done: train at the
         // moment the work completes (job standard point 8), spend effort the
@@ -557,6 +565,12 @@ public class ArcherAttackGoal extends Goal {
     /** How many of those volleys were Power Shots. */
     public int powerShotsFired() {
         return powerShotsFired;
+    }
+
+    /** How many of those volleys were Triple Shots (a 4th-multiple always
+     *  wins the slot instead -- see {@link #planNextVolley}). */
+    public int tripleShotsFired() {
+        return tripleShotsFired;
     }
 
     /** Arrows currently in hand. */

@@ -306,6 +306,64 @@ public class ArcherGameTests {
         });
     }
 
+    // --------------------------------------------------- the triple shot ---
+
+    /**
+     * ACCEPT-JOBS audit (2026-08-26): Triple Shot -- the owner's other named
+     * ability, MASTER's every-5th-volley fan of three arrows -- had NO
+     * coverage anywhere: only {@link ArcherAttackGoal#powerShotsFired()}
+     * existed as a test seam, {@code tripleShotsFired()} did not exist at
+     * all. Added one line for line (see that goal's own class doc for why
+     * it is duplicated rather than shared) so this is observable the same
+     * way Power Shot already was. The conservation identity accounts for
+     * the fan explicitly: a Triple Shot spends THREE arrows for one volley,
+     * not one, so {@code shotsFired} alone would silently under-count ammo
+     * the moment a Master archer's cadence lands on its 5th shot -- exactly
+     * the kind of chest-truth gap this audit exists to catch.
+     */
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 600)
+    public void aMasterArcherFansTheTripleShotOnItsCadence(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building tower = tower(helper, s, 2, 2);
+        Container rack = chestAt(helper, new BlockPos(3, 1, 3));
+        rack.setItem(0, new ItemStack(Items.ARROW, 16));
+
+        SettlerEntity archer = settler(helper, s, "Mesterskytter", 4, 4);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, archer).ok(),
+            "fixture: the watchtower must hire an archer");
+        trainDexterityTo(archer, ArcherRank.MASTER.threshold());
+        helper.assertTrue(ArcherRank.of(archer).atLeast(ArcherRank.MASTER),
+            "fixture sanity: the Triple Shot needs a Master, DEX="
+                + archer.attribute(Attribute.DEXTERITY));
+
+        RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
+        pell.setNoAi(true);
+        float pellMax = pell.getMaxHealth();
+        ArcherAttackGoal goal = arm(archer);
+        archer.setTarget(pell);
+
+        helper.succeedWhen(() -> {
+            int inChest = countOf(rack, Items.ARROW);
+            // A Triple Shot spends 3 arrows for 1 counted volley -- the 2
+            // extra per triple shot have to be added back in, or the
+            // identity below would look broken even though nothing leaked.
+            int accounted = inChest + goal.quiverCount() + goal.shotsFired()
+                + 2 * goal.tripleShotsFired();
+            helper.assertTrue(accounted == 16,
+                "ammo conservation broke: chest " + inChest + " + quiver "
+                    + goal.quiverCount() + " + loosed " + goal.shotsFired()
+                    + " + 2*triples " + goal.tripleShotsFired() + " != 16");
+            helper.assertTrue(goal.tripleShotsFired() >= 1,
+                "a Master's 5th volley must be a Triple Shot ("
+                    + goal.shotsFired() + " volleys so far, "
+                    + goal.powerShotsFired() + " power)");
+            helper.assertTrue(pell.getHealth() < pellMax,
+                "a Master archer firing its real cadence must still hurt the "
+                    + "raider (still " + pell.getHealth() + "/" + pellMax + ")");
+        });
+    }
+
     // ------------------------------------------------- self-acquisition ---
 
     /**
