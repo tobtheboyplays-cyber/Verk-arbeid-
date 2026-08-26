@@ -1652,3 +1652,59 @@ only thing standing between a green suite and a silent return of the night's
 worst defect. A guard against a bug you have already fixed feels redundant
 right up until the moment someone reintroduces its precondition from a
 completely different direction.
+
+### KF-029 — the hunter took the whole server down on its first kill
+
+**2026-08-26 09:55Z, run 20260826T063349Z.** The first suite run after the
+three Ring-1 trades landed did not fail — it *crashed*:
+
+```
+NullPointerException: Cannot invoke "Collection.size()" because "captured" is null
+  at AnimalHarvest.kill(AnimalHarvest.java:73)
+  at HunterWorkGoal.tickHunt(HunterWorkGoal.java:280)
+  ...
+  Game test server crashed
+```
+
+`AnimalHarvest.kill` used the standard capture-drops idiom — swap in a
+collector, deal lethal damage, swap the old one back and read what came out:
+
+```java
+Collection<ItemEntity> previous = target.captureDrops(new ArrayList<>());
+target.hurt(source, target.getHealth() + 1.0F);
+Collection<ItemEntity> captured = target.captureDrops(previous);   // null
+```
+
+**The idiom is not re-entrant, and `hurt()` re-enters it.**
+`LivingEntity#die` performs the identical save/swap/restore around
+`dropAllDeathLoot` internally, so by the time `hurt()` returns, the field no
+longer holds what this method put there and its value is not this method's to
+reason about. The fix holds a reference to the sink list that was passed in,
+never reads the second call's return at all, and restores inside a `finally`
+so a throw in `hurt()` cannot strand an animal capturing drops forever.
+
+**What makes this entry worth writing is how it was caught.** The run
+reported:
+
+```
+[gametest] FAIL failures=0
+0+ (no server summary; error lines, not tests)
+```
+
+That is the honest branch added to the controller hours earlier under KF-024.
+The *old* counting expression was `grep -c "failed at"` — and since the server
+died before a single test could file a complaint, it would have counted **zero
+failures**. A crash that destroyed all 207 results would have been reported as
+a number indistinguishable from success. The replacement refuses to guess:
+no server summary means no verdict, and it says so in words instead of a
+number.
+
+The judge repair was written to fix a truncated roster. It caught a server
+crash instead — which is the argument for repairing a judge even when the
+defect you can see looks cosmetic.
+
+**Also recorded:** this is a defect that compiled cleanly, passed
+`anim_check`, passed `validate_assets` at 875/875, passed the fixture-plaque
+guard, and had its own purpose-built GameTests — and destroyed the server the
+first time it actually killed something. Static verification cannot see a
+re-entrancy bug in a framework call. Only running it can.
