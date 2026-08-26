@@ -83,7 +83,12 @@ public class StorageScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g, mouseX, mouseY, partialTick);
+        // super.renderBackground, paired with the renderBackground override
+        // below -- prevents Screen#render (via super.render further down)
+        // from re-blurring/re-tinting this panel's own already-drawn content
+        // a second time. See SettlerScreen#render for the full mechanism
+        // (UI-BLUR investigation, 2026-08-26).
+        super.renderBackground(g, mouseX, mouseY, partialTick);
         HsUi.window(g, left, top, PANEL_W, PANEL_H);
         HsUi.centred(g, font, title(), left + PANEL_W / 2, top + TITLE_Y,
             HsUiTokens.TEXT_STRONG);
@@ -128,6 +133,12 @@ public class StorageScreen extends Screen {
             drawGrid(g, mouseX, mouseY);
         }
         super.render(g, mouseX, mouseY, partialTick);
+    }
+
+    /** Made inert -- see the comment in {@link #render}. */
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // no-op
     }
 
     private void drawGrid(GuiGraphics g, int mouseX, int mouseY) {

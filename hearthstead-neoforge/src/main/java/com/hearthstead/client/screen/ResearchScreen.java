@@ -186,7 +186,12 @@ public class ResearchScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        // super.renderBackground, paired with the renderBackground override
+        // below -- prevents Screen#render (via super.render further down)
+        // from re-blurring/re-tinting this panel's own already-drawn content
+        // a second time. See SettlerScreen#render for the full mechanism
+        // (UI-BLUR investigation, 2026-08-26).
+        super.renderBackground(graphics, mouseX, mouseY, partialTick);
         if (snapshot == null) {
             super.render(graphics, mouseX, mouseY, partialTick);
             return;
@@ -211,6 +216,12 @@ public class ResearchScreen extends Screen {
         HsUi.labelIn(graphics, font, footer(), left + 12, top + FOOT + 7,
             PANEL_W - 24, HsUiTokens.ACCENT);
         super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    /** Made inert -- see the comment in {@link #render}. */
+    @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // no-op
     }
 
     private Component title() {

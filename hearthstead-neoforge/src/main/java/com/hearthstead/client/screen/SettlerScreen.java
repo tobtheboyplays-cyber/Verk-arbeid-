@@ -84,6 +84,14 @@ public class SettlerScreen extends Screen {
     private SettlerSnapshotPayload snapshot;
     private int left;
     private int top;
+    // -- scroll: only load-bearing when the fixed-shape panel does not fit
+    //    the current viewport (guiScale 3 or 4 on a modest window; see
+    //    init()). At guiScale 1-2 maxScroll is 0 and every field below is
+    //    inert, top staying the plain centred value it always was. --
+    private int contentHeight;
+    private int baseTop;
+    private int scrollOffset;
+    private int maxScroll;
     /** Set while drawing a hovered non-widget region; rendered once, last. */
     private Component pendingTooltip;
 
@@ -108,8 +116,55 @@ public class SettlerScreen extends Screen {
     @Override
     protected void init() {
         left = (width - PANEL_W) / 2;
-        top = (height - layout(0).totalHeight) / 2;
+        contentHeight = layout(0).totalHeight;
+        // The panel is a fixed shape (see class doc) sized for its roomiest
+        // content, not for the tightest viewport a player can have open. At
+        // guiScale 3 on a 1280x720 window the viewport is 240px tall against
+        // this panel's 322 -- centring unconditionally, as this used to,
+        // clipped 41px off BOTH edges: the whole header identity block (the
+        // settler's name and profession -- exactly what a player opens this
+        // sheet to read) vanished off the top, and both footer buttons,
+        // Close included, vanished off the bottom, with no on-screen sign
+        // that either existed. That is not a cosmetic crop; Escape still
+        // closed the screen, but nothing on it said so (found live,
+        // 2026-08-26, guiScale-3 finding, sheet_00_none_try1.png and
+        // sheet_blur_check_*.png).
+        //
+        // Centring stays exactly as it was whenever the panel fits
+        // (maxScroll == 0, true today at guiScale 1-2 and at any wider
+        // window). Only when it does not fit does the panel anchor near the
+        // top instead -- the header is visible the instant the sheet opens,
+        // matching the two fields the owner actually checks each sheet for
+        // ("is the name there", "is the profession named correctly") -- and
+        // mouseScrolled below walks the rest of the panel, footer included,
+        // into view.
+        maxScroll = Math.max(0, contentHeight - height + PAD * 2);
+        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
+        baseTop = maxScroll == 0 ? (height - contentHeight) / 2 : PAD;
+        top = baseTop - scrollOffset;
         rebuild();
+    }
+
+    /**
+     * Only reachable once the panel has overflowed the viewport (see
+     * {@link #init} -- a scrollbar that cannot move is not a feature, the
+     * same guard {@code ResearchScreen} and {@code HandbookScreen} apply to
+     * their own lists). Rebuilding after every change moves the footer
+     * buttons' real hitboxes along with what is drawn, rather than
+     * scrolling the picture while leaving the clickable area behind.
+     */
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (maxScroll > 0) {
+            int before = scrollOffset;
+            scrollOffset = Mth.clamp(scrollOffset - (int) Math.signum(scrollY) * ROW, 0, maxScroll);
+            if (before != scrollOffset) {
+                top = baseTop - scrollOffset;
+                rebuild();
+                return true;
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
     // ------------------------------------------------------------ widgets ---
@@ -170,7 +225,19 @@ public class SettlerScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g, mouseX, mouseY, partialTick);
+        // super.renderBackground, not renderBackground: Screen#render (called
+        // via super.render below, after the panel is drawn) unconditionally
+        // calls this.renderBackground(...) again on its own. Left as a plain
+        // virtual call, that second pass re-blurs and re-tints the ENTIRE
+        // framebuffer -- by then including this panel's own already-flushed
+        // background, text and rows, not just the 3D world -- which is
+        // exactly the "permanently blurred panel" defect (only the tooltip,
+        // drawn after both passes, stayed crisp). Qualifying with super.
+        // bypasses our own renderBackground override below and performs the
+        // one real background pass; that override then makes the second,
+        // redundant call from super.render() inert. See UI-BLUR
+        // investigation, 2026-08-26.
+        super.renderBackground(g, mouseX, mouseY, partialTick);
         pendingTooltip = null;
         Layout l = layout(top);
 
@@ -196,6 +263,18 @@ public class SettlerScreen extends Screen {
         if (pendingTooltip != null) {
             g.renderTooltip(font, pendingTooltip, mouseX, mouseY);
         }
+    }
+
+    /**
+     * Made inert on purpose -- see the comment in {@link #render}. The one
+     * real background pass happens there via {@code super.renderBackground},
+     * which this override does not intercept (an explicit {@code super.}
+     * call is not virtual dispatch); this only swallows the second,
+     * redundant call that {@code Screen#render} makes on its own.
+     */
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        // no-op
     }
 
     private void drawHeader(GuiGraphics g, int mouseX, int mouseY, Layout l) {

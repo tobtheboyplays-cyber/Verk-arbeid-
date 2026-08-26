@@ -287,7 +287,12 @@ public class HandbookScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        // super.renderBackground, paired with the renderBackground override
+        // below -- prevents Screen#render (via super.render further down)
+        // from re-blurring/re-tinting this panel's own already-drawn content
+        // a second time. See SettlerScreen#render for the full mechanism
+        // (UI-BLUR investigation, 2026-08-26).
+        super.renderBackground(graphics, mouseX, mouseY, partialTick);
 
         HsUi.window(graphics, left, top, PANEL_W, PANEL_H);
         HsUi.centred(graphics, font, Component.translatable("hearthstead.guide.title"),
@@ -321,6 +326,12 @@ public class HandbookScreen extends Screen {
             left + PANEL_W / 2, top + COUNTER_Y, HsUiTokens.TEXT_MUTED);
 
         super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    /** Made inert -- see the comment in {@link #render}. */
+    @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // no-op
     }
 
     @Override

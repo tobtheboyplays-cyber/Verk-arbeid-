@@ -299,7 +299,15 @@ public class PlaqueScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        renderBackground(graphics, mouseX, mouseY, partialTick);
+        // super.renderBackground, paired with the renderBackground override
+        // below: Screen#render (invoked via super.render further down)
+        // always re-runs renderBackground() itself, which would otherwise
+        // blur and re-tint this panel's own already-drawn content a second
+        // time -- not just the 3D world behind it. See SettlerScreen#render
+        // for the full mechanism (UI-BLUR investigation, 2026-08-26); every
+        // Hearthstead screen sharing this renderBackground-then-super.render
+        // idiom carries the same two-line fix.
+        super.renderBackground(graphics, mouseX, mouseY, partialTick);
         if (snapshot == null) {
             super.render(graphics, mouseX, mouseY, partialTick);
             return;
@@ -334,6 +342,12 @@ public class PlaqueScreen extends Screen {
         HsUi.labelIn(graphics, font, footer(), left + 12, top + FOOT + 7,
             PANEL_W - 24, HsUiTokens.ACCENT);
         super.render(graphics, mouseX, mouseY, partialTick);
+    }
+
+    /** Made inert -- see the comment in {@link #render}. */
+    @Override
+    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // no-op
     }
 
     private Component title() {
