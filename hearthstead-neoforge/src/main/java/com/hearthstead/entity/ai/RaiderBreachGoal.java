@@ -202,14 +202,6 @@ public class RaiderBreachGoal extends Goal {
             return false;
         }
         BlockPos here = raider.blockPosition();
-        // TEMP DIAGNOSTIC (BREACH-FIX): grep "BREACH-DIAG" -- strip before finishing.
-        if (level.getGameTime() % 20 == 0) {
-            Hearthstead.LOGGER.info(
-                "BREACH-DIAG t={} here={} dest={} distSqr={} horizCollision={} "
-                    + "stuckAnchor={} collidedSinceAnchor={} stuckSinceTime={}",
-                level.getGameTime(), here, destination, here.distSqr(destination),
-                raider.horizontalCollision, stuckAnchor, collidedSinceAnchor, stuckSinceTime);
-        }
         if (here.distSqr(destination) <= REACH_SQR) {
             stuckAnchor = null; // already there; nothing to breach
             return false;
@@ -218,9 +210,10 @@ public class RaiderBreachGoal extends Goal {
         if (stuckAnchor == null || here.distSqr(stuckAnchor) > STUCK_EPS_SQR) {
             // Real progress (or just starting to watch): reset the window.
             // A raider that stopped on purpose (it reached what it actually
-            // wanted, e.g. a chest to loot) will sit inside this same small
-            // window forever without ever accumulating collisions, which is
-            // exactly why the check below matters as much as the timer does.
+            // wanted, e.g. a chest to loot) never even gets here -- the
+            // "already there" check above ruled it out already, which is
+            // what actually keeps a happily-looting raider from ever being
+            // mistaken for stuck, not anything tracked in this window.
             stuckAnchor = here.immutable();
             stuckSinceTime = now;
             collidedSinceAnchor = raider.horizontalCollision;
@@ -229,20 +222,21 @@ public class RaiderBreachGoal extends Goal {
         if (raider.horizontalCollision) {
             collidedSinceAnchor = true;
         }
-        if (!collidedSinceAnchor) {
-            // Stationary, but never actually pressed against anything --
-            // vanilla's own signal (see DoorInteractGoal) for "bumped into
-            // something solid". Without this, a raider that voluntarily
-            // stands still to work (looting a chest, say) would eventually
-            // look identical to one that is genuinely blocked.
+        // BREACH-FIX: collision used to be required here. It cannot be --
+        // a raider the pathfinder refuses to route through a closed iron
+        // door for (see class doc) never once presses into it: the partial
+        // path it walks ends one cell short and it simply stops, motionless
+        // and uncollided, for the rest of the raid. The real judge of
+        // "blocked" is being stationary this long while still short of the
+        // destination; collision only ever shortens that wait, never
+        // replaces it.
+        long elapsed = now - stuckSinceTime;
+        boolean confirmed = elapsed >= STUCK_THRESHOLD_TICKS
+            || (collidedSinceAnchor && elapsed >= COLLISION_CONFIRM_TICKS);
+        if (!confirmed) {
             return false;
         }
-        if (now - stuckSinceTime < STUCK_THRESHOLD_TICKS) {
-            return false; // stationary and colliding, but not long enough yet
-        }
         BlockPos candidate = findBreachCandidate(level, settlement);
-        Hearthstead.LOGGER.info("BREACH-DIAG candidate-search here={} candidate={}",
-            here, candidate);
         if (candidate == null) {
             return false; // stuck for some other reason; nothing here to hit
         }

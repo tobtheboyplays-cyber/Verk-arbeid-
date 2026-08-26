@@ -230,6 +230,66 @@ public class RaidDamageGameTests {
         });
     }
 
+    // -------------------------------------------------------------- (a2) ---
+
+    /**
+     * BREACH-FIX regression pin: a raider blocked by a closed iron door
+     * never actually collides with it. {@code WalkNodeEvaluator} excludes
+     * {@code DOOR_IRON_CLOSED} as a pathable neighbour outright, so the
+     * navigator returns a partial path ending one cell short of the door
+     * and the raider simply stops there, motionless. {@link
+     * RaiderBreachGoal} must still fire from being stationary and short of
+     * its objective alone — {@code Entity#horizontalCollision} must never
+     * be a precondition again.
+     *
+     * <p>Spawned directly on the exact cell a real approach would have
+     * stopped at (one block short of the gate {@link #buildWalledRoom}
+     * leaves at x=7,z=9) rather than at a distance, so this raider never
+     * has any reason to move at all — its own path to an unreachable
+     * target is already zero-length — and {@code horizontalCollision} is
+     * provably false throughout, not just probably so.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "raid_damage_a_raider_that_never_collides_still_breaches")
+    public void aRaiderThatNeverCollidesStillBreaches(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(9, 1, 9));
+        buildWalledRoom(helper, 2);
+        BlockPos doorLowerRel = new BlockPos(7, 1, 9);
+        BlockPos doorUpperRel = new BlockPos(7, 2, 9);
+        BlockState lower = Blocks.IRON_DOOR.defaultBlockState()
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        BlockState upper = lower.setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER);
+        helper.setBlock(doorLowerRel, lower);
+        helper.setBlock(doorUpperRel, upper);
+        BlockPos doorLowerAbs = helper.absolutePos(doorLowerRel);
+
+        var level = helper.getLevel();
+        RaidCaptain captain = beginRaid(level, s, RaidObjective.KORN);
+        installLootChest(helper, s, 20);
+
+        // One cell short of the gate, not across the arena: this raider is
+        // never asked to travel, so it never gains the velocity a genuine
+        // collision would need in the first place.
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(6, 1, 9));
+        raider.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
+        raider.setObjectivePos(s.center);
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(!raider.horizontalCollision,
+                "this fixture only proves anything while the raider genuinely "
+                    + "never collides -- got horizontalCollision=true");
+            RaiderBreachGoal breach = breachGoalOf(raider);
+            helper.assertTrue(breach != null && breach.breaksUsed() > 0,
+                "a raider that never collides must still breach once it is "
+                    + "genuinely stationary and short of its objective, with "
+                    + "something breachable in reach");
+            BlockState now = level.getBlockState(doorLowerAbs);
+            helper.assertTrue(!(now.getBlock() instanceof DoorBlock),
+                "the door must actually be gone, got " + now);
+        });
+    }
+
     // --------------------------------------------------------------- (b) ---
 
     /**
