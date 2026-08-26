@@ -295,7 +295,31 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.eatState, SettlerAnimations.EAT, ageInTicks);
         animate(entity.restState, SettlerAnimations.REST, ageInTicks);
         animate(entity.meleeState, SettlerAnimations.MELEE, ageInTicks);
-        animate(entity.celebrateState, SettlerAnimations.CELEBRATE, ageInTicks);
+        if (entity.celebrateState.isStarted()) {
+            // CELEBRATING never actually played (docs/project/PLAN_ETTER_DEMO.md
+            // round-1 known debt #2): this animate() call ran unconditionally,
+            // every tick, laid on TOP of whichever trade idle (or work loop)
+            // was already summed into the pose above -- vanilla's animate() is
+            // additive, so CELEBRATE's own arm-to-176-degrees keys added onto
+            // an idle's own arm rotation instead of replacing it, and the
+            // settler's arm visibly speared through their own chest instead of
+            // throwing up in celebration. Same bug shape as PICKUP_STOW/
+            // COURIER_LIFT/COURIER_SET_DOWN above and the SHIELD_BLOCK branch
+            // below, and the same fix: CELEBRATE is a full self-contained
+            // one-shot (its own right_arm/left_arm/torso/head/root/cloak/
+            // right_leg/left_leg channels -- see SettlerAnimations.CELEBRATE),
+            // so every part it authors must be reset to a clean pose before
+            // it is applied, not summed onto whatever loop was mid-frame.
+            rightArm.resetPose();
+            leftArm.resetPose();
+            torso.resetPose();
+            head.resetPose();
+            root.resetPose();
+            torso.getChild("cloak").resetPose();
+            rightLeg.resetPose();
+            leftLeg.resetPose();
+            animate(entity.celebrateState, SettlerAnimations.CELEBRATE, ageInTicks);
+        }
         animate(entity.plantState, SettlerAnimations.FARM_PLANT, ageInTicks);
         animate(entity.harvestState, SettlerAnimations.FARM_HARVEST, ageInTicks);
         animate(entity.waterState, SettlerAnimations.FARM_WATER, ageInTicks);
