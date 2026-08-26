@@ -151,6 +151,17 @@ public class FarmerBootstrapGameTests {
         Container chest = chestAt(helper, 10, 10);
         chest.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 16));
         SettlerEntity astrid = farmer(helper, s, house, 8, 8);
+        // FLAKE-1 (2026-08-26): DEXTERITY is rolled from the entity's own
+        // unseeded RandomSource, so it differs every run. This test's "3x3
+        // plot spans anchor +-1: rel 7..9" comment above is only true below
+        // the tended-plot formula's first widening threshold (20 DEXTERITY;
+        // see FarmerWorkGoal#tendedHalfSide) -- a fresh roll is capped under
+        // that today (SettlerAttributes.START_CAP=15), but this test is
+        // about the bootstrap, not about what regime a fresh roll happens to
+        // land in, so it pins the one number it actually depends on instead
+        // of inheriting that invariant implicitly from a constant it does
+        // not otherwise reference.
+        astrid.attributes().pinForTest(com.hearthstead.entity.Attribute.DEXTERITY, 10);
 
         final boolean[] sawFirstPlantClip = {false};
         helper.succeedWhen(() -> {

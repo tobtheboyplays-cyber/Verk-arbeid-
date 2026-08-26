@@ -126,6 +126,14 @@ public class TradeSawyerGameTests {
             net.minecraft.world.item.Items.OAK_LOG, startLogs));
 
         SettlerEntity astrid = settler(helper, s, "Astrid", 4, 4);
+        // FLAKE-1 (2026-08-26): a fresh settler's STAMINA is rolled from the
+        // entity's own unseeded RandomSource, so it differs every run. This
+        // test's own math never needed the roll to land any particular way
+        // (Effort.BASE_CAPACITY alone, with zero STAMINA bonus, already
+        // covers the 2 batches x 2 effort this test measures), but pinning
+        // it removes the dependency outright rather than leaving it to a
+        // margin that could silently shrink under a future balance tune.
+        astrid.attributes().pinForTest(com.hearthstead.entity.Attribute.STAMINA, 50);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, sawmill, astrid).ok(),
             "a sawmill must be able to take a sawyer");
         helper.assertTrue(astrid.getProfession() == Profession.SAWYER,

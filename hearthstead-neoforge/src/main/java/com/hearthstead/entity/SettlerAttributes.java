@@ -85,6 +85,30 @@ public final class SettlerAttributes {
         return new SettlerAttributes();
     }
 
+    /**
+     * Test-only: overwrites one value directly, bypassing the roll and the
+     * growth curve entirely. Never called from production code.
+     *
+     * <h2>Why this exists (FLAKE-1, 2026-08-26)</h2>
+     *
+     * <p>{@code SettlerEntity#attributes()} rolls lazily from the entity's own
+     * {@code getRandom()} -- a vanilla {@code Entity} field seeded from
+     * wall-clock/JVM entropy ({@code RandomSource.create()}), NOT from the
+     * world seed. Two GameTest runs of the identical suite therefore roll
+     * genuinely different numbers for the identical settler with zero code
+     * changed in between -- confirmed root cause of that investigation's
+     * suite-membership churn. Attribute variance is deliberate design (see
+     * the class doc), so the fix is never to seed or freeze {@link #roll} --
+     * it is for any fixture whose PASS/FAIL depends on a specific attribute
+     * value (a tick budget gated by {@code Effort#capacity}, a plot size
+     * gated by the DEXTERITY-scaled formula in {@code FarmerWorkGoal}) to
+     * pin the one number it actually measures with this method, exactly the
+     * way a unit test pins any other input instead of hoping for it.
+     */
+    public void pinForTest(Attribute attribute, int value) {
+        this.value[attribute.ordinal()] = Mth.clamp(value, 0, CEILING);
+    }
+
     // -------------------------------------------------------------- values ---
 
     public int get(Attribute attribute) {

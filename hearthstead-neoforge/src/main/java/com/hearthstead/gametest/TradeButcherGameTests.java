@@ -139,6 +139,12 @@ public class TradeButcherGameTests {
         int before = countAll(chest);
 
         SettlerEntity gunnar = settler(helper, s, "Gunnar", 4, 4);
+        // FLAKE-1 (2026-08-26): STAMINA is rolled from the entity's own
+        // unseeded RandomSource, so it differs every run. This test has no
+        // fixed batch count or tick budget to protect (it only checks
+        // cooked > 0), but pinning keeps this fixture consistent with its
+        // sibling trade tests and removes any future dependency on the roll.
+        gunnar.attributes().pinForTest(com.hearthstead.entity.Attribute.STAMINA, 50);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, butcher, gunnar).ok(),
             "a butcher's block must be able to take a butcher");
         helper.assertTrue(gunnar.getProfession() == Profession.BUTCHER,

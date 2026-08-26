@@ -131,6 +131,13 @@ public class TradeMasonGameTests {
         helper.assertTrue(chest != null, "the arena chest should be a container");
 
         SettlerEntity steinar = settler(helper, s, "Steinar", 4, 4);
+        // FLAKE-1 (2026-08-26): STAMINA is rolled from the entity's own
+        // unseeded RandomSource, so it differs every run. Effort.BASE_CAPACITY
+        // alone already covers the 2 batches x 2 effort this test measures
+        // regardless of the roll, but pinning removes the dependency outright
+        // rather than leaving it to a margin a future balance tune could
+        // silently shrink.
+        steinar.attributes().pinForTest(com.hearthstead.entity.Attribute.STAMINA, 50);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, masonYard, steinar).ok(),
             "a mason's yard must be able to take a mason");
         helper.assertTrue(steinar.getProfession() == Profession.MASON,
