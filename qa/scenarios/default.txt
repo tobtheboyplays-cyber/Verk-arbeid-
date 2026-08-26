@@ -259,9 +259,24 @@ wait 10
 # own EMPTY guard, so a genuine second attempt after a real first success
 # just falls through to useWithoutItem (opens the screen again -- harmless,
 # already open) rather than double-inserting.
-click right
+# `open right`, NOT plain `click right` (2026-08-26). All three attempts
+# below used the unverified primitive, and on 2026-08-26 all three missed
+# twice in a row: the plan stayed in the player's hand and the step failed
+# with "server log never matched build_plan". Retrying a click three times
+# does not help when the GLFW grab is dead -- that is KF-035, and this
+# repository already learned once that the fix for a race is not a bigger
+# number but waiting on the condition. `open` is the primitive built for
+# exactly this case (its own comment names the plaque): it runs ensure_grab,
+# which verifies the input pipe is actually alive and regrabs with evidence
+# if it is not, before clicking. Safe here because no screen is open yet.
+#
+# The mechanic itself was never in doubt after this failure: PlaqueUseGameTests
+# proves deterministically, with no window and no input layer, that the
+# right-click fits the plan, consumes it in survival, and refuses an ordinary
+# item. That is what said the fault was in the click, not the game.
+open right
 wait 3
-click right
+open right
 wait 3
 # A THIRD attempt, with a longer settle. KF-012's correction records this
 # exact step failing intermittently because BOTH clicks missed -- the plan
@@ -269,7 +284,7 @@ wait 3
 # plan" instead of "Registered", 30 steps downstream of the real cause.
 # Extra attempts are safe for the reason given above (a click after a real
 # insert falls through to useWithoutItem and merely re-opens the screen).
-click right
+open right
 wait 5
 # Prove the insert actually happened, HERE, rather than inferring it from a
 # scan much later. A miss now fails at the insert instead of as a confusing
