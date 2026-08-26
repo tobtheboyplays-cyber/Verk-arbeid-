@@ -19,6 +19,7 @@ import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
@@ -44,6 +45,36 @@ import java.util.Map;
  * own chests, till the tended plot without a pre-existing crop anchor, and
  * give a fresh tile its FIRST planting (WORK_PLANT) -- without which the
  * replant path above never gets its first harvest to replant after.
+ *
+ * <h2>Sugar cane (SURVIVAL_AUDIT.md F7, GAPS-1)</h2>
+ *
+ * <p>{@code SugarCaneBlock} is not a {@link CropBlock} -- it has no age-to-
+ * maturity state a {@code CropBlock}-typed cast could ever read, it never
+ * grows on farmland, and it never needs replanting after a harvest (the
+ * BASE segment left standing keeps growing new segments on its own, exactly
+ * like a player-built cane farm). So this is a real, parallel extension, not
+ * a cast onto the crop machinery above: {@link #isMatureCane} finds a
+ * harvestable TOP segment (anything with cane, not dirt/sand, beneath it --
+ * cutting it leaves the regrowing base untouched) and folds into the SAME
+ * ripe-harvest queue every other crop uses ({@link #isHarvestable}), while
+ * planting a brand-new base uses its own, lowest-priority, separately
+ * bounded scan ({@link #caneScanner}/{@link #caneQueue}) so a water-adjacent
+ * tile that would ALSO serve ordinary crop tilling is always offered to
+ * crops first -- cane only ever claims ground the crop-tilling scan above
+ * has no use for. See {@link #isCaneSite} for why that scan reuses vanilla's
+ * OWN {@code SugarCaneBlock#canSurvive} rule rather than hand-duplicating
+ * its dirt/sand/water-adjacency logic a second time.
+ *
+ * <p><b>Animation note (handed to the coordinator, not invented here):</b>
+ * cane planting reuses {@code SettlerActivity.WORK_PLANT} (the same clip a
+ * fresh crop tile's first planting already uses) and cane harvesting reuses
+ * {@code SettlerActivity.WORK_HARVEST}. Both are placeholders: kneeling to
+ * press a stalk into sand beside water and reaching up to snap the top
+ * joint off a standing cane stalk are visibly different motions from
+ * tilling a crop bed or pulling a wheat stand, and this mod's own standing
+ * rule is one keyframe clip per task. {@code SettlerAnimations.java} and the
+ * animation files are outside this worker's ownership, so this is flagged
+ * rather than silently reusing a clip and calling the job finished.
  */
 public class FarmerWorkGoal extends Goal {
     private static final int HARVEST_DURATION = 36;
@@ -77,8 +108,13 @@ public class FarmerWorkGoal extends Goal {
     private final SettlerEntity settler;
     private final WorkScanner scanner = new WorkScanner();
     private final WorkScanner maintainScanner = new WorkScanner();
+    /** Own instance, own cursor (WorkScanner's own contract) -- the lowest
+     *  priority scan, only ever consulted once {@link #maintainQueue} has
+     *  nothing this call; see the class doc's sugar cane section. */
+    private final WorkScanner caneScanner = new WorkScanner();
     private final Deque<BlockPos> queue = new ArrayDeque<>();
     private final Deque<BlockPos> maintainQueue = new ArrayDeque<>();
+    private final Deque<BlockPos> caneQueue = new ArrayDeque<>();
     private Mode mode;
     private BlockPos target;
     private BlockPos maintainTarget;
@@ -87,6 +123,12 @@ public class FarmerWorkGoal extends Goal {
      *  to PLANT rather than water -- the audit's "re-water bare tiles
      *  forever" symptom was exactly this case mis-filed as watering. */
     private boolean maintainIsPlant;
+    /** True when {@link #maintainTarget} is a sugar-cane planting site (an
+     *  air block over a legal vanilla cane base, see {@link #isCaneSite}),
+     *  never a crop tile -- checked ahead of {@link #maintainIsPlant} in
+     *  {@link #tickMaintainTravel} since it plants directly AT the target
+     *  rather than above it. */
+    private boolean maintainIsCane;
     private Block harvestedCrop;
     /** The crop the current PLANTING pass will place, and how long the
      *  pass runs -- {@link #REPLANT_DURATION} under WORK_SOW,
@@ -96,6 +138,7 @@ public class FarmerWorkGoal extends Goal {
     private int workTicks;
     private int scanCooldown;
     private int maintainScanCooldown;
+    private int caneScanCooldown;
     private int repathTimer;
     private int stuckChecks;
     private boolean done;
@@ -138,11 +181,11 @@ public class FarmerWorkGoal extends Goal {
             scanCooldown--;
         } else if (queue.isEmpty()) {
             scanCooldown = 60 + settler.getRandom().nextInt(40);
-            queue.addAll(scanner.scan(s.center, s.radius, 512, 12, this::isMatureCrop));
+            queue.addAll(scanner.scan(s.center, s.radius, 512, 12, this::isHarvestable));
         }
         while (!queue.isEmpty()) {
             BlockPos candidate = queue.poll();
-            if (isMatureCrop(candidate)) {
+            if (isHarvestable(candidate)) {
                 target = candidate;
                 mode = Mode.TO_WORK;
                 return true;
@@ -195,6 +238,38 @@ public class FarmerWorkGoal extends Goal {
                 maintainIsPlant = false;
             }
             maintainTarget = candidate;
+            maintainIsCane = false;
+            mode = Mode.TO_MAINTAIN;
+            return true;
+        }
+        // SUGAR CANE (SURVIVAL_AUDIT.md F7, GAPS-1): only reached once the
+        // crop-tilling scan above found nothing to do THIS call -- see the
+        // class doc's sugar cane section for why this stays a wholly
+        // separate, lowest-priority scan rather than folding into
+        // maintainQueue: a water-adjacent dirt/grass tile that also
+        // qualifies for ordinary crop tilling must always go to crops
+        // first, and giving cane its own scan/queue (rather than an
+        // ordering rule inside one shared scan) is the simplest way to make
+        // that guarantee absolute rather than order-dependent.
+        if (caneScanCooldown > 0) {
+            caneScanCooldown--;
+        } else if (caneQueue.isEmpty()) {
+            // Longer cooldown than the crop maintain scan: once a few cane
+            // bases exist they regrow forever on their own (no replanting,
+            // ever -- see isMatureCane), so this scan has far less work to
+            // find on a returning pass than the crop one does.
+            caneScanCooldown = 200 + settler.getRandom().nextInt(100);
+            caneQueue.addAll(caneScanner.scan(s.center, s.radius, 400, 4, this::isCaneSite));
+        }
+        while (!caneQueue.isEmpty()) {
+            BlockPos candidate = caneQueue.poll();
+            if (!isCaneSite(candidate) || !ensureCaneInBag()) {
+                continue;
+            }
+            maintainTarget = candidate;
+            maintainIsWater = false;
+            maintainIsPlant = false;
+            maintainIsCane = true;
             mode = Mode.TO_MAINTAIN;
             return true;
         }
@@ -205,6 +280,50 @@ public class FarmerWorkGoal extends Goal {
         BlockState state = settler.level().getBlockState(pos);
         return state.getBlock() instanceof CropBlock crop && crop.isMaxAge(state)
             && isWithinTendedPlot(pos);
+    }
+
+    /**
+     * A sugar cane TOP segment ready to cut -- cane immediately below it,
+     * never dirt/sand, so cutting THIS position leaves the regrowing base
+     * standing untouched (the classic "harvest the top, keep the bottom"
+     * cane-farm technique). Deliberately not "any SugarCaneBlock": the base
+     * segment itself must never be this goal's target, or a harvest would
+     * kill the whole stalk and undo the entire point of not needing to
+     * replant cane.
+     */
+    private boolean isMatureCane(BlockPos pos) {
+        if (!isWithinTendedPlot(pos)) {
+            return false;
+        }
+        var level = settler.level();
+        return level.getBlockState(pos).is(Blocks.SUGAR_CANE)
+            && level.getBlockState(pos.below()).is(Blocks.SUGAR_CANE);
+    }
+
+    /** Anything the ripe-harvest queue should pick up: a mature crop or a
+     *  harvestable cane top segment. See the class doc for why cane is a
+     *  real second case here, not a cast onto {@link #isMatureCrop}. */
+    private boolean isHarvestable(BlockPos pos) {
+        return isMatureCrop(pos) || isMatureCane(pos);
+    }
+
+    /**
+     * A still-empty tile legal for a BRAND NEW cane base -- air, inside the
+     * tended plot, and legal under vanilla's OWN placement rule
+     * ({@code SugarCaneBlock#canSurvive}: dirt/sand/red_sand with water
+     * within reach, or already-standing cane). Reusing that rule rather than
+     * hand-duplicating its dirt/sand/water-adjacency logic here is the same
+     * discipline {@code RaiderHuntGoal} reusing {@code RaiderEntity#isMyWar}
+     * follows: one rule, one place, so a future change to what cane can grow
+     * on cannot quietly drift out of sync between vanilla and this scan.
+     */
+    private boolean isCaneSite(BlockPos pos) {
+        if (!isWithinTendedPlot(pos)) {
+            return false;
+        }
+        var level = settler.level();
+        return level.getBlockState(pos).isAir()
+            && Blocks.SUGAR_CANE.defaultBlockState().canSurvive(level, pos);
     }
 
     private boolean isMaintainable(BlockPos pos) {
@@ -413,7 +532,7 @@ public class FarmerWorkGoal extends Goal {
     }
 
     private void tickTravel() {
-        if (target == null || !isMatureCrop(target)) {
+        if (target == null || !isHarvestable(target)) {
             nextOrFinish();
             return;
         }
@@ -454,6 +573,16 @@ public class FarmerWorkGoal extends Goal {
         }
         if (workTicks >= HARVEST_DURATION) {
             harvest();
+            // The FARMLAND check is what keeps this branch crop-only after a
+            // cane harvest (GAPS-1): Items.SUGAR_CANE genuinely IS a
+            // BlockItem for Blocks.SUGAR_CANE, so hasSeedFor(harvestedCrop)
+            // alone would read true the instant a cane top segment lands in
+            // the bag -- but cane never stands on farmland (it grows beside
+            // water on dirt/sand), so target.below() here is never
+            // FARMLAND for a cane harvest and this whole branch correctly
+            // never fires for one. Cane needs no replant at all: cutting
+            // only the top segment (see isMatureCane) leaves the base
+            // standing to regrow on its own.
             if (hasSeedFor(harvestedCrop) && settler.level().getBlockState(target.below())
                 .is(Blocks.FARMLAND)) {
                 mode = Mode.PLANTING;
@@ -674,18 +803,23 @@ public class FarmerWorkGoal extends Goal {
         }
     }
 
-    /** Pulls the mature crop and pockets every drop in the bag. The seed
-     *  for the replant is taken back OUT of the bag at planting time --
-     *  see consumeSeedFor(). Nothing is held outside the bag, because a
-     *  plain goal field is destroyed when the entity unloads or the server
-     *  stops, and item conservation is a permanent invariant. */
+    /** Pulls the mature crop (or cuts the mature cane top segment, GAPS-1)
+     *  and pockets every drop in the bag. The seed for a crop's replant is
+     *  taken back OUT of the bag at planting time -- see consumeSeedFor().
+     *  Nothing is held outside the bag, because a plain goal field is
+     *  destroyed when the entity unloads or the server stops, and item
+     *  conservation is a permanent invariant.
+     *
+     *  <p>{@code harvestedCrop} is left a plain {@link Block}, never cast to
+     *  {@link CropBlock}: sugar cane is a real, valid harvest target here
+     *  (see {@link #isMatureCane}) and is not a CropBlock at all, so a cast
+     *  would throw the instant a cane top segment matured. */
     private void harvest() {
-        if (!(settler.level() instanceof ServerLevel serverLevel) || !isMatureCrop(target)) {
+        if (!(settler.level() instanceof ServerLevel serverLevel) || !isHarvestable(target)) {
             return;
         }
         BlockState state = serverLevel.getBlockState(target);
-        CropBlock crop = (CropBlock) state.getBlock();
-        harvestedCrop = crop;
+        harvestedCrop = state.getBlock();
         List<ItemStack> drops = Block.getDrops(state, serverLevel, target, null);
 
         serverLevel.removeBlock(target, false);

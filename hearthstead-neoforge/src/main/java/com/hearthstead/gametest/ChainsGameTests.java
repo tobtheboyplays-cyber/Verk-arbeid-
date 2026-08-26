@@ -214,17 +214,52 @@ public class ChainsGameTests {
             }
         }
         helper.assertTrue(recipe != null, "the mill must know how to grind paper");
-        helper.assertTrue(recipe.inputCount() == 3 && recipe.outputCount() == 2,
-            "paper should cost 3 sugar cane for 2 paper, matching the flour "
-                + "idiom, got " + recipe.inputCount() + " -> " + recipe.outputCount());
+        helper.assertTrue(recipe.inputCount() == 2 && recipe.outputCount() == 3,
+            "paper should cost 2 sugar cane for 3 paper -- 1.5 paper/cane, "
+                + "genuinely better than vanilla's own 1:1 hand-craft -- got "
+                + recipe.inputCount() + " -> " + recipe.outputCount());
 
         boolean ran = Production.run(helper.getLevel(), mill, recipe);
         helper.assertTrue(ran, "the paper recipe should have run");
 
-        helper.assertTrue(countOf(chest, Items.SUGAR_CANE) == 7,
-            "three sugar cane gone, 7 left of 10; saw " + countOf(chest, Items.SUGAR_CANE));
-        helper.assertTrue(countOf(chest, Items.PAPER) == 2,
-            "and two paper made; saw " + countOf(chest, Items.PAPER));
+        helper.assertTrue(countOf(chest, Items.SUGAR_CANE) == 8,
+            "two sugar cane gone, 8 left of 10; saw " + countOf(chest, Items.SUGAR_CANE));
+        helper.assertTrue(countOf(chest, Items.PAPER) == 3,
+            "and three paper made; saw " + countOf(chest, Items.PAPER));
+        helper.succeed();
+    }
+
+    // ---------------------------------------------------------------- (a3) ---
+
+    /**
+     * The actual claim GAPS-1's fix rests on, pinned so it cannot silently
+     * regress: the mill's paper conversion must beat vanilla's own hand-craft
+     * (3 sugar cane -> 3 paper, 1:1, instant, at any crafting table) on
+     * PAPER PER CANE -- otherwise, exactly as SURVIVAL_AUDIT.md F7's
+     * follow-up note found, no rational player would ever route cane through
+     * a settler for a worse return than crafting it themselves, and the
+     * whole point of the recipe (removing the library's 81-paper hand grind)
+     * is quietly undone. Computed from the table directly, not restated as a
+     * literal, so a future retune that drifts back below parity fails this
+     * test rather than only reading fine in a comment.
+     */
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 100)
+    public void millPaperGenuinelyBeatsHandCraftingByHand(GameTestHelper helper) {
+        Production.Recipe recipe = null;
+        for (Production.Recipe r : Production.of(BuildingType.MILL)) {
+            if (r.id().equals("paper")) {
+                recipe = r;
+                break;
+            }
+        }
+        helper.assertTrue(recipe != null, "the mill must know how to grind paper");
+        double millPaperPerCane = recipe.outputCount() / (double) recipe.inputCount();
+        double vanillaPaperPerCane = 3.0 / 3.0; // Items.PAPER's own crafting-table recipe
+        helper.assertTrue(millPaperPerCane > vanillaPaperPerCane,
+            "a mill that returns " + millPaperPerCane + " paper/cane is no better than "
+                + "hand-crafting's own " + vanillaPaperPerCane
+                + " -- nobody would ever spend a settler's effort and a courier's walk "
+                + "on a worse deal than crafting it themselves");
         helper.succeed();
     }
 
