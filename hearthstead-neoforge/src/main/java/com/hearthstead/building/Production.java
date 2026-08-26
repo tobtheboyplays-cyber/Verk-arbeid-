@@ -300,24 +300,33 @@ public final class Production {
         // ale recipe with a HIGHER wheat threshold (4 vs 3) so a modest
         // stockpile still brews directly and only a surplus gets malted for
         // the better batch.
-        // JOB 3 RETUNE, END-TO-END ARITHMETIC (BALANCE_AUDIT.md finding 3):
-        // malt's own ticks dropped from 140 to 60 -- malting (soaking and
-        // sprouting the grain) is a shorter step than the full brew that
-        // follows it, and unlike bread/leather's upstream buildings this one
-        // shares the SAME brewer's bench, so the whole saving has to live in
-        // this one recipe.
-        //   rough: 3 wheat -> 1 ale @ 200t                        = 200 t/ale
-        //   fed:   4 wheat -> 3 malt @ 60t (per-malt 20t)
-        //          + 2 malt -> 2 ale @ 200t (per-ale 100t)        = 120 t/ale
-        //   ratio: 200 / 120 = x1.67 -- inside FLOWS.md's x1.5-x2 band (was
-        //   x1.36 before). ale_malt's own ticks stay equal to ale's (200
-        //   both), same "yield carries the multiplier" rule as bread/leather.
-        // Honest caveat this retune does NOT change (BALANCE_AUDIT.md Q5):
-        // by the effort-bound lens, malting and brewing still spend the SAME
-        // brewer's effort pool, unlike bread/leather's two separate workers
-        // -- ale's fed path is a real tick saving, not a doubled worker.
+        // JOB 3, CORRECTED -- THE REAL METRIC IS EFFORT ACROSS ALL BATCHES,
+        // NOT TICKS (BAKERY's comment has the full story of why; malt's own
+        // tick cut below, 140 to 60, is real as a shorter clip but buys zero
+        // extra ale on its own -- effort is flat 2/batch regardless):
+        //   rough: 1 BREWERY batch (3 wheat -> 1 ale)          = 2 effort/ale
+        //   fed (before this fix): making 2 ale needs 2 MALT (ale_malt's
+        //   input); one malt batch makes 3, so 2/3 of a malt batch on
+        //   average feeds one ale_malt batch -- both batches cost the SAME
+        //   brewer's effort pool (unlike bread/leather's two separate
+        //   workers, BALANCE_AUDIT.md Q5's own note, still true and still
+        //   worth naming):
+        //     2*(2/3) [malt's share] + 2 [ale_malt] = 3.333 effort, for 2 ale
+        //                                                    = 1.667 effort/ale
+        //   ratio: 2 / 1.667 = x1.2 -- BELOW FLOWS.md's x1.5 floor.
+        // FIXED THE SAME LEVER AS BREAD/LEATHER/BARREL: ale_malt's OUTPUT
+        // went from 2 to 3 (2 malt now makes 3 ale, not 2) -- more final
+        // good per downstream batch is what effort actually rewards.
+        //   fed (retuned): 2*(2/3) + 2 = 3.333 effort, for 3 ale
+        //                                                    = 1.111 effort/ale
+        //   ratio: 2 / 1.111 = x1.8 -- inside FLOWS.md's x1.5-x2 band, and
+        //   this pair needed NO change to malt's own ratio (4 wheat -> 3
+        //   malt, untouched) to get there, because malt's threshold was
+        //   already asymmetric with ale_malt's 2-malt requirement.
+        // ale_malt's own ticks stay equal to ale's (200 both) -- same
+        // "not a shorter clip" rule as bread/leather.
         put(BuildingType.BREWERY,
-            new Recipe("ale_malt", Ingredient.of(ModItems.MALT.get()), 2, ModItems.ALE.get(), 2, 200),
+            new Recipe("ale_malt", Ingredient.of(ModItems.MALT.get()), 2, ModItems.ALE.get(), 3, 200),
             new Recipe("malt", Ingredient.of(Items.WHEAT), 4, ModItems.MALT.get(), 3, 60),
             new Recipe("ale", Ingredient.of(Items.WHEAT), 3, ModItems.ALE.get(), 1, 200));
 
@@ -338,37 +347,44 @@ public final class Production {
         // different input (TIMBER_BEAM) to the rough barrel recipe's
         // OAK_PLANKS, so it cannot starve it either way.
         //
-        // JOB 4 FIX (BALANCE_AUDIT.md finding 7): barrel_beam used to read
-        // "2 beam -> 1 barrel @ 130t" -- EXACTLY the same 1 barrel/batch as
-        // the rough recipe, so under the real binding constraint (Q4: flat
-        // 2 effort/batch, not ticks) a carpenter fed by a sawyer made the
-        // identical number of barrels/day as one working alone, for the cost
-        // of a second worker's whole effort budget -- a fed path that paid a
-        // building and gave back nothing, "worse than no fed path" per the
-        // finding. Fixed by doubling the OUTPUT for the same input (2 beam
-        // -> 2 barrel), the same lever that already makes bread/leather's
-        // fed paths real under the effort-bound lens: now a barrel_beam
-        // batch is worth TWO barrels of the carpenter's own flat 2-effort
-        // cost, not one.
+        // JOB 4 (BALANCE_AUDIT.md finding 7): barrel_beam used to read "2
+        // beam -> 1 barrel @ 130t" -- EXACTLY the same 1 barrel/batch as the
+        // rough recipe, so a carpenter fed by a sawyer made the identical
+        // number of barrels/day as one working alone (effort is flat
+        // 2/batch, not ticks -- Q4), for the cost of a second worker's whole
+        // effort budget: "worse than no fed path" per the finding. The FIX
+        // (this is job 4's real, durable lesson, and the model for bread/
+        // leather/ale above): a fed recipe only earns its multiplier by
+        // producing MORE FINAL GOOD PER BATCH somewhere in the chain, never
+        // by finishing a batch sooner.
         //
-        // JOB 3 ARITHMETIC, END-TO-END FROM RAW MATERIAL (matching the doc's
-        // own iron-row method):
-        //   rough: 1 log -> 6 planks @ 120t (SAWMILL, per-plank 20t); 7
-        //          planks -> 1 barrel @ 260t (CARPENTER)
-        //          = 7*20 + 260                                = 400 t/barrel
-        //   fed:   3 log -> 2 beam @ 180t (SAWMILL, per-beam 90t); 2 beam ->
-        //          2 barrel @ 260t (CARPENTER, per-barrel 130t) -- now only
-        //          1 beam needed per barrel (2 beam : 2 barrel), half the
-        //          old 2-beams-per-barrel
-        //          = 1*90 + 130                                = 220 t/barrel
-        //   ratio: 400 / 220 = x1.82 -- inside FLOWS.md's x1.5-x2 band (was
-        //   x1.29, with zero effort-side benefit, before this fix).
-        // barrel_beam's own ticks stay 260, equal to barrel's -- same "yield
-        // carries the multiplier" rule as bread/leather/ale above.
+        // JOB 3, CORRECTED NUMBERS. The first pass fixed job 4 by setting
+        // barrel_beam to "2 beam -> 2 barrel" and called it done at a
+        // TICKS-based x1.82 -- correct lever, wrong final tuning. Measured
+        // on the real metric (total EFFORT across every building in the
+        // chain, per final unit -- see BAKERY's comment for the full case
+        // against ticks), "2 beam -> 2 barrel" actually lands at x2.17,
+        // OVER FLOWS.md's x2 ceiling (the rough path has to stay worth
+        // using -- "multiply, never gate"). Retuned once more to "3 beam ->
+        // 2 barrel" to land inside the band:
+        //   rough chain (barrel needs an upstream SAWMILL step too, unlike
+        //   bread/leather/ale's raw-material rough paths):
+        //     1 SAWMILL planks batch (1 log -> 6 planks) covers 6 of the 7
+        //     planks a CARPENTER barrel batch needs, so on average
+        //     7/6 planks-batches feed one barrel batch:
+        //       2*(7/6) [sawmill's share] + 2 [carpenter]  = 4.333 effort/barrel
+        //   fed (3 beam -> 2 barrel): 1 SAWMILL timber_beam batch (3 log ->
+        //   2 beam) covers 2 of the 3 beams a barrel_beam batch needs, so
+        //   3/2 beam-batches feed one barrel_beam batch, for 2 barrels:
+        //       [2*(3/2) + 2] / 2                           = 2.5 effort/barrel
+        //   ratio: 4.333 / 2.5 = x1.73 -- inside FLOWS.md's x1.5-x2 band.
+        // barrel_beam's own ticks stay 260, equal to barrel's -- a shorter
+        // clip is not how this multiplier is allowed to show up (see
+        // BAKERY's comment for why).
         put(BuildingType.CARPENTER,
             new Recipe("sticks", Ingredient.of(Items.OAK_PLANKS), 2, Items.STICK, 4, 60),
             new Recipe("barrel", Ingredient.of(Items.OAK_PLANKS), 7, Items.BARREL, 1, 260),
-            new Recipe("barrel_beam", Ingredient.of(ModItems.TIMBER_BEAM.get()), 2, Items.BARREL, 2, 260),
+            new Recipe("barrel_beam", Ingredient.of(ModItems.TIMBER_BEAM.get()), 3, Items.BARREL, 2, 260),
             new Recipe("ladder", Ingredient.of(Items.STICK), 7, Items.LADDER, 3, 140));
 
         // "The smithy forges a tool from metal alone" -- PLAN_PRODUCTION_CHAINS,
