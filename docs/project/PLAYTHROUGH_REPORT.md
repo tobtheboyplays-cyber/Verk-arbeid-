@@ -214,8 +214,104 @@ Format: `HH:MM` stage — VERDICT — what happened — evidence.
 
 ---
 
-## Findings (ranked) — filled in as the session concludes
+## Findings (ranked) — round 1
 
-## Audit predictions confirmed/refuted — filled in as the session concludes
+Severity-ordered. Each is written to be actionable without asking questions.
 
-## Take list — filled in as the session concludes
+1. **[HARNESS, BLOCKER, RESOLVED mid-round] `live.sh`'s default world was
+   `level-type=minecraft:flat` with empty `generator-settings`** — vanilla's
+   bare superflat preset (bedrock+2 dirt+grass, one biome, decoration
+   disabled: no trees, no ore, no stone exposed anywhere). No survival
+   founding was ever possible on it — no wood, no stone, no ore. Every
+   earlier "playtest"/"live" session that reached the plaque/hearth flow
+   must have used `/hearthstead demo` or creative mode, because this world
+   cannot be hand-gathered from at all. **Fix applied this session** (local
+   to the scratchpad tree only): `qa/scripts/server_instance.sh`
+   `level-type=minecraft:flat` → `minecraft:normal`. **Action needed:** a
+   real decision by the harness owner — either make `normal` the permanent
+   default for `live`/`playtest`, or add a documented
+   `HSQA_LEVEL_TYPE` override so `flat` stays available for the fast
+   deterministic checks that may have relied on it (GameTest-adjacent
+   scripted flows) without silently sabotaging the one honest survival
+   playtest anyone has ever run through this harness.
+2. **[HARNESS, BLOCKER] `safe_regrab`'s Y=300 teleport is fatal/kick-prone
+   in survival mode** — proven this round: a kick loop
+   ("Flying is not enabled on this server") and one real fall death (0
+   items lost only because inventory was still empty). **Status: FIXED
+   mid-round by the coordinator** as KF-030 (survival now looks straight up
+   in place instead of teleporting, and skips the grab click entirely if
+   the sky isn't clear overhead). Listed here for the permanent record and
+   because round 2 should re-verify it under real play, not just trust the
+   fix note.
+3. **[HARNESS, BLOCKER, OPEN] Input reliability degrades over a long
+   survival session** — see the founding-log entry above. `mousedown`/
+   `keydown` sequences increasingly do nothing (not misaimed — genuinely
+   unreceived), worse the longer the session runs, with no error surfaced
+   anywhere. A `mousemove`+`click` regrab fixes it early in a session and
+   stops fixing it late in one. This is the single largest time cost of
+   round 1 (a rough estimate: more real-world minutes were spent
+   recovering from silently-dropped input than were spent on every other
+   part of the loop combined) and, unlike the flat-world and fly-kick
+   walls, **has no known root cause or fix yet** — flagged for round 2
+   investigation rather than solved here, per the coordinator's standing
+   instruction not to work around harness bugs silently.
+4. **[MOD, un-confirmable this round either way] Everything reached in the
+   recipe/crafting chain is sound.** Log→planks (2x2 and 3x3 grids both,
+   once aimed correctly), planks→sticks, sticks+planks→wooden pickaxe, and
+   pickaxe→cobblestone all matched and produced exactly the expected
+   vanilla output, and the game's own **Stone Age** advancement fired
+   right on cue. Nothing about Hearthstead's recipes, room scanner, or
+   plaque flow was exercised yet this round (founding itself did not
+   complete) — this finding is scoped strictly to "vanilla survival
+   mechanics work correctly inside this mod's world," which the flat-world
+   wall (finding 1) had made impossible to even check before tonight.
+5. **[DRIVING TECHNIQUE, informational]** GUI slot-click precision and
+   camera-pitch drift across many relative `mousemove_relative` calls were
+   both real time costs but **fully solvable by verifying, not guessing**:
+   re-reading F3's `Targeted Block`/`Facing` line before a swing, and
+   screenshotting a GUI state before trusting a click landed, resolved
+   every instance. Calibrated slot coordinates recorded above for round 2.
+   Not filed as a WALL because a disciplined driving loop defeats it
+   reliably — unlike finding 3, which persisted even when driven
+   correctly.
+
+## Audit predictions confirmed/refuted this round
+
+- **F8 (food valley) / raid pacing / F5 (research errands) / F9 (armour
+  chain) / the eight "what the live playthrough should try to break"
+  items:** none reached yet — founding itself did not complete this round.
+  Carried forward to round 2 unchanged.
+- **New, not predicted by the paper audit:** the flat-world default
+  (finding 1 above) and the survival-mode `safe_regrab` fatality (finding
+  2) are both harness-level discoveries the static-code audit had no way
+  to see, since it never drove the game. Recorded here rather than in
+  `SURVIVAL_AUDIT.md` because they are properties of the QA harness, not
+  of Hearthstead's own code.
+
+## Take list
+
+- `take-01-stone-age-mining` (`qa/reports/artifacts/live/20260826T055725Z/
+  film/take-01-stone-age-mining/`) — static camera inside the hand-dug
+  stone chamber right after the Stone Age advancement. **motion_ok: FAIL**
+  by design (frozen subject, no pan) — recorded as-is per protocol rather
+  than discarded; it is honest evidence of the moment, not a passing
+  AC-5 take. No other film takes were captured this round: the founding
+  chime, first felled tree, and plaque-going-green milestones the protocol
+  asks for all sit downstream of founding, which did not complete. Round
+  2 should prioritize a real `founding chime` and `first felled tree`
+  take once the input-reliability wall (finding 3) is past.
+
+## Round 1 summary for the coordinator
+
+Founding did not complete. Two genuine, previously-invisible harness
+blockers were found and one was fixed mid-round (flat world; survival
+fly-kick, fixed as KF-030); a third or (input degrading over a long
+session) remains open and is now this repository's most valuable
+unresolved finding — it explains, in hindsight, why no one had run a real
+survival playthrough through this harness before tonight even after the
+first two walls are cleared. Mechanically, every vanilla crafting step
+actually reached (logs→planks→sticks→pickaxe→cobblestone) worked exactly
+as designed. Current inventory (3 oak logs, 15 dirt, 3/5 cobblestone, 1
+wooden pickaxe, 2 planks, 2 sticks, 1 button) and world state are
+preserved in the still-running `live` session for round 2 to continue
+from — see "Immediate next step" above.
