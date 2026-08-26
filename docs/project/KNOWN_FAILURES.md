@@ -2145,3 +2145,31 @@ scope for a harness-only investigation); whether raising
 seen this round, versus the death-screen confound accounting for most of
 them, is untested; and a `Health == 0` special case in `ensure_grab` would
 close the one confirmed non-bug source of `input_dead` noise.
+
+### KF-035 — sugar cane borrows the wheat farmer's hands
+
+**2026-08-26, flagged by the worker that built it rather than shipped
+quietly, which is the right instinct.**
+
+The farmer can now plant and harvest sugar cane. Planting reuses
+`WORK_PLANT` and harvesting reuses `WORK_HARVEST` — the wheat clips.
+
+Cutting a cane stalk is not pulling a wheat head, and setting a cane base
+beside water is not pressing a seed into tilled soil. The repo's permanent
+invariant is explicit: *every settler task has its own keyframe animation —
+no shared generic work loops.* Two placeholder reuses is a real, if small,
+violation of it.
+
+**Deliberately not fixed before the owner's 18:00 test.** The distinction
+that decides it: the clips **play**. Nothing is broken, nothing freezes,
+nothing sums into another clip — the acceptance criterion "alle animasjoner
+skal funke" is met in the sense of working. What is missing is that they are
+not *bespoke*, which is a quality debt rather than a defect. Authoring two
+clips to the project's craft standard under four hours of deadline pressure
+is exactly how a clip ships that nobody is proud of, and the standing order
+is that premium is the only standard.
+
+Recorded here, listed in the owner's known-issues note, and queued as the
+first animation work after the test. If he watches a farmer at a cane bed
+and it reads wrong to him, that is a better brief for authoring them than
+anything written down now.
