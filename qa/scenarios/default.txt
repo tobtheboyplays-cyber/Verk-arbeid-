@@ -106,9 +106,25 @@ wait 2
 cmd hearthstead info
 wait 3
 shot playtest-07-info
-key 5
+# Slot 3, not 5. `hearthstead demo` gives HEARTH, BUILD_PLAN, HANDBOOK,
+# BREAD, WHEAT_SEEDS, OAK_SAPLING, IRON_HOE, SPAWN_EGG in that order, so the
+# handbook is the third item. This said `key 5`, which selects the wheat
+# seeds, and the failure that caused was not local: the right-click below did
+# nothing, so no screen was open when the Escape ran -- and an Escape with no
+# screen open OPENS the pause menu, exactly as this file's own opening
+# comment warns. From that point every later click in the scenario went to
+# the Game Menu instead of the world, and the run failed 25 directives later
+# at the plaque insert, reporting "server log never matched build_plan" as
+# though the plaque were broken. It was not; the plaque was never clicked.
+# Proven from the evidence: shots/playtest-08-handbook-ui.png shows the world
+# with slot 5 (seeds) selected, and shots/plaque-02-empty-clicked.png shows
+# the pause menu sitting open over the village.
+key 3
 wait 1
-click right
+# `open`, not `click`: verified regrab before the first click that opens a
+# screen. Belt to the braces above -- the slot fix is the actual cause, this
+# stops a dead grab from reproducing the same cascade.
+open right
 wait 4
 shot playtest-08-handbook-ui
 key Escape
