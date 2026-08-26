@@ -35,11 +35,27 @@ Ingen kurér, ingen raid, ingen plakett. FLAKE-2 eier dette.
 14 og 20 røde i natt i ulike trær. Tre-kjørings-baselinen kommer først; alt
 etter den måles mot den.
 
-## Åpne arbeidere akkurat nå
-- COURIER-FIX — eier CourierWorkGoal.java + kurér-testene. Alle fire røde er
-  dens. Skal fjerne hver COURIER-DIAG før den er ferdig.
-- IDLE-1 — eier SettlerAnimations.java, SettlerModel.java og animasjons-
-  regionen i SettlerEntity.java. Yrkesmatchede idle-animasjoner (eierkrav).
+## Åpne arbeidere akkurat nå (04:45Z)
+- FLAKE-2 — egen worktree (scratchpad/flake-tree). Eier KF-021. Har allerede
+  levert nattens skarpeste måling: 12 røde, så 1 rød, rett etter hverandre i
+  SAMME tre på SAMME commit uten at noe ble rørt. Det avliver
+  «trærne måler forskjellig» og peker mot noe som BÆRES OVER mellom
+  kjøringer, ikke et terningkast. Styrt mot batch-rekkefølge og gjenbrukt
+  verden før attributter.
+- IDLE-1 — SettlerAnimations, SettlerModel, animasjonsregionen i
+  SettlerEntity. Yrkesmatchede idle-klipp (eierkrav).
+- COSTS-2 — Costs, Mayor, RepairWorkGoal + testene deres og COSTS.md.
+  Kobler MAYOR_FEAST og REPAIR (dom #3 krav 6). Beslutning tatt:
+  reparasjonsrabatt = «noen arr gror gratis», deterministisk teller, ingen
+  terning (suiten sliter allerede med ikke-determinisme).
+- BALANCE-1 — LESER bare. Skriver én ny fil, docs/project/BALANCE_AUDIT.md.
+  Regner ut om landsbyen brødfør seg selv, om kjedene lukker seg, om
+  brenselet er solvent, om dagsverket binder, og om prisene betyr noe.
+
+## Merk om oppgavelisten
+Verktøyets task-liste nullstilles sammen med containeren og har gjort det
+flere ganger. **Denne fila er sannheten**, ikke task-lista. Ikke bruk tid på
+å synkronisere dem.
 
 ## Implementert og pushet i natt (IKKE «landet» — dom #3 krav 1)
 Ferdig-merking krever kjørings-id og fingeravtrykk. Ingenting under er
