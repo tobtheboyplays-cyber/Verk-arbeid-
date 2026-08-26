@@ -19,7 +19,7 @@ What it checks, per hearthstead-neoforge gametest/*.java file:
     this today, deliberately, and are correctly excluded here as long as
     they stay that way).
   - does it call `new Building(` -- hand-build a Building?
-  - does it place a plaque anywhere (`PLAQUE.get()`)?
+  - does it place a plaque anywhere (the BLOCK, or a GameTestFixtures call)?
 
 A file that does the first two and not the third is one line away from
 KF-021 happening again: registering the settlement is enough by itself to
@@ -108,7 +108,7 @@ def main() -> int:
         print(
             f"  {name}: registers a live settlement (`.settlements.put(`) "
             f"and hand-builds a Building (`new Building(`) but this file "
-            f"places no plaque anywhere (`PLAQUE.get()`). Once the "
+            f"places no plaque anywhere (no `ModBlocks.PLAQUE`, no `GameTestFixtures.register/registerWithBounds/placePlaque` -- the plaque ITEM does not count, and neither does a comment). Once the "
             f"settlement is registered, BuildingManager's sweep (one "
             f"building per 20 ticks, across every registered settlement) "
             f"can reach every Building this file constructs, and will "
