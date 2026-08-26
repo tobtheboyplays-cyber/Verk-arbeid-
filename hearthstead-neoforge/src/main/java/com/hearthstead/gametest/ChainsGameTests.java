@@ -543,7 +543,10 @@ public class ChainsGameTests {
         Container chest = containerAt(helper, new BlockPos(5, 1, 4));
         helper.assertTrue(chest != null, "the registered brewery's chest should be a container");
 
+        // The brewery is one of the four burning buildings (Fuel#burns) --
+        // both batches below need firewood, not just grain.
         chest.setItem(0, new ItemStack(Items.WHEAT, 4));
+        chest.setItem(1, new ItemStack(Items.CHARCOAL, 2));
         Production.Recipe malt = null;
         for (Production.Recipe r : Production.of(BuildingType.BREWERY)) {
             if (r.id().equals("malt")) {
