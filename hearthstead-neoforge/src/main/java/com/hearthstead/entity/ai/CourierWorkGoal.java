@@ -1431,7 +1431,44 @@ public class CourierWorkGoal extends Goal {
         // A courier that quietly stops working is indistinguishable from one
         // that has nothing to do. Say which leg failed (KF-014).
         settler.recordRouteFailure("courier:" + mode + ":stuck" + stuckChecks
-            + ":rest" + rest + ":run" + consecutiveFailures);
+            + ":rest" + rest + ":run" + consecutiveFailures
+            // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+            + tempStuckDiagnostic());
+    }
+
+    // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+    private String tempStuckDiagnostic() {
+        BlockPos at = settler.blockPosition();
+        Settlement s = settler.settlement();
+        BlockPos target = null;
+        Building building = null;
+        switch (mode) {
+            case TO_CRAFTER -> {
+                target = craftDropOff;
+                building = s == null ? null : findBuildingById(s, craftBuildingId);
+            }
+            case TO_SOURCE, WITHDRAWING -> {
+                target = sourcePos;
+                building = s == null ? null : findBuildingById(s, sourceWarehouseId);
+            }
+            case TO_WAREHOUSE, SORTING -> {
+                target = dropOff;
+                building = s == null ? null : findBuildingById(s, warehouseId);
+            }
+            case TO_HEARTH, RETURNING -> target = settler.getHearthPos();
+            default -> { }
+        }
+        if (target == null) {
+            return ":diagTarget=null";
+        }
+        boolean inBounds = building == null || building.bounds == null
+            || building.bounds.isInside(at);
+        String boundsStr = building == null ? "n/a" : String.valueOf(building.bounds);
+        return ":diagAt=" + at.toShortString() + ":diagTarget=" + target.toShortString()
+            + ":diagD2=" + at.distSqr(target) + ":diagBldFound=" + (building != null)
+            + ":diagInBounds=" + inBounds + ":diagBounds=" + boundsStr
+            + ":diagNavDone=" + settler.getNavigation().isDone()
+            + ":diagNavStuck=" + settler.getNavigation().isStuck();
     }
 
     private void playAt(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {

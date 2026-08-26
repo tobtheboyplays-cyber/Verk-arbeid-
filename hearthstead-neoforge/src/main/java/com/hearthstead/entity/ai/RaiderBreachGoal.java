@@ -178,6 +178,14 @@ public class RaiderBreachGoal extends Goal {
             return false;
         }
         BlockPos here = raider.blockPosition();
+        // TEMP DIAGNOSTIC (BREACH-FIX): grep "BREACH-DIAG" -- strip before finishing.
+        if (level.getGameTime() % 20 == 0) {
+            Hearthstead.LOGGER.info(
+                "BREACH-DIAG t={} here={} dest={} distSqr={} horizCollision={} "
+                    + "stuckAnchor={} collidedSinceAnchor={} stuckSinceTime={}",
+                level.getGameTime(), here, destination, here.distSqr(destination),
+                raider.horizontalCollision, stuckAnchor, collidedSinceAnchor, stuckSinceTime);
+        }
         if (here.distSqr(destination) <= REACH_SQR) {
             stuckAnchor = null; // already there; nothing to breach
             return false;
@@ -209,6 +217,8 @@ public class RaiderBreachGoal extends Goal {
             return false; // stationary and colliding, but not long enough yet
         }
         BlockPos candidate = findBreachCandidate(level, settlement);
+        Hearthstead.LOGGER.info("BREACH-DIAG candidate-search here={} candidate={}",
+            here, candidate);
         if (candidate == null) {
             return false; // stuck for some other reason; nothing here to hit
         }
