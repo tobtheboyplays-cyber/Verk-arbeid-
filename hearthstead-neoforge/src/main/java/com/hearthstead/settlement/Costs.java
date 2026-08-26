@@ -39,12 +39,16 @@ import java.util.List;
  * <p>Every price that exists in the mod is meant to be requested from here,
  * never hard-coded at the call site -- COSTS.md's own implementation map:
  * "No number may live hard-coded in a goal once Costs.java exists."
- * {@link SettlementManager} is the first, and so far only, real caller
- * ({@link #recruit()} plus the {@link PriceKey#RECRUIT} discount hooks); the
- * other {@link PriceKey} values reserve their row in the table for the
- * slices COSTS.md names as not-yet-built (research, the mayor's feast,
- * raid-repair discounts) so those slices ask here on day one rather than
- * inventing their own number the way recruiting once did.
+ * {@link SettlementManager} charges {@link #recruit()} (plus the
+ * {@link PriceKey#RECRUIT} discount hooks); {@link Mayor#appoint} charges
+ * {@link #mayorFeast()} (plus {@link PriceKey#MAYOR_FEAST}) on an actual
+ * swap. {@link PriceKey#REPAIR}'s two hooks are real too, but not through
+ * this table's usual {@code Price}/{@code Line} machinery -- see that key's
+ * own doc for why a settlement-level price can't apply to a per-block dugnad,
+ * and {@code RepairWorkGoal} for where the discount is actually spent.
+ * {@link PriceKey#RESEARCH} still reserves its row for research's not-yet-built
+ * slice, so it asks here on day one rather than inventing its own number the
+ * way recruiting once did.
  */
 public final class Costs {
 
@@ -65,18 +69,34 @@ public final class Costs {
         RESEARCH,
         /**
          * Appointing a new mayor while one already sits (COSTS.md "Mayor
-         * swap: the feast"). Not charged anywhere yet -- COSTS.md's
-         * implementation map names this a follow-up in {@code Mayor.appoint}.
+         * swap: the feast"). Charged in {@code Mayor.appoint} via
+         * {@link #mayorFeast()} -- but only on an actual swap; COSTS.md's own
+         * "first appointment free" means an empty seat charges nothing, so
+         * this key's discount hooks and price never even get asked for when
+         * there was no previous mayor to hand the feast to.
          */
         MAYOR_FEAST,
         /**
-         * Raid-damage repair dugnad (COSTS.md "Repairs after raids").
-         * The dugnad DOES consume goods now (RepairWorkGoal takes one real
-         * material per scar), but it takes them per-block from the nearest
-         * store rather than as a settlement-level price, so the mason and
-         * sawmill hooks below are still unconsumed. Wiring them means
-         * deciding whether a discount should mean "fewer blocks pay" or
-         * "some scars mend free" -- a balance question, not a plumbing one.
+         * Raid-damage repair dugnad (COSTS.md "Repairs after raids"). The
+         * dugnad consumes one real material per scar, per block, from the
+         * nearest store ({@code RepairWorkGoal}) -- there is no
+         * settlement-level {@link Price} to shave a percentage off of, so
+         * the mason -25% / sawmill -25% hooks below cannot mean "fewer
+         * blocks pay" the way {@link #discounted} means it for a
+         * {@link Line}. Balance decision, 2026-08-26: they mean <b>"some
+         * scars mend free"</b> instead -- chest truth survives untouched
+         * (fewer items ever leave a chest; nothing is conjured and no item
+         * is ever partially consumed), it reads in the world (a wall knits
+         * itself with no courier delivering for it, which is what having a
+         * mason in the village should feel like), and it is deterministic
+         * rather than a coin flip a currently-flaky suite cannot afford:
+         * {@code RepairWorkGoal} keeps a running per-settlement count of
+         * scars actually mended and waives the material on every
+         * {@code (100 / discountPercent(discountsFor(..., REPAIR)))}th one --
+         * every 4th scar at the capped 25% (one hook), every 2nd at the
+         * capped 50% (both hooks). Both divisions are exact for every sum
+         * these two 25%-hooks can ever produce, so there is no rounding
+         * question hiding in the cadence.
          */
         REPAIR
     }
@@ -159,6 +179,17 @@ public final class Costs {
     }
 
     /**
+     * The handover feast a settlement pays to appoint a NEW mayor while one
+     * already sits (COSTS.md "Mayor swap: the feast"). {@code Mayor.appoint}
+     * only ever asks for this on an actual swap -- the first appointment to
+     * an empty seat is free per the same section of COSTS.md, so it never
+     * calls here at all in that case.
+     */
+    public static Price mayorFeast() {
+        return of(PriceKey.MAYOR_FEAST, Line.of(Items.BREAD, 8));
+    }
+
+    /**
      * The generic factory every future price is meant to use, so no price
      * anywhere in the mod is ever assembled by hand at its call site again.
      */
@@ -223,12 +254,11 @@ public final class Costs {
             }
             case REPAIR -> {
                 // COSTS.md "mason registered -25% stone costs, sawmill -25%
-                // wood costs". Named per-material in COSTS.md; this engine
-                // applies a discount to a whole Price uniformly (see
-                // afterDiscounts), so wiring these in as material-specific
-                // hooks is future work for whichever slice gives repairs a
-                // real, categorized Price -- reserved here so that slice
-                // reads two names instead of inventing them.
+                // wood costs". Spent by RepairWorkGoal as "some scars mend
+                // free" rather than as a Price/Line reduction -- see
+                // PriceKey#REPAIR's own doc for why -- but the two hooks
+                // themselves are named and read live off the settlement's
+                // buildings exactly like every other hook here.
                 if (firstValid(s, BuildingType.MASON) != null) {
                     out.add(new Discount("hearthstead.discount.mason", 25,
                         "a mason is registered and valid"));

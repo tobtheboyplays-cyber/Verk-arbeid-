@@ -202,6 +202,7 @@
   "hearthstead.mayor.loading": "Reading the seat…",
   "hearthstead.mayor.mourning.active": "In mourning — %s left",
   "hearthstead.mayor.refused.already": "They already hold the seat",
+  "hearthstead.mayor.refused.cannot_afford_feast": "The settlement cannot afford the handover feast",
   "hearthstead.mayor.refused.mourning": "The settlement is in mourning and will appoint nobody",
   "hearthstead.mayor.refused.nobody": "There is nobody here to appoint",
   "hearthstead.mayor.settling": "Settling in",

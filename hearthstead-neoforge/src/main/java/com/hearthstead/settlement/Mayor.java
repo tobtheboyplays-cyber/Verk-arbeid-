@@ -1,5 +1,6 @@
 package com.hearthstead.settlement;
 
+import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.SettlerEntity;
 import net.minecraft.network.chat.Component;
@@ -150,6 +151,18 @@ public final class Mayor {
     /**
      * Appoints a new mayor.
      *
+     * <p>Standing somebody down for somebody else costs the handover feast
+     * (COSTS.md "Mayor swap: the feast", {@link Costs#mayorFeast()}) --
+     * charged chest-true from the settlement's hearth, the same way
+     * {@link SettlementManager} charges the recruit price, with the
+     * {@code hearthstead.discount.mayor_feast_dining_hall} hook applied
+     * through {@link Costs#afterDiscounts}. The FIRST appointment (an empty
+     * seat) is free per that same section of COSTS.md, so an unoccupied seat
+     * never even prices the feast. A swap the village cannot pay for simply
+     * does not happen -- the seat, the morale hits and the settling clock
+     * all stay untouched -- because a swap that silently succeeds without
+     * the goods is exactly the value mint FLOWS.md forbids.
+     *
      * @return null on success, or the reason it was refused
      */
     @Nullable
@@ -162,6 +175,22 @@ public final class Mayor {
             return Component.translatable("hearthstead.mayor.refused.already");
         }
         SettlerEntity previous = find(level, settlement);
+        HearthBlockEntity hearth = null;
+        Costs.Price feastPrice = null;
+        if (previous != null) {
+            // A swap, not a first appointment -- COSTS.md's feast applies,
+            // and it must be paid BEFORE anything about the seat changes.
+            feastPrice = Costs.afterDiscounts(Costs.mayorFeast(),
+                Costs.discountsFor(level, settlement, Costs.PriceKey.MAYOR_FEAST));
+            if (!(level.getBlockEntity(settlement.center) instanceof HearthBlockEntity h)
+                || !Costs.canPay(h.getInventory(), feastPrice)) {
+                return Component.translatable("hearthstead.mayor.refused.cannot_afford_feast");
+            }
+            hearth = h;
+        }
+        if (hearth != null) {
+            Costs.pay(hearth.getInventory(), feastPrice);
+        }
         settlement.mayorId = settler.getUUID();
         settlement.mayorSince = level.getGameTime();
         if (previous != null) {

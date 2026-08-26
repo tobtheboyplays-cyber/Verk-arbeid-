@@ -7,6 +7,7 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.raid.RaidDirector;
@@ -66,6 +67,21 @@ import java.util.function.Predicate;
  * checked before a scar is claimed and the item is taken only at the
  * moment the block is restored, both against live containers — this goal
  * never remembers a count.
+ *
+ * <h2>The mason and sawmill discounts: some scars mend free</h2>
+ *
+ * <p>COSTS.md's mason -25% / sawmill -25% repair hooks ({@code Costs.PriceKey#REPAIR})
+ * cannot shave a percentage off a {@code Costs.Price} the way recruiting's
+ * hooks do — there is no settlement-level price here, only one real item per
+ * block. Balance decision, 2026-08-26: they instead waive the material
+ * entirely on some scars, deterministically. {@link #SCAR_MENDS} counts real
+ * completed repairs per settlement; {@link #shouldMendFree} waives the one
+ * ({@code 100 / discountPercent})th mend — every 4th with one hook (25%),
+ * every 2nd with both (the capped 50%) — so the same settlement in the same
+ * state always gets the same answer. This stays chest-true (fewer items ever
+ * leave a chest; nothing is conjured and no item is ever partially consumed)
+ * and reads in the world — a wall knits itself with no courier delivering
+ * for it, which is what having a mason in the village should feel like.
  *
  * <h2>Bounded, claimed, scheduled</h2>
  *

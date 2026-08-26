@@ -202,6 +202,7 @@
   "hearthstead.mayor.loading": "Leser av setet …",
   "hearthstead.mayor.mourning.active": "I sorg — %s igjen",
   "hearthstead.mayor.refused.already": "De sitter allerede i setet",
+  "hearthstead.mayor.refused.cannot_afford_feast": "Bygda har ikke råd til avskjedsgildet",
   "hearthstead.mayor.refused.mourning": "Bygda sørger og utnevner ingen",
   "hearthstead.mayor.refused.nobody": "Her er ingen å utnevne",
   "hearthstead.mayor.settling": "Setter seg inn",
