@@ -231,9 +231,14 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
         int x = (width - imageWidth) / 2;
         int y = (height - imageHeight) / 2;
         graphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight);
-        if (mayorTabOpen) {
-            renderMayorPanel(graphics, mouseX, mouseY);
-        }
+        // The Mayor popout is NOT drawn here. renderBg runs first in the
+        // frame, and AbstractContainerScreen draws slot items and then
+        // renderLabels AFTER it -- so a panel painted here gets the
+        // settlement's own labels painted straight across it. Seen live in
+        // the owner's first session (video 0:24, "veldig dårlig UI"):
+        // "The seat is empty" through the stores list, "Content" through
+        // the candidate cards. The panel draws at the END of render() now,
+        // above everything it overlaps.
     }
 
     private void renderMayorPanel(GuiGraphics graphics, int mouseX, int mouseY) {
@@ -473,8 +478,27 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
-        renderTooltip(graphics, mouseX, mouseY);
-        renderStatTooltips(graphics, mouseX, mouseY);
+        if (mayorTabOpen) {
+            // At small GUI widths there is no room beside the window and
+            // updateMayorPanelPosition clamps the panel ONTO it. Dim what it
+            // covers first, so the overlap reads as a modal layer above the
+            // window rather than two screens fighting for the same pixels.
+            if (mayorPanelLeft < leftPos + imageWidth
+                && mayorPanelLeft + MAYOR_PANEL_W > leftPos) {
+                graphics.fill(leftPos, topPos, leftPos + imageWidth,
+                    topPos + imageHeight, 0xB0101010);
+            }
+            renderMayorPanel(graphics, mouseX, mouseY);
+        }
+        // No slot/stat tooltips from under the panel: the slot is covered,
+        // so a tooltip for it would name something the player cannot see.
+        boolean overPanel = mayorTabOpen
+            && mouseX >= mayorPanelLeft && mouseX < mayorPanelLeft + MAYOR_PANEL_W
+            && mouseY >= mayorPanelTop && mouseY < mayorPanelTop + MAYOR_PANEL_H;
+        if (!overPanel) {
+            renderTooltip(graphics, mouseX, mouseY);
+            renderStatTooltips(graphics, mouseX, mouseY);
+        }
     }
 
     private void renderStatTooltips(GuiGraphics graphics, int mouseX, int mouseY) {
