@@ -30,6 +30,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -464,7 +465,7 @@ public class ArmouryGameTests {
      */
     @GameTest(batch = "armoury", template = "empty16", timeoutTicks = 20)
     public void theArmouryPricesIronMeaningfullyAboveLeatherPerPieceAndPerKit(GameTestHelper helper) {
-        java.util.List<Production.Recipe> recipes = Production.of(BuildingType.ARMOURY);
+        List<Production.Recipe> recipes = Production.of(BuildingType.ARMOURY);
         helper.assertTrue(recipes.size() == 8,
             "the armoury should know exactly eight recipes, found " + recipes.size());
 
@@ -493,7 +494,7 @@ public class ArmouryGameTests {
         helper.succeed();
     }
 
-    private static Production.Recipe recipeById(java.util.List<Production.Recipe> recipes, String id) {
+    private static Production.Recipe recipeById(List<Production.Recipe> recipes, String id) {
         for (Production.Recipe recipe : recipes) {
             if (recipe.id().equals(id)) {
                 return recipe;

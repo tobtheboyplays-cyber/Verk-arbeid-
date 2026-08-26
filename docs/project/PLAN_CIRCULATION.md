@@ -46,7 +46,9 @@ are consumed.
 - **Guard armor**: GuardRank sets the CEILING; the ARMOURY chain sets
   availability. applyEquipment consumes real pieces (armoury/warehouse) up
   to rank; the in-code comment that already claims this becomes true.
-  ARMOURY gets Production recipes (ingots+leather → pieces).
+  ARMOURY gets Production recipes (ingots+leather → pieces). **[LANDET
+  2026-08-26, ARMOURY-2]** — see the F3 status entry below for what shipped
+  and what is still open.
 - **Arrows**: watchtower/barracks stock arrows via MILITARY-OUT now; the archer
   class (D1) consumes them later — stocked racks first, shooters second.
 
@@ -86,6 +88,9 @@ F1 courier routes SOURCE-OUT/FOOD_DELIVERY/MILITARY-OUT + isHaulable split (Cour
 F2 tools chest-true + wear v1 (SettlerEntity equip path, Profession
    fallback, CrafterWorkGoal/goal hooks, smithy demand test)
 F3 guard armor chest-true + armoury recipes (GuardRank, Production)
+   [LANDET 2026-08-26 -- see the wave-2 status entry below; GuardRank's
+   half shipped earlier, Production's half (this slice) shipped
+   2026-08-26, and it surfaced a THIRD gap neither audit named]
 F4 herder/fisher/hunter (Profession/Employment — after the research
    worker releases them — three new goals + tests)
 F5 miner honesty + ladder probe (MinerWorkGoal, RoomScanner-adjacent
@@ -121,6 +126,52 @@ Status marks: [LANDET] committed; [I ARBEID] a fix worker owns it now;
 - [LANDET] Miner banks real loot (`Block.getDrops` with an iron pickaxe),
   not block items — the mine→smelter chain exists at all now.
   MinerDropsGameTests pins it.
+
+**Landed:**
+- [LANDET 2026-08-26, ARMOURY-2] **F3, the Production half**: `Production.of(ARMOURY)`
+  gained eight recipes — LEATHER_HELMET/CHESTPLATE/LEGGINGS/BOOTS and
+  IRON_HELMET/CHESTPLATE/LEGGINGS/BOOTS, all from LEATHER (tannery) or
+  IRON_INGOT (smelter), the two goods this economy already produces. Note
+  for the audit trail: GuardRank's own equipment table actually names
+  EIGHT distinct items, not the seven BALANCE_AUDIT.md finding 1 listed —
+  LEATHER_LEGGINGS (VETERAN's own piece) was missing from that count too,
+  and is covered here. Material counts anchor to vanilla's own
+  helmet/chestplate/leggings/boots exchange rate (5/8/7/4, same on both
+  tiers); tick cost anchors to the smithy's own register (iron at 130
+  ticks/ingot, the smithy's sword rate; leather deliberately cheaper at 80
+  ticks/leather) so the ladder holds by tick cost AND by upstream material
+  cost, not just by fiat — `ArmouryGameTests`
+  (`theArmouryPricesIronMeaningfullyAboveLeatherPerPieceAndPerKit`) checks
+  the ladder off the live table. Chest-true proof: `ArmouryGameTests`
+  (e)/(f), the direct `Production.ready`/`Production.run` idiom
+  `ChainsGameTests` already uses for every other recipe table — real
+  materials into a real chest, real armour out, inputs gone. Acyclic: every
+  new output is a sink (never an input to any recipe anywhere in the
+  table), so this only adds leaf edges off LEATHER/IRON_INGOT; the existing
+  static DFS proof (`ChainsGameTests#noValueMintingCycleInProductionTable`)
+  covers it automatically since it iterates every `BuildingType`.
+  **`ArmouryGameTests`'s fixture was one of the ~23 missing-plaque
+  fixtures FLAKE-2 fixed (KF-021); that fix landed first and this slice's
+  new tests were written against the corrected `GameTestFixtures.register`
+  helper from the start, so no collision.**
+- **Still open, MILITARY-OUT-adjacent, present tense**: the armoury
+  building has no trade in `Employment`'s `TRADES` map and no matching
+  `Profession` — `Employment.tradeOf(BuildingType.ARMOURY)` is
+  `Profession.NONE`, so `Employment.hire()` refuses every attempt with
+  `no_trade`, and nobody can be hired to run these recipes through the
+  game's normal hire screen or `CrafterWorkGoal`. This is a THIRD gap on
+  top of the two BALANCE_AUDIT.md finding 1 already named (empty
+  Production table, unbuilt MILITARY-OUT route) — the recipes are real and
+  chest-true today, but a player cannot yet get a settler to actually run
+  them without hand-placing armour pieces the same way they always could.
+  The precedent is already in the codebase: MILL and BREWERY shipped their
+  Production tables one slice before MILLER/BREWER professions did (see
+  Employment.java's "Coordinator addendum, 2026-08-25" comment) — the same
+  shape of follow-up (an ARMOURER profession or reusing SMITH, plus one
+  `TRADES.put(BuildingType.ARMOURY, ...)` line) closes this. Out of scope
+  for this slice: `Employment.java` and `Profession.java` are outside
+  Production.java's file ownership and other workers were live on
+  adjacent files tonight.
 
 **In flight (fix workers own the files):**
 - [I ARBEID] FARMER-BOOTSTRAP: first-planting on tilled ground (orphaned
