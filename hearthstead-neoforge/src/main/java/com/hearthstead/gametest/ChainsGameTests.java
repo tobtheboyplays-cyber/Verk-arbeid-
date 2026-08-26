@@ -176,12 +176,19 @@ public class ChainsGameTests {
     @GameTest(batch = "chains", template = "empty16", timeoutTicks = 200)
     public void millGrindsSugarCaneIntoPaperChestTrue(GameTestHelper helper) {
         floor(helper, 16);
-        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        // NOT registered into SettlementSavedData, deliberately, and the
+        // static guard (qa/scripts/check_fixture_plaques.py) is why we know
+        // it matters: this file's other tests hand-build bare Buildings with
+        // no plaque, which is safe ONLY while nothing here registers a live
+        // settlement. Registering one -- as the first draft of this test did
+        // -- would have made every one of them reachable by
+        // BuildingManager's sweep and dissolvable mid-run, reopening KF-021
+        // in the exact file FLAKE-2 had audited as safe. Production.run
+        // needs the Building and the level, never the settlement, so the
+        // registration bought nothing and risked everything.
         Settlement s = new Settlement(UUID.randomUUID(), "Papirholm",
             helper.absolutePos(new BlockPos(8, 1, 8)));
         s.radius = 6;
-        data.settlements.put(s.id, s);
-        data.setDirty();
         Building mill = GameTestFixtures.register(helper, s, BuildingType.MILL, 4, 4);
         // GameTestFixtures.register hangs the plaque and records the bounds;
         // it deliberately does NOT furnish the room, so the chest this

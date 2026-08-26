@@ -1613,3 +1613,42 @@ what the helper does and does not do — not a change to the helper, which is
 correctly narrow. A fixture that furnishes rooms automatically would start
 guessing at what each building needs, and guessing is how the twenty
 hand-rolled copies happened in the first place.
+
+### The guard earned its keep in four hours
+
+**2026-08-26 09:40Z.** `qa/scripts/check_fixture_plaques.py` was written at
+~06:00 to stop KF-021 from ever returning quietly. At 09:40 it caught a real
+regression — introduced *after* it was built, by a different worker, in the
+exact file that had been audited as safe.
+
+`ChainsGameTests.java` hand-builds bare `Building` objects with no plaque
+throughout. FLAKE-2 audited it and correctly left it alone, because the file
+never registers its settlement into `SettlementSavedData`, so
+`BuildingManager`'s sweep can never reach those buildings. Sound *today*, as
+that audit said in as many words — and explicitly flagged as **not
+structurally stable**, because one added line would make it live.
+
+WALLS-2 then added the mill's paper test, and wrote that line:
+
+```java
+data.settlements.put(s.id, s);
+data.setDirty();
+```
+
+Not carelessly — it is the obvious way to set up a settlement, and it is what
+most fixtures do. But it silently armed every other hand-rolled Building in
+the file for dissolution mid-run, which is KF-021 reopening in the one place
+everybody had reasoned was fine.
+
+The guard failed the build with the mechanism spelled out, the fix was to
+delete two lines (`Production.run` takes a level and a Building; it never
+wanted the settlement), and the call site now carries a comment saying why
+the registration is absent so the next person does not re-add it.
+
+**The lesson is about guards, not about this bug.** FLAKE-2's answer to "is
+this stable?" was *"nothing would catch it"* — and rather than record that as
+a known edge, we spent thirty minutes closing it. Four hours later it was the
+only thing standing between a green suite and a silent return of the night's
+worst defect. A guard against a bug you have already fixed feels redundant
+right up until the moment someone reintroduces its precondition from a
+completely different direction.

@@ -3326,3 +3326,69 @@ raider plays this while stopped and nothing else has claimed the pose —
 pack, brute, captain, and the telegraph scout at the treeline alike
 (`RaiderModel` gates it on `!moving` alone, no profession- or
 variant-specific condition).
+
+## 24. Ring-1 trades — herder, fisher, hunter
+
+TRADES-1 (SURVIVAL_AUDIT.md finding F1): `PASTURE`, `FISHERY` and
+`HUNTERS_LODGE` had stood since `BuildingType` was written with no trade
+that could ever staff them — buildable, plaquable, `LINKED_VALID`, and
+permanently empty, because `Profession` had no shepherd, fisherman or
+hunter and `Employment.hire()` refused every attempt with `no_trade`. This
+section is these three trades' own signature motions, following §18/§20's
+precedent exactly: one bespoke clip per trade's real signature action, and
+the trade's OTHER actions (where it has them) reusing an already-authored
+motion with the reuse justified in the goal file that plays it
+(`HerderWorkGoal`), never in this document alone.
+
+### 24.1 `HERDER_SHEAR` — the shears close *(1.00 s, loop, impact)*
+
+One hand runs the shears through a fast snip — the tightest single-tick
+delta of the three (`right_arm` −9° to −82°, 73°/tick, LINEAR both keys) —
+while the other hand just holds the fleece taut and barely moves at all
+(2° of drift the whole loop): the working hand only reads because the
+steadying one holds still (animation-quality principle 11). Torso leads
+the snap by two ticks (peak lean at 0.35 s against the arm's 0.45 s
+contact), legs shift into the crouch at the same beat, and the recovery
+overshoots rest by 7° before easing home. One full loop is one shear pass
+(`HerderWorkGoal.SHEAR_DURATION`); the accent (`hide_scrape`, pitched up)
+lands at t=0.45 s → tick 9 of 20.
+
+### 24.2 `FISHER_CAST` — the line goes taut *(2.00 s, loop)*
+
+The longest of the three on purpose — fishing is patient work, not a
+strike — so 1.30 s of the loop is a slow, continuous watching sway (torso
+and head keep drifting the whole time; nothing in this clip is ever
+dead-still) before the bite: torso yanks back at 1.35 s, the rod arm snaps
+40° in one tick at 1.45 s (LINEAR both keys), holds through the fight for
+two ticks, then eases UP past its resting angle — a real angler lifts the
+rod tip higher than rest after landing a catch, which is exactly the
+overshoot this recovery uses rather than a plain return-to-neutral. One
+full loop is one catch (`FisherWorkGoal.FISH_CADENCE`); the accent
+(`water_pour`, pitched up) lands at t=1.45 s → tick 29 of 40.
+
+### 24.3 `HUNTER_LOOSE` — the string looses *(1.20 s, loop, impact)*
+
+The bow arm (`left_arm`) is held to 4° of drift for the whole loop — the
+stillness principle again, this time on the OFF-hand, because a bow only
+reads if the arm holding it never wavers. The draw hand accelerates back to
+full extension at the cheek (0.20–0.55 s), holds the aim for two ticks,
+then looses at 96°/tick (`right_arm` −136° → −40° in one tick, LINEAR both
+keys — heavy-impact velocity) as the hand snaps forward with the released
+tension. Torso leads the loose by three ticks (peak twist at 0.55 s against
+the arm's 0.70 s release), and the recovery overshoots rest by 5° before
+settling. One full loop is one shot (`HunterWorkGoal.HUNT_DURATION`); the
+accent (`pick_strike`, a stand-in for a string's own transient — no bow
+sound exists in the catalogue yet) lands at t=0.70 s → tick 14 of 24.
+
+### 24.4 `IDLE_FISHER` — watching the water *(4.50 s, loop)*
+
+FISHER is the only one of the three whose idle needed its own clip — a
+shepherd's watchful stance over the paddock is genuinely the same
+watching-open-ground gesture `IDLE_FARMER` already is (§22.1), and a
+hunter's alert scan for game is genuinely the same readiness `IDLE_SENTRY`
+already is (§22.3), so both are reused (`SettlerEntity.setupAnimationStates`)
+rather than duplicated. A fisher's patience is its own thing: the rod
+rests loosely across the shoulder, held about as still as `HUNTER_LOOSE`'s
+own off-hand, while partway through the loop the free hand rises to shade
+the eyes and the head tips out and down scanning the water, then both ease
+back to rest.
