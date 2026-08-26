@@ -496,6 +496,26 @@ while read -r verb rest; do
                xdotool mousemove 640 360
                xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2
                check_pass "$DIR_IDX:click" "clicked ${rest:-left}";;
+        open)  # The world-interact twin of `click`, for the FIRST click that
+               # opens a screen -- a plaque, a chest, a settler's sheet. It
+               # regrabs first, the same way `move` does and for the same
+               # reason: a grab established several directives ago does not
+               # reliably survive, and a click into a dead grab is a silent
+               # no-op. On 2026-08-26 the plaque insert failed twice in a row
+               # that way, with all THREE of the scenario's retries clicking
+               # into the same dead grab -- retrying does not revive it, which
+               # is the whole point of regrabbing instead (KF-035).
+               #
+               # Deliberately separate from `click` rather than folded into
+               # it: `click` is also used INSIDE an already-open screen
+               # (crafting slots, inventory), where safe_regrab's own click
+               # would land on the GUI instead of the world. Never use `open`
+               # there, and never use `click` for the first interact.
+               focus
+               safe_regrab
+               xdotool mousemove 640 360
+               xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2
+               check_pass "$DIR_IDX:open" "opened (${rest:-left} click, after regrab)";;
         move)  focus
                # A prior grab-establishing click does not reliably survive
                # to a LATER `move` several directives on — proven live,
