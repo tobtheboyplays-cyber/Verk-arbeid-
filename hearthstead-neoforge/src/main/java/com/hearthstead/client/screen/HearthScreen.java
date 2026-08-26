@@ -445,6 +445,29 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
                 graphics.fill(BAR_X, BAR_Y + 23, BAR_X + BAR_W, BAR_Y + 26, 0xFF54432F);
                 graphics.fill(BAR_X, BAR_Y + 23, BAR_X + recruit * BAR_W / 100,
                     BAR_Y + 26, 0xFFC9A83C);
+            } else {
+                // The stripe used to vanish entirely when recruitment was
+                // blocked -- the owner's masterplan called growth invisible,
+                // and byggherre-dom #4 located the actual gap here: the bar
+                // existed, the REASON did not, and the thresholds (food >= 8,
+                // morale >= 60, a free bed) were written nowhere a player
+                // could see. The conditions mirror SettlementManager's
+                // attractiveness test and are all already synced; show the
+                // FIRST blocker in its priority order, or the all-clear.
+                Component why;
+                if (pop >= cap) {
+                    why = Component.translatable("hearthstead.gui.recruit_blocked.beds",
+                        pop, cap);
+                } else if (food < 8) {
+                    why = Component.translatable("hearthstead.gui.recruit_blocked.food",
+                        food, 8);
+                } else if (morale < 60) {
+                    why = Component.translatable("hearthstead.gui.recruit_blocked.morale",
+                        morale, 60);
+                } else {
+                    why = Component.translatable("hearthstead.gui.recruit_ready");
+                }
+                graphics.drawString(font, why, STAT_X, BAR_Y + 13, INK_SOFT, false);
             }
         }
     }

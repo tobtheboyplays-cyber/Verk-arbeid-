@@ -8,13 +8,13 @@
   ],
   "key": {
     "I": {
-      "item": "minecraft:iron_ingot"
-    },
-    "C": {
       "item": "minecraft:copper_ingot"
     },
+    "C": {
+      "item": "minecraft:iron_ingot"
+    },
     "W": {
-      "item": "minecraft:oak_planks"
+      "tag": "minecraft:planks"
     }
   },
   "result": {

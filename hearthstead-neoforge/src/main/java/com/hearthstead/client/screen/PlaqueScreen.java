@@ -360,7 +360,16 @@ public class PlaqueScreen extends Screen {
             return Component.translatable("hearthstead.plaque.people_count",
                 snapshot.occupants().size(), snapshot.capacity());
         }
-        return Component.translatable("hearthstead.plaque.level", snapshot.level());
+        // The requirements tab's one thing worth saying is what the building
+        // GIVES. The screen listed costs and never the payoff -- the owner's
+        // masterplan called it out and byggherre-dom #4 confirmed the gap:
+        // zero lines anywhere told a player what hiring here gets them. For
+        // the four buildings nothing in the game reacts to yet, this same
+        // line carries the honest 'not yet operational' instead -- a plaque
+        // that goes green and does nothing must say so, not let the player
+        // discover it by waiting.
+        return Component.translatable(
+            "hearthstead.building.benefit." + snapshot.buildingType());
     }
 
     private void drawRequirements(GuiGraphics graphics) {
