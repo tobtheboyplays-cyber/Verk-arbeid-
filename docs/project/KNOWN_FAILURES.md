@@ -1238,3 +1238,39 @@ not work.** Whether that is one cause or several is FLAKE-2's question, and
 the count itself is still not a comparison — the same commit has produced 4,
 10, 14 and 20 red tonight in different trees. The three-run baseline comes
 first; every number after it is measured against that.
+
+### KF-024 — the judge was under-reporting, and nothing would have caught it
+
+**2026-08-26 04:35Z.** FLAKE-2, hunting the suite's nondeterminism, noticed
+that `tools/hearthstead-qa` piped the failure roster through `head -5`. It
+was worse than that on inspection, and both defects erred in the one
+direction a judge must never err in — toward looking better than reality:
+
+1. **The roster was truncated.** A run with fourteen failures stored five of
+   them. The log still held the truth, but the artifact is what survives the
+   run, and the artifact silently disagreed with the server that produced it.
+2. **The count was of the wrong thing.** `failures=` came from
+   `grep -c "failed at"`, which counts ERROR lines rather than tests. Run
+   20260826T020820Z recorded `failures=5` in its manifest while
+   GameTestServer's own summary said **20**. Verified against the stored log:
+   the replacement returns 14 where the old expression returns 5.
+3. **The controller was outside the source fingerprint.** `qa/scripts` is
+   fingerprinted, and the comment there says why — an assertion can be
+   loosened in that directory. But the file that reads the log, counts the
+   failures and writes the verdict was not fingerprinted at all. The two
+   defects above could have been introduced, or fixed, without a single
+   stored fingerprint changing. A judge that is not fingerprinted is a judge
+   that can be edited without the evidence noticing.
+
+All three are fixed: the roster and every `failed at` line are written in
+full, the count comes from the server's own "N required tests failed" line,
+and the controller is inside the fingerprint. That last change invalidates
+every fingerprint stored before today, which is correct rather than
+unfortunate — those runs were judged by a different judge.
+
+**The uncomfortable part is the exposure.** These are not new; there is no
+way to tell how many of tonight's earlier `failures=N` figures were low, and
+the manifests carrying them cannot be retroactively trusted. Where a count
+in this document came from GameTestServer's own summary line it stands; where
+it came from a manifest it does not. The suite has been more red than it
+said, never less.
