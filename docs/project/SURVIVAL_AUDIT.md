@@ -379,3 +379,87 @@ back — it is to shorten the chain, most likely by dropping the book.
 
 Recorded because "we closed a WALL" is a satisfying sentence that can hide a
 GRIND arriving in its place, and this document exists to stop exactly that.
+
+---
+
+## GAPS-1 verification pass (2026-08-26): both closed WALLs actually checked
+
+Neither F3's infirmary half nor F4's market half had ever been run before
+this pass — no GameTest referenced `BuildingType.INFIRMARY` or
+`BuildingType.MARKET` anywhere in the tree. Both are now proven from
+materials the settlement can produce, driven through the REAL survey path
+(`PlaqueBlockEntity#survey`, not a synthetic `Building`), in
+`SurvivalAuditWallGameTests.java`:
+
+- **INFIRMARY, confirmed SMOOTH.** A room furnished with a PLAIN
+  `Blocks.CAULDRON` (vanilla: 7 iron ingots, no water poured in, no blaze
+  rod) plus 2 beds, 1 storage, 1 door and 2 lights drives a real plaque to
+  `LINKED_VALID` (`infirmaryRoomValidatesWithASurvivalCauldron`). The F3 fix
+  holds exactly as claimed: no Nether trip, reachable with iron alone.
+
+- **MARKET, confirmed reachable — and the coordinator's own tier-depth
+  worry ("weaver plus tannery plus mill") turns out to be an
+  OVER-estimate.** Three tests close the chain: the room validates with
+  survival-plain barrels and chests
+  (`marketRoomValidatesWithBarrelsAndChests`), the build plan itself crafts
+  through the real recipe manager from 2 paper + 1 feather + 1 book + 1
+  wool_bolt (`marketBuildPlanCraftsFromPaperFeatherBookAndWoolBolt`), and —
+  previously ZERO GameTest coverage existed for this recipe at all — the
+  WEAVER's own wool_bolt recipe genuinely runs chest-true
+  (`weaverGrindsWoolIntoWoolBoltChestTrue`).
+
+  **The real tier arithmetic, traced ingredient by ingredient:**
+  - `wool_bolt` — genuinely settler-gated, no hand alternative anywhere in
+    `Production.java` or vanilla: it exists ONLY via a staffed WEAVER
+    (`Production.java`'s `wool_bolt` entry, 3 wool → 2 wool_bolt). This is
+    the one real, unavoidable dependency.
+  - `book` — vanilla's own shapeless recipe (3 paper + 1 leather) needs NO
+    settler building at all: leather is a Ring-1 hand-huntable drop (cows),
+    hand-craftable at any crafting table from day one. The TANNERY makes
+    leather cheaper at scale, but is never required to reach this plan.
+  - `paper` (x2) — hand-craftable instantly at a table (3 cane → 3 paper,
+    vanilla), or via the MILL once GAPS-1's fix lands (see below). Either
+    way, zero settler dependency to reach the plan.
+  - `feather` — Ring-1 hand-huntable, no building of any kind.
+  - Room furniture (4 barrels, 2 chests, a door, 2 torches) — all vanilla,
+    all day-one hand-craftable, no settler industry.
+
+  **So the plan's true minimum path is "one staffed WEAVER", not
+  "weaver + tannery + mill"** — the coordinator's earlier note flagged a
+  real risk (a civic building receding behind several buildings' worth of
+  staffing) that this trace shows did not fully materialize: MILL and
+  TANNERY both make their own ingredient cheaper at scale, but neither
+  gates the plan the way the WEAVER does. The tier still moved from "2 if
+  lucky" to "requires a staffed weaver, which itself requires wool, which
+  requires sheep" — a real, felt change from the old emerald-luck gate, but
+  shallower than "tier 3 for everyone" suggested. Still worth stating
+  plainly for the live-test list: a player who reaches MARKET before ever
+  staffing a weaver will find the recipe simply doesn't show in the
+  crafting grid, with nothing in-game explaining why — the same kind of
+  silent gate F4 was originally about, one tier further out.
+
+## GAPS-1, mill/farmer pass (2026-08-26): F7's "eased" claim corrected
+
+The mill's own "paper" register (`Production.java`) previously read
+3 sugar cane → 2 paper — WORSE than vanilla's own hand-craft (3 → 3, 1:1,
+instant, no building). SURVIVAL_AUDIT.md's own F7 follow-up claimed this
+"eased" the library's 81-paper bill; in play it never could have, because no
+rational player routes cane through a settler for a worse return than
+crafting it themselves. Fixed to 2 sugar cane → 3 paper (1.5 paper/cane,
+genuinely ahead of vanilla's 1.0) — pinned by
+`ChainsGameTests#millPaperGenuinelyBeatsHandCraftingByHand` so this specific
+regression cannot silently return. See `Production.java`'s own MILL entry
+for the full arithmetic.
+
+The other half of F7 was never mentioned before this pass: nothing in the
+economy grew sugar cane at all — `FarmerWorkGoal` only recognised
+`CropBlock`, and `SugarCaneBlock` is not one. Farmers now plant a fresh cane
+base beside water (vanilla's own `SugarCaneBlock#canSurvive` rule, reused
+rather than duplicated) as a real, lowest-priority extension alongside their
+existing crop work, and harvest only a stack's TOP segment so the base
+regrows forever with no replant step — see `FarmerWorkGoal`'s own class doc
+and `FarmerCaneGameTests.java` for the bootstrap-plant and
+base-survives-harvest proofs. The cane-planting and cane-harvesting motions
+currently reuse `WORK_PLANT`/`WORK_HARVEST` as placeholders — flagged to the
+coordinator, not silently kept, since this mod's standing rule is one
+keyframe clip per task.
