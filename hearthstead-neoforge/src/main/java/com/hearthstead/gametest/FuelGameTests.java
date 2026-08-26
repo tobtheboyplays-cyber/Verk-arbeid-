@@ -122,6 +122,17 @@ public class FuelGameTests {
         return (Container) be;
     }
 
+    /** How many slots the chest still has, for refusal diagnostics. */
+    private static int freeSlots(net.minecraft.world.Container c) {
+        int free = 0;
+        for (int i = 0; i < c.getContainerSize(); i++) {
+            if (c.getItem(i).isEmpty()) {
+                free++;
+            }
+        }
+        return free;
+    }
+
     private static int countOf(Container chest, Item item) {
         int total = 0;
         for (int slot = 0; slot < chest.getContainerSize(); slot++) {
@@ -450,7 +461,15 @@ public class FuelGameTests {
             finishBatches * Fuel.perBatch(BuildingType.SMITHY)));
         for (int i = 0; i < finishBatches; i++) {
             helper.assertTrue(Production.run(helper.getLevel(), smithy, finish),
-                "finishing batch " + (i + 1) + " should have run (fuel present)");
+                "finishing batch " + (i + 1) + " should have run (fuel present)"
+                    // Name what was missing instead of leaving the reader to
+                    // guess between input, fuel and room -- run() refuses on
+                    // any of the three and says nothing about which.
+                    + " [bloom=" + countOf(smithyChest, ModItems.IRON_BLOOM.get())
+                    + "/" + finish.inputCount()
+                    + " charcoal=" + countOf(smithyChest, Items.CHARCOAL)
+                    + " ingots=" + countOf(smithyChest, Items.IRON_INGOT)
+                    + " freeSlots=" + freeSlots(smithyChest) + "]");
         }
         helper.assertTrue(countOf(smithyChest, Items.IRON_INGOT) == ingots
                 && countOf(smithyChest, ModItems.IRON_BLOOM.get()) == 0
