@@ -104,8 +104,34 @@ public final class Production {
         // Mill: pure upstream, like FLOWS describes it -- no rough/fed split
         // of its own, it just turns wheat into flour for the bakery (and,
         // eventually, whoever else wants it).
+        //
+        // SURVIVAL_AUDIT.md F7: the library's 81-paper bill was permanent
+        // hand-labour forever because no recipe anywhere in this table made
+        // paper -- the ONLY half of that bill leather (via the tannery)
+        // could not also shrink as the settlement matured. The mill is the
+        // natural second grinding job (it already grinds wheat), so paper
+        // joins flour here as a second, independent pure-upstream recipe --
+        // not a fed pair with flour (a different OUTPUT, so the two simply
+        // alternate on need like the smelter's ore trio below, never
+        // starving each other; see Production#ready's fedPair check).
+        //
+        // PRICE ANCHORED TO THE MILL'S OWN FLOUR ENTRY (the one register on
+        // this building, used twice): same 3-in/2-out ratio, same 140
+        // ticks. Deliberately worse than vanilla's own hand-craft (3 sugar
+        // cane -> 3 paper, 1:1, instant, at a crafting table): a mill
+        // should relieve the player of paper-farming drudgery, not
+        // out-produce their own crafting table -- if it did, a settlement
+        // could mint paper value for free just by routing cane through a
+        // miller instead of a player's own hands. Sugar cane is not itself
+        // the OUTPUT of any recipe in this table, so this only adds a leaf
+        // edge off it; paper is not an INPUT to anything here either, so it
+        // stays a leaf on its own end too -- no cycle either direction
+        // (ChainsGameTests#noValueMintingCycleInProductionTable covers it
+        // automatically, and millGrindsSugarCaneIntoPaperChestTrue proves
+        // the ledger).
         put(BuildingType.MILL,
-            new Recipe("flour", Ingredient.of(Items.WHEAT), 3, ModItems.FLOUR.get(), 2, 140));
+            new Recipe("flour", Ingredient.of(Items.WHEAT), 3, ModItems.FLOUR.get(), 2, 140),
+            new Recipe("paper", Ingredient.of(Items.SUGAR_CANE), 3, Items.PAPER, 2, 140));
 
         // Chain A, food. Three wheat to a loaf: the same ratio vanilla uses,
         // so a player already knows the exchange rate -- and it stays exactly

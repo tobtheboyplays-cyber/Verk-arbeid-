@@ -5,6 +5,8 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.Production;
 import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -153,6 +155,57 @@ public class ChainsGameTests {
             "three wheat gone, 7 left of 10; saw " + countOf(chest, Items.WHEAT));
         helper.assertTrue(countOf(chest, ModItems.FLOUR.get()) == 2,
             "and two flour made; saw " + countOf(chest, ModItems.FLOUR.get()));
+        helper.succeed();
+    }
+
+    // ----------------------------------------------------------------- (a2) ---
+
+    /**
+     * SURVIVAL_AUDIT.md F7: the library's 81-paper bill was permanent
+     * hand-labour forever because no recipe anywhere made paper. The mill's
+     * new "paper" entry closes that -- chest-true, exactly like the flour
+     * job right beside it: three sugar cane leave for exactly two paper, in
+     * the mill's own chest, nothing more or less.
+     *
+     * <p>Registered through {@link GameTestFixtures#register} rather than
+     * this file's bare {@link #building} helper -- the task that added this
+     * recipe called for the fixture path everything else in the gametest
+     * package uses, and unlike (a)-(c) this test does not need the "no
+     * settlement, no plaque, no couriers" story to make its point.
+     */
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 200)
+    public void millGrindsSugarCaneIntoPaperChestTrue(GameTestHelper helper) {
+        floor(helper, 16);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        Settlement s = new Settlement(UUID.randomUUID(), "Papirholm",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 6;
+        data.settlements.put(s.id, s);
+        data.setDirty();
+        Building mill = GameTestFixtures.register(helper, s, BuildingType.MILL, 4, 4);
+        Container chest = containerAt(helper, new BlockPos(5, 1, 4));
+        helper.assertTrue(chest != null, "the registered mill's chest should be a container");
+        chest.setItem(0, new ItemStack(Items.SUGAR_CANE, 10));
+
+        Production.Recipe recipe = null;
+        for (Production.Recipe r : Production.of(BuildingType.MILL)) {
+            if (r.id().equals("paper")) {
+                recipe = r;
+                break;
+            }
+        }
+        helper.assertTrue(recipe != null, "the mill must know how to grind paper");
+        helper.assertTrue(recipe.inputCount() == 3 && recipe.outputCount() == 2,
+            "paper should cost 3 sugar cane for 2 paper, matching the flour "
+                + "idiom, got " + recipe.inputCount() + " -> " + recipe.outputCount());
+
+        boolean ran = Production.run(helper.getLevel(), mill, recipe);
+        helper.assertTrue(ran, "the paper recipe should have run");
+
+        helper.assertTrue(countOf(chest, Items.SUGAR_CANE) == 7,
+            "three sugar cane gone, 7 left of 10; saw " + countOf(chest, Items.SUGAR_CANE));
+        helper.assertTrue(countOf(chest, Items.PAPER) == 2,
+            "and two paper made; saw " + countOf(chest, Items.PAPER));
         helper.succeed();
     }
 

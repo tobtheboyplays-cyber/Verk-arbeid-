@@ -13,6 +13,9 @@
     },
     {
       "item": "minecraft:bread"
+    },
+    {
+      "item": "minecraft:barrel"
     }
   ],
   "result": {

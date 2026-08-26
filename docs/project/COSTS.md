@@ -47,13 +47,26 @@ a finished tool, or by loot), so a nugget price would force a day-one player
 to destroy a tool. Ingots carry the same signal without the trap: 1 for
 skilled, 2 for martial.
 
+**Second deviation, added 2026-08-26 (SURVIVAL_AUDIT F4):** the civic tier's
+market sample was `minecraft:emerald` — the one ingredient across all 33
+plans with no guaranteed hand-source (no craft, no biome/seed guarantee).
+Fixed by swapping it for `hearthstead:wool_bolt`, the weaver's own fed-path
+good, which is also the only build-plan ingredient in this table that is not
+bare vanilla. That is a deliberate, narrow break from "no mod intermediate"
+above: MARKET is civic tier, never a day-one building (it already needs a
+book, itself downstream of a functioning economy), so gating it on the
+settlement's OWN production — Law 1, "pay in what the thing is made of" —
+reads truer than gating it on vanilla luck ever did. It also closes
+BALANCE_AUDIT finding 5's WOOL_BOLT dead end in the same stroke (see
+FLOWS.md's CHAINS note). No other plan below needs this exception.
+
 | tier | paper | buildings and their sample |
 |---|---|---|
 | hearthside | 1 | house (#planks) · lodging (bed) · well (stick) |
-| working | 1 | farmhouse (seeds) · lumber_camp (#logs) · warehouse (chest) · bakery (wheat+coal) · mill (2 wheat) · tavern (2 bread) · pasture (wheat+#wool) · butcher (porkchop) · fishery (string) · hunters_lodge (arrow) |
+| working | 1 | farmhouse (seeds) · lumber_camp (#logs) · warehouse (chest) · bakery (wheat+coal) · mill (2 wheat) · tavern (2 bread+barrel) · pasture (wheat+#wool) · butcher (porkchop) · fishery (string) · hunters_lodge (arrow) |
 | skilled | 1 | smithy (2 ingot) · smelter (cobble+coal) · mason (2 stone) · weaver (2 string) · tannery (2 leather) · fletcher (flint+stick) · carpenter (2 #planks) · sawmill (2 #logs) · mine (2 raw_iron) · kitchen (beef+coal) · brewery (sugar+bottle) |
-| civic | 2 | architects_study (book) · dining_hall (book+bread) · infirmary (book+bottle) · market (book+emerald) · school (2 books) · library (3 books) |
-| martial | 2 | barracks (ingot+#wool) · watchtower (ingot+arrow) · armoury (2 ingots) |
+| civic | 2 | architects_study (book) · dining_hall (book+bread) · infirmary (book+bottle) · market (book+wool_bolt) · school (2 books) · library (3 books) |
+| martial | 2 | barracks (ingot+#wool) · watchtower (ingot+arrow+banner) · armoury (2 ingots) |
 
 All wood is tagged (`#minecraft:planks`, `#minecraft:logs`, `#minecraft:wool`)
 — the exact-oak trap that stopped a birch-forest settlement from recruiting

@@ -38,14 +38,14 @@ regrowth (the lumberjack replants), vein depth — never another building.
 | bakery | wheat→bread (slow) | flour→bread ×2 | hearth, dining hall |
 | kitchen | meat/fish→cooked (slow) | + greens→stew ×2 (variety!) | dining hall |
 | butcher | livestock→raw meat + hides | pasture keeps it stocked | kitchen, tannery |
-| brewery | wheat→small ale (slow) | malt→ale ×2 | tavern |
+| brewery | wheat→small ale (slow) | malt→ale ×2 | nobody yet — see note below |
 | smelter | ore→ingot (slow) | + bloom path with smithy ×2 | smithy, mason |
 | smithy | cobble→stone tools (slow) | ingots→iron tools/arms | EVERY worker (tool wear), armoury |
 | sawmill | logs→planks | steady lumber-camp supply | carpenter, builds |
-| carpenter | logs→rough goods (slow) | planks/beams→furniture, barrels ×2 | tavern, warehouse upkeep |
+| carpenter | logs→rough goods (slow) | planks/beams→furniture, barrels ×2 | tavern (build plan), warehouse upkeep (not yet wired) |
 | mason | stone→bricks/cut stone | — | repairs (raids!), hearth tiers |
 | tannery | hides→leather (slow) | cured-hide path with butcher ×2 | armoury, fletcher |
-| weaver | wool→cloth | steady pasture supply | outfits, market |
+| weaver | wool→cloth | steady pasture supply | market (build plan), outfits (not yet wired) |
 | fletcher | flint+stick→crude arrows | feathers+iron heads→true arrows ×2 | barracks/watchtower |
 
 **Ring 3 — HUBS.** Consume goods, output *effects* on people, never items:
@@ -114,6 +114,38 @@ FLOUR (mill), MALT (brewery), IRON_BLOOM (smelter↔smithy), TIMBER_BEAM
 (sawmill→carpenter), CURED_HIDE (butcher→tannery), WOOL_BOLT (weaver) —
 each sits exactly on a fed-path edge above, each has a rough path around
 it, and none is consumed by a Ring-1 building (sources stay dependency-free).
+
+**A seventh item, and an honest gap (as of 2026-08-26).** ALE (brewery's
+fed-path terminal, malt→ale) is not one of the six above — `ModItems.java`'s
+own comment already says why: vanilla has no ale-equivalent item the way the
+other five chains arrive at a real vanilla good, so ale is new rather than
+filled in. It sits on the same fed-path shape as the rest (rough: wheat→ale
+directly; fed: malt→ale at half the ticks per unit), but **nothing consumes
+it.** The Ring 3 line above ("tavern (ale+food → recruiting draw, fun)")
+names the intended destination, not a live one: `SettlementManager
+.tickRecruitment` gates recruiting on cached food and average morale only,
+never on ale, and no serving goal exists on `InnkeeperWorkGoal`. This is not
+an oversight to paper over with a fake sink — ale's real consumer is a
+tavern-serving mechanic, or a festival, that has not been built yet. When one
+is, ale is what it drinks. Until then a brewery's ale output is honestly a
+dead end, same as BALANCE_AUDIT finding 5 and SURVIVAL_AUDIT F11 both said.
+
+**Three other dead ends from that same finding are closed, one-time.**
+WOOL_BOLT (weaver's fed-path good) now has a live consumer: MARKET's build
+plan (`build_plan_market.json`) asks for one, closing SURVIVAL_AUDIT F4's
+emerald wall and BALANCE_AUDIT finding 5's WOOL_BOLT dead end in the same
+stroke — a settlement's own cloth pays for the market plaque instead of a
+mountain-biome gamble. BARREL (carpenter's rough/fed output) now feeds
+TAVERN's build plan alongside its bread — the "tavern (build plan)" note in
+the Ring 2 table above. WHITE_BANNER, not one of the six/seven CHAINS items
+but the same shape of pre-existing dead end (BALANCE_AUDIT finding 5), now
+feeds WATCHTOWER's build plan: the tower flies the settlement's colours from
+the tallest thing it owns. All three are ONE-TIME build-plan costs, not
+repeating recipe inputs — a settlement's ongoing surplus of any of them
+still has nowhere further to go once its one plaque is drafted. That is
+honest progress, not a solved chain: "leads somewhere real" and "has a
+repeating economic destination" are different claims, and only the first one
+is true here.
 
 ## Sequencing honesty
 

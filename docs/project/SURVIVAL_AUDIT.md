@@ -21,11 +21,12 @@ and built on throughout, especially Q1/Q4/Q5/Q6. As of 2026-08-26.*
 | **1** | PASTURE, FISHERY, HUNTERS_LODGE | same trivial plaque/plan/room cost as above | — | **WALL** — buildable, but **nobody can ever be hired to work them** (F1) |
 | **2** | Fed-path chains (MILL→bakery, tannery's cured-hide, sawmill's beams, smelter/smithy bloom) | needs the tier-1 upstream building already staffed and producing surplus | effort-bound, 1-4 days per pairing once staffed (BALANCE_AUDIT Q4/Q5) | **SMOOTH** once two workers exist, **GRIND** solo |
 | **2** | SMITHY + ARMOURY | plaque/plan trivial; **each room needs an anvil** = 31 iron ingots (vanilla: 3 iron blocks+4 ingots), **×2 buildings = 62 ingots**, entirely player-hand-mined before either building can validate | 62 iron ingots by hand — no settler industry exists yet to help | **GRIND** (F6) |
-| **2** | BREWERY, INFIRMARY | plaque/plan trivial (sugar+bottle / book+bottle); **room needs a `brewing_stand`** = 3 cobblestone + **1 blaze rod** (vanilla) | a full Nether trip: obsidian, portal, a fortress, a blaze kill | **WALL** (F3) until the player leaves the Overworld |
-| **3** | ARCHITECTS_STUDY + 6 research projects | plaque/plan trivial; room needs a lectern+2 bookshelves = 3 bookshelf-equivalents = 27 paper+9 leather (vanilla); every project after that costs 4 paper + 12-24 domain items, by hand, forever | ~1 day for the room; every project's materials must be **manually carried in** (F5) | **GRIND** |
-| **3** | LIBRARY | plaque/plan trivial (3 books); room needs **8 bookshelves + 1 lectern = 9 bookshelf-equivalents = 81 paper + 27 leather** — the single largest material bill of any building in the mod | paper is pure hand-gathering forever (no recipe makes it); leather ~2-3 tannery-days or ~14-27 cows by hand | **GRIND** (F7) |
+| **2** | BREWERY | plaque/plan trivial (sugar+bottle, `build_plan_brewery.json`); **room needs a `brewing_stand`** = 3 cobblestone + **1 blaze rod** (vanilla) | a full Nether trip: obsidian, portal, a fortress, a blaze kill | **WALL** (F3) until the player leaves the Overworld — kept deliberately: a brewery is a fair place to want one, and it is not a core-loop system |
+| **2** | INFIRMARY | plaque/plan trivial (book+bottle, `build_plan_infirmary.json`); room needs a **`cauldron`** (1 — `BuildingType.java`, same id KITCHEN/BREWERY/WEAVER already use) | reachable on the surface with water + iron, no dimension travel | **SMOOTH** (F3 CLOSED 2026-08-26) — healing is core-loop and should never have needed the Nether |
+| **3** | ARCHITECTS_STUDY + 6 research projects | plaque/plan trivial; room needs a lectern+2 bookshelves = 3 bookshelf-equivalents = 27 paper+9 leather (vanilla); every project after that costs 4 paper + 12-24 domain items, by hand, forever | ~1 day for the room; every project's materials must be **manually carried in** (F5) — the room's own 27 paper can now also come from a staffed mill (see LIBRARY row below), though F5's per-project hand-carry is untouched | **GRIND** |
+| **3** | LIBRARY | plaque/plan trivial (3 books); room needs **8 bookshelves + 1 lectern = 9 bookshelf-equivalents = 81 paper + 27 leather** — the single largest material bill of any building in the mod | paper can now be settler-ground at the MILL (sugar cane → paper, same 3:2/140-tick register as flour, `Production.java`) once a miller is staffed and supplied — the same way leather already could via the tannery; hand-gathering is no longer the only path for either half | **GRIND** (F7 EASED 2026-08-26) — both halves now scale with settlement maturity, not just leather |
 | **3** | SCHOOL | plaque/plan trivial (2 books) | modest | **SMOOTH** to build, **INERT** once built (F2) |
-| **3** | MARKET | plaque/plan needs paper+paper+feather+book+**1 emerald** (`build_plan_market.json`) | emerald has no guaranteed hand-source (no village nearby / no mountains biome / no loot found) | **WALL**, biome/seed-dependent (F4) — and **INERT** even if built (F2) |
+| **3** | MARKET | plaque/plan needs paper+paper+feather+book+**1 `hearthstead:wool_bolt`** (`build_plan_market.json`) | wool_bolt is settler-produced at the WEAVER (string→wool→wool_bolt); gated on a staffed, supplied weaver, never on luck | reachable, staffing-gated not seed-gated (**F4 CLOSED** 2026-08-26) — still **INERT** once built (F2, unchanged, out of this pass's scope) |
 
 **Legend.** WALL = a required ingredient or block has no survival source at
 all, or none reachable without content outside this progression (the
@@ -86,6 +87,12 @@ specifically these four that were never finished.
 
 ### F3 — BREWERY and INFIRMARY are gated behind a Nether trip, undocumented anywhere (WALL)
 
+**INFIRMARY half CLOSED 2026-08-26 — see the follow-up at the end of this
+document.** BREWERY is unchanged and stays a deliberate WALL (a coordinator
+decision, not an oversight): a brewery wanting a brewing stand is a fair
+ask, and brewing is not a core-loop system the way healing is. The trace
+below is left as originally written.
+
 `BuildingType.java:122-128` (BREWERY) and `:195-201` (INFIRMARY) both
 require a placed `Blocks.BREWING_STAND` in the room. Vanilla's own
 `brewing_stand` recipe is 3 cobblestone + **1 blaze rod** — obtainable
@@ -100,6 +107,10 @@ room-scan step. I grepped every `.md` in `docs/project/` for
 previously undocumented gate on two full buildings.
 
 ### F4 — MARKET's Build Plan needs an emerald a hand-only player may not have (WALL, seed-dependent)
+
+**CLOSED 2026-08-26 — see the follow-up at the end of this document.** The
+trace below is left as originally written; F2's separate INERT finding about
+MARKET (last sentence below) is unchanged and out of this pass's scope.
 
 `build_plan_market.json`: paper, paper, feather, book, **`minecraft:emerald`**
 — the only rare/non-craftable vanilla item across all 33 Build Plans (every
@@ -140,6 +151,10 @@ on top of the armor materials themselves (a full iron Captain kit is
 another 24 ingots per `Production.java:298-328`'s own commentary).
 
 ### F7 — The library's material bill is the largest in the mod, and half of it is uncraftable by settlers
+
+**EASED 2026-08-26 — see the follow-up at the end of this document.** The
+paper half is no longer permanently hand-only; the trace below (including
+its closing sentence) is left as originally written for the record.
 
 `BuildingType.java:246-251`: LIBRARY needs 8 bookshelves + 1 lectern.
 Vanilla's lectern recipe itself consumes a bookshelf, so the true total is
@@ -274,3 +289,69 @@ design, unlike the other three.
 `docs/project/BALANCE_AUDIT.md`, `docs/project/DECISIONS.md` (D-005, D-006),
 plus whole-tree greps for `BuildingType.{WELL,INFIRMARY,SCHOOL,MARKET,
 DINING_HALL}` and for `blaze|nether|brewing_stand` across every doc.
+
+---
+
+## Follow-up: three reachability walls closed, one left standing on purpose
+
+**2026-08-26, WALLS-2.** This pass closed the findings above that were about
+*reachability* — a survival player physically unable to get to a building —
+while leaving the ones about missing gameplay systems (F1, F2, F5, F6) for
+other work. Scope was `BuildingType.java`, `Production.java`,
+`data/hearthstead/recipe/*.json`, and this document's own siblings.
+
+**F3, half closed.** INFIRMARY's room requirement
+(`BuildingType.java`) no longer asks for a `brewing_stand`; it asks for a
+`cauldron` instead, reusing the exact requirement id (and therefore the
+exact lang key) KITCHEN/BREWERY/WEAVER already use — no new translation
+needed. A cauldron is vanilla's own healer/herbalist fixture (the witch
+hut pairs one with potion work), so the room still reads as an infirmary,
+and it is reachable with a water source and 7 iron ingots, no dimension
+travel. BREWERY keeps its brewing stand: this was the coordinator's own
+call, on the grounds that a brewery wanting one is a fair, on-theme ask,
+and brewing is not the core-loop system healing is. **INFIRMARY moves from
+WALL to SMOOTH in the tier table above; BREWERY is untouched.**
+
+**F4, closed.** `build_plan_market.json`'s emerald is now
+`hearthstead:wool_bolt` — the weaver's own fed-path good (string→wool→
+wool_bolt), reachable by any settlement with a staffed, supplied weaver,
+never gated on biome or seed. This is a deliberate, documented break from
+COSTS.md's "no mod intermediate" rule for build plans (see COSTS.md's own
+second deviation note) — MARKET is civic tier, never a day-one building,
+so pricing it in the settlement's own production reads truer than pricing
+it in vanilla luck. It also closes BALANCE_AUDIT finding 5's WOOL_BOLT dead
+end in the same stroke (FLOWS.md's CHAINS section has the full reasoning).
+F2's separate finding that a built MARKET is still INERT (no code reads its
+presence) is unchanged — that is a missing-system problem, not a
+reachability one, and stays out of this pass.
+
+**F7, eased, not closed.** The mill (`Production.java`) now grinds
+`minecraft:sugar_cane` into `minecraft:paper` at the same 3-in/2-out,
+140-tick register as its existing flour recipe — the task's own
+instruction to "read what the mill charges for flour and match the idiom."
+This does not shrink the library's 81-paper bill (still 81 paper + 27
+leather, `BuildingType.java` is unchanged for LIBRARY) — it means that bill
+can now be worked down by a staffed mill and a staffed tannery instead of
+paper being permanent, un-shrinkable hand labour regardless of how mature
+the settlement gets. The same fix eases ARCHITECTS_STUDY's own 27-paper
+room cost for free, though F5's real grind there (every research project's
+materials being hand-carried, forever) is untouched — a different finding,
+not in scope here. Chest-true proof:
+`ChainsGameTests#millGrindsSugarCaneIntoPaperChestTrue`.
+
+**BALANCE_AUDIT finding 5, three of four addressed.** WOOL_BOLT and BARREL
+now feed real build plans (MARKET and TAVERN respectively); WHITE_BANNER now
+feeds WATCHTOWER's. ALE is deliberately NOT given an artificial sink — its
+real consumer is a tavern-serving mechanic or a festival system that does
+not exist in this codebase yet, and FLOWS.md now says so directly rather
+than implying it works. All three closed goods are one-time build-plan
+costs, not repeating recipe inputs; a settlement's ongoing surplus of any of
+them still has nowhere further to go once its one plaque is drafted.
+
+**Left open, deliberately:** F1 (no PASTURE/FISHERY/HUNTERS_LODGE trade),
+F2 (INFIRMARY/SCHOOL/MARKET/WELL still do nothing when built — the
+INFIRMARY room-requirement fix above is orthogonal to this), F5 (research
+errands), F6 (62 iron ingots for two anvils), and BREWERY's own Nether wall
+(F3's other half). None of these are reachability problems this pass's file
+ownership could fix without inventing gameplay systems the task explicitly
+warned against inventing.

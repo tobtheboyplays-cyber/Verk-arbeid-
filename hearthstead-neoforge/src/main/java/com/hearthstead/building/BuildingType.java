@@ -192,8 +192,16 @@ public enum BuildingType {
         Requirement.lights(2),
         Requirement.floorSpace(16)),
 
+    // SURVIVAL_AUDIT.md F3: a brewing_stand here gated a core-loop building
+    // behind an undocumented Nether trip (vanilla's own recipe needs a
+    // blaze rod). Coordinator's decision: the infirmary loses that gate. A
+    // cauldron reads as the healer's fixture instead -- vanilla's own witch
+    // hut already pairs a cauldron with herbal/potion work, so the room
+    // still looks and feels like a hearthside infirmary, and the "cauldron"
+    // requirement id is the same vocabulary KITCHEN/BREWERY/WEAVER already
+    // use, so no new lang key is needed.
     INFIRMARY("infirmary", 0, 1, Items.GOLDEN_APPLE,
-        Requirement.blocks("brewing_stand", 1, Blocks.BREWING_STAND),
+        Requirement.blocks("cauldron", 1, Blocks.CAULDRON, Blocks.WATER_CAULDRON),
         Requirement.beds(2),
         Requirement.blocks("storage", 1, Blocks.CHEST, Blocks.BARREL),
         Requirement.doors(1),
