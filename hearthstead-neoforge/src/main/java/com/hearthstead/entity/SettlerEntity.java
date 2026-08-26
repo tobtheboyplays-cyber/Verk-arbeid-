@@ -1029,8 +1029,12 @@ public class SettlerEntity extends PathfinderMob {
             && (profession == Profession.GUARD || profession == Profession.ARCHER), tickCount);
         idleCourierState.animateWhen(idleTrade && !moving
             && profession == Profession.COURIER, tickCount);
+        // ARMOURY-3: an armourer's idle is the same forge-side wait as the
+        // smith's and the smelter's -- both hands flex, then wipe down the
+        // apron -- so it joins this gate rather than getting a bespoke clip.
         idleForgeState.animateWhen(idleTrade && !moving
-            && (profession == Profession.SMITH || profession == Profession.SMELTER), tickCount);
+            && (profession == Profession.SMITH || profession == Profession.SMELTER
+                || profession == Profession.ARMOURER), tickCount);
         idleBakerState.animateWhen(idleTrade && !moving
             && (profession == Profession.BAKER || profession == Profession.MILLER), tickCount);
         idleCookState.animateWhen(idleTrade && !moving

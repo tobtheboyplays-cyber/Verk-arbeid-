@@ -54,7 +54,18 @@ public enum Profession {
     // renderer's ItemInHandLayer draws it for free. Forest green, distinct
     // from the guard's iron grey and the farmer/fletcher sage: the tower
     // archer is a woodland silhouette, not a wall one.
-    ARCHER(21, "archer", () -> new ItemStack(Items.BOW), 0x2E5D34);
+    ARCHER(21, "archer", () -> new ItemStack(Items.BOW), 0x2E5D34),
+    // ARMOURY-3 (docs/project/PLAN_CIRCULATION.md, "still open,
+    // MILITARY-OUT-adjacent"): Production.of(ARMOURY) gained eight real
+    // recipes (ARMOURY-2) but nobody could be HIRED to run them --
+    // Employment.tradeOf(ARMOURY) was Profession.NONE, so hire() refused
+    // with no_trade and the recipes were reachable only from a GameTest
+    // calling Production.run() directly. Same precedent MILLER/BREWER set
+    // one slice earlier: a Production table without a hireable trade on it
+    // is worse than no table (D-014). A crafting trade, so hands stay free
+    // like every other one above -- the hammer at the anvil is what
+    // identifies them, not an item at the hip.
+    ARMOURER(22, "armourer", () -> ItemStack.EMPTY, 0x6E7A8A);
 
     public static final Profession[] BY_ID = values();
 

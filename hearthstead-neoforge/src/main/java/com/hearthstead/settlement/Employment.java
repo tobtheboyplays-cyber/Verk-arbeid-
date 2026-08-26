@@ -140,6 +140,14 @@ public final class Employment {
         // trades -- they only needed a trade on this map to become hireable.
         TRADES.put(BuildingType.MILL, Profession.MILLER);
         TRADES.put(BuildingType.BREWERY, Profession.BREWER);
+
+        // ARMOURY-3: the armoury's Production table (eight recipes,
+        // ARMOURY-2) had no trade on this map, so hire() refused every
+        // attempt with no_trade and CrafterWorkGoal never had anyone to
+        // send there -- see docs/project/PLAN_CIRCULATION.md's "still open,
+        // MILITARY-OUT-adjacent" entry. Same shape of follow-up as MILL and
+        // BREWERY just above.
+        TRADES.put(BuildingType.ARMOURY, Profession.ARMOURER);
     }
 
     /**
@@ -191,6 +199,17 @@ public final class Employment {
             // same footnote as INNKEEPER and SCHOLAR above -- never a
             // generic work loop, which is what this map exists to forbid.
             case ARCHER -> SettlerActivity.PATROLLING;
+            // ARMOURY-3: an armourer hammering plate at an anvil is the
+            // same physical act as a smith hammering a blade at one -- the
+            // existing HAMMER_ANVIL clip (WORK_HAMMER's SettlerAnimations
+            // clip, hammerState) fits exactly, so this reuses it rather
+            // than authoring a bespoke one, the same call already made for
+            // INNKEEPER/SCHOLAR/MILLER/BREWER/ARCHER above. soundOf/
+            // soundPeriodOf/soundContactOf below key off this motion, not
+            // the trade, so ANVIL_RING at its contact tick (9) follows for
+            // free -- no separate entry needed in any of the three tables
+            // below.
+            case ARMOURER -> SettlerActivity.WORK_HAMMER;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -341,7 +360,9 @@ public final class Employment {
     /** The attribute a trade's work trains, so doing the job makes you better at it. */
     public static Attribute trainedBy(BuildingType type) {
         return switch (tradeOf(type)) {
-            case SMITH, MASON, SMELTER, LUMBERER, MINER -> Attribute.STRENGTH;
+            // ARMOURY-3: hammering plate is the same STRENGTH-trained work
+            // as the smithy's own hammering, right beside it below.
+            case SMITH, MASON, SMELTER, LUMBERER, MINER, ARMOURER -> Attribute.STRENGTH;
             case COURIER, GUARD -> Attribute.STAMINA;
             case BAKER, COOK, BUTCHER, TANNER, SAWYER, CARPENTER,
                  FLETCHER, WEAVER, FARMER,
