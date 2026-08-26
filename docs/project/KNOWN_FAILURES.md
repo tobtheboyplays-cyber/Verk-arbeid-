@@ -1402,3 +1402,28 @@ settlement fact, which the settlement knows) from "the mayor's entity is not
 in memory right now" (a loading fact, which it does not) — the same
 distinction `BuildingManager` already makes correctly with
 `level.isLoaded(plaquePos)` before dissolving anything (KF-021).
+
+### The world wipe on its own is not the cure — measured, not assumed
+
+**Run 20260826T0508Z at a09f018, first run with the new
+`rm -rf run/world`: 15 red, where the last contaminated run at the same
+area of the tree was 14.** Membership shifted again (the butcher and the
+fletcher in, the carpenter out).
+
+So the wipe changed nothing about how red the suite is, and that is the
+expected result rather than a disappointment. Two contaminations were
+running, and they are different sizes:
+
+- **Across runs:** yesterday's settlements resumed from `run/world`. The wipe
+  removes this entirely. It is what makes two runs of one commit *comparable*.
+- **Within one run:** 84 batches feed one `SettlementSavedData` in a single
+  JVM, reaching 441 buildings by tick 4880. The wipe does nothing about this,
+  and this is the one that decides whether the sweep cursor reaches a given
+  test's plaqueless building before that test ends.
+
+Only the fixture fix — a real `PlaqueBlock` at every registered building's
+`plaquePos` — addresses the second, and it is the one that makes the suite
+green. The wipe is what makes the green mean something afterwards. Recorded
+because "we fixed the world contamination and the count went UP by one" is
+exactly the shape of result that gets quietly dropped, and the reason it went
+up is more useful than the number.
