@@ -36,7 +36,14 @@ public enum RaidObjective {
     BLOD,
     /** Buildings. Arson, and let it spread. */
     BRANN,
-    /** One named settler, seized and carried off. */
+    /**
+     * One named settler, seized and carried off.
+     *
+     * <p><b>Disarmed 2026-08-26 (raid-night audit).</b> The enum value, its
+     * saga epithets ({@link com.hearthstead.saga.Captain#epithetsFor}) and
+     * its lang strings are kept — see {@link #isAvailableAt} for why it is
+     * never actually offered.
+     */
     LOSEPENGER;
 
     public String id() {
@@ -56,8 +63,27 @@ public enum RaidObjective {
             case BLOD -> settlement.population() > 0;
             // Arson needs something built to burn.
             case BRANN -> builtCount(settlement) > 0;
-            // Taking a hostage needs a settlement big enough to miss one.
-            case LOSEPENGER -> settlement.population() >= 4;
+            // DISARMED 2026-08-26 (raid-night audit): never offered. A
+            // LOSEPENGER raid today would be a lie the game tells the
+            // player -- the objective is selectable, the morning report
+            // would name it "Ransom", and a successful captain would earn
+            // "the Ransomer"/"Chain-Bringer" (Captain#epithetsFor), but no
+            // code anywhere seizes a settler, carries one off, or holds one
+            // anywhere: every raider's destination is the settlement centre
+            // regardless of objective (RaidDirector#spawnBand), and there is
+            // no captured-settler state, no camp, no cage, no rescue path.
+            // A LOSEPENGER raid would therefore play out pixel-for-pixel
+            // identically to a BLOD raid while claiming to be something
+            // else entirely -- the "game reports something that did not
+            // happen" defect class this project treats as unforgivable.
+            // Bring it back only alongside the real thing: a raider goal
+            // that seizes a live settler target instead of just fighting
+            // it, a way to mark that settler captured (not dead) and carry
+            // them off screen, and a report/epithet that only fire once a
+            // seizure actually happened this raid -- see the raid-night
+            // audit report (2026-08-26) for the fuller sketch. Until then
+            // this arm stays a hard `false`, never a population check.
+            case LOSEPENGER -> false;
         };
     }
 

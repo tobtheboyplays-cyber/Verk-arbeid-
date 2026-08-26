@@ -248,15 +248,23 @@ public class RaidPressureGameTests {
         helper.assertTrue(!RaidObjective.BRANN.isAvailableAt(bare),
             "nothing built means nothing to burn");
         helper.assertTrue(!RaidObjective.LOSEPENGER.isAvailableAt(bare),
-            "one settler is too few to ransom one");
+            "LOSEPENGER is disarmed (raid-night audit, 2026-08-26): never "
+                + "available, not even for a settlement big enough to miss "
+                + "a settler -- see RaidObjective#isAvailableAt");
         helper.assertTrue(RaidObjective.BLOD.isAvailableAt(bare),
             "but people are always something to lose");
 
         Settlement rich = settlement(8, 3);
+        // LOSEPENGER is deliberately excluded even here: it is disarmed
+        // (RaidObjective#isAvailableAt), not merely gated on wealth, so a
+        // rich settlement attracts every OTHER objective but never this one.
+        helper.assertTrue(!RaidObjective.LOSEPENGER.isAvailableAt(rich),
+            "LOSEPENGER must stay disarmed regardless of settlement size");
         helper.assertTrue(RaidObjective.availableAt(rich).size()
-                == RaidObjective.values().length,
+                == RaidObjective.values().length - 1,
             "a settlement with people, buildings and stores attracts every "
-                + "objective, got " + RaidObjective.availableAt(rich));
+                + "objective except the disarmed LOSEPENGER, got "
+                + RaidObjective.availableAt(rich));
 
         // And a pick is always one of the available ones, never a dud.
         var random = helper.getLevel().getRandom();
