@@ -32,22 +32,36 @@ import java.util.EnumSet;
  * <h2>Detecting "blocked" without watching any other goal</h2>
  *
  * <p>This goal never inspects what {@code RaiderLootGoal} or the target
- * selector are privately doing — it only ever watches two things vanilla
- * already tracks on every entity: whether it is standing still, and whether
- * {@code Entity#horizontalCollision} has EVER been true since it started
- * standing still — the exact signal vanilla's own {@code DoorInteractGoal}
- * uses to know a mob has bumped into something solid, just remembered
- * across the window rather than required on every single tick of it (a
- * blocked raider's navigation does not necessarily push into the obstacle
- * every tick once it has already arrived at the closest reachable point).
- * Requiring the collision at all is what matters: a looting raider standing
- * at a chest is stationary but never once collides (it stopped on purpose,
- * in open air), so no matter how long it stands there it is never mistaken
- * for stuck, while a raider parked against a door or wall it cannot pass
- * collided getting there. Only once the raider has been stationary AND has
- * collided at least once inside that same stationary window for {@link
- * #STUCK_THRESHOLD_TICKS} — while it still wants to be somewhere it is not
- * — does it look for something to break.
+ * selector are privately doing — it only ever watches what vanilla already
+ * tracks on every entity: whether it is standing still, and whether it is
+ * still short of where it actually wants to be ({@link #destinationFor},
+ * never {@code RaiderLootGoal}'s private chest target). A raider that
+ * stopped on purpose (it reached what it actually wanted, e.g. a chest to
+ * loot) is never mistaken for stuck, because it is standing still
+ * <em>at</em> its destination — within {@link #REACH_SQR} of it — and the
+ * "already there" check in {@link #canUse()} rules it out before the
+ * stationary window is ever armed at all. Only once the raider has been
+ * stationary for {@link #STUCK_THRESHOLD_TICKS} while still wanting to be
+ * somewhere it is not, AND something within reach is actually breachable
+ * ({@link #findBreachCandidate}, the real backstop against a false
+ * positive), does it look for something to break.
+ *
+ * <p><b>Collision is a hint, never a precondition.</b> An earlier version
+ * of this goal also required {@code Entity#horizontalCollision} to have
+ * fired at least once in the stationary window — the same signal vanilla's
+ * own {@code DoorInteractGoal} uses to know a mob has bumped into
+ * something solid. That is wrong for exactly the case this goal exists to
+ * handle: a closed IRON door. {@code WalkNodeEvaluator} marks {@code
+ * DOOR_IRON_CLOSED} a closed node and excludes it as a neighbour outright
+ * (mobs cannot open iron doors, vanilla or otherwise), so the pathfinder
+ * never routes through it at all — it returns a PARTIAL path ending one
+ * cell short, the raider walks that to completion, and stands there
+ * motionless, having pressed into nothing. A raider in exactly that state
+ * would never have satisfied a collision requirement and would stand there
+ * for the rest of the raid. Collision, when it IS observed, only shortens
+ * the wait ({@link #COLLISION_CONFIRM_TICKS}) — a raider that audibly
+ * bumps something is certainly blocked and does not need the full window
+ * to prove it, but the absence of a bump proves nothing either way.
  *
  * <h2>Doors first, a wall only if none is adjacent</h2>
  *
@@ -96,8 +110,17 @@ public class RaiderBreachGoal extends Goal {
     /** How long the raider must sit essentially still, still wanting to be
      * elsewhere, before "not moving yet" becomes "blocked". Short enough that
      * a raid does not read as raiders standing around; long enough that an
-     * ordinary one-tick pathing hiccup never trips it. */
+     * ordinary one-tick pathing hiccup never trips it. The only threshold a
+     * raider that never collides (see the class doc's iron-door case) ever
+     * gets judged against. */
     private static final int STUCK_THRESHOLD_TICKS = 40;
+    /** A raider that HAS visibly collided needs only this much confirmation
+     * — vanilla's own "bumped into something solid" signal is trustworthy on
+     * its own, so there is no reason to make it wait as long as a raider the
+     * pathfinder simply stopped short of, with nothing to press into. Purely
+     * a faster path to the same conclusion {@link #STUCK_THRESHOLD_TICKS}
+     * reaches anyway — never required, see the class doc. */
+    private static final int COLLISION_CONFIRM_TICKS = 10;
     /** Movement under this (squared) between two samples still counts as
      * "not moving" — forgiving enough that the small in-place jitter of a
      * mob pressed against a wall does not keep resetting the timer. */
@@ -151,7 +174,8 @@ public class RaiderBreachGoal extends Goal {
     private BlockPos stuckAnchor;
     private long stuckSinceTime = -1L;
     /** Whether {@code horizontalCollision} has fired at least once since
-     * {@link #stuckAnchor} was last set — see {@link #canUse()}. */
+     * {@link #stuckAnchor} was last set — a faster-confirmation hint only,
+     * see {@link #canUse()} and the class doc; never required to be true. */
     private boolean collidedSinceAnchor;
 
     public RaiderBreachGoal(RaiderEntity raider) {

@@ -971,6 +971,8 @@ public class CourierWorkGoal extends Goal {
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
                 giveUp();
             } else {
+                // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+                tempLogRepath("TO_SOURCE", sourcePos, source);
                 pathToChest(sourcePos);
             }
         }
@@ -1186,6 +1188,8 @@ public class CourierWorkGoal extends Goal {
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
                 giveUp();
             } else {
+                // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+                tempLogRepath("TO_CRAFTER", craftDropOff, crafter);
                 pathToChest(craftDropOff);
             }
         }
@@ -1434,6 +1438,20 @@ public class CourierWorkGoal extends Goal {
             + ":rest" + rest + ":run" + consecutiveFailures
             // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
             + tempStuckDiagnostic());
+    }
+
+    // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
+    private void tempLogRepath(String leg, BlockPos target, Building building) {
+        BlockPos at = settler.blockPosition();
+        boolean inBounds = building == null || building.bounds == null
+            || building.bounds.isInside(at);
+        com.hearthstead.Hearthstead.LOGGER.info(
+            "COURIER-DIAG {} run{} stuck{} at={} target={} d2={} inBounds={} "
+                + "navDone={} navStuck={} pathEntity={}",
+            leg, consecutiveFailures + 1, stuckChecks, at.toShortString(),
+            target.toShortString(), at.distSqr(target), inBounds,
+            settler.getNavigation().isDone(), settler.getNavigation().isStuck(),
+            settler.getNavigation().getPath());
     }
 
     // TEMP-DIAGNOSTIC (COURIER-FIX): strip before finishing.
