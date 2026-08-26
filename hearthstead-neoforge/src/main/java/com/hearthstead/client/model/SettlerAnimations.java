@@ -2649,15 +2649,50 @@ public final class SettlerAnimations {
     // and a decelerating release with a small overshoot back to rest.     //
     // Where two or three trades share a clip the sharing is justified in  //
     // that clip's own comment -- the instruction was "genuinely the same  //
-    // motion", not "close enough".                                       //
+    // motion", not "close enough". All fourteen are catalogued in         //
+    // docs/ANIMATION_CATALOGUE.md section 22.                             //
     //                                                                     //
-    // NOTE for whoever next touches docs/ANIMATION_CATALOGUE.md: these    //
-    // fourteen clips are not yet catalogued there (out of this piece's    //
-    // file ownership -- see the piece report). tools/anim_check.py's      //
-    // catalogue-coverage check (17.2-12) will flag all fourteen as        //
-    // "implemented but not in ANIMATION_CATALOGUE.md" until a §22 Idle    //
-    // variety section is added with one `### 22.N \`NAME\`` heading per   //
-    // clip below.                                                        //
+    // WHY these are built by private static methods instead of plain     //
+    // field initializers (read this before adding clip #15 inline):      //
+    // every `public static final AnimationDefinition X = ...` in this     //
+    // class is a static field initializer, and javac compiles ALL of      //
+    // them, in source order, into ONE method -- the class's <clinit>.     //
+    // Adding these fourteen clips as ordinary inline initializers (the    //
+    // style every clip above uses) pushed that single method's bytecode   //
+    // past the JVM's hard 64KB-per-method ceiling: "error: code too       //
+    // large", pointing at the class's FIRST field (IDLE), nowhere near    //
+    // the clip that actually tipped it over -- a genuinely confusing      //
+    // error if you don't already know <clinit> is one shared method.      //
+    //                                                                     //
+    // The fix: each clip below is built inside its own private static     //
+    // `buildXxx()` method, which gets its OWN 64KB budget, independent of //
+    // <clinit>'s. <clinit> then only holds fourteen cheap method-call      //
+    // assignments (`IDLE_FARMER = buildIdleFarmer();`), not the keyframe   //
+    // bulk itself.                                                        //
+    //                                                                     //
+    // One deliberate wrinkle: inside each `buildXxx()` method the return   //
+    // value is assigned to a LOCAL variable with the SAME name as the      //
+    // public field it feeds (legal Java -- the local shadows the field     //
+    // only within that method body). This is not decorative:            //
+    // tools/anim_check.py's parser is a regex over the raw source text     //
+    // for the literal pattern `AnimationDefinition <NAME> = `             //
+    // `AnimationDefinition.Builder ... .build();` -- it does not run a     //
+    // real Java parser and has no idea what a method or a <clinit> is. A   //
+    // bare `return AnimationDefinition.Builder...` (no name before the     //
+    // assignment) is invisible to that regex, and an invisible clip is     //
+    // worse than a flagged one: it silently skips every structural/craft   //
+    // check (bone whitelist, tick grid, loop closure, amplitude budgets,   //
+    // legs-present, cloak motion...) while still printing "PASS". Naming   //
+    // the local exactly like the field is what makes the checker see the   //
+    // clip at all.                                                        //
+    //                                                                     //
+    // So: the next new clip in this file can go back to a plain inline     //
+    // field initializer UNTIL/UNLESS the class starts failing to compile   //
+    // with "code too large" again -- at which point wrap that one (or a    //
+    // few) in the same `buildXxx()` + same-named-local pattern rather      //
+    // than reaching for something more exotic. Do not "fix" this by        //
+    // renaming the local to something other than the clip's name; that     //
+    // silently reopens the invisible-to-anim_check.py hole above.          //
     // ================================================================== //
 
     /**
