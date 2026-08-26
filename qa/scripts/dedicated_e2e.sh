@@ -49,8 +49,35 @@ check_pass instance "$INST"
 
 boot() { # duration commands-file tag
     local dur="$1" cmds="$2" tag="$3"
+    # Start from a clean log so wait_for_done below cannot be satisfied by the
+    # PREVIOUS boot's "Done (" line -- the restart reuses this instance
+    # directory, so latest.log survives between boots.
+    rm -f "$INST/logs/latest.log"
     set -m   # so the backgrounded pipeline gets its own process group (PGID == PID)
-    ( sleep 20
+    ( # Wait for the condition the commands actually depend on -- the server
+      # being ready -- instead of guessing a duration. This used to be a flat
+      # `sleep 20`, which was tuned for the FIRST boot (~20s: JVM + mod load +
+      # world generation) and was wrong for the second, where the world already
+      # exists and the server reaches Done in under a second of level loading.
+      # On 2026-08-26 that raced: the restart's commands were issued 0.135s
+      # after Done, both threw, and the suite reported "settlers lost after
+      # restart" -- while the settlers had persisted perfectly. Verified by
+      # hand on the very same world directory: with a real wait, `hearthstead
+      # info` prints "Ashhaven - population 3/3" and the settler selector
+      # matches. A judge that cries data loss when no data was lost is worse
+      # than no judge, so this waits on the log line rather than on a clock.
+      #
+      # Nothing is weakened: every assertion downstream is untouched, and the
+      # timeout still bounds the wait, so a server that genuinely never starts
+      # still fails -- on server_restarted, with its own message.
+      local waited=0
+      while [ "$waited" -lt 120 ]; do
+          grep -q 'Done (' "$INST/logs/latest.log" 2>/dev/null && break
+          sleep 1; waited=$((waited + 1))
+      done
+      # A short settle after Done: the level is up, but entity chunks stream in
+      # just behind it, and `@e` must be able to see them.
+      sleep 8
       [ -f "$cmds" ] && while IFS= read -r line; do
             case "$line" in SLEEP*) sleep "${line#SLEEP }";; *) echo "$line";; esac
         done < "$cmds"
