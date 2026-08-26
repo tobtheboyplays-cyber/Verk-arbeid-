@@ -192,12 +192,16 @@ public class RaiderEntity extends Monster {
         goalSelector.addGoal(2,
             new com.hearthstead.entity.ai.RaiderScoutGoal(this));
         // RAIDER-HUNT: the BLOD objective's own goal -- see its class doc.
-        // Mutually exclusive with both goals above at the same priority:
-        // gated on objective()==BLOD (RaiderLootGoal needs KORN) and
-        // !isScout() (RaiderScoutGoal needs isScout()), so exactly one of
-        // the three can ever be canUse()==true for a given raider.
+        // RAIDER-ARSON: BRANN's equivalent, same shape, buildings instead of
+        // settlers -- see its class doc. All four goals at this priority are
+        // mutually exclusive: gated on objective()==BLOD, objective()==BRANN,
+        // objective()==KORN (RaiderLootGoal) and isScout() (RaiderScoutGoal)
+        // respectively, so exactly one of the four can ever be canUse()==true
+        // for a given raider.
         goalSelector.addGoal(2,
             new com.hearthstead.entity.ai.RaiderHuntGoal(this));
+        goalSelector.addGoal(2,
+            new com.hearthstead.entity.ai.RaiderArsonGoal(this));
         goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
