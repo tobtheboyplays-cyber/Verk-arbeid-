@@ -125,6 +125,23 @@ a raid succeeds or fails, only whether the captain's own story tracks it.
 
 ---
 
+## 7. The hire celebration puts an arm through the torso
+
+**What you'll see:** hire a settler and they celebrate -- and on the first
+frames an arm swings past vertical and clips through the chest.
+
+**Cosmetic or functional:** purely cosmetic, and only on the celebration.
+The cause is that the celebration clip was authored to sit on top of a light
+idle breath layer, but the activity it expects is never actually set by any
+code, so it lands on top of a full-body trade idle instead and the two sum.
+Found today by an animation-reachability sweep; not fixed, because the fix
+is a real decision about which layer wins and that was not something to
+rush hours before you sat down with it.
+
+**Workaround:** none needed. It passes in about a second.
+
+---
+
 ## Already found and fixed tonight, mentioned so you don't rediscover them
 
 These were real bugs during tonight's build and are confirmed fixed in
@@ -145,6 +162,15 @@ earlier build, or a doc that hasn't caught up, doesn't confuse you:
 - A "Ransom" raid objective existed in the UI and could earn a captain a
   title, but no code ever actually took a settler hostage — the game was
   reporting an event that never happened. Removed rather than left lying.
+- The lumberjack froze on every tree. After felling his first log he stood
+  motionless in the bare rig for the rest of the trunk -- about twelve
+  seconds of a statue per oak, on the first worker anyone hires. Two causes
+  in three lines: the stoop animation was started on the server copy no
+  screen ever renders, and the same call parked him in an activity with no
+  animation at all that nothing ever cleared. Fixed.
+- A leaping guard pedalled through the air in the plain walk cycle. Same
+  root cause as the two above -- the authored leap was never sent to the
+  client. Fixed.
 - Raiders never sprinted. A charging raider played its creeping stalk
   animation the whole way in, through the kill — filmed, then traced: the
   animation asked the raider for its combat target, and that is server-only
