@@ -93,6 +93,17 @@ public class LumbererWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
+        // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- remove
+        // before landing. Throttled to ~once/5s so it does not flood a
+        // 1600-tick GameTest.
+        if (settler.level().getGameTime() % 100 == 0) {
+            com.hearthstead.Hearthstead.LOGGER.info(
+                "[LUMBER-DIAG] canUse day={} prof={} bound={} phase={} work={} energy={} "
+                    + "effortSpent={} bag={} scanCooldown={} mode={} treeBase={}",
+                settler.level().getDayTime(), settler.getProfession(), settler.isBound(),
+                settler.dayPhase(), settler.dayPhase().work(), settler.getEnergy(),
+                settler.isEffortSpent(), bagCount(), scanCooldown, mode, treeBase);
+        }
         if (!workConditions()) {
             return false;
         }
@@ -111,6 +122,17 @@ public class LumbererWorkGoal extends Goal {
         scanCooldown = 80 + settler.getRandom().nextInt(40);
         List<BlockPos> bases = scanner.scanColumns(s.center, s.radius, 512, 6,
             this::trunkInColumn);
+        // TEMPORARY DIAGNOSTIC -- remove before landing.
+        {
+            StringBuilder sb = new StringBuilder();
+            for (BlockPos base : bases) {
+                List<BlockPos> logs = validateTree(base);
+                sb.append(base).append("->logs=").append(logs.size()).append("; ");
+            }
+            com.hearthstead.Hearthstead.LOGGER.info(
+                "[LUMBER-DIAG] scan day={} center={} radius={} baseCount={} results=[{}]",
+                settler.level().getDayTime(), s.center, s.radius, bases.size(), sb);
+        }
         for (BlockPos base : bases) {
             List<BlockPos> logs = validateTree(base);
             if (!logs.isEmpty()) {
@@ -302,6 +324,15 @@ public class LumbererWorkGoal extends Goal {
             settler.setActivity(SettlerActivity.WORK_CHOP);
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
+            // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) --
+            // remove before landing.
+            com.hearthstead.Hearthstead.LOGGER.info(
+                "[LUMBER-DIAG] tickTravel stuck day={} pos={} treeBase={} distSqr={} "
+                    + "stuckChecks={} navDone={} navStatus={}",
+                settler.level().getDayTime(), settler.blockPosition(), treeBase,
+                settler.blockPosition().distSqr(treeBase), stuckChecks + 1,
+                settler.getNavigation().isDone(),
+                settler.getNavigation().getPath());
             if (++stuckChecks > 6) {
                 // Unreachable tree; rescan later. Recorded rather than
                 // endured (SettlerEntity#recordRouteFailure's whole reason
