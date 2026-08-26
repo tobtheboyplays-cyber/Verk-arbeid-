@@ -5,46 +5,171 @@ original by construction, exactly sized, and reproducible. Light convention:
 top-left key light — top faces brightest, front neutral, sides dimmed, back
 and bottom darkest.
 """
+import colorsys
+import math
 import random
+from collections.abc import Mapping, Set as AbstractSet
+from numbers import Real
 from PIL import Image
 
 # ---------------------------------------------------------------- palette ---
-# Grounded European medieval palette. Each ramp is dark -> light.
-PALETTES = {
-    "linen":     ["#8f8268", "#b3a582", "#cbbc97", "#e0d3b0", "#efe5c8"],
-    "linen_raw": ["#7d7156", "#a08f6e", "#bfae8a", "#d6c7a2", "#e8dcc0"],
-    "oak":       ["#3a2c19", "#4a3820", "#5a4429", "#6e5638", "#83694a"],
-    "oak_light": ["#4a3820", "#5f4a2c", "#75603c", "#8a744e", "#9e8862"],
-    "stone":     ["#4f4c40", "#62604f", "#75715f", "#8a8578", "#9c978a"],
-    "leather":   ["#4a3116", "#64411f", "#7a5230", "#8d6238", "#a1774b"],
-    "burgundy":  ["#4e2427", "#692f33", "#7e3b40", "#93494e", "#a65a5f"],
-    "forest":    ["#2c3f27", "#3a5233", "#4a6741", "#5b7a50", "#6d8e61"],
-    "wheat":     ["#8a6423", "#a87f2e", "#c29038", "#d9a94c", "#e8c06b"],
-    "iron":      ["#26262b", "#35353a", "#46464c", "#57575e", "#6b6b73"],
-    "amber":     ["#b06a1e", "#d18a2c", "#e8a33c", "#f5c56a", "#ffdd8e"],
-    "ember":     ["#6b1d10", "#a33517", "#d95b1e", "#f08c2e", "#ffc45e"],
-    "skin":      ["#8a5c3d", "#b07c55", "#c08d67", "#d9a886", "#e8bf9c"],
-    "skin_tan":  ["#6e4426", "#8a5c3d", "#a06f47", "#b58256", "#c99668"],
-    "skin_deep": ["#3d2718", "#5c3c25", "#754d30", "#8f613c", "#a8754a"],
-    "skin_pale": ["#a8785a", "#c99878", "#dbad8e", "#e8c4a4", "#f2d9bd"],
-    "hair_brn":  ["#241609", "#3a2712", "#4e351b", "#5f4424", "#6f522e"],
-    "hair_blnd": ["#4e3a1a", "#6e5527", "#8a6e35", "#a08344", "#b39755"],
-    "hair_blk":  ["#0d0c0c", "#191717", "#242121", "#2f2b2a", "#3a3533"],
-    "hair_red":  ["#3f1d0d", "#5a2c12", "#743c19", "#8a4b20", "#9c5a29"],
-    "wool_gray": ["#4a4842", "#5c5a52", "#6e6b61", "#807d71", "#918e80"],
-    "gambeson":  ["#5a5648", "#6d6857", "#7f7a66", "#918b75", "#a29c84"],
-    "straw":     ["#7d6222", "#9c7d2c", "#b89536", "#cfab45", "#e0be5c"],
-    "parchment": ["#a8946a", "#c2ad7f", "#d6c294", "#e5d3a8", "#efe0bd"],
-    "ink":       ["#241c12", "#3f3024", "#54432f", "#69573c", "#7d6a4a"],
-    # --- carved-oak / iron / brass UI set (building plaque + dark screens) ---
-    "oak_carved":  ["#241a0e", "#3a2a18", "#4a3421", "#5a4229", "#6b5137"],
-    "iron_forged": ["#1c1c20", "#2b2b30", "#3b3b42", "#48484f", "#55555c"],
-    "brass":       ["#5c4715", "#8a6c22", "#b8912f", "#c6a043", "#d4af5a"],
-    "charcoal":    ["#121212", "#1a1a1a", "#1e1e1e", "#242424", "#2e2e2e"],
-    "bone":        ["#6f6a5e", "#8a8578", "#a8a294", "#c8c0ae", "#e8e0d0"],
-    "emerald":     ["#22401e", "#33612e", "#458440", "#5fa860", "#84c184"],
-    "crimson":     ["#3d1512", "#5c211b", "#8a3a35", "#c0392b", "#d9584a"],
+# Grounded European medieval palette.  Each ramp is dark -> light and is
+# generated from a compact design token rather than hand-tuned RGB literals.
+# This keeps every downstream generator on one enforceable colour doctrine.
+#
+# ``hue`` and ``hue_drift`` are degrees at the dark stop and total movement
+# toward the highlight.  Warm ramps drift +10..15 degrees; cool ramps drift
+# -12..18 degrees.  Skin is the deliberate exception: its narrow warm band
+# never travels into blue/gray shadows.
+_CHROMA_CURVE = (0.78, 1.00, 0.93, 0.72, 0.55)
+_SKIN_CHROMA_CURVE = (0.82, 1.00, 0.94, 0.78, 0.64)
+
+
+def _finite_real(name, candidate):
+    """Return a finite ``float`` for a numeric token or raise ``ValueError``.
+
+    ``bool`` is deliberately excluded even though Python considers it an
+    ``int``.  Converting before the finite check also turns exotic/oversized
+    ``Real`` implementations into the same public ``ValueError`` contract
+    instead of leaking ``TypeError`` or ``OverflowError``.
+    """
+    if not isinstance(candidate, Real) or isinstance(candidate, bool):
+        raise ValueError(f"{name} must be a finite real number (not bool)")
+    try:
+        result = float(candidate)
+    except Exception:
+        raise ValueError(f"{name} must be a finite real number (not bool)") from None
+    if not math.isfinite(result):
+        raise ValueError(f"{name} must be a finite real number (not bool)")
+    return result
+
+
+def _finite_real_sequence(name, candidate, expected_length):
+    """Normalise a fixed-length numeric sequence to a tuple of finite floats."""
+    if isinstance(candidate, (str, bytes, bytearray, Mapping, AbstractSet)):
+        raise ValueError(
+            f"{name} must contain exactly {expected_length} finite real numbers")
+    try:
+        values = tuple(candidate)
+    except Exception:
+        raise ValueError(
+            f"{name} must contain exactly {expected_length} finite real numbers") from None
+    if len(values) != expected_length:
+        raise ValueError(
+            f"{name} must contain exactly {expected_length} finite real numbers")
+    return tuple(_finite_real(f"{name}[{index}]", value)
+                 for index, value in enumerate(values))
+
+
+def make_ramp(*, hue, saturation, value, hue_drift, value_steps,
+              family="warm", chroma_curve=None):
+    """Build one deterministic five-stop HSV ramp as ``#rrggbb`` strings.
+
+    ``value``/``saturation`` are HSV percentages.  The constructor validates
+    B1's hard numeric contract up front so an invalid token cannot silently
+    reach a texture generator.
+    """
+    if not isinstance(family, str) or family not in ("warm", "cool", "skin"):
+        raise ValueError("family must be one of: warm, cool, skin")
+
+    hue = _finite_real("hue", hue)
+    saturation = _finite_real("saturation", saturation)
+    value = _finite_real("value", value)
+    hue_drift = _finite_real("hue_drift", hue_drift)
+    value_steps = _finite_real_sequence("value_steps", value_steps, 4)
+
+    if not 0.0 <= hue < 360.0:
+        raise ValueError("hue must stay inside [0, 360)")
+    if any(not 8 <= step <= 11 for step in value_steps):
+        raise ValueError("value_steps must contain four values in the 8..11 range")
+    if sum(value_steps) < 32:
+        raise ValueError("a ramp must span at least 32 HSV-V points")
+    if value < 12 or value + sum(value_steps) > 96:
+        raise ValueError("ramp endpoints must stay inside HSV-V 12..96")
+    if not 0 < saturation <= 90:
+        raise ValueError("peak saturation must stay inside 1..90")
+    if family == "warm" and not 10 <= hue_drift <= 15:
+        raise ValueError("warm ramps require +10..15 degrees of hue drift")
+    if family == "cool" and not -18 <= hue_drift <= -12:
+        raise ValueError("cool ramps require -12..18 degrees of hue drift")
+    if family == "skin" and abs(hue_drift) > 10:
+        raise ValueError("skin hue drift must remain within 10 degrees")
+
+    curve_source = (_SKIN_CHROMA_CURVE if family == "skin" else _CHROMA_CURVE) \
+        if chroma_curve is None else chroma_curve
+    curve = _finite_real_sequence("chroma_curve", curve_source, 5)
+    if any(not 0.0 < point <= 1.0 for point in curve):
+        raise ValueError("chroma_curve values must stay inside (0, 1]")
+    peak = max(curve)
+    if not math.isclose(peak, 1.0, rel_tol=0.0, abs_tol=1.0e-9):
+        raise ValueError("chroma_curve peak must be exactly 1.0")
+    if not any(math.isclose(curve[index], peak, rel_tol=0.0, abs_tol=1.0e-9)
+               for index in (1, 2)):
+        raise ValueError("chroma must peak at stop 1 or 2")
+    if any(math.isclose(curve[index], peak, rel_tol=0.0, abs_tol=1.0e-9)
+           for index in (0, 3, 4)):
+        raise ValueError("chroma peak cannot extend outside stops 1 and 2")
+    shadow_ratio = curve[0] / peak
+    highlight_ratio = curve[4] / peak
+    if not 0.68 <= shadow_ratio <= 0.92:
+        raise ValueError("shadow chroma must be 0.68..0.92 of the peak")
+    if not 0.38 <= highlight_ratio <= 0.72:
+        raise ValueError("highlight chroma must be 0.38..0.72 of the peak")
+
+    values = [value]
+    for step in value_steps:
+        values.append(values[-1] + step)
+
+    result = []
+    for index in range(5):
+        stop_hue = (hue + hue_drift * index / 4.0) % 360.0
+        stop_sat = saturation * curve[index]
+        red, green, blue = colorsys.hsv_to_rgb(
+            stop_hue / 360.0, stop_sat / 100.0, values[index] / 100.0)
+        rgb = tuple(max(0, min(255, int(channel * 255 + 0.5)))
+                    for channel in (red, green, blue))
+        result.append("#{:02x}{:02x}{:02x}".format(*rgb))
+    return result
+
+
+# B1 palette tokens.  ``family`` is both design intent and validator input;
+# do not remove it in favour of inferring temperature from a palette name.
+PALETTE_TOKENS = {
+    "linen":       dict(hue=34,  saturation=30, value=56, hue_drift=12, family="warm", value_steps=(10, 10, 10, 10)),
+    "linen_raw":   dict(hue=32,  saturation=34, value=50, hue_drift=12, family="warm", value_steps=(10, 10, 9, 9)),
+    "oak":         dict(hue=25,  saturation=66, value=20, hue_drift=14, family="warm", value_steps=(8, 9, 9, 10)),
+    "oak_light":   dict(hue=27,  saturation=58, value=28, hue_drift=13, family="warm", value_steps=(9, 9, 9, 9)),
+    "stone":       dict(hue=226, saturation=18, value=28, hue_drift=-16, family="cool", value_steps=(9, 9, 9, 9)),
+    "leather":     dict(hue=24,  saturation=75, value=23, hue_drift=14, family="warm", value_steps=(10, 9, 9, 9)),
+    "burgundy":    dict(hue=340, saturation=62, value=24, hue_drift=13, family="warm", value_steps=(9, 9, 9, 9)),
+    "forest":      dict(hue=118, saturation=45, value=24, hue_drift=-14, family="cool", value_steps=(9, 9, 9, 9)),
+    "wheat":       dict(hue=34,  saturation=78, value=42, hue_drift=13, family="warm", value_steps=(10, 10, 9, 9)),
+    "iron":        dict(hue=230, saturation=24, value=17, hue_drift=-16, family="cool", value_steps=(9, 9, 9, 9)),
+    "amber":       dict(hue=27,  saturation=84, value=55, hue_drift=14, family="warm", value_steps=(10, 10, 10, 10)),
+    "ember":       dict(hue=8,   saturation=88, value=48, hue_drift=15, family="warm", value_steps=(11, 10, 10, 10)),
+    "skin":        dict(hue=20,  saturation=62, value=50, hue_drift=8, family="skin", value_steps=(9, 9, 9, 9)),
+    "skin_tan":    dict(hue=19,  saturation=70, value=40, hue_drift=8, family="skin", value_steps=(9, 9, 9, 9)),
+    "skin_deep":   dict(hue=18,  saturation=72, value=22, hue_drift=8, family="skin", value_steps=(10, 10, 10, 10)),
+    "skin_pale":   dict(hue=20,  saturation=50, value=57, hue_drift=8, family="skin", value_steps=(9, 9, 9, 9)),
+    "hair_brn":    dict(hue=20,  saturation=80, value=15, hue_drift=14, family="warm", value_steps=(8, 8, 8, 8)),
+    "hair_blnd":   dict(hue=31,  saturation=72, value=32, hue_drift=13, family="warm", value_steps=(9, 10, 10, 10)),
+    "hair_blk":    dict(hue=260, saturation=22, value=13, hue_drift=-14, family="cool", value_steps=(8, 8, 8, 8)),
+    "hair_red":    dict(hue=10,  saturation=85, value=24, hue_drift=14, family="warm", value_steps=(10, 10, 10, 10)),
+    "wool_gray":   dict(hue=228, saturation=15, value=27, hue_drift=-15, family="cool", value_steps=(9, 9, 9, 9)),
+    "gambeson":    dict(hue=37,  saturation=26, value=34, hue_drift=12, family="warm", value_steps=(9, 9, 9, 9)),
+    "straw":       dict(hue=36,  saturation=76, value=39, hue_drift=13, family="warm", value_steps=(10, 10, 9, 9)),
+    "parchment":   dict(hue=35,  saturation=40, value=55, hue_drift=11, family="warm", value_steps=(10, 9, 9, 9)),
+    "ink":         dict(hue=25,  saturation=58, value=16, hue_drift=12, family="warm", value_steps=(9, 9, 9, 9)),
+    "oak_carved":  dict(hue=24,  saturation=70, value=14, hue_drift=14, family="warm", value_steps=(8, 9, 9, 10)),
+    "iron_forged": dict(hue=234, saturation=25, value=13, hue_drift=-14, family="cool", value_steps=(9, 9, 9, 9)),
+    "brass":       dict(hue=36,  saturation=80, value=38, hue_drift=12, family="warm", value_steps=(10, 10, 10, 10)),
+    "charcoal":    dict(hue=272, saturation=16, value=12, hue_drift=-18, family="cool", value_steps=(8, 8, 9, 9)),
+    "bone":        dict(hue=38,  saturation=20, value=42, hue_drift=11, family="warm", value_steps=(10, 10, 10, 10)),
+    "emerald":     dict(hue=145, saturation=65, value=26, hue_drift=-14, family="cool", value_steps=(10, 10, 10, 10)),
+    "crimson":     dict(hue=345, saturation=78, value=26, hue_drift=13, family="warm", value_steps=(10, 10, 10, 9)),
 }
+
+PALETTES = {name: make_ramp(**token) for name, token in PALETTE_TOKENS.items()}
 
 
 def hx(s):
@@ -105,54 +230,291 @@ def cloth(img, x, y, w, h, ramp_colors, rng, base_idx=3, weave=0.35,
             px[x + i, y + j] = c
 
 
+_MATERIAL_PERIOD = 16
+
+
+def _period_partition(period, bounds, rng):
+    """Randomly partition ``period`` while keeping every part in bounds."""
+    low, high = bounds
+    if low < 2 or high < low or low > period:
+        raise ValueError(f"invalid periodic partition bounds: {bounds}")
+    remaining = period
+    parts = []
+    while remaining:
+        choices = []
+        for candidate in range(low, high + 1):
+            tail = remaining - candidate
+            if tail == 0 or (tail >= low and (tail + high - 1) // high <= tail // low):
+                choices.append(candidate)
+        if not choices:
+            raise ValueError(f"cannot partition {period} with bounds {bounds}")
+        choice = rng.choice(choices)
+        parts.append(choice)
+        remaining -= choice
+    return parts
+
+
+def _ring_segments(widths, offset):
+    """Map a 16-wide ring to (segment index, local x, segment width)."""
+    starts = []
+    cursor = 0
+    for width in widths:
+        starts.append(cursor)
+        cursor += width
+    result = []
+    for x in range(_MATERIAL_PERIOD):
+        ring_x = (x - offset) % _MATERIAL_PERIOD
+        for index, start in enumerate(starts):
+            width = widths[index]
+            if start <= ring_x < start + width:
+                result.append((index, ring_x - start, width))
+                break
+    return result
+
+
+def _edgeable_stone_partition(parts, bounds):
+    """Ensure a course/stone contains at least two material texels.
+
+    A two-texel part consists of one stone texel and one mortar texel, so no
+    tile cut can place real material on both sides of the wrap.  A 2..3/2..4
+    profile can rarely partition sixteen as eight twos; rebalance that
+    degenerate partition without changing its total or leaving the requested
+    bounds.  Other profiles already contain a part of size three or more.
+    """
+    if any(part >= 3 for part in parts):
+        return parts
+    low, high = bounds
+    if low == 2 and high >= 4 and len(parts) >= 2:
+        return [4, *parts[2:]]
+    if low == 2 and high >= 3 and len(parts) >= 3:
+        return [3, 3, *parts[3:]]
+    return parts
+
+
+def _stone_edge_offsets(widths):
+    """Return tile cuts whose two edge texels are real stone, not mortar."""
+    offsets = []
+    for candidate in range(_MATERIAL_PERIOD):
+        segments = _ring_segments(widths, candidate)
+        left = segments[_MATERIAL_PERIOD - 1]
+        right = segments[0]
+        same_stone = left[0] == right[0]
+        left_is_stone = left[1] < left[2] - 1
+        right_is_stone = right[1] < right[2] - 1
+        if same_stone and left_is_stone and right_is_stone:
+            offsets.append(candidate)
+    return offsets
+
+
 def stone(img, x, y, w, h, ramp_colors, rng, block_w=(3, 5), block_h=(2, 3)):
-    """Fieldstone fill: irregular courses of stones with dark mortar seams."""
+    """Paint 16-periodic fieldstone with staggered, irregular courses.
+
+    The former implementation clipped a random course at every texture edge,
+    so its right/bottom fragments did not continue at the next tile.  This
+    builds one complete toroidal 16x16 material cell first, then wraps it into
+    any target rectangle.  Rendering 48x48 is therefore byte-identical to a
+    3x3 paste of the corresponding 16x16 tile.
+    """
+    if len(ramp_colors) < 5:
+        raise ValueError("stone requires a five-stop ramp")
+
+    period = _MATERIAL_PERIOD
     mortar = shade(ramp_colors[0], 0.85)
-    fill(img, x, y, w, h, mortar)
-    j = 0
-    row = 0
-    while j < h:
-        bh = rng.randint(*block_h)
-        i = -rng.randint(0, 2) if row % 2 else 0
-        while i < w:
-            bw = rng.randint(*block_w)
-            base = rng.choice(ramp_colors[1:4])
-            for jj in range(max(0, j), min(h, j + bh - 1)):
-                for ii in range(max(0, i), min(w, i + bw - 1)):
-                    f = 1.0
-                    if jj == j:
-                        f = 1.12          # top catch-light
-                    elif jj == j + bh - 2:
-                        f = 0.9
-                    if ii == max(0, i):
-                        f *= 1.04
-                    c = shade(base, f * (0.94 + rng.random() * 0.12))
-                    px = img.load()
-                    px[x + ii, y + jj] = c
-            i += bw
-        j += bh
-        row += 1
+    pattern = Image.new("RGBA", (period, period), mortar)
+    pixels = pattern.load()
+    course_heights = _edgeable_stone_partition(
+        _period_partition(period, block_h, rng), block_h)
+    row_course = [-1] * period
+    row_is_stone = [False] * period
+    course_y = 0
+    previous_offset = None
+
+    for course_index, course_height in enumerate(course_heights):
+        widths = _edgeable_stone_partition(
+            _period_partition(period, block_w, rng), block_w)
+        # Pick a random course offset whose edge texels are inside the same
+        # stone.  This removes the vertical gridline at the 15->0 wrap while
+        # retaining independently staggered joints inside each course.
+        safe_offsets = _stone_edge_offsets(widths)
+        if not safe_offsets:
+            raise ValueError(
+                f"stone block_w={block_w} cannot place real stone on both tile edges")
+        if previous_offset in safe_offsets and len(safe_offsets) > 1:
+            safe_offsets.remove(previous_offset)
+        offset = rng.choice(safe_offsets)
+        previous_offset = offset
+        segments = _ring_segments(widths, offset)
+        stone_bases = [rng.choice(ramp_colors[1:4]) for _ in widths]
+        stone_variance = [0.94 + rng.random() * 0.12 for _ in widths]
+
+        for local_y in range(course_height):
+            py = course_y + local_y
+            row_course[py] = course_index
+            if local_y == course_height - 1:
+                continue  # one logical mortar row per course
+            row_is_stone[py] = True
+            for px, (segment_index, local_x, segment_width) in enumerate(segments):
+                if local_x == segment_width - 1:
+                    continue  # vertical mortar joint
+                factor = stone_variance[segment_index]
+                if local_y == 0:
+                    factor = min(1.12, factor * 1.08)  # top-left key catch
+                elif local_y == course_height - 2:
+                    factor = max(0.88, factor * 0.92)  # lower weather shadow
+                if local_x == 0:
+                    factor = min(1.12, factor * 1.03)
+                pixels[px, py] = shade(stone_bases[segment_index], factor)
+        course_y += course_height
+
+    # Rotate the torus so its vertical texture edge also cuts through the
+    # interior of one course instead of landing on a clipped mortar/highlight
+    # pair.  This is the vertical counterpart to the safe horizontal offset.
+    safe_boundaries = [
+        py for py in range(period)
+        if row_is_stone[py] and row_is_stone[(py + 1) % period]
+        and row_course[py] == row_course[(py + 1) % period]
+    ]
+    if not safe_boundaries:
+        raise ValueError(
+            f"stone block_h={block_h} cannot place real stone on both tile edges")
+    boundary = rng.choice(safe_boundaries)
+    shift = (-(boundary + 1)) % period
+    rotated = Image.new("RGBA", (period, period), mortar)
+    rotated_pixels = rotated.load()
+    for py in range(period):
+        source_y = (py - shift) % period
+        for px in range(period):
+            rotated_pixels[px, py] = pixels[px, source_y]
+    pattern = rotated
+
+    target = img.load()
+    source = pattern.load()
+    for target_y in range(h):
+        for target_x in range(w):
+            px = x + target_x
+            py = y + target_y
+            if 0 <= px < img.width and 0 <= py < img.height:
+                target[px, py] = source[target_x % period, target_y % period]
+
+
+def metal(img, x, y, w, h, ramp_colors, rng, *, axis="vertical", forged=False):
+    """Forged-metal primitive: dark-light-dark reflection and sparse peen."""
+    if axis not in {"vertical", "horizontal"}:
+        raise ValueError("metal axis must be 'vertical' or 'horizontal'")
+    if len(ramp_colors) < 5:
+        raise ValueError("metal requires a five-stop ramp")
+    pixels = img.load()
+    # Five of eight texels remain in stops 0-1; the stop-4 line is a crisp
+    # reflection, not a gradient or dither band.
+    reflection = (0, 0, 1, 3, 4, 1, 0, 0)
+    for local_y in range(h):
+        for local_x in range(w):
+            across = local_x if axis == "vertical" else local_y
+            pixels[x + local_x, y + local_y] = ramp_colors[reflection[across % 8]]
+
+    if forged and w >= 4 and h >= 4:
+        # Paired dark/lit pixels make each peen mark a dent under top-left key
+        # light.  Marks stay off the boundary so a material tile never grows a
+        # repeated border scar.
+        marks = max(1, (w * h) // 72)
+        for _ in range(marks):
+            px = x + rng.randint(1, w - 2)
+            py = y + rng.randint(1, h - 2)
+            pixels[px, py] = ramp_colors[1]
+            pixels[px - 1, py - 1] = ramp_colors[3]
+
+
+def wood_grain(img, x, y, w, h, ramp_colors, rng, *, vertical=False, board=4):
+    """Weathered boards with broken, axis-correct grain clusters."""
+    if board < 3:
+        raise ValueError("wood boards need at least three texels of width")
+    pixels = img.load()
+    for local_y in range(h):
+        for local_x in range(w):
+            across = local_x if vertical else local_y
+            seam = (across % board) == board - 1
+            if seam:
+                color = ramp_colors[0]
+            else:
+                roll = rng.random()
+                color = ramp_colors[2 if roll < 0.22 else 3]
+                if across % board == 0:
+                    color = shade(color, 1.08)  # lit edge below each seam
+            pixels[x + local_x, y + local_y] = color
+
+    across_length = w if vertical else h
+    along_length = h if vertical else w
+    for board_start in range(0, across_length, board):
+        usable = min(board - 1, across_length - board_start)
+        if usable <= 0:
+            continue
+        cursor = rng.randint(0, 3)
+        while cursor < along_length:
+            length = min(rng.randint(2, 5), along_length - cursor)
+            cross = board_start + rng.randrange(usable)
+            for delta in range(length):
+                local_x, local_y = ((cross, cursor + delta) if vertical
+                                    else (cursor + delta, cross))
+                pixels[x + local_x, y + local_y] = ramp_colors[1]
+            cursor += length + rng.randint(3, 7)
 
 
 def planks(img, x, y, w, h, ramp_colors, rng, vertical=False, board=4):
-    """Weathered plank fill with grain streaks and seams."""
-    px = img.load()
-    for j in range(h):
-        for i in range(w):
-            along, across = (j, i) if vertical else (i, j)
-            seam = (across % board) == board - 1
-            idx = 3
-            r = rng.random()
-            if r < 0.30:
-                idx = 2
-            elif r < 0.38:
-                idx = 4
-            if (along * 7 + across * 13) % 11 == 0:
-                idx = 1                    # grain streak
-            c = ramp_colors[0] if seam else ramp_colors[idx]
-            if not seam and (across % board) == 0:
-                c = shade(c, 1.08)         # board edge highlight
-            px[x + i, y + j] = c
+    """Backward-compatible name for the B1 wood-grain primitive."""
+    wood_grain(img, x, y, w, h, ramp_colors, rng,
+               vertical=vertical, board=board)
+
+
+def fold(img, x, y, length, ramp_colors, *, vertical=False):
+    """Paint one cloth fold: a catch-light immediately before its crease."""
+    for delta in range(length):
+        if vertical:
+            put(img, x - 1, y + delta, ramp_colors[4])
+            put(img, x, y + delta, ramp_colors[1])
+        else:
+            put(img, x + delta, y - 1, ramp_colors[4])
+            put(img, x + delta, y, ramp_colors[1])
+
+
+def worn_edge(img, x, y, w, h, ramp_colors, rng, *,
+              edges=("top", "left"), wear=0.35):
+    """Add clustered leather/wood wear and sparse adjacent scuff nicks."""
+    edge_set = set(edges)
+    valid_edges = {"top", "bottom", "left", "right"}
+    if not edge_set <= valid_edges:
+        raise ValueError(f"unknown worn edge in {edges}")
+    if not 0.0 <= wear <= 1.0:
+        raise ValueError("wear must be in the 0..1 range")
+
+    def edge_points(edge):
+        if edge == "top":
+            return [(x + i, y) for i in range(w)]
+        if edge == "bottom":
+            return [(x + i, y + h - 1) for i in range(w)]
+        if edge == "left":
+            return [(x, y + i) for i in range(h)]
+        return [(x + w - 1, y + i) for i in range(h)]
+
+    # Never consume RNG in caller/set iteration order.  Texture generation is
+    # byte-reproducible across PYTHONHASHSEED values even when an unordered
+    # collection is supplied by a future generator.
+    for edge in ("top", "right", "bottom", "left"):
+        if edge not in edge_set:
+            continue
+        points = edge_points(edge)
+        cursor = rng.randint(0, 2)
+        while cursor < len(points):
+            if rng.random() < wear:
+                length = rng.randint(2, 4)
+                for point in points[cursor:cursor + length]:
+                    put(img, *point, ramp_colors[4])
+                cursor += length
+            cursor += rng.randint(1, 3)
+
+    # A maximum of two isolated low-value nicks; these are intentional scuffs,
+    # not per-pixel noise.
+    for _ in range(min(2, max(0, (w * h) // 96))):
+        put(img, x + rng.randrange(w), y + rng.randrange(h), ramp_colors[1])
 
 
 def outline_rect(img, x, y, w, h, color):

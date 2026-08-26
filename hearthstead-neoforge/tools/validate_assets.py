@@ -18,15 +18,17 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import colorsys
 import json
 import os
+import random
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from collections import OrderedDict
-from pathlib import Path
+from pathlib import Path, PurePath
 
 try:
     from PIL import Image
@@ -669,6 +671,19 @@ def entity_atlas_sizes_from_models() -> dict[str, tuple[int, int]]:
     return sizes
 
 
+def _entity_texture_key_and_folder(relative: PurePath) -> tuple[str, str]:
+    """Return a platform-neutral entity key plus its model-layer folder.
+
+    ``str(Path)`` uses backslashes on Windows, so splitting it on ``/`` made
+    every nested entity texture fall through to the default atlas size.  Path
+    parts carry the hierarchy while ``as_posix()`` produces the resource key
+    expected by the configuration map on every host platform.
+    """
+    key = relative.as_posix()
+    folder = relative.parts[0] if len(relative.parts) > 1 else ""
+    return key, folder
+
+
 def check_textures() -> None:
     if not RES_ROOT.is_dir():
         info("Textures", "no resources directory — skipped")
@@ -755,10 +770,10 @@ def check_textures() -> None:
         elif category == "entity":
             tex_root = ASSETS / MODID / "textures" / "entity"
             try:
-                key = str(png.relative_to(tex_root))
+                relative = png.relative_to(tex_root)
             except ValueError:
-                key = png.name
-            folder = key.split("/")[0] if "/" in key else ""
+                relative = Path(png.name)
+            key, folder = _entity_texture_key_and_folder(relative)
             model_sizes = entity_atlas_sizes_from_models()
             if key in TEXTURE_CONFIG["entity_sizes"]:
                 expected = TEXTURE_CONFIG["entity_sizes"][key]
@@ -777,6 +792,343 @@ def check_textures() -> None:
             check("Textures", w <= mw and h <= mh,
                   f"{rel(png)} is {w}x{h} (GUI limit {mw}x{mh})")
         # other categories: openability only
+
+
+# --------------------------------------------------------------------------
+# 8b. B1 palette/material foundation
+# --------------------------------------------------------------------------
+
+def _short_hue_delta(start: float, end: float) -> float:
+    return ((end - start + 180.0) % 360.0) - 180.0
+
+
+def _hex_hsv(value: str) -> tuple[float, float, float]:
+    red, green, blue = (int(value[index:index + 2], 16) / 255.0
+                        for index in (1, 3, 5))
+    hue, saturation, brightness = colorsys.rgb_to_hsv(red, green, blue)
+    return hue * 360.0, saturation * 100.0, brightness * 100.0
+
+
+def _linear_luminance(rgb: tuple[int, int, int]) -> float:
+    channels = []
+    for channel in rgb:
+        value = channel / 255.0
+        channels.append(value / 12.92 if value <= 0.04045
+                        else ((value + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+
+
+def _pixel_delta(first, second) -> float:
+    return sum(abs(a - b) for a, b in zip(first[:3], second[:3])) / 3.0
+
+
+STONE_SEED_MATRIX = range(256)
+STONE_PROFILES = (
+    ("hearth", (3, 5), (2, 3)),
+    ("bowl", (2, 4), (2, 3)),
+    ("top", (3, 4), (3, 4)),
+)
+STONE_SEAM_LIMIT = 1.45
+
+
+def _stone_seam_ratios(tile: Image.Image) -> tuple[float, float]:
+    pixels = tile.load()
+    horizontal_internal = [_pixel_delta(pixels[x, y], pixels[x + 1, y])
+                           for x in range(15) for y in range(16)]
+    vertical_internal = [_pixel_delta(pixels[x, y], pixels[x, y + 1])
+                         for y in range(15) for x in range(16)]
+    horizontal_seam = [_pixel_delta(pixels[15, y], pixels[0, y])
+                       for y in range(16)]
+    vertical_seam = [_pixel_delta(pixels[x, 15], pixels[x, 0])
+                     for x in range(16)]
+    horizontal_ratio = ((sum(horizontal_seam) / len(horizontal_seam)) /
+                        max(0.001, sum(horizontal_internal) /
+                            len(horizontal_internal)))
+    vertical_ratio = ((sum(vertical_seam) / len(vertical_seam)) /
+                      max(0.001, sum(vertical_internal) /
+                          len(vertical_internal)))
+    return horizontal_ratio, vertical_ratio
+
+
+def _stone_edge_contract_violations(tile: Image.Image, mortar) -> list[str]:
+    """Find tile cuts that cross mortar instead of continuous material."""
+    pixels = tile.load()
+    violations = []
+    for y in range(16):
+        row_is_mortar = all(pixels[x, y] == mortar for x in range(16))
+        if not row_is_mortar and (pixels[15, y] == mortar or pixels[0, y] == mortar):
+            violations.append(f"x-row-{y}")
+    for x in range(16):
+        if (pixels[x, 15] == mortar) != (pixels[x, 0] == mortar):
+            violations.append(f"y-column-{x}")
+    return violations
+
+
+def palette_foundation_audit() -> "OrderedDict[str, list[str]]":
+    """Return pure B1 gate failures, grouped by the contract they violate.
+
+    Keeping this function side-effect free lets the generator-local regression
+    test exercise exactly the same rules that the full asset validator uses.
+    """
+    failures: "OrderedDict[str, list[str]]" = OrderedDict((name, []) for name in (
+        "inventory", "determinism", "value", "hue", "chroma", "contrast",
+        "materials", "tiling"))
+    try:
+        import texlib
+    except Exception as exc:
+        failures["inventory"].append(f"texlib import failed: {exc}")
+        return failures
+
+    palettes = getattr(texlib, "PALETTES", {})
+    tokens = getattr(texlib, "PALETTE_TOKENS", {})
+    make_ramp = getattr(texlib, "make_ramp", None)
+    if len(palettes) < 32:
+        failures["inventory"].append(f"expected the 32-ramp baseline, found {len(palettes)}")
+    if list(palettes) != list(tokens):
+        failures["inventory"].append("PALETTE_TOKENS and PALETTES differ in names/order")
+    if not callable(make_ramp):
+        failures["inventory"].append("make_ramp() is missing")
+
+    for name, values in palettes.items():
+        token = tokens.get(name)
+        if not isinstance(token, dict):
+            failures["inventory"].append(f"{name}: missing design token")
+            continue
+        if (len(values) != 5 or any(not isinstance(value, str)
+                                    or not re.fullmatch(r"#[0-9a-f]{6}", value)
+                                    for value in values)):
+            failures["inventory"].append(f"{name}: not five canonical #rrggbb stops")
+            continue
+        if len(set(values)) != 5:
+            failures["inventory"].append(f"{name}: duplicate stops collapse form contrast")
+
+        if callable(make_ramp):
+            try:
+                first = make_ramp(**token)
+                second = make_ramp(**token)
+                if first != second or first != values:
+                    failures["determinism"].append(
+                        f"{name}: token rebuild is not stable/current")
+            except Exception as exc:
+                failures["determinism"].append(f"{name}: make_ramp failed: {exc}")
+
+        hsv = [_hex_hsv(value) for value in values]
+        value_steps = [hsv[index + 1][2] - hsv[index][2] for index in range(4)]
+        span = hsv[-1][2] - hsv[0][2]
+        # RGB quantisation can move an exact integer HSV token by <0.25.
+        if any(step < 7.75 or step > 11.25 for step in value_steps):
+            failures["value"].append(
+                f"{name}: V steps {[round(step, 2) for step in value_steps]} outside 8..11")
+        if span < 31.75:
+            failures["value"].append(f"{name}: V span {span:.2f} below 32")
+        if hsv[0][2] < 11.75 or hsv[-1][2] > 96.25:
+            failures["value"].append(
+                f"{name}: V endpoints {hsv[0][2]:.2f}..{hsv[-1][2]:.2f} outside 12..96")
+
+        drift = _short_hue_delta(hsv[0][0], hsv[-1][0])
+        family = token.get("family")
+        if family == "warm" and not 9.5 <= drift <= 15.5:
+            failures["hue"].append(f"{name}: warm drift {drift:+.2f}, expected +10..15")
+        elif family == "cool" and not -18.5 <= drift <= -11.5:
+            failures["hue"].append(f"{name}: cool drift {drift:+.2f}, expected -12..18")
+        elif family == "skin":
+            if abs(drift) > 10.5:
+                failures["hue"].append(f"{name}: skin drift {drift:+.2f} exceeds 10")
+            if any(not 14.0 <= stop[0] <= 38.0 for stop in hsv):
+                failures["hue"].append(f"{name}: skin leaves the warm H14..38 band")
+        elif family not in {"warm", "cool", "skin"}:
+            failures["hue"].append(f"{name}: unknown family {family!r}")
+
+        saturations = [stop[1] for stop in hsv]
+        peak = max(saturations)
+        peak_indices = [index for index, saturation in enumerate(saturations)
+                        if abs(saturation - peak) <= 0.25]
+        if not any(index in (1, 2) for index in peak_indices):
+            failures["chroma"].append(f"{name}: chroma peak is not at stop 1-2")
+        if peak > 90.25:
+            failures["chroma"].append(f"{name}: saturation {peak:.2f} exceeds 90")
+        shadow_ratio = saturations[0] / peak if peak else 0.0
+        light_ratio = saturations[4] / peak if peak else 0.0
+        if not 0.68 <= shadow_ratio <= 0.92:
+            failures["chroma"].append(
+                f"{name}: shadow chroma ratio {shadow_ratio:.2f} outside 0.7..0.9")
+        if not 0.38 <= light_ratio <= 0.72:
+            failures["chroma"].append(
+                f"{name}: highlight chroma ratio {light_ratio:.2f} outside 0.4..0.7")
+
+    # Stone must remain materially lighter than iron, and iron lighter than
+    # charcoal at their working midtone.  Hue movement alone is not enough:
+    # this gate also requires a real RGB and luminance separation.
+    if all(name in palettes for name in ("stone", "iron", "charcoal")):
+        mids = {name: tuple(int(palettes[name][2][index:index + 2], 16)
+                            for index in (1, 3, 5))
+                for name in ("stone", "iron", "charcoal")}
+        luminance = {name: _linear_luminance(rgb) for name, rgb in mids.items()}
+        if not luminance["stone"] > luminance["iron"] > luminance["charcoal"]:
+            failures["contrast"].append(
+                "midtone luminance must order stone > iron > charcoal")
+        for first, second in (("stone", "iron"), ("iron", "charcoal"),
+                              ("stone", "charcoal")):
+            distance = sum((a - b) ** 2 for a, b in zip(mids[first], mids[second])) ** 0.5
+            lum_gap = abs(luminance[first] - luminance[second])
+            if distance < 20.0 or lum_gap < 0.018:
+                failures["contrast"].append(
+                    f"{first}/{second}: RGB distance {distance:.1f}, luminance gap {lum_gap:.3f}")
+    else:
+        failures["contrast"].append("stone, iron and charcoal ramps are all required")
+
+    primitive_names = ("metal", "wood_grain", "fold", "worn_edge")
+    for primitive in primitive_names:
+        if not callable(getattr(texlib, primitive, None)):
+            failures["materials"].append(f"{primitive}() is missing")
+
+    if HAVE_PIL and not failures["materials"]:
+        def render_primitive(name: str) -> bytes:
+            image = texlib.new_image(16, 16)
+            rng = random.Random(7200 + primitive_names.index(name))
+            if name == "metal":
+                texlib.metal(image, 0, 0, 16, 16, texlib.ramp("iron"), rng,
+                             axis="vertical", forged=True)
+            elif name == "wood_grain":
+                texlib.wood_grain(image, 0, 0, 16, 16, texlib.ramp("oak"), rng)
+            elif name == "fold":
+                texlib.fill(image, 0, 0, 16, 16, texlib.ramp("burgundy")[3])
+                texlib.fold(image, 8, 2, 12, texlib.ramp("burgundy"), vertical=True)
+            else:
+                texlib.fill(image, 0, 0, 16, 16, texlib.ramp("leather")[2])
+                texlib.worn_edge(image, 0, 0, 16, 16, texlib.ramp("leather"), rng,
+                                 edges=("top", "right"))
+            if image.getbbox() != (0, 0, 16, 16):
+                failures["materials"].append(f"{name}(): left transparent holes")
+            return image.tobytes()
+
+        for primitive in primitive_names:
+            if render_primitive(primitive) != render_primitive(primitive):
+                failures["determinism"].append(f"{primitive}(): same seed changed bytes")
+
+        stone_ramp = texlib.ramp("stone")
+        tile = texlib.new_image(16, 16)
+        field = texlib.new_image(48, 48)
+        texlib.stone(tile, 0, 0, 16, 16, stone_ramp, random.Random(8101))
+        texlib.stone(field, 0, 0, 48, 48, stone_ramp, random.Random(8101))
+        expected = Image.new("RGBA", (48, 48))
+        for row in range(3):
+            for column in range(3):
+                expected.paste(tile, (column * 16, row * 16))
+        if field.tobytes() != expected.tobytes():
+            failures["tiling"].append(
+                "stone(): 48x48 render differs from an exact 3x3 tile repeat")
+
+        pixels = tile.load()
+        h_ratio, v_ratio = _stone_seam_ratios(tile)
+        if max(h_ratio, v_ratio) > STONE_SEAM_LIMIT:
+            failures["tiling"].append(
+                f"stone(): edge energy exposes a grid seam (x={h_ratio:.2f}, y={v_ratio:.2f})")
+
+        mortar = texlib.shade(texlib.ramp("stone")[0], 0.85)
+        joint_layouts = {
+            tuple(x for x in range(16) if pixels[x, y] == mortar)
+            for y in range(16)
+            if any(pixels[x, y] != mortar for x in range(16))
+        }
+        if len(joint_layouts) < 3:
+            failures["tiling"].append(
+                f"stone(): only {len(joint_layouts)} course joint layouts; offsets are repeating")
+
+        # The material primitive is reusable, so three hand-picked ship seeds
+        # are not enough.  Every approved course profile is exercised against
+        # the same broad, deterministic matrix.  Render twice to pin RNG
+        # reproducibility, verify that the wrap cuts through actual material,
+        # and measure both seam axes against the public threshold.
+        matrix_errors = []
+        matrix_nondeterministic = []
+        matrix_edge_failures = []
+        matrix_seam_failures = []
+        for profile, block_w, block_h in STONE_PROFILES:
+            for seed in STONE_SEED_MATRIX:
+                try:
+                    first = texlib.new_image(16, 16)
+                    second = texlib.new_image(16, 16)
+                    texlib.stone(first, 0, 0, 16, 16, stone_ramp,
+                                 random.Random(seed), block_w=block_w,
+                                 block_h=block_h)
+                    texlib.stone(second, 0, 0, 16, 16, stone_ramp,
+                                 random.Random(seed), block_w=block_w,
+                                 block_h=block_h)
+                except Exception as exc:
+                    matrix_errors.append(f"{profile}/{seed}: {exc}")
+                    continue
+                if first.tobytes() != second.tobytes():
+                    matrix_nondeterministic.append(f"{profile}/{seed}")
+                edge_failures = _stone_edge_contract_violations(first, mortar)
+                if edge_failures:
+                    matrix_edge_failures.append(
+                        f"{profile}/{seed} ({','.join(edge_failures[:3])})")
+                horizontal, vertical = _stone_seam_ratios(first)
+                if max(horizontal, vertical) > STONE_SEAM_LIMIT:
+                    matrix_seam_failures.append(
+                        f"{profile}/{seed} x={horizontal:.2f} y={vertical:.2f}")
+
+        matrix_total = len(STONE_PROFILES) * len(STONE_SEED_MATRIX)
+        if matrix_errors:
+            failures["tiling"].append(
+                f"stone seed matrix raised {len(matrix_errors)}/{matrix_total}: "
+                + "; ".join(matrix_errors[:5]))
+        if matrix_nondeterministic:
+            failures["determinism"].append(
+                f"stone seed matrix changed bytes for "
+                f"{len(matrix_nondeterministic)}/{matrix_total}: "
+                + ", ".join(matrix_nondeterministic[:8]))
+        if matrix_edge_failures:
+            failures["tiling"].append(
+                f"stone seed matrix crossed mortar at "
+                f"{len(matrix_edge_failures)}/{matrix_total} tile edges: "
+                + "; ".join(matrix_edge_failures[:5]))
+        if matrix_seam_failures:
+            failures["tiling"].append(
+                f"stone seed matrix exceeded seam {STONE_SEAM_LIMIT:.2f} for "
+                f"{len(matrix_seam_failures)}/{matrix_total}: "
+                + "; ".join(matrix_seam_failures[:5]))
+
+        def render_worn_edges(edges) -> bytes:
+            image = texlib.new_image(16, 16)
+            texlib.fill(image, 0, 0, 16, 16, texlib.ramp("leather")[2])
+            texlib.worn_edge(image, 0, 0, 16, 16, texlib.ramp("leather"),
+                             random.Random(7303), edges=edges)
+            return image.tobytes()
+
+        canonical_wear = render_worn_edges(("top", "right", "bottom", "left"))
+        if (render_worn_edges(("left", "bottom", "right", "top")) != canonical_wear
+                or render_worn_edges({"top", "right", "bottom", "left"})
+                != canonical_wear):
+            failures["determinism"].append(
+                "worn_edge(): edge collection order changes generated bytes")
+    elif not HAVE_PIL:
+        failures["materials"].append("Pillow missing; material/tile gates cannot run")
+
+    return failures
+
+
+def check_palette_foundation() -> None:
+    failures = palette_foundation_audit()
+    labels = {
+        "inventory": "the 32-ramp baseline and every addition are token-built five-stop ramps",
+        "determinism": "ramp and material generation is deterministic",
+        "value": "every ramp has V steps 8..11, span >=32 and endpoints 12..96",
+        "hue": "warm/cool/skin hue-drift law is satisfied",
+        "chroma": "chroma peaks at stop 1-2 and relaxes toward both ends",
+        "contrast": "stone, iron and charcoal are perceptually separated",
+        "materials": "metal/wood_grain/fold/worn_edge primitives render opaquely",
+        "tiling": "stone() is exact 16-periodic and passes the 3x3 seam gate",
+    }
+    for rule, errors in failures.items():
+        if errors:
+            detail = "; ".join(errors[:8])
+            if len(errors) > 8:
+                detail += f"; +{len(errors) - 8} more"
+            check("Palette", False, f"{labels[rule]} -- {detail}")
+        else:
+            check("Palette", True, labels[rule])
 
 
 # --------------------------------------------------------------------------
@@ -976,6 +1328,7 @@ PIPELINE_GENERATORS = [
     "gen_blocks_items.py",
     "gen_gui.py",
     "gen_plaque.py",
+    "gen_raider.py",
     "gen_structures.py",
     "gen_ui.py",
 ]
@@ -1008,7 +1361,8 @@ def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tupl
 _PIPELINE_OUTPUT_SUFFIXES = (".png", ".nbt", ".mcmeta", ".java")
 
 
-def check_pipeline() -> None:
+def check_pipeline(*, tools_src: Path | None = None,
+                   generators=None) -> None:
     """A regression guard is worthless the moment it stops running and
     nobody notices. Every branch below therefore ends in a real check()
     failure on anything that prevents the determinism comparison from
@@ -1016,13 +1370,13 @@ def check_pipeline() -> None:
     included: subprocess failure surfaces it the same as any other crash)
     is exactly the case this guard exists to catch, not a reason to
     degrade to a warning or an info line and move on."""
-    tools_src = PROJECT_ROOT / "tools"
-    if not tools_src.is_dir():
-        info("Pipeline", "no tools/ directory — skipped")
-        return
+    tools_src = PROJECT_ROOT / "tools" if tools_src is None else Path(tools_src)
+    generator_names = PIPELINE_GENERATORS if generators is None else tuple(generators)
 
-    for script in PIPELINE_GENERATORS:
+    for script in generator_names:
         if not (tools_src / script).is_file():
+            check("Pipeline", False,
+                  f"{script}: listed pipeline generator is missing from {rel(tools_src)}")
             continue
 
         tmp_a, err_a = _run_generator_isolated(tools_src, script, "0")
@@ -1266,11 +1620,32 @@ def check_appearance_binding() -> None:
 # --------------------------------------------------------------------------
 
 CATEGORY_ORDER = ["Registry", "Meta", "Blocks", "Items", "Entities", "Lang",
-                  "JSON", "Textures", "Sounds", "Recipes", "Tags",
+                  "JSON", "Textures", "Palette", "Sounds", "Recipes", "Tags",
                   "Structures", "Pipeline", "Appearance", "Info"]
 
 
+def _configure_windows_console(stream, *, platform_name: str | None = None) -> bool:
+    """Switch a Windows text stream to UTF-8 before emitting report symbols.
+
+    Some Windows launches inherit cp1252, which cannot encode the existing
+    check/warning symbols.  UTF-8 preserves those messages exactly; streams
+    without ``reconfigure`` (test doubles, embedded hosts) are left untouched.
+    """
+    platform_name = os.name if platform_name is None else platform_name
+    if platform_name != "nt":
+        return False
+    reconfigure = getattr(stream, "reconfigure", None)
+    if not callable(reconfigure):
+        return False
+    try:
+        reconfigure(encoding="utf-8", errors="backslashreplace")
+    except (AttributeError, OSError, TypeError, ValueError):
+        return False
+    return True
+
+
 def print_report(quiet: bool) -> None:
+    _configure_windows_console(sys.stdout)
     ordered = [c for c in CATEGORY_ORDER if c in RESULTS]
     ordered += [c for c in RESULTS if c not in ordered]
     for category in ordered:
@@ -1296,6 +1671,8 @@ def print_report(quiet: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_windows_console(sys.stdout)
+    _configure_windows_console(sys.stderr)
     parser = argparse.ArgumentParser(description="Validate Hearthstead mod resources.")
     parser.add_argument("--quiet", action="store_true",
                         help="CI-style output: only failures, warnings and the summary")
@@ -1328,6 +1705,7 @@ def main(argv: list[str] | None = None) -> int:
 
     check_sounds(registries["sounds"], langs)
     check_textures()
+    check_palette_foundation()
     check_recipes(registries["blocks"], registries["items"])
     check_tags(registries)
     check_structures()
