@@ -276,6 +276,9 @@ public class HearthsteadGameTests {
             crown.east(), crown.west(), crown.above()}) {
             helper.setBlock(leaf, Blocks.OAK_LEAVES.defaultBlockState());
         }
+        // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- remove.
+        com.hearthstead.entity.ai.LumbererWorkGoal.DEBUG_TRUNK_COLUMN =
+            helper.absolutePos(dirtRel);
         SettlerEntity lumberer = boundSettler(helper, s, new BlockPos(6, 1, 8));
         lumberer.assignProfession(Profession.LUMBERER);
 
@@ -1305,6 +1308,9 @@ public class HearthsteadGameTests {
                 helper.setBlock(baseRel.above(4).offset(dx, 0, dz), Blocks.OAK_LEAVES);
             }
         }
+        // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- remove.
+        com.hearthstead.entity.ai.LumbererWorkGoal.DEBUG_TRUNK_COLUMN =
+            helper.absolutePos(dirtRel);
         SettlerEntity lumberer = boundSettler(helper, s, new BlockPos(4, 1, 4));
         lumberer.assignProfession(Profession.LUMBERER);
 

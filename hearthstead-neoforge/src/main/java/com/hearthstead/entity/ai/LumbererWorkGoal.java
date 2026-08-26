@@ -159,15 +159,42 @@ public class LumbererWorkGoal extends Goal {
      * a cap well under that is the difference between "no tree here" and a
      * scan that follows a decorative column down to bedrock.
      */
+    // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- a test
+    // fixture sets this to the absolute X/Z of the trunk it just placed so
+    // trunkInColumn can log exactly what the heightmap says for THAT column,
+    // instead of drowning the log in every column the scan touches. Remove
+    // this field and every read/write of it before landing.
+    public static volatile BlockPos DEBUG_TRUNK_COLUMN = null;
+
     @Nullable
     private BlockPos trunkInColumn(BlockPos column) {
         Level level = settler.level();
+        boolean debugColumn = DEBUG_TRUNK_COLUMN != null
+            && column.getX() == DEBUG_TRUNK_COLUMN.getX()
+            && column.getZ() == DEBUG_TRUNK_COLUMN.getZ();
         if (!level.hasChunkAt(column)) {
+            if (debugColumn) {
+                com.hearthstead.Hearthstead.LOGGER.info(
+                    "[LUMBER-DIAG] trunkcol column={} hasChunkAt=false", column);
+            }
             return null;
         }
         BlockPos surface = level.getHeightmapPos(
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column);
         BlockPos.MutableBlockPos cursor = surface.mutable().move(Direction.DOWN);
+        if (debugColumn) {
+            StringBuilder sb = new StringBuilder();
+            for (int dy = 3; dy >= -8; dy--) {
+                BlockPos p = surface.offset(0, dy, 0);
+                sb.append("y=").append(p.getY()).append(':')
+                    .append(level.getBlockState(p).getBlock()).append(' ');
+            }
+            com.hearthstead.Hearthstead.LOGGER.info(
+                "[LUMBER-DIAG] trunkcol column={} surface={} cursor={} cursorState={} "
+                    + "minBuildHeight={} maxBuildHeight={} column=[{}]",
+                column, surface, cursor, level.getBlockState(cursor),
+                level.getMinBuildHeight(), level.getMaxBuildHeight(), sb);
+        }
         if (!level.getBlockState(cursor).is(BlockTags.LOGS_THAT_BURN)) {
             return null;
         }

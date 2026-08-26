@@ -71,9 +71,12 @@ public final class Costs {
         MAYOR_FEAST,
         /**
          * Raid-damage repair dugnad (COSTS.md "Repairs after raids").
-         * Forward-looking: no repair mechanic consumes goods yet, this only
-         * reserves the row and its two named hooks so the raid slice prices
-         * against the same laws when it lands.
+         * The dugnad DOES consume goods now (RepairWorkGoal takes one real
+         * material per scar), but it takes them per-block from the nearest
+         * store rather than as a settlement-level price, so the mason and
+         * sawmill hooks below are still unconsumed. Wiring them means
+         * deciding whether a discount should mean "fewer blocks pay" or
+         * "some scars mend free" -- a balance question, not a plumbing one.
          */
         REPAIR
     }
@@ -258,12 +261,35 @@ public final class Costs {
      * {@link Line#withCount}, the one place that floor is applied, so it can
      * never be bypassed by a future call site.
      */
-    public static Price afterDiscounts(Price base, List<Discount> discounts) {
+    /**
+     * The single capped percentage a discount list comes to, for callers that
+     * price in their own currency rather than in {@link Line}s.
+     *
+     * <p>Research is the first of those: its costs are
+     * {@code ResearchProject.Cost} records fixed at enum-construction time,
+     * not a {@link Price} this table owns. Exposing the percentage lets it
+     * obey the same cap and the same rounding without either side copying
+     * the arithmetic — which is the whole point of one price table.
+     */
+    public static int discountPercent(List<Discount> discounts) {
         int percent = 0;
         for (Discount d : discounts) {
             percent += d.percent();
         }
-        percent = Math.max(0, Math.min(DISCOUNT_CAP_PERCENT, percent));
+        return Math.max(0, Math.min(DISCOUNT_CAP_PERCENT, percent));
+    }
+
+    /** One line's count after a capped percentage, player's favour, floor 1. */
+    public static int discounted(int count, int percent) {
+        if (percent <= 0) {
+            return count;
+        }
+        int off = (count * percent + 99) / 100; // ceil -- favours the player
+        return Math.max(1, count - off);
+    }
+
+    public static Price afterDiscounts(Price base, List<Discount> discounts) {
+        int percent = discountPercent(discounts);
         if (percent == 0) {
             return base;
         }

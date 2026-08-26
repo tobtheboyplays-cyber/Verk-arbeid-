@@ -193,13 +193,24 @@ public final class Research extends SavedData {
             return new Refusal("hearthstead.research.refused.done");
         }
         List<IItemHandler> sources = sourcesFor(level, settlement, study);
+        // COSTS.md's law 2, "the village helps": a standing library takes a
+        // quarter off the materials, capped with every other discount at
+        // half. The percentage comes from Costs so this side never grows a
+        // second copy of the arithmetic -- a project's costs are fixed at
+        // enum-construction time and are not a Costs.Price, which is exactly
+        // why the table exposes the number instead of only the Price.
+        int off = com.hearthstead.settlement.Costs.discountPercent(
+            com.hearthstead.settlement.Costs.discountsFor(level, settlement,
+                com.hearthstead.settlement.Costs.PriceKey.RESEARCH));
         for (ResearchProject.Cost cost : project.costs()) {
-            if (count(sources, cost.item()) < cost.count()) {
+            int due = com.hearthstead.settlement.Costs.discounted(cost.count(), off);
+            if (count(sources, cost.item()) < due) {
                 return new Refusal("hearthstead.research.refused.materials");
             }
         }
         for (ResearchProject.Cost cost : project.costs()) {
-            take(sources, cost.item(), cost.count());
+            take(sources, cost.item(),
+                com.hearthstead.settlement.Costs.discounted(cost.count(), off));
         }
         ResearchState.Active active = new ResearchState.Active();
         active.project = project;
