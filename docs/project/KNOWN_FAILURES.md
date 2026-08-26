@@ -2261,3 +2261,35 @@ Recorded here, listed in the owner's known-issues note, and queued as the
 first animation work after the test. If he watches a farmer at a cane bed
 and it reads wrong to him, that is a better brief for authoring them than
 anything written down now.
+
+## KF-037 — the ceiling-hole fixture's floor layer is 16 blocks of stone nobody wrote
+
+**Status:** open, non-blocking. Every assertion in
+`RoomScannerGameTests.aCeilingHoleNamesTheLeak` is honest and the test is
+green (evidence: `qa/reports/artifacts/20260826T190321Z`, 278/278).
+
+**What the evidence says.** A temporary instrumented run dumped the
+fixture's y1 plane cell by cell. The nine furniture blocks the fixture
+places are all exactly where `buildOpenWarehouse` puts them (chests 1,1
+2,1 1,2; barrels 4,1 5,1 5,2; torches 1,4 5,4 3,5). The other **16 cells
+read `minecraft:stone`** — a block neither `buildOpenWarehouse`
+(STONE_BRICKS), `floor` (STONE_BRICKS), nor `buildChimney` (STONE_BRICKS)
+ever writes, and which the `empty16` template does not contain at that
+layer (decoded: y0 stone ×256, y1-y7 air ×256 each).
+
+The only STONE writer in the class is `buildUndergroundWarehouse`, in the
+OTHER test of the same batch — but the two arenas sit 21 blocks apart and
+that fixture's overburden reaches 9 blocks from its origin, so a plain
+coordinate overlap does not explain it either.
+
+**Why it matters even though it is green.** The room the leak test
+measures is therefore mostly two layers, not three (volume 58: 3 passable
+cells at y1, 25 at y2, 25 at y3, 5 in the shaft). Nothing asserted depends
+on that, but a fixture whose world contains blocks no line of the fixture
+writes is an order-dependent world — the exact shape flaky suites grow
+from later.
+
+**Next step.** Print the same plane at the TOP of the test, before any
+fixture call, and compare with a run of the leak test alone (its own
+batch). That separates "the template/arena handed us stone" from "the
+sibling test reached us".

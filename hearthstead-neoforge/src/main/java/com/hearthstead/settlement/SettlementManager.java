@@ -212,9 +212,23 @@ public final class SettlementManager {
             return;
         }
 
+        // PLAN_TAVERN_GATE.md, D-TAVERN-1: a settlement draws NO new
+        // traveler at all without a valid tavern -- MineColonies-fidelity
+        // where the owner's 2026-08-26 order says it matters. Gated on
+        // BUILDING validity (firstValidTavern requires b.valid, never
+        // b.workers): a staffing-level gate would deadlock a settlement
+        // whose only innkeeper-candidate dies before ever being hired,
+        // with nobody left to staff the very building that would let a
+        // replacement arrive. Staffing still matters -- it accelerates the
+        // gain below, and separately discounts the price via
+        // Costs.discountsFor(RECRUIT) -- it just never gets to be the
+        // on/off switch. Joining is NOT gated the same way: see
+        // tickWaitingTraveler, unchanged, and D-TAVERN-2's grandfather
+        // clause for a guest already waiting when a tavern invalidates.
         boolean attractive = s.population() < s.capacity()
             && s.foodCache >= 8
-            && s.moraleCache >= 60;
+            && s.moraleCache >= 60
+            && tavern != null;
         if (attractive) {
             if (s.recruitTarget <= 0) {
                 s.recruitTarget = 200 + level.random.nextInt(80);
@@ -314,6 +328,17 @@ public final class SettlementManager {
             }
         }
         return null;
+    }
+
+    /**
+     * Whether {@code s} has a valid tavern right now -- the exact same
+     * building-level test {@link #tickRecruitment}'s attractive-check
+     * reads (D-TAVERN-1), exposed for the hearth's synced
+     * {@code HearthMenu.DATA_TAVERN} slot and {@code /hearthstead recruit}'s
+     * feedback, so neither call site re-derives its own copy of the gate.
+     */
+    public static boolean hasValidTavern(Settlement s) {
+        return firstValidTavern(s) != null;
     }
 
     // ------------------------------------------------------- the price ---

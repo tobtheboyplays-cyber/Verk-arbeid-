@@ -7,17 +7,30 @@ visit the tavern; recruit by paying a price in village-grown goods."*
 
 ## The loop
 
-1. **Attraction.** Once a second, `SettlementManager.tickRecruitment` grows
-   `Settlement.recruitProgress` toward `recruitTarget` whenever the settlement
-   is fed, has room, and morale holds. A valid **TAVERN** building adds to the
-   gain; a **TAVERN with an INNKEEPER employed** adds more — the same one
-   gauge, never a second hidden one. When it fills, a traveler spawns at the
-   settlement's edge and starts walking in (`spawnSettler(..., traveler=true)`).
-2. **Arrival, not admission.** `TravelerJoinGoal` walks the traveler to the
-   tavern's anchor (`Schedule.firstValid(s, TAVERN)`) when one stands, or to
-   the hearth when none does, then stops and stands them like a guest. It
-   never decides whether they join — arriving used to mean joining instantly;
-   now it means waiting.
+1. **Attraction — gated on a tavern.** Once a second,
+   `SettlementManager.tickRecruitment` grows `Settlement.recruitProgress`
+   toward `recruitTarget` whenever the settlement is fed, has room, morale
+   holds, AND a valid **TAVERN** building exists. `PLAN_TAVERN_GATE.md`
+   (D-TAVERN-1) tightened the tavern from a speed bonus into a hard gate: no
+   valid tavern means zero gain, ever — the existing decay branch is the only
+   path a tavern-less settlement ever takes, and no traveler ever spawns. The
+   gate reads building VALIDITY, never staffing — an unstaffed tavern still
+   opens it, so a settlement can never deadlock on having nobody left to hire
+   into the very building that would let a replacement arrive. A **TAVERN
+   with an INNKEEPER employed** adds MORE on top of an already-open gate —
+   the same one gauge, never a second hidden one. When it fills, a traveler
+   spawns at the settlement's edge and starts walking in
+   (`spawnSettler(..., traveler=true)`).
+2. **Arrival, not admission — and never re-gated.** `TravelerJoinGoal` walks
+   the traveler to the tavern's anchor (`Schedule.firstValid(s, TAVERN)`)
+   when one stands, or to the hearth when none does — including a tavern
+   that was valid when this guest was drawn in but has since gone invalid,
+   `PLAN_TAVERN_GATE.md`'s grandfather clause (D-TAVERN-2) — then stops and
+   stands them like a guest. It never decides whether they join, and the
+   tavern gate above never applies to this step: that gate governs attraction
+   only, so a guest already on their way is never stranded by their tavern
+   breaking mid-wait. Arriving used to mean joining instantly; now it means
+   waiting.
 3. **The price.** Every second `tickRecruitment` asks whether the settlement
    can pay `RECRUIT_PRICE` out of the hearth's own `HearthBlockEntity`
    inventory (chest truth — real slots, real extraction, INV-3). The moment it

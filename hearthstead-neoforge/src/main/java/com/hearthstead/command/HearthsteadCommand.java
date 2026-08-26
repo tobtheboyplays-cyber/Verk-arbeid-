@@ -240,15 +240,42 @@ public final class HearthsteadCommand {
         return 1;
     }
 
+    /**
+     * PLAN_TAVERN_GATE.md krav 4 (severity 1, "stille feil"): a settlement
+     * with no valid tavern cannot be force-advanced -- the gate this slice
+     * added ({@link SettlementManager#hasValidTavern}) applies here exactly
+     * as it does to the real tick, so this admin shortcut never lies about
+     * the same rule a player is shown in {@code HearthScreen}. Feedback
+     * always names WHAT happened, one line per settlement actually
+     * advanced or skipped -- never a single opaque success message that
+     * could silently do nothing.
+     */
     private static int recruit(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
-        for (Settlement s : SettlementSavedData.get(level).settlements.values()) {
+        java.util.Collection<Settlement> all = SettlementSavedData.get(level).settlements.values();
+        if (all.isEmpty()) {
+            source.sendFailure(Component.translatable("hearthstead.command.no_settlement"));
+            return 0;
+        }
+        int forced = 0;
+        java.util.List<String> skipped = new java.util.ArrayList<>();
+        for (Settlement s : all) {
+            if (!SettlementManager.hasValidTavern(s)) {
+                skipped.add(s.name);
+                continue;
+            }
             s.recruitProgress = Math.max(0, s.recruitTarget - 1);
+            forced++;
         }
         SettlementManager.data(level).setDirty();
+        int forcedFinal = forced;
         source.sendSuccess(() ->
-            Component.translatable("hearthstead.command.recruit_forced"), true);
-        return 1;
+            Component.translatable("hearthstead.command.recruit_forced", forcedFinal), true);
+        for (String name : skipped) {
+            source.sendSuccess(() ->
+                Component.translatable("hearthstead.command.recruit_skipped", name), true);
+        }
+        return forced;
     }
 
 

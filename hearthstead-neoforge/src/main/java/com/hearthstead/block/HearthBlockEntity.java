@@ -192,6 +192,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 case HearthMenu.DATA_ALERT -> s.alertActive(serverLevel.getGameTime()) ? 1 : 0;
                 case HearthMenu.DATA_RECRUIT ->
                     s.recruitTarget > 0 ? Math.min(100, s.recruitProgress * 100 / s.recruitTarget) : 0;
+                case HearthMenu.DATA_TAVERN -> SettlementManager.hasValidTavern(s) ? 1 : 0;
                 default -> 0;
             };
         }

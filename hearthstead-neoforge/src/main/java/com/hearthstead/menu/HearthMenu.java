@@ -26,7 +26,12 @@ public class HearthMenu extends AbstractContainerMenu {
     public static final int DATA_RADIUS = 5;
     public static final int DATA_ALERT = 6;
     public static final int DATA_RECRUIT = 7;
-    public static final int DATA_COUNT = 8;
+    /** 1 when a valid tavern exists, 0 otherwise -- PLAN_TAVERN_GATE.md
+     *  krav 1/5: the recruit stripe must be able to show the tavern
+     *  blocker BEFORE the progress bar, so it needs its own synced slot
+     *  rather than inferring the gate from DATA_RECRUIT alone. */
+    public static final int DATA_TAVERN = 8;
+    public static final int DATA_COUNT = 9;
 
     public static final int COMMUNAL_SLOTS = HearthBlockEntity.INVENTORY_SIZE;
     public static final int COMMUNAL_X = 104;

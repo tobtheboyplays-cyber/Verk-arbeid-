@@ -436,6 +436,17 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
             boolean blink = (System.currentTimeMillis() / 400) % 2 == 0;
             graphics.drawString(font, Component.translatable("hearthstead.gui.alert"),
                 STAT_X, BAR_Y + 14, blink ? 0xFFA03030 : 0xFF702020, false);
+        } else if (menu.get(HearthMenu.DATA_TAVERN) == 0) {
+            // PLAN_TAVERN_GATE.md krav 1 (severity 1, "dishonest"): a
+            // tavern-less settlement can still be sitting on DECAYING
+            // recruit progress from before its tavern broke -- DATA_RECRUIT
+            // would read > 0 for that whole decay. Rendered BEFORE the
+            // recruit > 0 branch below so that case can never fall through
+            // to "A traveler draws near..." while nothing is actually
+            // gaining: the gate must never lie about which stripe is true.
+            graphics.drawString(font,
+                Component.translatable("hearthstead.gui.recruit_blocked.tavern"),
+                STAT_X, BAR_Y + 13, INK_SOFT, false);
         } else {
             int recruit = menu.get(HearthMenu.DATA_RECRUIT);
             if (recruit > 0) {
@@ -546,6 +557,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
                 lines.add(Component.translatable("hearthstead.gui.tooltip.morale.desc")
                     .withStyle(net.minecraft.ChatFormatting.GRAY));
             } else if (menu.get(HearthMenu.DATA_ALERT) != 1
+                && menu.get(HearthMenu.DATA_TAVERN) == 1
                 && menu.get(HearthMenu.DATA_RECRUIT) > 0
                 && localY >= BAR_Y + 12 && localY < BAR_Y + 27) {
                 lines.add(Component.translatable("hearthstead.gui.tooltip.recruit",

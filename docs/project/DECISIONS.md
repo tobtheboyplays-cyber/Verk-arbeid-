@@ -5,6 +5,85 @@ affects, and any migration concern.
 
 ---
 
+## D-TAVERN-2 — A waiting guest is grandfathered through the gate; `bell.json` is the one frozen-recipe exception
+
+**Decision.** The tavern gate (D-TAVERN-1) governs ATTRACTION only —
+whether `tickRecruitment` may grow `recruitProgress` and spawn a new
+traveler. It never governs JOINING: `tickWaitingTraveler` asks nothing about
+tavern validity, so a guest already waiting (`Settlement.travelerId != null`)
+keeps waiting, keeps their patience clock, and joins the instant the
+settlement can pay — even if the tavern that drew them in has since gone
+invalid (`Building.valid == false`), in which case `waitingSpot` simply
+recomputes to the hearth, same as a settlement that never had a tavern at
+all. Paired with this: `data/hearthstead/recipe/bell.json` (3 gold ingots +
+2 sticks + 1 iron ingot → `minecraft:bell`, shaped) is added as the single
+exception to the slice's frozen recipe surface, and
+`EconomyWallGameTests#noBuildPlanOrPriceUsesEmeralds` ratchets that no build
+plan recipe or `Costs` price line may ever charge an emerald.
+
+**Reason.** A joining-level gate would strand a guest mid-wait the instant a
+raid or a missing bell knocked their tavern below `LINKED_VALID`, turning a
+temporary room problem into a lost traveler for good — worse than doing
+nothing about it. Vanilla Minecraft ships NO crafting recipe for a bell at
+all (it is village-loot or silk-touch only); requiring one to build the
+FIRST tavern would soft-lock every village-less world at 3 founders forever,
+which is exactly the gate D-TAVERN-1 adds then never letting go of.
+
+**Rejected.** Re-checking tavern validity inside `tickWaitingTraveler` — it
+already asks nothing about tavern validity, and this decision keeps it that
+way on purpose. An emerald-priced bell recipe, considered and rejected the
+same as the market's old emerald gate (`SurvivalAuditWallGameTests`, F4) —
+the owner's 2026-08-26 order is explicit: no emeralds, anywhere, ratcheted
+rather than merely noted.
+
+**Affects.** `data/hearthstead/recipe/bell.json` (new),
+`EconomyWallGameTests` (new file), `RecruitGameTests` (b), (c), (f).
+`CostsGameTests` and `RecruitGameTests` (a) are unaffected — none of their
+fixtures pass through the attraction gate; their travelers are seeded
+already waiting.
+
+---
+
+## D-TAVERN-1 — The tavern gate is building-level, never staffing-level
+
+**Decision.** `SettlementManager.tickRecruitment`'s `attractive` expression
+gains a fourth term: a valid TAVERN building must exist
+(`firstValidTavern(s) != null`). A settlement with no valid tavern earns
+zero recruit progress, full stop — the existing decay branch
+(`recruitProgress--`) is the only path a tavern-less settlement ever takes,
+and the spawn branch is never reached. The gate reads `Building.valid`,
+never `Building.workers` — an UNSTAFFED tavern still opens it.
+
+**Reason.** The owner's 2026-08-26 order ("tavern er kritisk for å få nye
+settlers", MineColonies-anchored, no emeralds) asked for the tavern to
+matter, not for an innkeeper to. A staffing-level gate ("a tavern needs an
+innkeeper before it draws anyone") would deadlock a settlement whose only
+innkeeper-candidate dies before ever being hired — nobody left to staff the
+very building that would let a replacement arrive. A building-level gate
+cannot deadlock this way: a plaque and a room are permanent once built,
+survive every settler's death, and reopen the gate the instant a broken
+tavern's room is repaired, with nobody hired at all.
+`Costs.discountsFor(RECRUIT)`'s existing innkeeper −25% hook (staffing-gated,
+untouched by this decision) is where staffing still matters — it is a price
+lever, not the on/off switch.
+
+**Rejected.** Gating on `!tavern.workers.isEmpty()` — see Reason above.
+Also rejected: gating `tickWaitingTraveler`/`TravelerJoinGoal` the same way,
+which would strand an already-arrived guest the moment their tavern lost
+validity — that is D-TAVERN-2's own decision, kept separate because it
+protects a different moment (joining, not attracting).
+
+**Affects.** `SettlementManager.tickRecruitment` and the new
+`SettlementManager.hasValidTavern` accessor; `HearthMenu`'s new
+`DATA_TAVERN` slot and `HearthBlockEntity`'s `ContainerData`;
+`HearthScreen`'s recruit stripe (the tavern blocker now renders BEFORE the
+progress bar, never after); `/hearthstead recruit`'s feedback, which now
+names settlements it skipped for lacking a tavern rather than silently
+force-advancing nothing. `tickWaitingTraveler`, the hearth fallback, and
+`TravelerJoinGoal` are untouched — see D-TAVERN-2.
+
+---
+
 ## D-018 — Showcase pose/pulse/lineup are a viewing aid, never a test oracle
 
 **Decision.** `/hearthstead pose`, `pulse` and `lineup`

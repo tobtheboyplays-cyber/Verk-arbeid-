@@ -31,6 +31,14 @@ import java.util.UUID;
  * they wait as guests rather than joining on the spot, and joining costs the
  * settlement a real price paid out of the hearth's own stores.
  *
+ * <p>PLAN_TAVERN_GATE.md (D-TAVERN-1/2) strapped that chain shut at the
+ * front door: {@code SettlementManager.tickRecruitment}'s attractive-check
+ * now requires a valid tavern before it grows {@code recruitProgress} or
+ * spawns a traveler at all -- (d), (e) and (f) below are that gate's own
+ * tests. The gate governs ATTRACTION only; JOINING is untouched, which is
+ * why (a) needed no changes and (b)/(c)'s javadoc below now says so
+ * explicitly rather than describing the pre-gate design.
+ *
  * <p>Each test calls {@link SettlementManager}'s recruitment methods directly
  * rather than waiting out real game-time (a guest's patience is measured in
  * game <em>days</em>, which no GameTest budget could ever tick through) —
@@ -169,8 +177,14 @@ public class RecruitGameTests {
 
     /**
      * A settlement that cannot pay does not get a free settler -- the guest
-     * waits out their patience and walks away instead. No tavern this time:
-     * the hearth itself is the fallback waiting spot the design calls for.
+     * waits out their patience and walks away instead. No tavern this time,
+     * and by design it cannot matter: PLAN_TAVERN_GATE.md's tavern gate
+     * (D-TAVERN-1) governs {@code tickRecruitment}'s ATTRACTION step only --
+     * {@link SettlementManager#tickWaitingTraveler} asks nothing about
+     * tavern validity, so a guest already waiting is exactly as grandfathered
+     * through a tavern-less settlement here as through an INVALIDATED one in
+     * {@link #aWaitingGuestSurvivesTavernInvalidation}. The hearth is simply
+     * the fallback waiting spot the design already called for either way.
      */
     @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
     public void anUnpayableGuestWalksAwayInsteadOfJoining(GameTestHelper helper) {
@@ -208,8 +222,14 @@ public class RecruitGameTests {
     // ------------------------------------------------------------ (c) ---
 
     /**
-     * The tavern matters, and an innkeeper on shift matters more: both raise
-     * the SAME recruit gauge rather than adding a second, hidden one.
+     * PLAN_TAVERN_GATE.md's gate (D-TAVERN-1) turned this test's own "bare"
+     * fixture into a demonstration of the gate itself: a tavern-less
+     * settlement no longer merely gains SLOWER, it gains NOTHING AT ALL --
+     * see {@link #noTavernMeansTheGaugeNeverFills} for that claim proved on
+     * its own with a seeded, decaying gauge. What remains true past the gate
+     * is the original point: a valid tavern opens it, and an innkeeper on
+     * shift on top of that accelerates it further still -- both raise the
+     * SAME recruit gauge rather than adding a second, hidden one.
      */
     @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
     public void aTavernAndItsInnkeeperAccelerateTheRecruitGauge(GameTestHelper helper) {
@@ -226,6 +246,12 @@ public class RecruitGameTests {
         bare.foodCache = 10;
         bare.moraleCache = 60;
         SettlementManager.tickRecruitment(level, bare);
+        // The gate itself, made explicit rather than only implied by the
+        // ">" comparison below: a tavern-less settlement earns nothing, not
+        // just less.
+        helper.assertTrue(bare.recruitProgress == 0,
+            "a tavern-less settlement must gain no recruit progress at all "
+                + "under the gate, got " + bare.recruitProgress);
 
         Settlement withTavern = new Settlement(UUID.randomUUID(), "Med Vertshus",
             helper.absolutePos(new BlockPos(2, 1, 6)));
@@ -254,6 +280,131 @@ public class RecruitGameTests {
             "hospitality must raise the bonus further still: tavern alone got "
                 + withTavern.recruitProgress + ", with an innkeeper got "
                 + withInnkeeper.recruitProgress);
+        helper.succeed();
+    }
+
+    // ------------------------------------------------------------ (d) ---
+
+    /**
+     * PLAN_TAVERN_GATE.md D-TAVERN-1, byggherre-krav 3/6: the gate reads
+     * building-level validity in {@code tickRecruitment}'s own
+     * attractive-check, so a tavern-less settlement that is otherwise fully
+     * attractive (fed, morale high, room free) must gain NOTHING, not just
+     * less. {@code recruitProgress} is seeded to 50 -- never 0 -- specifically
+     * so the decay this test is about is measurable: a 0==0 pass would be
+     * true whether the gate worked or was entirely absent.
+     */
+    @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
+    public void noTavernMeansTheGaugeNeverFills(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        Settlement s = settlement(helper, hearthRel);
+        // Attractive on every OTHER axis -- fed, high morale, room -- so a
+        // missing tavern is the only thing the gate can be blamed for.
+        s.foodCache = 10;
+        s.moraleCache = 80;
+        s.recruitProgress = 50;
+
+        SettlementManager.tickRecruitment(level, s);
+
+        helper.assertTrue(s.recruitProgress == 49,
+            "no tavern must decay recruit progress by exactly one tick, even "
+                + "while otherwise attractive -- got " + s.recruitProgress);
+        helper.assertTrue(s.travelerId == null,
+            "no tavern must never spawn a traveler, no matter how full the "
+                + "gauge once was");
+        helper.succeed();
+    }
+
+    // ------------------------------------------------------------ (e) ---
+
+    /**
+     * The other half of (d): the SAME settlement, decaying with no tavern,
+     * grows again the instant a valid one exists -- nothing else about it
+     * changes between the two ticks. Seeded at 20 rather than 0 so the first
+     * tick's decay (to 19) is itself a measurable claim, and the second
+     * tick's rise is measured against that 19, never against a bare zero.
+     */
+    @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
+    public void aValidTavernReopensTheGate(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        BlockPos tavernRel = new BlockPos(10, 1, 10);
+        Settlement s = settlement(helper, hearthRel);
+        s.foodCache = 10;
+        s.moraleCache = 80;
+        s.recruitProgress = 20;
+
+        // Gate shut: no tavern yet, progress only decays.
+        SettlementManager.tickRecruitment(level, s);
+        helper.assertTrue(s.recruitProgress == 19,
+            "sanity: without a tavern the gauge must still be decaying, got "
+                + s.recruitProgress);
+
+        // The gate opens the moment a valid tavern exists -- same
+        // settlement, same tick loop, nothing else changed.
+        building(helper, s, BuildingType.TAVERN, tavernRel.getX(), tavernRel.getZ());
+        SettlementManager.tickRecruitment(level, s);
+
+        helper.assertTrue(s.recruitProgress > 19,
+            "a valid tavern must reopen the gate and grow progress again -- "
+                + "had 19 after decay, got " + s.recruitProgress + " with a tavern");
+        helper.succeed();
+    }
+
+    // ------------------------------------------------------------ (f) ---
+
+    /**
+     * PLAN_TAVERN_GATE.md's grandfather clause (D-TAVERN-2): the tavern gate
+     * governs ATTRACTION only. A guest already waiting when their tavern
+     * loses validity is never stranded -- {@link
+     * SettlementManager#tickWaitingTraveler} asks nothing about tavern
+     * validity, {@code waitingSpot} simply recomputes to the hearth fallback
+     * ({@code tavern == null} once invalid), and the join completes there
+     * with the exact, undiscounted price. Invalidated through the REAL
+     * mechanism a plaque re-survey would flip ({@code Building.valid = false}
+     * on the actual fixture), not a synthetic test-only flag.
+     */
+    @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
+    public void aWaitingGuestSurvivesTavernInvalidation(GameTestHelper helper) {
+        floor(helper, 16);
+        ServerLevel level = helper.getLevel();
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        BlockPos tavernRel = new BlockPos(10, 1, 10);
+        Settlement s = settlement(helper, hearthRel);
+        Building tavern = building(helper, s, BuildingType.TAVERN,
+            tavernRel.getX(), tavernRel.getZ());
+
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.insertGoods(new ItemStack(Items.BREAD, 4));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
+
+        // The room stopped meeting its requirements mid-wait -- the real
+        // mechanism, not a synthetic flag.
+        tavern.valid = false;
+
+        // TravelerJoinGoal (untested here) is the one that would notice
+        // waitingSpot recomputed to the hearth and walk them there; this
+        // test starts the guest already arrived, the same idiom
+        // anUnpayableGuestWalksAwayInsteadOfJoining uses for its own
+        // hearth-fallback case.
+        SettlerEntity guest = waitingTraveler(helper, s, "Etterlatt",
+            hearthRel.offset(1, 0, 0));
+
+        SettlementManager.tickRecruitment(level, s);
+
+        helper.assertFalse(guest.isTraveler(),
+            "a guest already waiting must be grandfathered through an "
+                + "invalidated tavern, not stranded");
+        helper.assertTrue(guest.isBound(), "...and must actually join the settlement");
+        helper.assertTrue(s.travelerId == null, "no guest is left waiting once they join");
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
+            "the exact bread price must be gone, found " + countInHearth(hearth, Items.BREAD));
+        helper.assertTrue(countInHearth(hearth, Items.OAK_PLANKS) == 0,
+            "the exact planks price must be gone, found " + countInHearth(hearth, Items.OAK_PLANKS));
         helper.succeed();
     }
 }
