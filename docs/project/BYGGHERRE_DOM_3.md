@@ -25,7 +25,7 @@ omvei rundt dem.
 | 3 | Null nytt visuelt bevis (andre dom på rad) | 1 | Levert i natt: landsbyfilm + fem animasjonssider. Gjenstår: én ubrutt kjede på ny jar. |
 | 4 | Tømmerhogger-regresjon på KF-018 «FIXED» | 1 | LUKKET, KF-022. Rotårsak: trunkInColumn antok at ingenting står over et tre. Ekte blindsone i spillet, ikke testfeil. Fixturene uendret. |
 | 5 | Rangrustningens akseptbevis rødt | 2 | Blokkert på KF-021; testen fikk stocket våpenhus i natt. |
-| 6 | Costs.java overselger: 3 av 4 rader tomme | 2 | RIKTIG. Enten koble eller slutte å skryte. |
+| 6 | Costs.java overselger: 3 av 4 rader tomme | 2 | LUKKET (kode + tester; suite-bevis venter på KF-021). MAYOR_FEAST kreves nå chest-true fra peisen ved BYTTE, med spisesal-rabatten. REPAIR-rabatten betyr «noen arr gror gratis» på en deterministisk teller — hvert 4. ved 25%, hvert 2. ved 50%, ingen terning. Seks nye chest-true tester. COSTS.md sier nå at RESEARCH fortsatt er ukoblet i stedet for å skjule det. |
 | 7 | Kurér-konservering rød | 2 | Blokkert på KF-021. |
 | 8 | Forskningsbonusens persistens rød | 2 | Blokkert på KF-021. |
 | 9 | Plakett→advancement rød | 2 | Mock-spiller-plassering fikset i natt; uverifisert. |

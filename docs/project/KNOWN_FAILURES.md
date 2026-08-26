@@ -1378,3 +1378,27 @@ independent, which is the definition of a suite you can gate on.
 `Running test batch` lines are byte-identical across three consecutive runs.
 That was my hypothesis and it was wrong; recording it because a ruled-out
 cause is worth as much as a found one to whoever reads this next.
+
+### KF-025 — an unloaded mayor is indistinguishable from no mayor
+
+**Found by COSTS-2 while wiring the feast, flagged rather than fixed because
+it sits outside that worker's files and predates the change.** Not yet
+reproduced live; recorded so it is not rediscovered from scratch.
+
+`Mayor.appoint` decides whether an appointment is a SWAP or a first
+appointment by `previous = find(level, settlement)`, and `find` returns null
+in two quite different situations: there genuinely is no mayor, **and** the
+sitting mayor's entity is not currently loaded or not `isAlive()`. In the
+second case a real swap is treated as a first appointment — so the feast is
+not charged, and the stand-down morale hit that already depended on the same
+call is skipped too. A player who appoints a new mayor while the old one is
+asleep in an unloaded chunk gets the swap for free.
+
+The morale defect has been there all along; the feast simply inherits it,
+which is the useful part of the finding: `find()`'s two meanings were
+harmless while nothing important hung off them, and stopped being harmless
+the moment a price did. Fixing it means separating "no mayor is recorded" (a
+settlement fact, which the settlement knows) from "the mayor's entity is not
+in memory right now" (a loading fact, which it does not) — the same
+distinction `BuildingManager` already makes correctly with
+`level.isLoaded(plaquePos)` before dissolving anything (KF-021).

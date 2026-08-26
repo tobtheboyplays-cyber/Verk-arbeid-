@@ -2667,7 +2667,7 @@ public final class SettlerAnimations {
      * 5.5s loop.
      */
     private static AnimationDefinition buildIdleFarmer() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_FARMER = AnimationDefinition.Builder
             .withLength(5.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(18, -3, 2), CATMULLROM),
@@ -2733,6 +2733,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.70F, KeyframeAnimations.degreeVec(9, 0, 4), CATMULLROM),
                 new Keyframe(5.50F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_FARMER;
     }
 
     public static final AnimationDefinition IDLE_FARMER = buildIdleFarmer();
@@ -2743,7 +2744,7 @@ public final class SettlerAnimations {
      * back to the side. 5.0s loop.
      */
     private static AnimationDefinition buildIdleLumberer() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_LUMBERER = AnimationDefinition.Builder
             .withLength(5.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(5, 8, -2), CATMULLROM),
@@ -2809,6 +2810,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.50F, KeyframeAnimations.degreeVec(8, 0, 4), CATMULLROM),
                 new Keyframe(5.00F, KeyframeAnimations.degreeVec(5, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_LUMBERER;
     }
 
     public static final AnimationDefinition IDLE_LUMBERER = buildIdleLumberer();
@@ -2825,7 +2827,7 @@ public final class SettlerAnimations {
      * the same soldier at ease. 5.5s loop.
      */
     private static AnimationDefinition buildIdleSentry() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_SENTRY = AnimationDefinition.Builder
             .withLength(5.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(5, 1, 0), CATMULLROM),
@@ -2890,6 +2892,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.90F, KeyframeAnimations.degreeVec(-8.5F, 4, 3.3F), CATMULLROM),
                 new Keyframe(5.50F, KeyframeAnimations.degreeVec(-8, 4, 3), CATMULLROM)))
             .build();
+        return IDLE_SENTRY;
     }
 
     public static final AnimationDefinition IDLE_SENTRY = buildIdleSentry();
@@ -2900,7 +2903,7 @@ public final class SettlerAnimations {
      * against the fingers before dropping back. 4.5s loop.
      */
     private static AnimationDefinition buildIdleCourier() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_COURIER = AnimationDefinition.Builder
             .withLength(4.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(3, 2, 0), CATMULLROM),
@@ -2965,6 +2968,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.20F, KeyframeAnimations.degreeVec(7, 0, 3), CATMULLROM),
                 new Keyframe(4.50F, KeyframeAnimations.degreeVec(5, 0, 2), CATMULLROM)))
             .build();
+        return IDLE_COURIER;
     }
 
     public static final AnimationDefinition IDLE_COURIER = buildIdleCourier();
@@ -2978,7 +2982,7 @@ public final class SettlerAnimations {
      * 5.0s loop.
      */
     private static AnimationDefinition buildIdleForge() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_FORGE = AnimationDefinition.Builder
             .withLength(5.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(8, 0, 0), CATMULLROM),
@@ -3044,6 +3048,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.50F, KeyframeAnimations.degreeVec(9, 0, 4), CATMULLROM),
                 new Keyframe(5.00F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_FORGE;
     }
 
     public static final AnimationDefinition IDLE_FORGE = buildIdleForge();
@@ -3056,7 +3061,7 @@ public final class SettlerAnimations {
      * 4.5s loop.
      */
     private static AnimationDefinition buildIdleBaker() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_BAKER = AnimationDefinition.Builder
             .withLength(4.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
@@ -3132,6 +3137,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.10F, KeyframeAnimations.degreeVec(7, 0, 3), CATMULLROM),
                 new Keyframe(4.50F, KeyframeAnimations.degreeVec(5, 0, 2), CATMULLROM)))
             .build();
+        return IDLE_BAKER;
     }
 
     public static final AnimationDefinition IDLE_BAKER = buildIdleBaker();
@@ -3143,7 +3149,7 @@ public final class SettlerAnimations {
      * hand to the mouth, holds, and gives one small judging nod. 4.5s loop.
      */
     private static AnimationDefinition buildIdleCook() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_COOK = AnimationDefinition.Builder
             .withLength(4.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(5, -2, 0), CATMULLROM),
@@ -3209,6 +3215,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.20F, KeyframeAnimations.degreeVec(7, 0, 3), CATMULLROM),
                 new Keyframe(4.50F, KeyframeAnimations.degreeVec(4, 0, 2), CATMULLROM)))
             .build();
+        return IDLE_COOK;
     }
 
     public static final AnimationDefinition IDLE_COOK = buildIdleCook();
@@ -3222,7 +3229,7 @@ public final class SettlerAnimations {
      * ones. 5.0s loop.
      */
     private static AnimationDefinition buildIdleSightEdge() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_SIGHT_EDGE = AnimationDefinition.Builder
             .withLength(5.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM),
@@ -3287,6 +3294,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.40F, KeyframeAnimations.degreeVec(9, 0, 4), CATMULLROM),
                 new Keyframe(5.00F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_SIGHT_EDGE;
     }
 
     public static final AnimationDefinition IDLE_SIGHT_EDGE = buildIdleSightEdge();
@@ -3298,7 +3306,7 @@ public final class SettlerAnimations {
      * fine work reads through a flick, not a sweep. 4.0s loop.
      */
     private static AnimationDefinition buildIdleFletcher() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_FLETCHER = AnimationDefinition.Builder
             .withLength(4.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(7, 4, 0), CATMULLROM),
@@ -3357,6 +3365,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.00F, KeyframeAnimations.degreeVec(5, 0, 3), CATMULLROM),
                 new Keyframe(4.00F, KeyframeAnimations.degreeVec(4, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_FLETCHER;
     }
 
     public static final AnimationDefinition IDLE_FLETCHER = buildIdleFletcher();
@@ -3368,7 +3377,7 @@ public final class SettlerAnimations {
      * again. 5.0s loop.
      */
     private static AnimationDefinition buildIdleMiner() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_MINER = AnimationDefinition.Builder
             .withLength(5.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(6, 2, 0), CATMULLROM),
@@ -3435,6 +3444,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.50F, KeyframeAnimations.degreeVec(10, 0, 4), CATMULLROM),
                 new Keyframe(5.00F, KeyframeAnimations.degreeVec(7, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_MINER;
     }
 
     public static final AnimationDefinition IDLE_MINER = buildIdleMiner();
@@ -3445,7 +3455,7 @@ public final class SettlerAnimations {
      * nod as if the line just read settled something. 4.5s loop.
      */
     private static AnimationDefinition buildIdleScholar() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_SCHOLAR = AnimationDefinition.Builder
             .withLength(4.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(10, -3, 0), CATMULLROM),
@@ -3504,6 +3514,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.20F, KeyframeAnimations.degreeVec(6, 0, 2), CATMULLROM),
                 new Keyframe(4.50F, KeyframeAnimations.degreeVec(5, 0, 2), CATMULLROM)))
             .build();
+        return IDLE_SCHOLAR;
     }
 
     public static final AnimationDefinition IDLE_SCHOLAR = buildIdleScholar();
@@ -3514,7 +3525,7 @@ public final class SettlerAnimations {
      * the shine before settling back into the polish. 4.5s loop.
      */
     private static AnimationDefinition buildIdleInnkeeper() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_INNKEEPER = AnimationDefinition.Builder
             .withLength(4.50F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(5, 3, 0), CATMULLROM),
@@ -3579,6 +3590,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.20F, KeyframeAnimations.degreeVec(5, 0, 2), CATMULLROM),
                 new Keyframe(4.50F, KeyframeAnimations.degreeVec(4, 0, 2), CATMULLROM)))
             .build();
+        return IDLE_INNKEEPER;
     }
 
     public static final AnimationDefinition IDLE_INNKEEPER = buildIdleInnkeeper();
@@ -3589,7 +3601,7 @@ public final class SettlerAnimations {
      * spin against the light before returning to the roll. 4.0s loop.
      */
     private static AnimationDefinition buildIdleWeaver() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_WEAVER = AnimationDefinition.Builder
             .withLength(4.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(8, 5, 0), CATMULLROM),
@@ -3649,6 +3661,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.00F, KeyframeAnimations.degreeVec(5, 0, 3), CATMULLROM),
                 new Keyframe(4.00F, KeyframeAnimations.degreeVec(4, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_WEAVER;
     }
 
     public static final AnimationDefinition IDLE_WEAVER = buildIdleWeaver();
@@ -3661,7 +3674,7 @@ public final class SettlerAnimations {
      * loop.
      */
     private static AnimationDefinition buildIdleBladeBench() {
-            return AnimationDefinition.Builder
+            AnimationDefinition IDLE_BLADE_BENCH = AnimationDefinition.Builder
             .withLength(5.00F).looping()
             .addAnimation("torso", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(9, -4, 0), CATMULLROM),
@@ -3726,6 +3739,7 @@ public final class SettlerAnimations {
                 new Keyframe(2.40F, KeyframeAnimations.degreeVec(9, 0, 4), CATMULLROM),
                 new Keyframe(5.00F, KeyframeAnimations.degreeVec(6, 0, 3), CATMULLROM)))
             .build();
+        return IDLE_BLADE_BENCH;
     }
 
     public static final AnimationDefinition IDLE_BLADE_BENCH = buildIdleBladeBench();
