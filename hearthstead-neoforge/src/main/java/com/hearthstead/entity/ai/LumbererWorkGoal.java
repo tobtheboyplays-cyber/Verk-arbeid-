@@ -32,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * The lumberer fells natural trees top-down (never leaving floating trunks),
@@ -44,6 +45,21 @@ public class LumbererWorkGoal extends Goal {
     private static final int TICKS_PER_LOG = 60;
     private static final int LIMB_DURATION = 26;
     private static final int BAG_TRIGGER = 12;
+    /**
+     * How long a claimed tree stays claimed without a heartbeat. Renewed
+     * every active tick this goal is running with a tree in hand ({@link
+     * #renewClaim}), so a lumberer genuinely felling a tree never loses it
+     * mid-chop however long the whole job takes -- a single big jungle
+     * trunk alone can run {@code MAX_TREE_LOGS * TICKS_PER_LOG} ticks of
+     * chopping, well past this TTL, and renewal is what covers that. This
+     * only ever reclaims a tree whose lumberer stopped ticking altogether
+     * (death, a permanent unbind) without ever reaching {@link #stop()}'s
+     * normal release. Same order of magnitude as {@code
+     * RepairWorkGoal#CLAIM_TTL_TICKS} for the same reason: generous enough
+     * that no ordinary gap between renewals ever lapses it, short enough
+     * that a genuinely stuck lumberer does not strand a tree for good.
+     */
+    private static final int CLAIM_TTL_TICKS = 600;
 
     private static final Map<Block, Block> SAPLING_FOR_LOG = new HashMap<>();
 
@@ -111,10 +127,26 @@ public class LumbererWorkGoal extends Goal {
         scanCooldown = 80 + settler.getRandom().nextInt(40);
         List<BlockPos> bases = scanner.scanColumns(s.center, s.radius, 512, 6,
             this::trunkInColumn);
+        long now = settler.level().getGameTime();
+        // A base already claimed by another lumberer is skipped before it is
+        // even validated (cheaper, and it is the whole point: two
+        // lumberjacks converging on the identical trunk -- the filmed
+        // finding this exists to fix -- is a base-selection bug, not a
+        // pathing one). If every candidate this scan turns up is claimed,
+        // the loop simply runs dry and this returns false below: the second
+        // lumberer idles at the camp like any other lumberer with no tree to
+        // fell, rather than shadowing the first onto her own trunk.
         for (BlockPos base : bases) {
+            BlockPos immutableBase = base.immutable();
+            if (heldByOther(immutableBase, now)) {
+                continue;
+            }
             List<BlockPos> logs = validateTree(base);
             if (!logs.isEmpty()) {
-                treeBase = base.immutable();
+                if (!claim(immutableBase, now)) {
+                    continue; // lost a same-tick race to another lumberer's claim
+                }
+                treeBase = immutableBase;
                 treeLogs = logs;
                 treeLogBlock = settler.level().getBlockState(base).getBlock();
                 mode = Mode.TO_TREE;
@@ -262,9 +294,27 @@ public class LumbererWorkGoal extends Goal {
 
     private void pathToTree() {
         if (treeBase != null) {
-            settler.getNavigation().moveTo(treeBase.getX() + 0.5, treeBase.getY(),
-                treeBase.getZ() + 0.5, 1.0);
+            // Two lumberers can no longer land on the SAME tree (the claim
+            // table above), but a pair of trees a stride apart could still
+            // funnel both toward the identical side of their own trunk and
+            // brush past each other on the last step. Biasing the walk-in
+            // target toward one of four cardinal sides -- stable per settler
+            // via her own UUID, no shared state needed -- spreads that out
+            // for the cost of one extra block on an already-approximate
+            // travel hint; tickTravel's own generous 7.5-block-squared
+            // arrival radius (and the fact that the trunk itself is solid,
+            // so the pathfinder was always resolving to an adjacent node
+            // anyway) means this never changes which tree gets chopped or
+            // how close the settler ends up standing to it.
+            BlockPos approach = treeBase.relative(standSide());
+            settler.getNavigation().moveTo(approach.getX() + 0.5, treeBase.getY(),
+                approach.getZ() + 0.5, 1.0);
         }
+    }
+
+    /** See {@link #pathToTree}. */
+    private Direction standSide() {
+        return Direction.from2DDataValue((int) (settler.getUUID().getLeastSignificantBits() & 3));
     }
 
     private void pathToHearth() {
@@ -289,6 +339,14 @@ public class LumbererWorkGoal extends Goal {
 
     @Override
     public void tick() {
+        // A claim is a heartbeat, not a one-shot timer, exactly like
+        // CourierWorkGoal's restock RESERVATIONS: as long as this goal is
+        // actively ticking with a tree in hand, the lock cannot expire out
+        // from under her. A no-op once the tree is felled and the claim
+        // already released (treeBase == null; see finishTree/renewClaim).
+        if (settler.level() instanceof ServerLevel level) {
+            renewClaim(level);
+        }
         switch (mode) {
             case TO_TREE -> tickTravel();
             case CHOPPING -> tickChop();
@@ -416,6 +474,11 @@ public class LumbererWorkGoal extends Goal {
                 serverLevel.setBlock(treeBase, sapling.defaultBlockState(), Block.UPDATE_ALL);
             }
         }
+        // Released the moment the tree is genuinely gone -- the base no
+        // longer holds a log a second lumberer's scan could even match, so
+        // holding the claim any longer (through the whole haul-home leg)
+        // would only waste a row in the table for nothing.
+        releaseClaim(treeBase);
         treeBase = null;
         if (bagCount() > 0) {
             mode = Mode.TO_HEARTH;
@@ -462,7 +525,92 @@ public class LumbererWorkGoal extends Goal {
 
     @Override
     public void stop() {
+        // Covers every path OUT of a claimed tree that is not the normal
+        // finishTree() release above: an interruption (combat, an unbind)
+        // or tickTravel's own "tree_unreachable" give-up, both of which
+        // leave treeBase set and simply stop the goal. A no-op once
+        // finishTree already released and nulled treeBase.
+        releaseClaim(treeBase);
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
+    }
+
+    // ------------------------------------------------------- tree claims ---
+
+    private record TreeClaim(UUID worker, long expiresAtTick) {
+    }
+
+    /**
+     * Every tree currently claimed by a lumberer, across every settlement.
+     * Same shape and lifecycle discipline as {@code
+     * CourierWorkGoal#RESERVATIONS} and {@code RepairWorkGoal#CLAIMS} (read
+     * either for the established idiom): claim on pick, in the same
+     * synchronous {@link #canUse()} call that found the tree, so two
+     * lumberers scanning in the same tick cannot both land on the identical
+     * base; renew every active tick ({@link #renewClaim}) so a lumberer
+     * genuinely working a tree never loses it mid-chop; release on
+     * completion ({@link #finishTree}) and on any other way the goal stops
+     * ({@link #stop()}); and a TTL ({@link #CLAIM_TTL_TICKS}) so a
+     * dead/stuck lumberer never strands a tree for good.
+     *
+     * <p>Bounded and cleaned, the same invariant the courier and repair
+     * ledgers already keep: entries are removed promptly on release (or
+     * lapse on their TTL), so this only ever holds as many rows as there are
+     * lumberers actively working a tree right now -- bounded by how many
+     * lumberers exist, never by how many trees have ever been scanned or
+     * felled. Static like its siblings: intent ("who is felling this"),
+     * never a second copy of world state, so a stale entry for a settlement
+     * that no longer exists just sits unreferenced until its lease lapses.
+     */
+    private static final Map<BlockPos, TreeClaim> TREE_CLAIMS = new HashMap<>();
+
+    private boolean heldByOther(BlockPos base, long now) {
+        TreeClaim held = TREE_CLAIMS.get(base);
+        return held != null && held.expiresAtTick() > now
+            && !held.worker().equals(settler.getUUID());
+    }
+
+    private boolean claim(BlockPos base, long now) {
+        if (heldByOther(base, now)) {
+            return false;
+        }
+        TREE_CLAIMS.put(base, new TreeClaim(settler.getUUID(), now + CLAIM_TTL_TICKS));
+        return true;
+    }
+
+    private void renewClaim(ServerLevel level) {
+        if (treeBase == null) {
+            return;
+        }
+        TREE_CLAIMS.put(treeBase,
+            new TreeClaim(settler.getUUID(), level.getGameTime() + CLAIM_TTL_TICKS));
+    }
+
+    private void releaseClaim(BlockPos base) {
+        if (base == null) {
+            return;
+        }
+        TreeClaim held = TREE_CLAIMS.get(base);
+        if (held != null && held.worker().equals(settler.getUUID())) {
+            TREE_CLAIMS.remove(base);
+        }
+    }
+
+    /**
+     * Test-only window into the ledger -- the same reason {@code
+     * CourierWorkGoal#restockJobIsHeld} and {@code
+     * RepairWorkGoal#scarIsClaimed} exist: from the outside, "the second
+     * lumberer was locked out of this tree" and "the second lumberer just
+     * has not scanned yet" can look identical, and only the lock itself
+     * (and who holds it) tells them apart.
+     */
+    public static boolean treeIsClaimed(BlockPos base) {
+        return TREE_CLAIMS.containsKey(base);
+    }
+
+    /** @return the claiming settler's UUID, or {@code null} if unclaimed. */
+    public static UUID treeClaimant(BlockPos base) {
+        TreeClaim held = TREE_CLAIMS.get(base);
+        return held == null ? null : held.worker();
     }
 }
