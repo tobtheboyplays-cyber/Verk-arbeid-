@@ -66,6 +66,15 @@ public final class Effort {
      */
     private float left = -1.0F;
 
+    /**
+     * Fractional remainder banked between {@link #spendResearched} calls, in
+     * TENTHS of a unit — never persisted, and never touched by anything
+     * else. See {@link #spendResearched}'s own doc for why it exists and why
+     * it is safe to lose on reload, the same call {@code RepairWorkGoal}
+     * makes for its own {@code SCAR_MENDS} tally.
+     */
+    private int carryTenths = 0;
+
     private Effort() {
     }
 
@@ -115,6 +124,58 @@ public final class Effort {
             return;
         }
         left = Math.max(0, left(staminaAttribute) - units);
+    }
+
+    /**
+     * Pays for one completed action a settlement's own research has made
+     * cheaper — see {@code docs/project/BALANCE_AUDIT.md} finding 2's
+     * follow-up. {@code baseUnits} is the trade's ordinary flat cost (2 for
+     * every crafting batch); {@code multiplier} is the same completed
+     * project's {@code ResearchProject.bonus()} that already shaves ticks
+     * off the recipe (0.85 for a 15% cut) — ONE number now buys both the
+     * felt "this looks quicker" (the tick side, unchanged, still real) and
+     * the actually-binding "I get more done today" (this side, new).
+     *
+     * <h2>Why an accumulator, not a rounded spend</h2>
+     *
+     * <p>2 × 0.85 = 1.7, and {@link #spend} only ever takes a whole int —
+     * rounding 1.7 to 2 every single time would spend the discount into
+     * nothing, and rounding it to 1 every time would overpay the discount
+     * (a 50% cut, not 15%). Neither is what "15% cheaper" is supposed to
+     * mean, and a coin flip between the two is exactly the kind of
+     * non-determinism this project has spent a night hunting out of the
+     * suite. So the shortfall is banked instead: {@code baseUnits × 10 ×
+     * multiplier} tenths are added to {@link #carryTenths} on every call,
+     * whatever whole units that carry now holds are spent immediately, and
+     * the remainder (always 0–9) waits for next time. Nothing is ever
+     * dropped and nothing is ever invented — the running total spent after
+     * N calls is always exactly {@code floor(N × baseUnits × 10 ×
+     * multiplier / 10)}, a pure function of N, {@code baseUnits} and
+     * {@code multiplier} with no clock, no RNG and no settler-specific
+     * state anywhere in it. The SAME settlement doing the SAME work with
+     * the SAME research always spends the SAME long-run total, batch for
+     * batch — {@code RepairWorkGoal#shouldMendFree} is this exact idea
+     * (a discount too fine-grained for a flat int, made deterministic with
+     * a plain running counter) applied to "one action in N is free" instead
+     * of "every action is a little cheaper"; this is the finer-grained
+     * shape that fits a *per-batch* discount rather than an occasional
+     * free one.
+     *
+     * <p>{@code multiplier == 1.0F} (no research, or a project that does
+     * not touch this key) reproduces {@link #spend}'s old behaviour bit for
+     * bit: {@code baseUnits × 10} is always exactly divisible by 10, so the
+     * remainder is always 0 and the whole spend lands on the very call that
+     * earned it — an unresearched trade is charged on the identical tick it
+     * always was, not "eventually, once the accumulator catches up".
+     */
+    public void spendResearched(int baseUnits, float multiplier, int staminaAttribute) {
+        if (baseUnits <= 0) {
+            return;
+        }
+        carryTenths += Math.round(baseUnits * 10 * multiplier);
+        int whole = carryTenths / 10;
+        carryTenths -= whole * 10;
+        spend(whole, staminaAttribute);
     }
 
     /** A genuine night in a claimed bed: the pool comes back whole. */

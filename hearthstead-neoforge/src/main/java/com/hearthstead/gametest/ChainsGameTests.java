@@ -282,6 +282,75 @@ public class ChainsGameTests {
         helper.succeed();
     }
 
+    // ----------------------------------------------------------------- (b2) ---
+
+    /**
+     * JOB 1: the hunter's feathers finally have somewhere to go. Same shape
+     * as {@link #bakeryWithFlourOutproducesWheatAlone} above — two fletchers,
+     * same recipe TICK cost (100), unequal stock: one holds only flint, the
+     * other only feather. The flint-only fletcher must still fletch arrows
+     * (D-007 — no hunter, no problem), and the feather-fed one must yield
+     * MORE arrows for that same 100 ticks, because {@code arrows_feather} is
+     * listed first and costs the same ticks for more arrows per batch — the
+     * fed-pair multiplier read directly off the table, not asserted by fiat.
+     */
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 200)
+    public void fletcherWithFeathersOutproducesFlintAlone(GameTestHelper helper) {
+        floor(helper, 16);
+        // GameTestFixtures.register, not the bare building() helper this
+        // file's older (a)-(c) tests use: the task that retuned this table
+        // asked for the fixture path everything newer in this package uses
+        // (same call as millGrindsSugarCaneIntoPaperChestTrue above). The
+        // Settlement below is deliberately never put into
+        // SettlementSavedData, so BuildingManager's sweep can never reach
+        // it — see that test's own comment for why that matters.
+        Settlement s = new Settlement(UUID.randomUUID(), "Fjaerholm",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 8;
+        Building flintFletcher = GameTestFixtures.register(helper, s, BuildingType.FLETCHER, 2, 2);
+        Building featherFletcher = GameTestFixtures.register(helper, s, BuildingType.FLETCHER, 9, 9);
+        helper.setBlock(new BlockPos(3, 1, 2), Blocks.CHEST);
+        helper.setBlock(new BlockPos(10, 1, 9), Blocks.CHEST);
+        Container flintChest = containerAt(helper, new BlockPos(3, 1, 2));
+        Container featherChest = containerAt(helper, new BlockPos(10, 1, 9));
+        helper.assertTrue(flintChest != null && featherChest != null,
+            "both arena chests should be containers");
+
+        // Trial 1: flint only. D-007 — a settlement with no hunter must
+        // still get arrows.
+        flintChest.setItem(0, new ItemStack(Items.FLINT, 5));
+        Production.Recipe rough = Production.ready(helper.getLevel(), flintFletcher);
+        helper.assertTrue(rough != null, "a fletcher holding only flint has work to do");
+        helper.assertTrue(rough.id().equals("arrows"),
+            "with no feather anywhere it must fall through to the flint "
+                + "recipe, got " + rough.id());
+        helper.assertTrue(Production.run(helper.getLevel(), flintFletcher, rough),
+            "the flint recipe should have run");
+        int arrowsFromFlint = countOf(flintChest, Items.ARROW);
+
+        // Trial 2: feather only, same building type, same tick cost.
+        featherChest.setItem(0, new ItemStack(Items.FEATHER, 4));
+        Production.Recipe fed = Production.ready(helper.getLevel(), featherFletcher);
+        helper.assertTrue(fed != null, "a fletcher holding feather has work to do");
+        helper.assertTrue(fed.id().equals("arrows_feather"),
+            "feather must be preferred once it exists, got " + fed.id());
+        helper.assertTrue(Production.run(helper.getLevel(), featherFletcher, fed),
+            "the feather recipe should have run");
+        int arrowsFromFeather = countOf(featherChest, Items.ARROW);
+
+        helper.assertTrue(rough.ticks() == fed.ticks(),
+            "the multiplier must show up as yield, not a shorter clip: rough="
+                + rough.ticks() + " fed=" + fed.ticks());
+        helper.assertTrue(arrowsFromFeather > arrowsFromFlint,
+            "a hunter-fed fletcher must outproduce a flint-only one in the "
+                + "same " + rough.ticks() + " ticks: feather path made "
+                + arrowsFromFeather + ", flint path made " + arrowsFromFlint);
+        helper.assertTrue(arrowsFromFlint == 4 && arrowsFromFeather == 7,
+            "pins the JOB 1 arithmetic exactly (25.00 vs 14.29 ticks/arrow, "
+                + "x1.75): flint=" + arrowsFromFlint + " feather=" + arrowsFromFeather);
+        helper.succeed();
+    }
+
     // ------------------------------------------------------------------ (c) ---
 
     /**
@@ -289,9 +358,12 @@ public class ChainsGameTests {
      * stockpile, carried by hand (standing in for a courier trip — see the
      * class javadoc) to a sawmill, milled into timber beams, carried again to
      * a carpenter, and worked into barrels. Every count below is exactly
-     * what the two fed-path ratios predict (6 logs -&gt; 4 beams -&gt; 2
-     * barrels); anything else would mean an item vanished or was minted
-     * somewhere along the trip (INV-3).
+     * what the two fed-path ratios predict (6 logs -&gt; 4 beams -&gt; 4
+     * barrels, JOB 4's fix to Production.CARPENTER's barrel_beam — it used
+     * to yield only 2, the same as the rough path would from the same beam
+     * count, which was BALANCE_AUDIT.md finding 7's whole complaint); anything
+     * else would mean an item vanished or was minted somewhere along the trip
+     * (INV-3).
      */
     @GameTest(batch = "chains", template = "empty16", timeoutTicks = 400)
     public void threeBuildingChainConservesItemsEndToEnd(GameTestHelper helper) {
@@ -355,7 +427,8 @@ public class ChainsGameTests {
             && countOf(sawChest, ModItems.TIMBER_BEAM.get()) == 0,
             "all four beams should have moved, none left behind and none duplicated");
 
-        // Carpenter: 2 beams -> 1 barrel, run twice to clear the 4 beams.
+        // Carpenter: 2 beams -> 2 barrels (JOB 4), run twice to clear the 4
+        // beams.
         for (int i = 0; i < 2; i++) {
             Production.Recipe r = Production.ready(helper.getLevel(), carpenter);
             helper.assertTrue(r != null && r.id().equals("barrel_beam"),
@@ -368,11 +441,13 @@ public class ChainsGameTests {
         helper.assertTrue(countOf(carpChest, ModItems.TIMBER_BEAM.get()) == 0,
             "all four beams should be spent; saw "
                 + countOf(carpChest, ModItems.TIMBER_BEAM.get()));
-        helper.assertTrue(countOf(carpChest, Items.BARREL) == 2,
-            "4 beams at 2:1 should leave exactly 2 barrels; saw "
+        helper.assertTrue(countOf(carpChest, Items.BARREL) == 4,
+            "4 beams at 2:2 should leave exactly 4 barrels (JOB 4 doubled "
+                + "barrel_beam's output so the fed path is no longer a "
+                + "zero-benefit detour — BALANCE_AUDIT.md finding 7); saw "
                 + countOf(carpChest, Items.BARREL));
 
-        // End to end: 6 logs became exactly 2 barrels, with nothing left over
+        // End to end: 6 logs became exactly 4 barrels, with nothing left over
         // anywhere in the chain and nothing extra anywhere either.
         int leftoverLogs = countOf(campChest, Items.OAK_LOG) + countOf(sawChest, Items.OAK_LOG)
             + countOf(carpChest, Items.OAK_LOG);
@@ -383,6 +458,201 @@ public class ChainsGameTests {
             "nothing but barrels should remain: leftover logs=" + leftoverLogs
                 + " leftover beams=" + leftoverBeams);
         helper.succeed();
+    }
+
+    // ----------------------------------------------------------------- (c2) ---
+
+    /**
+     * JOB 3: the butcher-&gt;tannery leather chain, hand-carried (see the
+     * class javadoc), conserved end to end. Two rabbits become two cured
+     * hides at the butcher; carried to the tannery, they become two leather
+     * — chest-true at every hop, nothing minted or lost (INV-3), and the
+     * exact counts pin the retuned arithmetic on TANNERY's own recipe
+     * comment: a rabbit is worth exactly as much leather whichever path it
+     * takes, only the wall-clock differs.
+     */
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 300)
+    public void butcherToTanneryLeatherChainConservesItemsEndToEnd(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = new Settlement(UUID.randomUUID(), "Skinnholm",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 8;
+        Building butcher = GameTestFixtures.register(helper, s, BuildingType.BUTCHER, 2, 2);
+        Building tannery = GameTestFixtures.register(helper, s, BuildingType.TANNERY, 9, 9);
+        helper.setBlock(new BlockPos(3, 1, 2), Blocks.CHEST);
+        helper.setBlock(new BlockPos(10, 1, 9), Blocks.CHEST);
+        Container butcherChest = containerAt(helper, new BlockPos(3, 1, 2));
+        Container tanneryChest = containerAt(helper, new BlockPos(10, 1, 9));
+        helper.assertTrue(butcherChest != null && tanneryChest != null,
+            "both arena chests should be containers");
+
+        butcherChest.setItem(0, new ItemStack(Items.RABBIT, 2));
+        Production.Recipe hide = null;
+        for (Production.Recipe r : Production.of(BuildingType.BUTCHER)) {
+            if (r.id().equals("hide")) {
+                hide = r;
+                break;
+            }
+        }
+        helper.assertTrue(hide != null, "the butcher must still know how to cure a hide");
+        helper.assertTrue(Production.run(helper.getLevel(), butcher, hide),
+            "the hide recipe should have run");
+        helper.assertTrue(countOf(butcherChest, Items.RABBIT) == 0,
+            "both rabbits should be spent; saw " + countOf(butcherChest, Items.RABBIT));
+        helper.assertTrue(countOf(butcherChest, ModItems.CURED_HIDE.get()) == 2,
+            "and two cured hides made; saw " + countOf(butcherChest, ModItems.CURED_HIDE.get()));
+
+        moveAll(butcherChest, tanneryChest, ModItems.CURED_HIDE.get());
+        helper.assertTrue(countOf(tanneryChest, ModItems.CURED_HIDE.get()) == 2
+            && countOf(butcherChest, ModItems.CURED_HIDE.get()) == 0,
+            "both cured hides should have moved, none left behind and none duplicated");
+
+        Production.Recipe leatherCured = Production.ready(helper.getLevel(), tannery);
+        helper.assertTrue(leatherCured != null && leatherCured.id().equals("leather_cured"),
+            "with cured hide and no rabbit-hide stockpile the tannery's fed "
+                + "recipe must be the one that runs, got "
+                + (leatherCured == null ? "null" : leatherCured.id()));
+        helper.assertTrue(Production.run(helper.getLevel(), tannery, leatherCured),
+            "the leather_cured recipe should have run");
+        helper.assertTrue(countOf(tanneryChest, ModItems.CURED_HIDE.get()) == 0,
+            "both cured hides should be spent; saw "
+                + countOf(tanneryChest, ModItems.CURED_HIDE.get()));
+        helper.assertTrue(countOf(tanneryChest, Items.LEATHER) == 2,
+            "2 cured hide at 2:2 should leave exactly 2 leather; saw "
+                + countOf(tanneryChest, Items.LEATHER));
+        helper.succeed();
+    }
+
+    // ----------------------------------------------------------------- (c3) ---
+
+    /**
+     * JOB 3: the brewery's own internal malt chain, single building —
+     * unlike leather's cross-building hop, malting and brewing share one
+     * bench (BALANCE_AUDIT.md Q5's own note), so this test proves the whole
+     * wheat-&gt;malt-&gt;ale path conserves items in place rather than
+     * across a courier hop.
+     */
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 300)
+    public void breweryMaltsThenBrewsConservingItemsInPlace(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = new Settlement(UUID.randomUUID(), "Malthaugen",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 8;
+        Building brewery = GameTestFixtures.register(helper, s, BuildingType.BREWERY, 4, 4);
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
+        Container chest = containerAt(helper, new BlockPos(5, 1, 4));
+        helper.assertTrue(chest != null, "the registered brewery's chest should be a container");
+
+        chest.setItem(0, new ItemStack(Items.WHEAT, 4));
+        Production.Recipe malt = null;
+        for (Production.Recipe r : Production.of(BuildingType.BREWERY)) {
+            if (r.id().equals("malt")) {
+                malt = r;
+                break;
+            }
+        }
+        helper.assertTrue(malt != null, "the brewery must still know how to malt wheat");
+        helper.assertTrue(Production.run(helper.getLevel(), brewery, malt),
+            "the malt recipe should have run");
+        helper.assertTrue(countOf(chest, Items.WHEAT) == 0,
+            "all four wheat should be spent; saw " + countOf(chest, Items.WHEAT));
+        helper.assertTrue(countOf(chest, ModItems.MALT.get()) == 3,
+            "and three malt made; saw " + countOf(chest, ModItems.MALT.get()));
+
+        Production.Recipe aleMalt = Production.ready(helper.getLevel(), brewery);
+        helper.assertTrue(aleMalt != null && aleMalt.id().equals("ale_malt"),
+            "with malt on hand and no wheat left the brewery's fed recipe "
+                + "must be the one that runs, got "
+                + (aleMalt == null ? "null" : aleMalt.id()));
+        helper.assertTrue(Production.run(helper.getLevel(), brewery, aleMalt),
+            "the ale_malt recipe should have run");
+        helper.assertTrue(countOf(chest, ModItems.MALT.get()) == 1,
+            "two of the three malt should be spent, one left over; saw "
+                + countOf(chest, ModItems.MALT.get()));
+        helper.assertTrue(countOf(chest, ModItems.ALE.get()) == 2,
+            "2 malt at 2:2 should leave exactly 2 ale; saw "
+                + countOf(chest, ModItems.ALE.get()));
+        helper.succeed();
+    }
+
+    // ----------------------------------------------------------------- (c4) ---
+
+    /**
+     * JOB 3's own promise, made executable: FLOWS.md says every fed path is
+     * a x1.5-x2 multiplier over its rough path, "measured end to end, from
+     * raw material" — the same method PLAN_CHAINS.md uses (correctly) for
+     * iron and BALANCE_AUDIT.md finding 3 demanded of the other four. This
+     * walks the live {@link Production} table for bread, leather, ale and
+     * barrel exactly the way the audit's own arithmetic does — rough
+     * ticks-per-unit from the raw material vs. fed ticks-per-unit summed
+     * across BOTH buildings — and fails the instant any future retune drifts
+     * a pair back out of band, the same way {@code
+     * FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand} already
+     * guards iron.
+     */
+    @GameTest(batch = "chains", template = "empty16", timeoutTicks = 100)
+    public void fedPathsClearTheFlowsBandMeasuredEndToEndFromRawMaterial(GameTestHelper helper) {
+        Production.Recipe bread = recipeOf(BuildingType.BAKERY, "bread");
+        Production.Recipe breadFlour = recipeOf(BuildingType.BAKERY, "bread_flour");
+        Production.Recipe flour = recipeOf(BuildingType.MILL, "flour");
+        assertBand(helper, "bread",
+            bread.ticks(),
+            (double) flour.ticks() / flour.outputCount() * breadFlour.inputCount() / breadFlour.outputCount()
+                + (double) breadFlour.ticks() / breadFlour.outputCount());
+
+        Production.Recipe leather = recipeOf(BuildingType.TANNERY, "leather");
+        Production.Recipe leatherCured = recipeOf(BuildingType.TANNERY, "leather_cured");
+        Production.Recipe hide = recipeOf(BuildingType.BUTCHER, "hide");
+        assertBand(helper, "leather",
+            leather.ticks(),
+            (double) hide.ticks() / hide.outputCount() * leatherCured.inputCount() / leatherCured.outputCount()
+                + (double) leatherCured.ticks() / leatherCured.outputCount());
+
+        Production.Recipe ale = recipeOf(BuildingType.BREWERY, "ale");
+        Production.Recipe aleMalt = recipeOf(BuildingType.BREWERY, "ale_malt");
+        Production.Recipe malt = recipeOf(BuildingType.BREWERY, "malt");
+        assertBand(helper, "ale",
+            ale.ticks(),
+            (double) malt.ticks() / malt.outputCount() * aleMalt.inputCount() / aleMalt.outputCount()
+                + (double) aleMalt.ticks() / aleMalt.outputCount());
+
+        Production.Recipe barrel = recipeOf(BuildingType.CARPENTER, "barrel");
+        Production.Recipe barrelBeam = recipeOf(BuildingType.CARPENTER, "barrel_beam");
+        Production.Recipe planks = recipeOf(BuildingType.SAWMILL, "planks");
+        Production.Recipe timberBeam = recipeOf(BuildingType.SAWMILL, "timber_beam");
+        double roughBarrelTicks = (double) planks.ticks() / planks.outputCount() * barrel.inputCount()
+            / barrel.outputCount()
+            + (double) barrel.ticks() / barrel.outputCount();
+        double fedBarrelTicks = (double) timberBeam.ticks() / timberBeam.outputCount() * barrelBeam.inputCount()
+            / barrelBeam.outputCount()
+            + (double) barrelBeam.ticks() / barrelBeam.outputCount();
+        assertBand(helper, "barrel", roughBarrelTicks, fedBarrelTicks);
+        helper.assertTrue(barrelBeam.outputCount() > barrel.outputCount(),
+            "JOB 4: barrel_beam must yield strictly more per batch than the "
+                + "rough recipe, or the fed path is worthless under the real "
+                + "effort-bound economy (BALANCE_AUDIT.md finding 7) — rough="
+                + barrel.outputCount() + " fed=" + barrelBeam.outputCount());
+        helper.succeed();
+    }
+
+    private static Production.Recipe recipeOf(BuildingType type, String id) {
+        for (Production.Recipe r : Production.of(type)) {
+            if (r.id().equals(id)) {
+                return r;
+            }
+        }
+        throw new IllegalStateException("no recipe '" + id + "' for " + type.id());
+    }
+
+    /** FLOWS.md's own rule: every fed path is a x1.5-x2 multiplier over its
+     *  rough path, ticks-per-unit, measured end to end from raw material. */
+    private static void assertBand(GameTestHelper helper, String chain,
+                                   double roughTicksPerUnit, double fedTicksPerUnit) {
+        double ratio = roughTicksPerUnit / fedTicksPerUnit;
+        helper.assertTrue(ratio >= 1.5 && ratio <= 2.0,
+            chain + "'s fed path must clear FLOWS.md's x1.5-x2 band measured "
+                + "end to end from raw material: rough=" + roughTicksPerUnit
+                + "t/unit fed=" + fedTicksPerUnit + "t/unit ratio=" + ratio);
     }
 
     // ------------------------------------------------------------------ (d) ---

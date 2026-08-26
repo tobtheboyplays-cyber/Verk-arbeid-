@@ -3,6 +3,7 @@ package com.hearthstead.gametest;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Attribute;
+import com.hearthstead.entity.Effort;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerAttributes;
@@ -255,5 +256,43 @@ public class EffortGameTests {
                 "felling a whole tree (3) plus its limbing stint (1) must come out "
                     + "of the daily pool: " + capacity + " -> " + lumberer.effortLeft());
         });
+    }
+
+    // ------------------------------------------------- research discount ---
+
+    /**
+     * {@link Effort#spendResearched} pins the determinism BALANCE_AUDIT.md
+     * finding 2's follow-up promised: "same input, same outcome, every
+     * run" — no die roll anywhere in the accumulator. Two completely
+     * independent pools, given the identical sequence of calls a
+     * researched bakery's batches actually make, must land on the exact
+     * same running total after every single call, not just at the end —
+     * catching a hypothetical future regression (e.g. a stray {@code
+     * Math.random()}) the moment it appears rather than only on average.
+     * No game world needed: this exercises the real production method
+     * directly, the same one {@code CrafterWorkGoal} calls.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 20, batch = "effort_day")
+    public void researchedEffortDiscountIsDeterministicAcrossIdenticalRuns(GameTestHelper helper) {
+        // An arbitrary STAMINA attribute -- Effort#capacity derives its own
+        // ceiling from this (20 + 15/5 = 23 here), the same raw number
+        // CrafterWorkGoal reads off the settler and passes straight through.
+        int stamina = 15;
+        Effort a = Effort.full();
+        Effort b = Effort.full();
+        for (int call = 1; call <= 20; call++) {
+            a.spendResearched(2, 0.85F, stamina);
+            b.spendResearched(2, 0.85F, stamina);
+            helper.assertTrue(a.left(stamina) == b.left(stamina),
+                "two identically-set-up pools must agree after every single call, "
+                    + "not just at the end -- call " + call + ": "
+                    + a.left(stamina) + " vs " + b.left(stamina));
+            helper.assertTrue(a.isSpent(stamina) == b.isSpent(stamina),
+                "and must agree on WHEN the pool runs dry, call " + call);
+        }
+        helper.assertTrue(a.isSpent(stamina) && b.isSpent(stamina),
+            "20 calls at 2 base effort must be more than enough to exhaust a 23-capacity "
+                + "pool even at a 15% discount, or this test proves nothing");
+        helper.succeed();
     }
 }

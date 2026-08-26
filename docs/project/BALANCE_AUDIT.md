@@ -451,3 +451,98 @@ landed. **A production chain is not closed until someone can be hired at every
 link in it**, and that is the check this audit should have run and did not.
 
 ARMOURER-1 is closing it.
+
+---
+
+## Follow-up: finding 2 closed — research now cuts the number that binds
+
+**2026-08-26 07:05Z.** Finding 2 said `BEDRE_GJAER` / `TORRSETT_TOMMER` /
+`BLESTRING` / `GARVESYRE` cut recipe ticks 15% against a ceiling (time) that
+was never the binding constraint — effort was, by 2.5–11× per Q4 — so the
+tick cut changed batches/day by exactly zero. The decision handed to
+RESEARCH-1: move these four from cutting ticks to cutting the number that
+actually binds a working day, **effort**, and keep or drop the tick cut on
+its own merits.
+
+**Kept the tick cut, added the effort cut — same 0.85F multiplier, read
+twice.** `CrafterWorkGoal#researchEffortMultiplier` reads the identical
+`ResearchProject.bonus()` the tick path (`researchedTicks`) already reads,
+and applies it a second time to the batch's effort cost. Reasons written
+into the code (`CrafterWorkGoal`'s class doc and both methods'):
+
+- The tick cut stays real where it was always real — a settler pulled off
+  the bench mid-batch loses less unfinished work, and the clip visibly runs
+  quicker. That was never the audit's complaint; the complaint was that it
+  was the *only* thing the multiplier bought, and the one thing the effort
+  ceiling made irrelevant.
+- Cutting effort is what makes "better at this craft" show up on the axis a
+  player actually counts: more finished loaves/planks/ingots/leather before
+  the pool runs dry for the day, not a shorter cutscene for the same total.
+- No new system: one existing multiplier, one existing daily-pool class,
+  one new method on each.
+
+**Mechanism — a deterministic tenths accumulator, matching
+`RepairWorkGoal.shouldMendFree`'s idiom.** 2 base effort × 0.85 = 1.7, and
+`Effort#spend` only ever takes a whole int. `Effort#spendResearched(int
+baseUnits, float multiplier, int staminaAttribute)` banks the shortfall in
+a private `carryTenths` field (never persisted — the same call
+`RepairWorkGoal`'s own `SCAR_MENDS` tally makes, for the same reason: a
+sub-batch rounding remainder forgotten across a restart is not worth a save
+format): `baseUnits × 10 × multiplier` tenths are added on every call, the
+whole units that carry now holds are spent immediately, the 0–9 remainder
+waits for next time. The running total spent after N calls is always
+exactly `floor(N × baseUnits × 10 × multiplier / 10)` — a pure function of
+N and the two numbers, no RNG, no clock, no per-settler hidden state beyond
+that one int. `multiplier == 1.0F` (unresearched, or a project touching a
+different key) reproduces the old flat `spend(2, ...)` bit for bit, because
+`baseUnits × 10` is always exactly divisible by 10 — every other trade's
+behavior is provably unchanged.
+
+**Before/after arithmetic**, for a fresh settler's real capacity range
+(20–23, per Q4):
+
+| Capacity (STAMINA) | Unresearched batches (flat 2/batch) | Researched batches (accumulator, 0.85×) | Gain |
+|---|---|---|---|
+| 20 | 10 | 12 | +2 |
+| 21 | 11 | 13 | +2 |
+| 22 | 11 | 13 | +2 |
+| 23 | 12 | 14 | +2 |
+
+A researched bakery/sawmill/smelter/tannery settler gets **two more
+complete batches out of the identical daily pool** — a real, felt, ~17–20%
+increase in output, not the 0-batch change the audit measured. (A trained
+veteran's capacity climbs toward 39; the same accumulator scales with it —
+the table above is deliberately the worst case, a fresh settler, where the
+audit's complaint was sharpest.)
+
+**Determinism.** `Effort#spendResearched` uses no `Random`, no
+`nextFloat`, no wall clock — every input is either a constant (`baseUnits`,
+`multiplier`) or plain deterministic state (`carryTenths`, `left`).
+`EffortGameTests#researchedEffortDiscountIsDeterministicAcrossIdenticalRuns`
+pins this directly: two independent pools given the identical call sequence
+are asserted equal after every single call, not just at the end. Two
+consecutive full-suite runs (below) landed on the identical batch counts
+both times, with no test flake anywhere in the new coverage.
+
+**Tests.** `ResearchGameTests#bedreGjaerYieldsMoreBreadPerDayThanUnresearchedMath`
+proves the bonus live: real wheat leaves a real chest, real bread lands in
+it, an unresearched settlement's own captured STAMINA is used to compute
+what THAT capacity would buy at the flat rate, and the researched count is
+asserted **strictly greater** than that AND **exactly equal** to the
+accumulator's predicted count — so reverting the `CrafterWorkGoal` wiring
+(not merely the 0.85F constant) is what turns the test red. Wheat
+conservation (3/loaf) is asserted alongside it. Suite run twice via
+`tools/hearthstead-qa gametest` in an isolated worktree: **213 game tests,
+2 failures both runs — `ahiredhunterhuntsbutneverbreaksthefloor` and
+`ahiredfisheractuallyfishes`, both pre-existing and owned by another
+worker, unrelated to this change.** Nothing else regressed.
+
+**Handed back to no one.** Every file touched
+(`settlement/research/*`, `entity/Effort.java`, `entity/ai/CrafterWorkGoal.java`,
+`gametest/ResearchGameTests.java`, `gametest/EffortGameTests.java`) was
+already RESEARCH-1's own. `Production.java`'s private
+`BuildingType -> ResearchKey` table is duplicated (4 case labels) in
+`CrafterWorkGoal` rather than widened, since `Production.java` belongs to
+another worker.
+
+RESEARCH-1 is closing it.

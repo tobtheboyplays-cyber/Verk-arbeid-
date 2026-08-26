@@ -1,12 +1,15 @@
 package com.hearthstead.entity.ai;
 
 import com.hearthstead.building.Production;
+import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Schedule;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.research.Research;
+import com.hearthstead.settlement.research.ResearchKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
 
@@ -35,6 +38,15 @@ import java.util.EnumSet;
  * the attribute that trade leans on ({@link Employment#trainedBy}), which is
  * what "learning by doing" has to mean if it is to mean anything: counted on
  * completion, never on a timer.
+ *
+ * <p><b>Research changes the price, not just the pace.</b> Four completed
+ * projects (Bedre Gjær, Tørrsett Tømmer, Blestring, Garvesyre) cut both
+ * {@link #researchedTicks} AND the effort a batch costs
+ * ({@link #researchEffortMultiplier}) — see
+ * {@code docs/project/BALANCE_AUDIT.md} finding 2's follow-up for why the
+ * second one had to exist: effort, not ticks, was always the number that
+ * actually capped a day's batches, so a project that only touched ticks
+ * bought nothing a player could ever see.
  */
 public class CrafterWorkGoal extends Goal {
 
@@ -61,6 +73,46 @@ public class CrafterWorkGoal extends Goal {
             return recipe.ticks();
         }
         return Production.ticksFor(level, settlement.id, bench.type, recipe);
+    }
+
+    /**
+     * The same completed-research multiplier {@link #researchedTicks}
+     * already applies to time, read again here for effort — see
+     * {@code docs/project/BALANCE_AUDIT.md} finding 2's follow-up.
+     *
+     * <p><b>Both, not one instead of the other.</b> The tick cut stays real
+     * where it always was real: a settler pulled off the bench mid-batch
+     * still loses less half-finished work, and the clip visibly runs
+     * quicker, which is worth keeping on its own terms. What it never did
+     * is buy a single extra loaf, because effort — not the clock — was
+     * always the ceiling (Q4 of the audit). Cutting effort is what makes
+     * "better at this craft" show up the one place a player actually
+     * counts it: more finished batches before the pool runs dry. One
+     * project, one multiplier, two places it was always meant to matter.
+     *
+     * <p>Duplicates {@code Production}'s own (private)
+     * {@code BuildingType -> ResearchKey} table rather than widening that
+     * class's surface for one caller — {@code Production.java} belongs to
+     * another worker while this slice lands, and four case labels are
+     * cheaper to keep in sync than a cross-owner API change.
+     */
+    private float researchEffortMultiplier() {
+        Settlement settlement = settler.settlement();
+        if (!(settler.level() instanceof ServerLevel level)
+            || settlement == null || bench == null) {
+            return 1.0F;
+        }
+        ResearchKey key = switch (bench.type) {
+            case BAKERY -> ResearchKey.BAKERY_TICKS;
+            case SAWMILL -> ResearchKey.SAWMILL_TICKS;
+            case SMELTER -> ResearchKey.SMELTER_TICKS;
+            case TANNERY -> ResearchKey.TANNERY_TICKS;
+            default -> null;
+        };
+        if (key == null) {
+            return 1.0F;
+        }
+        return Research.bonus(level, settlement.id, key);
     }
 
     public CrafterWorkGoal(SettlerEntity settler) {
@@ -178,8 +230,13 @@ public class CrafterWorkGoal extends Goal {
             // One completed batch, whatever the trade, is the same 2 units
             // of the daily pool (PLAN_EFFORT.md §2) -- charged on the same
             // tick the recipe completes, the moment Production.run says the
-            // output actually exists.
-            settler.spendEffort(2);
+            // output actually exists. A completed research project on this
+            // building's key shaves that 2 down (researchEffortMultiplier,
+            // BALANCE_AUDIT.md finding 2's follow-up); an untouched
+            // settlement's multiplier is neutral and this call behaves
+            // exactly like the flat settler.spendEffort(2) it replaced.
+            settler.effort().spendResearched(2, researchEffortMultiplier(),
+                settler.attribute(Attribute.STAMINA));
         }
         // Look for the next piece of work straight away: a crafter with a full
         // chest of wheat should not pause between loaves -- UNLESS the pool

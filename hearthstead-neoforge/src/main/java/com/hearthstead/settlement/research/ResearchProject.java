@@ -28,19 +28,25 @@ import java.util.List;
  * what is being learned.
  */
 public enum ResearchProject {
-    /** Bakery: bakes 15% faster. */
+    /** Bakery: bakes 15% faster AND costs 15% less effort per batch — see
+     *  {@code CrafterWorkGoal#researchEffortMultiplier} and
+     *  {@code docs/project/BALANCE_AUDIT.md} finding 2's follow-up for why
+     *  the same 0.85 now has to answer to both. */
     BEDRE_GJAER("bedre_gjaer", ResearchKey.BAKERY_TICKS, 0.85F, 3, Items.BREAD,
         new Cost(Items.WHEAT, 16)),
 
-    /** Sawmill: mills 15% faster. */
+    /** Sawmill: mills 15% faster AND costs 15% less effort per batch (see
+     *  {@link #BEDRE_GJAER}'s doc for why both). */
     TORRSETT_TOMMER("torrsett_tommer", ResearchKey.SAWMILL_TICKS, 0.85F, 3, Items.OAK_PLANKS,
         new Cost(Items.OAK_LOG, 24)),
 
-    /** Smelter: smelts 15% faster. */
+    /** Smelter: smelts 15% faster AND costs 15% less effort per batch (see
+     *  {@link #BEDRE_GJAER}'s doc for why both). */
     BLESTRING("blestring", ResearchKey.SMELTER_TICKS, 0.85F, 3, Items.IRON_INGOT,
         new Cost(Items.RAW_IRON, 12)),
 
-    /** Tannery: cures 15% faster. */
+    /** Tannery: cures 15% faster AND costs 15% less effort per batch (see
+     *  {@link #BEDRE_GJAER}'s doc for why both). */
     GARVESYRE("garvesyre", ResearchKey.TANNERY_TICKS, 0.85F, 3, Items.LEATHER,
         new Cost(Items.CHARCOAL, 12)),
 
@@ -92,7 +98,10 @@ public enum ResearchProject {
         return key;
     }
 
-    /** The multiplier completing this project applies — see {@link ResearchKey}. */
+    /** The multiplier completing this project applies — see {@link ResearchKey}.
+     *  For the four {@code *_TICKS} keys this same number is read TWICE by
+     *  {@code CrafterWorkGoal} — once for recipe ticks, once for the batch's
+     *  effort cost — rather than being two separate, driftable numbers. */
     public float bonus() {
         return bonus;
     }

@@ -19,13 +19,19 @@ package com.hearthstead.settlement.research;
  * whether anything reads them yet.
  */
 public enum ResearchKey {
-    /** Bedre Gjær: {@code Production.Recipe#ticks()} for BuildingType.BAKERY. */
+    /** Bedre Gjær: {@code Production.Recipe#ticks()} for BuildingType.BAKERY,
+     *  AND (BALANCE_AUDIT.md finding 2's follow-up) the effort a batch
+     *  costs, via {@code CrafterWorkGoal#researchEffortMultiplier}. */
     BAKERY_TICKS,
-    /** Tørrsett Tømmer: {@code Production.Recipe#ticks()} for BuildingType.SAWMILL. */
+    /** Tørrsett Tømmer: {@code Production.Recipe#ticks()} for
+     *  BuildingType.SAWMILL, and its batch effort cost — see
+     *  {@link #BAKERY_TICKS}. */
     SAWMILL_TICKS,
-    /** Blestring: {@code Production.Recipe#ticks()} for BuildingType.SMELTER. */
+    /** Blestring: {@code Production.Recipe#ticks()} for BuildingType.SMELTER,
+     *  and its batch effort cost — see {@link #BAKERY_TICKS}. */
     SMELTER_TICKS,
-    /** Garvesyre: {@code Production.Recipe#ticks()} for BuildingType.TANNERY. */
+    /** Garvesyre: {@code Production.Recipe#ticks()} for BuildingType.TANNERY,
+     *  and its batch effort cost — see {@link #BAKERY_TICKS}. */
     TANNERY_TICKS,
     /** Åkerskifte: how often a farmed crop's growth is checked/advances. */
     FARM_GROWTH,

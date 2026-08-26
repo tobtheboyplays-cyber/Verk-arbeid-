@@ -237,8 +237,27 @@ public enum BuildingType {
         Requirement.lights(2),
         Requirement.floorSpace(16)),
 
+    // JOB 2 (SURVIVAL_AUDIT.md F6): SMITHY and ARMOURY each demanded their
+    // own anvil -- 31 iron ingots apiece, vanilla's own recipe (3 iron
+    // blocks + 4 ingots), BOTH rooms hand-mined before a single settler
+    // industry exists to help. Softened here, ARMOURY only: it trades its
+    // own anvil for a smithing_table -- 2 iron ingots + 4 planks, roughly a
+    // fifteenth of the cost, reachable the same afternoon as the plaque
+    // itself. This is not "the armoury goes free": SMITHY keeps its own
+    // full anvil+forge+smithing_table below, unchanged, so the FIRST anvil
+    // a village ever needs is still real and still expensive -- only the
+    // SECOND one, which bought nothing but a duplicate hammering surface,
+    // is gone. The room still reads as a forge annex rather than a bare
+    // workbench: a smithing table is where vanilla 1.21 itself does armor
+    // and tool UPGRADES (netherite, trims) -- it is the armourer's own
+    // finishing bench, working leather and ingots the smithy already
+    // forged or the tannery already tanned, not raw ore -- and the
+    // armourer's own hammering motion (WORK_HAMMER, reused from the
+    // smithy's hammer-at-anvil clip per ArmouryGameTests) still plays over
+    // it, so the room keeps the sound and the sight of a forge even though
+    // the block requirement no longer demands a second one.
     ARMOURY("armoury", 0, 2, Items.IRON_CHESTPLATE,
-        Requirement.blocks("anvil", 1, Blocks.ANVIL, Blocks.CHIPPED_ANVIL, Blocks.DAMAGED_ANVIL),
+        Requirement.blocks("smithing_table", 1, Blocks.SMITHING_TABLE),
         Requirement.blocks("storage", 4, Blocks.CHEST, Blocks.BARREL),
         Requirement.doors(1),
         Requirement.lights(2),
