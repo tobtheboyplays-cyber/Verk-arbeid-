@@ -98,6 +98,11 @@ public class SettlerEntity extends PathfinderMob {
      *  the ground, whatever the trade. PICKUP_STOW (1.40 s) is authored in
      *  parallel; see {@link #triggerPickup()}. */
     public static final byte EV_PICKUP = 70;
+    /** The lumberjack's stoop for a felled log. Broadcast, not started
+     *  locally -- see {@link #triggerGatherLog()}. */
+    public static final byte EV_GATHER_LOG = 71;
+    /** A sergeant's leap. Broadcast for the same reason. */
+    public static final byte EV_LEAP_STRIKE = 72;
 
     // Sound-sync contracts (docs/ANIMATION_CATALOGUE.md §0.4): each value
     // must agree with the clip comment in SettlerAnimations and the
@@ -588,16 +593,52 @@ public class SettlerEntity extends PathfinderMob {
      * <p>Triggered at the moment the log comes down, not on a timer, so the
      * stoop always lands on a log that actually exists.
      */
-    /** A sergeant's leap. One-shot, expiring on its own clock. */
+    /**
+     * A sergeant's leap. One-shot, expiring on its own clock.
+     *
+     * <p>Broadcast, not started here. This used to be a bare
+     * {@code leapState.start(tickCount)}, and its only caller is
+     * {@code GuardLeapGoal#start}, which runs server-side -- so the state was
+     * started on the SERVER copy, the one no renderer ever sees, and
+     * {@code SettlerModel}'s {@code animate(entity.leapState, LEAP_STRIKE)}
+     * could never fire. The authored leap never played: a leaping guard fell
+     * back on the plain WALK cycle and pedalled through the air. Same defect
+     * and same fix as {@link #triggerGatherLog()}; the working idiom is
+     * {@link #triggerPickup()}'s.
+     */
     public void triggerLeapStrike() {
-        leapState.start(tickCount);
+        if (!level().isClientSide) {
+            level().broadcastEntityEvent(this, EV_LEAP_STRIKE);
+        }
     }
 
+    /**
+     * The lumberjack stoops for the log they just felled.
+     *
+     * <p>Triggered at the moment the log comes down, not on a timer, so the
+     * stoop always lands on a log that actually exists.
+     *
+     * <p>Two bugs lived in this method's three previous lines, and they
+     * compounded. First, {@code gatherState.start()} was called directly, so
+     * on a server-side caller ({@code LumbererWorkGoal}) the state started on
+     * a copy no renderer sees and GATHER_LOG never played. Second -- and this
+     * is what a player actually SAW -- it also set the activity to
+     * GATHERING_LOG, which matches no animation gate anywhere and was only
+     * ever cleared inside the client-only {@code setupAnimationStates()}. The
+     * server therefore parked the lumberjack in an activity with no clip and
+     * nothing put it back: after his first log he stood in the bare rig, arms
+     * down, for the rest of the tree. At 60 ticks per log that is a
+     * motionless woodcutter for most of every oak, and he is the first worker
+     * anyone hires.
+     *
+     * <p>Now it broadcasts the one-shot and leaves the activity alone. The
+     * stoop plays as an event on top of WORK_CHOP, which is both what it
+     * looks like and what he is actually doing.
+     */
     public void triggerGatherLog() {
         if (!level().isClientSide) {
-            setActivity(SettlerActivity.GATHERING_LOG);
+            level().broadcastEntityEvent(this, EV_GATHER_LOG);
         }
-        gatherState.start(tickCount);
     }
 
     public void celebrate() {
@@ -1212,6 +1253,10 @@ public class SettlerEntity extends PathfinderMob {
             setDownState.start(tickCount);
         } else if (id == EV_PICKUP) {
             pickupState.start(tickCount);
+        } else if (id == EV_GATHER_LOG) {
+            gatherState.start(tickCount);
+        } else if (id == EV_LEAP_STRIKE) {
+            leapState.start(tickCount);
         } else {
             super.handleEntityEvent(id);
         }
