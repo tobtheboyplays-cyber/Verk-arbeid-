@@ -209,7 +209,16 @@ gametest_evidence() { # $1 = log, $2 = failures file
     local roster detail
     roster=$(sed -n '/required tests failed/,/^.*=====================/p' "$1" \
         | sed 's/.*GameTestServer\]: *//' | grep -c '^- ')
-    detail=$(grep -c "failed at" "$1" 2>/dev/null || echo 0)
+    # `grep -c` exits 1 on zero matches while still PRINTING "0", so a
+    # `|| echo 0` fallback appends a second zero, the variable becomes
+    # "0\n0", and the numeric comparison below dies with "integer expression
+    # expected" -- silently skipping the note in the one case the note exists
+    # for. Found by reading, not observed in a run: every run so far has had
+    # a message for every failure (roster 15, detail 15), so the zero-detail
+    # branch has never yet been reached. `|| true` keeps grep's own "0" and
+    # nothing else.
+    detail=$(grep -c "failed at" "$1" 2>/dev/null || true)
+    detail=${detail:-0}
     {
         echo "=== roster (GameTestServer's own summary -- AUTHORITATIVE) ==="
         sed -n '/required tests failed/,/^.*=====================/p' "$1" \
