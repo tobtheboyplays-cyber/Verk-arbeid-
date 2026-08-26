@@ -13,7 +13,11 @@ Sjekk også `git branch --show-current` — hovedrepoet havnet én gang i
 detached HEAD med en commit utenfor grenen (reddet). Unngå `cd` inn i
 worktrees i bakgrunnskommandoer; bruk `git -C <sti>`.
 
-## Landet og pushet i natt (alt mot Byggherre-dom #1)
+## Implementert og pushet i natt (IKKE «landet» — se dom #3 krav 1)
+Ingenting under er suite-bevist. Kveldens ferskeste kjøring har 24 røde av
+194, og flere av dem navngir nettopp disse funksjonene. KF-021 gjør at den
+kjøringen heller ikke beviser det motsatte. Ferdig-merking krever kjørings-id
+og fingeravtrykk.
 Brenselsøkonomi (Fuel.java, kull-kaldstart, bloom x1.67 med ratio-test) ·
 kurér-rute 5 (mat til peis + brensel, karusell lukket) · synlig rangrustning
 (SettlerArmorLayer + gen_armor.py) · rustning KJØPT fra våpenhuset, ikke
