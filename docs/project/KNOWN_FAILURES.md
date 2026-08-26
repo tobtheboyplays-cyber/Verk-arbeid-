@@ -1452,3 +1452,56 @@ now catch it if they do not). It is deliberately deferred: FLAKE-2 is running
 `full` twice right now to establish whether tonight's work gates, and moving
 the fingerprint mid-verification would throw away the evidence it is
 producing. It lands immediately after, and before any gate run that matters.
+
+### KF-027 — eight iron ingots unaccounted for, once in four runs
+
+**2026-08-26 06:30Z.** `LogisticsGameTests#restockDeliversWhenTheOnlyStandableCellIsOutsideTheCraftersBounds`
+failed once in four consecutive runs of one unchanged commit (db7fd1e); the
+other three passed.
+
+```
+iron ingots must be conserved across the restock route, saw 4
+  [smithy=0 warehouse=4 bag=0]
+```
+
+The fixture seeds **12**. At the tick the test gave up: 4 in the warehouse, 0
+at the smithy, 0 in the courier's bag. Eight are missing.
+
+This is not being treated as a flaky test. *Every item is physically real
+(chest truth); logistics must conserve items* is a permanent product
+invariant, and if eight ingots can vanish it is the most serious class of bug
+in this project.
+
+**The standing hypothesis, recorded as a hypothesis:** `CourierWorkGoal.giveUp()`
+carries the load back to the **hearth** so goods stay in circulation, and this
+assertion counts only the smithy chest, the warehouse chest and one courier's
+bag — never the hearth. If she gave up mid-route the ingots would be sitting
+there, perfectly conserved and entirely invisible to the assertion. That would
+make the mod right and the test's accounting short, and the fix would be to
+count every container an item may legitimately reach — which makes the test
+STRONGER, since it would then prove conservation across the whole route
+instead of three of its stops.
+
+**It is explicitly not to be assumed.** Three times tonight — twice by the
+coordinator — a conclusion was drawn from two facts that looked related
+without checking whether the mechanism was even reachable, and was wrong each
+time. The worker on this is instructed to dump every container in the arena,
+the hearth included, at the failing tick, and to stop and escalate rather than
+fix if the items turn out to be genuinely destroyed.
+
+**A second question rides on the same failure:** this test is named for the
+hard case — the only standable cell lies outside the crafter's bounds — and
+the arrival predicate was rewritten tonight for exactly that case (KF-023). If
+the courier gives up there intermittently, the arrival fix works most of the
+time and not always, which is a separate finding from where the ingots went.
+
+**Bookkeeping correction:** commit `04543b5` carries this entry's title but
+contains none of it. A `cd` into the mod directory left the heredoc writing to
+a path that did not exist, and the `git add -A` that followed swept
+ARMOURER-1's in-flight profession work under this message instead. That work
+is sound and compiles clean; only the commit message is wrong. Not rewritten,
+because the branch is pushed and carries an open pull request, and a
+misleading message in history is a smaller problem than a force-push under a
+reviewer. The same `cd`-drift has now cost this session a detached HEAD, a
+commit outside the branch, and this — the rule in WORK_STATE stands: use
+`git -C <path>`, never `cd`.
