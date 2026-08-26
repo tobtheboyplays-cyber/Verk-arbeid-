@@ -1708,3 +1708,41 @@ defect you can see looks cosmetic.
 guard, and had its own purpose-built GameTests — and destroyed the server the
 first time it actually killed something. Static verification cannot see a
 re-entrancy bug in a framework call. Only running it can.
+
+### KF-030 — the camera helper killed the player, and only survival could reveal it
+
+**2026-08-26, first survival playthrough, ~05:43Z.** `live.sh`'s
+`safe_regrab` restores the mouse grab by clicking — and to make sure that
+click lands on nothing breakable, it teleports the player to Y=300 first,
+clicks at empty sky, then teleports back. Three prior fixes are commented
+above it, each proven live.
+
+Every one of them was proven in a **creative** session, where flight is
+exempt and a fall is harmless. The first time this harness drove a
+**survival** player:
+
+```
+05:43:41  teleport to Y=300
+05:43:45  Dev was kicked for floating too long! Flying is not enabled
+          (rejoin, still airborne -> kicked again)
+          (third rejoin, now falling) Dev fell from a high place
+```
+
+The player was killed by the camera helper. That session's inventory was
+empty, so nothing was lost — but a later-game player would have dropped
+everything they carried at the death site, and chest truth would have been
+violated by a *tool*, not by the game.
+
+Fixed: only a creative session gets the teleport. A survival session looks
+straight up in place instead, and if there is no clear sky overhead it
+**skips the grab click entirely** rather than risk breaking a block — a lost
+grab costs a retry, a broken plaque costs a silent re-survey nobody sees
+(the exact failure the second fix above was written for). Unknown game mode
+is treated as survival, because guessing creative is the guess that kills.
+
+**The lesson is about test harnesses, not about this bug.** Every fix in that
+function was real, careful, and validated against the only mode anyone had
+ever driven it in. A harness that has only ever been exercised in creative
+encodes creative's assumptions invisibly — and the owner's instruction to
+play *"uten creative"* is precisely what made it visible. Three prior fixes
+and none of them found it, because none of them was allowed to fall.

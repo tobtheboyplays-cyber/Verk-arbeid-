@@ -111,9 +111,52 @@ safe_regrab() {
         focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
         return
     fi
-    srv_send "execute at $player run tp $player ~ 300 ~ $yaw -90"
-    sleep 3
-    focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+    # Fourth fix (2026-08-26, found by the first SURVIVAL playthrough):
+    # the Y=300 teleport is LETHAL outside creative mode. Every previous fix
+    # here was proven against a creative session, where flight is exempt and
+    # falling is harmless. In survival the same teleport leaves the player
+    # airborne with nothing under them: the vanilla anti-cheat kicked with
+    # "was kicked for floating too long" about four seconds after the
+    # teleport, the immediate rejoin was kicked again while still airborne,
+    # and the third rejoin caught the player mid-fall and killed them
+    # ("Dev fell from a high place"). That session's inventory happened to be
+    # empty; a later-game player would have dropped everything they carried
+    # at the death site. A camera helper must not be able to kill the player.
+    #
+    # So: only creative sessions get the teleport. In survival, the same
+    # goal -- put empty sky under the crosshair before the grab-restoring
+    # click -- is met by looking straight up in place. That is weaker (a roof
+    # or an overhang can still be in reach underground, which is exactly what
+    # the second fix above was written for), so when the player is NOT under
+    # open sky the click is skipped entirely rather than risking a broken
+    # block: a lost grab costs a retry, a broken plaque costs a silent
+    # re-survey nobody sees.
+    local mode sky
+    srv_send "data get entity $player playerGameType"
+    sleep 1
+    mode=$(grep -oP "$player has the following entity data: \K[0-9]+" \
+           "$inst/logs/latest.log" 2>/dev/null | tail -1)
+    if [ "$mode" = "1" ]; then
+        srv_send "execute at $player run tp $player ~ 300 ~ $yaw -90"
+        sleep 3
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+        srv_send "tp $player $x $y $z $yaw $pitch"
+        sleep 1
+        return
+    fi
+    # Survival (or unknown, which is treated as survival -- the safe
+    # assumption, since guessing creative is the one that kills).
+    srv_send "execute at $player run tp $player ~ ~ ~ $yaw -90"
+    sleep 1
+    srv_send "execute at $player positioned ~ ~2 ~ if block ~ ~ ~ air run say HSQA_SKY_CLEAR"
+    sleep 1
+    sky=$(grep -c "HSQA_SKY_CLEAR" "$inst/logs/latest.log" 2>/dev/null | tail -1)
+    if [ "${sky:-0}" -gt "$(cat "$STATE/sky_seen" 2>/dev/null || echo 0)" ]; then
+        echo "$sky" > "$STATE/sky_seen"
+        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+    else
+        echo "live.sh: safe_regrab skipped the grab click (survival, no clear sky overhead)" >&2
+    fi
     srv_send "tp $player $x $y $z $yaw $pitch"
     sleep 1
 }

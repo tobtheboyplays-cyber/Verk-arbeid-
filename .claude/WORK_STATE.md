@@ -189,6 +189,26 @@ Koordinatorens beslutninger, tas i patch-runden ETTER gjennomspillingen
 
 **DOKUMENT-RÅTE FUNNET:** COSTS.md sa forskning ukoblet — koden krget. Fikset.
 
+
+## RUNDESTRUKTUREN (eierens ordre: «deretter ta fler runder»)
+En RUNDE er: spill → funn → patch-bølge → suiten grønn → spill igjen.
+Ikke ferdig før spilleren kommer gjennom hele loopen uten å bli stoppet.
+
+- **Runde 1 (pågår):** SPILLER-1 på jar fra fe889ed. Har alt funnet en
+  harness-VEGG som gjorde survival-spilling umulig (safe_regrab
+  teleporterte til Y=300, som er gratis i creative og DØDELIG i survival —
+  spilleren ble sparket to ganger og døde i fallet tredje gang). Fikset i
+  live.sh: bare creative får teleporten; survival ser rett opp på stedet og
+  hopper over klikket helt hvis det ikke er fri himmel over.
+- **Mellom hver runde:** hele suiten grønn før neste spilling starter.
+  Ellers måler runde N+1 en blanding av gammelt og nytt.
+- **Hver runde bygger sitt eget jar** fra et fastlåst, byte-rent tre, slik
+  at funnene tilhører en commit og ikke et bevegelig tre.
+- **Rundene stopper ikke på grønn suite.** De stopper når en spiller kommer
+  fra bar mark til raid uten å møte en VEGG, og friksjonslista er kort nok
+  til at den øverste posten ikke er pinlig.
+
+
 ## Regler som ikke bøyes
 - All testkjøring gjennom `tools/hearthstead-qa` (rot, ikke moddmappa).
 - `playtest` krever at eieren spørres. `full`/`gametest`/`quick` gjør ikke.
