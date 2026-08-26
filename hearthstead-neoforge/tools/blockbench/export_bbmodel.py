@@ -110,7 +110,13 @@ def build():
     with open(TEXTURE, "rb") as f:
         tex_b64 = base64.b64encode(f.read()).decode("ascii")
 
-    defs = anim_check.parse_definitions(anim_check.SRC)
+    # anim_check now supports multiple animation source files (settler,
+    # raider, ...) via ANIMATION_SOURCES instead of one hardcoded SRC path
+    # (df30f38). This exporter only ever built the settler model/rig, so it
+    # deliberately keeps reading just the settler entry.
+    settler_source = next(
+        s for s in anim_check.ANIMATION_SOURCES if s["label"] == "settler")
+    defs = anim_check.parse_definitions(settler_source["path"])
     animations = []
     for clip, d in sorted(defs.items()):
         animators = {}

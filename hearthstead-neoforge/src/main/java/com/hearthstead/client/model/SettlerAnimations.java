@@ -356,20 +356,43 @@ public final class SettlerAnimations {
 
     // -------------------------------------------------------- locomotion ---
 
-    /** The everyday gait, consumed through animateWalk. 1s loop. */
+    /** The everyday gait, consumed through animateWalk. 1s loop.
+     *  REBUILT 2026-08-26 (owner: "Skjerp deg" -- animations read silly next
+     *  to professional work). The old version was a two-pose cycle (contact
+     *  at 0/0.5, passing at 0.25/0.75, CATMULLROM straight through) with the
+     *  body bob dipping AT passing and rising AT contact -- exactly
+     *  backwards from real gait, where the body is lowest just after
+     *  contact (the knee absorbing the landing) and highest just before the
+     *  next contact (the push-off). Now four poses per step, eight leg keys
+     *  per loop (blockbench-animation skill Sec.1): contact -> down (2
+     *  ticks later, slow-out of the landing) -> passing (fast through mid)
+     *  -> up (push-off, slow-in) -> next contact. The torso POSITION bob is
+     *  retimed to match -- lowest at 0.10s/0.60s, highest at 0.40s/0.90s --
+     *  and falls (4 ticks) faster than it rises (6 ticks), the asymmetric
+     *  "down happens faster than up" rule. Cloak's existing peak at
+     *  0.25/0.75 needed no change: it now lags the new low point by exactly
+     *  3 ticks, which is the drag-lag this clip's cloak always wanted. */
     public static final AnimationDefinition WALK = AnimationDefinition.Builder
         .withLength(1.0F).looping()
         .addAnimation("right_leg", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(-35, 0, 0), CATMULLROM),
-            new Keyframe(0.25F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.1F, KeyframeAnimations.degreeVec(-30, 0, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(5, 0, 0), CATMULLROM),
+            new Keyframe(0.4F, KeyframeAnimations.degreeVec(31, 0, 0), CATMULLROM),
             new Keyframe(0.5F, KeyframeAnimations.degreeVec(35, 0, 0), CATMULLROM),
-            new Keyframe(0.75F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(30, 0, 0), CATMULLROM),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(-5, 0, 0), CATMULLROM),
+            new Keyframe(0.9F, KeyframeAnimations.degreeVec(-31, 0, 0), CATMULLROM),
             new Keyframe(1.0F, KeyframeAnimations.degreeVec(-35, 0, 0), CATMULLROM)))
         .addAnimation("left_leg", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(35, 0, 0), CATMULLROM),
-            new Keyframe(0.25F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.1F, KeyframeAnimations.degreeVec(30, 0, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(-5, 0, 0), CATMULLROM),
+            new Keyframe(0.4F, KeyframeAnimations.degreeVec(-31, 0, 0), CATMULLROM),
             new Keyframe(0.5F, KeyframeAnimations.degreeVec(-35, 0, 0), CATMULLROM),
-            new Keyframe(0.75F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-30, 0, 0), CATMULLROM),
+            new Keyframe(0.75F, KeyframeAnimations.degreeVec(5, 0, 0), CATMULLROM),
+            new Keyframe(0.9F, KeyframeAnimations.degreeVec(31, 0, 0), CATMULLROM),
             new Keyframe(1.0F, KeyframeAnimations.degreeVec(35, 0, 0), CATMULLROM)))
         .addAnimation("right_arm", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(28, 0, 2), CATMULLROM),
@@ -384,11 +407,15 @@ public final class SettlerAnimations {
             new Keyframe(0.5F, KeyframeAnimations.degreeVec(3, -4, -1.5F), CATMULLROM),
             new Keyframe(1.0F, KeyframeAnimations.degreeVec(3, 4, 1.5F), CATMULLROM)))
         .addAnimation("torso", new AnimationChannel(POSITION,
-            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
-            new Keyframe(0.25F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM),
-            new Keyframe(0.5F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
-            new Keyframe(0.75F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM),
-            new Keyframe(1.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.1F, KeyframeAnimations.posVec(0, -0.45F, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.4F, KeyframeAnimations.posVec(0, 0.0F, 0), CATMULLROM),
+            new Keyframe(0.5F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.posVec(0, -0.45F, 0), CATMULLROM),
+            new Keyframe(0.75F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.9F, KeyframeAnimations.posVec(0, 0.0F, 0), CATMULLROM),
+            new Keyframe(1.0F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM)))
         .addAnimation("cloak", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(2, 0, 3), CATMULLROM),
             new Keyframe(0.25F, KeyframeAnimations.degreeVec(9, 0, -3), CATMULLROM),
@@ -438,20 +465,34 @@ public final class SettlerAnimations {
             new Keyframe(1.2F, KeyframeAnimations.degreeVec(4, 0, 0), CATMULLROM)))
         .build();
 
-    /** Errand jog: forward pitch, tight pumping elbows, level head. 0.7s loop. */
+    /** Errand jog: forward pitch, tight pumping elbows, level head. 0.7s loop.
+     *  REBUILT 2026-08-26 alongside WALK -- same fix, scaled to the hurried
+     *  cadence: four leg poses per step (contact/down/passing/up) instead
+     *  of two, and the torso bob's low point moved from the passing pose
+     *  (0.15s/0.55s, backwards) to just after each contact (0.05s/0.40s),
+     *  its high point to just before the next contact (0.25s/0.60s), and
+     *  the fall (3 ticks) kept faster than the rise (4 ticks). */
     public static final AnimationDefinition WALK_HURRIED = AnimationDefinition.Builder
         .withLength(0.7F).looping()
         .addAnimation("right_leg", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(-40, 0, 0), CATMULLROM),
-            new Keyframe(0.15F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.05F, KeyframeAnimations.degreeVec(-36, 0, 0), CATMULLROM),
+            new Keyframe(0.15F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(37, 0, 0), CATMULLROM),
             new Keyframe(0.35F, KeyframeAnimations.degreeVec(40, 0, 0), CATMULLROM),
-            new Keyframe(0.55F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.4F, KeyframeAnimations.degreeVec(36, 0, 0), CATMULLROM),
+            new Keyframe(0.5F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-37, 0, 0), CATMULLROM),
             new Keyframe(0.7F, KeyframeAnimations.degreeVec(-40, 0, 0), CATMULLROM)))
         .addAnimation("left_leg", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(40, 0, 0), CATMULLROM),
-            new Keyframe(0.15F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.05F, KeyframeAnimations.degreeVec(36, 0, 0), CATMULLROM),
+            new Keyframe(0.15F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(-37, 0, 0), CATMULLROM),
             new Keyframe(0.35F, KeyframeAnimations.degreeVec(-40, 0, 0), CATMULLROM),
-            new Keyframe(0.55F, KeyframeAnimations.degreeVec(0, 0, 0), CATMULLROM),
+            new Keyframe(0.4F, KeyframeAnimations.degreeVec(-36, 0, 0), CATMULLROM),
+            new Keyframe(0.5F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(37, 0, 0), CATMULLROM),
             new Keyframe(0.7F, KeyframeAnimations.degreeVec(40, 0, 0), CATMULLROM)))
         .addAnimation("right_arm", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(42, 0, 6), CATMULLROM),
@@ -466,11 +507,15 @@ public final class SettlerAnimations {
             new Keyframe(0.35F, KeyframeAnimations.degreeVec(11, -6, 0), CATMULLROM),
             new Keyframe(0.7F, KeyframeAnimations.degreeVec(11, 6, 0), CATMULLROM)))
         .addAnimation("torso", new AnimationChannel(POSITION,
-            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
-            new Keyframe(0.15F, KeyframeAnimations.posVec(0, -0.5F, 0), CATMULLROM),
-            new Keyframe(0.35F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
-            new Keyframe(0.55F, KeyframeAnimations.posVec(0, -0.5F, 0), CATMULLROM),
-            new Keyframe(0.7F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.05F, KeyframeAnimations.posVec(0, -0.5F, 0), CATMULLROM),
+            new Keyframe(0.15F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.posVec(0, 0.05F, 0), CATMULLROM),
+            new Keyframe(0.35F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.4F, KeyframeAnimations.posVec(0, -0.5F, 0), CATMULLROM),
+            new Keyframe(0.5F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.posVec(0, 0.05F, 0), CATMULLROM),
+            new Keyframe(0.7F, KeyframeAnimations.posVec(0, -0.15F, 0), CATMULLROM)))
         .addAnimation("cloak", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
             new Keyframe(0.15F, KeyframeAnimations.degreeVec(16, 0, 0), CATMULLROM),
@@ -725,7 +770,13 @@ public final class SettlerAnimations {
             new Keyframe(1.5F, KeyframeAnimations.posVec(0, -1, 0), CATMULLROM)))
         .build();
 
-    /** Deep squat, one hand pressing seed into the ground. 2s loop. */
+    /** Deep squat, one hand pressing seed into the ground. 2s loop.
+     *  RETIMED 2026-08-26: torso only had 3 keys, so its peak bend (46 deg)
+     *  landed on the exact same tick as the planting hand's press (t=0.70s,
+     *  this clip's sound accent) -- zero-tick lead, same smell as
+     *  GATHER_LOG/FARM_HARVEST. Torso now reaches 44 deg (96% of its own
+     *  travel) at 0.55s, 3 ticks before the press, without moving the
+     *  accent frame itself. */
     public static final AnimationDefinition FARM_PLANT = AnimationDefinition.Builder
         .withLength(2.0F).looping()
         .addAnimation("root", new AnimationChannel(POSITION,
@@ -741,6 +792,7 @@ public final class SettlerAnimations {
             new Keyframe(2.0F, KeyframeAnimations.degreeVec(-34, 0, 10), CATMULLROM)))
         .addAnimation("torso", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(30, -8, 0), CATMULLROM),
+            new Keyframe(0.55F, KeyframeAnimations.degreeVec(44, -11, 0), CATMULLROM),
             new Keyframe(0.7F, KeyframeAnimations.degreeVec(46, -12, 0), CATMULLROM),
             new Keyframe(1.2F, KeyframeAnimations.degreeVec(38, -4, 0), CATMULLROM),
             new Keyframe(2.0F, KeyframeAnimations.degreeVec(30, -8, 0), CATMULLROM)))
@@ -767,13 +819,20 @@ public final class SettlerAnimations {
             new Keyframe(2.0F, KeyframeAnimations.degreeVec(-4, 0, 0), CATMULLROM)))
         .build();
 
-    /** A twist -- reach and pull, then rise and swing to the shoulder bag. 1.8s loop. */
+    /** A twist -- reach and pull, then rise and swing to the shoulder bag. 1.8s loop.
+     *  RETIMED 2026-08-26: torso y and arm x used to peak on the same tick
+     *  (0.85s), and the twist itself (-32 deg) overshot the catalogue's
+     *  torso-twist budget (Sec.0.3, y <= 22 deg typical). The torso now
+     *  finishes 91% of its twist by 0.70s -- 3 ticks before the arms reach
+     *  full extension at 0.85s, the lead the animation-quality skill's
+     *  Sec.1 principle 5 requires -- and settles at -22 deg, on budget. */
     public static final AnimationDefinition FARM_HARVEST = AnimationDefinition.Builder
         .withLength(1.8F).looping()
         .addAnimation("torso", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(28, 16, 0), CATMULLROM),
             new Keyframe(0.35F, KeyframeAnimations.degreeVec(38, 22, 0), CATMULLROM),
-            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-1, -32, 0), CATMULLROM),
+            new Keyframe(0.70F, KeyframeAnimations.degreeVec(1, -20, 0), CATMULLROM),
+            new Keyframe(0.85F, KeyframeAnimations.degreeVec(-1, -22, 0), CATMULLROM),
             new Keyframe(1.2F, KeyframeAnimations.degreeVec(6, -19, 0), CATMULLROM),
             new Keyframe(1.8F, KeyframeAnimations.degreeVec(28, 16, 0), CATMULLROM)))
         .addAnimation("right_arm", new AnimationChannel(ROTATION,
@@ -1160,19 +1219,25 @@ public final class SettlerAnimations {
      * lean the fuller the sack gets (vanilla animate() is additive), so a
      * near-empty courier walks nearly upright and a full one is bent into it.
      * 2.0s loop.
+     *
+     * <p>TIGHTENED 2026-08-26: this javadoc always claimed "total arm travel
+     * 3 degrees, a clamp, not a swing," but the keyframes actually swung the
+     * grip up to 5 degrees on x -- over the catalogue's Sec.0.5 "at most 2
+     * degrees of jiggle" budget for a locked carry. Now within 1 degree on
+     * every axis, so the comment finally matches the data.
      */
     public static final AnimationDefinition COURIER_CARRY = AnimationDefinition.Builder
         .withLength(2.0F).looping()
         // Hands up on the straps: raised high, drawn inward across the chest.
         .addAnimation("right_arm", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(-104, 27, -25), CATMULLROM),
-            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-101, 26, -27), CATMULLROM),
-            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-106, 28, -24), CATMULLROM),
+            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-103.5F, 26.5F, -25.5F), CATMULLROM),
+            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-104.5F, 27.5F, -24.5F), CATMULLROM),
             new Keyframe(2.0F, KeyframeAnimations.degreeVec(-104, 27, -25), CATMULLROM)))
         .addAnimation("left_arm", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(-104, -27, 25), CATMULLROM),
-            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-101, -26, 27), CATMULLROM),
-            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-106, -28, 24), CATMULLROM),
+            new Keyframe(0.7F, KeyframeAnimations.degreeVec(-103.5F, -26.5F, 25.5F), CATMULLROM),
+            new Keyframe(1.4F, KeyframeAnimations.degreeVec(-104.5F, -27.5F, 24.5F), CATMULLROM),
             new Keyframe(2.0F, KeyframeAnimations.degreeVec(-104, -27, 25), CATMULLROM)))
         // Forward into the weight, with the trudge rocking side to side.
         .addAnimation("torso", new AnimationChannel(ROTATION,
@@ -1872,6 +1937,14 @@ public final class SettlerAnimations {
      * down. That asymmetry is the whole clip: 0.35 s to drop, 0.55 s to rise,
      * because a log is heavy and standing up under one is not the reverse of
      * bending over. One-shot, 1.10 s.
+     *
+     * <p>RETIMED 2026-08-26: the torso used to peak its bend (52 deg) on the
+     * exact same tick (0.35 s) as the arms reached full reach (-92 deg) --
+     * a zero-tick lead, the "arm-only motion over a near-static torso"
+     * smell even though the torso itself was moving plenty. The torso now
+     * arrives at 48 deg (96% of its own travel) two ticks before the arms
+     * finish reaching, hips leading shoulders into the bend as the
+     * animation-quality skill's Sec.1 principle 5 requires.
      */
     public static final AnimationDefinition GATHER_LOG = AnimationDefinition.Builder
         .withLength(1.10F)
@@ -1894,6 +1967,7 @@ public final class SettlerAnimations {
         .addAnimation("torso", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(2, 0, 0), CATMULLROM),
             new Keyframe(0.15F, KeyframeAnimations.degreeVec(18, 0, 0), CATMULLROM),
+            new Keyframe(0.25F, KeyframeAnimations.degreeVec(48, 0, 0), CATMULLROM),
             new Keyframe(0.35F, KeyframeAnimations.degreeVec(52, 0, 0), CATMULLROM),
             new Keyframe(0.50F, KeyframeAnimations.degreeVec(50, 0, 0), LINEAR),
             new Keyframe(0.80F, KeyframeAnimations.degreeVec(16, 0, 0), CATMULLROM),
