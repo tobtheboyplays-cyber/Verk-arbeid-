@@ -148,6 +148,70 @@ Format: `HH:MM` stage — VERDICT — what happened — evidence.
   `f3-*`, `aim-*`, `craft-*`, `pickaxe-attempt.png` showing the confirmed
   wooden-pickaxe recipe match).
 
+- `07:04`-`07:27` Founding — **WALL (harness), the dominant finding of this
+  round** — after the wooden pickaxe, gathering the hearth's 5 cobblestone
+  exposed a much more severe version of the same input-reliability problem:
+  as real playtime accumulated, `mousedown`/`mouseup` and `keydown w`
+  sequences increasingly did **nothing at all** — no camera change, no
+  position change, no pickaxe-durability change, i.e. the input was not
+  merely mis-aimed (as in the earlier plank/pickaxe friction), it was not
+  **received** by the client at all for stretches of several consecutive
+  commands. The only reliable un-stick move found: a bare `mousemove 640
+  360` + `click 1` (re-establishing GLFW's grab) immediately followed by a
+  `mousemove_relative` to prove the look now responds, before trying
+  mine/move again — and even that stopped being reliable by the end of the
+  round (documented below). **This reads as progressive degradation over
+  session length, not a one-off** — the first ~30 minutes of the session
+  (founding scouting, log gathering) had occasional stalls fixable by one
+  regrab click; the last ~10 minutes (stone mining) needed a regrab before
+  nearly every single action, and by the final attempts even regrab
+  stopped restoring input (see the last few `data get entity Dev
+  Inventory` calls in the log, all byte-identical across 6-8 full
+  mine+move attempts with zero durability change). No exception or warning
+  appears in `logs/live-client.log` at these moments — input is silently
+  dropped from this session's point of view, which makes it invisible to
+  anything watching only the server or the mod's own logs. **This is
+  categorically different from KF-006/KF-009's known creative-mode
+  gotchas** (those are documented, deterministic, single-cause quirks with
+  fixes; this is an open-ended reliability decay across a long
+  session that nothing in the existing KF ledger describes.) Suspect
+  surface for round 2 investigation: X11/XTest event queue backpressure
+  under this environment's sustained low frame rate (6-27 fps observed,
+  correlating loosely with when input got worst), or GLFW's raw-input
+  grab silently dropping under repeated focus/unfocus cycles from the
+  `shot`/`scmd` helpers interleaved between game actions. **Progress made
+  despite the wall, by working around it with patient regrab-and-retry**:
+  3 raw oak logs (reserved for the hearth's `tag:minecraft:logs`
+  ingredient), 15 dirt (byproduct, no use yet), 3/5 cobblestone toward the
+  hearth's `5 cobblestone` requirement, 1 wooden pickaxe (25→38 durability
+  used), 2 oak planks + 2 sticks + 1 oak button in reserve. The **Stone
+  Age** vanilla advancement fired, confirming the mining chain (log→
+  planks→stick→pickaxe→cobblestone) is fully intact end-to-end in this
+  mod's world — nothing about the recipes or the room/plaque system was
+  ever in question here; every failure this round was the driving layer,
+  not the game. Evidence: `qa/reports/artifacts/live/20260826T055725Z/
+  shots/on-stone-floor.png` (Stone Age advancement toast),
+  `shots/cobble-check2.png`, `shots/stone-stuck-check.png` (uncollected
+  drops visible, proving breaks succeeded even when pickup/movement
+  stalled immediately after), and the full `data get entity Dev
+  Inventory` transcript in `logs/live-server-latest.log` once `live.sh
+  stop` is run.
+- **Session left running for continuity** (tmux `hsqa-live`, port 25574;
+  `qa/scripts/live.sh status`/`shot`/`scmd` all still reachable), per the
+  coordinator's note that round 2 continues from here rather than
+  restarting. Current player state: gamemode survival, difficulty normal,
+  standing inside the small hand-dug stone chamber described above, with
+  the inventory listed just above. **Immediate next step for whoever
+  continues this round:** get the remaining 2 cobblestone (identical
+  technique: regrab, point-blank aim confirmed by screenshot, short
+  mine-hold, step forward, re-check inventory after every single attempt
+  rather than batching several blind ones — batching is exactly what hid
+  how bad the input drops had gotten here), craft the hearth (`hearth.json`:
+  `LLL / SCS / SSS` = 3 logs top row + 5 cobblestone sides/bottom + 1
+  campfire centre — a campfire still needs to be crafted first, itself
+  needing coal/charcoal not yet gathered this round), place it, and found
+  the settlement.
+
 ---
 
 ## Findings (ranked) — filled in as the session concludes

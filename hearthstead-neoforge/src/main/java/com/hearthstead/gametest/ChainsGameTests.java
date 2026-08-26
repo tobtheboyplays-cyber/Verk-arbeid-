@@ -517,9 +517,10 @@ public class ChainsGameTests {
         helper.assertTrue(countOf(tanneryChest, ModItems.CURED_HIDE.get()) == 0,
             "both cured hides should be spent; saw "
                 + countOf(tanneryChest, ModItems.CURED_HIDE.get()));
-        helper.assertTrue(countOf(tanneryChest, Items.LEATHER) == 2,
-            "2 cured hide at 2:2 should leave exactly 2 leather; saw "
-                + countOf(tanneryChest, Items.LEATHER));
+        helper.assertTrue(countOf(tanneryChest, Items.LEATHER) == 3,
+            "2 cured hide at 2:3 should leave exactly 3 leather (JOB 3's "
+                + "corrected retune — TANNERY's own comment has the effort "
+                + "arithmetic); saw " + countOf(tanneryChest, Items.LEATHER));
         helper.succeed();
     }
 
