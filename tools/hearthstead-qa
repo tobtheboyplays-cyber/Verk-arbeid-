@@ -182,12 +182,27 @@ run_gametests() { # extra JVM props via $1
 # line -- the authority on how many tests failed -- and both the roster and
 # the detail lines are written in full, however long they are.
 gametest_evidence() { # $1 = log, $2 = failures file
+    local roster detail
+    roster=$(sed -n '/required tests failed/,/^.*=====================/p' "$1" \
+        | sed 's/.*GameTestServer\]: *//' | grep -c '^- ')
+    detail=$(grep -c "failed at" "$1" 2>/dev/null || echo 0)
     {
-        echo "=== roster (GameTestServer's own summary) ==="
+        echo "=== roster (GameTestServer's own summary -- AUTHORITATIVE) ==="
         sed -n '/required tests failed/,/^.*=====================/p' "$1" \
             | sed 's/.*GameTestServer\]: *//'
         echo
         echo "=== detail (every failure line, untruncated) ==="
+        if [ "$detail" -lt "$roster" ]; then
+            # Not every failure prints a "failed at" line: a test that runs out
+            # of ticks without tripping an assertion fails with no message of
+            # its own. Run 20260826T020820Z had 20 failed tests and 5 such
+            # lines. The roster above is the count; this section is detail for
+            # the subset that had something to say, and saying so here is the
+            # whole reason the old `grep -c` count was wrong for so long.
+            echo "NOTE: $roster tests failed but only $detail printed a message."
+            echo "      The roster above is the truth; the rest timed out silently."
+            echo
+        fi
         grep "failed at" "$1"
     } > "$2"
 }
