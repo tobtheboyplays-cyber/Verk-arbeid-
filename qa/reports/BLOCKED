@@ -1,0 +1,57 @@
+BLOCKED: the playtest suite's input driver is intermittent in-suite, and the
+remaining window (owner demo 18:00, this written 17:25) does not allow the
+two further consecutive full runs green_streak >= 2 requires.
+
+Failing command: tools/hearthstead-qa full
+  -> [playtest] FAIL at expect_server:hearthstead:build_plan
+     (the plaque-insert step of qa/scenarios/default.txt)
+
+What the evidence shows, precisely:
+- The MECHANIC is not in doubt. PlaqueUseGameTests proves deterministically
+  (no window, no input layer) that the right-click fits the plan, consumes it
+  in survival, and refuses a non-plan item. All 266 GameTests pass in every
+  run today.
+- Every product-level suite -- gametest, behavior, dedicated (incl. restart
+  persistence), performance, client boot -- passed in ALL of today's full
+  runs. The only red suite is playtest, and only intermittently.
+- Three distinct real causes behind that step were found and fixed today,
+  each proven by screenshot evidence:
+    1. wrong hotbar slot (key 5 vs slot 3) opened the pause menu and
+       poisoned all later clicks (fixed, commit "The plaque was never
+       broken");
+    2. unverified click primitive vs dead GLFW grab (fixed: `open`
+       directive with safe_regrab);
+    3. integer-coordinate teleport stood the player on the block SEAM so
+       the yaw-0 pick ray chose a neighbour block on some runs (fixed:
+       _CX/_CZ centre coordinates; plaque-01-before-click.png in
+       20260826T143533Z shows the crosshair dead-centre after the fix).
+  After all three fixes the suite passed standalone twice (16:01, 16:30)
+  and inside full once (run 2, manifest 20260826T144511Z, overall PASS,
+  green_streak 1), then failed inside full at 17:16 (20260826T150143Z) at
+  the same assertion with correct aim on the shot -- a fourth, still
+  undiagnosed intermittency in the xdotool/GLFW/Xvfb input path, which is
+  environment, not product.
+
+Work completed today (all committed and pushed, branch
+claude/hearthstead-settlement-mod-vbdb9n): raider SPRINT / lumberjack
+GATHER_LOG / guard LEAP_STRIKE made reachable (3 dead clips) + regression
+tests; UI double-renderBackground blur fixed across 5 screens; settler sheet
+usable at guiScale 3; weight table wired into the courier (spec corrections
+recorded in the quality ledger); SCHOOL/INFIRMARY/MARKET no longer advertise
+unfillable jobs; dedicated-suite restart race fixed (was reporting data loss
+on a restart that lost nothing); PlaqueUseGameTests added (the player's
+click path, previously untested); DEMO_README recipe errors corrected
+against the real files.
+
+Exact resume action:
+  tools/hearthstead-qa full   # twice, unattended, at this fingerprint
+  # if playtest reds again at expect_server:hearthstead:build_plan, pull
+  # shots/plaque-01-before-click.png and film/ from the newest
+  # qa/reports/artifacts/playtest/ dir FIRST -- every diagnosis today that
+  # started from logs was wrong, and every one that started from the
+  # screenshot was right. The next suspect in line: whether the `open`
+  # directive's safe_regrab click can itself consume the plan-insert click
+  # when the grab was actually alive (a double right-click is harmless per
+  # the scenario's own comment, but a regrab click at the WRONG moment --
+  # while the plan is in hand -- may right-click AIR and swing the arm,
+  # desyncing the later click timing).
