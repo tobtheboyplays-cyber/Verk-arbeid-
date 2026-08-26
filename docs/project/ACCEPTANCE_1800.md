@@ -36,3 +36,46 @@ mode this whole project has spent the night learning to refuse.
    they are the deepest systems.
 2. Criteria 2, 3, 5 the moment the client is drivable.
 3. Anything found broken gets fixed ahead of anything not on this list.
+
+
+---
+
+## Status at 12:45 Oslo — two of five proven, three waiting on eyes
+
+**Criterion 1 — every starting job works: PROVEN.** All 25 employable
+professions verified hireable through `Employment.hire` and working through
+the normal goal path into real chests. **Five were genuine gaps** — the
+LUMBERER, the GUARD's own unassisted target acquisition, the SMITH, the
+MILLER and the BREWER had only ever been proven by driving `Production.run`
+directly or by hire-mechanics alone. A trade with a recipe and no proven
+employment path looks identical to a working one from every angle except a
+player trying to use it, which is the defect that shipped twice this week.
+All five now have a test that hires a settler and watches it do the job.
+
+**Criterion 2 — the watchtower works: PROVEN, and deeper than asked.** Hire,
+chest-true arrows, Power Shot on its cadence and DEXTERITY training were
+already covered. Two things were not: the archer's own `acquire()` — finding
+a raider with no help, since every existing test called `setTarget` by hand —
+and **Triple Shot, which the owner named explicitly and which had zero
+coverage anywhere.** Both closed. A MASTER archer's 3-arrow volley now fires
+on its real 5th-shot cadence with an exact ammunition identity asserted:
+`chest + quiver + shotsFired + 2 x tripleShots == 16`.
+
+**Criterion 4 — warehouse and courier work: PROVEN.** All four routes,
+conservation held across every failure path deliberately hunted (warehouse
+full, two couriers on one stack, destination filling mid-delivery, building
+dissolved mid-route, courier killed carrying goods). Plus the ladder rung
+nobody had tested: restock genuinely outranks a starving hearth, asserted by
+failing the instant a single loaf reaches the hearth before the smithy is fed.
+
+**Criteria 3 and 5 — all animations, and the settler sheet for every
+profession: NOT YET PROVEN.** Both need a client with eyes on it, and the
+client's input path is the open blocker. Whatever is not proven by 16:30 is
+stated as unproven in the owner's note and he judges it himself in his first
+ten minutes.
+
+**Suite: 252/252.** One pre-existing flake found and handed back:
+`GuardDefenseGameTests.abandonsADistantFightToInterceptOneStandingOverACivilian`
+asserts at a fixed 30-tick mark that a target has been acquired, but vanilla's
+`TargetGoal` randomises its first-check interval — a race, 1 fail in 3 runs.
+Fixed before the demo; a flaky test in a demo build is a lie waiting to be told.
