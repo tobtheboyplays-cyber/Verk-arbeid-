@@ -1559,3 +1559,31 @@ something else.
 nobody can be hired". Its worktree predated d21d5e9 (the commit that wired
 ARMOURER's hire path); the main tree's 206/206 run at that commit includes
 this test green. No live defect.
+
+### KF-028 — playtest step 284: the same commit passed and failed the same click
+
+**2026-08-26 08:20Z.** Two `full` runs at one byte-clean commit (db7fd1e):
+run 1 (04:52Z) — all ten suites PASS, playtest included. Run 2 (05:23Z) —
+**nine of ten PASS, playtest FAIL** at step 284:
+`expect_server:hearthstead:build_plan — "server log never matched"`, right
+after a click and a 5-second wait in the plaque flow.
+
+Same source both times, so this is a probabilistic step, and its family is
+already on file: KF-009 records eight distinct harness bugs in exactly the
+playtest plaque section, all of the click-timing / focus / frame-race kind,
+and none of them mod defects. Suspicion accordingly goes to the harness's
+click landing (or the 5s wait racing the client), not to the build-plan
+insertion itself — but suspicion is not a verdict, and nobody has looked yet.
+
+Deliberately parked rather than chased: the owner has ordered a live human-
+style survival playthrough that walks the very same plaque flow by hand, on
+camera, and will answer "does inserting a build plan work in reality"
+better than the scripted step can. If the playthrough inserts plans without
+trouble, this becomes a harness-timing fix; if it stumbles at the same spot,
+it is a mod bug and jumps the queue. The streak consequence is accepted
+honestly: green_streak on db7fd1e is 0, and GATE-1 was always going to run
+on the patched tip, not on tonight's midpoint.
+
+The night's verification haul at db7fd1e, for the record: gametest 202/202
+twice, behavior 0 findings twice, dedicated/performance/client green twice,
+performance at avg MSPT 0.6-1.8 against a 45.0 budget.
