@@ -42,11 +42,25 @@ if [ "${HSQA_TEST_BAD_EULA:-}" = "1" ]; then
 else
     echo "eula=true" > "$INST/eula.txt"
 fi
+# World type. FLAT is the right default and stays the default: every
+# automated suite wants a fast, deterministic, featureless world, and the
+# GameTest and E2E scenarios build their own arenas anyway.
+#
+# But flat also means NO TREES, NO STONE AND NO ORE ANYWHERE -- which is
+# invisible until someone tries to play. The first survival playthrough
+# (2026-08-26) could not found a settlement at all: not because the mod was
+# broken, but because there was nothing in the world to pick up. That is
+# proof, of a kind nobody enjoys, that this harness had never once been
+# driven by a player who had to gather anything.
+#
+# So: overridable, defaulting to what the suites need.
+#   HSQA_LEVEL_TYPE=normal  -> a real world, for survival playthroughs
+LEVEL_TYPE="${HSQA_LEVEL_TYPE:-flat}"
 cat > "$INST/server.properties" <<EOF
 server-port=$PORT
 online-mode=false
 spawn-protection=0
-level-type=minecraft\\:flat
+level-type=minecraft\\:$LEVEL_TYPE
 max-tick-time=180000
 EOF
 

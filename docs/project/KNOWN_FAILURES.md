@@ -1785,3 +1785,99 @@ or broadcast line that claims a behaviour with nothing behind it is disarmed
 the same way. That sweep is the durable part of this entry — one lie found by
 reading is worth less than the habit of checking whether every line the game
 says about itself is earned.
+
+### KF-031 — CLOSED (the lie). The sibling sweep found a second, quieter one
+
+**Landed:** `RaidObjective.isAvailableAt` now hard-returns `false` for
+LOSEPENGER, with the reasoning inline at the removal site
+(`RaidObjective.java`). `RaidPressureGameTests#objectivesMatchWhatTheSettlementActuallyHas`
+now asserts LOSEPENGER stays unavailable even for a settlement rich enough
+to attract every other objective, so a future edit cannot silently re-enable
+it without the test noticing. Suite re-run in an isolated worktree after the
+change: the only two red tests are the pre-existing, other-owned failures
+(`ahiredhunterhuntsbutneverbreaksthefloor`, `ahiredfisheractuallyfishes`) —
+nothing raid-side broke.
+
+**The sibling sweep found one more, smaller instance of the exact same
+shape.** `Captain#earnEpithetFrom` is only ever called with `!held`
+(`RaidDirector.recordAftermath`), and `held` is computed purely from whether
+loot physically escaped (`RaidDirector.resolveIfOver`, driven only by
+`RaiderLootGoal`'s KORN-only success flag). No code path ever sets that flag
+for a BRANN or BLOD raid, so `Captain#epithetsFor`'s BRANN pair ("the
+Torch"/"Ember-Bringer") and BLOD pair ("Red-Handed"/"the Reaper") are
+currently **unreachable** — a captain can burn every building and kill every
+settler in a BRANN or BLOD raid and can never earn either epithet, because
+the gate that grants one only ever looks at whether loot got away.
+
+Worse: `SagaGameTests#aVictoriousRaidGrowsTheLeaderAndEarnsAnEpithet` was
+already green for exactly this case, and reads as proof it works — its own
+doc comment claimed "since this one actually burned something, earns them
+their first epithet". It does not test that. It forces
+`s.raidLootEscaped = true` on a BRANN-objective raid, a state no real BRANN
+raid can ever produce (only KORN's loot goal sets that flag), to make the
+epithet fire. A green test built on a scenario that cannot occur in real
+play is the audit-shaped version of the same defect: a passing check telling
+the project something is true that isn't.
+
+**Disarmed the same way, scoped to what "disarm" safely covers today:** the
+one player-facing line that named a concrete, currently-unreachable outcome
+— the Tingbok guide's "'Grimr the Torch' for one who burned you" example
+(`hearthstead.guide.saga.body`, en_us + nb_no) — now names only KORN's two
+epithets ("the Grain-Thief" / "Larder's Bane"), both genuinely reachable
+today. `Captain`'s class doc and the SagaGameTest's own comment are
+corrected to state the gap plainly instead of repeating the unreachable
+example, so a reader of either no longer walks away with the wrong idea of
+what the code does. None of this touches `RaidDirector`'s `held`/`lost`
+computation, `RaidLogEntry`, or the defense-report broadcast — those are
+tested, documented, deliberate (`RaidDirector`'s own comment: "whether the
+settlement HELD is not about who died"), and out of scope for a same-night
+disarm.
+
+**Not fixed, and deliberately left open rather than folded into this
+entry:** actually making BRANN/BLOD epithets earnable is a real fix, not a
+disarm — it would mean keying epithet-eligibility off each objective's own
+already-tracked signal (arson count this raid for BRANN, settlers hurt this
+raid for BLOD) instead of the settlement-wide loot flag, and rewriting the
+SagaGameTest to prove it through a real burn/hurt rather than a forced flag.
+Small and contained to `RaidDirector.java` as far as it's been scoped, but
+it is new behaviour and a new test, not a lie stopped — it was not one of
+the three things asked for tonight, so it is named here for the owner to
+pick up rather than started unasked.
+
+### KF-032 — the test world had no trees, and nobody had ever needed one
+
+**2026-08-26, first survival playthrough.** After the camera helper stopped
+killing the player (KF-030), founding was still impossible — for a reason
+that had nothing to do with the mod:
+
+`qa/scripts/server_instance.sh` hardcoded `level-type=minecraft:flat`. A
+superflat world has **no trees, no stone and no ore anywhere.** The player
+stood on an infinite grass plain with nothing to pick up, and the first step
+of the entire game — punch wood, craft a hearth — could not begin.
+
+Flat is the *correct* default and it stays the default: every automated suite
+wants a fast, deterministic, featureless world, and the GameTest and E2E
+scenarios build their own arenas regardless. Nothing was wrong with the
+choice. What was wrong is that it was not overridable, and that nobody had
+ever noticed — which is the finding.
+
+**The absence of trees is proof this harness had never once been driven by a
+player who had to gather anything.** Every prior session was creative, or
+was a scenario that spawned what it needed. The owner's instruction to play
+*"uten creative"* has now produced three findings in a row that no test suite
+could ever have produced — a camera helper that kills (KF-030), a world with
+nothing in it (this), and an input path that decays over a long session
+(below) — and not one of them is a bug in the mod. They are bugs in the
+ability to *look* at the mod, which is strictly upstream of every claim this
+project makes about itself.
+
+Fixed by making it overridable, default unchanged: `HSQA_LEVEL_TYPE=normal`
+gives a real world for playthroughs; suites keep flat and keep their speed.
+
+**Still open from the same session, and now the round's dominant blocker:**
+input reliability decays the longer a live session runs — `mousedown` and
+`keydown` are increasingly *not received* (not misaimed: unreceived), until
+even regrab-and-retry stops working. No root cause yet. It is the single
+biggest obstacle to round 2 reaching the lumberjack milestone, and it is
+logged rather than worked around, per the standing rule that a harness fought
+in silence gets fought again next round.

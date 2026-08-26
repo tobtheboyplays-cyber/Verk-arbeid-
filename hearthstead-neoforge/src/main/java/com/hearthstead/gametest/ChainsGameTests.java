@@ -358,12 +358,13 @@ public class ChainsGameTests {
      * stockpile, carried by hand (standing in for a courier trip — see the
      * class javadoc) to a sawmill, milled into timber beams, carried again to
      * a carpenter, and worked into barrels. Every count below is exactly
-     * what the two fed-path ratios predict (6 logs -&gt; 4 beams -&gt; 4
-     * barrels, JOB 4's fix to Production.CARPENTER's barrel_beam — it used
-     * to yield only 2, the same as the rough path would from the same beam
-     * count, which was BALANCE_AUDIT.md finding 7's whole complaint); anything
-     * else would mean an item vanished or was minted somewhere along the trip
-     * (INV-3).
+     * what the two fed-path ratios predict (9 logs -&gt; 6 beams -&gt; 4
+     * barrels — Production.CARPENTER's barrel_beam comment has the full JOB
+     * 4/JOB 3 story, including why it used to yield only 2 barrels from the
+     * same beam count, no better than the rough path, and why "3 beam -&gt; 2
+     * barrel" is the corrected number rather than the first pass's "2 beam
+     * -&gt; 2 barrel"); anything else would mean an item vanished or was
+     * minted somewhere along the trip (INV-3).
      */
     @GameTest(batch = "chains", template = "empty16", timeoutTicks = 400)
     public void threeBuildingChainConservesItemsEndToEnd(GameTestHelper helper) {
@@ -382,26 +383,28 @@ public class ChainsGameTests {
 
         // The lumber camp is a Ring-1 source (FLOWS.md): it has no Production
         // recipe of its own, it just holds what the lumberjack cut.
-        campChest.setItem(0, new ItemStack(Items.OAK_LOG, 6));
+        campChest.setItem(0, new ItemStack(Items.OAK_LOG, 9));
         helper.assertTrue(Production.ready(helper.getLevel(), lumberCamp) == null,
             "a lumber camp makes nothing through Production — it is a source, "
                 + "not a refiner");
 
         // Hop 1: camp -> sawmill (the courier trip). Nothing lost in transit.
         moveAll(campChest, sawChest, Items.OAK_LOG);
-        helper.assertTrue(countOf(sawChest, Items.OAK_LOG) == 6
+        helper.assertTrue(countOf(sawChest, Items.OAK_LOG) == 9
             && countOf(campChest, Items.OAK_LOG) == 0,
-            "all six logs should have moved, none left behind and none duplicated");
+            "all nine logs should have moved, none left behind and none duplicated");
 
-        // Sawmill: 3 logs -> 2 beams, run twice to clear the 6 logs. The beam
-        // recipe is named explicitly here rather than taken from ready():
-        // this test's subject is the CHAIN (do six logs become four beams and
-        // reach the carpenter without losing anything), not which recipe a
-        // sawmill picks on a given tick. The selector alternates beams and
-        // planks by need on purpose — a sawmill that spent every log on beams
-        // and never cut a plank was the bug, not the behaviour — and it has
-        // its own tests. Asking ready() here would be testing two things at
-        // once and getting a false failure on the one not under test.
+        // Sawmill: 3 logs -> 2 beams, run three times to clear the 9 logs
+        // into a beam count (6) that divides evenly into barrel_beam's own
+        // 3-beam batches below. The beam recipe is named explicitly here
+        // rather than taken from ready(): this test's subject is the CHAIN
+        // (do nine logs become six beams and reach the carpenter without
+        // losing anything), not which recipe a sawmill picks on a given
+        // tick. The selector alternates beams and planks by need on purpose
+        // — a sawmill that spent every log on beams and never cut a plank
+        // was the bug, not the behaviour — and it has its own tests. Asking
+        // ready() here would be testing two things at once and getting a
+        // false failure on the one not under test.
         Production.Recipe beams = null;
         for (Production.Recipe r : Production.of(BuildingType.SAWMILL)) {
             if (r.id().equals("timber_beam")) {
@@ -411,24 +414,23 @@ public class ChainsGameTests {
         }
         helper.assertTrue(beams != null,
             "the sawmill must still know how to make timber beams");
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 3; i++) {
             helper.assertTrue(Production.run(helper.getLevel(), sawmill, beams),
                 "the beam recipe should have run");
         }
         helper.assertTrue(countOf(sawChest, Items.OAK_LOG) == 0,
-            "all six logs should be spent; saw " + countOf(sawChest, Items.OAK_LOG));
-        helper.assertTrue(countOf(sawChest, ModItems.TIMBER_BEAM.get()) == 4,
-            "6 logs at 3:2 should leave exactly 4 beams; saw "
+            "all nine logs should be spent; saw " + countOf(sawChest, Items.OAK_LOG));
+        helper.assertTrue(countOf(sawChest, ModItems.TIMBER_BEAM.get()) == 6,
+            "9 logs at 3:2 should leave exactly 6 beams; saw "
                 + countOf(sawChest, ModItems.TIMBER_BEAM.get()));
 
         // Hop 2: sawmill -> carpenter.
         moveAll(sawChest, carpChest, ModItems.TIMBER_BEAM.get());
-        helper.assertTrue(countOf(carpChest, ModItems.TIMBER_BEAM.get()) == 4
+        helper.assertTrue(countOf(carpChest, ModItems.TIMBER_BEAM.get()) == 6
             && countOf(sawChest, ModItems.TIMBER_BEAM.get()) == 0,
-            "all four beams should have moved, none left behind and none duplicated");
+            "all six beams should have moved, none left behind and none duplicated");
 
-        // Carpenter: 2 beams -> 2 barrels (JOB 4), run twice to clear the 4
-        // beams.
+        // Carpenter: 3 beams -> 2 barrels, run twice to clear the 6 beams.
         for (int i = 0; i < 2; i++) {
             Production.Recipe r = Production.ready(helper.getLevel(), carpenter);
             helper.assertTrue(r != null && r.id().equals("barrel_beam"),
@@ -439,15 +441,15 @@ public class ChainsGameTests {
                 "the barrel recipe should have run");
         }
         helper.assertTrue(countOf(carpChest, ModItems.TIMBER_BEAM.get()) == 0,
-            "all four beams should be spent; saw "
+            "all six beams should be spent; saw "
                 + countOf(carpChest, ModItems.TIMBER_BEAM.get()));
         helper.assertTrue(countOf(carpChest, Items.BARREL) == 4,
-            "4 beams at 2:2 should leave exactly 4 barrels (JOB 4 doubled "
-                + "barrel_beam's output so the fed path is no longer a "
-                + "zero-benefit detour — BALANCE_AUDIT.md finding 7); saw "
-                + countOf(carpChest, Items.BARREL));
+            "6 beams at 3:2 should leave exactly 4 barrels — JOB 3's "
+                + "corrected retune (Production.CARPENTER's own comment has "
+                + "the effort arithmetic, measured across both buildings, "
+                + "not ticks); saw " + countOf(carpChest, Items.BARREL));
 
-        // End to end: 6 logs became exactly 4 barrels, with nothing left over
+        // End to end: 9 logs became exactly 4 barrels, with nothing left over
         // anywhere in the chain and nothing extra anywhere either.
         int leftoverLogs = countOf(campChest, Items.OAK_LOG) + countOf(sawChest, Items.OAK_LOG)
             + countOf(carpChest, Items.OAK_LOG);
