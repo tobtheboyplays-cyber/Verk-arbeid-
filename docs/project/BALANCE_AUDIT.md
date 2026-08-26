@@ -410,3 +410,44 @@ The useful conclusion is that the catalogue is honest about the future and
 untidy about the past: nothing here is a clip someone built and lost track
 of. Deleting the three stale headings, and either building the cook's chop or
 striking it, would make the file's own count mean what it says.
+
+---
+
+## Follow-up: finding 1 closed in two halves, and the second half was hiding
+
+**2026-08-26 06:15Z.** Finding 1 said the guards' armour had no producer. It
+had two causes, and fixing the obvious one exposed the other.
+
+**Half one — the recipes.** `Production.of(ARMOURY)` now holds eight recipes,
+leather and iron across all four slots, from tannery leather and smelter
+ingots. Material counts copy vanilla's own crafting exchange rate (5 / 8 / 7 /
+4 for helmet / chestplate / leggings / boots), and iron is priced at exactly
+the smithy's own sword rate of 130 ticks per ingot while leather runs at 80.
+That gap compounds with the upstream gap already in the table, so a full
+leather Veteran kit costs 1920 ticks against a Captain's iron 3120 — a real
+ladder rather than a relabelling. All eight outputs are terminal sinks, so the
+table gains only leaf edges and `noValueMintingCycleInProductionTable` covers
+them automatically.
+
+The audit undercounted, and the worker caught it: `GuardRank` needs **eight**
+distinct pieces, not seven — `LEATHER_LEGGINGS`, the Veteran's piece, was
+missed. Covered now.
+
+**Half two — nobody can be hired to make any of it.**
+`Employment.tradeOf(BuildingType.ARMOURY)` is `Profession.NONE`. `TRADES` has
+22 entries and the armoury is not among them, so `Employment.hire()` refuses
+with `no_trade`. The recipes run in the new tests only because those tests
+drive `Production` directly, which is this repo's established idiom for
+proving a recipe table. In actual play the armoury remains a building nobody
+can work.
+
+This is worth recording as its own lesson rather than folded into finding 1.
+The audit asked "does anything produce this item?" and got a clean answer.
+The question it did not ask was "can anyone be employed to run the thing that
+produces it?" — and a recipe table with no trade behind it looks identical to
+a working one from every angle except a player trying to use it. The same
+shape of gap existed for the mill and the brewery before MILLER and BREWER
+landed. **A production chain is not closed until someone can be hired at every
+link in it**, and that is the check this audit should have run and did not.
+
+ARMOURER-1 is closing it.
