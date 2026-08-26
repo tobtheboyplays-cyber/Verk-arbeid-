@@ -73,10 +73,10 @@ so a route can be grepped instead of counted.
 | **HARVEST-IN** | farmer's own harvest -> hearth | none: the farmer walks it herself, not the courier | live |
 | **CRAFTER_RESTOCK** | warehouse -> refiner input chest (ingredients AND fuel), reservation ledger, chest-true | tier 1 | live |
 | **FOOD_DELIVERY** | warehouse -> hearth larder when it runs LOW | tier 2 | live |
-| **OUTPUT_COLLECTION** | producer's output chest (and the mine's pure yield) -> warehouse | tier 3 | live |
+| **OUTPUT_COLLECTION** | producer's output chest (and every gathering building's pure yield) -> warehouse | tier 3 | live |
 | **WAREHOUSE_CONSOLIDATION** | hearth overflow -> warehouse, the tidy loop | tier 4 | live |
 | **MILITARY-OUT** | warehouse -> armoury / barracks / watchtower chests, so smithed arms physically arrive where they are consumed | not yet a tier | planned |
-| **SOURCE-OUT** | Ring-1 gathering chests (fishery, pasture) -> warehouse | folded into OUTPUT_COLLECTION for the mine; the rest is planned | partial |
+| **SOURCE-OUT** | Ring-1 gathering chests (mine, pasture, fishery, hunters_lodge) -> warehouse | folded into OUTPUT_COLLECTION for all four -- see "Seam findings" below | live |
 
 The four live tiers are one ladder, in that order: **restock -> food ->
 collection -> consolidation.** Restock outranks food deliberately: a crafter
@@ -214,6 +214,55 @@ the untouched `arrows` (flint) rough path — D-007's alone-path holds for a
 settlement with no hunter. Arithmetic and acyclicity argument:
 `Production.java`'s FLETCHER comment; ratio pinned by
 `ChainsGameTests#fletcherWithFeathersOutproducesFlintAlone`.
+
+## Seam findings, closed (adversarial review, 2026-08-26)
+
+Two courier-side seam defects: every worker correct inside its own files,
+wrong across the boundary between them.
+
+**Finding 1 -- three gathering trades produced into chests no courier would
+ever open.** `CourierWorkGoal.findCollectionJob` recognised only
+`BuildingType.MINE` by name as a pure-yield source; PASTURE, FISHERY and
+HUNTERS_LODGE (Job 1 above; `HerderWorkGoal`/`FisherWorkGoal`/
+`HunterWorkGoal`) have no `Production` table either, but the gate special-
+cased MINE and skipped every other no-Production building outright -- the
+fisher's cod, the herder's wool and eggs and the hunter's meat and hides sat
+in their own chests forever, unreachable by any courier and therefore never
+eaten by anyone. Fixed by generalising MINE's own precedent into
+`CourierWorkGoal.GATHERING_BUILDINGS`, a small, explicitly-maintained set
+(MINE, PASTURE, FISHERY, HUNTERS_LODGE) rather than a blanket "no recipe
+table" predicate -- FARMHOUSE and LUMBER_CAMP also have no Production table
+but their goals deposit straight into the HEARTH, never their own chests, and
+a blanket predicate would have had a courier haul a watchtower's own arrows
+(restocked in, never collected out) or a player's own storage out of a
+residential/hub building. `findCollectionJob`, `findSurplusOutput` and
+`keepBackFor` all read this one set, so the next gathering building joins it
+once and every route picks it up for free.
+`CourierWorkshopRouteGameTests#gatheredCodReachesAWarehouseAndFeedsAHungrySettler`
+proves the whole seam end to end: seeded cod travels fishery -> warehouse ->
+hearth, and a genuinely hungry settler is watched actually eating it (hunger
+rising through the real `EatFromHearthGoal`), not just chest counts moving.
+
+**Finding 2 -- two courier routes could shuttle the same stack forever.**
+`MATERIAL_RESERVE_BATCHES` (restock's own top-up target, raised 1 -> 4 so a
+round trip is worth making) pushed several dual-role items' restock target
+above the flat `OUTPUT_KEEP_BACK` (8) collection floor: the mason's STONE
+restocks to 16 (stone_bricks needs 4/batch x 4) but collected back to 8, the
+smithy's IRON_INGOT restocks to 12 (its priciest tool needs 3/batch x 4) but
+collected back to 8. Collection trimmed the crafter to the low floor;
+restock's very next look saw it short of the high target and hauled the
+identical warehouse stock straight back in -- forever, and restock is
+`JobPriority`'s TOP tier, so a courier wedged in that shuttle never even
+reached the food route. `keepBackFor` already carried this exact guard for
+fuel (`FUEL_RESERVE_BATCHES` vs `OUTPUT_KEEP_BACK`); the fix generalises it
+to any material an output doubles as: the keep-back for an item is raised to
+the restock target of every recipe at that building that consumes it as an
+input, so the collection floor is always >= the restock ceiling and the two
+bands can never straddle a live stock level.
+`CourierWorkshopRouteGameTests#masonsDualRoleStoneReachesAStableRestNotAShuttle`
+seeds the mason's STONE at exactly the (now-shared) stable point and asserts
+it never moves across a window long enough for the old shuttle to have run
+twice over.
 
 ## Sequencing honesty
 

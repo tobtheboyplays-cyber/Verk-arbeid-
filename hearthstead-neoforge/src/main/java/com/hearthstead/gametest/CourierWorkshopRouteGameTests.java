@@ -90,9 +90,33 @@ public class CourierWorkshopRouteGameTests {
         return b;
     }
 
+    private static final BlockPos HEARTH_REL = new BlockPos(2, 1, 2);
+
     private static Container containerAt(GameTestHelper helper, BlockPos rel) {
         BlockEntity be = helper.getLevel().getBlockEntity(helper.absolutePos(rel));
         return be instanceof Container c ? c : null;
+    }
+
+    private static HearthBlockEntity hearthAt(GameTestHelper helper) {
+        BlockEntity be = helper.getLevel().getBlockEntity(helper.absolutePos(HEARTH_REL));
+        return be instanceof HearthBlockEntity h ? h : null;
+    }
+
+    /** The hearth is an ItemStackHandler, not a Container -- its own loop
+     *  (copied from {@link CourierFoodRouteGameTests}). */
+    private static int countInHearth(HearthBlockEntity hearth, Item item) {
+        if (hearth == null) {
+            return 0;
+        }
+        var inv = hearth.getInventory();
+        int n = 0;
+        for (int slot = 0; slot < inv.getSlots(); slot++) {
+            ItemStack stack = inv.getStackInSlot(slot);
+            if (stack.is(item)) {
+                n += stack.getCount();
+            }
+        }
+        return n;
     }
 
     private static int countIn(Container c, Item item) {
@@ -329,6 +353,184 @@ public class CourierWorkshopRouteGameTests {
                 "raw iron is the smelter's INPUT and must never be collected away -- "
                     + "it was seen outside the smelter's chest [smelterNow=" + rawAtSmelter
                     + " warehouseNow=" + rawAtWarehouse + " bagNow=" + rawInBag + "]");
+        });
+    }
+
+    // --------------------------------------------------- gathering buildings ---
+
+    /**
+     * SEAM FINDING 1 (adversarial review, 2026-08-26). Before this fix,
+     * {@code CourierWorkGoal#findCollectionJob} recognised only
+     * {@link BuildingType#MINE} as a pure-yield source: PASTURE, FISHERY
+     * and HUNTERS_LODGE have no {@code Production} table either, but the
+     * gate special-cased MINE by name and skipped every other
+     * no-Production building outright. The fisher's cod, the herder's wool
+     * and eggs and the hunter's meat and hides sat in their own chests
+     * forever -- no courier ever collected them, no warehouse ever saw
+     * them, and no settler could ever eat any of it.
+     *
+     * <p>This proves the whole seam end to end for the one gathering
+     * building whose yield is also FOOD, so a reverted fix fails for the
+     * reason that actually mattered (a starving settlement), not merely a
+     * chest count: seeded cod must physically travel fishery -> warehouse
+     * -> hearth, and a genuinely hungry settler (hunger pinned below
+     * {@code EatFromHearthGoal}'s eat line of 40) must actually eat some of
+     * it through the real goal -- proven by the settler's own hunger
+     * rising, not inferred from item movement alone. If the collection gate
+     * is reverted to MINE-only, the cod never leaves the fishery, the
+     * hearth never receives any, and the eater's hunger never rises above
+     * its starting point -- this fails loudly instead of going quiet.
+     *
+     * <p>Registered through {@link GameTestFixtures#register}, the one
+     * sanctioned path for a synthetic {@link Building} (FLAKE-2) -- a
+     * hand-rolled fixture that forgets the plaque loses its building to
+     * {@code BuildingManager}'s sweep mid-test for a reason that has
+     * nothing to do with what this test claims to prove.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 4800, batch = "courier_workshop_route_day")
+    public void gatheredCodReachesAWarehouseAndFeedsAHungrySettler(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+
+        addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
+        BlockPos warehouseChestRel = new BlockPos(5, 1, 3);
+        helper.setBlock(warehouseChestRel, Blocks.CHEST);
+
+        GameTestFixtures.register(helper, s, BuildingType.FISHERY, 8, 2);
+        BlockPos fisheryChestRel = new BlockPos(9, 1, 3);
+        helper.setBlock(fisheryChestRel, Blocks.CHEST);
+        Container fisheryChest = containerAt(helper, fisheryChestRel);
+        helper.assertTrue(fisheryChest != null, "arena fishery chest should exist");
+        int seeded = 10;
+        fisheryChest.setItem(0, new ItemStack(Items.COD, seeded));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 10));
+
+        SettlerEntity eater = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(1, 1, 1));
+        eater.setSettlerName("Sulten");
+        eater.bindTo(s.id, s.center);
+        s.putRecord(eater.getUUID(), eater.getSettlerName(), Profession.NONE);
+        float startingHunger = 15.0F; // below EatFromHearthGoal's hunger < 40 eat line
+        eater.setHunger(startingHunger);
+
+        final int[] maxSeenAtWarehouse = {0};
+
+        helper.succeedWhen(() -> {
+            int atFishery = countIn(containerAt(helper, fisheryChestRel), Items.COD);
+            int atWarehouse = countIn(containerAt(helper, warehouseChestRel), Items.COD);
+            int atHearth = countInHearth(hearthAt(helper), Items.COD);
+            int inBudBag = bagCountOf(bud, Items.COD);
+            maxSeenAtWarehouse[0] = Math.max(maxSeenAtWarehouse[0], atWarehouse);
+            int accounted = atFishery + atWarehouse + atHearth + inBudBag;
+            helper.assertTrue(accounted <= seeded,
+                "cod must never exceed the seeded total (nothing is ever minted), saw "
+                    + accounted + " of " + seeded + " [fishery=" + atFishery
+                    + " warehouse=" + atWarehouse + " hearth=" + atHearth
+                    + " bag=" + inBudBag + "]");
+            helper.assertTrue(maxSeenAtWarehouse[0] > 0,
+                "the fishery's cod was never seen reaching the warehouse -- the "
+                    + "collection gate is still skipping FISHERY [fishery=" + atFishery
+                    + " budAct=" + bud.getActivity()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+            helper.assertTrue(eater.getHunger() > startingHunger,
+                "a genuinely hungry settler (hunger pinned at " + startingHunger
+                    + ", below EatFromHearthGoal's eat line of 40) should have actually "
+                    + "eaten some of the delivered cod by now, saw hunger="
+                    + eater.getHunger() + " [accounted=" + accounted + " of " + seeded
+                    + " fishery=" + atFishery + " warehouse=" + atWarehouse
+                    + " hearth=" + atHearth + " eaterAct=" + eater.getActivity() + "]");
+        });
+    }
+
+    // ----------------------------------------------------- dual-role stability ---
+
+    /**
+     * SEAM FINDING 2 (adversarial review, 2026-08-26). Raising {@code
+     * CourierWorkGoal#MATERIAL_RESERVE_BATCHES} from 1 to 4 pushed the
+     * mason's own STONE restock target (stone_bricks needs 4 stone/batch,
+     * so 4 x 4 = 16) above the fixed collection floor of {@code
+     * OUTPUT_KEEP_BACK} (8) -- collection trimmed the mason back to 8,
+     * restock's very next look saw her short of 16 and hauled the identical
+     * stack straight back in, forever, with restock as {@code
+     * JobPriority}'s TOP tier so the courier never even reached the food
+     * route. The fix raises {@code CourierWorkGoal#keepBackFor} so the
+     * collection floor for a dual-role item is always >= its own restock
+     * target.
+     *
+     * <p>Proven not by asserting the mason's stone equals some number
+     * after the fact, but by seeding EXACTLY the stable point (16 stone,
+     * with zero cobblestone so nobody is hired to actually run the "stone"
+     * recipe and confound the count with real production) and watching it
+     * for a window long enough that the old bug's shuttle -- collect
+     * 16 -> 8, then restock 8 -> 16 -- would have completed at least twice
+     * over. If the fix is reverted, {@code keepBackFor} goes back to a flat
+     * 8 for STONE, {@code findSurplusOutput} sees 16 > 8 on its very first
+     * look, and the very first poll below already fails.
+     *
+     * <p>Registered through {@link GameTestFixtures#register}, the one
+     * sanctioned path for a synthetic {@link Building} (FLAKE-2).
+     */
+    @GameTest(template = "empty16", timeoutTicks = 3600, batch = "courier_workshop_route_day")
+    public void masonsDualRoleStoneReachesAStableRestNotAShuttle(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+
+        addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
+        BlockPos warehouseChestRel = new BlockPos(5, 1, 3);
+        helper.setBlock(warehouseChestRel, Blocks.CHEST);
+        Container warehouseChest = containerAt(helper, warehouseChestRel);
+        helper.assertTrue(warehouseChest != null, "arena warehouse chest should exist");
+        int warehouseSeed = 32; // plenty spare -- a bugged shuttle is never
+        // starved for supply; if it moves at all, that is the bug, not a
+        // starved trip.
+        warehouseChest.setItem(0, new ItemStack(Items.STONE, warehouseSeed));
+
+        GameTestFixtures.register(helper, s, BuildingType.MASON, 8, 2);
+        BlockPos masonChestRel = new BlockPos(9, 1, 3);
+        helper.setBlock(masonChestRel, Blocks.CHEST);
+        Container masonChest = containerAt(helper, masonChestRel);
+        helper.assertTrue(masonChest != null, "arena mason chest should exist");
+        // The stable point itself: MATERIAL_RESERVE_BATCHES(4) x
+        // stone_bricks' own inputCount(4) = 16 -- exactly what keepBackFor
+        // must now also return for STONE at a MASON. No cobblestone seeded,
+        // so Production never has a reason to touch this count either.
+        int stable = CourierWorkGoal.MATERIAL_RESERVE_BATCHES * 4;
+        helper.assertTrue(stable == 16,
+            "fixture arithmetic: expected the mason's stone_bricks recipe to need "
+                + "4 stone/batch -- a constant changed under this test");
+        masonChest.setItem(0, new ItemStack(Items.STONE, stable));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 10));
+
+        final int[] stableTicks = {0};
+        final int[] minSeen = {Integer.MAX_VALUE};
+        final int[] maxSeen = {0};
+
+        helper.succeedWhen(() -> {
+            int atMason = countIn(containerAt(helper, masonChestRel), Items.STONE);
+            int atWarehouse = countIn(containerAt(helper, warehouseChestRel), Items.STONE);
+            int inBag = bagCountOf(bud, Items.STONE);
+            minSeen[0] = Math.min(minSeen[0], atMason);
+            maxSeen[0] = Math.max(maxSeen[0], atMason);
+            int total = atMason + atWarehouse + inBag;
+            helper.assertTrue(total == stable + warehouseSeed,
+                "stone must be conserved across the whole watch, saw " + total
+                    + " [mason=" + atMason + " warehouse=" + atWarehouse
+                    + " bag=" + inBag + " act=" + bud.getActivity() + "]");
+            helper.assertTrue(atMason == stable,
+                "the mason's own stone must never move from the stable point of "
+                    + stable + " -- a courier touched it (min seen " + minSeen[0]
+                    + ", max seen " + maxSeen[0] + "), saw mason=" + atMason
+                    + " [warehouse=" + atWarehouse + " bag=" + inBag
+                    + " act=" + bud.getActivity()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+            // A window long enough that the OLD shuttle (collect 16 -> 8,
+            // then restock 8 -> 16) would have completed at least twice:
+            // each leg is a full courier round trip, so two full cycles is
+            // a real, generous margin, not a hair-trigger race on timing.
+            stableTicks[0]++;
+            helper.assertTrue(stableTicks[0] >= 3000,
+                "watching the whole window for a shuttle: " + stableTicks[0] + "/3000");
         });
     }
 }

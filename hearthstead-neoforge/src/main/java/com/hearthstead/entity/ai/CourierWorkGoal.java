@@ -152,7 +152,8 @@ public class CourierWorkGoal extends Goal {
      * bloom feeds the smithy THROUGH the warehouse (the restock route only
      * ever reads warehouse stock), so hauling the surplus is precisely what
      * gets that chain fed, and the eight left behind cost it nothing.
-     * A {@link BuildingType#MINE} has no Production table and consumes
+     * A {@link #GATHERING_BUILDINGS} member ({@link BuildingType#MINE} and
+     * its world-gathering siblings) has no Production table and consumes
      * nothing, so its keep-back is zero -- see {@link #keepBackFor}.
      * Public so the GameTest asserts against the same number the route
      * uses.
@@ -305,9 +306,10 @@ public class CourierWorkGoal extends Goal {
         /**
          * A producing building's own OUTPUT piled up past
          * {@link #OUTPUT_KEEP_BACK} -- or ANYTHING in a
-         * {@link BuildingType#MINE}, which has no Production table and
-         * whose chests are pure yield -- with a warehouse that has room for
-         * it. FLOWS.md route 4, the return leg of the economy loop. Below
+         * {@link #GATHERING_BUILDINGS} member ({@link BuildingType#MINE}
+         * and its world-gathering siblings), which has no Production table
+         * and whose chests are pure yield -- with a warehouse that has room
+         * for it. FLOWS.md route 4, the return leg of the economy loop. Below
          * restocking on purpose: a crafter out of raw material is stopped
          * dead right now, while an output merely accumulates. Above hearth
          * tidying because a stranded output is stock the restock route
@@ -1155,8 +1157,8 @@ public class CourierWorkGoal extends Goal {
     /**
      * COLLECTION's half of the withdrawal: lifts the reserved output item
      * out of the workshop's chest, but only down to the keep-back
-     * ({@link #OUTPUT_KEEP_BACK}; zero for a {@link BuildingType#MINE}),
-     * counted across the WHOLE building's chests and re-read now -- the
+     * ({@link #keepBackFor}; zero for a {@link #GATHERING_BUILDINGS}
+     * member), counted across the WHOLE building's chests and re-read now -- the
      * count the job was claimed on is however many ticks old, and chest
      * truth means the only number allowed to authorise a removal is one
      * read in the same tick as the removal.
@@ -1777,15 +1779,59 @@ public class CourierWorkGoal extends Goal {
     // --------------------------------------------------- collection scan ---
 
     /**
-     * COLLECTION (FLOWS.md route 4): the first producing building sitting
-     * on more of one of its own OUTPUT items than its keep-back
-     * ({@link #OUTPUT_KEEP_BACK}; a {@link BuildingType#MINE} has no
-     * Production table at all -- its chests are pure yield, so EVERYTHING
-     * there is surplus with a keep-back of zero), paired with the first
-     * warehouse with room for that item. No warehouse, or no room in any:
-     * no job -- this route exists to un-strand goods, and a load lifted
-     * with nowhere to put it down would only re-strand them in a bag
-     * (nothing is ever dropped, and nothing is ever voided).
+     * Building types whose own chests hold pure yield -- filled by a trade
+     * that touches the world directly and has no {@code Production} recipe
+     * table of its own, so nothing in those chests is ever that building's
+     * own raw material. {@link BuildingType#MINE} was always this shape
+     * (see the historic notes on {@link #OUTPUT_KEEP_BACK} and
+     * {@link #keepBackFor}); {@code PASTURE}, {@code FISHERY} and
+     * {@code HUNTERS_LODGE} (worked by {@code HerderWorkGoal},
+     * {@code FisherWorkGoal} and {@code HunterWorkGoal}) are the identical
+     * shape and hit the identical bug for the want of this generalisation
+     * (adversarial review FINDING 1, 2026-08-26): {@link #findCollectionJob}
+     * recognised only {@code MINE} by name, so the herder's wool and eggs,
+     * the fisher's cod and the hunter's meat and hides sat in their own
+     * chests forever -- no courier ever collected them, so no warehouse and
+     * no hungry settler ever saw them either.
+     *
+     * <p>Deliberately NOT "any {@code BuildingType} with no Production
+     * table": {@code FARMHOUSE} and {@code LUMBER_CAMP} also produce
+     * nothing here, but {@code FarmerWorkGoal} and {@code LumbererWorkGoal}
+     * deposit straight into the settlement's HEARTH, never into their own
+     * building's chests, so they have nothing to collect in the first
+     * place. And a residential or hub building (a house, a watchtower, a
+     * library) holds no self-produced surplus at all -- a watchtower's
+     * arrows are RESTOCKED into it for the archer to draw down, never
+     * "collected" back out -- so a blanket no-recipe-table predicate would
+     * have a courier haul a garrison's own arrows, or a player's own
+     * storage, out from under it. This set is exactly the buildings where
+     * "no Production table" really does mean "everything in here is
+     * surplus": a trade gathers straight from the world and the chest only
+     * ever fills. The next gathering building (a trade whose goal deposits
+     * fresh yield into ITS OWN chests, consuming nothing from them) joins
+     * this one set, and {@link #findCollectionJob}, {@link
+     * #findSurplusOutput} and {@link #keepBackFor} all pick it up for free
+     * -- no second bug-fix required.
+     */
+    private static final EnumSet<BuildingType> GATHERING_BUILDINGS = EnumSet.of(
+        BuildingType.MINE, BuildingType.PASTURE, BuildingType.FISHERY,
+        BuildingType.HUNTERS_LODGE);
+
+    private static boolean isGathering(BuildingType type) {
+        return GATHERING_BUILDINGS.contains(type);
+    }
+
+    /**
+     * COLLECTION (FLOWS.md route 4 / SOURCE-OUT): the first producing OR
+     * gathering building sitting on more of one of its own OUTPUT items
+     * than its keep-back ({@link #OUTPUT_KEEP_BACK}; a
+     * {@link #GATHERING_BUILDINGS} member has no Production table at all --
+     * its chests are pure yield, so EVERYTHING there is surplus with a
+     * keep-back of zero), paired with the first warehouse with room for
+     * that item. No warehouse, or no room in any: no job -- this route
+     * exists to un-strand goods, and a load lifted with nowhere to put it
+     * down would only re-strand them in a bag (nothing is ever dropped, and
+     * nothing is ever voided).
      *
      * <p>Only OUTPUTS move. An item sitting in a workshop's chest because
      * it is that building's raw material (raw iron in the smelter) is
@@ -1810,8 +1856,7 @@ public class CourierWorkGoal extends Goal {
             if (!source.valid || source.type == BuildingType.WAREHOUSE) {
                 continue; // a warehouse is this route's destination, never its source
             }
-            boolean mine = source.type == BuildingType.MINE;
-            if (!mine && !Production.produces(source.type)) {
+            if (!isGathering(source.type) && !Production.produces(source.type)) {
                 continue; // makes nothing: it has no "output" to collect
             }
             List<Held> theirs = liveContainers(level, source);
@@ -1853,13 +1898,21 @@ public class CourierWorkGoal extends Goal {
 
     /**
      * The first item this building's chests hold beyond its keep-back that
-     * the building itself PRODUCES -- or, for a mine, holds at all. Inputs
-     * never match: they are the restock route's cargo, not this one's. An
-     * item that is both (the mason's STONE, the smithy's IRON_INGOT) does
-     * match, and the keep-back is what lets its own chain keep running.
+     * the building itself PRODUCES -- or, for a {@link #GATHERING_BUILDINGS}
+     * member, holds at all. Inputs never match: they are the restock
+     * route's cargo, not this one's. An item that is both (the mason's
+     * STONE, the smithy's IRON_INGOT) does match, and the keep-back is what
+     * lets its own chain keep running.
      */
     private static Item findSurplusOutput(List<Held> containers, BuildingType type) {
-        if (type == BuildingType.MINE) {
+        if (isGathering(type)) {
+            // No Production table to enumerate an "output" from -- only a
+            // chest that only ever fills (see the class-level doc on
+            // GATHERING_BUILDINGS for why this is safe: every member here
+            // is a trade that touches the world directly and consumes
+            // nothing of its own), so whatever sits in it beyond
+            // keepBackFor's floor (always 0 for this set) is surplus by
+            // construction, same as the original MINE-only behaviour.
             for (Held h : containers) {
                 Container c = h.container();
                 for (int slot = 0; slot < c.getContainerSize(); slot++) {
@@ -1879,22 +1932,53 @@ public class CourierWorkGoal extends Goal {
         return null;
     }
 
-    /** COLLECTION keep-back per building kind and item: a mine's chests are
-     *  pure yield; a workshop keeps a working buffer of its own product
-     *  (see {@link #OUTPUT_KEEP_BACK} for why) -- and a BURNING building
-     *  keeps at least its whole fuel reserve of any output that doubles as
-     *  fuel (the smelter chars logs into charcoal, and charcoal feeds its
-     *  own firebox). Without that floor the collection route and the fuel
+    /** COLLECTION keep-back per building kind and item: a
+     *  {@link #GATHERING_BUILDINGS} member's chests are pure yield; a
+     *  workshop keeps a working buffer of its own product (see
+     *  {@link #OUTPUT_KEEP_BACK} for why) -- and a BURNING building keeps
+     *  at least its whole fuel reserve of any output that doubles as fuel
+     *  (the smelter chars logs into charcoal, and charcoal feeds its own
+     *  firebox). Without that floor the collection route and the fuel
      *  restock would carousel the same stacks: one hauling firewood in to
      *  reach {@link #FUEL_RESERVE_BATCHES} x perBatch, the other hauling
-     *  the "surplus" above {@link #OUTPUT_KEEP_BACK} straight back out. */
+     *  the "surplus" above {@link #OUTPUT_KEEP_BACK} straight back out.
+     *
+     *  <p>The same carousel exists for any MATERIAL an output doubles as --
+     *  not just fuel. Adversarial review FINDING 2 (2026-08-26): raising
+     *  {@link #MATERIAL_RESERVE_BATCHES} from 1 to 4 (so a crafter's
+     *  restock trip is worth a round-trip, see that constant's own note)
+     *  pushed several dual-role items' RESTOCK target above this method's
+     *  flat {@link #OUTPUT_KEEP_BACK} floor -- the mason's STONE restocks
+     *  to 16 (stone_bricks needs 4 x 4) but collected back down to 8, the
+     *  smithy's IRON_INGOT restocks to 12 (the priciest tool recipe needs
+     *  3 x 4) but collected back down to 8. Collection empties the crafter
+     *  to the (too-low) keep-back; restock's very next look sees the
+     *  crafter short of the (too-high) target and hauls the identical
+     *  warehouse stack straight back in -- forever, and restock is
+     *  {@code JobPriority}'s top tier, so a courier wedged in that shuttle
+     *  never even reaches the food route. Fixed the exact way the fuel case
+     *  already was: for every recipe at this building that consumes `item`
+     *  as its OWN input, raise the keep-back to at least that recipe's own
+     *  restock target (the MAX across every such recipe -- WEAVER's
+     *  WHITE_WOOL is consumed by both wool_bolt at 3/batch and banner at
+     *  6/batch, and the floor must clear whichever one findRestockJob could
+     *  actually trigger on). The collection floor is then always >= the
+     *  restock ceiling, so the two bands can never straddle a live stock
+     *  level -- the same guarantee the fuel branch already gave one item
+     *  kind, generalised to every dual-role item in the table. */
     private static int keepBackFor(BuildingType type, Item item) {
-        if (type == BuildingType.MINE) {
+        if (isGathering(type)) {
             return 0;
         }
         int keep = OUTPUT_KEEP_BACK;
         if (Fuel.burns(type) && Fuel.isFuel(new ItemStack(item))) {
             keep = Math.max(keep, FUEL_RESERVE_BATCHES * Fuel.perBatch(type));
+        }
+        ItemStack asStack = new ItemStack(item);
+        for (Production.Recipe recipe : Production.of(type)) {
+            if (recipe.input().test(asStack)) {
+                keep = Math.max(keep, MATERIAL_RESERVE_BATCHES * recipe.inputCount());
+            }
         }
         return keep;
     }
