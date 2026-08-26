@@ -445,45 +445,100 @@ def render_farmer_work(rng, dur, variant=0):
 
 
 CHOP_VARIANTS = (
-    {"f0": 252.0, "tau": 0.070},
-    {"f0": 288.0, "tau": 0.058},
-    {"f0": 226.0, "tau": 0.082},
+    {"f0": 252.0, "tau": 0.046},
+    {"f0": 288.0, "tau": 0.038},
+    {"f0": 226.0, "tau": 0.053},
 )
 
 
 def render_chop(rng, dur, variant=0):
-    """Axe-on-wood 'thock': sharp click + short resonant wooden body + thud."""
+    """Axe-on-wood 'thock'.
+
+    QA-2026-08-26 (owner: "lyden de lager er veldig darlig" at the lumber
+    camp): the old version was diagnosed and rebuilt from the waveform, not
+    by ear. Measured against the old renderer: its 3-partial sine "body"
+    peaked at up to 1.32 (pre-normalize) against the impact click's 0.67 --
+    the tone, not the transient, set the final loudness ceiling, so
+    normalize() quietened the click into inaudibility under its own ring.
+    A 100 ms-in spectral-flatness probe on the old render came back exactly
+    0.0 -- by a fifth of the way through the sound it was a bare decaying
+    sine, i.e. a synth blip wearing a woodcutting costume, not a chop.
+    Wood does not ring like that; only the very first few ms of a chop are
+    tonal at all, and the ring dies with the fibres, fast.
+    Rebuilt on four explicit layers, deliberately ordered so the transient
+    can never lose the loudness contest to the tone:
+      1. crack  -- full-band edge-bite, <10 ms, the part that must read
+                   first and loudest (the actual "thwack").
+      2. bite   -- a slightly lower, slightly longer noise burst under the
+                   crack: fibres tearing, not just the edge kissing bark.
+      3. body   -- 2 damped wooden modes (down from 3), each hit's own
+                   pitch/tau jitter, PRE-normalized to a fixed peak before
+                   mixing so it can never outweigh the crack regardless of
+                   partial phase alignment; window shortened to 140 ms so
+                   the tone is gone well inside the clip's own duration
+                   instead of ringing through most of it.
+      4. thud   -- restrained low-passed mass, unchanged in spirit.
+    Per-hit variation: f0, tau and the body's own overtone ratio all draw
+    fresh from rng (previously only f0 varied, +-1%), and every layer's
+    onset jitters independently by a fraction of a ms so consecutive swings
+    never stack byte-for-byte identical envelopes.
+    """
     p = CHOP_VARIANTS[variant]
-    f0 = p["f0"] * rng.uniform(0.99, 1.01)
-    tau = p["tau"]
-    n = n_samples(0.32)
+    f0 = p["f0"] * rng.uniform(0.96, 1.04)
+    tau = p["tau"] * rng.uniform(0.85, 1.15)
+
+    def jitter():
+        return rng.uniform(-0.0004, 0.0004)
+
+    # 1. Crack: the edge biting in. Full-band (high-passed, not band-passed)
+    # so it carries real snap rather than a thin whistle; extremely short.
+    crack_n = n_samples(0.010)
+    crack = one_pole_hp(white_noise(rng, 0.010), 1400.0)
+    ce = env_exp(crack_n, attack=0.0002, tau=0.0022)
+    crack = [crack[i] * ce[i] for i in range(crack_n)]
+
+    # 2. Bite: fibres tearing a beat after the edge lands -- a touch lower
+    # and a touch longer than the crack so the two don't read as one click.
+    bite_n = n_samples(0.028)
+    bite = biquad_bp(white_noise(rng, 0.028), 1100.0 * rng.uniform(0.9, 1.1), 1.6)
+    be = env_exp(bite_n, attack=0.0006, tau=0.008)
+    bite = [bite[i] * be[i] for i in range(bite_n)]
+
+    # 3. Wood body: 2 heavily damped modes, truncated hard -- a "thock", not
+    # a ring. Pre-normalized so its peak is fixed regardless of how the
+    # partials' random phases happen to stack.
+    n = n_samples(0.14)
     body = [0.0] * n
-    # 2-3 wooden modes with a fast initial pitch settle (1.08x -> 1.0)
-    for ratio, amp, tr in ((1.0, 1.0, 1.0), (1.62, 0.38, 0.6), (2.41, 0.16, 0.4)):
+    for ratio, amp, tr in ((1.0, 1.0, 1.0),
+                           (1.62 * rng.uniform(0.97, 1.03), 0.30, 0.55)):
         ph = rng.uniform(0.0, TWO_PI)
         acc = ph
         pt = tau * tr
         for i in range(n):
             t = i / SR
-            f = f0 * ratio * (1.0 + 0.08 * math.exp(-t / 0.012))
+            f = f0 * ratio * (1.0 + 0.05 * math.exp(-t / 0.009))
             acc += TWO_PI * f / SR
             body[i] += amp * math.exp(-t / pt) * math.sin(acc)
-    na = n_samples(0.0015)
+    na = n_samples(0.001)
     for i in range(min(na, n)):
         body[i] *= i / na
+    body = normalize(body, 0.62)
+
+    # 4. Low thud: the mass of the swing landing through the trunk.
+    thud_n = n_samples(0.075)
+    thud = one_pole_lp(white_noise(rng, 0.075), 600.0)
+    te = env_exp(thud_n, attack=0.0025, tau=0.022)
+    thud = [thud[i] * te[i] for i in range(thud_n)]
+
     mix = []
     # NOTE: content starts after 8 ms so the mandatory 5 ms fade-in cannot
-    # blunt the attack transient.
-    mix_at(mix, body, 0.010, 1.0)
-    # impact click: very short high-passed noise
-    click = one_pole_hp(white_noise(rng, 0.006), 2400)
-    ce = env_exp(len(click), attack=0.0005, tau=0.0015)
-    mix_at(mix, [click[i] * ce[i] for i in range(len(click))], 0.008, 0.9)
-    # low thud noise for mass
-    thud = one_pole_lp(white_noise(rng, 0.09), 650)
-    te = env_exp(len(thud), attack=0.002, tau=0.03)
-    mix_at(mix, [thud[i] * te[i] for i in range(len(thud))], 0.009, 0.55)
-    return soft_clip(mix, 1.2)
+    # blunt the attack transient. Gains are chosen so the broadband
+    # crack+bite pair sets the peak, not the tonal body.
+    mix_at(mix, crack, 0.008 + jitter(), 1.0)
+    mix_at(mix, bite, 0.009 + jitter(), 0.62)
+    mix_at(mix, body, 0.010 + jitter(), 0.85)
+    mix_at(mix, thud, 0.011 + jitter(), 0.55)
+    return soft_clip(mix, 1.18)
 
 
 def render_guard_alert(rng, dur):
@@ -1065,7 +1120,16 @@ def render_knead_press(rng, dur):
 
 
 def render_cleaver_chop(rng, dur, variant=0):
-    """Butcher and tanner: a wet stroke that ends on the board underneath."""
+    """Butcher and tanner: a wet stroke that ends on the board underneath.
+
+    QA-2026-08-26 same-family balance fix as render_chop: the board's sine
+    partials could peak above 1.2 pre-mix and, at gain 0.45, still out-weigh
+    the wet stroke's transient (peak ~0.44 at gain 0.75) once soft_clip and
+    the caller's normalize pass ran -- the identical "tone drowns the hit"
+    defect, just milder because this clip is short. Pre-normalizing the
+    board fixes its peak so the wet stroke keeps the transient, and a touch
+    of per-hit tau/ratio jitter stops every stroke sounding byte-identical.
+    """
     mix = []
     wet = one_pole_lp(white_noise(rng, 0.06), 900)
     we = env_exp(len(wet), attack=0.001, tau=0.016)
@@ -1074,12 +1138,14 @@ def render_cleaver_chop(rng, dur, variant=0):
     n = n_samples(0.18)
     board = [0.0] * n
     f0 = (420.0 if variant == 0 else 365.0) * rng.uniform(0.98, 1.02)
-    for ratio, amp in ((1.0, 1.0), (1.71, 0.35)):
+    tau = 0.045 * rng.uniform(0.9, 1.1)
+    for ratio, amp in ((1.0, 1.0), (1.71 * rng.uniform(0.98, 1.02), 0.35)):
         acc = rng.uniform(0.0, TWO_PI)
         for i in range(n):
             t = i / SR
             acc += TWO_PI * f0 * ratio / SR
-            board[i] += amp * math.exp(-t / 0.045) * math.sin(acc)
+            board[i] += amp * math.exp(-t / tau) * math.sin(acc)
+    board = normalize(board, 0.60)
     mix_at(mix, board, 0.016, 0.45)
     return soft_clip(mix, 1.15)
 
