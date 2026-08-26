@@ -1249,11 +1249,28 @@ direction a judge must never err in — toward looking better than reality:
 1. **The roster was truncated.** A run with fourteen failures stored five of
    them. The log still held the truth, but the artifact is what survives the
    run, and the artifact silently disagreed with the server that produced it.
-2. **The count was of the wrong thing.** `failures=` came from
-   `grep -c "failed at"`, which counts ERROR lines rather than tests. Run
-   20260826T020820Z recorded `failures=5` in its manifest while
-   GameTestServer's own summary said **20**. Verified against the stored log:
-   the replacement returns 14 where the old expression returns 5.
+2. **The count was fragile, and the claim first written here about it was
+   wrong.** This entry originally said the manifest recorded `failures=5`
+   while the server said 20. It did not. `failures=` came from
+   `grep -c "failed at"` on the **log**, and the log had 20 such lines; the
+   5 came from the truncated artifact file, and the two were conflated while
+   writing this up. Checked against every surviving run: server count,
+   roster length and message count all agree (14 / 14 / 14).
+
+   The count is still worth replacing, on its own merits rather than on an
+   observed failure: it counts ERROR lines, so it is only correct while every
+   failing test prints exactly one. A test that runs out of ticks without
+   tripping an assertion prints nothing, and one that trips twice prints
+   twice. The count now comes from GameTestServer's own "N required tests
+   failed" line, which is the authority on how many TESTS failed, and the
+   evidence file says so explicitly whenever the message count is lower than
+   the roster.
+
+   Recording the retraction rather than quietly editing it, for the same
+   reason the reserve exoneration is recorded above: the mistake was drawing
+   a conclusion from two numbers without checking which file each came from,
+   which is the identical error made about `MATERIAL_RESERVE_BATCHES` four
+   hours earlier. Twice in one night is a pattern, not an accident.
 3. **The controller was outside the source fingerprint.** `qa/scripts` is
    fingerprinted, and the comment there says why — an assertion can be
    loosened in that directory. But the file that reads the log, counts the
@@ -1268,12 +1285,13 @@ and the controller is inside the fingerprint. That last change invalidates
 every fingerprint stored before today, which is correct rather than
 unfortunate — those runs were judged by a different judge.
 
-**The uncomfortable part is the exposure.** These are not new; there is no
-way to tell how many of tonight's earlier `failures=N` figures were low, and
-the manifests carrying them cannot be retroactively trusted. Where a count
-in this document came from GameTestServer's own summary line it stands; where
-it came from a manifest it does not. The suite has been more red than it
-said, never less.
+**The exposure, stated correctly.** The manifest counts appear to have been
+right; it is the stored ROSTERS that were short, every time there were more
+than five failures. So the numbers in this document stand, and what was lost
+is membership: for any earlier run with more than five red, the artifact
+cannot say which tests they were. That matters most for KF-021, where
+membership is the whole signal — a shifting roster is the evidence, and five
+names out of twenty cannot show a shift.
 
 ### KF-024, part two — the fingerprint has two clocks, and nothing compared them
 
