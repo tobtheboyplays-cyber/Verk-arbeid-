@@ -998,11 +998,59 @@ public class SettlerEntity extends PathfinderMob {
 
     private void setupAnimationStates() {
         SettlerActivity activity = getActivity();
+        Profession profession = getProfession();
         boolean moving = walkAnimation.speed() > 0.05F;
+        // Trade idles fully replace the generic IDLE breath-and-sway loop
+        // rather than layering on it (vanilla's animate() is additive, so
+        // summing two full-body loops on the same bones would corrupt
+        // both poses -- the same hazard SettlerModel's own header comment
+        // documents for IDLE). idleState is therefore gated to NONE only
+        // while standing idle; EATING and CELEBRATING keep using it as
+        // their breath layer regardless of profession, unchanged from
+        // before this piece.
+        boolean idleTrade = activity == SettlerActivity.IDLE && profession != Profession.NONE;
 
         idleState.animateWhen(!moving
-            && (activity == SettlerActivity.IDLE || activity == SettlerActivity.EATING
-                || activity == SettlerActivity.CELEBRATING), tickCount);
+            && ((activity == SettlerActivity.IDLE && profession == Profession.NONE)
+                || activity == SettlerActivity.EATING || activity == SettlerActivity.CELEBRATING),
+            tickCount);
+        // One gate per clip, not per profession -- GUARD/ARCHER share
+        // idleSentryState, SMITH/SMELTER share idleForgeState,
+        // BAKER/MILLER share idleBakerState, COOK/BREWER share
+        // idleCookState, MASON/CARPENTER/SAWYER share idleSightEdgeState,
+        // BUTCHER/TANNER share idleBladeBenchState (see each clip's own
+        // sharing justification in SettlerAnimations). !moving matches
+        // every other stationary work/idle gate in this method.
+        idleFarmerState.animateWhen(idleTrade && !moving
+            && profession == Profession.FARMER, tickCount);
+        idleLumbererState.animateWhen(idleTrade && !moving
+            && profession == Profession.LUMBERER, tickCount);
+        idleSentryState.animateWhen(idleTrade && !moving
+            && (profession == Profession.GUARD || profession == Profession.ARCHER), tickCount);
+        idleCourierState.animateWhen(idleTrade && !moving
+            && profession == Profession.COURIER, tickCount);
+        idleForgeState.animateWhen(idleTrade && !moving
+            && (profession == Profession.SMITH || profession == Profession.SMELTER), tickCount);
+        idleBakerState.animateWhen(idleTrade && !moving
+            && (profession == Profession.BAKER || profession == Profession.MILLER), tickCount);
+        idleCookState.animateWhen(idleTrade && !moving
+            && (profession == Profession.COOK || profession == Profession.BREWER), tickCount);
+        idleSightEdgeState.animateWhen(idleTrade && !moving
+            && (profession == Profession.MASON || profession == Profession.CARPENTER
+                || profession == Profession.SAWYER), tickCount);
+        idleFletcherState.animateWhen(idleTrade && !moving
+            && profession == Profession.FLETCHER, tickCount);
+        idleMinerState.animateWhen(idleTrade && !moving
+            && profession == Profession.MINER, tickCount);
+        idleScholarState.animateWhen(idleTrade && !moving
+            && profession == Profession.SCHOLAR, tickCount);
+        idleInnkeeperState.animateWhen(idleTrade && !moving
+            && profession == Profession.INNKEEPER, tickCount);
+        idleWeaverState.animateWhen(idleTrade && !moving
+            && profession == Profession.WEAVER, tickCount);
+        idleBladeBenchState.animateWhen(idleTrade && !moving
+            && (profession == Profession.BUTCHER || profession == Profession.TANNER), tickCount);
+
         farmState.animateWhen(activity == SettlerActivity.WORK_FARM && !moving, tickCount);
         chopState.animateWhen(activity == SettlerActivity.WORK_CHOP && !moving, tickCount);
         eatState.animateWhen(activity == SettlerActivity.EATING, tickCount);

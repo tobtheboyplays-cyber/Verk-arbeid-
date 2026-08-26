@@ -254,6 +254,32 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         // (SettlerEntity.celebrate()/triggerWakeStretch()) -- not here.
         int id = entity.getId();
         animate(entity.idleState, SettlerAnimations.IDLE, ageInTicks + (id % 80));
+        // Trade idles (owner: "vil ogsa ha idle animations som matcher
+        // jobben"). Each is gated exclusively with idleState and with each
+        // other in SettlerEntity.setupAnimationStates() -- exactly one of
+        // these fifteen (IDLE plus the fourteen below) is ever started for
+        // a given settler at a time, so no resetPose() is needed here
+        // beyond the one already done at the top of this method: the same
+        // reasoning IDLE itself relies on. Per-entity phase offsets follow
+        // the same id%N scheme as IDLE and the CHAINS-1 craft loops above
+        // (valid here because every trade idle is a LOOPING clip) -- the
+        // moduli are chosen distinct from the ones already in use on this
+        // page so two different clips' offsets never accidentally beat
+        // together.
+        animate(entity.idleFarmerState, SettlerAnimations.IDLE_FARMER, ageInTicks + (id % 37));
+        animate(entity.idleLumbererState, SettlerAnimations.IDLE_LUMBERER, ageInTicks + (id % 43));
+        animate(entity.idleSentryState, SettlerAnimations.IDLE_SENTRY, ageInTicks + (id % 47));
+        animate(entity.idleCourierState, SettlerAnimations.IDLE_COURIER, ageInTicks + (id % 41));
+        animate(entity.idleForgeState, SettlerAnimations.IDLE_FORGE, ageInTicks + (id % 53));
+        animate(entity.idleBakerState, SettlerAnimations.IDLE_BAKER, ageInTicks + (id % 29));
+        animate(entity.idleCookState, SettlerAnimations.IDLE_COOK, ageInTicks + (id % 31));
+        animate(entity.idleSightEdgeState, SettlerAnimations.IDLE_SIGHT_EDGE, ageInTicks + (id % 59));
+        animate(entity.idleFletcherState, SettlerAnimations.IDLE_FLETCHER, ageInTicks + (id % 23));
+        animate(entity.idleMinerState, SettlerAnimations.IDLE_MINER, ageInTicks + (id % 61));
+        animate(entity.idleScholarState, SettlerAnimations.IDLE_SCHOLAR, ageInTicks + (id % 33));
+        animate(entity.idleInnkeeperState, SettlerAnimations.IDLE_INNKEEPER, ageInTicks + (id % 27));
+        animate(entity.idleWeaverState, SettlerAnimations.IDLE_WEAVER, ageInTicks + (id % 39));
+        animate(entity.idleBladeBenchState, SettlerAnimations.IDLE_BLADE_BENCH, ageInTicks + (id % 49));
         animate(entity.farmState, SettlerAnimations.FARM_TILL, ageInTicks);
         animate(entity.chopState, SettlerAnimations.CHOP, ageInTicks);
         animate(entity.eatState, SettlerAnimations.EAT, ageInTicks);

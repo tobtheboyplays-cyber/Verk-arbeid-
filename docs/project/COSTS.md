@@ -86,21 +86,42 @@ feast) — charged from the hearth. First appointment free. Hook: **dining
 hall registered -50%** (the feast is cheaper where feasts are normal).
 Mourning still blocks appointment outright; grief takes no bribes.
 
-### Repairs after raids (forward-looking)
-Repair dugnad consumes matching materials from the warehouse; **mason
-registered -25% stone costs, sawmill -25% wood costs**. Recorded here so
-the raid slice prices against the same laws.
+### Repairs after raids (SHIPPED 2026-08-26, COSTS-2)
+The repair dugnad (`RepairWorkGoal`) consumes one real matching material
+PER BLOCK, per scar, from the repairer's own building or the hearth —
+there is no settlement-level *price* here for a percentage to come off of,
+so **mason registered -25% stone costs, sawmill -25% wood costs** cannot
+mean "fewer blocks pay" the way every other price on this page works.
+Wired instead as **some scars mend free**: a running per-settlement count
+of completed mends waives the material on every `(100 / percent)`th one —
+every 4th scar with one hook (the capped 25%), every 2nd with both (the
+capped 50%). Deterministic on purpose (a coin flip has no place next to a
+suite already fighting nondeterminism), and still chest-true — fewer
+items ever leave a chest, nothing is conjured, and no item is ever
+partially consumed. Full reasoning: `Costs.PriceKey#REPAIR`'s javadoc;
+mechanism: `RepairWorkGoal#shouldMendFree`.
 
 ## Implementation map (who owns which number today)
 - Recruiting: SettlementManager.RECRUIT_PRICE (+ innkeeper patience hook
   already landed). Discount hooks: SHIPPED in Costs.discountsFor (2026-08-25).
-- Research: settlement/research project tables (in flight).
+- Research: settlement/research project tables (in flight) — still NOT
+  charged anywhere; `Costs.PriceKey.RESEARCH` only reserves the row.
 - Build plans: recipe JSONs (static — align tiers in a recipe pass).
-- Mayor feast: NOT implemented — follow-up in Mayor.appoint.
+- **Mayor feast: SHIPPED (COSTS-2, 2026-08-26)** in `Mayor.appoint` via
+  `Costs.mayorFeast()` — charged chest-true from the settlement's hearth on
+  an actual swap only (the first appointment stays free); the dining-hall
+  -50% hook applies through `Costs.afterDiscounts`; a village that cannot
+  pay is refused and the seat does not change.
+- **Repairs: SHIPPED (COSTS-2, 2026-08-26)** in `RepairWorkGoal` — the
+  mason/sawmill hooks are real (read through `Costs.discountsFor`) but
+  spent as "some scars mend free", not as a `Price`/`Line` reduction; see
+  the Repairs section above.
 - **Costs.java (SHIPPED 2026-08-25)**: one central class computing
   (base, hooks[], captotal) so every screen can show the same
   itemized "price → your price" breakdown, with the discount lines named.
-  No number may live hard-coded in a goal once Costs.java exists.
+  No number may live hard-coded in a goal once Costs.java exists. All four
+  `PriceKey` rows now have a real caller except `RESEARCH`, which stays
+  reserved for the research slice's own not-yet-built pricing.
 
 ## UI rule
 Every price shown anywhere uses the same two-line form:
