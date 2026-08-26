@@ -45,7 +45,32 @@ DEFAULT_DIR = (
 
 REGISTERS_SETTLEMENT = re.compile(r"\.settlements\.put\(")
 BUILDS_BUILDING = re.compile(r"\bnew Building\(|\bnew com\.hearthstead\.settlement\.Building\(")
-PLACES_PLAQUE = re.compile(r"PLAQUE\.get\(\)")
+# The "this file does hang a plaque" signal has to be narrow, because a
+# false POSITIVE here is silent: the file is waved through and KF-021 comes
+# back. The first version was `PLAQUE\.get\(\)`, which an adversarial review
+# found matches two things it should not:
+#   * `ModItems.PLAQUE.get()` -- the plaque ITEM, which is not a hung plaque
+#     at all (real instance: AdvancementGameTests.java).
+#   * any occurrence inside a comment, including a comment explaining that
+#     this file deliberately does NOT hang one.
+# So: require the BLOCK, or a call into the shared fixture helper that hangs
+# one and asserts it -- and strip comments before matching, so a file can
+# discuss the plaque without appearing to place it.
+PLACES_PLAQUE = re.compile(
+    r"ModBlocks\.PLAQUE\b"
+    r"|GameTestFixtures\.(register|registerWithBounds|placePlaque)\s*\(")
+
+BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
+LINE_COMMENT = re.compile(r"//[^\n]*")
+
+
+def code_only(text: str) -> str:
+    """The file with comments removed, so a comment can never satisfy or
+    trip any pattern above. Deliberately crude -- it does not understand
+    string literals containing "//" -- because the only cost of over-
+    stripping here is a file being flagged that did not need to be, and a
+    false alarm is loud while a false pass is silent."""
+    return LINE_COMMENT.sub("", BLOCK_COMMENT.sub("", text))
 
 EXEMPT_FILES = {"GameTestFixtures.java"}
 
@@ -57,7 +82,7 @@ def offenders(directory: Path) -> list[str]:
     for path in sorted(directory.glob("*.java")):
         if path.name in EXEMPT_FILES:
             continue
-        text = path.read_text(encoding="utf-8")
+        text = code_only(path.read_text(encoding="utf-8"))
         if (REGISTERS_SETTLEMENT.search(text)
                 and BUILDS_BUILDING.search(text)
                 and not PLACES_PLAQUE.search(text)):
