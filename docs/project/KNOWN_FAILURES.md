@@ -1188,13 +1188,25 @@ a cheap fast path for genuinely being inside. The predicate is now three lines
 where it was fifteen, and the live 0.31-block standoff that started all of
 this stays fixed.
 
-**Still open in the same cluster:** `MATERIAL_RESERVE_BATCHES = 4` fixed the
-stranding (one bag of 8 cleared every recipe minimum of 3, so the courier
-never came back) but took a worktree run from 10 red to 20, and the new
-failures were the whole crafter roster reporting IDLE with inputs present.
-The likely mechanism: with input and output sharing one chest in most arenas,
-topping the input up to four batches leaves no slot for the output, and a
-crafter with nowhere to put what it makes does not craft. The reserve cannot
-simply be lowered — `restockConservesItemsAcrossTheFullRoute` seeds exactly
-12, which is 4 x the smithy's 3-ingot recipe, so four batches is the number
-that test asks for. The fix has to be headroom, not a smaller reserve.
+**The reserve was accused and is exonerated.** `MATERIAL_RESERVE_BATCHES = 4`
+fixed the stranding (one bag of 8 cleared every recipe minimum of 3, so the
+courier never came back), and a worktree run afterwards went from 10 red to
+20 — so it was recorded here, and passed to the worker, as the suspect. It
+is not. The new failures were the crafter roster — the smelter, the cook,
+the tanner, the carpenter — and `TradeSmelterGameTests` and its siblings
+contain no courier and no warehouse **at all**: `grep -c "courier\|WAREHOUSE"`
+returns 0 for that file. The restock route cannot run in a fixture that has
+no warehouse to restock from, so a constant inside it cannot decide those
+tests. The 10-to-20 jump belongs to KF-021, not here.
+
+Recording the correction rather than quietly dropping it, because the
+reasoning that produced the wrong suspect is the interesting part: two
+numbers moved together (a code change, and a failure count) and the
+conclusion was drawn from the correlation before anyone checked whether the
+changed code was even reachable from the failing tests. One `grep` settled
+it. The rule this earns: **before blaming a change for a failure, prove the
+changed code runs in that test.**
+
+Four batches stays. `restockConservesItemsAcrossTheFullRoute` asserts
+`atSmithy == 12` — every ingot must arrive — and 12 is exactly 4 x the
+smithy's 3-ingot recipe, so that test was always asking for this number.
