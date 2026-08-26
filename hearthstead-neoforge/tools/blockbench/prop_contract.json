@@ -1,0 +1,141 @@
+{
+  "schema": 3,
+  "minecraftVersion": "1.21.1",
+  "officialClient": {
+    "clientSha1": "30c73b1c5da787909b2f73340419fdf13b9def88",
+    "clientMappingsSha1": "2244b6f072256667bcd9a73df124d6c58de77992"
+  },
+  "hand": "right",
+  "itemInHandLayer": {
+    "rotateSequence": [
+      {"axis": "x", "degrees": -90},
+      {"axis": "y", "degrees": 180}
+    ],
+    "translateModelPixels": [1, 2, -10]
+  },
+  "displayProfiles": {
+    "handheld": {
+      "sourceModel": "minecraft:item/handheld",
+      "translateModelPixels": [0, 4, 0.5],
+      "rotationXYZDegrees": [0, -90, 55],
+      "scale": [0.85, 0.85, 0.85],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "generated": {
+      "sourceModel": "minecraft:item/generated",
+      "translateModelPixels": [0, 3, 1],
+      "rotationXYZDegrees": [0, 0, 0],
+      "scale": [0.55, 0.55, 0.55],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "handheld_rod": {
+      "sourceModel": "minecraft:item/handheld_rod",
+      "translateModelPixels": [0, 4, 2.5],
+      "rotationXYZDegrees": [0, 90, 55],
+      "scale": [0.85, 0.85, 0.85],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "bow": {
+      "sourceModel": "minecraft:item/bow",
+      "translateModelPixels": [-1, -2, 2.5],
+      "rotationXYZDegrees": [-80, 260, -40],
+      "scale": [0.9, 0.9, 0.9],
+      "centerModelPixels": [-8, -8, -8]
+    }
+  },
+  "propDisplayProfiles": {
+    "axe": "handheld",
+    "hammer": "handheld",
+    "pickaxe": "handheld",
+    "hoe": "handheld",
+    "sword": "handheld",
+    "shears": "generated",
+    "fishing_rod": "handheld_rod",
+    "bow": "bow"
+  },
+  "blockbench": {
+    "modelToBlockbenchAxisSigns": [-1, -1, 1],
+    "rightArmOrigin": [6, 22, 0],
+    "rightHandCubeCenter": [6, 12, 0],
+    "expectedNeutralLayerOrigin": [7, 12, -2],
+    "expectedNeutralDisplays": {
+      "handheld": {
+        "origin": [7, 12.5, -6],
+        "basisRows": [
+          [0, 0, -1],
+          [-0.573576436351046, 0.819152044288992, 0],
+          [0.819152044288992, 0.573576436351046, 0]
+        ]
+      },
+      "generated": {
+        "origin": [7, 13, -5],
+        "basisRows": [
+          [-1, 0, 0],
+          [0, 0, 1],
+          [0, 1, 0]
+        ]
+      },
+      "handheld_rod": {
+        "origin": [7, 14.5, -6],
+        "basisRows": [
+          [0, 0, 1],
+          [0.573576436351046, -0.819152044288992, 0],
+          [0.819152044288992, 0.573576436351046, 0]
+        ]
+      },
+      "bow": {
+        "origin": [6, 14.5, 0],
+        "basisRows": [
+          [0.133022221559489, 0.11161889704895, -0.984807753012208],
+          [-0.764023536674181, 0.644483351539012, -0.030153689607046],
+          [0.631326479707016, 0.756427413180285, 0.171010071662834]
+        ]
+      }
+    }
+  },
+  "clips": {
+    "FARM_PLANT": "hoe",
+    "FARM_HARVEST": "hoe",
+    "CHOP": "axe",
+    "LIMB_BRANCHES": "axe",
+    "GATHER_LOG": "axe",
+    "HAUL_LOG": "axe",
+    "HAMMER_ANVIL": "hammer",
+    "MINE_PICK": "pickaxe",
+    "MASON_CHISEL": "pickaxe",
+    "FARM_TILL": "hoe",
+    "FARM_WATER": "hoe",
+    "MELEE": "sword",
+    "LEAP_STRIKE": "sword",
+    "GUARD_PATROL": "sword",
+    "SHIELD_BLOCK": "sword",
+    "HERDER_SHEAR": "shears",
+    "FISHER_CAST": "fishing_rod",
+    "HUNTER_LOOSE": "bow"
+  },
+  "contextualClips": {
+    "CLEAVE": {
+      "butcher": "none",
+      "herder_cull": "shears"
+    },
+    "GUARD_STANCE": {
+      "guard": "sword",
+      "archer": "bow"
+    }
+  },
+  "fixedRuntimeMainHandClips": [
+    "FARM_PLANT", "FARM_HARVEST", "FARM_TILL", "FARM_WATER",
+    "CHOP", "LIMB_BRANCHES", "GATHER_LOG", "HAUL_LOG", "MINE_PICK",
+    "MELEE", "LEAP_STRIKE", "GUARD_PATROL",
+    "SHIELD_BLOCK", "HERDER_SHEAR", "FISHER_CAST", "HUNTER_LOOSE"
+  ],
+  "conceptualProxyClips": ["HAMMER_ANVIL", "MASON_CHISEL"],
+  "knownVisualNoGoClips": {
+    "CLEAVE": "The clip has no truthful universal prop: BUTCHER runtime is empty-handed despite the catalogue cleaver, while HERDER cull carries shears; BB_CONTEXT is mandatory.",
+    "GUARD_STANCE": "The shared clip is context-dependent: GUARD has a right-hand sword but no catalogue-required OFFHAND shield, while ARCHER has a right-hand bow in a sword pose; BB_CONTEXT is mandatory.",
+    "GUARD_PATROL": "K1 right-hand sword placement matches runtime, but the catalogue also requires a left-hand shield and guard runtime equips no OFFHAND shield.",
+    "MELEE": "K1 right-hand sword placement matches runtime, but the catalogue also requires a left-hand shield and guard runtime equips no OFFHAND shield.",
+    "SHIELD_BLOCK": "K1 right-hand sword placement matches runtime, but the defining left-hand shield is absent because guard runtime equips no OFFHAND shield.",
+    "HUNTER_LOOSE": "Runtime BOW is MAINHAND/right_arm, but this clip authors left_arm as the bow arm; runtime also never enters the vanilla pulling item state."
+  }
+}

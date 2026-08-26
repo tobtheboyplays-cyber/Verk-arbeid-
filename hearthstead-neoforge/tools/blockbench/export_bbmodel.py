@@ -41,6 +41,11 @@ TOOLS = os.path.dirname(HERE)
 NEOFORGE = os.path.dirname(TOOLS)
 TEXTURE = os.path.join(NEOFORGE, "src/main/resources/assets/hearthstead/"
                                  "textures/entity/settler/settler_none.png")
+# Keep the tracked .bbmodel byte-identical across Windows/Linux checkouts while
+# still giving desktop Blockbench a path that resolves from tools/blockbench.
+# The embedded source below remains authoritative; this is portable metadata,
+# never a machine-specific absolute directory.
+TEXTURE_MODEL_PATH = os.path.relpath(TEXTURE, HERE).replace(os.sep, "/")
 OUT = os.path.join(HERE, "settler.bbmodel")
 
 spec = importlib.util.spec_from_file_location(
@@ -168,7 +173,7 @@ def build():
         "elements": elements,
         "outliner": [outline("root")],
         "textures": [{
-            "path": TEXTURE, "name": "settler_none.png", "folder": "settler",
+            "path": TEXTURE_MODEL_PATH, "name": "settler_none.png", "folder": "settler",
             "namespace": "hearthstead", "id": "0", "width": 128, "height": 64,
             "uv_width": 128, "uv_height": 64, "particle": False,
             "use_as_default": False, "layers_enabled": False,
@@ -184,11 +189,28 @@ def build():
 
 
 def main():
+    args = sys.argv[1:]
+    if args not in ([], ["--check"]):
+        print("usage: export_bbmodel.py [--check]", file=sys.stderr)
+        return 2
     model = build()
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(model, f)
+    payload = json.dumps(model)
     n_anim = len(model["animations"])
     n_el = len(model["elements"])
+    if args == ["--check"]:
+        try:
+            with open(OUT, encoding="utf-8") as current_file:
+                current = current_file.read()
+        except OSError as exc:
+            print(f"bbmodel check FAIL: {exc}", file=sys.stderr)
+            return 1
+        if current != payload:
+            print(f"bbmodel check FAIL: regenerate {OUT}", file=sys.stderr)
+            return 1
+        print(f"bbmodel check PASS: {n_el} cubes, {n_anim} animations")
+        return 0
+    with open(OUT, "w", encoding="utf-8") as out_file:
+        out_file.write(payload)
     print(f"wrote {OUT}: {n_el} cubes, {n_anim} animations")
     return 0
 

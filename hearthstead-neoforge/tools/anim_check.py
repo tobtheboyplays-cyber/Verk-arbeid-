@@ -32,6 +32,10 @@ AI_DIR = os.path.join(ROOT, "src/main/java/com/hearthstead/entity/ai")
 SOUNDS_JSON = os.path.join(ROOT, "src/main/resources/assets/hearthstead/sounds.json")
 CATALOGUE = os.path.join(os.path.dirname(__file__), "..",
                          "docs", "ANIMATION_CATALOGUE.md")
+PROP_CONTRACT = os.path.join(os.path.dirname(__file__), "blockbench",
+                             "prop_contract.json")
+BB_RENDER = os.path.join(os.path.dirname(__file__), "blockbench",
+                         "bb_render.mjs")
 
 SETTLER_BONES = {"root", "torso", "head", "right_arm", "left_arm",
                  "right_leg", "left_leg", "cloak"}
@@ -217,6 +221,287 @@ def strip_comments(text):
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     text = re.sub(r"//[^\n]*", " ", text)
     return text
+
+
+def check_offline_prop_contract(defs, errors, warns):
+    """K1 gate: item-bearing clips must be reviewable through Minecraft's
+    complete right-hand transform chain, not merely near the hand cube.
+
+    This is intentionally a source gate, not a claim that an offline proxy is
+    final visual evidence. The Blockbench runner also asserts its neutral
+    matrices when it renders; live QA remains authoritative for the textured
+    item and runtime wiring.
+    """
+    if not os.path.isfile(PROP_CONTRACT):
+        errors.append("K1: tools/blockbench/prop_contract.json not found")
+        return
+    if not os.path.isfile(BB_RENDER):
+        errors.append("K1: tools/blockbench/bb_render.mjs not found")
+        return
+
+    try:
+        with open(PROP_CONTRACT, encoding="utf-8") as contract_file:
+            contract = json.load(contract_file)
+    except (OSError, ValueError) as exc:
+        errors.append(f"K1: invalid prop_contract.json: {exc}")
+        return
+
+    if contract.get("schema") != 3:
+        errors.append("K1: prop contract schema must be 3")
+    if contract.get("minecraftVersion") != "1.21.1":
+        errors.append("K1: prop transform must be pinned to Minecraft 1.21.1")
+    official = contract.get("officialClient", {})
+    if official.get("clientSha1") != "30c73b1c5da787909b2f73340419fdf13b9def88" \
+            or official.get("clientMappingsSha1") \
+            != "2244b6f072256667bcd9a73df124d6c58de77992":
+        errors.append("K1: official 1.21.1 client evidence hashes drifted")
+    if contract.get("hand") != "right":
+        errors.append("K1: settler tools must attach to the right hand")
+
+    layer = contract.get("itemInHandLayer", {})
+    expected_rotations = [
+        {"axis": "x", "degrees": -90},
+        {"axis": "y", "degrees": 180},
+    ]
+    if layer.get("rotateSequence") != expected_rotations \
+            or layer.get("translateModelPixels") != [1, 2, -10]:
+        errors.append("K1: ItemInHandLayer must apply X -90, then Y 180, "
+                      "then translate [1,2,-10] model pixels")
+
+    expected_display_profiles = {
+        "handheld": {
+            "sourceModel": "minecraft:item/handheld",
+            "translateModelPixels": [0, 4, 0.5],
+            "rotationXYZDegrees": [0, -90, 55],
+            "scale": [0.85, 0.85, 0.85],
+            "centerModelPixels": [-8, -8, -8],
+        },
+        "generated": {
+            "sourceModel": "minecraft:item/generated",
+            "translateModelPixels": [0, 3, 1],
+            "rotationXYZDegrees": [0, 0, 0],
+            "scale": [0.55, 0.55, 0.55],
+            "centerModelPixels": [-8, -8, -8],
+        },
+        "handheld_rod": {
+            "sourceModel": "minecraft:item/handheld_rod",
+            "translateModelPixels": [0, 4, 2.5],
+            "rotationXYZDegrees": [0, 90, 55],
+            "scale": [0.85, 0.85, 0.85],
+            "centerModelPixels": [-8, -8, -8],
+        },
+        "bow": {
+            "sourceModel": "minecraft:item/bow",
+            "translateModelPixels": [-1, -2, 2.5],
+            "rotationXYZDegrees": [-80, 260, -40],
+            "scale": [0.9, 0.9, 0.9],
+            "centerModelPixels": [-8, -8, -8],
+        },
+    }
+    display_profiles = contract.get("displayProfiles")
+    if display_profiles != expected_display_profiles:
+        errors.append("K1: one or more vanilla third-person-right display "
+                      "profiles drifted")
+    expected_prop_profiles = {
+        "axe": "handheld", "hammer": "handheld",
+        "pickaxe": "handheld", "hoe": "handheld", "sword": "handheld",
+        "shears": "generated", "fishing_rod": "handheld_rod", "bow": "bow",
+    }
+    if contract.get("propDisplayProfiles") != expected_prop_profiles:
+        errors.append("K1: prop-to-vanilla-display-profile mapping drifted")
+
+    bb = contract.get("blockbench", {})
+    if bb.get("modelToBlockbenchAxisSigns") != [-1, -1, 1]:
+        errors.append("K1: Java-to-Blockbench axes must be [-1,-1,1]")
+    if bb.get("rightArmOrigin") != [6, 22, 0]:
+        errors.append("K1: Blockbench right-arm origin drifted from [6,22,0]")
+    if bb.get("rightHandCubeCenter") != [6, 12, 0]:
+        errors.append("K1: informational hand-cube centre drifted from [6,12,0]")
+
+    # Independent arithmetic check for every neutral origin and basis asserted
+    # by bb_render.mjs. The old K1 draft attached directly at [6,12,0] and only
+    # logged the vanilla numbers; deriving the result here makes that bug a
+    # failing animation gate rather than a visually plausible comment. It also
+    # prevents applying the common handheld transform to bow, shears or rod.
+    def matrix_multiply(left, right):
+        return [[sum(left[row][k] * right[k][column] for k in range(3))
+                 for column in range(3)] for row in range(3)]
+
+    def matrix_vector(matrix, vector):
+        return [sum(matrix[row][k] * vector[k] for k in range(3))
+                for row in range(3)]
+
+    def rotation_matrix(axis, degrees):
+        import math
+        angle = math.radians(degrees)
+        cosine, sine = math.cos(angle), math.sin(angle)
+        if axis == "x":
+            return [[1, 0, 0], [0, cosine, -sine], [0, sine, cosine]]
+        if axis == "y":
+            return [[cosine, 0, sine], [0, 1, 0], [-sine, 0, cosine]]
+        return [[cosine, -sine, 0], [sine, cosine, 0], [0, 0, 1]]
+
+    signs = [-1, -1, 1]
+    orientation = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+    for step in expected_rotations:
+        axis_index = "xyz".index(step["axis"])
+        orientation = matrix_multiply(
+            orientation,
+            rotation_matrix(step["axis"], step["degrees"] * signs[axis_index]))
+    arm_origin = [6, 22, 0]
+    mapped_layer_translation = [value * signs[index]
+                                for index, value in enumerate([1, 2, -10])]
+    layer_origin = [arm_origin[index] + value for index, value in enumerate(
+        matrix_vector(orientation, mapped_layer_translation))]
+    def same_vector(left, right):
+        return isinstance(right, list) and len(right) == len(left) \
+            and all(abs(a - b) <= 1e-6 for a, b in zip(left, right))
+
+    if not same_vector(layer_origin, bb.get("expectedNeutralLayerOrigin")):
+        errors.append("K1: derived neutral ItemInHandLayer origin must be [7,12,-2]")
+    if same_vector(layer_origin, bb.get("rightHandCubeCenter")):
+        errors.append("K1: layer origin must not collapse to the hand-cube centre")
+    expected_displays = bb.get("expectedNeutralDisplays")
+    if not isinstance(expected_displays, dict) \
+            or set(expected_displays) != set(expected_display_profiles):
+        errors.append("K1: neutral display assertions must cover all four profiles")
+        expected_displays = {}
+    for profile_name, display in expected_display_profiles.items():
+        mapped_display_translation = [
+            value * signs[index]
+            for index, value in enumerate(display["translateModelPixels"])
+        ]
+        display_origin = [
+            layer_origin[index] + value
+            for index, value in enumerate(
+                matrix_vector(orientation, mapped_display_translation))
+        ]
+        display_orientation = orientation
+        for axis_index, degrees in enumerate(display["rotationXYZDegrees"]):
+            display_orientation = matrix_multiply(
+                display_orientation,
+                rotation_matrix("xyz"[axis_index], degrees * signs[axis_index]))
+        expected = expected_displays.get(profile_name, {})
+        if not same_vector(display_origin, expected.get("origin")):
+            errors.append(f"K1: derived {profile_name} display origin drifted")
+        expected_basis = expected.get("basisRows")
+        if not isinstance(expected_basis, list) or len(expected_basis) != 3 \
+                or any(not same_vector(row, expected_basis[index])
+                       for index, row in enumerate(display_orientation)):
+            errors.append(f"K1: derived {profile_name} display basis drifted")
+
+    clips = contract.get("clips")
+    if not isinstance(clips, dict):
+        errors.append("K1: prop contract needs a clips object")
+        return
+    runtime_required = {
+        "FARM_PLANT": "hoe", "FARM_HARVEST": "hoe",
+        "FARM_TILL": "hoe", "FARM_WATER": "hoe",
+        "CHOP": "axe", "LIMB_BRANCHES": "axe", "GATHER_LOG": "axe",
+        "HAUL_LOG": "axe", "MINE_PICK": "pickaxe", "MELEE": "sword",
+        "LEAP_STRIKE": "sword",
+        "GUARD_PATROL": "sword",
+        "SHIELD_BLOCK": "sword", "HERDER_SHEAR": "shears",
+        "FISHER_CAST": "fishing_rod", "HUNTER_LOOSE": "bow",
+    }
+    missing = sorted(set(runtime_required) - set(clips))
+    if missing:
+        errors.append("K1: item-bearing clips missing offline props: "
+                      + ", ".join(missing))
+    wrong_props = sorted(name for name, wanted in runtime_required.items()
+                         if name in clips and clips[name] != wanted)
+    if wrong_props:
+        errors.append("K1: runtime-held clip uses wrong proxy: "
+                      + ", ".join(wrong_props))
+    unsupported = sorted({str(prop) for prop in clips.values()}
+                         - set(expected_prop_profiles))
+    if unsupported:
+        errors.append("K1: unsupported proxy prop(s): " + ", ".join(unsupported))
+    unknown_clips = sorted(set(clips) - set(defs))
+    if unknown_clips:
+        errors.append("K1: prop contract names unimplemented clip(s): "
+                      + ", ".join(unknown_clips))
+    expected_contextual = {
+        "CLEAVE": {"butcher": "none", "herder_cull": "shears"},
+        "GUARD_STANCE": {"guard": "sword", "archer": "bow"},
+    }
+    expected_conceptual = {
+        "HAMMER_ANVIL": "hammer", "MASON_CHISEL": "pickaxe",
+    }
+    expected_fixed = {**runtime_required, **expected_conceptual}
+    if clips != expected_fixed:
+        errors.append("K1: fixed clip-to-prop mapping drifted; runtime and "
+                      "conceptual proxies must stay explicitly separated")
+    contextual = contract.get("contextualClips")
+    if contextual != expected_contextual:
+        errors.append("K1: contextual clips must pin the exact runtime role-to-prop "
+                      "mapping for CLEAVE and GUARD_STANCE")
+    contextual_unknown = sorted(set(contextual or {}) - set(defs)) \
+        if isinstance(contextual, dict) else []
+    if contextual_unknown:
+        errors.append("K1: contextual prop contract names unimplemented clip(s): "
+                      + ", ".join(contextual_unknown))
+    contextual_props = {
+        str(prop)
+        for choices in (contextual or {}).values()
+        if isinstance(choices, dict)
+        for prop in choices.values()
+    } if isinstance(contextual, dict) else set()
+    unsupported_contextual = sorted(
+        contextual_props - ({"none"} | set(expected_prop_profiles)))
+    if unsupported_contextual:
+        errors.append("K1: unsupported contextual proxy prop(s): "
+                      + ", ".join(unsupported_contextual))
+
+    runtime_declared = contract.get("fixedRuntimeMainHandClips")
+    if not isinstance(runtime_declared, list) \
+            or set(runtime_declared) != set(runtime_required):
+        errors.append("K1: fixedRuntimeMainHandClips must exactly cover clips "
+                      "with one real, context-independent MAINHAND item")
+    conceptual = contract.get("conceptualProxyClips")
+    if not isinstance(conceptual, list) \
+            or set(conceptual) != set(expected_conceptual):
+        errors.append("K1: conceptual proxy clips must be explicitly labelled")
+    elif set(conceptual) & set(runtime_required):
+        errors.append("K1: conceptual and runtime-held clips must be disjoint")
+    known_no_go = contract.get("knownVisualNoGoClips")
+    guard_no_go = {"GUARD_STANCE", "GUARD_PATROL", "MELEE", "SHIELD_BLOCK"}
+    required_no_go = {"CLEAVE", "HUNTER_LOOSE"} | guard_no_go
+    if not isinstance(known_no_go, dict) \
+            or set(known_no_go) != required_no_go \
+            or not all(token in str(known_no_go.get("HUNTER_LOOSE", ""))
+                       for token in ("MAINHAND", "right_arm", "left_arm", "pulling")) \
+            or not all(all(token in str(known_no_go.get(clip, ""))
+                           for token in ("OFFHAND", "shield"))
+                       for clip in guard_no_go) \
+            or not all(token in str(known_no_go.get("GUARD_STANCE", ""))
+                       for token in ("ARCHER", "bow", "BB_CONTEXT")) \
+            or not all(token in str(known_no_go.get("CLEAVE", ""))
+                       for token in ("BUTCHER", "HERDER", "BB_CONTEXT")):
+        errors.append("K1: runtime/catalogue hand mismatches must remain explicit "
+                      "visual NO-GOs until runtime or the clips are repaired")
+    else:
+        warns.append("K1 VISUAL NO-GO HUNTER_LOOSE: runtime MAINHAND bow follows "
+                     "right_arm, but the clip authors left_arm as the bow arm; "
+                     "do not approve its item render")
+        warns.append("K1 VISUAL NO-GO guard set: right-hand sword placement passes, "
+                     "but catalogue-required OFFHAND shields do not exist at runtime; "
+                     "ARCHER also reuses GUARD_STANCE with a bow in its sword pose")
+        warns.append("K1 contextual clips: CLEAVE requires BB_CONTEXT=butcher "
+                     "(empty hand) or herder_cull (shears); GUARD_STANCE requires "
+                     "BB_CONTEXT=guard (sword) or archer (bow). Neither clip has one "
+                     "truthful universal prop")
+
+    with open(BB_RENDER, encoding="utf-8") as renderer_file:
+        renderer = renderer_file.read()
+    for needle in ("prop_contract.json", "k1_vanilla_hand_", "BB_CHROMIUM",
+                   "BB_CONTEXT",
+                   "k1_layer_translate", "k1_item_display_translate",
+                   "verified neutral origins", "verified neutral display basis",
+                   "verified local item scale basis",
+                   "VISUAL NO-GO", "CONTRACT OVERRIDE", "canonicalClipName"):
+        if needle not in renderer:
+            errors.append(f"K1: bb_render.mjs no longer consumes required marker {needle!r}")
 
 
 def parse_definitions(path):
@@ -591,6 +876,7 @@ def main():
     # 17.3: sound-sync contract table.
     goal_contracts = parse_goal_tick_contracts(AI_DIR)
     sounds_data = load_sounds_json()
+    check_offline_prop_contract(defs, errors, warns)
     for clip, bone, target, accent_s, sound_field, tick, period in SOUND_CONTRACTS:
         d = defs.get(clip)
         if d is None:
@@ -679,10 +965,13 @@ def main():
     total = sum(len(d["channels"]) for d in defs.values())
     print(f"parsed {len(defs)} definitions, {total} channels")
     for w in warns:
-        print("  ⚠", w)
+        # ASCII labels keep the direct checker usable in stock Windows
+        # PowerShell, whose inherited cp1252 stdout cannot encode the old
+        # warning/cross glyphs. The QA wrapper still captures identical text.
+        print("  [WARN]", w)
     if errors:
         for e in errors:
-            print("  ✗", e)
+            print("  [ERROR]", e)
         print(f"anim check FAIL: {len(errors)} error(s), {len(warns)} warning(s)")
         sys.exit(1)
     print(f"anim check PASS ({len(warns)} warning(s))")
