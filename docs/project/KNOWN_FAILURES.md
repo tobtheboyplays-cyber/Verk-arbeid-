@@ -1025,3 +1025,33 @@ low roll can put a test's crop outside the plot entirely. A test asserting
 Nothing here gets waived, widened or skipped — either the randomness has no
 design purpose and goes, or the randomness IS the design (a settler's
 character should vary) and the fixture pins what it measures.
+
+
+### KF-021 update — the churn had a geometry, and it was the raiders
+
+**2026-08-26 00:39Z, run 20260826T003823Z: 24 -> 17 of 194.** The
+nondeterminism was not the dice. `RaidDirector.spawnBand` forms a band
+26-38 blocks from the settlement centre on a random arc — far outside the
+16x16 arena the test built, and GameTest packs arenas close together. A
+raider from one test wandered into a neighbour's and was cut down by a
+guard belonging to a different test entirely, so "a raid with raiders left
+standing is not over" failed for a reason with nothing to do with raids.
+Sharing a batch with a SIBLING was as fatal as sharing with a stranger:
+all 45 raid-spawning tests across four classes now get one batch each.
+
+Seven tests went green on that alone — the raid resolve, the armour ladder,
+the butcher, the sawyer, the carpenter, the scholar, the charcoal cold
+start — none of which had anything wrong with them.
+
+**The attribute-roll hypothesis was half right and worth recording as
+wrong:** settler attributes really do roll from an unseeded per-entity
+RandomSource, so identical runs get different numbers — but the named tests
+carry a fivefold margin on effort and sit deterministically below the
+plot-widening threshold, so the dice never decided them. The throughput
+tests now pin what they measure anyway, so a future balance change cannot
+quietly reopen the door.
+
+**Still churning:** the cook, mason and tanner batch tests. **Stable red,
+and now the priority:** the three lumberjack tests — felling a tree is the
+first thing a player does, and KF-018 records this exact area as fixed and
+live-verified, so either that regressed or it never covered the arena case.
