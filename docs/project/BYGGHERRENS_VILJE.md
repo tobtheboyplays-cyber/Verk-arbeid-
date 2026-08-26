@@ -90,6 +90,13 @@ det nyeste + «core gameplay først».
   hearthstead-neoforge-kodebasen. Aldri omstart, aldri ny mod.
 - Bekreftet at koordinatoren har referansetilgang: prototypen i repoet,
   TekTopia/MineColonies åpen kildekode, internettreferanser for UI.
+- «nei fortsett det er garantert masse mer» / «gi en komplett improve
+  OVERHAUL på hele greia» / «bare gjør det du» / «kjør på» — fullt
+  autonomt mandat for totaloverhalingen.
+- Logistikk, ordrett: «Overhaul courier systemet og lagringen osv lag et
+  kjempe kult system så lag de slik at logistikken gir mening»
+  → LOGISTICS-OVERHAUL-slice: courier + lagring redesignes til å være
+  kult OG lesbart (ankerforbud: aldri stille logistikk, chest truth alltid).
 
 ## Ta-over-mandatet (natt/fravær)
 Eieren: «Få mini mi til å ta over å lese alt jeg har skrevet før slik den
