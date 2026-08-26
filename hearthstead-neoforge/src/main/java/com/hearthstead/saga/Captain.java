@@ -21,9 +21,24 @@ import java.util.UUID;
  * <p><b>The name is earned, not decorative.</b> A fresh captain is a bare
  * Norse first name -- "Grimr" -- and nothing else. Only what they actually
  * did on a raid that got away with the goods buys them an epithet
- * ({@link #earnEpithetFrom}), so "Grimr the Torch" is a claim a player can
- * check against the morning report that produced it (D-A3-3: no hidden
- * stats -- everything a captain IS reads from a broadcast or a report).
+ * ({@link #earnEpithetFrom}), so "Grimr the Grain-Thief" is a claim a
+ * player can check against the morning report that produced it (D-A3-3: no
+ * hidden stats -- everything a captain IS reads from a broadcast or a
+ * report).
+ *
+ * <p><b>Known gap, found by the 2026-08-26 raid-night audit (KF-031's
+ * sibling finding, not yet its own entry).</b> {@code earnEpithetFrom} is
+ * only ever called with {@code !held}, and {@link com.hearthstead.settlement.raid.RaidDirector#resolveIfOver}
+ * computes {@code held} purely from whether loot physically escaped
+ * (KORN). No raid ever sets that flag for BRANN, BLOD or the disarmed
+ * LOSEPENGER, so {@link #epithetsFor}'s BRANN and BLOD pairs -- "the
+ * Torch"/"Ember-Bringer", "Red-Handed"/"the Reaper" -- describe real raider
+ * behaviour (raiders genuinely burn and genuinely hurt settlers) but are
+ * currently UNREACHABLE: no BRANN or BLOD captain can ever earn one, no
+ * matter what their raid actually did. Left as-is rather than papered over
+ * pending an owner decision on whether "held" should become objective-aware
+ * -- see the audit report for the exact mechanism and the fix this would
+ * take.
  */
 public final class Captain {
 

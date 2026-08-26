@@ -192,9 +192,19 @@ public class SagaGameTests {
 
     /**
      * (c) A raid that escapes with the goods grows its leader's own record
-     * AND, since this one actually burned something, earns them their
-     * first epithet -- and the growth buys a readably tougher, faster,
-     * differently-textured captain, never a hidden number.
+     * AND earns them their first epithet -- and the growth buys a readably
+     * tougher, faster, differently-textured captain, never a hidden number.
+     *
+     * <p><b>Honesty note (2026-08-26 raid-night audit).</b> This drives the
+     * epithet through {@code s.raidLootEscaped = true} regardless of the
+     * plan's own objective, because that flag -- not "did this raid's own
+     * objective actually succeed" -- is the ONLY signal {@code
+     * RaidDirector#resolveIfOver} currently feeds {@code earnEpithetFrom}
+     * (see {@code Captain}'s class doc for the gap). The test is plumbed
+     * this way on purpose so it keeps passing once BRANN gets its own real
+     * signal, but read it as "an epithet CAN be earned", not as proof a
+     * BRANN raid earns "the Torch" by actually burning something -- today,
+     * no raid of any objective but KORN ever can.
      */
     @GameTest(template = "empty16", timeoutTicks = 200, batch = "saga_a_victorious_raid_grows_the_leader_and_earns_an_epithet")
     public void aVictoriousRaidGrowsTheLeaderAndEarnsAnEpithet(GameTestHelper helper) {
