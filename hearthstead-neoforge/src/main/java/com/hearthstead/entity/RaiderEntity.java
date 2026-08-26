@@ -66,6 +66,33 @@ public class RaiderEntity extends Monster {
      */
     private static final EntityDataAccessor<Boolean> DATA_SAGA_MARKED =
         SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BOOLEAN);
+    /**
+     * Which BUILD of raider this is -- the contract between the raid
+     * director (who composes a band), the model (who shapes the
+     * silhouette) and the renderer (who picks the skin). Orthogonal to
+     * {@link #DATA_CAPTAIN} on purpose: a captain is a ROLE, and either
+     * build can hold it. Byte-synced ordinal, same idiom as
+     * {@link #DATA_OBJECTIVE}.
+     */
+    private static final EntityDataAccessor<Byte> DATA_VARIANT =
+        SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BYTE);
+
+    /**
+     * The two builds a band is composed from. SKIRMISHER is the pack --
+     * lean, hooded, quick. BRUTE is the door-breaker -- fewer, slower,
+     * huge. The enum is deliberately tiny: a variant earns its place here
+     * only when it moves differently AND reads differently at a glance
+     * from across a plaza; palette swaps do not qualify.
+     */
+    public enum Variant {
+        SKIRMISHER,
+        BRUTE;
+
+        static Variant byOrdinal(int ord) {
+            Variant[] all = values();
+            return all[Math.floorMod(ord, all.length)];
+        }
+    }
 
     /** Health and damage a captain carries over an ordinary follower. */
     public static final float CAPTAIN_HEALTH_BONUS = 14.0F;
@@ -167,10 +194,19 @@ public class RaiderEntity extends Monster {
         builder.define(DATA_OBJECTIVE, (byte) RaidObjective.BLOD.ordinal());
         builder.define(DATA_SCOUT, false);
         builder.define(DATA_SAGA_MARKED, false);
+        builder.define(DATA_VARIANT, (byte) Variant.SKIRMISHER.ordinal());
     }
 
     public boolean isCaptain() {
         return entityData.get(DATA_CAPTAIN);
+    }
+
+    public Variant variant() {
+        return Variant.byOrdinal(entityData.get(DATA_VARIANT));
+    }
+
+    public void setVariant(Variant variant) {
+        entityData.set(DATA_VARIANT, (byte) variant.ordinal());
     }
 
     /** Whether the captain leading this raid has earned an epithet yet. */
@@ -379,6 +415,7 @@ public class RaiderEntity extends Monster {
         tag.putByte("Objective", (byte) objective().ordinal());
         tag.putBoolean("Scout", isScout());
         tag.putBoolean("SagaMarked", isSagaMarked());
+        tag.putByte("Variant", entityData.get(DATA_VARIANT));
     }
 
     @Override
@@ -398,5 +435,6 @@ public class RaiderEntity extends Monster {
         // Absent on an older save (before Saga existed); default false is
         // exactly right -- an old captain never earned an epithet.
         entityData.set(DATA_SAGA_MARKED, tag.getBoolean("SagaMarked"));
+        entityData.set(DATA_VARIANT, (byte) Variant.byOrdinal(tag.getByte("Variant")).ordinal());
     }
 }
