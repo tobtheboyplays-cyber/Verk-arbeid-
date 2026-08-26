@@ -299,6 +299,21 @@ public class FisherWorkGoal extends Goal {
         int waterSeen = 0;
         BlockPos dock = null;
         Direction dockDir = null;
+        // NEAREST, not first-in-scan-order (KF-030, live suite run
+        // 2026-08-26): scanning dx/dz ascending from -RADIUS means "first
+        // found" is whichever corner of the search box the loop happens to
+        // reach earliest, with no relationship to the settler's own
+        // position. A far-side dock is still a real, standable, water-
+        // adjacent tile, so the fisher would head for it anyway -- and the
+        // shortest ROUTE there can cross straight through the pond itself
+        // (PathType.WATER nodes), which wades rather than walks and can
+        // stall past this goal's own patience budget on a pond of any real
+        // size. Picking the closest candidate to the anchor instead keeps
+        // the walk short and land-side far more often, without changing the
+        // bounded cost of the scan itself -- still one pass over the same
+        // box, just tracking a running best instead of stopping at the
+        // first hit.
+        double bestDistSqr = Double.MAX_VALUE;
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int dx = -WATER_SEARCH_RADIUS; dx <= WATER_SEARCH_RADIUS; dx++) {
             for (int dz = -WATER_SEARCH_RADIUS; dz <= WATER_SEARCH_RADIUS; dz++) {
@@ -307,9 +322,11 @@ public class FisherWorkGoal extends Goal {
                     if (level.getFluidState(cursor).is(FluidTags.WATER)) {
                         waterSeen++;
                     }
-                    if (dock == null) {
-                        Direction dir = dockableDirection(level, cursor);
-                        if (dir != null) {
+                    Direction dir = dockableDirection(level, cursor);
+                    if (dir != null) {
+                        double distSqr = cursor.distSqr(anchor);
+                        if (distSqr < bestDistSqr) {
+                            bestDistSqr = distSqr;
                             dock = cursor.immutable();
                             dockDir = dir;
                         }
@@ -324,8 +341,34 @@ public class FisherWorkGoal extends Goal {
         return dock;
     }
 
-    /** The horizontal direction {@code pos} has real water in, or null if
-     *  {@code pos} is not itself a standable position next to any. */
+    /**
+     * The horizontal direction {@code pos} has real water in, or null if
+     * {@code pos} is not itself a standable position next to any.
+     *
+     * <p>Recognises two legitimate shore shapes (KF-032, live suite run
+     * 2026-08-26): <b>flush</b> (water sits at the dock's own foot level,
+     * {@code pos.relative(dir)}) and <b>raised-bank</b> (water sits one
+     * level below the dock, at the neighbouring column's foot level,
+     * {@code pos.below().relative(dir)}) — the ordinary vanilla shoreline,
+     * where a settler stands on solid ground flush with the water's
+     * surface rather than wading at the water's own height. A flush dock's
+     * own tile is open air immediately beside a live water source, which is
+     * itself a valid spread target: real water keeps growing to fill any
+     * open space it can still reach, so a flush dock left undammed
+     * eventually gets swallowed by its own pond and starts shoving the
+     * settler around with ordinary flowing-water push physics — this is
+     * exactly what a live per-tick trace caught: a puddle-test fisher that
+     * correctly refused at tick 2 was fishing off water that had crept in
+     * from its own two source blocks by tick 100, and the real-pond test's
+     * fisher was seen drifting steadily off a dock that had itself gone
+     * from dry to flowing underneath it. A raised-bank dock's own foot
+     * level is solid ground on every side, so it can never become a spread
+     * target itself no matter how long the pond it overlooks keeps
+     * growing — the fixture places its water accordingly now (see {@code
+     * TradeFisherGameTests}), but this stays permissive of a flush shore
+     * too, since a player who builds one that way should still get a
+     * (less durable) dock rather than nothing.
+     */
     private static Direction dockableDirection(ServerLevel level, BlockPos pos) {
         if (level.getFluidState(pos).is(FluidTags.WATER)) {
             return null; // the dock itself must be dry ground
@@ -333,12 +376,13 @@ public class FisherWorkGoal extends Goal {
         if (!level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()) {
             return null; // must be passable
         }
-        if (!level.getBlockState(pos.below())
-            .isFaceSturdy(level, pos.below(), Direction.UP)) {
+        BlockPos below = pos.below();
+        if (!level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)) {
             return null; // must have solid footing
         }
         for (Direction dir : Direction.Plane.HORIZONTAL) {
-            if (level.getFluidState(pos.relative(dir)).is(FluidTags.WATER)) {
+            if (level.getFluidState(pos.relative(dir)).is(FluidTags.WATER)
+                || level.getFluidState(below.relative(dir)).is(FluidTags.WATER)) {
                 return dir;
             }
         }

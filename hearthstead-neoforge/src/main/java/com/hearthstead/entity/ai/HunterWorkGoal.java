@@ -287,10 +287,27 @@ public class HunterWorkGoal extends Goal {
                 settler.train(Employment.trainedBy(BuildingType.HUNTERS_LODGE), 1.0F);
                 settler.spendEffort(2);
             }
-            // One kill per engagement, always: canUse() re-derives the
-            // population floor fresh next time, exactly as if this were a
-            // brand new expedition (see the class doc, point 2).
-            done = true;
+            // BUG (suite run 20260826, "activity=IDLE, alive=4"): this used
+            // to be an unconditional done=true, on the assumption a settler
+            // would top the bag up to BAG_TRIGGER over several engagements
+            // before heading home -- exactly wrong for a floored trade. A
+            // single kill's drops (2-4 items) rarely reach BAG_TRIGGER (6),
+            // and once the population floor takes the species out of
+            // findHuntable's eligible set there may be no SECOND kill this
+            // expedition ever to top it off with -- the catch sat in the
+            // bag forever, never reaching the chest, while the settler read
+            // as an idle failure with real loot already on its back. A
+            // hunter brings a catch home after every kill, the same way a
+            // real one does not wait for a second deer before walking back;
+            // BAG_TRIGGER (checked at the top of canUse()) still exists as
+            // a resume-with-a-loaded-bag safety net, not the only way home.
+            if (bagCount() > 0) {
+                mode = Mode.TO_LODGE;
+                settler.setActivity(SettlerActivity.TRAVELING);
+                pathToLodge();
+            } else {
+                done = true;
+            }
         }
     }
 
@@ -328,7 +345,16 @@ public class HunterWorkGoal extends Goal {
                 settler.train(Employment.trainedBy(BuildingType.HUNTERS_LODGE), 1.0F);
             }
         }
-        done = true;
+        // Same fix as tickHunt(): carry a single forage home rather than
+        // stranding it in the bag waiting for a BAG_TRIGGER that a light
+        // yield may never reach on its own.
+        if (bagCount() > 0) {
+            mode = Mode.TO_LODGE;
+            settler.setActivity(SettlerActivity.TRAVELING);
+            pathToLodge();
+        } else {
+            done = true;
+        }
     }
 
     private void tickDeposit() {

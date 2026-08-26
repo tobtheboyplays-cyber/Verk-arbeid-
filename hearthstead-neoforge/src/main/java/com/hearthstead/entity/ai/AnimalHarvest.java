@@ -1,41 +1,70 @@
 package com.hearthstead.entity.ai;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.Sheep;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.common.IShearable;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Two ways HerderWorkGoal and HunterWorkGoal turn a live animal into real
  * items, shared so both write it once: {@link #shear} and {@link #kill}.
  *
- * <h2>Chest truth without a scavenger hunt</h2>
+ * <h2>Shearing: a clean {@code captureDrops} wrap</h2>
  *
- * <p>The naive way to "collect what an action drops" is to let the game spawn
- * the {@link ItemEntity}s into the world and then scan a radius for them a
- * moment later — which works, but makes every caller re-solve budgeting
- * ("how far", "how long") for a problem the engine already has a clean
- * answer to. {@link net.minecraft.world.entity.Entity#captureDrops} is that
- * answer: while a collection is installed, every {@code spawnAtLocation}
- * call the entity makes appends to it INSTEAD of spawning an
- * {@code ItemEntity} into the world at all (see {@code Entity#spawnAtLocation}
- * and NeoForge's own {@code IShearable#onSheared} default, which uses exactly
- * this to answer "what did shearing just drop"). So the pattern below is:
- * install a capture list, perform the real action (a real shear, a real
- * kill), read the list back, uninstall it. What comes back is the honest
- * loot — the sheep's own {@code SHEEP_<color>} table when sheared, the real
- * death loot table when killed, feathers and all — never a hand-picked
- * subset, and never anything left ownerless on the ground for a caller to
- * remember to sweep up.
+ * <p>{@link net.minecraft.world.entity.Entity#captureDrops} lets a caller
+ * install a sink list so that every {@code spawnAtLocation} call the entity
+ * makes appends to it INSTEAD of spawning an {@link ItemEntity} into the
+ * world. {@code Sheep#shear()} has no capture logic of its own — it just
+ * calls {@code spawnAtLocation} directly — so installing a sink around it
+ * (the same pattern NeoForge's own {@code IShearable#onSheared} default
+ * uses) cleanly answers "what did shearing just drop" with nothing ever
+ * touching the ground.
+ *
+ * <h2>Killing: that trick does NOT work, and {@link #kill} does not try it</h2>
+ *
+ * <p>KF-029 (live crash, first suite run after the hunter landed): the
+ * original {@link #kill} wrapped {@code hurt()} in the exact same
+ * install/read-back pattern, and it took the whole GameTest server down —
+ * {@code NullPointerException: Cannot invoke "Collection.size()" because
+ * "captured" is null}. The reason is that {@code LivingEntity#die()} calls
+ * {@code dropAllDeathLoot()}, which installs and owns ITS OWN capture list
+ * (discarding whatever the caller installed — the return value of its own
+ * {@code captureDrops(new ArrayList<>())} call is never even read), collects
+ * every real drop into it, and then — unconditionally, unless a mod's
+ * {@code onLivingDrops} event cancels it — hands that list to
+ * {@code drops.forEach(e -> level().addFreshEntity(e))} and sets the capture
+ * field back to {@code null}. So a kill's drops are never sitting in a
+ * capturable list for an outer caller to read at all: by the time
+ * {@code hurt()} returns, they are already real {@link ItemEntity}s standing
+ * in the world, and the field an outer wrap tried to read back is {@code null}
+ * — which is exactly the crash.
+ *
+ * <p>The fix here does what shearing's capture trick was always a shortcut
+ * for: snapshot which {@link ItemEntity} UUIDs already exist near the kill
+ * position, let the kill happen for real, then diff. Drops land within a
+ * couple of blocks of the death position in the same tick (before their
+ * randomized velocity has carried them anywhere), so the window this reads
+ * is small and bounded — the same "budgeted, not unbounded" shape every
+ * other scan in this mod follows, just sized in blocks instead of ticks.
+ * Every matched drop is immediately absorbed ({@code discard()}) rather than
+ * left for a second pass to remember to sweep up.
  */
 final class AnimalHarvest {
+
+    /** How far a fresh death drop can have scattered by the time this reads
+     *  the world back, one tick after the kill. Generous on purpose. */
+    private static final double DROP_SCAN_RADIUS = 4.0;
 
     private AnimalHarvest() {
     }
@@ -65,33 +94,28 @@ final class AnimalHarvest {
      * feathers/hides/rare drops included. The kill is genuinely lethal
      * ({@code target.getHealth() + 1} damage) so this always resolves in one
      * call; nothing is left half-dead for a caller to finish off later.
+     *
+     * <p>See the class doc's KF-029 section for why this reads the world
+     * back rather than wrapping {@code hurt()} in {@code captureDrops}.
      */
     static List<ItemStack> kill(ServerLevel level, LivingEntity target, DamageSource source) {
-        // Read from OUR OWN sink, never from what the second captureDrops
-        // call hands back.
-        //
-        // LIVE CRASH (run 20260826T063349Z, first suite run after the
-        // hunter landed): the second call returned null and the whole
-        // GameTest server went down on
-        // "Cannot invoke Collection.size() because captured is null" --
-        // 207 tests reduced to no result at all. The reason is
-        // re-entrancy: LivingEntity#die does this same save/swap/restore
-        // dance internally around dropAllDeathLoot, so by the time hurt()
-        // returns, the field is no longer whatever we put there and its
-        // value is not ours to reason about. Holding a reference to the
-        // list we passed in sidesteps the question entirely, and the
-        // restore below is in a finally so a throw inside hurt() can never
-        // leave this entity capturing drops forever.
-        List<ItemEntity> sink = new ArrayList<>();
-        Collection<ItemEntity> previous = target.captureDrops(sink);
-        try {
-            target.hurt(source, target.getHealth() + 1.0F);
-        } finally {
-            target.captureDrops(previous);
+        BlockPos deathPos = target.blockPosition();
+        AABB nearby = new AABB(deathPos).inflate(DROP_SCAN_RADIUS);
+        Set<UUID> before = new HashSet<>();
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, nearby)) {
+            before.add(item.getUUID());
         }
-        List<ItemStack> drops = new ArrayList<>(sink.size());
-        for (ItemEntity item : sink) {
-            drops.add(item.getItem());
+
+        target.hurt(source, target.getHealth() + 1.0F);
+
+        List<ItemStack> drops = new ArrayList<>();
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class, nearby)) {
+            if (item.isAlive() && !before.contains(item.getUUID())) {
+                drops.add(item.getItem().copy());
+                // Absorbed here, not left on the ground for anyone to
+                // remember to sweep up -- the caller is the one taking it.
+                item.discard();
+            }
         }
         return drops;
     }
