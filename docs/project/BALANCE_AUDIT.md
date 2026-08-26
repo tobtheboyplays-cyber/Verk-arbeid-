@@ -365,3 +365,48 @@ PLAN_CHAINS.md`, `docs/project/PLAN_CIRCULATION.md`,
 plus whole-tree greps for consumers of ALE/WOOL_BOLT/WHITE_BANNER/BARREL/
 STONE_BRICKS/armor items, and a listing of
 `src/main/resources/data/hearthstead/recipe/build_plan_*.json`.
+
+---
+
+## Appendix — the animation catalogue's 40 unbuilt entries, classified
+
+*Added 2026-08-26 by the worker that authored the trade idles, because a
+catalogue listing 40 animations the mod does not have is a document that
+cannot be trusted about the ones it does.*
+
+**Stale (3) — superseded in the text, never deleted from the file:**
+- `SMITH_HAMMER`, `SMITH_BELLOWS` (§9.1, §9.2). §18's own intro says these
+  are superseded by `HAMMER_ANVIL` and `STOKE`, both of which are built. The
+  old headings were simply never removed.
+- `COOK_CHOP_VEG` (§7.1). §18 said it would be "absorbed into `CLEAVE` when
+  the kitchen's own clips land." `COOK_STIR` landed; the absorption did not.
+  **This one is a real product gap, not a documentation one:**
+  `Employment.java` hard-wires `COOK` to `WORK_STIR` and never to
+  `WORK_CLEAVE`, so the cook has no chopping motion at all and the catalogue
+  describes a plan rather than a thing under a new name.
+
+**Genuinely planned, not built (37).** Every one ties to a numbered phase in
+the catalogue's own roadmap, and in each case spot-checked, the underlying
+*gameplay system* does not exist either — this is not art lagging behind
+mechanics:
+- **A2, logistics and livelihood (9):** `INN_POUR`, `INN_SERVE`, `INN_GREET`,
+  `COOK_SERVE_MEAL`, `EAT_AT_TABLE`, `SOCIAL_TALK`, `SOCIAL_LISTEN`,
+  `REACT_HUNGRY`, `REACT_EXHAUSTED`. No served-meal or social-sit interaction
+  exists on `InnkeeperWorkGoal` or `EatFromHearthGoal`; there are no
+  `REACT_*` trigger hooks anywhere.
+- **A3, the raid vertical (19):** the horn, rally and militia clips, the
+  shelter/cower set, the downed-and-carried set, the healer's bandage, revive
+  and herb clips, mourning, `REACT_STARTLE`, `REACT_BLESSED`, `GIFT_ACCEPT`.
+  Worth noting against the gap: a *partial* raid system already exists
+  (`RaidDirector`, `RaidBroadcast`, `RepairWorkGoal`, a raider model), so A3
+  is further along than this list alone suggests — it is specifically the
+  horn, militia, downed and healer mechanics that are unwired.
+- **B1, depth (5):** `MINE_HAUL_ORE`, `SMITH_QUENCH`, `EMERGENCY_BUCKET`,
+  `REACT_SHIVER`, `CAPTIVE`.
+- **B2, the living world (4):** `SCRIBE_WRITE`, `SCRIBE_TEACH`, `CHILD_PLAY`,
+  `COUPLE_GREET`.
+
+The useful conclusion is that the catalogue is honest about the future and
+untidy about the past: nothing here is a clip someone built and lost track
+of. Deleting the three stale headings, and either building the cook's chop or
+striking it, would make the file's own count mean what it says.
