@@ -104,8 +104,12 @@ mechanism: `RepairWorkGoal#shouldMendFree`.
 ## Implementation map (who owns which number today)
 - Recruiting: SettlementManager.RECRUIT_PRICE (+ innkeeper patience hook
   already landed). Discount hooks: SHIPPED in Costs.discountsFor (2026-08-25).
-- Research: settlement/research project tables (in flight) — still NOT
-  charged anywhere; `Costs.PriceKey.RESEARCH` only reserves the row.
+- Research: CHARGED, live (`Research.start`, Research.java:181-220): every
+  cost line is paid up front and atomically from chests/barrels standing in
+  the study, with the library's -25% applied via `Costs.discounted`. This
+  line previously said "still NOT charged anywhere" — that was stale, caught
+  by SURVIVAL_AUDIT.md's cross-check on 2026-08-26, and is exactly the class
+  of drift the audit exists to catch: the code moved and the ledger did not.
 - Build plans: recipe JSONs (static — align tiers in a recipe pass).
 - **Mayor feast: SHIPPED (COSTS-2, 2026-08-26)** in `Mayor.appoint` via
   `Costs.mayorFeast()` — charged chest-true from the settlement's hearth on
