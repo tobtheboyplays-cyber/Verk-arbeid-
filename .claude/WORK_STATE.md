@@ -20,37 +20,41 @@ biter, og koordinatoren committer ved HVER rapport. Ingenting ligger
 ucommittet over tid. Worktrees under scratchpad/ overlever ikke; bare
 remote gjør det.
 
-## Testtilstanden — dette er det som teller
-**14 røde av 196** (kjøring 20260826T041906Z, commit a6638eb, ren worktree
-på pushet HEAD). **Ingen av dem er kurér-tester.** Hele kurér-klyngen er
-lukket: rekkevidde ble målt mot bygningens boks i stedet for mot kista, så
-en kurér seks blokker unna og utenfor veggen telte som framme.
+## Testtilstanden — KF-021 er LØST
+**All 202 required tests passed**, fire kjøringer på rad i FLAKE-2s tre.
+Rotårsak: 22 fikstur-filer registrerte en `Building` uten å henge plakett,
+og `BuildingManager` oppløste dem korrekt én per 20 tikk — testene slettet
+sine egne bygninger. Ett felles sted nå (`GameTestFixtures`) som plasserer
+plaketten OG hevder den er der ved oppsett. Netto -153 linjer.
+Andre halvdel: `run/world` ble aldri vasket (217 MB tilbake til 23. august).
+Kontrolleren vasker den nå før hver kjøring.
 
-De 14 som står igjen har én form: **en ansatt arbeider som ikke arbeider.**
-Smelter, koker, murer, garver, snekker, baker, gruvearbeider (x2), bonde,
-skriver, forskningsfullføring, kull-kaldstart, jern-hovedbok, reparasjon.
-Ingen kurér, ingen raid, ingen plakett. FLAKE-2 eier dette.
+**Fortsatt åpent:** én rød i én av fire kjøringer — KF-027, åtte jernbarrer
+ikke gjort rede for i kurér-konserveringstesten. Behandles som mulig brudd
+på chest truth, ikke som flake. CONSERVE-1 jakter den i eget tre.
 
-**Tallet er fortsatt ikke en sammenligning.** Samme commit har gitt 4, 10,
-14 og 20 røde i natt i ulike trær. Tre-kjørings-baselinen kommer først; alt
-etter den måles mot den.
+## Landet i natt (verifisert, ikke bare kompilert der det står)
+- Kurér-klyngen lukket: rekkevidde måles til KISTA, ikke til bygningens boks
+  (KF-023). Fire tester grønne.
+- KF-021 løst (over).
+- 14 yrkesmatchede idle-animasjoner, alle 21 yrker, katalogen §22 skrevet,
+  `anim_check` PASS.
+- MAYOR_FEAST og REPAIR koblet chest-true; reparasjonsrabatt = «noen arr gror
+  gratis», deterministisk teller.
+- Våpenhuset: 8 rustningsoppskrifter + ARMOURER-yrket, så kjeden lukker seg
+  fra garveri/smeltehytte til vaktens kropp.
+- QA-dommeren strammet: full rosterlagring (var `head -5`), kontrolleren inn i
+  fingeravtrykket, driftvakt mellom de to fingeravtrykks-implementasjonene
+  (testet ved å ødelegges med vilje).
+- BALANCE_AUDIT.md: 367 linjer regnestykker, ni funn.
 
-## Åpne arbeidere akkurat nå (04:45Z)
-- FLAKE-2 — egen worktree (scratchpad/flake-tree). Eier KF-021. Har allerede
-  levert nattens skarpeste måling: 12 røde, så 1 rød, rett etter hverandre i
-  SAMME tre på SAMME commit uten at noe ble rørt. Det avliver
-  «trærne måler forskjellig» og peker mot noe som BÆRES OVER mellom
-  kjøringer, ikke et terningkast. Styrt mot batch-rekkefølge og gjenbrukt
-  verden før attributter.
-- IDLE-1 — SettlerAnimations, SettlerModel, animasjonsregionen i
-  SettlerEntity. Yrkesmatchede idle-klipp (eierkrav).
-- COSTS-2 — Costs, Mayor, RepairWorkGoal + testene deres og COSTS.md.
-  Kobler MAYOR_FEAST og REPAIR (dom #3 krav 6). Beslutning tatt:
-  reparasjonsrabatt = «noen arr gror gratis», deterministisk teller, ingen
-  terning (suiten sliter allerede med ikke-determinisme).
-- BALANCE-1 — LESER bare. Skriver én ny fil, docs/project/BALANCE_AUDIT.md.
-  Regner ut om landsbyen brødfør seg selv, om kjedene lukker seg, om
-  brenselet er solvent, om dagsverket binder, og om prisene betyr noe.
+## Åpne tråder
+- KF-027 (åtte barrer) — CONSERVE-1.
+- FLAKE-2: `full` x2 + statisk vakt mot plakettløse fiksturer.
+- Film: side 5 og 6 bygget, venter på at klienten slipper skjerm :99.
+- KF-026: ANIMATION_CATALOGUE.md avgjør en dom men er ikke i fingeravtrykket.
+- Balansefunn 2 (forskning som ikke gjør noe) — utsatt til suiten er stabil.
+- MILITARY-OUT-ruta er fortsatt ubygget.
 
 ## Merk om oppgavelisten
 Verktøyets task-liste nullstilles sammen med containeren og har gjort det
