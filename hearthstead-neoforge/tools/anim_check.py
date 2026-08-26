@@ -558,7 +558,6 @@ def main():
 
     # ---- 17.1 keep + 17.2 structural, once per registered source --------
     defs = {}
-    total_channels = 0
     for source in ANIMATION_SOURCES:
         if not os.path.isfile(source["path"]):
             errors.append(f"{source['label']}: source file not found: {source['path']}")
