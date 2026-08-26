@@ -355,3 +355,27 @@ errands), F6 (62 iron ingots for two anvils), and BREWERY's own Nether wall
 (F3's other half). None of these are reachability problems this pass's file
 ownership could fix without inventing gameplay systems the task explicitly
 warned against inventing.
+
+---
+
+## Coordinator's note on the MARKET swap (2026-08-26, post-fix)
+
+The emerald came out and `hearthstead:wool_bolt` went in, which closes the
+finding as written: the market no longer depends on biome luck. Worth naming
+what the swap actually traded, because it is not free.
+
+**A luck wall became a depth wall.** An emerald is unreliable but shallow —
+find one and you build. A wool bolt is perfectly reliable and several
+buildings deep: the plan now wants paper (mill, or hand-crafted), a book
+(paper plus leather → tannery), and a wool bolt (weaver, fed by shorn wool).
+The market has moved from "tier 2 if you are lucky" to "tier 3 for everyone."
+
+For a civic building that is the right direction and it is defensible on its
+own terms. But it is a real change in when the market appears in a
+playthrough, and nobody has felt it yet. **On the live-test list:** does the
+market read as a natural late-village milestone, or as a building that
+receded out of reach? If the latter, the honest fix is not to put the emerald
+back — it is to shorten the chain, most likely by dropping the book.
+
+Recorded because "we closed a WALL" is a satisfying sentence that can hide a
+GRIND arriving in its place, and this document exists to stop exactly that.
