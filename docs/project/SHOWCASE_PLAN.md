@@ -2,7 +2,7 @@
 
 *Execution checklist for FILM-2 (task #29). Every scene names its driver
 commands so filming is mechanical. All takes via showcase.sh/live2.sh, F3+D
-before rolling, nameplates ON (no F1). Target: 14-18 clips, 7-9 min total. Scenes 15-18 require FIXWAVE-3 landed.*
+before rolling, nameplates ON (no F1). Target: 16-20 clips, 9-12 min total. Scenes 15-18 require FIXWAVE-3 landed.*
 
 | # | scene | proves | camera & driver |
 |---|---|---|---|
@@ -24,7 +24,15 @@ before rolling, nameplates ON (no F1). Target: 14-18 clips, 7-9 min total. Scene
 | 16 | Farmer bootstrap: empty plot + seeds in chest → till → FIRST planting (FARM_PLANT) → field appears | FARMER-BOOTSTRAP | fixed frame timelapse 40s |
 | 17 | Economy in motion: bread baked (fuel burning), courier hauls it to the warehouse, then the FOOD run to a hungry hearth | FUEL-1 + R2 + FOOD-1 | follow-cam one full courier round, 45s |
 | 18 | Aftermath: raid scars + the repair dugnad — mason and idle settlers fixing the wall, stone leaving the chest | REPAIR-1 | extends scene 12; morning-after wide 25s |
+| 19 | **Follow the arrow** — one camera, one arrow, no cuts: it leaves the watchtower chest → the courier carries it → the archer nocks THAT arrow → Triple Shot into a raider mid-door-breach (the scar already registered before the block broke) → the raider dies → the guard's rank ticks up on the kill → the armour on his BODY upgrades in the same shot | chest truth end to end, ARCHER-1 abilities, raid scars registering before destruction, GuardRank buying from the armoury, ARMOR-VISIBLE | single locked follow-cam from the tower chest to the gate; no cut, no camera change, ~60s. Stage: seed the tower chest with exactly ONE arrow so the one on screen is provably the one fired |
+| 20 | **Follow the bread** — the chain closes on itself: field → hearth → warehouse → mill → bakery → warehouse → hearth → a settler's mouth | FLOWS.md is true, not aspirational: every leg is a real courier walking real items | follow-cam handed off leg to leg, ~90s. This is the one scene that proves the economy rather than illustrating it |
+
+Scene 19 is the critic's own demand (Byggherre-dom #3, "NESTE AMBISJON"),
+and it is deliberately the hardest shot in the film: every cut would be a
+place to hide a lie, so there are none. Scene 20 is the owner's. Both are
+gated on the last courier failures closing — a chain film cannot be shot
+while the courier's arrival predicate is under repair.
 
 Post: concat clips (ffmpeg concat demuxer) → showcase.mp4; contact sheet per
-clip stays in evidence. Deliver clips 4, 6, 11, 12 individually to the user
+clip stays in evidence. Deliver clips 4, 6, 11, 12, 19 and 20 individually to the user
 as well — they are the requested proof pieces.
