@@ -130,15 +130,26 @@ public final class Production {
         // #noValueMintingCycleInProductionTable covers it automatically,
         // and millGrindsSugarCaneIntoPaperChestTrue proves the ledger).
         //
-        // JOB 3 RETUNE (BALANCE_AUDIT.md finding 3): both entries dropped
-        // from 140 to 40 ticks -- grinding grain or cane is genuinely quick,
-        // mechanical work next to what happens downstream (kneading and
-        // baking a loaf, tanning a hide), and the cut is what brings BREAD's
-        // fed path up to FLOWS.md's promised band (see BAKERY below for the
-        // arithmetic). This does not touch the flour/paper EXCHANGE RATE
-        // (still 3-in/2-out, same as vanilla's own paper ratio) -- only how
-        // long the batch takes -- so the "never mint free value" reasoning
-        // above still holds exactly as written.
+        // JOB 3, CORRECTED (coordinator caught the first pass measuring the
+        // wrong axis -- see BAKERY below for the full story): both entries
+        // dropped from 140 to 40 ticks. THIS IS NOT WHERE BREAD'S FED-PATH
+        // ADVANTAGE COMES FROM -- a crafter spends a flat 2 effort per batch
+        // regardless of ticks (CrafterWorkGoal#continueUsing,
+        // settler.effort().spendResearched(2, ...)), and effort, not the
+        // clock, is what caps a worker's batches/day (BALANCE_AUDIT.md
+        // finding 2/Q4). Cutting ticks changes batches/day by exactly zero.
+        // Kept anyway, deliberately, as a SEPARATE, honest, secondary
+        // benefit: a miller pulled off the bench mid-batch loses less
+        // half-finished work, and the clip visibly runs quicker, which is
+        // real for the settler even though it buys no extra flour or paper.
+        //
+        // PAPER'S OWN PROPERTY, RE-VERIFIED AFTER THE TICK CUT: "worse than
+        // vanilla's hand-craft (3 cane -> 3 paper, 1:1, instant) so the mill
+        // never mints free value" is a claim about the EXCHANGE RATE (3-in/
+        // 2-out here vs vanilla's 1:1), not about speed -- vanilla's own
+        // hand-craft is already instant, so no tick count here could ever
+        // make the mill "faster" in the sense that mattered. The ratio is
+        // untouched by this edit, so the property holds exactly as before.
         put(BuildingType.MILL,
             new Recipe("flour", Ingredient.of(Items.WHEAT), 3, ModItems.FLOUR.get(), 2, 40),
             new Recipe("paper", Ingredient.of(Items.SUGAR_CANE), 3, Items.PAPER, 2, 40));
@@ -146,23 +157,58 @@ public final class Production {
         // Chain A, food. Three wheat to a loaf: the same ratio vanilla uses,
         // so a player already knows the exchange rate -- and it stays exactly
         // as it was, first slice to last (D-007: the mill multiplies, never
-        // gates). The flour recipe is listed FIRST and costs half the ticks
-        // per loaf (80 vs 160), so a bakery fed by a mill visibly outproduces
-        // one running on grain alone, without the grain-only path ever
-        // stopping working. bread_flour's own ticks equal bread's (160 both)
-        // ON PURPOSE -- the multiplier shows up as yield, not a shorter clip
-        // (ChainsGameTests#bakeryWithFlourOutproducesWheatAlone pins this).
+        // gates). bread_flour's own ticks equal bread's (160 both) ON
+        // PURPOSE -- a shorter clip is not how this multiplier is allowed to
+        // show up (see below for why that rule exists and what it means).
         //
-        // JOB 3 RETUNE, END-TO-END ARITHMETIC (BALANCE_AUDIT.md finding 3 --
-        // measured the way the doc's own iron row does, counting BOTH
-        // buildings' ticks from the raw wheat):
-        //   rough: 3 wheat -> 1 bread @ 160t                    = 160 t/loaf
-        //   fed:   3 wheat -> 2 flour @ 40t (MILL, per-flour 20t)
-        //          + 2 flour -> 2 bread @ 160t (per-loaf 80t)   = 100 t/loaf
-        //   ratio: 160 / 100 = x1.6 -- inside FLOWS.md's x1.5-x2 band (was
-        //   x1.07 before the MILL's flour tick cut above).
+        // JOB 3, CORRECTED. The first pass measured this pair in TICKS,
+        // end to end, the way PLAN_CHAINS.md's own (wrong) rule said to --
+        // and PLAN_CHAINS.md's rule was never valid, because a crafter's
+        // batch costs a FLAT 2 effort regardless of ticks
+        // (CrafterWorkGoal#continueUsing, spendResearched(2, ...)), and
+        // effort — not the clock — is what caps a worker's batches/day
+        // (BALANCE_AUDIT.md finding 2/Q4, "even the slowest recipe allows
+        // 2.5x+ more batches/day by time alone than effort permits, for
+        // every recipe in the table"). A tick cut changes wall-clock feel,
+        // never batches/day. Retuning MILL's flour ticks (see above) was
+        // therefore decorative for this claim, not the fix — it is kept for
+        // its own honest reason (a shorter clip is less lost work when a
+        // miller is pulled off the bench mid-batch) but it buys zero extra
+        // bread, and no comment here may say otherwise again.
+        //
+        // THE REAL METRIC: total effort across ALL buildings in the chain,
+        // per unit of FINAL output — count batches, not ticks, because
+        // every batch (any building, any recipe) costs the same 2 effort.
+        //   rough: 1 BAKERY batch (3 wheat -> 1 bread)      = 2 effort/loaf
+        //   fed:   1 MILL batch (3 wheat -> 2 flour, a MILLER'S effort)
+        //          feeds exactly 1 BAKERY batch (2 flour -> 2 bread) --
+        //          2 effort (mill) + 2 effort (bakery) for 2 loaves
+        //                                                    = 2 effort/loaf
+        //   ratio: 2/2 = x1.0 -- NO real advantage. This is the exact
+        //   defect Job 4 found in barrel_beam (BALANCE_AUDIT.md finding 7):
+        //   a fed recipe whose downstream yield only pays back what the
+        //   upstream batch cost is worthless under the real economy, no
+        //   matter how good it looks in ticks.
+        // FIXED THE WAY JOB 4 FIXED BARREL: bread_flour's OUTPUT went from
+        // 2 to 3 (2 flour now makes 3 bread, not 2) -- more final good per
+        // DOWNSTREAM batch is the only lever that moves this metric, because
+        // effort is charged per batch, never per tick or per input unit.
+        //   fed (retuned): 1 MILL batch (3 wheat -> 2 flour) feeds 1 BAKERY
+        //   batch (2 flour -> 3 bread) = 2+2=4 effort for 3 loaves
+        //                                                    = 1.333 effort/loaf
+        //   ratio: 2 / 1.333 = x1.5 -- inside FLOWS.md's x1.5-x2 band, for
+        //   real this time. MILL's own flour ratio (3 wheat -> 2 flour) is
+        //   untouched, so flour supply still exactly matches bakery demand
+        //   at any population (BALANCE_AUDIT.md Q1's "genuinely well-tuned
+        //   pairing" note still holds).
+        // Regression coverage: ChainsGameTests
+        // #fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings pins
+        // this ratio by construction, the way FuelGameTests already pins
+        // iron's — see that test's own note on why iron's ratio is NOT
+        // re-verified here (a separate, bigger finding, handed to the
+        // coordinator rather than fixed on this worker's own judgement).
         put(BuildingType.BAKERY,
-            new Recipe("bread_flour", Ingredient.of(ModItems.FLOUR.get()), 2, Items.BREAD, 2, 160),
+            new Recipe("bread_flour", Ingredient.of(ModItems.FLOUR.get()), 2, Items.BREAD, 3, 160),
             new Recipe("bread", Ingredient.of(Items.WHEAT), 3, Items.BREAD, 1, 160));
 
         // Chain A again: the butcher makes what was caught keep longer, and
@@ -171,12 +217,14 @@ public final class Production {
         // claimed by the four cooking recipes above, so neither competes with
         // the other for Production#ready's "first satisfiable" pick.
         //
-        // JOB 3 RETUNE (BALANCE_AUDIT.md finding 3): hide's own ticks dropped
-        // from 160 to 40 -- skinning and salting a hide ready for the tannery
-        // is quick work next to actually cooking a cut of meat through, and
-        // the cut is what brings LEATHER's fed path up to FLOWS.md's promised
-        // band (see TANNERY below for the arithmetic). The exchange rate (2
-        // rabbit -> 2 cured hide) is untouched.
+        // JOB 3, CORRECTED: hide's own ticks dropped from 160 to 40 --
+        // skinning and salting a hide ready for the tannery is genuinely
+        // quick work next to cooking a cut of meat through, and that is a
+        // real, secondary benefit (less lost work if a butcher is pulled off
+        // mid-batch). But it is NOT where LEATHER's fed-path advantage comes
+        // from -- effort, flat 2/batch regardless of ticks, is what caps a
+        // day's batches, so a tick cut alone buys zero extra leather. See
+        // TANNERY below for the real fix and the effort arithmetic.
         put(BuildingType.BUTCHER,
             new Recipe("beef", Ingredient.of(Items.BEEF), 1, Items.COOKED_BEEF, 1, 120),
             new Recipe("pork", Ingredient.of(Items.PORKCHOP), 1, Items.COOKED_PORKCHOP, 1, 120),
@@ -404,22 +452,33 @@ public final class Production {
             new Recipe("banner", Ingredient.of(Items.WHITE_WOOL), 6, Items.WHITE_BANNER, 1, 260));
 
         // leather_cured is the tannery's fed path: the butcher's CURED_HIDE
-        // (see BUTCHER above) makes leather at half the ticks per unit (90 vs
-        // 180) of the rabbit-hide-alone recipe below, which is untouched and
-        // still the tannery's whole D-007 story with no butcher in the
-        // world. leather_cured's own ticks equal leather's (180 both) ON
-        // PURPOSE -- same "yield carries the multiplier" rule as BAKERY.
+        // (see BUTCHER above) beats the rabbit-hide-alone recipe below,
+        // which is untouched and still the tannery's whole D-007 story with
+        // no butcher in the world. leather_cured's own ticks equal
+        // leather's (180 both) ON PURPOSE -- a shorter clip is not how this
+        // multiplier is allowed to show up (see BAKERY's comment for the
+        // full reasoning this pair shares).
         //
-        // JOB 3 RETUNE, END-TO-END ARITHMETIC (BALANCE_AUDIT.md finding 3):
-        //   rough: 4 rabbit_hide -> 1 leather @ 180t (free Ring-1 drop, no
-        //          upstream building)                          = 180 t/unit
-        //   fed:   2 rabbit -> 2 cured_hide @ 40t (BUTCHER, per-hide 20t)
-        //          + 2 cured_hide -> 2 leather @ 180t (per-unit 90t)
-        //                                                       = 110 t/unit
-        //   ratio: 180 / 110 = x1.64 -- inside FLOWS.md's x1.5-x2 band (was
-        //   x1.06 before the BUTCHER hide tick cut above).
+        // JOB 3, CORRECTED -- THE REAL METRIC IS EFFORT ACROSS BOTH
+        // BUILDINGS, NOT TICKS (BAKERY's comment has the full story; the
+        // BUTCHER hide tick cut above is real but decorative, same as
+        // MILL's flour cut, and buys zero extra leather on its own):
+        //   rough: 1 TANNERY batch (4 rabbit_hide -> 1 leather)
+        //                                                     = 2 effort/unit
+        //   fed (before this fix): 1 BUTCHER batch (2 rabbit -> 2 cured_hide)
+        //   feeds exactly 1 TANNERY batch (2 cured_hide -> 2 leather) --
+        //   2 effort (butcher) + 2 effort (tannery) for 2 leather
+        //                                                     = 2 effort/unit
+        //   ratio: 2/2 = x1.0 -- no real advantage, the same defect Job 4
+        //   found in barrel_beam.
+        // FIXED THE SAME WAY: leather_cured's OUTPUT went from 2 to 3 (2
+        // cured_hide now makes 3 leather, not 2) -- more final good per
+        // downstream batch, the only lever effort actually responds to.
+        //   fed (retuned): 2+2=4 effort for 3 leather        = 1.333 effort/unit
+        //   ratio: 2 / 1.333 = x1.5 -- inside FLOWS.md's x1.5-x2 band.
+        //   BUTCHER's own hide ratio (2 rabbit -> 2 cured_hide) is untouched.
         put(BuildingType.TANNERY,
-            new Recipe("leather_cured", Ingredient.of(ModItems.CURED_HIDE.get()), 2, Items.LEATHER, 2, 180),
+            new Recipe("leather_cured", Ingredient.of(ModItems.CURED_HIDE.get()), 2, Items.LEATHER, 3, 180),
             new Recipe("leather", Ingredient.of(Items.RABBIT_HIDE), 4, Items.LEATHER, 1, 180));
 
         // BALANCE_AUDIT.md finding 1 (BROKEN) / PLAN_CIRCULATION.md F3: the
