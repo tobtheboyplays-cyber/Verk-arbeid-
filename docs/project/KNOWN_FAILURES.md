@@ -8,11 +8,35 @@ KF-004 and KF-005 below, which belong to PLAQUE-1. HARNESS-1's evidence is
 per-suite, at fingerprint `cebeb07b98…`; see `.claude/WORK_STATE.md` for the
 matrix and `docs/project/REVIEW_FINDINGS.md` for both review rounds.
 
+**A0 update, 2026-08-26 (evening).** This header note is stale and is left
+here rather than silently deleted, exactly as this file's own discipline
+requires elsewhere (see KF-002, KF-012, KF-024): all three named failures —
+KF-001, KF-004, KF-005 — were in fact already closed by PLAQUE-1
+(`61de85b`) and re-confirmed live tonight. `full` cannot currently be
+claimed green regardless, but not for any of these three — see KF-038 for
+the real, current blocker (an animation craft-standard failure in `CHOP`,
+owned by a different stream). See each entry below for its own resolution
+note and evidence.
+
 ---
 
 ## KF-001 — 5 of 15 GameTests fail: the test helper punches a hole in the room
 
-**Status:** diagnosed, not fixed. **Severity:** high (blocks the gate).
+**Status: RESOLVED**, and had been since PLAQUE-1 (`61de85b`, long before this
+entry's "diagnosed, not fixed" text below was last true) — this file simply
+never caught up. **Re-confirmed live by A0, 2026-08-26**, not assumed: the
+fix described below is exactly what `hangPlaque()` does at current HEAD
+(`hearthstead-neoforge/src/main/java/com/hearthstead/gametest
+/HearthsteadGameTests.java:592-607`, with the KF-001 rationale in its own
+javadoc), and `git diff bbaa8aa HEAD -- .../HearthsteadGameTests.java` is
+empty — nothing has touched this helper since. Direct evidence: gametest run
+`qa/reports/artifacts/20260826T190321Z` — "All 278 required tests passed",
+including `roomdetectedashome`, `glassroofcountsasroofed`,
+`homeinvalidatedwhenwallbroken`, `unlitroomregistersoncelit` (batch
+`hearthstead`, 24 tests) and `settlersleepsinclaimedbed` (batch
+`night_sleep`), none named in any failure line. A second, independent run
+(`20260826T183626Z`, "All 273 required tests passed") agrees. **Severity was
+high (blocked the gate); no longer applies.**
 
 **Failing:** `roomdetectedashome`, `glassroofcountsasroofed`,
 `homeinvalidatedwhenwallbroken`, `unlitroomregistersoncelit`,
@@ -96,7 +120,14 @@ KF-002 — fixed by the same ordered-fact-ladder discipline (AC-13).
 
 ## KF-004 — Plaque lang keys missing
 
-**Status:** known, trivial, not yet done. **Severity:** medium (fails assets).
+**Status: RESOLVED** (closed by PLAQUE-1, `61de85b`; this entry's "not yet
+done" text below was simply never updated). **Re-confirmed by A0,
+2026-08-26**: `block.hearthstead.plaque` and `item.hearthstead.plaque` are
+both present in `en_us.json` and `nb_no.json` (checked directly), and
+`python3 tools/validate_assets.py` reports every `Lang` check green — the
+run's only failure is unrelated (see KF-038, an animation craft-standard
+check, nothing to do with lang keys). **Severity was medium; no longer
+applies.**
 
 **Evidence:** validator — `block.hearthstead.plaque` missing in `en_us.json`
 and `nb_no.json`, and the item key with it. Full key parity between the two
@@ -117,8 +148,15 @@ Java and added too — the validator only catches the registry-derived ones.
 
 ## KF-005 — Blockstate references three models that do not exist
 
-**Status:** known, not fixed. **Severity:** high (would fail model resolution
-in a real client).
+**Status: RESOLVED** (closed by PLAQUE-1, `61de85b`; this entry's "not
+fixed" text below was simply never updated). **Re-confirmed by A0,
+2026-08-26**: `blockstates/plaque.json` maps every `glow` value (and every
+`facing`) to one of `block/plaque_empty`, `block/plaque_red`,
+`block/plaque_amber`, `block/plaque_green` — all four exist in
+`src/main/resources/assets/hearthstead/models/block/`, alongside
+`plaque_base.json` (a shared base the four variants presumably extend).
+`python3 tools/validate_assets.py`'s `JSON`/`Textures` categories are green.
+**Severity was high; no longer applies.**
 
 **Evidence:** `blockstates/plaque.json` maps every `glow` value to
 `block/plaque_red|amber|green`. Only `block/plaque.json` exists.
@@ -2293,3 +2331,56 @@ from later.
 fixture call, and compare with a run of the leak test alone (its own
 batch). That separates "the template/arena handed us stone" from "the
 sibling test reached us".
+
+## KF-038 — A0: KF-001/004/005 all closed; `full`'s current red is unrelated, transient, and not owned by A0
+
+**Status:** informational, not a defect — recorded so A0's finding is not
+mistaken for a new open bug. **Severity:** none (this is a status report,
+matching KF-008's shape).
+
+**What A0 verified, 2026-08-26 evening, against current HEAD.** KF-001,
+KF-004 and KF-005 (this document's original PLAQUE-1 trio, the ones A0 was
+sent to close) were **already closed**, by PLAQUE-1 itself (`61de85b`), long
+before tonight — the individual entries above simply carried stale "not
+fixed" status text that nobody had updated since. Re-verified directly, not
+inherited:
+
+- **KF-001**: `hangPlaque()` already hangs the plaque in the air cell against
+  the wall (`HearthsteadGameTests.java:592-607`); `git diff bbaa8aa HEAD` on
+  that file is empty. Two independent gametest runs at current HEAD —
+  `20260826T183626Z` (273/273) and `20260826T190321Z` (278/278) — both
+  report every required test passing, including all five tests this KF
+  named as failing.
+- **KF-004**: `block.hearthstead.plaque` / `item.hearthstead.plaque` are
+  present in both `en_us.json` and `nb_no.json`; `validate_assets.py`'s
+  `Lang` category is fully green.
+- **KF-005**: `blockstates/plaque.json` references `plaque_empty` /
+  `plaque_red` / `plaque_amber` / `plaque_green`, and all four model files
+  exist in `models/block/`; `validate_assets.py`'s `JSON`/`Textures`
+  categories are fully green.
+
+**Why `full`/`quick` are still red anyway, and why that is not this
+entry's problem.** `tools/hearthstead-qa quick` at current HEAD fails on
+exactly one check: `python3 tools/validate_assets.py`'s craft-standard gate
+(`tools/anim_preview.py --strict`), which reports the `CHOP` clip as `WARN`
+(`pop right_arm moves 47 deg/tick at 0.65s with nothing leading in and no
+beat after`; `beat right_arm holds only 1 tick(s) at contact`). This is
+**not** a KF-001/004/005 regression and **not** in A0's file ownership
+(`SettlerAnimations.java`, `tools/blockbench/` — explicitly off-limits).
+Commit `453b616` (19:07:33, landed while A0 was working) names it directly:
+a parallel animation-stream session ("Animasjonsmesteren") is mid-edit on
+exactly this clip, committed only as work-in-progress protection against
+container loss, and says outright "NOT a finished state and not evidence of
+anything ... the 63rd [clip] is the clip under its hands right now." Two
+runs at 18:41Z and 18:58Z (`qa/reports/artifacts/20260826T184042Z`,
+`.../20260826T185805Z`) show `assets` fully green (877/877, then 878/878)
+— i.e. this check was passing before that in-flight edit started, which is
+further evidence this is transient WIP, not a standing defect A0 introduced
+or should chase.
+
+**A0's own scope is done.** No further code change belongs to A0 here: all
+three named KFs are closed and re-verified, `KNOWN_FAILURES.md` is brought
+current, and the D8 profession roster is counted and frozen (see
+`.claude/WORK_STATE.md` / the A0 handoff report). `full` going green is
+gated on the animation stream landing its finished clip, which is a
+different worker's file, already in flight, not a new task to assign.
