@@ -89,10 +89,15 @@ def parse_ts(s):
     return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
 
 
-def extract_still(video, ts, dest):
-    """One full-res frame. -ss BEFORE -i: input seeking, fast on long files."""
-    run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-         "-ss", f"{ts:.3f}", "-i", str(video), "-frames:v", "1", str(dest)])
+def extract_still(video, ts, dest, max_w=None):
+    """One frame. -ss BEFORE -i: input seeking, fast on long files. max_w
+    downscales (1280 is plenty for navigation stills; full res on demand
+    via the `still` subcommand)."""
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+           "-ss", f"{ts:.3f}", "-i", str(video), "-frames:v", "1"]
+    if max_w:
+        cmd += ["-vf", f"scale='min({max_w},iw)':-2"]
+    run(cmd + [str(dest)])
 
 
 def cmd_ingest(args):
@@ -188,12 +193,21 @@ def cmd_ingest(args):
             if diff > args.scene_diff:
                 scene_ts.append(idx * interval)
         prev = im
-    dropped = max(0, len(scene_ts) - SCENE_CAP)
-    for ts in scene_ts[:SCENE_CAP]:
-        extract_still(video, ts,
-                      out / "scenes" / f"scene-{hms(ts).replace(':', '')}-{ts:.0f}s.png")
-    print(f"scenes: {min(len(scene_ts), SCENE_CAP)} extracted"
-          + (f" ({dropped} beyond cap)" if dropped else ""))
+    # 24 navigation stills, extracted in PARALLEL and downscaled to 1280w.
+    # The first fast version did 100+ sequential full-res seeks here and in
+    # marks -- ~2.5 of the 3.3 minutes of the whole run. Sheets carry the
+    # coverage; these are jump points, and `still` fetches full res on
+    # demand.
+    from concurrent.futures import ThreadPoolExecutor
+    keep = scene_ts[:24]
+    dropped = max(0, len(scene_ts) - len(keep))
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        list(ex.map(lambda ts: extract_still(
+            video, ts,
+            out / "scenes" / f"scene-{hms(ts).replace(':', '')}-{ts:.0f}s.png",
+            max_w=1280), keep))
+    print(f"scenes: {len(keep)} extracted"
+          + (f" ({dropped} beyond cap, timestamps in index)" if dropped else ""))
 
     # ---- audio marks from the wav (audio-only decode, seconds) ----
     marks, speech_share = [], None
@@ -223,10 +237,10 @@ def cmd_ingest(args):
             if s0 - pos > 0.6:
                 marks.append(pos)
             pos = e0
-        for ts in marks[:MARK_CAP]:
-            extract_still(video, ts,
-                          out / "marks" / f"mark-{hms(ts).replace(':', '')}-{ts:.0f}s.png")
-        print(f"audio marks: {min(len(marks), MARK_CAP)}, "
+        # Timestamps only -- the transcript names WHAT was said at each mark
+        # and the sheets show the scene; extracting 50+ stills here was the
+        # other half of the old runtime for evidence nothing read twice.
+        print(f"audio marks: {min(len(marks), MARK_CAP)} (timestamps in index), "
               f"non-silent share {max(speech_share, 0):.0%}")
 
     # ---- wait for the parallel transcription ----
@@ -343,8 +357,11 @@ def main():
     p.add_argument("--out")
     p.add_argument("--language", default="no",
                    help="narration language for whisper (default Norwegian)")
-    p.add_argument("--model", default="small",
-                   help="faster-whisper model (small = the CPU/Norwegian balance)")
+    p.add_argument("--model", default="base",
+                   help="faster-whisper model. base = the 1-minute default "
+                        "(measured: small took 135s on a 6:41 session, base "
+                        "~2.5x faster); pass small when transcript nuance "
+                        "matters more than wall time")
     p.add_argument("--no-transcript", action="store_true")
     p.set_defaults(fn=cmd_ingest)
     p = sub.add_parser("transcribe", help="narration -> timestamped text only")
