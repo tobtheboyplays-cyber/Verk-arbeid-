@@ -109,6 +109,45 @@ Format: `HH:MM` stage — VERDICT — what happened — evidence.
   `f3-2.png` (F3 overlay, `Biome: minecraft:plains` at two points ~350
   blocks apart), server log lines for the `locate biome` result.
 
+- `06:42`-`07:04` Founding — FRICTION (driving, not a mod bug) — hand-gathering
+  the first 6 oak logs from a real forest, then crafting table→sticks→
+  wooden pickaxe, took roughly 20 real minutes and ~90 driving commands,
+  almost all of it fighting the harness/input layer rather than the game:
+  (1) `xdotool mousemove_relative` pitch accumulates silent error across many
+  calls — after a string of `look up`/`look down` adjustments with no
+  absolute reference, the crosshair drifted ~35-45° off from where the
+  screenshot visually suggested, so repeated "aim at the obvious trunk in
+  frame" attempts silently mined dirt/leaves instead. Fix that worked: read
+  F3's `Facing (yaw/PITCH)` and `Targeted Block` line before every
+  swing once things feel off, don't trust the screenshot's apparent
+  crosshair alignment alone. (2) GUI clicks (crafting table slots) failed
+  silently and often *without any visible error* — a right-click that
+  should place an item into a grid cell would sometimes do nothing, other
+  times it worked; no pattern found beyond "verify with a screenshot after
+  every single click, never chain assumptions." (3) Standing inside a
+  1-wide dug trench, `hold w`/`keydown w` sequences frequently did nothing
+  for several consecutive attempts (same key, same target, no terrain
+  change) then suddenly worked — never resolved to a root cause; treat
+  movement as **unconfirmed until a position readout proves it**, the same
+  discipline as clicks. **Calibrated, working GUI slot coordinates for this
+  exact 1280x720/guiScale 3 session** (useful for round 2+): personal 2x2
+  crafting grid cells (692,180) (746,180) (692,233) (746,233), output
+  (860,218); 3x3 table grid cells (490,180) (544,180) (598,180) / (490,234)
+  (544,234) (598,234) / (490,288) (544,288) (598,288), output (770,238);
+  hotbar/inventory row slots run along y≈547 (hotbar-in-panel) and the 3
+  main-inventory rows above it at y≈387/441/495. None of this is a
+  hearthstead defect — it is entirely vanilla UI plus this harness's input
+  path — but it is the single largest real-time cost of the session so far
+  and worth the coordinator's attention for round 2 (a more reliable
+  click/key delivery primitive would pay for itself many times over).
+  Net result, chest-truth confirmed throughout (nothing lost, only
+  temporarily misplaced across inventory slots during fumbled clicks): 3
+  oak logs (reserved for the hearth), 1 wooden pickaxe, 2 oak planks, 2
+  sticks, 1 oak sapling, 1 oak button (byproduct, harmless), 2 dirt.
+  Evidence: `qa/reports/artifacts/live/20260826T055725Z/shots/` (dozens of
+  `f3-*`, `aim-*`, `craft-*`, `pickaxe-attempt.png` showing the confirmed
+  wooden-pickaxe recipe match).
+
 ---
 
 ## Findings (ranked) — filled in as the session concludes
