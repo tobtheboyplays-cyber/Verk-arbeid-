@@ -398,6 +398,9 @@ public class SettlerSheetGameTests {
         keys.add("hearthstead.settler.refused.no_settlement");
         keys.add("hearthstead.settler.stale");
         keys.add("hearthstead.settler.refused.no_job");
+        // Mayor.appoint's own refusals land in the same banner.
+        keys.add("hearthstead.mayor.refused.hearth_unavailable");
+        keys.add("hearthstead.mayor.refused.cannot_afford_feast");
 
         List<String> broken = new ArrayList<>();
         for (String key : keys) {
@@ -413,6 +416,62 @@ public class SettlerSheetGameTests {
         Hearthstead.LOGGER.info(
             "UI-DATA-1 settler sheet strings: {} keys present and non-blank in en_us and nb_no",
             keys.size());
+        helper.succeed();
+    }
+
+    /**
+     * The mayor badge and the refusal banner: the two optional rows.
+     *
+     * <p>Both are drawn from snapshot fields with no fallback — the badge
+     * formats {@code boonKey} straight into a translation key, and the banner
+     * draws the refusal {@link net.minecraft.network.chat.Component} the
+     * server composed. This checks that appointing a mayor actually turns the
+     * badge's flags on, that the boon matches the settler's own knack, and
+     * that a refusal sentence survives the codec intact rather than arriving
+     * as an empty optional (which would be a silent no-op, D-014).
+     */
+    @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
+    public void theMayorBadgeAndTheRefusalBannerCarryTheirOwnText(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        SettlerEntity settler = settler(helper, s, "Ordfoerer", 8, 8);
+        player.setPos(settler.getX(), settler.getY(), settler.getZ());
+
+        SettlerSnapshotPayload before = throughTheWire(helper, snapshotOf(player, settler));
+        helper.assertFalse(before.isMayor(), "nobody has been appointed yet");
+
+        net.minecraft.network.chat.Component refused =
+            Mayor.appoint(helper.getLevel(), s, settler);
+        helper.assertTrue(refused == null,
+            "setup: the first appointment must succeed, got " + refused);
+
+        SettlerSnapshotPayload after = throughTheWire(helper, snapshotOf(player, settler));
+        helper.assertTrue(after.isMayor(),
+            "the mayor badge would not draw for the settler who holds the seat");
+        helper.assertTrue(after.boonKey()
+                .equals(Mayor.Boon.of(settler.attributes().knack()).key()),
+            "the badge names boon '" + after.boonKey() + "' but the knack is "
+                + settler.attributes().knack());
+
+        // The banner. Composed exactly the way SettlerNetwork does, and put
+        // through the same optional-component codec.
+        SettlerSnapshotPayload withRefusal = new SettlerSnapshotPayload(
+            after.entityId(), after.revision(), after.canManage(), after.attributeValues(),
+            after.knackOrdinal(), after.traitOrdinals(), after.employerBuildingId(),
+            after.guardWatchNight(), after.isMayor(), after.mayorSettling(), after.mourning(),
+            after.boonKey(),
+            Optional.of(net.minecraft.network.chat.Component.translatable(
+                "hearthstead.settler.stale")));
+        SettlerSnapshotPayload wire = throughTheWire(helper, withRefusal);
+        helper.assertTrue(wire.refusal().isPresent(),
+            "a refusal sentence was dropped on the wire, so the click would look "
+                + "like a silent no-op");
+        helper.assertTrue(wire.refusal().get().equals(withRefusal.refusal().get()),
+            "the refusal sentence changed on the wire: " + wire.refusal().get());
+        Hearthstead.LOGGER.info(
+            "UI-DATA-1 mayor badge: isMayor={} settling={} boon={}; refusal survives the codec",
+            wire.isMayor(), wire.mayorSettling(), wire.boonKey());
         helper.succeed();
     }
 
@@ -469,6 +528,38 @@ public class SettlerSheetGameTests {
             skins.length + com.hearthstead.entity.SettlerAppearance.HAIR_STYLE_COUNT
                 * hairColors.length + com.hearthstead.entity.SettlerAppearance.FACE_COUNT
                 + com.hearthstead.entity.SettlerAppearance.CLOTHING_COUNT);
+        helper.succeed();
+    }
+
+    /**
+     * Every nine-slice sprite the sheet blits, with the {@code .mcmeta} that
+     * makes it nine-slice. A sprite missing from the atlas is not a crash —
+     * it is a magenta-and-black rectangle where a panel should be, which no
+     * compile and no lint reports.
+     */
+    @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
+    public void everySpriteTheSettlerSheetDrawsIsOnDisk(GameTestHelper helper) {
+        String dir = "/assets/hearthstead/textures/gui/sprites/";
+        String[] sprites = {
+            "panel/window", "panel/inset", "panel/card",
+            "widget/divider", "widget/pip_accent", "widget/pip_empty",
+            "bar/track", "bar/fill_good", "bar/fill_warn", "bar/fill_bad",
+            "widget/button_idle", "widget/button_hover", "widget/button_pressed",
+            "widget/button_disabled", "widget/button_danger", "widget/button_danger_hover",
+        };
+        List<String> missing = new ArrayList<>();
+        for (String sprite : sprites) {
+            if (SettlerSheetGameTests.class.getResource(dir + sprite + ".png") == null) {
+                missing.add(sprite + ".png");
+            }
+            if (SettlerSheetGameTests.class.getResource(dir + sprite + ".png.mcmeta") == null) {
+                missing.add(sprite + ".png.mcmeta");
+            }
+        }
+        helper.assertTrue(missing.isEmpty(),
+            "the settler sheet blits sprites that do not ship: " + missing);
+        Hearthstead.LOGGER.info("UI-DATA-1 sheet sprites: {} sprites plus their nine-slice "
+            + "metadata present", sprites.length);
         helper.succeed();
     }
 
