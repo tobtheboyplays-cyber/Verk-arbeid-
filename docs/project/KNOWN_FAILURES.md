@@ -997,3 +997,31 @@ starving the trade goals. `EatFromHearthGoal` sits above them and these
 arenas have no hearth, so a `canUse()` that returns true while it can never
 succeed would hold the slot forever. `RepairWorkGoal` was just registered
 at priority 5, above the trades at 6, and claims unemployed settlers.
+
+
+### KF-021 — the suite is nondeterministic (and that outranks every test in it)
+
+**2026-08-26 00:30Z.** Six consecutive runs of the same 194 tests, no code
+change between several of them, gave failure counts 31 -> 25 -> 21 -> 20 ->
+22 -> 24 — and the MEMBERSHIP churned, not just the count. The sawyer test
+passed then failed; the mason and fletcher tests failed then passed; the
+butcher, the raid-resolves and the farmer-bootstrap tests appeared only in
+the last run.
+
+**Why this outranks the individual failures:** a flaky suite cannot gate
+anything, and chasing one test at a time is wasted work while the ground
+moves under it. It also makes every earlier count in this file approximate
+— the honest reading of tonight is "roughly twenty stable failures plus
+churn", not any single number.
+
+**Leading hypothesis (owned by FLAKE-1):** the tests ride on random settler
+attribute rolls. SettlerAttributes rolls starting values; the Dagsverk
+capacity is 20 + STAMINA/5, so a low roll gives fewer batches inside a
+fixed tick budget, and the farmer's tended plot is DEXTERITY-scaled, so a
+low roll can put a test's crop outside the plot entirely. A test asserting
+"two full batches inside 2x ticks + 40" would then pass or fail on the dice.
+
+**The rule that applies (qa/PROTOCOL.md):** "flake" is not a root cause.
+Nothing here gets waived, widened or skipped — either the randomness has no
+design purpose and goes, or the randomness IS the design (a settler's
+character should vary) and the fixture pins what it measures.
