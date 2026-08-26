@@ -78,29 +78,48 @@ Existing (untouched) recipes are omitted from ratios below; see
 | WEAVER | **wool_bolt** | white_wool×3 → WOOL_BOLT×2 | 130 | listed before banner, lower threshold (3 vs 6) |
 | WEAVER | wool/banner *(unchanged, reordered)* | string→wool, wool×6→banner | 140/260 | banner now sits below wool_bolt in priority — see Uncertainties |
 
-### Tick-cost rule applied
+### Tick-cost rule applied — CORRECTED 2026-08-26, this rule was never valid
 
-The coordinator's instruction: *"a fed-path recipe should cost roughly HALF
-the ticks per unit output of its rough path."* Checked directly against the
-three pairs that share an output item:
+**Everything in this subsection as originally written is wrong, and is left
+below (struck through in spirit, not in markdown) as the record of the
+mistake rather than quietly deleted.** The coordinator's original
+instruction — *"a fed-path recipe should cost roughly HALF the ticks per
+unit output of its rough path"* — measures the wrong axis. A crafter's
+batch costs a FLAT 2 effort regardless of ticks (`CrafterWorkGoal`,
+`spendResearched(2, ...)`), and effort, not the clock, is what caps a
+worker's batches/day: BALANCE_AUDIT.md finding 2 proved this exact point
+independently ("even the slowest recipe allows 2.5x+ more batches/day by
+time alone than effort permits, for every recipe in the table") and ranked
+it BROKEN. A tick-halving rule built on top of that ceiling buys nothing —
+cutting a recipe's ticks in half changes how fast one batch finishes in
+wall-time and changes batches/day, and therefore units/day, by exactly
+zero. ECON-1 (2026-08-26) retuned four fed pairs against this rule in good
+faith, measured a passing ratio in ticks, and had it caught by the
+coordinator before the task closed — full story and the corrected
+arithmetic in `docs/project/FLOWS.md`'s "Finding 3 and finding 7" section
+and in `Production.java`'s own comments on MILL/BAKERY/BUTCHER/TANNERY/
+BREWERY/CARPENTER.
 
-- Bread: rough 160 ticks/loaf → fed 80 ticks/loaf (160/2 = 80 exactly).
-- Barrel: rough 260 ticks/unit → fed 130 ticks/unit (260/2 = 130 exactly).
-- Leather: rough 180 ticks/unit → fed 90 ticks/unit (180/2 = 90 exactly).
-- Ale: rough 200 ticks/unit → fed 100 ticks/unit (200/2 = 100 exactly).
-- Ingot (bloom route): the exact-halving rule is SUPERSEDED by the
-  end-to-end band rule (owner-critic krav 10, 2026-08-25). What matters is
-  the whole chain, not one step: rough is 200 ticks/ingot; fed is
-  (160 + 2×160)/4 = 120 ticks/ingot = ×1.67, inside FLOWS' ×1.5-2 band.
-  FuelGameTests asserts the band as a RATIO derived from the live table, so
-  a future retune cannot quietly drift out of it — the yield side of that
-  multiplier (3 raw iron → 4 bloom → 4 ingot vs. 3 raw iron → 3 ingot
-  directly) is the ×1.33 the smelter recipe itself carries.
+**The real rule:** a fed path earns its ×1.5-×2 by producing MORE FINAL
+GOOD PER DOWNSTREAM BATCH, measured as total effort across every building
+in the chain (upstream batches included) per unit of final output — never
+by finishing a batch sooner. The original bullet points below (halving
+ticks for bread/barrel/leather/ale, and the "already correct" ×1.67 for the
+bloom→ingot route) are UNVERIFIED on this metric and should not be trusted
+without re-deriving them the way `ChainsGameTests
+#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings` now does for
+the four pairs it owns. Spot-checking the bloom→ingot route specifically:
+computed in effort the same way, it comes out to ≈×1.33 — BELOW the ×1.5
+floor this very section claimed it cleared. `FuelGameTests
+#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand` still asserts its band in
+ticks, unchanged, and is the SAME mismeasurement this section is now
+correcting for its own four pairs. Flagged, not fixed here — SMELTER/
+SMITHY's recipes and that test belong to other workers.
 
 FLOUR and WOOL_BOLT are "pure upstream" goods (mirroring FLOWS.md's own
 `mill: — (pure upstream)` row) with no rough/fed pair on the SAME output
-item, so the halving rule does not apply to them directly — there is nothing
-to halve against.
+item, so no ratio ever applied to them, in ticks or in effort — there is
+nothing to compare against.
 
 ### Ordering discipline (why nothing was silently starved)
 

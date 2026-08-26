@@ -35,18 +35,18 @@ regrowth (the lumberjack replants), vein depth — never another building.
 | building | rough path (alone) | fed path (multiplier) | feeds |
 |---|---|---|---|
 | mill | — (pure upstream: wheat→flour) | — | bakery, brewery |
-| bakery | wheat→bread (slow) | flour→bread ×1.6 | hearth, dining hall |
+| bakery | wheat→bread (slow) | flour→bread ×1.5 (effort, not ticks — see note) | hearth, dining hall |
 | kitchen | meat/fish→cooked (slow) | + greens→stew ×2 (variety!) | dining hall |
 | butcher | livestock→raw meat + hides | pasture keeps it stocked | kitchen, tannery |
-| brewery | wheat→small ale (slow) | malt→ale ×1.67 | nobody yet — see note below |
-| smelter | ore→ingot (slow) | + bloom path with smithy ×1.67 | smithy, mason |
+| brewery | wheat→small ale (slow) | malt→ale ×1.8 (effort, not ticks) | nobody yet — see note below |
+| smelter | ore→ingot (slow) | + bloom path with smithy ×1.67 (ticks — NOT yet re-verified on effort, see note) | smithy, mason |
 | smithy | cobble→stone tools (slow) | ingots→iron tools/arms | EVERY worker (tool wear), armoury |
 | sawmill | logs→planks | steady lumber-camp supply | carpenter, builds |
-| carpenter | logs→rough goods (slow) | planks/beams→furniture, barrels ×1.82 | tavern (build plan), warehouse upkeep (not yet wired) |
+| carpenter | logs→rough goods (slow) | planks/beams→furniture, barrels ×1.73 (effort, not ticks) | tavern (build plan), warehouse upkeep (not yet wired) |
 | mason | stone→bricks/cut stone | — | repairs (raids!), hearth tiers |
-| tannery | hides→leather (slow) | cured-hide path with butcher ×1.64 | armoury, fletcher |
+| tannery | hides→leather (slow) | cured-hide path with butcher ×1.5 (effort, not ticks) | armoury, fletcher |
 | weaver | wool→cloth | steady pasture supply | market (build plan), outfits (not yet wired) |
-| fletcher | flint→crude arrows | feathers→fletched arrows ×1.75 | barracks/watchtower |
+| fletcher | flint→crude arrows | feathers→fletched arrows ×1.75 (effort AND ticks agree — no upstream building) | barracks/watchtower |
 
 **Ring 3 — HUBS.** Consume goods, output *effects* on people, never items:
 dining_hall (meals eaten together → morale beyond food value),
@@ -147,34 +147,60 @@ honest progress, not a solved chain: "leads somewhere real" and "has a
 repeating economic destination" are different claims, and only the first one
 is true here.
 
-## Finding 3 and finding 7, closed (2026-08-26, ECON-1)
+## Finding 3 and finding 7, closed — and closed AGAIN, on the right metric (2026-08-26, ECON-1)
 
-BALANCE_AUDIT.md finding 3 caught this document overclaiming: the ×1.5-×2
-band above was true of bread/leather/ale/barrel only when measured
-per-batch-at-the-consuming-building, not when measured end to end from raw
-material the way the doc's own iron row is measured (and the way barrel and
-ale, which route through a second building or a second step, actually have
-to be measured to mean anything). Retuned rather than re-labelled — the four
-pairs' upstream tick costs (MILL's flour/paper, BUTCHER's hide, BREWERY's
-malt) came down, none of their EXCHANGE RATES changed, and the ratios in the
-table above are the real, freshly-computed numbers, each inside the band:
-bread ×1.6 (was ×1.07), leather ×1.64 (was ×1.06), ale ×1.67 (was ×1.36),
-barrel ×1.82 (was ×1.29). The smelter/smithy iron row was already correct
-(×1.67) and is untouched; its "×2" label above was rounded generously and is
-now written as the real number too.
+**First pass (superseded).** BALANCE_AUDIT.md finding 3 caught this document
+overclaiming: the ×1.5-×2 band above was true of bread/leather/ale/barrel
+only when measured per-batch-at-the-consuming-building, not when measured
+end to end from raw material the way the doc's own iron row and
+PLAN_CHAINS.md's "tick-cost rule" both measure it. The first fix retuned
+upstream TICKS (MILL's flour/paper, BUTCHER's hide, BREWERY's malt all cut)
+and recomputed the same ratio in ticks. That was wrong, and the coordinator
+caught it before this task closed: **a crafter's batch costs a flat 2
+effort regardless of ticks** (`CrafterWorkGoal`, `spendResearched(2, ...)`),
+and effort — not the clock — is what caps a worker's batches/day
+(BALANCE_AUDIT.md finding 2/Q4, the SAME defect that made four research
+projects measurably inert). A tick cut changes wall-clock feel and changes
+batches/day by exactly zero. PLAN_CHAINS.md's own "tick-cost rule" is the
+document that taught this mistake in the first place — see that file's own
+correction note.
 
-Finding 7 was worse than a mislabel: CARPENTER's barrel_beam gave exactly the
-same 1 barrel/batch as the rough recipe, so under the real binding
-constraint (effort, flat per batch, not ticks — BALANCE_AUDIT.md Q4) a
-sawyer-fed carpenter made no more barrels per day than one working alone, for
-the cost of a second worker's whole effort budget. Fixed by doubling
-barrel_beam's output for the same input (2 beam → 2 barrel, was → 1) — the
-same "yield carries the multiplier" lever bread/leather already used.
-Arithmetic and acyclicity argument: `Production.java`'s CARPENTER comment.
-Regression coverage: `ChainsGameTests#fedPathsClearTheFlowsBandMeasuredEndToEndFromRawMaterial`
-pins all four ratios inside the band by construction, the same way
-`FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand` already
-pins iron's.
+**Second pass, on the correct metric.** Redone as total EFFORT across every
+building in a chain, per unit of final output — count batches, since every
+batch (any building, any recipe) costs the same 2 effort. Under this metric
+bread/leather/ale/barrel ALL measured below the band as originally written
+(bread and leather at exactly ×1.0 — no advantage at all; ale at ×1.2;
+barrel, even after the first Job 4 fix, at ×2.17, OVER the ceiling). Fixed
+the way Job 4 fixed barrel the first time — the only lever effort responds
+to is more final good per DOWNSTREAM batch, never a shorter clip:
+`bread_flour` now yields 3 bread per 2 flour (was 2), `leather_cured` 3
+leather per 2 cured hide (was 2), `ale_malt` 3 ale per 2 malt (was 2), and
+`barrel_beam` was re-tuned once more from its first-pass "2 beam → 2 barrel"
+(×2.17, over the ceiling) to "3 beam → 2 barrel" (×1.73). Final ratios, all
+measured in effort across every building in the chain: bread ×1.5, leather
+×1.5, ale ×1.8, barrel ×1.73 — all inside FLOWS.md's band, honestly this
+time. The upstream tick cuts from the first pass (flour/paper/hide/malt) are
+KEPT — a shorter clip is real for a settler pulled off the bench
+mid-batch, and it makes the village look busier — but no comment anywhere
+may present them as the source of this multiplier again; `Production.java`'s
+comments on MILL/BAKERY/BUTCHER/TANNERY/BREWERY/CARPENTER all say this
+explicitly now. Regression coverage:
+`ChainsGameTests#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings`
+pins all four ratios on the real metric by construction.
+
+**A bigger finding, surfaced and handed back, not fixed here.** Computing
+iron's own ratio the same way (effort across SMELTER and SMITHY together)
+gives ≈×1.33 — BELOW the ×1.5 floor. `FuelGameTests
+#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand`, the test this document
+and PLAN_CHAINS.md both point to as the model this whole slice was supposed
+to follow, asserts its band in TICKS — the exact defect this section just
+spent two passes fixing. SMELTER/SMITHY's recipes and FuelGameTests.java
+both belong to other workers, and iron's chain carries a live fuel-economy
+argument (BALANCE_AUDIT.md Q3, ×1.33 less firewood/ingot) this worker has
+not re-derived, so it is flagged here for the coordinator rather than
+retuned on this worker's own judgement. The smelter row above is left
+labelled "ticks — NOT yet re-verified on effort" rather than silently
+corrected or silently left to imply it is fine.
 
 ## Job 1: the fletcher's missing input, closed (2026-08-26, ECON-1)
 

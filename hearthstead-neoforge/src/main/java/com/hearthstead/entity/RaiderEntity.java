@@ -191,6 +191,13 @@ public class RaiderEntity extends Monster {
         // be KORN on an unassigned scout), so sharing priority 2 is safe.
         goalSelector.addGoal(2,
             new com.hearthstead.entity.ai.RaiderScoutGoal(this));
+        // RAIDER-HUNT: the BLOD objective's own goal -- see its class doc.
+        // Mutually exclusive with both goals above at the same priority:
+        // gated on objective()==BLOD (RaiderLootGoal needs KORN) and
+        // !isScout() (RaiderScoutGoal needs isScout()), so exactly one of
+        // the three can ever be canUse()==true for a given raider.
+        goalSelector.addGoal(2,
+            new com.hearthstead.entity.ai.RaiderHuntGoal(this));
         goalSelector.addGoal(3, new MeleeAttackGoal(this, 1.0, false));
         goalSelector.addGoal(8, new LookAtPlayerGoal(this, Player.class, 8.0F));
         goalSelector.addGoal(9, new RandomLookAroundGoal(this));
@@ -282,8 +289,12 @@ public class RaiderEntity extends Monster {
      * the old any-settler menace so a bare spawn still bites; a BOUND one
      * ignores other settlements' people entirely. An unbound settler is
      * fair game either way -- raiders are not gentle with strangers.
+     *
+     * <p>Public so {@link com.hearthstead.entity.ai.RaiderHuntGoal} can scope
+     * its own settler scan with the exact same rule the target selector
+     * uses above, rather than a second copy that could drift from it.
      */
-    private boolean isMyWar(net.minecraft.world.entity.LivingEntity target) {
+    public boolean isMyWar(net.minecraft.world.entity.LivingEntity target) {
         if (settlementId == null) {
             return true;
         }

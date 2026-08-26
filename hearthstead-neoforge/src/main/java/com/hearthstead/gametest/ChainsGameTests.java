@@ -585,55 +585,80 @@ public class ChainsGameTests {
     // ----------------------------------------------------------------- (c4) ---
 
     /**
-     * JOB 3's own promise, made executable: FLOWS.md says every fed path is
-     * a x1.5-x2 multiplier over its rough path, "measured end to end, from
-     * raw material" — the same method PLAN_CHAINS.md uses (correctly) for
-     * iron and BALANCE_AUDIT.md finding 3 demanded of the other four. This
-     * walks the live {@link Production} table for bread, leather, ale and
-     * barrel exactly the way the audit's own arithmetic does — rough
-     * ticks-per-unit from the raw material vs. fed ticks-per-unit summed
-     * across BOTH buildings — and fails the instant any future retune drifts
-     * a pair back out of band, the same way {@code
-     * FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand} already
-     * guards iron.
+     * JOB 3's own promise, made executable, on the metric that actually
+     * governs a settler's day: FLOWS.md says every fed path is a x1.5-x2
+     * multiplier over its rough path, and this repo's first pass at proving
+     * that (a since-corrected version of this test, and PLAN_CHAINS.md's own
+     * "tick-cost rule") measured it in TICKS, end to end from raw material —
+     * the same method PLAN_CHAINS.md used for iron and BALANCE_AUDIT.md
+     * finding 3 asked for. That method is invalid: a crafter's batch costs a
+     * FLAT {@link #CRAFT_EFFORT} effort regardless of the recipe's ticks
+     * ({@code CrafterWorkGoal#continueUsing}, {@code
+     * spendResearched(2, ...)}), and effort — not the clock — is what caps a
+     * worker's batches/day (BALANCE_AUDIT.md finding 2/Q4: every recipe in
+     * the table allows 2.5x+ more batches/day by time alone than effort ever
+     * permits). A tick cut changes wall-clock feel and changes batches/day
+     * by exactly zero, so a ratio built from ticks can certify a property
+     * the game does not have — which is exactly what the first version of
+     * this test did, a green test standing in the same place a stale
+     * research-ticks assumption stood in finding 2, until the coordinator
+     * caught it.
+     *
+     * <p>The correct metric, applied here: total EFFORT across every
+     * building in the chain (upstream batches included), per unit of FINAL
+     * output — {@link #directEffortPerUnit} for a rough path with no
+     * upstream building (bread/leather/ale all start from a free Ring-1
+     * drop), {@link #chainEffortPerUnit} for a path built from an upstream
+     * batch feeding a downstream one (every fed path, plus barrel's rough
+     * path, which needs its own SAWMILL step). A fed path only earns its
+     * multiplier by producing MORE FINAL GOOD PER DOWNSTREAM BATCH — the
+     * one lever effort actually rewards — never by finishing a batch sooner.
+     *
+     * <p><b>Iron is deliberately NOT re-verified here.</b> Computing it the
+     * same way this test proves bread/leather/ale/barrel gives roughly
+     * x1.33 — BELOW the x1.5 floor — meaning {@code
+     * FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand}, the
+     * test this file's own comments used to point to as the model, shares
+     * this exact defect: it asserts the same x1.5-x2 band in TICKS. That
+     * file, and SMELTER/SMITHY's recipe numbers, belong to other workers and
+     * carry a live fuel-economy argument (BALANCE_AUDIT.md Q3) this worker
+     * has not re-derived — flagged prominently for the coordinator rather
+     * than fixed on this worker's own judgement, the same as any other
+     * finding outside this worker's file ownership.
      */
     @GameTest(batch = "chains", template = "empty16", timeoutTicks = 100)
-    public void fedPathsClearTheFlowsBandMeasuredEndToEndFromRawMaterial(GameTestHelper helper) {
+    public void fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings(GameTestHelper helper) {
         Production.Recipe bread = recipeOf(BuildingType.BAKERY, "bread");
         Production.Recipe breadFlour = recipeOf(BuildingType.BAKERY, "bread_flour");
         Production.Recipe flour = recipeOf(BuildingType.MILL, "flour");
         assertBand(helper, "bread",
-            bread.ticks(),
-            (double) flour.ticks() / flour.outputCount() * breadFlour.inputCount() / breadFlour.outputCount()
-                + (double) breadFlour.ticks() / breadFlour.outputCount());
+            directEffortPerUnit(bread.outputCount()),
+            chainEffortPerUnit(flour.outputCount(), breadFlour.inputCount(), breadFlour.outputCount()));
 
         Production.Recipe leather = recipeOf(BuildingType.TANNERY, "leather");
         Production.Recipe leatherCured = recipeOf(BuildingType.TANNERY, "leather_cured");
         Production.Recipe hide = recipeOf(BuildingType.BUTCHER, "hide");
         assertBand(helper, "leather",
-            leather.ticks(),
-            (double) hide.ticks() / hide.outputCount() * leatherCured.inputCount() / leatherCured.outputCount()
-                + (double) leatherCured.ticks() / leatherCured.outputCount());
+            directEffortPerUnit(leather.outputCount()),
+            chainEffortPerUnit(hide.outputCount(), leatherCured.inputCount(), leatherCured.outputCount()));
 
         Production.Recipe ale = recipeOf(BuildingType.BREWERY, "ale");
         Production.Recipe aleMalt = recipeOf(BuildingType.BREWERY, "ale_malt");
         Production.Recipe malt = recipeOf(BuildingType.BREWERY, "malt");
         assertBand(helper, "ale",
-            ale.ticks(),
-            (double) malt.ticks() / malt.outputCount() * aleMalt.inputCount() / aleMalt.outputCount()
-                + (double) aleMalt.ticks() / aleMalt.outputCount());
+            directEffortPerUnit(ale.outputCount()),
+            chainEffortPerUnit(malt.outputCount(), aleMalt.inputCount(), aleMalt.outputCount()));
 
         Production.Recipe barrel = recipeOf(BuildingType.CARPENTER, "barrel");
         Production.Recipe barrelBeam = recipeOf(BuildingType.CARPENTER, "barrel_beam");
         Production.Recipe planks = recipeOf(BuildingType.SAWMILL, "planks");
         Production.Recipe timberBeam = recipeOf(BuildingType.SAWMILL, "timber_beam");
-        double roughBarrelTicks = (double) planks.ticks() / planks.outputCount() * barrel.inputCount()
-            / barrel.outputCount()
-            + (double) barrel.ticks() / barrel.outputCount();
-        double fedBarrelTicks = (double) timberBeam.ticks() / timberBeam.outputCount() * barrelBeam.inputCount()
-            / barrelBeam.outputCount()
-            + (double) barrelBeam.ticks() / barrelBeam.outputCount();
-        assertBand(helper, "barrel", roughBarrelTicks, fedBarrelTicks);
+        // Barrel's ROUGH path also needs an upstream SAWMILL batch (planks),
+        // unlike bread/leather/ale's raw-material rough paths — so both
+        // sides of this one comparison go through chainEffortPerUnit.
+        assertBand(helper, "barrel",
+            chainEffortPerUnit(planks.outputCount(), barrel.inputCount(), barrel.outputCount()),
+            chainEffortPerUnit(timberBeam.outputCount(), barrelBeam.inputCount(), barrelBeam.outputCount()));
         helper.assertTrue(barrelBeam.outputCount() > barrel.outputCount(),
             "JOB 4: barrel_beam must yield strictly more per batch than the "
                 + "rough recipe, or the fed path is worthless under the real "
@@ -651,15 +676,43 @@ public class ChainsGameTests {
         throw new IllegalStateException("no recipe '" + id + "' for " + type.id());
     }
 
+    /** What one completed batch costs a crafter, whatever building or
+     *  recipe — CrafterWorkGoal's own flat baseline (research can shave it
+     *  for a handful of buildings, but the unresearched baseline is the
+     *  honest floor to test the table's own architecture against). */
+    private static final double CRAFT_EFFORT = 2.0;
+
+    /** Effort per unit of a rough recipe with NO upstream building — a raw
+     *  Ring-1 drop straight into the recipe, the shape bread/leather/ale's
+     *  rough paths all share. */
+    private static double directEffortPerUnit(int outputPerBatch) {
+        return CRAFT_EFFORT / outputPerBatch;
+    }
+
+    /** Effort per unit of FINAL output for a two-step chain: an upstream
+     *  batch (producing {@code upstreamOutPerBatch} of the intermediate)
+     *  feeding a downstream batch (consuming {@code downstreamInPerBatch} of
+     *  it for {@code downstreamOutPerBatch} of the final good). Batches are
+     *  treated as fractionally divisible — the same continuous-rate
+     *  idealization BALANCE_AUDIT.md's own arithmetic uses — because the
+     *  question is the table's design ratio, not one arena's exact seed. */
+    private static double chainEffortPerUnit(int upstreamOutPerBatch, int downstreamInPerBatch,
+                                             int downstreamOutPerBatch) {
+        double upstreamBatchesNeeded = (double) downstreamInPerBatch / upstreamOutPerBatch;
+        return (CRAFT_EFFORT * upstreamBatchesNeeded + CRAFT_EFFORT) / downstreamOutPerBatch;
+    }
+
     /** FLOWS.md's own rule: every fed path is a x1.5-x2 multiplier over its
-     *  rough path, ticks-per-unit, measured end to end from raw material. */
+     *  rough path, EFFORT per unit — the real binding resource — measured
+     *  across every building in the chain. */
     private static void assertBand(GameTestHelper helper, String chain,
-                                   double roughTicksPerUnit, double fedTicksPerUnit) {
-        double ratio = roughTicksPerUnit / fedTicksPerUnit;
+                                   double roughEffortPerUnit, double fedEffortPerUnit) {
+        double ratio = roughEffortPerUnit / fedEffortPerUnit;
         helper.assertTrue(ratio >= 1.5 && ratio <= 2.0,
             chain + "'s fed path must clear FLOWS.md's x1.5-x2 band measured "
-                + "end to end from raw material: rough=" + roughTicksPerUnit
-                + "t/unit fed=" + fedTicksPerUnit + "t/unit ratio=" + ratio);
+                + "in EFFORT across every building in the chain (not ticks): "
+                + "rough=" + roughEffortPerUnit + " effort/unit fed="
+                + fedEffortPerUnit + " effort/unit ratio=" + ratio);
     }
 
     // ------------------------------------------------------------------ (d) ---
