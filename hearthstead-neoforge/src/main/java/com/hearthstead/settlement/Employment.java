@@ -640,7 +640,9 @@ public final class Employment {
             case COURIER -> Attribute.STAMINA;
             // The hire screen's decision, made visible: the strongest settler
             // is the obvious barracks guard and the wrong tower archer.
-            case FARMER, ARCHER -> Attribute.DEXTERITY;
+            // TRADES-1: the same hands-not-force reasoning names HERDER,
+            // FISHER and HUNTER here too.
+            case FARMER, ARCHER, HERDER, FISHER, HUNTER -> Attribute.DEXTERITY;
             default -> Attribute.WITS;
         };
     }

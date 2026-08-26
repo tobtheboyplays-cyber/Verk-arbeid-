@@ -138,7 +138,12 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         Profession profession = entity.getProfession();
         hood.visible = switch (profession) {
             case NONE, GUARD, BAKER, COOK, SMELTER, MASON, INNKEEPER,
-                 WEAVER, MINER, SCHOLAR, BREWER, ARCHER -> true;
+                 WEAVER, MINER, SCHOLAR, BREWER, ARCHER,
+                 // TRADES-1: rustic outdoor trades, the same silhouette
+                 // family as MINER/ARCHER above -- a shepherd's, a fisher's
+                 // and a hunter's hood all read as "works outside, weather-
+                 // facing", painted by gen_settler.py's own outfit table.
+                 HERDER, FISHER, HUNTER -> true;
             default -> false;
         };
         hatBrim.visible = profession == Profession.FARMER;
@@ -280,6 +285,11 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.idleInnkeeperState, SettlerAnimations.IDLE_INNKEEPER, ageInTicks + (id % 27));
         animate(entity.idleWeaverState, SettlerAnimations.IDLE_WEAVER, ageInTicks + (id % 39));
         animate(entity.idleBladeBenchState, SettlerAnimations.IDLE_BLADE_BENCH, ageInTicks + (id % 49));
+        // TRADES-1: FISHER's own idle -- HERDER shares idleFarmerState and
+        // HUNTER shares idleSentryState above, both already wired to
+        // IDLE_FARMER/IDLE_SENTRY. Modulus 67 is not used by any other
+        // clip's phase offset on this page.
+        animate(entity.idleFisherState, SettlerAnimations.IDLE_FISHER, ageInTicks + (id % 67));
         animate(entity.farmState, SettlerAnimations.FARM_TILL, ageInTicks);
         animate(entity.chopState, SettlerAnimations.CHOP, ageInTicks);
         animate(entity.eatState, SettlerAnimations.EAT, ageInTicks);
@@ -306,6 +316,12 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
         animate(entity.chiselState, SettlerAnimations.MASON_CHISEL, ageInTicks + (id % 21));
         animate(entity.fletchState, SettlerAnimations.FLETCHER_FLETCH, ageInTicks + (id % 32));
         animate(entity.scrapeState, SettlerAnimations.TANNER_SCRAPE, ageInTicks + (id % 24));
+        // TRADES-1: same stationary-work-loop pattern as the row above --
+        // staggered by entity id so a row of herders/fishers/hunters never
+        // moves in lockstep.
+        animate(entity.shearState, SettlerAnimations.HERDER_SHEAR, ageInTicks + (id % 25));
+        animate(entity.fishState, SettlerAnimations.FISHER_CAST, ageInTicks + (id % 34));
+        animate(entity.huntState, SettlerAnimations.HUNTER_LOOSE, ageInTicks + (id % 29));
         animate(entity.leapState, SettlerAnimations.LEAP_STRIKE, ageInTicks);
         animate(entity.gatherState, SettlerAnimations.GATHER_LOG, ageInTicks);
         // PICKUP_STOW is a full-body one-shot like the courier lift: reset

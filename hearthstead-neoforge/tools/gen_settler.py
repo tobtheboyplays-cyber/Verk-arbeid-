@@ -170,6 +170,32 @@ PROFESSION_OUTFITS = {
     # ways -- checked pairwise, the archer/scholar doctrine above.
     "armourer":  dict(headgear="bare", apron=True, apron_wool="ember",
                       gauntlets=True),
+    # TRADES-1 (Profession ids 23-25): the three Ring-1 gathering trades.
+    # Same pairwise-distinctness doctrine as RESEARCH-1/archer above (>= 2 of
+    # {ramp family, headgear silhouette, part combination} differ from every
+    # other entry, checked by hand against the whole table). All three are
+    # outdoor, weather-facing trades, so all three keep the hood shell --
+    # the difference is entirely in ramp family and part combination, the
+    # same axis MINER/MASON/ARCHER's shared hood+bracers silhouette already
+    # separates on.
+    #
+    # HERDER: a shepherd's own wool-gray hood (unused as a hood tone
+    # anywhere else in this table -- it only ever appears as COOK's apron)
+    # over a plain wheat-toned cross-strap, reading as rough homespun rather
+    # than any workshop's leather or iron.
+    "herder":    dict(headgear="hood", hood_wool="wool_gray", bracers=True,
+                      bracer_wool="wheat"),
+    # FISHER: sea-worn oilskin -- an emerald hood (a colder, more saturated
+    # green than ARCHER's forest) over a stone-gray apron, the two colours
+    # nobody else in the table pairs.
+    "fisher":    dict(headgear="hood", hood_wool="emerald", apron=True,
+                      apron_wool="stone"),
+    # HUNTER: the darker "oak" wood-tone (distinct from CARPENTER/BREWER's
+    # lighter oak_light) with forest-toned arm guards and the same quiver
+    # ARCHER already carries -- both draw a bow, so the prop is an honest
+    # reuse, and the hood/bracer ramp pairing is still nobody else's.
+    "hunter":    dict(headgear="hood", hood_wool="oak", quiver=True,
+                      bracers=True, bracer_wool="forest"),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed

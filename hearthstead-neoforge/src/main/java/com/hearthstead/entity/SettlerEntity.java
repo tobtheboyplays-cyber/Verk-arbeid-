@@ -5,9 +5,12 @@ import com.hearthstead.entity.ai.BoundedStrollGoal;
 import com.hearthstead.entity.ai.CourierWorkGoal;
 import com.hearthstead.entity.ai.EatFromHearthGoal;
 import com.hearthstead.entity.ai.FarmerWorkGoal;
+import com.hearthstead.entity.ai.FisherWorkGoal;
 import com.hearthstead.entity.ai.GuardMeleeGoal;
 import com.hearthstead.entity.ai.GuardPatrolGoal;
 import com.hearthstead.entity.ai.GuardRespondToAlertGoal;
+import com.hearthstead.entity.ai.HerderWorkGoal;
+import com.hearthstead.entity.ai.HunterWorkGoal;
 import com.hearthstead.entity.ai.LumbererWorkGoal;
 import com.hearthstead.entity.ai.RestAtNightGoal;
 import com.hearthstead.entity.ai.ReturnToSettlementGoal;
@@ -208,6 +211,11 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState chiselState = new AnimationState();
     public final AnimationState fletchState = new AnimationState();
     public final AnimationState scrapeState = new AnimationState();
+    // TRADES-1: three new signature motions. One state per CLIP, the same
+    // rule the D-016 group above follows.
+    public final AnimationState shearState = new AnimationState();
+    public final AnimationState fishState = new AnimationState();
+    public final AnimationState huntState = new AnimationState();
     public final AnimationState liftState = new AnimationState();
     public final AnimationState setDownState = new AnimationState();
     /** The universal pickup: any settler, any trade, stooping for something
@@ -215,14 +223,16 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState pickupState = new AnimationState();
 
     // Trade idles (owner: "vil ogsa ha idle animations som matcher jobben").
-    // Fourteen self-contained loops covering all 21 employed professions --
+    // Fifteen self-contained loops covering all 24 employed professions --
     // see SettlerAnimations' own comment on the set. Each is mutually
     // exclusive with idleState AND with every other state in this group:
     // exactly one plays at a time, gated by profession in
     // setupAnimationStates() below. One state per CLIP, not per profession,
     // the same "one state per motion" rule the CHAINS-1 craft states above
     // already follow -- GUARD and ARCHER share idleSentryState, SMITH and
-    // SMELTER share idleForgeState, and so on.
+    // SMELTER share idleForgeState, and so on. TRADES-1 raised the count
+    // from fourteen/21 to fifteen/24: HERDER joins idleFarmerState, HUNTER
+    // joins idleSentryState, and FISHER gets its own idleFisherState below.
     public final AnimationState idleFarmerState = new AnimationState();
     public final AnimationState idleLumbererState = new AnimationState();
     public final AnimationState idleSentryState = new AnimationState();
@@ -237,6 +247,10 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState idleInnkeeperState = new AnimationState();
     public final AnimationState idleWeaverState = new AnimationState();
     public final AnimationState idleBladeBenchState = new AnimationState();
+    // TRADES-1: FISHER is the only one of the three new trades that needs a
+    // clip of its own -- HERDER shares idleFarmerState and HUNTER shares
+    // idleSentryState, both justified in setupAnimationStates() below.
+    public final AnimationState idleFisherState = new AnimationState();
 
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
@@ -310,6 +324,13 @@ public class SettlerEntity extends PathfinderMob {
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.MinerWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.InnkeeperWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.ScholarWorkGoal(this));
+        // TRADES-1 (SURVIVAL_AUDIT F1): the three Ring-1 gathering trades
+        // this roster was missing -- same priority slot as every other
+        // trade goal above, same reason (the flag fight is between trade
+        // goals of one settler, not a race with anything else in this list).
+        goalSelector.addGoal(6, new HerderWorkGoal(this));
+        goalSelector.addGoal(6, new FisherWorkGoal(this));
+        goalSelector.addGoal(6, new HunterWorkGoal(this));
         // Lower than the delivery goal: tidying is what a courier does when
         // there is nothing to fetch.
         goalSelector.addGoal(7, new com.hearthstead.entity.ai.TidyWarehouseGoal(this));
@@ -792,7 +813,10 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_PLANE
             || activity == SettlerActivity.WORK_CHISEL
             || activity == SettlerActivity.WORK_FLETCH
-            || activity == SettlerActivity.WORK_SCRAPE;
+            || activity == SettlerActivity.WORK_SCRAPE
+            || activity == SettlerActivity.WORK_SHEAR
+            || activity == SettlerActivity.WORK_FISH
+            || activity == SettlerActivity.WORK_HUNT;
 
         setHunger(getHunger()
             - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
@@ -1033,12 +1057,22 @@ public class SettlerEntity extends PathfinderMob {
         // BUTCHER/TANNER share idleBladeBenchState (see each clip's own
         // sharing justification in SettlerAnimations). !moving matches
         // every other stationary work/idle gate in this method.
+        // TRADES-1: a shepherd's watchful stance over the paddock is the
+        // same watching-the-field idle as the farmer's own -- both read as
+        // someone minding open ground, not a bench, and the leaning-on-a-
+        // tool grip reads the same whether the shaft is a hoe or a
+        // shepherd's crook.
         idleFarmerState.animateWhen(idleTrade && !moving
-            && profession == Profession.FARMER, tickCount);
+            && (profession == Profession.FARMER || profession == Profession.HERDER), tickCount);
         idleLumbererState.animateWhen(idleTrade && !moving
             && profession == Profession.LUMBERER, tickCount);
+        // TRADES-1: a hunter's alert, weight-shifted readiness scanning for
+        // game is the same watching-for-movement stance as the guard/
+        // archer's own sentry idle -- the tool differs, the way of standing
+        // does not.
         idleSentryState.animateWhen(idleTrade && !moving
-            && (profession == Profession.GUARD || profession == Profession.ARCHER), tickCount);
+            && (profession == Profession.GUARD || profession == Profession.ARCHER
+                || profession == Profession.HUNTER), tickCount);
         idleCourierState.animateWhen(idleTrade && !moving
             && profession == Profession.COURIER, tickCount);
         // ARMOURY-3: an armourer's idle is the same forge-side wait as the
@@ -1066,6 +1100,11 @@ public class SettlerEntity extends PathfinderMob {
             && profession == Profession.WEAVER, tickCount);
         idleBladeBenchState.animateWhen(idleTrade && !moving
             && (profession == Profession.BUTCHER || profession == Profession.TANNER), tickCount);
+        // TRADES-1: FISHER is the only one of the three new trades whose
+        // gesture (patient, watching the water) is not genuinely the same
+        // as an existing idle -- see IDLE_FISHER's own catalogue entry.
+        idleFisherState.animateWhen(idleTrade && !moving
+            && profession == Profession.FISHER, tickCount);
 
         farmState.animateWhen(activity == SettlerActivity.WORK_FARM && !moving, tickCount);
         chopState.animateWhen(activity == SettlerActivity.WORK_CHOP && !moving, tickCount);
@@ -1103,6 +1142,11 @@ public class SettlerEntity extends PathfinderMob {
         chiselState.animateWhen(activity == SettlerActivity.WORK_CHISEL && !moving, tickCount);
         fletchState.animateWhen(activity == SettlerActivity.WORK_FLETCH && !moving, tickCount);
         scrapeState.animateWhen(activity == SettlerActivity.WORK_SCRAPE && !moving, tickCount);
+        // TRADES-1: same stationary-work gate as every clip just above --
+        // moving cancels the trade clip and plain WALK takes over instead.
+        shearState.animateWhen(activity == SettlerActivity.WORK_SHEAR && !moving, tickCount);
+        fishState.animateWhen(activity == SettlerActivity.WORK_FISH && !moving, tickCount);
+        huntState.animateWhen(activity == SettlerActivity.WORK_HUNT && !moving, tickCount);
         // GATHER_LOG is a one-shot: triggered when a log actually comes down,
         // and expiring on its own clock like CELEBRATE does.
         if (leapState.isStarted() && leapState.getAccumulatedTime() > 1350L) {
