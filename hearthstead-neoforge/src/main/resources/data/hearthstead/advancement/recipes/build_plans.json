@@ -1,0 +1,57 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_paper": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:paper"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_paper"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "hearthstead:build_plan_architects_study",
+      "hearthstead:build_plan_armoury",
+      "hearthstead:build_plan_bakery",
+      "hearthstead:build_plan_barracks",
+      "hearthstead:build_plan_brewery",
+      "hearthstead:build_plan_butcher",
+      "hearthstead:build_plan_carpenter",
+      "hearthstead:build_plan_dining_hall",
+      "hearthstead:build_plan_farmhouse",
+      "hearthstead:build_plan_fishery",
+      "hearthstead:build_plan_fletcher",
+      "hearthstead:build_plan_house",
+      "hearthstead:build_plan_hunters_lodge",
+      "hearthstead:build_plan_infirmary",
+      "hearthstead:build_plan_kitchen",
+      "hearthstead:build_plan_library",
+      "hearthstead:build_plan_lodging",
+      "hearthstead:build_plan_lumber_camp",
+      "hearthstead:build_plan_market",
+      "hearthstead:build_plan_mason",
+      "hearthstead:build_plan_mill",
+      "hearthstead:build_plan_mine",
+      "hearthstead:build_plan_pasture",
+      "hearthstead:build_plan_sawmill",
+      "hearthstead:build_plan_school",
+      "hearthstead:build_plan_smelter",
+      "hearthstead:build_plan_smithy",
+      "hearthstead:build_plan_tannery",
+      "hearthstead:build_plan_tavern",
+      "hearthstead:build_plan_warehouse",
+      "hearthstead:build_plan_watchtower",
+      "hearthstead:build_plan_weaver",
+      "hearthstead:build_plan_well"
+    ]
+  }
+}

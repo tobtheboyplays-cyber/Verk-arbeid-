@@ -10,7 +10,9 @@
     },
     "description": {
       "translate": "hearthstead.advancement.hang_first_plaque.description"
-    }
+    },
+    "show_toast": true,
+    "announce_to_chat": true
   },
   "criteria": {
     "place_plaque": {

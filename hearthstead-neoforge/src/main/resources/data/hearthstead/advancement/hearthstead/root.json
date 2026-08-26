@@ -11,8 +11,8 @@
       "translate": "hearthstead.advancement.root.description"
     },
     "background": "minecraft:textures/gui/advancements/backgrounds/husbandry.png",
-    "show_toast": false,
-    "announce_to_chat": false
+    "show_toast": true,
+    "announce_to_chat": true
   },
   "criteria": {
     "place_hearth": {

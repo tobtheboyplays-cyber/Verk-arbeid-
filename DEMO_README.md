@@ -52,8 +52,10 @@ settlement on its own — a chime, a burst of happy-villager particles, and
 was "Ashdale" in testing). Keep some food in the Hearth's own storage
 (right-click it) — hungry settlers eat from there.
 
-**5. Mine iron and copper**, smelt them, and **craft a Plaque**: 5 iron
-ingots + 1 copper ingot + 3 oak planks.
+**5. Mine iron and copper**, smelt them, and **craft a Plaque**: 5 copper
+ingots + 1 iron ingot + 3 planks (any wood). In the 3x3 grid: copper across
+the top row and the two side slots of the middle row, the single iron ingot
+in the centre, planks across the bottom.
 
 **6. Craft a Build Plan for a Lumber Camp**: 1 paper + 1 feather + 1 log
 of any kind (paper is 3 sugar cane → 3 paper, vanilla; feather comes from
