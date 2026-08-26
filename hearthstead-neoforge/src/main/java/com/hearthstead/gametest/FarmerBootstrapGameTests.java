@@ -72,13 +72,10 @@ public class FarmerBootstrapGameTests {
     }
 
     private static Building farmhouse(GameTestHelper helper, Settlement s, int x, int z) {
-        BlockPos anchor = helper.absolutePos(new BlockPos(x, 1, z));
-        Building building = new Building(UUID.randomUUID(), BuildingType.FARMHOUSE,
-            helper.absolutePos(new BlockPos(x, 2, z)), anchor,
-            BoundingBox.fromCorners(anchor, anchor.offset(3, 2, 3)));
-        building.valid = true;
-        s.buildings.add(building);
-        return building;
+        // Delegates to the one place that places the plaque a building
+        // needs to survive BuildingManager's sweep -- see GameTestFixtures
+        // (KF-021 / FLAKE-2, 2026-08-26).
+        return GameTestFixtures.register(helper, s, BuildingType.FARMHOUSE, x, z);
     }
 
     private static SettlerEntity farmer(GameTestHelper helper, Settlement s,

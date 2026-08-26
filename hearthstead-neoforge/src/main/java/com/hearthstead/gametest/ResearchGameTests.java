@@ -68,13 +68,10 @@ public class ResearchGameTests {
     /** A registered, valid architects' study, its bounds wide enough to hold
      *  a chest one block off the anchor. */
     private static Building study(GameTestHelper helper, Settlement s, int x, int z) {
-        BlockPos anchor = helper.absolutePos(new BlockPos(x, 1, z));
-        Building building = new Building(UUID.randomUUID(), BuildingType.ARCHITECTS_STUDY,
-            helper.absolutePos(new BlockPos(x, 2, z)), anchor,
-            BoundingBox.fromCorners(anchor, anchor.offset(3, 2, 3)));
-        building.valid = true;
-        s.buildings.add(building);
-        return building;
+        // Delegates to the one place that places the plaque a building
+        // needs to survive BuildingManager's sweep -- see GameTestFixtures
+        // (KF-021 / FLAKE-2, 2026-08-26).
+        return GameTestFixtures.register(helper, s, BuildingType.ARCHITECTS_STUDY, x, z);
     }
 
     private static SettlerEntity settler(GameTestHelper helper, Settlement s,

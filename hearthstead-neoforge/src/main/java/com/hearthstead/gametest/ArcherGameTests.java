@@ -92,13 +92,10 @@ public class ArcherGameTests {
      *  bounds are what {@code WarehouseIndex.containers} walks. */
     private static Building tower(GameTestHelper helper, Settlement s,
                                   int x, int z) {
-        BlockPos anchor = helper.absolutePos(new BlockPos(x, 1, z));
-        Building building = new Building(UUID.randomUUID(), BuildingType.WATCHTOWER,
-            helper.absolutePos(new BlockPos(x, 2, z)), anchor,
-            BoundingBox.fromCorners(anchor, anchor.offset(3, 2, 3)));
-        building.valid = true;
-        s.buildings.add(building);
-        return building;
+        // Delegates to the one place that places the plaque a building
+        // needs to survive BuildingManager's sweep -- see GameTestFixtures
+        // (KF-021 / FLAKE-2, 2026-08-26).
+        return GameTestFixtures.register(helper, s, BuildingType.WATCHTOWER, x, z);
     }
 
     private static Container chestAt(GameTestHelper helper, BlockPos rel) {

@@ -72,14 +72,14 @@ public class GuardRankGameTests {
         BlockPos chestRel = new BlockPos(x, 1, z);
         helper.setBlock(chestRel, net.minecraft.world.level.block.Blocks.CHEST);
         BlockPos anchor = helper.absolutePos(chestRel);
-        com.hearthstead.settlement.Building armoury =
-            new com.hearthstead.settlement.Building(UUID.randomUUID(),
-            com.hearthstead.building.BuildingType.ARMOURY,
-            helper.absolutePos(new BlockPos(x, 2, z)), anchor,
+        // Routed through GameTestFixtures so the plaque this building needs
+        // to survive BuildingManager's sweep can never be forgotten
+        // (KF-021 / FLAKE-2, 2026-08-26).
+        com.hearthstead.settlement.Building armoury = GameTestFixtures.registerWithBounds(
+            helper, s, com.hearthstead.building.BuildingType.ARMOURY,
+            chestRel, new BlockPos(x, 2, z),
             net.minecraft.world.level.levelgen.structure.BoundingBox.fromCorners(
                 anchor, anchor.offset(2, 2, 2)));
-        armoury.valid = true;
-        s.buildings.add(armoury);
         if (helper.getLevel().getBlockEntity(anchor)
             instanceof net.minecraft.world.Container chest) {
             net.minecraft.world.item.Item[] kit = {
