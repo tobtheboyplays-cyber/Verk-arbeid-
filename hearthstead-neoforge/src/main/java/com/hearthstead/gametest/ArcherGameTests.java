@@ -12,6 +12,7 @@ import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.raid.RaidObjective;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -302,6 +303,63 @@ public class ArcherGameTests {
             helper.assertTrue(goal.powerShotsFired() >= 1,
                 "a Sharpshooter's 4th volley must be a Power Shot ("
                     + goal.shotsFired() + " volleys so far)");
+        });
+    }
+
+    // ------------------------------------------------- self-acquisition ---
+
+    /**
+     * ACCEPT-JOBS audit (2026-08-26): every test above calls {@code
+     * archer.setTarget(pell)} before waiting -- real fixtures for the
+     * shooting mechanics, but every one of them skips straight past {@link
+     * ArcherAttackGoal#canUse()}'s own {@code acquire()} call, the archer's
+     * DUPLICATED copy of {@code SettlerDefenseTargetGoal}'s targeting logic
+     * (the class doc's own "What is deliberately mirrored" section explains
+     * why it is duplicated rather than shared). That method had zero
+     * coverage: nothing ever left an archer's target null and simply waited
+     * to see whether the trade notices a raider on its own. This is the
+     * full chain the owner is judging at 18:00 -- hired, posted, watching,
+     * and finding its own target -- not a raider handed to it by the test.
+     * The raider is spawned real (never {@code setTarget} on either side)
+     * and given no AI so it cannot wander out of the settlement ring before
+     * the archer's own {@code RETARGET_INTERVAL} scan finds it.
+     */
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 400)
+    public void archerFindsAndLoosesAtARaiderWithNoHelp(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building tower = tower(helper, s, 2, 2);
+        Container rack = chestAt(helper, new BlockPos(3, 1, 3));
+        rack.setItem(0, new ItemStack(Items.ARROW, 16));
+
+        SettlerEntity archer = settler(helper, s, "Speider", 4, 4);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, archer).ok(),
+            "fixture: the watchtower must hire an archer");
+        helper.assertTrue(archer.getTarget() == null,
+            "fixture sanity: nothing may hand the archer a target");
+
+        RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
+        pell.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+        pell.setNoAi(true);
+        float pellMax = pell.getMaxHealth();
+        // Armed only so the fixture can read shotsFired()/quiverCount() --
+        // the SAME lookup-first helper every other test in this file uses,
+        // never a second goal instance. Never armed with a target.
+        ArcherAttackGoal goal = arm(archer);
+
+        helper.succeedWhen(() -> {
+            int inChest = countOf(rack, Items.ARROW);
+            helper.assertTrue(inChest + goal.quiverCount() + goal.shotsFired() == 16,
+                "ammo conservation broke: chest " + inChest + " + quiver "
+                    + goal.quiverCount() + " + loosed " + goal.shotsFired()
+                    + " != the 16 the tower started with");
+            helper.assertTrue(archer.getTarget() == pell,
+                "the archer must find the raider through its OWN goal (never "
+                    + "setTarget from the test), got " + archer.getTarget());
+            helper.assertTrue(pell.getHealth() < pellMax,
+                "an archer that finds its own target must still hurt the raider"
+                    + " (still " + pell.getHealth() + "/" + pellMax
+                    + " after " + goal.shotsFired() + " volleys)");
         });
     }
 }

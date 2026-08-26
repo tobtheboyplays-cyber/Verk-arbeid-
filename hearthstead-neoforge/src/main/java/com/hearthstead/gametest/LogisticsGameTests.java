@@ -623,4 +623,114 @@ public class LogisticsGameTests {
                     + " lastRouteFailure=" + bud.routeFailureNote() + "]");
         });
     }
+
+    // ------------------------------------------------------- the ladder ---
+
+    /**
+     * The other half of the ladder the brief names: "a crafter starving
+     * outranks a hungry hearth". {@link CourierFoodRouteGameTests} already
+     * proves food outranks collection
+     * ({@code starvingHearthOutranksMineCollection}); this is the rung above
+     * it, and it is this file's to prove because {@code CRAFTER_RESTOCK} is
+     * {@link CourierWorkGoal.JobPriority}'s own top tier, defined in the file
+     * this class exists to test.
+     *
+     * <p>A warehouse holds both cargoes at once -- iron ingots the smithy is
+     * completely out of, and bread the hearth is completely out of -- so a
+     * single courier genuinely has to choose. The watch is a latch exactly
+     * like the mine/food test's: if bread is ever seen at the hearth before
+     * the smithy's restock has fully landed, the ladder is inverted and the
+     * test can never pass. The smithy must then still finish, and the hearth
+     * must still be fed afterwards, so this also proves the ladder continues
+     * below restock rather than starving the village of food forever.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 4800, batch = "logistics_day")
+    public void restockOutranksAHungryHearth(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = registerSettlement(helper, hearthRel, 6);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+
+        Building warehouse = addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
+        BlockPos warehouseChestRel = new BlockPos(5, 1, 3);
+        helper.setBlock(warehouseChestRel, Blocks.CHEST);
+        Container source = containerAt(helper, warehouseChestRel);
+        helper.assertTrue(source != null, "arena warehouse chest should exist");
+        int ingotSeed = 12;
+        int breadSeed = 8;
+        source.setItem(0, new ItemStack(Items.IRON_INGOT, ingotSeed));
+        source.setItem(1, new ItemStack(Items.BREAD, breadSeed));
+
+        addBuilding(helper, s, BuildingType.SMITHY,
+            new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
+        BlockPos smithyChestRel = new BlockPos(3, 1, 6);
+        helper.setBlock(smithyChestRel, Blocks.CHEST);
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        helper.assertTrue(com.hearthstead.settlement.Employment
+            .hire(helper.getLevel(), s, warehouse, bud).ok(),
+            "the warehouse must be able to take the courier");
+        int threshold = CourierWorkGoal.hearthFoodThreshold(s.population());
+
+        final boolean[] breadMovedBeforeRestock = {false};
+
+        helper.succeedWhen(() -> {
+            Container smithyChest = containerAt(helper, smithyChestRel);
+            Container warehouseChest = containerAt(helper, warehouseChestRel);
+            int atSmithy = countIn(smithyChest, Items.IRON_INGOT);
+            int atWarehouseIngot = countIn(warehouseChest, Items.IRON_INGOT);
+            int ingotInBag = bagCountOf(bud, Items.IRON_INGOT);
+            int atWarehouseBread = countIn(warehouseChest, Items.BREAD);
+            int breadInBag = bagCountOf(bud, Items.BREAD);
+            int atHearth = 0;
+            if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+                instanceof HearthBlockEntity h) {
+                atHearth = h.countFoodUnits();
+            }
+            if (atHearth > 0 && atSmithy < ingotSeed) {
+                breadMovedBeforeRestock[0] = true;
+            }
+            int ingotTotal = atSmithy + atWarehouseIngot + ingotInBag;
+            int breadTotal = atHearth + atWarehouseBread + breadInBag;
+            helper.assertTrue(!breadMovedBeforeRestock[0],
+                "bread reached the hearth while the smithy still needed ingots -- "
+                    + "restock must outrank food, but food ran first "
+                    + "[atSmithy=" + atSmithy + " of " + ingotSeed
+                    + " atHearth=" + atHearth + "]");
+            helper.assertTrue(ingotTotal == ingotSeed,
+                "iron ingots must be conserved, saw " + ingotTotal + " of " + ingotSeed
+                    + " [smithy=" + atSmithy + " warehouse=" + atWarehouseIngot
+                    + " bag=" + ingotInBag + "]");
+            helper.assertTrue(breadTotal == breadSeed,
+                "bread must be conserved, saw " + breadTotal + " of " + breadSeed
+                    + " [hearth=" + atHearth + " warehouse=" + atWarehouseBread
+                    + " bag=" + breadInBag + "]");
+            helper.assertTrue(atSmithy == ingotSeed,
+                "the smithy must eventually be fully restocked, saw " + atSmithy
+                    + " of " + ingotSeed + " [act=" + bud.getActivity()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+            helper.assertTrue(atHearth >= threshold,
+                "the ladder must continue below restock: the larder should reach "
+                    + "its LOW mark of " + threshold + " afterwards, saw " + atHearth
+                    + " [act=" + bud.getActivity()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+        });
+    }
+
+    private static int bagCountOf(SettlerEntity settler, Item item) {
+        int n = 0;
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.is(item)) {
+                n += stack.getCount();
+            }
+        }
+        return n;
+    }
 }

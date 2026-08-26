@@ -13,6 +13,7 @@ import com.hearthstead.settlement.DayPhase;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Schedule;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.raid.RaidObjective;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -231,5 +232,53 @@ public class GuardTrainingGameTests {
                     + " shouldSleep=" + sleep + " -- must be exactly one of the two");
         }
         helper.succeed();
+    }
+
+    // -------------------------------------------- the front door, fighting ---
+
+    /**
+     * ACCEPT-JOBS audit (2026-08-26): {@code landedMeleeHitsTrainStrength}
+     * above and {@code RaiderGameTests#guardsTreatRaidersAsHostile} between
+     * them prove that a GUARD trained by {@code assignProfession} directly
+     * fights, and that a GUARD's own {@code SettlerDefenseTargetGoal} finds
+     * a raider on its own -- but neither test ever calls {@link
+     * Employment#hire} at a real BARRACKS, and every hire-mechanic test in
+     * {@code EmploymentGameTests} stops at the profession assignment, never
+     * watching the settler actually fight. No single test closes the full
+     * chain the owner is judging: hired through the front door, at a real
+     * building, finding its own target, landing real blows -- with no
+     * {@code setTarget} shortcut anywhere in this one.
+     */
+    @GameTest(batch = "guard_training", template = "empty16", timeoutTicks = 400)
+    public void aHiredGuardFindsAndFightsARaiderWithNoHelp(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building barracks = building(helper, s, BuildingType.BARRACKS, 2, 2);
+        SettlerEntity guard = settler(helper, s, "Vakt", 4, 4);
+
+        Employment.Hired hired = Employment.hire(helper.getLevel(), s, barracks, guard);
+        helper.assertTrue(hired.ok(),
+            "the barracks must be able to hire a guard, refused with "
+                + hired.refusal());
+        helper.assertTrue(guard.getProfession() == Profession.GUARD,
+            "hired into the barracks, they take up the trade");
+        helper.assertTrue(guard.getTarget() == null,
+            "fixture sanity: nothing may hand the guard a target");
+
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(6, 1, 6));
+        raider.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+        raider.setNoAi(true);
+        float raiderMax = raider.getMaxHealth();
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(guard.getTarget() == raider,
+                "the guard must find the raider through its OWN "
+                    + "SettlerDefenseTargetGoal (never setTarget from the test), "
+                    + "got " + guard.getTarget());
+            helper.assertTrue(!raider.isAlive() || raider.getHealth() < raiderMax,
+                "a guard hired through Employment.hire that finds its own target "
+                    + "must actually land blows, raider at " + raider.getHealth()
+                    + "/" + raiderMax);
+        });
     }
 }

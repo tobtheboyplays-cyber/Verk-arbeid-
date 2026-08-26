@@ -2146,6 +2146,54 @@ seen this round, versus the death-screen confound accounting for most of
 them, is untested; and a `Health == 0` special case in `ensure_grab` would
 close the one confirmed non-bug source of `input_dead` noise.
 
+### Addendum (same day, priority pivot to the owner's 18:00 acceptance test)
+
+A 50-minute unattended drive loop (`look`/`hold`/`mine` cycling with
+randomized angles, real actions, no fault injection) was run to clear round
+1's ~45-minute active-play window. Result, precisely: **13 iterations /
+~4.5 minutes of continuous real driving, 9 natural desyncs, 9 recoveries,
+100% recovery rate, all within budget (2-4 checks typically).** Then the
+unattended script — which has no eyes, unlike a real driver — walked the
+player into open water and **the character drowned**, landing on the same
+"You Died" screen KF-035 already names as a confound `ensure_grab` cannot
+fix (correctly: no regrab dismisses a menu). That produced a long run of
+consecutive `FAIL: input_dead` — not a new, worse failure mode, just the
+same documented one, now measured at ~9 minutes of unattended-death
+duration because nothing was watching to click Respawn. A manual Respawn
+click immediately restored normal self-healing operation (confirmed:
+`PASS: input_regrab -- recovered after 4 checks` on the very next action,
+then two more clean iterations with confirmed movement). **The corrected
+conclusion: nothing about the fix degrades over time. The two things that
+end a session are dying (menu, not input) and this environment's variable
+multi-tenant CPU contention (real, external, unrelated to session age).**
+
+**A second, closable gap found under the same review:** `click` is not
+self-verifying, on purpose (KF-035 above already explains why — a misfired
+regrab click during an already-open GUI would land on the GUI itself). But
+that means the *first* right-click that opens a settler's sheet, a chest, or
+a plaque — squarely one of the owner's three 18:00 criteria — had no
+self-healing either, for no good reason: at the moment of that first click,
+by definition no screen is open yet, so the same safety argument that
+justifies `mine`/`hold`/`look` applies just as cleanly. Added `open
+[left|right]` (both `live.sh` and `live2.sh`): `ensure_grab` then a click,
+same shape as `mine`. Verified live against the running session
+immediately after adding it (`PASS: input_regrab -- recovered after 2
+checks` on its first real call). Plain `click` is untouched and still the
+right tool inside an already-open screen (crafting/inventory slots).
+
+**Recommendation for the owner's three client-verification criteria
+specifically (animations, watchtower archer, all 26 settler sheets):**
+none require survival mechanics. Creative mode's `safe_regrab` click is
+*unconditional* (always teleports to clear sky and clicks) where survival's
+is conditional on the player currently having clear sky overhead — which is
+false most of the time indoors, exactly where this verification pass will
+spend nearly all its time. Creative mode sidesteps both the drowning risk
+this addendum found and the only real survival-specific gap KF-035 names,
+at zero cost to any of the three criteria. Recommended: drive that
+verification in creative mode, in restart-bounded sessions (cheap
+insurance against this environment's external contention, not because the
+fix itself decays) rather than one unbroken session.
+
 ### KF-035 — sugar cane borrows the wheat farmer's hands
 
 **2026-08-26, flagged by the worker that built it rather than shipped
