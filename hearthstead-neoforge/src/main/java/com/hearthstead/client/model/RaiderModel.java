@@ -171,8 +171,13 @@ public class RaiderModel extends HierarchicalModel<RaiderEntity> {
         // the SKIRMISHER's charge and only plays while actually closing on
         // a live target; BRUTE always gets BRUTE_MARCH -- "the walk itself
         // is the threat" is true whether it is idle travel or a charge.
-        boolean sprinting = !brute && entity.getTarget() != null
-            && entity.getTarget().isAlive();
+        // isCharging(), NOT getTarget(): Mob.target is server-only AI state
+        // and is always null on the client render copy, so the old
+        // getTarget() test was false for every raider on every frame and
+        // SPRINT could never play -- skirmishers crept at the player at
+        // walking pace all the way through a kill. RaiderEntity publishes
+        // the fact as synced data now; see DATA_CHARGING there.
+        boolean sprinting = !brute && entity.isCharging();
         var locomotion = brute ? RaiderAnimations.BRUTE_MARCH
             : (sprinting ? RaiderAnimations.SPRINT : RaiderAnimations.STALK);
         animateWalk(locomotion, limbSwing, limbSwingAmount, 2.0F, 2.5F);

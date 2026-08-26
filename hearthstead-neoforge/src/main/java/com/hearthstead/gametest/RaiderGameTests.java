@@ -123,6 +123,54 @@ public class RaiderGameTests {
         helper.succeed();
     }
 
+    /**
+     * The charge flag the RENDERER reads must actually track the target.
+     *
+     * <p>Guards a bug that made SPRINT unreachable by construction:
+     * {@code RaiderModel} decided its gait from {@code entity.getTarget()},
+     * but vanilla's {@code Mob.target} is server-only AI state and is never
+     * networked, so on the client render copy it was always null. Every
+     * skirmisher played STALK forever -- confirmed on film, creeping at
+     * walking pace through a kill. {@code RaiderEntity} now publishes
+     * {@link RaiderEntity#isCharging()} as synced data instead.
+     *
+     * <p>This is a server-side test of a client-side symptom, and that is
+     * the honest limit of what a GameTest can prove here: it cannot see the
+     * rendered gait. What it CAN pin is the fact the renderer depends on --
+     * that the published boolean follows the target both ways. If this flag
+     * stops tracking, SPRINT silently dies again exactly as it did before,
+     * and no visual test would have to be running to catch it.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_the_charge_flag_tracks_a_live_target_both_ways")
+    public void theChargeFlagTracksALiveTargetBothWays(GameTestHelper helper) {
+        buildArena(helper, 10);
+        Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 2));
+        raider.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+
+        SettlerEntity quarry = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(4, 1, 2));
+        quarry.setSettlerName("Quarry");
+        quarry.bindTo(s.id, s.center);
+
+        helper.assertTrue(!raider.isCharging(),
+            "a raider with no target must not report charging");
+
+        raider.setTarget(quarry);
+        // One tick: the flag is published from tick(), not from setTarget().
+        helper.runAfterDelay(1, () -> {
+            helper.assertTrue(raider.isCharging(),
+                "a raider closing on a live settler must report charging -- this is "
+                    + "the only thing the client can see, and SPRINT plays off it");
+            raider.setTarget(null);
+            helper.runAfterDelay(1, () -> {
+                helper.assertTrue(!raider.isCharging(),
+                    "a raider that has lost its target must stop reporting charging, "
+                        + "or it sprints on forever at nothing");
+                helper.succeed();
+            });
+        });
+    }
+
     /** Raiders never turn on each other, however the melee goes. */
     @GameTest(template = "empty16", timeoutTicks = 200, batch = "raider_raiders_do_not_fight_each_other")
     public void raidersDoNotFightEachOther(GameTestHelper helper) {

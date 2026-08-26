@@ -79,6 +79,29 @@ public class RaiderEntity extends Monster {
         SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BYTE);
 
     /**
+     * Whether this raider is closing on a live quarry right now -- the one
+     * fact the CLIENT needs to pick its gait, and the reason this exists as
+     * synced data at all.
+     *
+     * <p>{@code RaiderModel} used to read {@code entity.getTarget()} directly
+     * to decide between SPRINT and STALK. Vanilla's {@code Mob.target} is
+     * server-only AI state and is never networked on its own, so on the
+     * client render copy it is ALWAYS null: {@code sprinting} was always
+     * false and SPRINT was unreachable by construction -- every skirmisher
+     * crept at the player at walking pace, mid-charge, through the kill.
+     * Confirmed on film 2026-08-26 (take-09-raider-sprint-charge) before
+     * this field existed.
+     *
+     * <p>The server therefore publishes the boolean the renderer actually
+     * needs, rather than the renderer guessing from state it cannot see.
+     * Boolean and not the target's id on purpose: the gait depends only on
+     * WHETHER there is live quarry, never on which, so this syncs the
+     * smallest fact that answers the question.
+     */
+    private static final EntityDataAccessor<Boolean> DATA_CHARGING =
+        SynchedEntityData.defineId(RaiderEntity.class, EntityDataSerializers.BOOLEAN);
+
+    /**
      * The two builds a band is composed from. SKIRMISHER is the pack --
      * lean, hooded, quick. BRUTE is the door-breaker -- fewer, slower,
      * huge. The enum is deliberately tiny: a variant earns its place here
@@ -234,6 +257,7 @@ public class RaiderEntity extends Monster {
         builder.define(DATA_SCOUT, false);
         builder.define(DATA_SAGA_MARKED, false);
         builder.define(DATA_VARIANT, (byte) Variant.SKIRMISHER.ordinal());
+        builder.define(DATA_CHARGING, false);
     }
 
     public boolean isCaptain() {
@@ -246,6 +270,15 @@ public class RaiderEntity extends Monster {
 
     public void setVariant(Variant variant) {
         entityData.set(DATA_VARIANT, (byte) variant.ordinal());
+    }
+
+    /**
+     * Whether this raider is actively closing on a live quarry -- safe to
+     * read on the client, unlike {@link #getTarget()}. See
+     * {@link #DATA_CHARGING} for why the renderer must use this instead.
+     */
+    public boolean isCharging() {
+        return entityData.get(DATA_CHARGING);
     }
 
     /** Whether the captain leading this raid has earned an epithet yet. */
@@ -393,6 +426,12 @@ public class RaiderEntity extends Monster {
         super.tick();
         if (level().isClientSide) {
             setupRaiderAnimationStates();
+        } else {
+            // Publish the gait fact the client cannot derive for itself.
+            // SynchedEntityData only sends on CHANGE, so setting the same
+            // boolean every tick costs one comparison and no packets.
+            LivingEntity quarry = getTarget();
+            entityData.set(DATA_CHARGING, quarry != null && quarry.isAlive());
         }
     }
 

@@ -40,7 +40,7 @@ table, and get a wood pickaxe going so you can mine cobblestone (any
 pickaxe works) and start digging toward iron and copper — you'll need both
 soon.
 
-**2. Craft a campfire** (vanilla): 2 sticks + 1 coal or charcoal + 3 logs
+**2. Craft a campfire** (vanilla): 3 sticks + 1 coal or charcoal + 3 logs
 of any kind, at a crafting table.
 
 **3. Craft the Hearth**, at a crafting table: **3 logs (any kind) + 5
@@ -52,7 +52,7 @@ settlement on its own — a chime, a burst of happy-villager particles, and
 was "Ashdale" in testing). Keep some food in the Hearth's own storage
 (right-click it) — hungry settlers eat from there.
 
-**5. Mine iron and copper**, smelt them, and **craft a Plaque**: 6 iron
+**5. Mine iron and copper**, smelt them, and **craft a Plaque**: 5 iron
 ingots + 1 copper ingot + 3 oak planks.
 
 **6. Craft a Build Plan for a Lumber Camp**: 1 paper + 1 feather + 1 log
