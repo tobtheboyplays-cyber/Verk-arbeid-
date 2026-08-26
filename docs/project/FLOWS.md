@@ -35,18 +35,18 @@ regrowth (the lumberjack replants), vein depth — never another building.
 | building | rough path (alone) | fed path (multiplier) | feeds |
 |---|---|---|---|
 | mill | — (pure upstream: wheat→flour) | — | bakery, brewery |
-| bakery | wheat→bread (slow) | flour→bread ×2 | hearth, dining hall |
+| bakery | wheat→bread (slow) | flour→bread ×1.6 | hearth, dining hall |
 | kitchen | meat/fish→cooked (slow) | + greens→stew ×2 (variety!) | dining hall |
 | butcher | livestock→raw meat + hides | pasture keeps it stocked | kitchen, tannery |
-| brewery | wheat→small ale (slow) | malt→ale ×2 | nobody yet — see note below |
-| smelter | ore→ingot (slow) | + bloom path with smithy ×2 | smithy, mason |
+| brewery | wheat→small ale (slow) | malt→ale ×1.67 | nobody yet — see note below |
+| smelter | ore→ingot (slow) | + bloom path with smithy ×1.67 | smithy, mason |
 | smithy | cobble→stone tools (slow) | ingots→iron tools/arms | EVERY worker (tool wear), armoury |
 | sawmill | logs→planks | steady lumber-camp supply | carpenter, builds |
-| carpenter | logs→rough goods (slow) | planks/beams→furniture, barrels ×2 | tavern (build plan), warehouse upkeep (not yet wired) |
+| carpenter | logs→rough goods (slow) | planks/beams→furniture, barrels ×1.82 | tavern (build plan), warehouse upkeep (not yet wired) |
 | mason | stone→bricks/cut stone | — | repairs (raids!), hearth tiers |
-| tannery | hides→leather (slow) | cured-hide path with butcher ×2 | armoury, fletcher |
+| tannery | hides→leather (slow) | cured-hide path with butcher ×1.64 | armoury, fletcher |
 | weaver | wool→cloth | steady pasture supply | market (build plan), outfits (not yet wired) |
-| fletcher | flint+stick→crude arrows | feathers+iron heads→true arrows ×2 | barracks/watchtower |
+| fletcher | flint→crude arrows | feathers→fletched arrows ×1.75 | barracks/watchtower |
 
 **Ring 3 — HUBS.** Consume goods, output *effects* on people, never items:
 dining_hall (meals eaten together → morale beyond food value),
@@ -146,6 +146,48 @@ still has nowhere further to go once its one plaque is drafted. That is
 honest progress, not a solved chain: "leads somewhere real" and "has a
 repeating economic destination" are different claims, and only the first one
 is true here.
+
+## Finding 3 and finding 7, closed (2026-08-26, ECON-1)
+
+BALANCE_AUDIT.md finding 3 caught this document overclaiming: the ×1.5-×2
+band above was true of bread/leather/ale/barrel only when measured
+per-batch-at-the-consuming-building, not when measured end to end from raw
+material the way the doc's own iron row is measured (and the way barrel and
+ale, which route through a second building or a second step, actually have
+to be measured to mean anything). Retuned rather than re-labelled — the four
+pairs' upstream tick costs (MILL's flour/paper, BUTCHER's hide, BREWERY's
+malt) came down, none of their EXCHANGE RATES changed, and the ratios in the
+table above are the real, freshly-computed numbers, each inside the band:
+bread ×1.6 (was ×1.07), leather ×1.64 (was ×1.06), ale ×1.67 (was ×1.36),
+barrel ×1.82 (was ×1.29). The smelter/smithy iron row was already correct
+(×1.67) and is untouched; its "×2" label above was rounded generously and is
+now written as the real number too.
+
+Finding 7 was worse than a mislabel: CARPENTER's barrel_beam gave exactly the
+same 1 barrel/batch as the rough recipe, so under the real binding
+constraint (effort, flat per batch, not ticks — BALANCE_AUDIT.md Q4) a
+sawyer-fed carpenter made no more barrels per day than one working alone, for
+the cost of a second worker's whole effort budget. Fixed by doubling
+barrel_beam's output for the same input (2 beam → 2 barrel, was → 1) — the
+same "yield carries the multiplier" lever bread/leather already used.
+Arithmetic and acyclicity argument: `Production.java`'s CARPENTER comment.
+Regression coverage: `ChainsGameTests#fedPathsClearTheFlowsBandMeasuredEndToEndFromRawMaterial`
+pins all four ratios inside the band by construction, the same way
+`FuelGameTests#bloomFedPathBeatsRoughSmeltingWithinTheFlowsBand` already
+pins iron's.
+
+## Job 1: the fletcher's missing input, closed (2026-08-26, ECON-1)
+
+Three new gathering trades landed producing real feathers from hunted birds
+and wild game (`HunterWorkGoal`), and nothing consumed one until now. The
+fletcher row above already named the intent ("feathers+iron heads→true
+arrows"), but `Production.Recipe` takes exactly one ingredient, so a recipe
+needing both feather AND an iron head at once cannot exist. Implemented as
+the fed-pair shape instead: `arrows_feather` (feather, listed first) beside
+the untouched `arrows` (flint) rough path — D-007's alone-path holds for a
+settlement with no hunter. Arithmetic and acyclicity argument:
+`Production.java`'s FLETCHER comment; ratio pinned by
+`ChainsGameTests#fletcherWithFeathersOutproducesFlintAlone`.
 
 ## Sequencing honesty
 

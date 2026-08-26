@@ -1746,3 +1746,42 @@ ever driven it in. A harness that has only ever been exercised in creative
 encodes creative's assumptions invisibly — and the owner's instruction to
 play *"uten creative"* is precisely what made it visible. Three prior fixes
 and none of them found it, because none of them was allowed to fall.
+
+### KF-031 — the ransom raid that never took anybody
+
+**2026-08-26, found by a raid-night audit, not by a test.**
+
+`RaidObjective.LOSEPENGER` ("Ransom") is a selectable raid objective. It is
+gated on population ≥ 4, it has its own lang string, and a captain who
+succeeds at one earns an epithet from it — *the Ransomer*, *Chain-Bringer*.
+
+**There is no goal that implements it.** `grep -rin "kidnap\|hostage\|captive"`
+across the whole `com.hearthstead` tree returns nothing behavioural. Every
+raider's `objectivePos` is set to `settlement.center` regardless of objective
+(`RaidDirector.java:253`), so a Ransom raid is mechanically identical to a
+Blood raid: the band converges on one point and fights whatever it sees.
+
+This is worse than a missing feature, and it is the reason it gets its own
+entry rather than a line in a backlog. A missing feature is an absence the
+player can see. **This is the game reporting an event that did not happen** —
+the morning report, the captain's earned title and the objective name all
+testify to a hostage-taking, and no settler was ever taken. Everywhere else
+in this project that pattern is treated as the unforgivable one: it is the
+same shape as a manifest under-reporting failures (KF-024), a document
+claiming research was uncharged while it charged (COSTS.md), and a catalogue
+listing forty animations that do not exist. A system that misreports itself
+cannot be reasoned about, and every conclusion drawn downstream of it is
+suspect.
+
+**Disarmed first, built second.** LOSEPENGER is removed from
+`isAvailableAt` immediately, with a comment at the removal site naming what
+would bring it back — stopping a lie takes minutes and building the truth
+takes a slice, and the two must not be in flight at once. The real mechanic
+(seize, carry, hold, and eventually a camp and a rescue) is a phase-A3 slice
+of its own.
+
+**The audit that found it also swept for siblings:** any other captain title
+or broadcast line that claims a behaviour with nothing behind it is disarmed
+the same way. That sweep is the durable part of this entry — one lie found by
+reading is worth less than the habit of checking whether every line the game
+says about itself is earned.
