@@ -83,21 +83,29 @@ tonight (it now wants a plain cauldron instead).
 
 ---
 
-## 5. Raiders may not visibly "charge" even when they are
+## 5. Two screens can't be closed with the mouse at GUI Scale 3+
 
-**What you'll see:** a raider closing in on a target might play its
-stalking/idle animation right up to the hit, instead of a sprint.
+**What you'll see:** the **Research** screen and the **Handbook** are
+taller than the screen area at GUI Scale 3 or 4 on a modest window. The
+panel is centred, so it's clipped at both edges at once: the title goes
+off the top and the footer buttons — Close included — go off the bottom,
+with nothing on screen saying they exist.
 
-**Cosmetic or functional:** cosmetic, and unconfirmed live — found by
-code review, not by watching a raid. The animation code reads the
-raider's current combat target through a call that, in vanilla Minecraft,
-is normally not sent to the client — so the sprint animation's trigger
-condition may never see a target on your screen even while the raider is
-genuinely attacking. Combat itself (damage, AI, the actual fight) is
-unaffected either way.
+**Cosmetic or functional:** functional, but fully recoverable — see the
+workaround. Measured, not estimated: at GUI Scale 3 the viewport is 240px
+tall, and the Research panel needs 338 (98px too tall) while the Handbook
+needs 264 (24px too tall). At GUI Scale 4 it's 158px and 84px
+respectively. The Settler sheet had the same defect and it **is fixed** —
+it anchors to the top and takes the mouse wheel now. Research and the
+Handbook were not given the same fix because both already use the wheel
+to scroll their own inner lists, so it's a real design decision about
+which scroll wins when, and that wasn't something to decide blind at the
+last minute.
 
-**Workaround:** none needed for gameplay. If raiders look like they're
-standing still while hitting you, this is why — not desync, not lag.
+**Workaround:** **Escape closes both screens normally.** Or set GUI Scale
+to 2 (Options → Video Settings), where every screen in the mod fits with
+room to spare. The Plaque and Storage screens are fine at Scale 3; only
+Storage is safe at every scale.
 
 ---
 
@@ -137,6 +145,13 @@ earlier build, or a doc that hasn't caught up, doesn't confuse you:
 - A "Ransom" raid objective existed in the UI and could earn a captain a
   title, but no code ever actually took a settler hostage — the game was
   reporting an event that never happened. Removed rather than left lying.
+- Raiders never sprinted. A charging raider played its creeping stalk
+  animation the whole way in, through the kill — filmed, then traced: the
+  animation asked the raider for its combat target, and that is server-only
+  information the client never receives, so the sprint could never trigger
+  for anyone. Fixed — the server now tells the client whether a raider is
+  charging, and skirmishers sprint. (This was listed here as an unconfirmed
+  cosmetic maybe; it was real, and it is gone.)
 
 ---
 
