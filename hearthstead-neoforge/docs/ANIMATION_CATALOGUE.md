@@ -3038,3 +3038,158 @@ film when the state expired). §2.4 structure, two beats a viewer can count:
 - **Carry:** grammar SNATCH — whatever was picked up should render briefly
   in the right hand between the grab (0.55 s) and the tuck (1.10 s), then
   vanish into the bag, the same handoff discipline as `FARM_HARVEST`.
+
+## 22. Trade idles
+
+Owner request, 2026-08-25: *"vil også ha idle animations som matcher
+jobben"* — idle animations that match the job. Standing order from the same
+owner: *"bare premium er standaren"* (premium is the only standard). Before
+this section every settler who was not actively working played the same
+generic `IDLE` — a blacksmith idled exactly like a scholar. These fourteen
+clips fix that: every employed profession now reads as its trade at a
+glance, from across a plaza, with no nameplate. `NONE` keeps the generic
+`IDLE` above; the other 21 employed professions map onto the fourteen clips
+below.
+
+Each clip **fully replaces** `IDLE` rather than layering on it —
+`SettlerEntity.setupAnimationStates()` gates `idleState` to `profession ==
+NONE` and gates exactly one trade-idle state on `activity == IDLE &&
+profession == <trade>`, mutually exclusive with every other state in the
+group, so `SettlerModel` never needs to sum two full-body idle loops on the
+same bones (the additive hazard `IDLE`'s own header documents). Every clip
+therefore authors its own breath (torso `SCALE`, 1.01–1.03 on `y`) and its
+own weight shift rather than borrowing `IDLE`'s.
+
+As with §18/§20, this is one clip per genuinely shared **motion**, not one
+per job title where the job titles happen to be adjacent:
+
+| clip | trades | why they share it |
+|---|---|---|
+| `IDLE_SENTRY` | guard, archer | a lowered weapon and a hand at the belt reads the same whether the tool is a blade or a bow |
+| `IDLE_FORGE` | smith, smelter | hands worked raw by forge heat, regardless of whether the tool was a hammer or the bellows |
+| `IDLE_BAKER` | baker, miller | the miller grinds the same flour the baker knocks off their hands |
+| `IDLE_COOK` | cook, brewer | tasting the batch mid-shift — a spoon at the pot, a ladle at the vat, the same beat |
+| `IDLE_SIGHT_EDGE` | mason, carpenter, sawyer | sighting down a straight edge with one eye shut does not care whether the edge is stone or a plank |
+| `IDLE_BLADE_BENCH` | butcher, tanner | both work a bench with a blade and empty hands otherwise; the read is testing the edge, not the cut |
+
+The other eight professions (farmer, lumberer, courier, fletcher, miner,
+scholar, innkeeper, weaver) get a clip of their own — nothing else in the
+roster shares their gesture without forcing it.
+
+**Variation over time.** `SettlerModel` offsets each clip's sampled
+`ageInTicks` by a distinct `id % N` — the same scheme `IDLE` and the §18
+craft loops already use, valid here because every one of these fourteen is
+a **looping** clip (a one-shot offset this way can skip past its own length
+on the first evaluated frame — see §17.4 and the file-level note in
+`SettlerAnimations.java`). Because each loop runs several breath cycles
+before its one signature gesture comes back around, a single settler reads
+as breathing and shifting weight far more often than performing the trade
+tic, and two settlers of the same trade land at different points in the
+loop.
+
+### 22.1 `IDLE_FARMER` — leaning on the hoe *(5.50 s, loop)*
+
+Both hands stay on the hoe shaft in the same two-handed grip `FARM_TILL`
+rests in (right arm −64°, left arm −44° on `x`) — leaning into the tool
+reads as the same one the settler works with, not a different prop.
+Partway through the loop the torso straightens from an 18–20° lean to 7°
+and the head snaps from a soft +10° down-look to a −22° up-squint (LINEAR
+at 2.75 s, held to 3.55 s) — checking the sky — while root rises +0.35
+before settling back to −0.3, leaning into the shaft again.
+
+### 22.2 `IDLE_LUMBERER` — thumbing the edge *(5.00 s, loop)*
+
+The axe stays shouldered the whole loop, elbow locked at (−150°, −20°,
+30°) — a held pose, not a swing. The left hand climbs from the side up to
+the blade (−99° on `x`) across 2.20–2.60 s, holds there testing the edge
+with a thumb to 3.10 s, then eases back down over 1.2 s while the head
+tilts to watch it.
+
+### 22.3 `IDLE_SENTRY` — at ease *(5.50 s, loop)*
+
+Complements `GUARD_STANCE`, does not duplicate it: the weapon rests at
+−22° on the arm's `x`, well short of `GUARD_STANCE`'s readied −28° to −35°
+Pflug, and the off hand drifts out from the hip to the belt (`y` 10° → 22°,
+held 3.20–3.80 s) rather than staying locked across the body. One slow
+deliberate head scan to −16° at 3.00 s runs opposite phase to
+`GUARD_PATROL`'s +17° scan, so a guard passing between post and patrol
+never repeats the same beat.
+
+### 22.4 `IDLE_COURIER` — the tally *(4.50 s, loop)*
+
+Empty-handed and relaxed until the right hand rises to the shoulder strap
+(`x` −58° → −82°, 1.85–2.15 s reach), then thumbs two quick tally flicks
+against the fingers (−79° ↔ −83°, LINEAR pairs, 2.35–2.85 s) before
+dropping back to the side over 1.65 s. The head dips to watch the count.
+
+### 22.5 `IDLE_FORGE` — hands worked raw *(5.00 s, loop)*
+
+Both hands flex outward, then wipe slowly down the apron front — the
+right leads (arm sweeps to −52° on `x`, 2.20–3.20 s) and the left follows
+a quarter-beat behind (to −49°, 2.75–3.60 s) so the two wipes never
+mirror. The torso leans in to 17° at the stroke and root drops −0.5,
+carrying the weight of it.
+
+### 22.6 `IDLE_BAKER` — flour off the palms *(4.50 s, loop)*
+
+Two sharp claps (arms snapping to −52°/−49° on `x`, LINEAR, 1.95–2.20 s,
+torso punching +2° on each beat) knock the dust off, then a single slower
+brushing pass down the apron at 3.40 s settles the last of it.
+
+### 22.7 `IDLE_COOK` — the taste-test *(4.50 s, loop)*
+
+The tasting hand climbs from the waist to the mouth across 1.80–2.35 s
+(arm to −108° on `x`, torso leaning in to 11°), holds the taste to 2.85 s,
+then gives one small judging nod (head 20° → 14° → 17°) before easing back
+over 1.3 s.
+
+### 22.8 `IDLE_SIGHT_EDGE` — checking true *(5.00 s, loop)*
+
+The arm extends flat out to the side (−58°, −58°, −26° at 2.20 s) as the
+sighting reference while the head cants hard to 32° on `y` to sight along
+it, one eye effectively shut by the tilt. Held 2.20–3.30 s, then both fold
+back over 1.4 s — one physical check, regardless of the material on the
+bench.
+
+### 22.9 `IDLE_FLETCHER` — the twirl *(4.00 s, loop)*
+
+Hands stay close at the chest around an arrow shaft; the right gives two
+opposite-direction twirls in one beat (`z` swings 24° → −14° → 6° across
+1.85–2.20 s, LINEAR on both snaps) while the torso and head barely move.
+The smallest, fastest gesture in the set, on purpose — fine work reads
+through a flick, not a sweep.
+
+### 22.10 `IDLE_MINER` — the sore back *(5.00 s, loop)*
+
+The pick stays planted, the right hand steady on the haft. The left climbs
+to the small of the back (2.00–2.60 s, arm to −42° on `x`) as the torso
+arches from +10° to −6° and the head tips back to −12°, held to 3.30 s,
+then the whole stretch releases over 1.1 s.
+
+### 22.11 `IDLE_SCHOLAR` — thumbing a page *(4.50 s, loop)*
+
+The book stays cradled in the near-static right hand (−64° to −66° on
+`x`) the whole loop. The left thumbs a page in one quick flick (2.15–2.30
+s, arm to −70° then back to −58°) and the head dips into a small
+confirming nod (18° → 24° → 17°), as if the line just read settled
+something.
+
+### 22.12 `IDLE_INNKEEPER` — polish and check *(4.50 s, loop)*
+
+The left hand polishes a held mug in a slow circular pass with the apron
+hem — a genuine loop within the loop, cycling `y` between 14° and 20°
+across 0.60–2.90 s — while the right lifts the mug itself to check the
+shine at 2.40 s (arm to −46° on `x`) before both settle back.
+
+### 22.13 `IDLE_WEAVER` — testing the twist *(4.00 s, loop)*
+
+Rolls a length of thread between finger and thumb: two small opposite
+rolls (right arm `z` swings 16° → −4° → 10° across 1.55–2.00 s), then
+lifts it to sight the twist against the light (head tips to 9–10° on `x`,
+held 2.05–2.55 s) before returning to the roll.
+
+### 22.14 `IDLE_BLADE_BENCH` — testing the edge *(5.00 s, loop)*
+
+The knife wipes down the apron in one long stroke (2.20–2.45 s, arm to
+−74° on `x`), then taps the flat twice against the bench to test it's
+true (−58° / −62°, 2.60–2.75 s), torso and root dropping into each tap.

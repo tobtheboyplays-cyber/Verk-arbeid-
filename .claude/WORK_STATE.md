@@ -71,6 +71,30 @@ advancements + 466 nøkler i paritet · yrkesnavn alltid på skiltet ·
 Production.ready() behovsstyrt med WORKING_RESERVE · polermester: CHOP og
 PICKUP_STOW ombygget, lavgarde-sverdholdning, nye ansikter/hår, fire antrekk.
 
+
+## Balansefunn og rekkefølgebeslutning (05:30Z)
+BALANCE-1 leverte docs/project/BALANCE_AUDIT.md — 367 linjer regnestykker,
+ni funn, to rangert BROKEN.
+
+1. **Vaktenes rustning har ingen produsent.** GuardRank tar sju rustnings-
+   deler ut av ekte kister, men `Production.of(ARMOURY)` er TOM — bekreftet:
+   ARMOURY finnes ikke i Production.java i det hele tatt. Landsbyen kan ikke
+   bevæpne seg selv; bare spilleren kan legge rustning i en kiste for hånd.
+   ARMOURY-2 fikser dette nå.
+2. **Dagsverket binder, ikke tikkene — så fire av seks forskningsprosjekter
+   gjør ingenting.** Håndverk koster 2 dagsverk per batch mot en kapasitet
+   på 20 + STAMINA/5, altså 10-20 batcher per dag. Selv den treigeste
+   oppskriften (300 tikk) tillater 30 batcher per dag på tid alene. De fire
+   prosjektene som kutter tikk med 15% flytter et tak ingen når fra før.
+
+**Beslutning: funn 2 lander IKKE nå.** Å endre dagsverk eller tikkost mens
+FLAKE-2 stabiliserer dommeren ville flytte timingen i titalls tester
+samtidig som vi prøver å finne ut hvilke som er ustabile. Rekkefølgen er:
+suiten grønn og reproduserbar først, DERETTER balanseendringer, slik at
+enhver bevegelse i tallene etterpå har én forklaring og ikke to.
+Funn 1 lander nå fordi det legger til en manglende produsent uten å røre
+noen eksisterende rate.
+
 ## Neste, i rekkefølge
 1. COURIER-FIX lander → `tools/hearthstead-qa gametest` → forventet 0 av 196.
 2. IDLE-1 lander → kompilering + gametest i samme kjøring der det går.
