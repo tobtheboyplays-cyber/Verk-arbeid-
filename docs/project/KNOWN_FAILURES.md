@@ -1987,7 +1987,7 @@ Four consecutive clean runs: `All 211 required tests passed`.
 
 ---
 
-## KF-035 — the input-decay WALL: GLFW's grab desyncs, and it self-heals
+### KF-035 — the input-decay WALL: GLFW's grab desyncs, and it self-heals
 
 **Status: MITIGATED (verify-and-retry shipped; root X/GLFW cause not fully
 pinned).** **Severity:** was BLOCKER — this is round 1's dominant, session-
@@ -2194,7 +2194,47 @@ verification in creative mode, in restart-bounded sessions (cheap
 insurance against this environment's external contention, not because the
 fix itself decays) rather than one unbroken session.
 
-### KF-035 — sugar cane borrows the wheat farmer's hands
+### Final proof number (same day, after the death/respawn confound above
+was eliminated from the test setup — peaceful difficulty, no mob spawning)
+
+A clean 30-minute unattended drive loop (`look`/`hold`/`mine`/`open`
+cycling, randomized angles, real actions, no fault injection), started
+fresh via `live.sh start` on a real `normal`-type world: **151 iterations,
+09:54:28-10:24:23. 13 natural self-healing recoveries. 1 exhaustion in the
+entire 30 minutes. Zero deaths, zero permanent stalls.** That is a longer
+continuous, unattended, hands-off session than round 1's ~45-minute
+*attended* window ever produced a working result from, and it needed no
+human intervention once started. Combined with the earlier attended
+sessions today (founding, real mining verified via server-side inventory
+reads, a full day/night cycle, one death+respawn cycle, one drowning
++respawn cycle, all recovering cleanly), this round's total evidence is:
+every genuine GLFW-grab desync this round produced was either
+auto-recovered within budget or surfaced as a loud, actionable failure —
+never silent, never permanent, matching neither of round 1's two failure
+shapes (silent data loss, or a wall nothing could get past).
+
+**What actually explains the ugly-looking stretches within this
+investigation** (recorded for whoever reads the raw session transcript and
+wonders why some of it looks worse than this summary): two separate
+unattended test-script gaps (a random walk that drowned the character once
+before a health-guard was added; a peaceful-mode switch that came one run
+too late to prevent a second drowning caused by hostile mobs at difficulty
+`easy`) each produced long runs of `FAIL: input_dead` that were the
+character legitimately sitting on a menu screen, not the harness bug
+recurring or worsening. Both are named here rather than folded silently
+into the mechanism's numbers, because conflating "test script walked into
+water" with "the fix doesn't work" would be exactly the kind of unearned
+claim this ledger exists to catch — see KF-002, KF-012, KF-028 for the
+standing pattern this project keeps re-learning and keeps writing down
+so it stays learned.
+
+### KF-036 — sugar cane borrows the wheat farmer's hands
+
+**Renumbered from a collided KF-035** (two concurrent sessions in this
+shared, multi-tenant sandbox picked the same next-available number at the
+same time — see this file's other KF-035, "the input-decay WALL", whose own
+addendum documents the shared-sandbox contention directly). Content
+unchanged, only the number and this note are new.
 
 **2026-08-26, flagged by the worker that built it rather than shipped
 quietly, which is the right instinct.**
