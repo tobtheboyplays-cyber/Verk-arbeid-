@@ -1587,3 +1587,29 @@ on the patched tip, not on tonight's midpoint.
 The night's verification haul at db7fd1e, for the record: gametest 202/202
 twice, behavior 0 findings twice, dedicated/performance/client green twice,
 performance at avg MSPT 0.6-1.8 against a 45.0 budget.
+
+### The helper hangs the plaque; it does not furnish the room
+
+**2026-08-26 09:05Z.** The first suite run after the wall-removal wave came
+back **1 red of 207**, and the red was the new test proving the mill's paper
+recipe:
+
+```
+millgrindssugarcaneintopaperchesttrue failed!
+  the registered mill's chest should be a container
+```
+
+`GameTestFixtures.register(...)` — tonight's fix for KF-021 — places the
+plaque, records the bounds and registers the building. It deliberately does
+NOT place a chest. The new test called it and then looked for a container
+that nothing had put there, so `Production.run` had nowhere to take sugar
+cane from.
+
+Worth a line because it is the shape of mistake a good helper invites: the
+helper made the *dangerous* part (the plaque) impossible to forget, and by
+doing so made it easy to assume it handled the rest of the room too. The
+fix is one `setBlock` in the fixture plus a comment at the call site saying
+what the helper does and does not do — not a change to the helper, which is
+correctly narrow. A fixture that furnishes rooms automatically would start
+guessing at what each building needs, and guessing is how the twenty
+hand-rolled copies happened in the first place.

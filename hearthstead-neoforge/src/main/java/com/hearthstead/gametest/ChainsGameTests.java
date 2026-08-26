@@ -183,6 +183,12 @@ public class ChainsGameTests {
         data.settlements.put(s.id, s);
         data.setDirty();
         Building mill = GameTestFixtures.register(helper, s, BuildingType.MILL, 4, 4);
+        // GameTestFixtures.register hangs the plaque and records the bounds;
+        // it deliberately does NOT furnish the room, so the chest this
+        // recipe reads from and writes into is the fixture's own job. Its
+        // absence is what failed this test on its first run: Production.run
+        // had nowhere to take sugar cane from.
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
         Container chest = containerAt(helper, new BlockPos(5, 1, 4));
         helper.assertTrue(chest != null, "the registered mill's chest should be a container");
         chest.setItem(0, new ItemStack(Items.SUGAR_CANE, 10));
