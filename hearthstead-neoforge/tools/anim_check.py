@@ -1,60 +1,96 @@
 #!/usr/bin/env python3
-"""Static QA for SettlerAnimations.java: parses every keyframe channel and
-checks it against docs/ANIMATION_CATALOGUE.md's §17 assertion list --
-structural sanity (bone whitelist, tick grid, loop closure, amplitude caps,
-duplicate channels), the sound-sync contract (accent-frame keyframe exists,
-matches the goal's tick-modulo math, the sound exists in sounds.json), and
-craft rules (work clips have legs, carry clips lock their arms, one-shots
-return to neutral, catalogue coverage).
+"""Static QA for the animation library files (SettlerAnimations.java,
+RaiderAnimations.java, ...): parses every keyframe channel and checks it
+against docs/ANIMATION_CATALOGUE.md's §17 assertion list -- structural
+sanity (bone whitelist, tick grid, loop closure, amplitude caps, duplicate
+channels), the sound-sync contract (accent-frame keyframe exists, matches
+the goal's tick-modulo math, the sound exists in sounds.json), and craft
+rules (work clips have legs, carry clips lock their arms, one-shots return
+to neutral, catalogue coverage).
 
 No client boot required -- pure source parsing, so this stays in the fast
-gate (tools/hearthstead-qa animation)."""
+gate (tools/hearthstead-qa animation).
+
+Adding a THIRD animation file (or a fourth, ...): append one entry to
+ANIMATION_SOURCES below with that file's own bone whitelist and per-file
+exemption sets. Every structural/craft check in this module (§17.1-17.2,
+17.4 minus the settler-only sound/damping tables) runs once per registered
+source and is scoped entirely by that entry's own config -- nothing in
+main() is hardcoded to a specific file or class any more. The sound-sync
+tables (SOUND_CONTRACTS, ENTITY_SOUND_CONTRACTS) key off clip NAME, not
+file, and already check every clip from every source against one merged
+`defs` map, so a new file's clips need only a new table row, not a new
+table."""
 import json
 import os
 import re
 import sys
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
-SRC = os.path.join(ROOT, "src/main/java/com/hearthstead/client/model/SettlerAnimations.java")
+MODEL_DIR = os.path.join(ROOT, "src/main/java/com/hearthstead/client/model")
 AI_DIR = os.path.join(ROOT, "src/main/java/com/hearthstead/entity/ai")
 SOUNDS_JSON = os.path.join(ROOT, "src/main/resources/assets/hearthstead/sounds.json")
 CATALOGUE = os.path.join(os.path.dirname(__file__), "..",
                          "docs", "ANIMATION_CATALOGUE.md")
 
-BONE_WHITELIST = {"root", "torso", "head", "right_arm", "left_arm",
-                  "right_leg", "left_leg", "cloak"}
+SETTLER_BONES = {"root", "torso", "head", "right_arm", "left_arm",
+                 "right_leg", "left_leg", "cloak"}
+# The raider rig has no cloak bone (RaiderModel.createBodyLayer()); hood,
+# helm and pauldron are visibility-toggled parts, never animation targets,
+# the same rule the settler's hood/hat_brim already follow -- see
+# RaiderAnimations.java's own header.
+RAIDER_BONES = {"root", "torso", "head", "right_arm", "left_arm",
+                "right_leg", "left_leg"}
 
-# Clips exempt from "every clip touches >= 3 bones" (check 17): they are
-# genuinely 1-2 bone additive layers by design.
-BONE_COUNT_EXEMPT = {"GUARD_PATROL"}  # arms + head only, by design (§4.2)
-
-# Clips exempt from "cloak motion on loops >= 1s" (check 18): the load pins
-# the cloak still, per §0.5.
-CLOAK_PIN_ALLOWLIST = {"SLEEP_IN_BED", "SHIELD_BLOCK"}
-
-# Clips exempt from "work clips have legs" (check 20): layers, or clips the
-# catalogue explicitly scopes to arms/torso/head/cloak only (EAT: "Kept as
-# -is... add only cloak, root" -- no leg instruction was ever given).
-# COURIER_CARRY is the same shape as GUARD_PATROL: catalogue §5.2 says its
-# legs are "inherited from WALK_LADEN; do not author" -- it is an arm+torso
-# +head+cloak+root overlay by design, not a placeholder missing its legs.
-LEGS_EXEMPT = {"IDLE", "GUARD_PATROL", "EAT", "COURIER_CARRY"}
-
-# One-shots allowed to end away from their start pose (§17.4 check 21).
-# COURIER_LIFT arrives at the carry handoff pose (catalogue §5, ~line 862)
-# and COURIER_SET_DOWN departs from it -- by design, per §5.1/§5.3.
-ENDS_IN_POSE_ALLOWLIST = {"COURIER_LIFT", "COURIER_SET_DOWN"}
-
-# Clips declared as carry/arm layers (§16.2) -- must lock arm rotation to
-# <= 6 degrees of travel (§17.4 check 22). HAUL_LOG is a real §0.5
-# SHOULDER-grammar carry clip: its arms must read as "locked", not swinging
-# with the walk cycle underneath (RELEASE_GATE HIGH-1 -- SettlerModel must
-# resetPose() the arms it owns before applying HAUL_LOG, or this check's
-# amplitude reading is meaningless even when the clip data itself is fine).
-# COURIER_CARRY is the catalogue's CRATE-grammar carry clip (§0.5): its own
-# text says "Total travel: 3 degrees. The arms are a clamp." -- tighter than
-# the checker's 6-degree limit, so this only ever confirms the clamp holds.
-CARRY_LAYER_CLIPS = {"HAUL_LOG", "COURIER_CARRY"}
+# One registered animation source per model file. Every key below is a
+# per-file version of the settler-era globals that used to be hardcoded to
+# one path -- see each field's original comment (still accurate, just now
+# scoped per entry instead of implicitly "the one file").
+ANIMATION_SOURCES = [
+    {
+        "label": "settler",
+        "path": os.path.join(MODEL_DIR, "SettlerAnimations.java"),
+        "bones": SETTLER_BONES,
+        "has_cloak": True,
+        # Clips exempt from "every clip touches >= 3 bones": genuinely 1-2
+        # bone additive layers by design.
+        "bone_count_exempt": {"GUARD_PATROL"},  # arms + head only (§4.2)
+        # Clips exempt from "cloak motion on loops >= 1s": the load pins the
+        # cloak still, per §0.5.
+        "cloak_pin_allowlist": {"SLEEP_IN_BED", "SHIELD_BLOCK"},
+        # Clips exempt from "work clips have legs": layers, or clips the
+        # catalogue explicitly scopes to arms/torso/head/cloak only (EAT:
+        # "Kept as-is... add only cloak, root" -- no leg instruction was ever
+        # given). COURIER_CARRY is the same shape as GUARD_PATROL: catalogue
+        # §5.2 says its legs are "inherited from WALK_LADEN; do not author"
+        # -- an arm+torso+head+cloak+root overlay by design.
+        "legs_exempt": {"IDLE", "GUARD_PATROL", "EAT", "COURIER_CARRY"},
+        # One-shots allowed to end away from their start pose. COURIER_LIFT
+        # arrives at the carry handoff pose (catalogue §5, ~line 862) and
+        # COURIER_SET_DOWN departs from it -- by design, per §5.1/§5.3.
+        "ends_in_pose_allowlist": {"COURIER_LIFT", "COURIER_SET_DOWN"},
+        # Clips declared as carry/arm layers (§16.2) -- must lock arm
+        # rotation to <= 6 degrees of travel. HAUL_LOG is a real §0.5
+        # SHOULDER-grammar carry clip: its arms must read as "locked", not
+        # swinging with the walk cycle underneath (RELEASE_GATE HIGH-1).
+        # COURIER_CARRY is the CRATE-grammar carry clip: its own text says
+        # "Total travel: 3 degrees. The arms are a clamp." -- tighter than
+        # the checker's 6-degree limit, so this only confirms the clamp
+        # holds.
+        "carry_layer_clips": {"HAUL_LOG", "COURIER_CARRY"},
+    },
+    {
+        "label": "raider",
+        "path": os.path.join(MODEL_DIR, "RaiderAnimations.java"),
+        "bones": RAIDER_BONES,
+        "has_cloak": False,
+        "bone_count_exempt": set(),
+        "cloak_pin_allowlist": set(),
+        "legs_exempt": set(),
+        "ends_in_pose_allowlist": set(),
+        "carry_layer_clips": set(),
+    },
+]
 
 # Head-tracking damping table (§17.4 check 24), for clips this phase gives a
 # non-default damp value to. Cross-checked against SettlerModel.java's damp
@@ -159,6 +195,21 @@ ENTITY_SOUND_CONTRACTS = [
     # CourierWorkGoal never calls playAt(...) for -- no row here, because
     # there is no tick constant to check and adding one would fabricate a
     # contract the code does not have. See the piece 3 report.
+
+    # Raider (RaiderAnimations.java). Both FREQUENCY-ONLY, same shape as
+    # CLIMB_LADDER/COURIER_LIFT above: each clip is triggered by a
+    # broadcastEntityEvent the instant the real game event happens (a block
+    # actually breaks; a stack actually leaves the chest), not by a fixed
+    # delay from some earlier tick, so there is no accent-second keyframe to
+    # phase-lock against -- see RaiderAnimations.java's own header for why
+    # that is the same shape as the settler's MELEE, not a gap. The tick
+    # constants are still real: RaiderBreachGoal/RaiderLootGoal's own swing
+    # and grab cadence, cross-checked here so they cannot silently drift out
+    # from under the trigger-site comments in those files.
+    ("BREACH_SLAM", [], "CHOP", "entity/ai/RaiderBreachGoal.java",
+     [("SWING_CONTACT", 11), ("SWING_PERIOD", 20)]),
+    ("LOOT_SNATCH", [], "ITEM_PICKUP", "entity/ai/RaiderLootGoal.java",
+     [("GRAB_PERIOD", 20)]),
 ]
 
 
@@ -387,68 +438,75 @@ def check_entity_sound_contracts(defs, sounds_data, errors, warns):
                               f"is wrong -- they must agree)")
 
 
-def main():
-    errors = []
-    warns = []
-    defs = parse_definitions(SRC)
-    assert defs, "no definitions parsed"
-
-    # ---- 17.1 keep + 17.2 structural -----------------------------------
+def check_structural(source, defs, errors, warns):
+    """§17.1/17.2/17.4 structural + craft checks for one registered
+    ANIMATION_SOURCES entry, scoped entirely by that entry's own bone
+    whitelist and exemption sets -- see the ANIMATION_SOURCES docstring for
+    why this is the one place a third file needs zero new code, only a new
+    entry in that list."""
+    label = source["label"]
+    bone_whitelist = source["bones"]
     for name, d in defs.items():
         assert d["channels"], f"{name}: no channels parsed"
         seen_bone_targets = set()
         touched_bones = set()
         for bone, target, frames in d["channels"]:
-            label = f"{name}.{bone}.{target}"
-            if bone not in BONE_WHITELIST:
-                errors.append(f"{label}: '{bone}' is not one of the eight whitelisted bones")
+            chan_label = f"{name}.{bone}.{target}"
+            if bone not in bone_whitelist:
+                errors.append(f"{chan_label}: '{bone}' is not one of the "
+                              f"{label} model's whitelisted bones")
             key = (bone, target)
             if key in seen_bone_targets:
-                errors.append(f"{label}: duplicate (bone, target) channel -- the second "
+                errors.append(f"{chan_label}: duplicate (bone, target) channel -- the second "
                               f"silently discards the first")
             seen_bone_targets.add(key)
             touched_bones.add(bone)
             if not frames:
-                errors.append(f"{label}: no keyframes parsed")
+                errors.append(f"{chan_label}: no keyframes parsed")
                 continue
             if d["looping"] and len(frames) < 2:
-                errors.append(f"{label}: looping clip has a single-keyframe channel")
+                errors.append(f"{chan_label}: looping clip has a single-keyframe channel")
             times = [f[0] for f in frames]
             if times != sorted(times):
-                errors.append(f"{label}: timestamps not ascending: {times}")
+                errors.append(f"{chan_label}: timestamps not ascending: {times}")
             if times[-1] > d["length"] + 1e-6:
-                errors.append(f"{label}: last key {times[-1]} exceeds length {d['length']}")
+                errors.append(f"{chan_label}: last key {times[-1]} exceeds length {d['length']}")
             for t in times + [d["length"]]:
                 # Tick grid: every timestamp and the clip length must be a
                 # multiple of 0.05s (within float tolerance).
                 ticks = t / 0.05
                 if abs(ticks - round(ticks)) > 1e-3:
-                    errors.append(f"{label}: {t}s is not on the 0.05s tick grid")
+                    errors.append(f"{chan_label}: {t}s is not on the 0.05s tick grid")
             if d["looping"]:
                 first, last = frames[0][2], frames[-1][2]
                 if any(abs(a - b) > 0.01 for a, b in zip(first, last)):
-                    errors.append(f"{label}: loop does not close: {first} -> {last}")
+                    errors.append(f"{chan_label}: loop does not close: {first} -> {last}")
                 if abs(times[-1] - d["length"]) > 1e-6:
-                    errors.append(f"{label}: looping channel ends at {times[-1]}, "
+                    errors.append(f"{chan_label}: looping channel ends at {times[-1]}, "
                                   f"not at length {d['length']} (holds last pose, "
                                   f"desyncs from the other channels across the loop)")
             for t, kind, vec, interp in frames:
                 if kind == "degreeVec" and any(abs(v) > 180 for v in vec):
-                    errors.append(f"{label}@{t}: rotation beyond 180deg: {vec}")
+                    errors.append(f"{chan_label}@{t}: rotation beyond 180deg: {vec}")
                 if kind == "posVec" and any(abs(v) > 12 for v in vec):
-                    errors.append(f"{label}@{t}: position offset beyond 12px: {vec}")
+                    errors.append(f"{chan_label}@{t}: position offset beyond 12px: {vec}")
                 if kind == "scaleVec" and any(v < 0.5 or v > 1.5 for v in vec):
-                    errors.append(f"{label}@{t}: extreme scale: {vec}")
+                    errors.append(f"{chan_label}@{t}: extreme scale: {vec}")
 
-        if name not in BONE_COUNT_EXEMPT and len(touched_bones) < 3:
+        if name not in source["bone_count_exempt"] and len(touched_bones) < 3:
             errors.append(f"{name}: touches only {len(touched_bones)} bone(s) "
                           f"({sorted(touched_bones)}) -- looks like a placeholder")
 
-        # 17.4-18: cloak motion on loops >= 1.0s. Bone-count-exempt layer
-        # clips (e.g. GUARD_PATROL) deliberately touch only a couple of
-        # bones and are exempt from this too, for the same reason.
-        if d["looping"] and d["length"] >= 1.0 and name not in CLOAK_PIN_ALLOWLIST \
-                and name not in BONE_COUNT_EXEMPT:
+        # 17.4-18: cloak motion on loops >= 1.0s. Only meaningful for a model
+        # that has a cloak bone at all (source["has_cloak"]) -- the raider
+        # rig has none, so this whole check is skipped for that source
+        # rather than warning on every raider loop for a bone that could
+        # never exist. Bone-count-exempt layer clips (e.g. GUARD_PATROL)
+        # deliberately touch only a couple of bones and are exempt too, for
+        # the same reason.
+        if source["has_cloak"] and d["looping"] and d["length"] >= 1.0 \
+                and name not in source["cloak_pin_allowlist"] \
+                and name not in source["bone_count_exempt"]:
             cloak_channels = [c for c in d["channels"] if c[0] == "cloak"]
             has_motion = any(
                 any(abs(a - b) > 0.01 for a, b in zip(c[2][0][2], c[2][-1][2]))
@@ -456,19 +514,20 @@ def main():
                 for c in cloak_channels)
             if not cloak_channels:
                 warns.append(f"{name}: no cloak channel on a >=1s loop (allowlist it in "
-                             f"CLOAK_PIN_ALLOWLIST if the load genuinely pins it)")
+                             f"that source's cloak_pin_allowlist if the load genuinely pins it)")
             elif not has_motion and len(cloak_channels[0][2]) < 3:
                 warns.append(f"{name}: cloak channel present but static -- "
                              f"the cape should have secondary motion")
 
         # 17.4-20: work clips have legs.
-        if name not in LEGS_EXEMPT and "right_leg" not in touched_bones \
+        if name not in source["legs_exempt"] and "right_leg" not in touched_bones \
                 and "left_leg" not in touched_bones:
-            errors.append(f"{name}: no right_leg/left_leg channel -- the settler will "
-                          f"read as floating (add LEGS_EXEMPT if this is deliberate)")
+            errors.append(f"{name}: no right_leg/left_leg channel -- the entity will "
+                          f"read as floating (add it to that source's legs_exempt if "
+                          f"this is deliberate)")
 
         # 17.4-21: one-shots return to neutral.
-        if not d["looping"] and name not in ENDS_IN_POSE_ALLOWLIST:
+        if not d["looping"] and name not in source["ends_in_pose_allowlist"]:
             for bone, target, frames in d["channels"]:
                 if len(frames) < 2:
                     continue
@@ -476,11 +535,11 @@ def main():
                 tol = 3.0 if frames[0][1] == "degreeVec" else (0.5 if frames[0][1] == "posVec" else 0.01)
                 if any(abs(a - b) > tol for a, b in zip(first, last)):
                     errors.append(f"{name}.{bone}.{target}: one-shot does not return to its "
-                                  f"start pose ({first} -> {last}) -- the settler will snap "
+                                  f"start pose ({first} -> {last}) -- the entity will snap "
                                   f"when it expires")
 
         # 17.4-22: carry-layer arms are locked (<=6deg travel).
-        if name in CARRY_LAYER_CLIPS:
+        if name in source["carry_layer_clips"]:
             for bone, target, frames in d["channels"]:
                 if bone not in ("right_arm", "left_arm") or target != "ROTATION":
                     continue
@@ -491,6 +550,27 @@ def main():
                         errors.append(f"{name}.{bone}: carry layer arm travels {span:.1f}deg "
                                       f"on axis {axis} (limit 6deg) -- a 'locked' arm that "
                                       f"visibly swings breaks the whole carry read")
+
+
+def main():
+    errors = []
+    warns = []
+
+    # ---- 17.1 keep + 17.2 structural, once per registered source --------
+    defs = {}
+    total_channels = 0
+    for source in ANIMATION_SOURCES:
+        if not os.path.isfile(source["path"]):
+            errors.append(f"{source['label']}: source file not found: {source['path']}")
+            continue
+        source_defs = parse_definitions(source["path"])
+        assert source_defs, f"{source['label']}: no definitions parsed from {source['path']}"
+        dupes = set(source_defs) & set(defs)
+        if dupes:
+            errors.append(f"clip name(s) declared in more than one animation source: "
+                          f"{sorted(dupes)}")
+        defs.update(source_defs)
+        check_structural(source, source_defs, errors, warns)
 
     # 17.2-12: catalogue coverage.
     catalogued = parse_catalogue_clip_names(CATALOGUE)

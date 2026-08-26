@@ -149,6 +149,40 @@ Plan i rekkefølge:
    ikke gjør noe, døde varer, mat-underskudd).
 5. Ny full x2 + film til eieren.
 
+
+## Patch-runde-backlog (fra SURVIVAL_AUDIT + BALANCE_AUDIT, 07:45Z)
+Koordinatorens beslutninger, tas i patch-runden ETTER gjennomspillingen
+(unntatt der spillingen ikke kan nå området likevel):
+
+**VEGGER:**
+- PASTURE/FISHERY/HUNTERS_LODGE: yrkene finnes ikke (22 trades, ingen
+  gjeter/fisker/jeger). BYGGES — Ring-1-fullføring per PLAN_CIRCULATION
+  (HERDER: ekte dyr i paddock, chest-true ull/egg/slakt; FISHER: fisk fra
+  tilstøtende vann; HUNTER: tilsvarende). Venter på at RAIDER-ANIM slipper
+  anim_check.py + ANIMATION_CATALOGUE.md (kollisjon ellers).
+- INFIRMARY mister Nether-veggen (helbredelse er kjerneloop; brewing_stand →
+  gryte/urtekrav). BREWERY beholder brewing_stand (flavor) MEN ale må få en
+  forbruker (vertshus-servering/moral) — død vare i dag.
+- MARKET: emerald (seed-avhengig) byttes til gull + varer.
+
+**GRINDS:**
+- To ambolter = 62 jern for hånd: vurder én delt/alternativt krav for
+  armoury (smithing table?) etter spilltest-følelsen.
+- LIBRARY 81 papir: en trade får papiroppskrift (mølla, av sukkerrør).
+- Rekrutt-vs-mat-dalen (pop 5-8, dag 1-3): demp rekrutt-tempo eller øk
+  start-spiskammer; spilltesten avgjør hvilken.
+
+**INERTE SYSTEMER (BALANCE_AUDIT):**
+- 4 av 6 forskningsprosjekter kutter tikk ingen når: bytt bonusen fra
+  tikk-kutt til DAGSVERK-kutt (effort er det som binder) — da blir de ekte
+  uten nye systemer.
+- Forsknings-ærendet leveres aldri av kurér (CourierWorkGoal:1597) — inn i
+  MILITARY-OUT/rute-arbeidet.
+- Døde varer: ALE (over), WOOL_BOLT/BANNER (vever→?), BARREL (fed-path gir
+  null ekstra).
+
+**DOKUMENT-RÅTE FUNNET:** COSTS.md sa forskning ukoblet — koden krget. Fikset.
+
 ## Regler som ikke bøyes
 - All testkjøring gjennom `tools/hearthstead-qa` (rot, ikke moddmappa).
 - `playtest` krever at eieren spørres. `full`/`gametest`/`quick` gjør ikke.
