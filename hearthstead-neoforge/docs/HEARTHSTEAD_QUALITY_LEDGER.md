@@ -354,3 +354,53 @@ run has been made against the current source fingerprint at all** — the
 `full ×2 + gate` requirement has not merely regressed, it has not started.
 This is stated here rather than left implicit so no downstream claim treats
 `latest.json`'s PASS as covering the current tree.
+
+---
+
+## Iteration 11 — specification correction: a load is bounded by mass, not only by count
+
+**2026-08-26.** `logistics/Weight.java` was written, documented and committed
+with **zero callers anywhere in the mod** — found by an interconnection audit,
+not by a test, because nothing tests a class nobody calls. For as long as that
+was true the owner's own stated design ("putte ting som er tungt nærme
+warehouse") did not exist in play: a courier's load was bounded by item COUNT
+alone, so eight iron ingots and eight feathers cost exactly the same walk, and
+**no arrangement of buildings could beat any other**.
+
+Wiring it into `CourierWorkGoal`'s two load loops turned two GameTests red.
+Both were the tests encoding the old specification, and both are corrected
+here rather than loosened. Recording the distinction, because "the fixer
+changed the judge" is the exact shape this project forbids:
+
+**`courierSackShowsTheRealLoad`** asserted `peak == capacity` — the sack always
+fills to 8. That is only right for cargo light enough that the count binds
+first; the test hauls OAK_LOG, which is HEAVY, so the true ceiling is 4. The
+assertion is now `peak == Weight.perLoad(OAK_LOG, capacity)`. This is
+**stricter than what it replaced**, not weaker: it still catches under-filling,
+and it now also catches the weight table being wrong or silently bypassed. It
+was deliberately NOT relaxed to `peak <= capacity`, which would have passed a
+courier hauling one log at a time forever.
+
+**`reservationLetsOnlyOneCourierFetchTheSameStock`** seeded 4 RAW_IRON —
+DEAD_WEIGHT, so now two trips. The first courier finished, released the job,
+and the second correctly took the remainder: the ledger working exactly as
+designed, reported as a failure only because the setup quietly assumed one
+trip empties the chest. The pile is now sized to exactly one load and **every
+assertion is untouched**, including the strict "only one courier should ever
+have hauled this stock". The bug was in the fixture's hidden premise, not in
+the claim.
+
+The lesson worth keeping is the first one, though, not the test-repair: a
+feature can be complete, reviewed, documented and committed and still be
+absent from the game, and no suite will say so. Nothing in this repository's
+gate asks "is this code reachable at all". The interconnection audit that
+found it is now `docs/project/SPIDER_WEB_AUDIT.md`.
+
+## Iteration 11b — three buildings stopped advertising jobs nobody can fill
+
+SCHOOL, INFIRMARY and MARKET each declared worker capacity, so their plaques
+offered hiring, while none appears in `Employment.TRADES` — every hire was
+refused with `no_trade`. The refusal was honest; the offer was not. Capacities
+set to 0 until the matching trades exist. The plaque is the surveyor this
+whole design rests on, and a plaque that advertises a post that cannot be
+filled teaches the player its promises are decorative.

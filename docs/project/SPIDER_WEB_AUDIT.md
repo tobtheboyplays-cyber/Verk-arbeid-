@@ -42,11 +42,17 @@ are read by `Production` and `CrafterWorkGoal` (craft speed), FARM_GROWTH
 by `FarmerWorkGoal` (crop growth), GUARD_TRAINING by the guard path. No
 key is decorative.
 
-**Morale has consequences.** Morale gates recruitment attractiveness
-(`>= 60`), scales the growth rate (`>= 80` gains 2 instead of 1), drives
-settlers to quit a post, and takes a settlement-wide hit with three days
-of mourning on a death. Traits feed back into it through
+**Morale has consequences — but fewer than this document first claimed.**
+Morale gates recruitment attractiveness (`>= 60`), scales the growth rate
+(`>= 80` gains 2 instead of 1), and takes a settlement-wide hit with three
+days of mourning on a death. Traits feed back into it through
 `Trait.moraleDecay`/`moraleGain`.
+
+<b>Correction (same day):</b> an earlier version of this line also said morale
+"drives settlers to quit a post". That was unverified and appears to be wrong
+— a grep for quit/resign behaviour finds nothing in actual code. Morale's only
+mechanical outputs are the two recruitment effects above. See the dangling
+thread on hunger below, which is the larger half of the same hole.
 
 **Raids reach the saga.** `Captain` is read by 7 files outside its own
 package — raids produce named enemies who persist and accumulate.
@@ -100,6 +106,26 @@ delivers items, and the two are not connected. Every project's materials
 are a manual errand forever.
 
 ---
+
+### 5. Hunger has no consequence, so the economy has no failure state
+
+Found by the owner-critic reviewing this audit, and it is larger than
+anything above. Nothing in the mod is hurt by hunger: no `hurt()` or `die()`
+call is wired to it, effort/day is governed by STAMINA alone, and there is no
+leaves-the-village outcome anywhere in the code. Hunger's single mechanical
+output is a target morale value; morale's single mechanical output is the
+recruitment gate.
+
+So a player can over-recruit indefinitely, never feed the village properly,
+and experience nothing beyond a sad word on a screen they must open a menu to
+find. Every balance number in this project — fed-path multipliers, effort
+budgets, the weight table added today — tunes an economy **that has no way to
+lose**. Both anchor mods have one: MineColonies' citizens visibly refuse to
+work and can leave; TekTopia's villagers can starve to death.
+
+This needs a design decision (a productivity malus? a real departure outcome?
+a HUD warning when food trends negative?), not a number, and it is recorded
+here rather than fixed.
 
 ## Not a break: not built yet
 

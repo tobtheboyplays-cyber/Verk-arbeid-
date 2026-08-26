@@ -36,18 +36,27 @@ is written and held back deliberately.
 
 ---
 
-## P2 — Two production outputs still have no consumer
+## P2 — CORRECTED: the dead output is ALE, not wool bolt or banner
 
-**Measured.** `WOOL_BOLT` and `WHITE_BANNER`: zero consumer files outside the
-recipe that creates them. (ALE and BARREL were on this list and have since
-been wired — 13 and 3 consumers now. These two were not.)
+**I got this backwards, and the owner-critic caught it.** My original P2 named
+WOOL_BOLT and WHITE_BANNER as having no consumer. Both DO have one:
+`build_plan_market.json` requires wool bolt and `build_plan_watchtower.json`
+requires the banner. I missed them because I grepped `--include=*.java` and
+the consumers are recipe JSON.
 
-**Proposal.** Either give each a sink, or cut it. Cheapest honest sink:
-wool bolt → a bed/decor requirement in HOUSE quality; banner → a Tradition or
-festival marker. If neither lands today, **remove them from the recipe table
-for the demo** rather than let a weaver produce goods that do nothing.
+Worse, I claimed ALE had "13 consumers" and was therefore fine. That number
+was a substring false positive — bare `ALE` matches `DATA_MORALE`,
+`GUARD_ALERT`, `MAX_SCALE`. The real count for `ModItems.ALE` is: two test
+files, and the two recipes that create it. **ALE has no consumer at all.**
 
-**Cost.** Small. Removing is one table edit; the weaver keeps its other output.
+**Proposal: do nothing today, deliberately.** `FLOWS.md` already reasoned this
+out — a tavern-serving mechanic is the honest sink, and inventing a fake
+consumer to close the loop would have the game report something that never
+happened. That is the same law that governed removing the phantom Ransom
+objective. An honest hole beats a decorative fix.
+
+**Lesson recorded:** a grep for a short uppercase token is not evidence, and
+`--include=*.java` is not the codebase.
 
 ---
 

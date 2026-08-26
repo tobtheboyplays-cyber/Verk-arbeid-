@@ -194,7 +194,20 @@ public class LogisticsGameTests {
         helper.setBlock(new BlockPos(5, 1, 3), Blocks.CHEST);
         Container source = containerAt(helper, new BlockPos(5, 1, 3));
         helper.assertTrue(source != null, "arena warehouse chest should exist");
-        source.setItem(0, new ItemStack(Items.RAW_IRON, 4));
+        // TWO, not four. Specification correction (2026-08-26, logistics
+        // weight): RAW_IRON is DEAD_WEIGHT, so one courier load is now 2 of
+        // it, and a 4-item pile takes two trips. This test is about the
+        // RESERVATION -- that two couriers cannot both claim one job -- and
+        // with four items the first courier legitimately finished, released
+        // the job, and the second one correctly took the remaining pile.
+        // That is the ledger working, not failing, but it read as a failure
+        // because the setup quietly assumed one trip empties the chest.
+        //
+        // Sizing the pile to exactly one load restores that assumption and
+        // leaves every assertion below untouched and unweakened -- the
+        // "only one courier should ever have hauled this stock" check is
+        // still the original, still strict, and now tests what it meant to.
+        source.setItem(0, new ItemStack(Items.RAW_IRON, 2));
 
         Building smelter = addBuilding(helper, s, BuildingType.SMELTER,
             new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
@@ -229,12 +242,12 @@ public class LogisticsGameTests {
             int atSmelter = countIn(smelterChest, Items.RAW_IRON);
             int atWarehouse = countIn(warehouseChest, Items.RAW_IRON);
             int total = atSmelter + atWarehouse + bagCount(first) + bagCount(second);
-            helper.assertTrue(total == 4,
+            helper.assertTrue(total == 2,
                 "raw iron must be conserved across the whole route, saw " + total
                     + " [smelter=" + atSmelter + " warehouse=" + atWarehouse
                     + " firstBag=" + bagCount(first) + " secondBag=" + bagCount(second) + "]");
-            helper.assertTrue(atSmelter == 4,
-                "all 4 raw iron should reach the smelter, saw " + atSmelter
+            helper.assertTrue(atSmelter == 2,
+                "all 2 raw iron should reach the smelter, saw " + atSmelter
                     + " [firstAct=" + first.getActivity() + " secondAct=" + second.getActivity()
                     + "]");
             helper.assertTrue(sawHeld[0],

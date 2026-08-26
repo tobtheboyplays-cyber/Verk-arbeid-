@@ -3,6 +3,7 @@ package com.hearthstead.gametest;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.logistics.Weight;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
@@ -486,9 +487,23 @@ public class CourierGameTests {
                     + " lastRouteFailure=" + bud.routeFailureNote()
                     + " hearthNull=" + (bud.hearth() == null)
                     + " containers=" + warehouseContainerCount(helper, s) + "]");
-            helper.assertTrue(peak[0] == capacity,
-                "the sack should fill to capacity on a full trip: peak="
-                    + peak[0] + " capacity=" + capacity);
+            // Specification correction (2026-08-26, logistics weight): a load is
+            // bounded by what a courier can LIFT as well as by how many items
+            // fit, so "fills to capacity" is only the right expectation for
+            // cargo light enough that the count binds first. This hauls
+            // OAK_LOG, which is HEAVY (4 units against a 16-unit bag), so the
+            // real ceiling is 4, not 8.
+            //
+            // This is deliberately NOT loosened to "peak <= capacity", which
+            // would pass a courier that hauled one log at a time forever.
+            // Asserting the exact binding limit is STRICTER than the old
+            // check: it still catches under-filling, and it now also catches
+            // the weight table itself being wrong or silently bypassed.
+            int expectedPeak = Weight.perLoad(new ItemStack(Items.OAK_LOG), capacity);
+            helper.assertTrue(peak[0] == expectedPeak,
+                "the sack should fill to whichever limit binds first -- for OAK_LOG that is "
+                    + "weight, not the slot count: peak=" + peak[0] + " expected=" + expectedPeak
+                    + " capacity=" + capacity);
             helper.assertTrue(synced == 0 && bagCount(bud) == 0,
                 "an emptied sack must report empty, load=" + synced
                     + " bag=" + bagCount(bud));

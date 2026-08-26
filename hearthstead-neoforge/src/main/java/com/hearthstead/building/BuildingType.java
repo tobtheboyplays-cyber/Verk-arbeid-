@@ -48,7 +48,17 @@ public enum BuildingType {
         Requirement.lights(2),
         Requirement.floorSpace(16)),
 
-    SCHOOL("school", 0, 1, Items.WRITABLE_BOOK,
+    // workerCapacity 0, deliberately, for SCHOOL / INFIRMARY / MARKET below.
+    // All three used to declare worker slots (1 / 1 / 2), which made
+    // employsWorkers() true and put a Hire affordance on their plaque -- but
+    // none of the three is in Employment.TRADES, so tradeOf() is NONE and
+    // every hire was refused with `no_trade`. The refusal was honest; the
+    // offer was not. A building that advertises a post nobody can ever fill
+    // teaches the player that the plaque's promises are decorative, and the
+    // plaque is the one surveyor this whole design rests on. Restore the
+    // number the day the matching trade exists -- that is the only thing
+    // that has to change back.
+    SCHOOL("school", 0, 0, Items.WRITABLE_BOOK,
         Requirement.blocks("bookshelf", 4, Blocks.BOOKSHELF, Blocks.CHISELED_BOOKSHELF),
         Requirement.blocks("lectern", 2, Blocks.LECTERN),
         Requirement.doors(1),
@@ -200,7 +210,7 @@ public enum BuildingType {
     // still looks and feels like a hearthside infirmary, and the "cauldron"
     // requirement id is the same vocabulary KITCHEN/BREWERY/WEAVER already
     // use, so no new lang key is needed.
-    INFIRMARY("infirmary", 0, 1, Items.GOLDEN_APPLE,
+    INFIRMARY("infirmary", 0, 0, Items.GOLDEN_APPLE,
         Requirement.blocks("cauldron", 1, Blocks.CAULDRON, Blocks.WATER_CAULDRON),
         Requirement.beds(2),
         Requirement.blocks("storage", 1, Blocks.CHEST, Blocks.BARREL),
@@ -277,7 +287,7 @@ public enum BuildingType {
         Requirement.lights(3),
         Requirement.floorSpace(25)),
 
-    MARKET("market", 0, 2, Items.EMERALD,
+    MARKET("market", 0, 0, Items.EMERALD,
         Requirement.blocks("stall", 4, Blocks.BARREL, Blocks.SCAFFOLDING),
         Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
         Requirement.doors(1),

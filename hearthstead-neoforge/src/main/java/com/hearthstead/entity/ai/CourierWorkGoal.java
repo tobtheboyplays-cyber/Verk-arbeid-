@@ -6,6 +6,7 @@ import com.hearthstead.building.Fuel;
 import com.hearthstead.building.Production;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
+import com.hearthstead.logistics.Weight;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
@@ -617,6 +618,45 @@ public class CourierWorkGoal extends Goal {
         return n;
     }
 
+    /** What the bag currently masses, in {@link Weight}'s units. */
+    private int bagWeight() {
+        int w = 0;
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            w += Weight.of(stack, stack.getCount());
+        }
+        return w;
+    }
+
+    /**
+     * How many more of {@code stack}'s item this courier can take, under BOTH
+     * limits at once: the item count her bag holds, and what she can lift.
+     *
+     * <p>This is where {@link Weight} finally bites. The table existed and was
+     * documented for a day before anything called it, so until this method
+     * every load was bounded by item COUNT alone -- eight iron ingots and
+     * eight feathers cost exactly the same walk, no arrangement of buildings
+     * could beat any other, and "put the mason near the warehouse" was
+     * flavour text rather than advice. With mass in the loop a stone chain
+     * moves a fraction of what a grain chain moves per trip, so distance
+     * stops being a flat cost and starts multiplying: trips x weight x walk.
+     *
+     * <p>Conservation is untouched, which is the invariant that matters
+     * (chest truth): this only ever makes a courier take FEWER items in one
+     * trip, never fewer in total and never none. An empty bag always has room
+     * for at least one of anything -- BAG_BUDGET is 16 and the heaviest class
+     * is 6 -- so nothing can be stranded in a chest for want of a lift.
+     */
+    private int roomFor(ItemStack stack) {
+        int byCount = settler.getCarryCapacity() - bagCount();
+        int unit = Weight.of(stack);
+        if (unit <= 0) {
+            return Math.max(0, byCount);
+        }
+        int byWeight = (Weight.BAG_BUDGET - bagWeight()) / unit;
+        return Math.max(0, Math.min(byCount, byWeight));
+    }
+
     private Building findBuildingById(Settlement s, UUID id) {
         if (id == null) {
             return null;
@@ -824,7 +864,13 @@ public class CourierWorkGoal extends Goal {
             if (!isHaulable(stack)) {
                 continue;
             }
-            int want = Math.min(stack.getCount(), capacity - bagCount());
+            // roomFor, not the bare count: a load is bounded by what she can
+            // LIFT as well as by how many items fit. See roomFor's doc.
+            int room = roomFor(stack);
+            if (room <= 0) {
+                break;
+            }
+            int want = Math.min(stack.getCount(), room);
             // Extract first, then bank it. The extracted stack exists in a
             // local only for the moment between these two lines, and the
             // remainder goes straight back, so no path loses an item.
@@ -1114,7 +1160,11 @@ public class CourierWorkGoal extends Goal {
                 if (stack.isEmpty() || !stack.is(reservedItem)) {
                     continue;
                 }
-                int want = Math.min(stack.getCount(), capacity - bagCount());
+                int room = roomFor(stack);
+                if (room <= 0) {
+                    break;
+                }
+                int want = Math.min(stack.getCount(), room);
                 // Destination-first (D-A2a-3): remove from the real chest, bank
                 // into the bag, and give back whatever the bag would not take,
                 // so an interruption between these lines still leaves the item
