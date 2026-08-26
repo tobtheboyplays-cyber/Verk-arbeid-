@@ -15,7 +15,7 @@ and built on throughout, especially Q1/Q4/Q5/Q6. As of 2026-08-26.*
 
 | Tier | Unlocks | Survival cost | Grind | Verdict |
 |---|---|---|---|---|
-| **0** | Hearth + **3 free settlers** | 3 logs + 5 cobblestone + 1 campfire (campfire itself: 3 sticks+3 logs+1 coal, vanilla) — `hearth.json` | <1 day | **SMOOTH** |
+| **0** | Hearth + **3 free settlers** | 3 logs + 5 cobblestone + 1 campfire (campfire itself: **2** sticks+3 logs+1 coal, vanilla — this line said 3 sticks until 2026-08-26; corrected against the real recipe by the worker writing the owner's quick-start, who read the recipe instead of this document) — `hearth.json` | <1 day | **SMOOTH** |
 | **0** | First lumberjack (LUMBER_CAMP) | plaque 6 iron+1 copper+3 planks (`plaque.json`) + plan paper+feather+1 log (`build_plan_lumber_camp.json`) + room: 1 crafting table+1 chest+door+light (`BuildingType.java:143-148`) — hire one of the 3 free founders, **0 recruit price** | <1 day, mostly mining the plaque's iron/copper | **SMOOTH** |
 | **1** | FARMHOUSE, MINE, SAWMILL, MASON, WAREHOUSE, HOUSE/LODGING, WELL, TAVERN, BUTCHER, FLETCHER, WEAVER, TANNERY, KITCHEN, SMELTER, CARPENTER, BAKERY (rough), DINING_HALL, BARRACKS, WATCHTOWER | each: paper+feather+1-2 hand-gathered items (recipe table in Findings §F12); rooms are vanilla furniture only | 1-3 days total (a plaque per building, ~1-2 real minutes of mining each) | **SMOOTH**, but see **F8** — the food valley opens right here |
 | **1** | PASTURE, FISHERY, HUNTERS_LODGE | same trivial plaque/plan/room cost as above | — | **WALL** — buildable, but **nobody can ever be hired to work them** (F1) |
