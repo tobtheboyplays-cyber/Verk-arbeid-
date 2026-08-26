@@ -58,7 +58,7 @@ public class RaidPressureGameTests {
      * MineColonies' nine guaranteed-safe nights out of fourteen are exactly
      * what makes its raids feel scheduled rather than dangerous.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_no_night_is_ever_provably_safe")
     public void noNightIsEverProvablySafe(GameTestHelper helper) {
         Settlement s = settlement(6, 2);
         RaidPressure p = s.raidPressure;
@@ -76,7 +76,7 @@ public class RaidPressureGameTests {
     }
 
     /** A hamlet is genuinely left alone, and accumulates no hidden debt. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_tiny_settlements_are_not_raided_and_build_no_pressure")
     public void tinySettlementsAreNotRaidedAndBuildNoPressure(GameTestHelper helper) {
         Settlement s = settlement(2, 0);
         RaidPressure p = s.raidPressure;
@@ -96,7 +96,7 @@ public class RaidPressureGameTests {
      * The one hard guarantee. Without it a nightly roll reproduces
      * MineColonies #4838 -- a raid every night until the server restarts.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_never_two_nights_running_below_siege")
     public void neverTwoNightsRunningBelowSiege(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         RaidPressure p = s.raidPressure;
@@ -111,7 +111,7 @@ public class RaidPressureGameTests {
     }
 
     /** Under siege the grace is gone, and that is the designed crescendo. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_siege_allows_consecutive_nights")
     public void siegeAllowsConsecutiveNights(GameTestHelper helper) {
         Settlement s = settlement(10, 4);
         RaidPressure p = s.raidPressure;
@@ -130,7 +130,7 @@ public class RaidPressureGameTests {
      * converges on safe however you play. Here, holding the line makes you
      * a bigger target.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_surviving_a_raid_raises_pressure_and_losing_relieves_it")
     public void survivingARaidRaisesPressureAndLosingRelievesIt(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         RaidPressure p = s.raidPressure;
@@ -146,7 +146,7 @@ public class RaidPressureGameTests {
     }
 
     /** Quiet nights are not free: being left alone makes you conspicuous. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_quiet_nights_raise_pressure_and_the_stage_is_readable")
     public void quietNightsRaisePressureAndTheStageIsReadable(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         RaidPressure p = s.raidPressure;
@@ -168,7 +168,7 @@ public class RaidPressureGameTests {
     }
 
     /** One roll per night, however many times the director asks. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_the_nightly_roll_happens_exactly_once")
     public void theNightlyRollHappensExactlyOnce(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         RaidPressure p = s.raidPressure;
@@ -186,7 +186,7 @@ public class RaidPressureGameTests {
     }
 
     /** Pressure is settlement state and must survive a save/reload. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_pressure_survives_save_and_reload")
     public void pressureSurvivesSaveAndReload(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         s.raidPressure.setPressureForTesting(63);
@@ -215,7 +215,7 @@ public class RaidPressureGameTests {
      * flipped the world to night would stall every settler in every other
      * test running beside it in the same batch.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_the_director_only_asks_after_nightfall")
     public void theDirectorOnlyAsksAfterNightfall(GameTestHelper helper) {
         helper.assertTrue(!RaidDirector.isRollTime(0L), "midnight-dawn is not roll time");
         helper.assertTrue(!RaidDirector.isRollTime(6000L), "noon is not roll time");
@@ -240,7 +240,7 @@ public class RaidPressureGameTests {
      * Objectives come from what the settlement actually has. Nobody rides
      * out to steal grain from a place with no stores.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_objectives_match_what_the_settlement_actually_has")
     public void objectivesMatchWhatTheSettlementActuallyHas(GameTestHelper helper) {
         Settlement bare = settlement(1, 0);
         helper.assertTrue(!RaidObjective.KORN.isAvailableAt(bare),
@@ -274,7 +274,7 @@ public class RaidPressureGameTests {
      * #193 is a player working out that raiders "usually come from the same
      * spawn point" and gang up on one tower guard.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_captains_are_remembered_and_never_take_the_same_road_twice")
     public void captainsAreRememberedAndNeverTakeTheSameRoadTwice(GameTestHelper helper) {
         var random = helper.getLevel().getRandom();
         RaidCaptain captain = RaidCaptain.generate(random);
@@ -298,7 +298,7 @@ public class RaidPressureGameTests {
     }
 
     /** Winning makes a captain worse news; losing teaches them something too. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_captains_grow_from_both_outcomes")
     public void captainsGrowFromBothOutcomes(GameTestHelper helper) {
         RaidCaptain captain = RaidCaptain.generate(helper.getLevel().getRandom());
         float base = captain.menace();
@@ -320,7 +320,7 @@ public class RaidPressureGameTests {
      * A plan that evaporates on restart is the raid-shaped version of
      * MineColonies' silently-never-happening deliveries.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_a_scheduled_raid_and_its_captain_survive_reload")
     public void aScheduledRaidAndItsCaptainSurviveReload(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         var random = helper.getLevel().getRandom();
@@ -352,7 +352,7 @@ public class RaidPressureGameTests {
     }
 
     /** The gallery is a cast, not a crowd. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_the_enemy_gallery_stays_bounded")
     public void theEnemyGalleryStaysBounded(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         var random = helper.getLevel().getRandom();
@@ -373,7 +373,7 @@ public class RaidPressureGameTests {
      * "Summoned" and were discarded a tick later, which would have left the
      * Tingbok announcing a siege that could never arrive.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_peaceful_means_no_raids_and_no_pressure")
     public void peacefulMeansNoRaidsAndNoPressure(GameTestHelper helper) {
         helper.assertTrue(!RaidDirector.raidsPossibleAt(
                 net.minecraft.world.Difficulty.PEACEFUL),
@@ -388,7 +388,7 @@ public class RaidPressureGameTests {
     }
 
     /** A fresh settlement must not inherit the morning-after grace. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_a_new_settlement_is_raidable_on_its_first_qualifying_night")
     public void aNewSettlementIsRaidableOnItsFirstQualifyingNight(GameTestHelper helper) {
         Settlement s = settlement(6, 2);
         helper.assertTrue(!s.raidPressure.inGracePeriod(),
@@ -405,7 +405,7 @@ public class RaidPressureGameTests {
     // class doc for why that would reintroduce a provably-safe schedule.
 
     /** An omen is a sign of real pressure, not ambient noise -- a calm settlement gets none. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_omens_are_never_scheduled_on_a_calm_night")
     public void omensAreNeverScheduledOnACalmNight(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         helper.assertTrue(s.raidPressure.stage() == RaidPressure.Stage.ROLIG,
@@ -425,7 +425,7 @@ public class RaidPressureGameTests {
      * same shape as D-A3-4 letting consecutive raid nights through at that
      * stage.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_omens_escalate_with_pressure_and_give_one_to_two_nights_warning")
     public void omensEscalateWithPressureAndGiveOneToTwoNightsWarning(GameTestHelper helper) {
         Settlement uro = settlement(8, 3);
         uro.raidPressure.setPressureForTesting(RaidPressure.URO_THRESHOLD);
@@ -446,7 +446,7 @@ public class RaidPressureGameTests {
     }
 
     /** Only one omen is ever pending: it must not be re-rolled out from under itself. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_only_one_omen_is_pending_at_once")
     public void onlyOneOmenIsPendingAtOnce(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         s.raidPressure.setPressureForTesting(RaidPressure.URO_THRESHOLD);
@@ -466,7 +466,7 @@ public class RaidPressureGameTests {
      * {@link RaidDirector#isRollTime}, and for the same reason (a batch of
      * concurrently running tests shares one level's clock).
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_the_telegraph_fires_at_dusk_before_the_nightly_roll")
     public void theTelegraphFiresAtDuskBeforeTheNightlyRoll(GameTestHelper helper) {
         helper.assertTrue(!RaidTelegraph.isDuskOrLater(RaidTelegraph.DUSK_TIME - 1L),
             "a moment before dusk must not yet be dusk");
@@ -483,7 +483,7 @@ public class RaidPressureGameTests {
     }
 
     /** Forecast and telegraph state is settlement state, and must survive a reload too. */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_day")
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_telegraph_state_survives_save_and_reload")
     public void telegraphStateSurvivesSaveAndReload(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         s.raidPressure.setPressureForTesting(RaidPressure.VARSEL_THRESHOLD);
