@@ -93,17 +93,6 @@ public class LumbererWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- remove
-        // before landing. Throttled to ~once/5s so it does not flood a
-        // 1600-tick GameTest.
-        if (settler.level().getGameTime() % 100 == 0) {
-            com.hearthstead.Hearthstead.LOGGER.info(
-                "[LUMBER-DIAG] canUse day={} prof={} bound={} phase={} work={} energy={} "
-                    + "effortSpent={} bag={} scanCooldown={} mode={} treeBase={}",
-                settler.level().getDayTime(), settler.getProfession(), settler.isBound(),
-                settler.dayPhase(), settler.dayPhase().work(), settler.getEnergy(),
-                settler.isEffortSpent(), bagCount(), scanCooldown, mode, treeBase);
-        }
         if (!workConditions()) {
             return false;
         }
@@ -122,17 +111,6 @@ public class LumbererWorkGoal extends Goal {
         scanCooldown = 80 + settler.getRandom().nextInt(40);
         List<BlockPos> bases = scanner.scanColumns(s.center, s.radius, 512, 6,
             this::trunkInColumn);
-        // TEMPORARY DIAGNOSTIC -- remove before landing.
-        {
-            StringBuilder sb = new StringBuilder();
-            for (BlockPos base : bases) {
-                List<BlockPos> logs = validateTree(base);
-                sb.append(base).append("->logs=").append(logs.size()).append("; ");
-            }
-            com.hearthstead.Hearthstead.LOGGER.info(
-                "[LUMBER-DIAG] scan day={} center={} radius={} baseCount={} results=[{}]",
-                settler.level().getDayTime(), s.center, s.radius, bases.size(), sb);
-        }
         for (BlockPos base : bases) {
             List<BlockPos> logs = validateTree(base);
             if (!logs.isEmpty()) {
@@ -150,55 +128,37 @@ public class LumbererWorkGoal extends Goal {
     /**
      * Looks for the foot of a trunk in one column of the settlement.
      *
-     * <p>Reads the surface once and stops there for the overwhelming majority
-     * of columns, which hold grass or a roof and no tree at all. Only when the
-     * top of the column is itself a log does this walk down the trunk, so the
-     * expensive part of the search is paid on trees and nowhere else.
-     *
-     * <p>The descent is capped: a jungle giant is about thirty logs tall, and
-     * a cap well under that is the difference between "no tree here" and a
-     * scan that follows a decorative column down to bedrock.
+     * <p>Reads the surface once, but the surface is only ever a starting
+     * point, never a verdict: {@code MOTION_BLOCKING_NO_LEAVES} reports
+     * whatever is physically highest in the column, and that is honestly
+     * often not the trunk -- a GameTest arena's barrier roof, a real
+     * overhang, a player-built platform, or a snow layer over the canopy
+     * all sit above a tree without being it (KF-022: the arena case KF-018
+     * never covered). So this first descends past whatever is NOT a log,
+     * looking for the first one, before it does the real work of following
+     * the trunk down to its base. Both phases share the same
+     * {@link #TRUNK_DESCENT} budget: a tree under cover is exactly the same
+     * shape as one in the open, and the cap is what keeps a decorative
+     * column (or a false roof with nothing under it) from being walked all
+     * the way to bedrock.
      */
-    // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- a test
-    // fixture sets this to the absolute X/Z of the trunk it just placed so
-    // trunkInColumn can log exactly what the heightmap says for THAT column,
-    // instead of drowning the log in every column the scan touches. Remove
-    // this field and every read/write of it before landing.
-    public static volatile BlockPos DEBUG_TRUNK_COLUMN = null;
-
     @Nullable
     private BlockPos trunkInColumn(BlockPos column) {
         Level level = settler.level();
-        boolean debugColumn = DEBUG_TRUNK_COLUMN != null
-            && column.getX() == DEBUG_TRUNK_COLUMN.getX()
-            && column.getZ() == DEBUG_TRUNK_COLUMN.getZ();
         if (!level.hasChunkAt(column)) {
-            if (debugColumn) {
-                com.hearthstead.Hearthstead.LOGGER.info(
-                    "[LUMBER-DIAG] trunkcol column={} hasChunkAt=false", column);
-            }
             return null;
         }
         BlockPos surface = level.getHeightmapPos(
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, column);
         BlockPos.MutableBlockPos cursor = surface.mutable().move(Direction.DOWN);
-        if (debugColumn) {
-            StringBuilder sb = new StringBuilder();
-            for (int dy = 3; dy >= -8; dy--) {
-                BlockPos p = surface.offset(0, dy, 0);
-                sb.append("y=").append(p.getY()).append(':')
-                    .append(level.getBlockState(p).getBlock()).append(' ');
+        int step = 0;
+        while (!level.getBlockState(cursor).is(BlockTags.LOGS_THAT_BURN)) {
+            if (++step >= TRUNK_DESCENT) {
+                return null;
             }
-            com.hearthstead.Hearthstead.LOGGER.info(
-                "[LUMBER-DIAG] trunkcol column={} surface={} cursor={} cursorState={} "
-                    + "minBuildHeight={} maxBuildHeight={} column=[{}]",
-                column, surface, cursor, level.getBlockState(cursor),
-                level.getMinBuildHeight(), level.getMaxBuildHeight(), sb);
+            cursor.move(Direction.DOWN);
         }
-        if (!level.getBlockState(cursor).is(BlockTags.LOGS_THAT_BURN)) {
-            return null;
-        }
-        for (int step = 0; step < TRUNK_DESCENT; step++) {
+        for (; step < TRUNK_DESCENT; step++) {
             BlockPos below = cursor.below();
             if (!level.getBlockState(below).is(BlockTags.LOGS_THAT_BURN)) {
                 return isTreeBase(cursor) ? cursor.immutable() : null;
@@ -351,15 +311,6 @@ public class LumbererWorkGoal extends Goal {
             settler.setActivity(SettlerActivity.WORK_CHOP);
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
-            // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) --
-            // remove before landing.
-            com.hearthstead.Hearthstead.LOGGER.info(
-                "[LUMBER-DIAG] tickTravel stuck day={} pos={} treeBase={} distSqr={} "
-                    + "stuckChecks={} navDone={} navStatus={}",
-                settler.level().getDayTime(), settler.blockPosition(), treeBase,
-                settler.blockPosition().distSqr(treeBase), stuckChecks + 1,
-                settler.getNavigation().isDone(),
-                settler.getNavigation().getPath());
             if (++stuckChecks > 6) {
                 // Unreachable tree; rescan later. Recorded rather than
                 // endured (SettlerEntity#recordRouteFailure's whole reason

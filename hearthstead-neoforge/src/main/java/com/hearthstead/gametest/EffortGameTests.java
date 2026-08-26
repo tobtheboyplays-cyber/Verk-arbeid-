@@ -248,9 +248,6 @@ public class EffortGameTests {
             crown.east(), crown.west(), crown.above()}) {
             helper.setBlock(leaf, Blocks.OAK_LEAVES.defaultBlockState());
         }
-        // TEMPORARY DIAGNOSTIC (STALL-1 / lumberjack GameTest hunt) -- remove.
-        com.hearthstead.entity.ai.LumbererWorkGoal.DEBUG_TRUNK_COLUMN =
-            helper.absolutePos(dirtRel);
 
         helper.succeedWhen(() -> {
             helper.assertTrue(helper.getBlockState(baseRel).is(Blocks.OAK_SAPLING),
