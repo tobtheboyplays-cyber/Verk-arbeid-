@@ -5,13 +5,20 @@ Koordinator + parallelle Sonnet-arbeidere, streng fileierskap. Eieren sover
 ("Kom så langt som mulig i natt"). BYGGHERREN (.claude/agents/byggherren.md)
 taler med eierens stemme: dom #1-#3 i docs/project/BYGGHERRE_DOM_*.md.
 
-## VIKTIG ved oppstart
-Containeren er blitt tilbakestilt to ganger. Remote er sannheten:
+## VIKTIG ved oppstart — containeren nullstilles
+Containeren er nullstilt TRE ganger i natt. Remote er den eneste sannheten:
   git fetch origin claude/hearthstead-settlement-mod-vbdb9n
   git reset --hard FETCH_HEAD
 Sjekk `git branch --show-current` — hovedrepoet havnet én gang i detached
 HEAD med en commit utenfor grenen (reddet). Bruk `git -C <sti>`, aldri `cd`
 inn i worktrees i bakgrunnskommandoer. Bash-cwd overlever ikke mellom kall.
+
+**Dyrekjøpt regel (04:15Z):** nullstillingen slettet TO TIMER med ferdig
+arbeiderarbeid — kurér-fiksen, idle-animasjonene, Costs-koblingen og hele
+flake-jakten — fordi ingenting av det var committet. Arbeidere leverer nå i
+biter, og koordinatoren committer ved HVER rapport. Ingenting ligger
+ucommittet over tid. Worktrees under scratchpad/ overlever ikke; bare
+remote gjør det.
 
 ## Testtilstanden — dette er det som teller
 **4 røde av 196** (kjøring etter 298fc11). Alle fire i kurér-klyngen:

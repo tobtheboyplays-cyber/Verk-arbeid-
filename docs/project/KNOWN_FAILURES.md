@@ -1159,3 +1159,42 @@ turns out that it does, that is the finding, not a footnote.
 baseline of one unchanged commit — because until the same source produces the
 same number twice, every other verdict in this document is provisional,
 including the good ones.
+
+### KF-023, closed on the third pass — reach was measured to the wrong thing
+
+**2026-08-26 04:20Z.** The transition diagnostic caught the courier six
+blocks from the chest, outside the warehouse walls, reporting arrived:
+
+```
+COURIER-DIAG hasArrived=true reason=outside-reachAndLOS
+  at=…,783 target=…,789 insideBounds=false
+courierentersasealedwarehouseanddelivers failed!
+  the courier must walk into the warehouse, not post goods through the wall
+```
+
+`hasArrived`'s fallback accepted `distSqrToBounds(at, building.bounds) <=
+CHEST_REACH_SQR` — distance to the **building's bounding box**, not to the
+container. Standing anywhere along the outside of a warehouse wall satisfied
+it, and from there a diagonal ray reached the chest straight through the open
+doorway and reported clear. It *was* clear: she could see the chest. **Seeing
+it is not reaching it.** The line-of-sight test added in the previous pass was
+never the wrong idea — it was guarding the wrong precondition.
+
+The box clause bought nothing even in the case it was written for. A courier
+one step short of a chest flush on the box's edge stands two blocks from that
+chest, and `CHEST_REACH_SQR` is 6.25 — 2.5 blocks — so the container test
+already covers her. Reach is to the CONTAINER, always; bounds survives only as
+a cheap fast path for genuinely being inside. The predicate is now three lines
+where it was fifteen, and the live 0.31-block standoff that started all of
+this stays fixed.
+
+**Still open in the same cluster:** `MATERIAL_RESERVE_BATCHES = 4` fixed the
+stranding (one bag of 8 cleared every recipe minimum of 3, so the courier
+never came back) but took a worktree run from 10 red to 20, and the new
+failures were the whole crafter roster reporting IDLE with inputs present.
+The likely mechanism: with input and output sharing one chest in most arenas,
+topping the input up to four batches leaves no slot for the output, and a
+crafter with nowhere to put what it makes does not craft. The reserve cannot
+simply be lowered — `restockConservesItemsAcrossTheFullRoute` seeds exactly
+12, which is 4 x the smithy's 3-ingot recipe, so four batches is the number
+that test asks for. The fix has to be headroom, not a smaller reserve.
