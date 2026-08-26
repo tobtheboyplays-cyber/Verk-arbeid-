@@ -566,6 +566,27 @@ while read -r verb rest; do
                    CAPTURED_VARS["${cp_name}_X"]="$cp_ix"
                    CAPTURED_VARS["${cp_name}_Y"]="$cp_iy"
                    CAPTURED_VARS["${cp_name}_Z"]="$cp_iz"
+                   # Block-CENTRE twins, for STANDING on -- as opposed to the
+                   # integer ones above, which are for ADDRESSING a block.
+                   #
+                   # `/tp <player> 299 -60 308` puts the player at exactly
+                   # x=299.0, and that is not the middle of block 299: it is
+                   # the SEAM between block 298 and block 299. A yaw-0 look
+                   # from there sends the pick ray straight down that seam and
+                   # which block it reports is decided by floating-point luck.
+                   # That is why the plaque click missed one block to the left
+                   # on some runs and landed on others with the scenario
+                   # unchanged -- shots/plaque-01-before-click.png from the
+                   # 14:06 run shows the block outline sitting on the stone
+                   # brick BESIDE the plaque, before any click was sent.
+                   #
+                   # The 2026-08-24 round read this as position DRIFT and
+                   # froze the coordinates to stop it. That removed a real
+                   # second cause but left this one, because frozen integer
+                   # coordinates are still seam coordinates. Standing at the
+                   # centre removes the ambiguity instead of making it rarer.
+                   CAPTURED_VARS["${cp_name}_CX"]="$(python3 -c "print($cp_ix + 0.5)")"
+                   CAPTURED_VARS["${cp_name}_CZ"]="$(python3 -c "print($cp_iz + 0.5)")"
                    check_pass "$DIR_IDX:capture_pos" "captured $cp_name = ($cp_ix, $cp_iy, $cp_iz)"
                fi;;
         shot)  sleep 1; shot "$rest"

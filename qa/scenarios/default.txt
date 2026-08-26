@@ -223,7 +223,13 @@ wait 15
 # Stand exactly 2 blocks back from the plaque, level with it, facing it
 # dead-on (yaw 0 again = +Z, toward the wall it hangs on). Absolute frozen
 # coordinates, not live `~` math -- see capture_pos STANDBACK above.
-scmd tp $PLAYER $STANDBACK_X $STANDBACK_Y $STANDBACK_Z 0 0
+# _CX/_CZ, not _X/_Z: the centre of the block, not its corner. Teleporting
+# to integer x/z lands the player exactly on the seam between two blocks, so
+# a yaw-0 pick ray runs down that seam and picks a neighbour on some runs and
+# the plaque on others -- an intermittent one-block-left miss that survived
+# both the retry and the regrab fixes because neither was the cause. See
+# capture_pos in playtest.sh for the evidence.
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
 wait 2
 
 # Empty hotbar, empty hand: right-clicking a blank plaque must open no
