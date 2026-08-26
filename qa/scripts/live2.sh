@@ -46,6 +46,10 @@
 #   live.sh click [left|right]    click at the centre of the screen (GUI
 #                                  slots too — NOT self-verifying, see
 #                                  ensure_grab's own comment for why)
+#   live.sh open [left|right]     self-verifying click that OPENS a screen
+#                                  (a settler sheet, a chest, a plaque) —
+#                                  only ever call this before a screen is
+#                                  open, never for a click inside one
 #   live.sh look <dx> <dy>        turn the view — self-verifying, see KF-035
 #   live.sh film <secs> [fps] [pan]  record motion (AC-5): clip.mp4 + labelled
 #                                  contact sheet + motion_ok verdict. `pan` is
@@ -498,6 +502,16 @@ cmd)    focus; shift
 scmd)   shift; srv_send "$*"; echo "ran on server: $*";;
 click)  focus; xdotool mousemove 640 360
         xdotool click "$([ "${2:-left}" = right ] && echo 3 || echo 1)"; echo "clicked ${2:-left}";;
+open)   # KF-035: the world-interact twin of `mine` -- self-verifying, for
+        # the FIRST click that opens a screen (a settler's sheet, a chest,
+        # a plaque). See live.sh's own comment for the full rationale;
+        # ported here unchanged. Never use for clicks INSIDE an already-
+        # open screen -- use plain `click` there.
+        ensure_grab
+        focus; xdotool mousemove 640 360
+        xdotool click "$([ "${2:-left}" = right ] && echo 3 || echo 1)"
+        echo "opened (${2:-left} click)"
+        ;;
 look)   # KF-035: verify-then-move, not move-and-hope.
         ensure_grab
         focus

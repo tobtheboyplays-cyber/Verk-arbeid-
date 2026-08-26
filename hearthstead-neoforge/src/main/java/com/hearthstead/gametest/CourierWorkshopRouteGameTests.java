@@ -533,4 +533,76 @@ public class CourierWorkshopRouteGameTests {
                 "watching the whole window for a shuttle: " + stableTicks[0] + "/3000");
         });
     }
+
+    // ------------------------------------------------ dissolved mid-route ---
+
+    /**
+     * The brief's own hunt list, collection's half: the destination
+     * warehouse dissolves while a load it was promised is already in the
+     * courier's sack. Removed from {@code s.buildings} the same way
+     * {@code BuildingManager}'s real sweep does it
+     * ({@code settlement.buildings.remove(building)}), timed off the
+     * courier's own state (real pickup already happened) rather than a
+     * guessed tick or the sweep's shared cross-test cursor.
+     *
+     * <p>With the only warehouse gone, {@link CourierWorkGoal}'s own
+     * contract for an OUTPUT_COLLECTION trip is explicit:
+     * {@code canUseCarrying} re-resolves the destination, finds no warehouse
+     * anywhere (not even a fallback), and sends the load back to
+     * {@code sourcePos} -- the mine chest it was lifted from -- never to the
+     * hearth, which the class doc reserves for "goods awaiting their first
+     * haul". The cobblestone must therefore end up back in the mine, not
+     * stranded in the bag and not duplicated anywhere.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_workshop_route_day")
+    public void collectedLoadReturnsToTheMineWhenTheWarehouseDissolvesMidTrip(
+            GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+
+        Building warehouse = addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
+        BlockPos warehouseChestRel = new BlockPos(5, 1, 3);
+        helper.setBlock(warehouseChestRel, Blocks.CHEST);
+
+        addBuilding(helper, s, BuildingType.MINE,
+            new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
+        BlockPos mineChestRel = new BlockPos(3, 1, 6);
+        helper.setBlock(mineChestRel, Blocks.CHEST);
+        Container mineChest = containerAt(helper, mineChestRel);
+        helper.assertTrue(mineChest != null, "arena mine chest should exist");
+        int seeded = 12;
+        mineChest.setItem(0, new ItemStack(Items.COBBLESTONE, seeded));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        final boolean[] dissolved = {false};
+
+        helper.succeedWhen(() -> {
+            if (!dissolved[0]) {
+                if (bagCountOf(bud, Items.COBBLESTONE) <= 0) {
+                    return; // wait for the AI's own real pickup
+                }
+                helper.assertTrue(s.buildings.remove(warehouse),
+                    "fixture: the warehouse must still be registered to remove it");
+                dissolved[0] = true;
+                return; // let the goal react on its own next tick
+            }
+            int atMine = countIn(containerAt(helper, mineChestRel), Items.COBBLESTONE);
+            int atWarehouse = countIn(containerAt(helper, warehouseChestRel),
+                Items.COBBLESTONE);
+            int inBag = bagCountOf(bud, Items.COBBLESTONE);
+            int total = atMine + atWarehouse + inBag;
+            helper.assertTrue(total == seeded,
+                "cobblestone must be conserved when the destination warehouse "
+                    + "dissolves mid-trip, saw " + total + " [mine=" + atMine
+                    + " warehouse=" + atWarehouse + " bag=" + inBag
+                    + " act=" + bud.getActivity() + "]");
+            helper.assertTrue(atMine == seeded,
+                "with every warehouse gone, the collected load must come home to "
+                    + "the mine it was lifted from rather than strand in the sack, "
+                    + "saw " + atMine + " of " + seeded + " [warehouse=" + atWarehouse
+                    + " bag=" + inBag + " act=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+        });
+    }
 }

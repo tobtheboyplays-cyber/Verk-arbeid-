@@ -561,4 +561,97 @@ public class CourierGameTests {
                     + "still carrying " + bagged);
         });
     }
+
+    /**
+     * The scenario the brief names directly: a courier is killed with real
+     * goods physically in her sack. {@code SettlerEntity#die} documents that
+     * a carried bag is "physically real" and must be dropped rather than
+     * voided (the KF-027 lesson: a courier who loses her load to a place a
+     * test does not count reads as destroyed items) -- this proves it against
+     * a load the AI itself picked up mid-route, not a bag stuffed by hand,
+     * so the whole chain (real pickup -> real death -> real drop) is
+     * covered in one place, not assumed from the entity-level doc comment
+     * alone.
+     *
+     * <p>The kill is timed off the courier's own state (first tick she is
+     * genuinely CARRYING with cargo in hand), not a guessed tick count, so
+     * this cannot start passing for the wrong reason if a timing constant
+     * changes later. Conservation is counted across hearth + warehouse +
+     * bag + dropped {@link ItemEntity} near her corpse -- the exact shape
+     * KF-027 exposed, where a courier's lost load was invisible to a test
+     * that only counted two chests.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "courier_day")
+    public void courierKilledMidHaulDropsGoodsRatherThanDestroyingThem(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(3, 1, 3);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = makeSettlement(helper, hearthRel, 12);
+        int seeded = 6;
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+            hearth.insertGoods(new ItemStack(Items.OAK_LOG, seeded));
+        }
+        helper.setBlock(new BlockPos(10, 1, 10), Blocks.CHEST);
+        addWarehouse(helper, s, new BlockPos(9, 1, 9), new BlockPos(11, 3, 11));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(4, 1, 4));
+        final boolean[] killed = {false};
+        final int[] carriedAtDeath = {0};
+        final BlockPos[] deathPos = {null};
+
+        helper.succeedWhen(() -> {
+            int inBag = bagCount(bud);
+            if (!killed[0]) {
+                if (inBag <= 0 || bud.getActivity() != SettlerActivity.CARRYING) {
+                    return; // keep polling until she is genuinely mid-haul
+                }
+                carriedAtDeath[0] = inBag;
+                deathPos[0] = bud.blockPosition();
+                bud.kill();
+                killed[0] = true;
+                helper.assertTrue(!bud.isAlive(), "the killing blow must land");
+                return; // let the drop settle onto the ground before counting it
+            }
+            Container chest = containerAt(helper, new BlockPos(10, 1, 10));
+            int atWarehouse = chest == null ? 0 : countIn(chest, Items.OAK_LOG);
+            int atHearth = hearthCountOf(helper, hearthRel, Items.OAK_LOG);
+            int dropped = 0;
+            for (ItemEntity item : helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                    new AABB(deathPos[0]).inflate(4.0), e -> e.getItem().is(Items.OAK_LOG))) {
+                dropped += item.getItem().getCount();
+            }
+            int total = atWarehouse + atHearth + dropped;
+            helper.assertTrue(total == seeded,
+                "logs must be conserved through a courier's death, saw " + total
+                    + " of " + seeded + " [hearth=" + atHearth + " warehouse=" + atWarehouse
+                    + " dropped=" + dropped + " carriedAtDeath=" + carriedAtDeath[0] + "]");
+            helper.assertTrue(dropped == carriedAtDeath[0],
+                "every log she was carrying at the moment of death should land on the "
+                    + "ground near her, saw dropped=" + dropped + " carriedAtDeath="
+                    + carriedAtDeath[0]);
+            helper.assertTrue(bagCount(bud) == 0,
+                "a dead courier's bag must not still report the load, saw "
+                    + bagCount(bud));
+        });
+    }
+
+    private static int hearthCountOf(GameTestHelper helper, BlockPos hearthRel,
+                                     Item item) {
+        BlockEntity be = helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel));
+        if (!(be instanceof HearthBlockEntity hearth)) {
+            return 0;
+        }
+        int n = 0;
+        var inv = hearth.getInventory();
+        for (int slot = 0; slot < inv.getSlots(); slot++) {
+            ItemStack stack = inv.getStackInSlot(slot);
+            if (stack.is(item)) {
+                n += stack.getCount();
+            }
+        }
+        return n;
+    }
 }

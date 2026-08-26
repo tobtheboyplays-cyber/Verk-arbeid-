@@ -535,4 +535,92 @@ public class LogisticsGameTests {
                     + "around some other way -- it was never seen open");
         });
     }
+
+    // ------------------------------------------------ dissolved mid-route ---
+
+    /**
+     * The brief's own hunt list: "what happens ... when a building is
+     * dissolved mid-route." A crafter's plaque coming down mid-delivery is
+     * exactly what {@code BuildingManager}'s real sweep produces --
+     * {@code settlement.buildings.remove(building)} -- so this removes the
+     * smithy from the settlement's own list the same way, at the moment the
+     * courier is genuinely mid-haul with the ingots in her sack, rather than
+     * depending on the sweep's cross-test round-robin timing (KF-014/KF-021's
+     * documented flake source, and not this file's concern to pin).
+     *
+     * <p>Both of {@link CourierWorkGoal}'s own dissolution guards are live
+     * candidates here depending on exactly which tick the removal lands on --
+     * {@code tickToCrafter}'s {@code crafter == null -> beginReturn()} if she
+     * is still walking, or {@code canUseCarrying}'s equivalent check if the
+     * goal was interrupted and resumed in between -- and the route's own
+     * contract does not care which one fires: either way the ingots must
+     * come home to the warehouse they left, not evaporate and not strand in
+     * the bag.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "logistics_day")
+    public void restockLoadReturnsToWarehouseWhenTheCrafterDissolvesMidTrip(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = registerSettlement(helper, hearthRel, 6);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+
+        Building warehouse = addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));
+        BlockPos warehouseChestRel = new BlockPos(5, 1, 3);
+        helper.setBlock(warehouseChestRel, Blocks.CHEST);
+        Container source = containerAt(helper, warehouseChestRel);
+        helper.assertTrue(source != null, "arena warehouse chest should exist");
+        int seeded = 12;
+        source.setItem(0, new ItemStack(Items.IRON_INGOT, seeded));
+
+        Building smithy = addBuilding(helper, s, BuildingType.SMITHY,
+            new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
+        helper.setBlock(new BlockPos(3, 1, 6), Blocks.CHEST);
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        helper.assertTrue(com.hearthstead.settlement.Employment
+            .hire(helper.getLevel(), s, warehouse, bud).ok(),
+            "the warehouse must be able to take the courier");
+
+        final boolean[] dissolved = {false};
+
+        helper.succeedWhen(() -> {
+            if (!dissolved[0]) {
+                // Wait for the real pickup the AI itself performs -- not a
+                // guessed tick count -- so the dissolve genuinely lands
+                // mid-haul, cargo already in the sack.
+                if (bagCount(bud) <= 0) {
+                    return;
+                }
+                helper.assertTrue(s.buildings.remove(smithy),
+                    "fixture: the smithy must still be registered to remove it");
+                dissolved[0] = true;
+                return; // let the goal react on its own next tick
+            }
+            Container smithyChest = containerAt(helper, new BlockPos(3, 1, 6));
+            Container warehouseChest = containerAt(helper, warehouseChestRel);
+            int atSmithy = countIn(smithyChest, Items.IRON_INGOT);
+            int atWarehouse = countIn(warehouseChest, Items.IRON_INGOT);
+            int inBag = bagCount(bud);
+            int total = atSmithy + atWarehouse + inBag;
+            helper.assertTrue(total == seeded,
+                "iron ingots must be conserved when the destination dissolves "
+                    + "mid-trip, saw " + total + " [smithy=" + atSmithy
+                    + " warehouse=" + atWarehouse + " bag=" + inBag
+                    + " act=" + bud.getActivity() + "]");
+            helper.assertTrue(atWarehouse == seeded,
+                "with the smithy gone, every ingot must come home to the "
+                    + "warehouse it left rather than stay stranded in the sack, saw "
+                    + atWarehouse + " of " + seeded + " [smithy=" + atSmithy
+                    + " bag=" + inBag + " act=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+        });
+    }
 }

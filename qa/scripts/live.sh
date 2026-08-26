@@ -27,6 +27,10 @@
 #   live.sh click [left|right]    click at the centre of the screen (GUI
 #                                  slots too — NOT self-verifying, see
 #                                  ensure_grab's own comment for why)
+#   live.sh open [left|right]     self-verifying click that OPENS a screen
+#                                  (a settler sheet, a chest, a plaque) —
+#                                  only ever call this before a screen is
+#                                  open, never for a click inside one
 #   live.sh look <dx> <dy>        turn the view — self-verifying, see KF-035
 #   live.sh film <secs> [fps] [pan]  record motion (AC-5): clip.mp4 + labelled
 #                                  contact sheet + motion_ok verdict. `pan` is
@@ -499,6 +503,20 @@ cmd)    focus; shift
 scmd)   shift; srv_send "$*"; echo "ran on server: $*";;
 click)  focus; xdotool mousemove 640 360
         xdotool click "$([ "${2:-left}" = right ] && echo 3 || echo 1)"; echo "clicked ${2:-left}";;
+open)   # KF-035 (added under the 18:00-deadline priority pivot): the
+        # world-interact twin of `mine` -- self-verifying, for the FIRST
+        # click that opens a screen (a settler's sheet, a chest, a plaque),
+        # where by definition no screen is open yet, so a regrab click here
+        # is exactly as safe as it is for `look`/`hold`/`mine`. Plain
+        # `click` stays untouched and un-verified on purpose: it is also
+        # used for clicks INSIDE an already-open screen (crafting slots,
+        # inventory), where a misfired regrab click would land on the GUI
+        # itself (KF-009 cause 1's exact risk) -- never call `open` there.
+        ensure_grab
+        focus; xdotool mousemove 640 360
+        xdotool click "$([ "${2:-left}" = right ] && echo 3 || echo 1)"
+        echo "opened (${2:-left} click)"
+        ;;
 look)   # KF-035: verify-then-move, not move-and-hope. ensure_grab already
         # proves the grab is alive (with real regrab retries + evidence) by
         # the time it returns, so a single real move afterward is both
