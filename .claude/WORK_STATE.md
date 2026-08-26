@@ -128,6 +128,27 @@ noen eksisterende rate.
    er kontrakten: vektklasser gjør plassering viktig, kurértimer/dag gjør
    kostnaden synlig, Fraktboka + plakett-anslag gjør den lærbar. KF-027 først.
 
+## Eierens ordre 07:05Z: FULL SURVIVAL-GJENNOMSPILLING
+Verbatim: «Kjør en full gameplay test. Spill igjennom alt. Få en lumberjack.
+altså uten creative. så jobb deg opp prøv å research og jobb deg til de andre
+bygningene. Dette skal jo tross alt være en survival opplevelse.» + «Test
+hele loopen.» Deretter full patch-runde på alt som ikke funker/er ubalansert.
+**Denne meldingen ER playtest-autorisasjonen** (stående regel krever spørring
+først — eieren har nå beordret den).
+
+Plan i rekkefølge:
+1. SURVIVAL-AUDIT (kjører) — statisk: kan man i det hele tatt NÅ alt fra
+   bare hender? Tier-tabell, WALL/GRIND/SMOOTH, hva live-testen skal knekke.
+2. FLAKE-2s full-kjøring 2 slipper maskinen (green_streak=2 på db7fd1e).
+3. SPILLER-1: ekte survival-gjennomspilling på ferskt bygd jar, filmer
+   underveis (dekker også eierens videoønske), dokumenterer hvert
+   friksjonspunkt. ALDRI creative for å komme forbi en vegg — veggen ER
+   funnet da.
+4. PATCH-RUNDE: fleet på funnene fra SURVIVAL-AUDIT + SPILLER-1 +
+   BALANCE_AUDIT (nå inkludert de utsatte balansefunnene — forskning som
+   ikke gjør noe, døde varer, mat-underskudd).
+5. Ny full x2 + film til eieren.
+
 ## Regler som ikke bøyes
 - All testkjøring gjennom `tools/hearthstead-qa` (rot, ikke moddmappa).
 - `playtest` krever at eieren spørres. `full`/`gametest`/`quick` gjør ikke.
