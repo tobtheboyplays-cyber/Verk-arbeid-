@@ -1,14 +1,14 @@
 {
   "name": "settler_screen_nb",
   "width": 256,
-  "height": 322,
+  "height": 416,
   "elements": [
     {
       "t": "window",
       "x": 0,
       "y": 0,
       "w": 256,
-      "h": 0
+      "h": 416
     },
     {
       "t": "inset",
@@ -18,27 +18,69 @@
       "h": 56
     },
     {
-      "t": "label",
-      "x": 66,
+      "t": "fill",
+      "x": 208,
       "y": 8,
-      "text": "Gislebert the Younger",
-      "tone": "text_strong",
-      "box": 182,
-      "id": "name"
+      "w": 40,
+      "h": 10,
+      "colour": "#b8912f"
+    },
+    {
+      "t": "fill",
+      "x": 209,
+      "y": 9,
+      "w": 38,
+      "h": 8,
+      "colour": "#5c471b"
     },
     {
       "t": "label",
-      "x": 75,
+      "x": 211,
+      "y": 9,
+      "text": "Ordfører",
+      "tone": "#b8912f",
+      "box": 34,
+      "id": "mayor_mark"
+    },
+    {
+      "t": "label",
+      "x": 66,
+      "y": 8,
+      "text": "Gislebert den Yngre",
+      "tone": "text_strong",
+      "box": 138,
+      "id": "name"
+    },
+    {
+      "t": "fill",
+      "x": 66,
       "y": 20,
-      "text": "Vertshusholder",
-      "box": 173,
+      "w": 27,
+      "h": 10,
+      "colour": "#57575e"
+    },
+    {
+      "t": "fill",
+      "x": 67,
+      "y": 21,
+      "w": 25,
+      "h": 8,
+      "colour": "#37312c"
+    },
+    {
+      "t": "label",
+      "x": 69,
+      "y": 21,
+      "text": "Vakt",
+      "tone": "#57575e",
+      "box": 21,
       "id": "profession"
     },
     {
       "t": "label",
       "x": 66,
       "y": 32,
-      "text": "N\u00e5: Sorterer lageret",
+      "text": "Nå: På vakt ved palisaden",
       "tone": "text_muted",
       "box": 182,
       "id": "activity"
@@ -54,7 +96,7 @@
       "t": "label",
       "x": 12,
       "y": 70,
-      "text": "Ordf\u00f8rer \u2014 N\u00f8ysomt arbeid (setter seg inn)",
+      "text": "Ordfører — Godt råd (setter seg inn)",
       "tone": "accent",
       "box": 232,
       "id": "mayor_badge"
@@ -84,9 +126,9 @@
     },
     {
       "t": "label",
-      "x": 222,
+      "x": 248,
       "y": 92,
-      "text": "100",
+      "text": "42",
       "tone": "text_muted",
       "box": 26,
       "align": "right",
@@ -111,9 +153,9 @@
     },
     {
       "t": "label",
-      "x": 222,
+      "x": 248,
       "y": 104,
-      "text": "100",
+      "text": "42",
       "tone": "text_muted",
       "box": 26,
       "align": "right",
@@ -123,7 +165,7 @@
       "t": "label",
       "x": 8,
       "y": 116,
-      "text": "Moral",
+      "text": "Pågangsmot",
       "box": 44,
       "id": "need[2]"
     },
@@ -138,9 +180,9 @@
     },
     {
       "t": "label",
-      "x": 222,
+      "x": 248,
       "y": 116,
-      "text": "100",
+      "text": "42",
       "tone": "text_muted",
       "box": 26,
       "align": "right",
@@ -156,7 +198,7 @@
       "t": "label",
       "x": 8,
       "y": 138,
-      "text": "Utholdenhet (naturlig lag)",
+      "text": "Håndlag (naturlig lag)",
       "tone": "accent",
       "box": 140,
       "id": "attr[0]"
@@ -172,7 +214,7 @@
       "t": "label",
       "x": 8,
       "y": 150,
-      "text": "Utholdenhet",
+      "text": "Styrke",
       "tone": "text",
       "box": 140,
       "id": "attr[1]"
@@ -204,7 +246,7 @@
       "t": "label",
       "x": 8,
       "y": 174,
-      "text": "Utholdenhet",
+      "text": "Klokskap",
       "tone": "text",
       "box": 140,
       "id": "attr[3]"
@@ -220,7 +262,7 @@
       "t": "label",
       "x": 8,
       "y": 186,
-      "text": "Utholdenhet",
+      "text": "Gemytt",
       "tone": "text",
       "box": 140,
       "id": "attr[4]"
@@ -239,27 +281,74 @@
       "w": 240
     },
     {
-      "t": "label",
+      "t": "card",
       "x": 8,
       "y": 208,
-      "text": "Strong back, Watchful, Quick study",
+      "w": 240,
+      "h": 26
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 212,
+      "text": "Støtt",
+      "tone": "text_strong",
+      "box": 232,
+      "id": "trait[0].name"
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 223,
+      "text": "-30% pågangsmot tapt på dårlige dager",
+      "tone": "good",
+      "box": 200,
+      "id": "trait[0].chip[0]"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 238,
+      "w": 240,
+      "h": 26
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 242,
+      "text": "Sterk rygg",
+      "tone": "text_strong",
+      "box": 232,
+      "id": "trait[1].name"
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 253,
+      "text": "Bærer en fjerdedel mer, og går saktere for det",
       "tone": "text_muted",
-      "box": 240,
-      "id": "traits(informational-self-guarded)"
+      "box": 232,
+      "id": "trait[1].flavor"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 268,
+      "w": 240
     },
     {
       "t": "label",
       "x": 8,
-      "y": 220,
-      "text": "Arbeider ved Vaktt\u00e5rn \u2014 Nattevakt",
+      "y": 274,
+      "text": "Ansatt ved Vaktårn — Nattevakt",
       "box": 240,
       "id": "employment"
     },
     {
       "t": "label",
       "x": 8,
-      "y": 236,
-      "text": "Denne bosetteren h\u00f8rer enn\u00e5 ikke til noen",
+      "y": 290,
+      "text": "Bosetningen er i sorg og vil ikke",
       "tone": "warn",
       "box": 240,
       "id": "refusal_line[0]"
@@ -267,8 +356,8 @@
     {
       "t": "label",
       "x": 8,
-      "y": 245,
-      "text": "bygd",
+      "y": 301,
+      "text": "utpeke noen",
       "tone": "warn",
       "box": 240,
       "id": "refusal_line[1]"
@@ -276,21 +365,75 @@
     {
       "t": "divider",
       "x": 8,
-      "y": 264,
+      "y": 318,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 324,
+      "text": "Sekk",
+      "box": 240,
+      "id": "bag_label"
+    },
+    {
+      "t": "slot",
+      "x": 8,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 28,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 48,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 68,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 88,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 108,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 128,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 148,
+      "y": 336
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 358,
       "w": 240
     },
     {
       "t": "button",
       "x": 8,
-      "y": 270,
+      "y": 364,
       "w": 240,
       "h": 20,
-      "text": "Utnevn til ordf\u00f8rer"
+      "text": "Utpek som ordfører"
     },
     {
       "t": "button",
       "x": 8,
-      "y": 294,
+      "y": 388,
       "w": 64,
       "h": 20,
       "text": "Si opp"
@@ -298,7 +441,7 @@
     {
       "t": "button",
       "x": 184,
-      "y": 294,
+      "y": 388,
       "w": 64,
       "h": 20,
       "text": "Lukk"

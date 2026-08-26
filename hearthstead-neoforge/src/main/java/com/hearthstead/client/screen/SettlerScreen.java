@@ -10,6 +10,7 @@ import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.Trait;
 import com.hearthstead.network.SettlerActionPayload;
 import com.hearthstead.network.SettlerSnapshotPayload;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
@@ -20,6 +21,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -39,13 +41,32 @@ import java.util.List;
  * again after every action — and the screen draws only what it was told,
  * the same discipline {@code PlaqueScreen} keeps.
  *
+ * <h2>Traits show only what they verifiably do</h2>
+ *
+ * <p>{@link Trait} carries eight multiplier fields, but only four are ever
+ * read by any gameplay system today — {@code growth} ({@code
+ * SettlerEntity#train}), {@code moraleDecay}/{@code moraleGain} ({@code
+ * SettlerEntity#addMorale}) and {@code hunger} ({@code SettlerEntity}'s own
+ * hunger tick) — plus the flat {@code SLOW_START} penalty ({@code
+ * SettlerEntity#applySlowStart}). {@code carry}, {@code speed}, {@code work}
+ * and {@code sight}, and every {@code Trait.Flag} besides {@code
+ * SLOW_START}, are declared on the enum but consumed nowhere in production
+ * code (verified by search — see the builder's report). Showing those as
+ * quantified buffs would be exactly the false claim the "ingen tydelige
+ * buffs" complaint is about, only dressed up: a player would read "+25%
+ * carry" and find nothing changes. So {@link #wiredEffects} only ever
+ * reports the four multipliers and the one flag that a gameplay system
+ * actually reads; a trait with none of those still gets its existing
+ * flavour line ({@link Trait#describe()}), just not a fabricated number.
+ *
  * <h2>A fixed shape, so the panel never resizes under the mouse</h2>
  *
- * <p>The mayor badge and the refusal banner are optional content, but
- * {@link #layout} reserves their rows unconditionally — a settler who is not
- * mayor simply leaves that row blank rather than the whole panel growing and
- * shrinking as actions are taken. A window that resizes while you are using
- * it reads as broken; a little unused space when a row is absent does not.
+ * <p>The mayor badge, the trait cards, the refusal banner and the bag are
+ * all optional or variable-length content, but {@link #layout} reserves
+ * their rows unconditionally — a settler with one trait simply leaves the
+ * second card blank rather than the whole panel growing and shrinking as
+ * settlers or actions change. A window that resizes while you are using it
+ * reads as broken; a little unused space when a row is absent does not.
  */
 public class SettlerScreen extends Screen {
 
@@ -69,6 +90,8 @@ public class SettlerScreen extends Screen {
     private static final int HEADER_H = PORTRAIT_H;
     private static final int HEADER_TEXT_X = PAD + PORTRAIT_W + 8;
     private static final int HEADER_TEXT_W = PANEL_W - HEADER_TEXT_X - PAD;
+    /** The mayor mark's own cap -- both languages' "Mayor"/"Ordfører" clear it. */
+    private static final int MAYOR_MARK_W = 40;
 
     // Measured against the widest attribute name plus the knack suffix in
     // both languages ("Utholdenhet (naturlig lag)", 129px) -- 128 clipped it
@@ -79,6 +102,17 @@ public class SettlerScreen extends Screen {
     private static final int NEED_PCT_W = 26;
     private static final int NEED_BAR_H = 6;
     private static final int MAYOR_BADGE_H = ROW + 2;
+
+    // -- traits: one card per trait slot, fixed shape regardless of how many
+    //    a given settler rolled (see Trait.roll -- always 1, one time in ten,
+    //    2). Each card is exactly two lines: the trait's name, and one
+    //    content line that is either its wired buff/malus chips (tone
+    //    coloured, magnitude shown) or -- when a trait has none, see the
+    //    class doc -- its existing flavour sentence. Fixed height either way,
+    //    so the panel's shape never depends on which traits a settler has.
+    private static final int TRAIT_SLOTS = 2;
+    private static final int TRAIT_CARD_H = 26;
+    private static final int TRAIT_CARD_PAD = 4;
 
     // -- the bag: a fixed-shape row of BAG_SIZE ghost slots, the same 18px
     //    slot HsUi and StorageScreen already use. Reserved unconditionally
@@ -102,7 +136,7 @@ public class SettlerScreen extends Screen {
     private int scrollOffset;
     private int maxScroll;
     /** Set while drawing a hovered non-widget region; rendered once, last. */
-    private Component pendingTooltip;
+    private List<Component> pendingTooltip;
 
     public SettlerScreen(SettlerEntity settler) {
         super(Component.literal(settler.getSettlerName()));
@@ -250,16 +284,20 @@ public class SettlerScreen extends Screen {
 
         HsUi.divider(g, left + PAD, l.dividerC, CONTENT_W);
         drawTraits(g, left + PAD, l.traitsTop, mouseX, mouseY);
+
+        HsUi.divider(g, left + PAD, l.dividerPerson, CONTENT_W);
         drawEmployment(g, left + PAD, l.employmentTop);
         drawRefusal(g, left + PAD, l.refusalTop);
+
+        HsUi.divider(g, left + PAD, l.dividerBag, CONTENT_W);
         drawBag(g, left + PAD, l.bagLabelTop, l.bagSlotsTop);
 
         HsUi.divider(g, left + PAD, l.dividerD, CONTENT_W);
 
         HsUi.widgets(this, g, mouseX, mouseY, partialTick);
 
-        if (pendingTooltip != null) {
-            g.renderTooltip(font, pendingTooltip, mouseX, mouseY);
+        if (pendingTooltip != null && !pendingTooltip.isEmpty()) {
+            g.renderComponentTooltip(font, pendingTooltip, mouseX, mouseY);
         }
     }
 
@@ -272,17 +310,27 @@ public class SettlerScreen extends Screen {
         InventoryScreen.renderEntityInInventoryFollowsMouse(g, px + 2, py + 2,
             px + PORTRAIT_W - 2, py + PORTRAIT_H - 2, 22, 0.0625F, mouseX, mouseY, settler);
 
+        // Identity block, in the order the citizen-card recipe asks for:
+        // name, then the profession badge in trade colour, with the mayor
+        // mark riding the same row as the name when it applies (see class
+        // doc -- the badge below carries its own accent card already).
         int tx = left + HEADER_TEXT_X;
-        HsUi.labelIn(g, font, title, tx, l.nameTop, HEADER_TEXT_W, HsUiTokens.TEXT_STRONG);
+        boolean mayor = snapshot != null && snapshot.isMayor();
+        int nameBox = HEADER_TEXT_W;
+        if (mayor) {
+            Component mark = Component.translatable("hearthstead.settler.mayor_mark");
+            int markW = Math.min(font.width(mark) + 6, MAYOR_MARK_W);
+            int markX = tx + HEADER_TEXT_W - markW;
+            HsUi.badge(g, font, mark, markX, l.nameTop, markW, HsUiTokens.ACCENT & 0xFFFFFF);
+            nameBox = HEADER_TEXT_W - markW - 4;
+        }
+        HsUi.labelIn(g, font, title, tx, l.nameTop, nameBox, HsUiTokens.TEXT_STRONG);
 
         Profession profession = settler.getProfession();
-        int professionColor = 0xFF000000 | profession.color();
-        // A small swatch beside the word carries the same colour a working
-        // settler's outfit does, so the two read as the same fact.
-        g.fill(tx, l.professionTop + 1, tx + 6, l.professionTop + 7, professionColor);
         Component job = profession.employed() ? profession.displayName()
             : Component.translatable("hearthstead.profession.none");
-        HsUi.labelIn(g, font, job, tx + 9, l.professionTop, HEADER_TEXT_W - 9, professionColor);
+        int professionColor = 0xFF000000 | profession.color();
+        HsUi.badge(g, font, job, tx, l.professionTop, HEADER_TEXT_W, professionColor);
 
         HsUi.labelIn(g, font, Component.translatable("hearthstead.gui.doing",
             settler.getActivity().displayName()), tx, l.activityTop, HEADER_TEXT_W,
@@ -299,7 +347,7 @@ public class SettlerScreen extends Screen {
             boonName());
         HsUi.labelIn(g, font, line, x + 4, y + 2, CONTENT_W - 8, HsUiTokens.ACCENT);
         if (hover(mouseX, mouseY, x, y, CONTENT_W, MAYOR_BADGE_H)) {
-            pendingTooltip = boonDescription();
+            pendingTooltip = List.of(boonDescription());
         }
     }
 
@@ -341,38 +389,121 @@ public class SettlerScreen extends Screen {
             int pips = Mth.clamp(Math.round(value / 20.0F), 0, 5);
             HsUi.pips(g, x + ATTR_LABEL_W + 4, rowY + 1, pips, 5, HsUi.Tone.ACCENT);
             if (hover(mouseX, mouseY, x, rowY, CONTENT_W, ROW)) {
-                pendingTooltip = attribute.trainedBy();
+                // Tiered: what the attribute governs (why it matters), then
+                // what raises it (grey, secondary) -- the same "name, then
+                // grey description" tooltip shape as the Hearth ledger.
+                pendingTooltip = List.of(
+                    Component.translatable("hearthstead.attribute." + attribute.key() + ".role"),
+                    attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY));
             }
         }
     }
 
+    /**
+     * One card per reserved trait slot (see the class doc for why the count
+     * of slots never depends on how many traits this settler actually has).
+     * Each card is a name row and one content row: the trait's wired
+     * buff/malus chips when it has any, its existing flavour line when it
+     * has none — see {@link #wiredEffects}.
+     */
     private void drawTraits(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
         if (snapshot == null) {
             return;
         }
         List<Integer> ordinals = snapshot.traitOrdinals();
-        int cursor = x;
-        int limit = x + CONTENT_W;
-        for (int i = 0; i < ordinals.size(); i++) {
-            Trait trait = Trait.ALL[ordinals.get(i)];
-            Component label = trait.displayName();
-            int w = font.width(label);
-            if (cursor + w > limit) {
-                break; // extremely long trait names in some future locale: stop rather than overrun
+        for (int slot = 0; slot < TRAIT_SLOTS; slot++) {
+            int cardY = y + slot * (TRAIT_CARD_H + GUTTER);
+            if (slot >= ordinals.size()) {
+                continue; // reserved but blank -- the settler has only one trait
             }
-            boolean hovered = hover(mouseX, mouseY, cursor, y, w, ROW);
-            g.drawString(font, label, cursor, y, hovered ? HsUiTokens.TEXT_STRONG : HsUiTokens.TEXT,
-                true);
+            Trait trait = Trait.ALL[ordinals.get(slot)];
+            boolean hovered = hover(mouseX, mouseY, x, cardY, CONTENT_W, TRAIT_CARD_H);
+            HsUi.card(g, x, cardY, CONTENT_W, TRAIT_CARD_H, hovered);
+            int tx = x + TRAIT_CARD_PAD;
+            int limit = x + CONTENT_W - TRAIT_CARD_PAD;
+            HsUi.labelIn(g, font, trait.displayName(), tx, cardY + TRAIT_CARD_PAD,
+                CONTENT_W - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_STRONG);
+            int lineY = cardY + TRAIT_CARD_PAD + HsUiTokens.LINE_GAP;
+            List<Effect> effects = wiredEffects(trait);
+            if (effects.isEmpty()) {
+                HsUi.labelIn(g, font, trait.describe(), tx, lineY,
+                    CONTENT_W - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_MUTED);
+            } else {
+                drawEffectChips(g, effects, tx, lineY, limit);
+            }
             if (hovered) {
-                pendingTooltip = trait.describe();
-            }
-            cursor += w;
-            if (i < ordinals.size() - 1) {
-                String separator = ", ";
-                g.drawString(font, separator, cursor, y, HsUiTokens.TEXT_MUTED, true);
-                cursor += font.width(separator);
+                pendingTooltip = List.of(trait.displayName(),
+                    trait.describe().copy().withStyle(ChatFormatting.GRAY));
             }
         }
+    }
+
+    /** One trait's chips, packed left to right; the same defensive
+     *  cursor-and-limit break the old comma-separated trait line used, so an
+     *  unexpectedly long translation stops cleanly instead of overrunning
+     *  the card. */
+    private void drawEffectChips(GuiGraphics g, List<Effect> effects, int x, int y, int limit) {
+        int cursor = x;
+        for (int i = 0; i < effects.size(); i++) {
+            Effect effect = effects.get(i);
+            int w = font.width(effect.text());
+            if (cursor + w > limit) {
+                break;
+            }
+            g.drawString(font, effect.text(), cursor, y, effect.tone().colour(), true);
+            cursor += w;
+            if (i < effects.size() - 1) {
+                String sep = "   ";
+                int sepW = font.width(sep);
+                if (cursor + sepW > limit) {
+                    break;
+                }
+                cursor += sepW;
+            }
+        }
+    }
+
+    /**
+     * The buff/malus chips a trait actually delivers — see the class doc.
+     * Reads straight off {@link Trait}'s own multiplier fields, but only the
+     * four a gameplay system reads back ({@code growth}, {@code
+     * moraleDecay}, {@code moraleGain}, {@code hunger}) plus the flat
+     * {@code SLOW_START} penalty; the rest are declared on the enum but
+     * consumed nowhere, so showing them here would be a claim this screen
+     * cannot back.
+     */
+    private static List<Effect> wiredEffects(Trait trait) {
+        List<Effect> out = new ArrayList<>(3);
+        addPercent(out, trait.growth(), true, "hearthstead.trait.effect.growth");
+        addPercent(out, trait.moraleDecay(), false, "hearthstead.trait.effect.morale_decay");
+        addPercent(out, trait.moraleGain(), true, "hearthstead.trait.effect.morale_gain");
+        addPercent(out, trait.hunger(), false, "hearthstead.trait.effect.hunger");
+        if (trait.has(Trait.Flag.SLOW_START)) {
+            out.add(new Effect(Component.translatable("hearthstead.trait.effect.slow_start"),
+                HsUi.Tone.WARN));
+        }
+        return out;
+    }
+
+    /**
+     * @param higherIsBetter whether a ratio above 1.0 is the buff (growth,
+     *                       moraleGain) or the malus (moraleDecay, hunger,
+     *                       where LESS is the good outcome)
+     */
+    private static void addPercent(List<Effect> out, float ratio, boolean higherIsBetter,
+                                   String key) {
+        int pct = Math.round((ratio - 1.0F) * 100.0F);
+        if (pct == 0) {
+            return;
+        }
+        boolean good = higherIsBetter == (pct > 0);
+        String signed = (pct > 0 ? "+" : "") + pct;
+        out.add(new Effect(Component.translatable(key, signed),
+            good ? HsUi.Tone.GOOD : HsUi.Tone.WARN));
+    }
+
+    /** One trait's plain-language, tone-coloured buff or malus line. */
+    private record Effect(Component text, HsUi.Tone tone) {
     }
 
     private void drawEmployment(GuiGraphics g, int x, int y) {
@@ -513,7 +644,15 @@ public class SettlerScreen extends Screen {
         y += HsUiTokens.DIVIDER_H + GUTTER;
 
         l.traitsTop = y;
-        y += ROW;
+        y += TRAIT_SLOTS * (TRAIT_CARD_H + GUTTER);
+
+        // A second divider between "who they are" (traits) and "what they
+        // do" (employment, refusal) -- both are real semantic groups, and
+        // the panel is tall enough now that the extra rule earns its place
+        // rather than crowding the one above it.
+        l.dividerPerson = y;
+        y += HsUiTokens.DIVIDER_H + GUTTER;
+
         l.employmentTop = y;
         y += ROW + GUTTER;
         l.refusalTop = y;
@@ -521,6 +660,10 @@ public class SettlerScreen extends Screen {
         // drawRefusal). Reserved unconditionally, same fixed-shape discipline
         // as the mayor badge above.
         y += ROW * 2 + GUTTER;
+
+        // A third: "what they carry" is its own group too, same reasoning.
+        l.dividerBag = y;
+        y += HsUiTokens.DIVIDER_H + GUTTER;
 
         l.bagLabelTop = y;
         y += ROW;
@@ -555,8 +698,10 @@ public class SettlerScreen extends Screen {
         int attributesTop;
         int dividerC;
         int traitsTop;
+        int dividerPerson;
         int employmentTop;
         int refusalTop;
+        int dividerBag;
         int bagLabelTop;
         int bagSlotsTop;
         int dividerD;

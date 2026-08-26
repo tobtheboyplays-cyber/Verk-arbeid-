@@ -1,14 +1,14 @@
 {
   "name": "settler_screen_en",
   "width": 256,
-  "height": 322,
+  "height": 416,
   "elements": [
     {
       "t": "window",
       "x": 0,
       "y": 0,
       "w": 256,
-      "h": 0
+      "h": 416
     },
     {
       "t": "inset",
@@ -18,27 +18,69 @@
       "h": 56
     },
     {
+      "t": "fill",
+      "x": 212,
+      "y": 8,
+      "w": 36,
+      "h": 10,
+      "colour": "#b8912f"
+    },
+    {
+      "t": "fill",
+      "x": 213,
+      "y": 9,
+      "w": 34,
+      "h": 8,
+      "colour": "#5c471b"
+    },
+    {
+      "t": "label",
+      "x": 215,
+      "y": 9,
+      "text": "Mayor",
+      "tone": "#b8912f",
+      "box": 30,
+      "id": "mayor_mark"
+    },
+    {
       "t": "label",
       "x": 66,
       "y": 8,
       "text": "Gislebert the Younger",
       "tone": "text_strong",
-      "box": 182,
+      "box": 142,
       "id": "name"
     },
     {
-      "t": "label",
-      "x": 75,
+      "t": "fill",
+      "x": 66,
       "y": 20,
-      "text": "Unassigned",
-      "box": 173,
+      "w": 36,
+      "h": 10,
+      "colour": "#57575e"
+    },
+    {
+      "t": "fill",
+      "x": 67,
+      "y": 21,
+      "w": 34,
+      "h": 8,
+      "colour": "#37312c"
+    },
+    {
+      "t": "label",
+      "x": 69,
+      "y": 21,
+      "text": "Guard",
+      "tone": "#57575e",
+      "box": 30,
       "id": "profession"
     },
     {
       "t": "label",
       "x": 66,
       "y": 32,
-      "text": "Now: Sorting the stores",
+      "text": "Now: On watch at the palisade",
       "tone": "text_muted",
       "box": 182,
       "id": "activity"
@@ -54,7 +96,7 @@
       "t": "label",
       "x": 12,
       "y": 70,
-      "text": "Mayor \u2014 Good Counsel (settling in)",
+      "text": "Mayor — Good Counsel (settling in)",
       "tone": "accent",
       "box": 232,
       "id": "mayor_badge"
@@ -84,9 +126,9 @@
     },
     {
       "t": "label",
-      "x": 222,
+      "x": 248,
       "y": 92,
-      "text": "100",
+      "text": "42",
       "tone": "text_muted",
       "box": 26,
       "align": "right",
@@ -111,9 +153,9 @@
     },
     {
       "t": "label",
-      "x": 222,
+      "x": 248,
       "y": 104,
-      "text": "100",
+      "text": "42",
       "tone": "text_muted",
       "box": 26,
       "align": "right",
@@ -138,9 +180,9 @@
     },
     {
       "t": "label",
-      "x": 222,
+      "x": 248,
       "y": 116,
-      "text": "100",
+      "text": "42",
       "tone": "text_muted",
       "box": 26,
       "align": "right",
@@ -172,7 +214,7 @@
       "t": "label",
       "x": 8,
       "y": 150,
-      "text": "Dexterity",
+      "text": "Strength",
       "tone": "text",
       "box": 140,
       "id": "attr[1]"
@@ -188,7 +230,7 @@
       "t": "label",
       "x": 8,
       "y": 162,
-      "text": "Dexterity",
+      "text": "Stamina",
       "tone": "text",
       "box": 140,
       "id": "attr[2]"
@@ -204,7 +246,7 @@
       "t": "label",
       "x": 8,
       "y": 174,
-      "text": "Dexterity",
+      "text": "Wits",
       "tone": "text",
       "box": 140,
       "id": "attr[3]"
@@ -220,7 +262,7 @@
       "t": "label",
       "x": 8,
       "y": 186,
-      "text": "Dexterity",
+      "text": "Spirit",
       "tone": "text",
       "box": 140,
       "id": "attr[4]"
@@ -239,26 +281,73 @@
       "w": 240
     },
     {
-      "t": "label",
+      "t": "card",
       "x": 8,
       "y": 208,
-      "text": "Strong back, Watchful, Quick study",
+      "w": 240,
+      "h": 26
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 212,
+      "text": "Stoic",
+      "tone": "text_strong",
+      "box": 232,
+      "id": "trait[0].name"
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 223,
+      "text": "-30% morale lost on bad days",
+      "tone": "good",
+      "box": 151,
+      "id": "trait[0].chip[0]"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 238,
+      "w": 240,
+      "h": 26
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 242,
+      "text": "Strong back",
+      "tone": "text_strong",
+      "box": 232,
+      "id": "trait[1].name"
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 253,
+      "text": "Carries a quarter more, and walks slower for it",
       "tone": "text_muted",
-      "box": 240,
-      "id": "traits(informational-self-guarded)"
+      "box": 232,
+      "id": "trait[1].flavor"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 268,
+      "w": 240
     },
     {
       "t": "label",
       "x": 8,
-      "y": 220,
-      "text": "Employed at Watchtower \u2014 Night watch",
+      "y": 274,
+      "text": "Employed at Watchtower — Night watch",
       "box": 240,
       "id": "employment"
     },
     {
       "t": "label",
       "x": 8,
-      "y": 236,
+      "y": 290,
       "text": "The settlement is in mourning and will appoint",
       "tone": "warn",
       "box": 240,
@@ -267,7 +356,7 @@
     {
       "t": "label",
       "x": 8,
-      "y": 245,
+      "y": 301,
       "text": "nobody",
       "tone": "warn",
       "box": 240,
@@ -276,13 +365,67 @@
     {
       "t": "divider",
       "x": 8,
-      "y": 264,
+      "y": 318,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 324,
+      "text": "Bag",
+      "box": 240,
+      "id": "bag_label"
+    },
+    {
+      "t": "slot",
+      "x": 8,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 28,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 48,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 68,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 88,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 108,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 128,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 148,
+      "y": 336
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 358,
       "w": 240
     },
     {
       "t": "button",
       "x": 8,
-      "y": 270,
+      "y": 364,
       "w": 240,
       "h": 20,
       "text": "Appoint as Mayor"
@@ -290,7 +433,7 @@
     {
       "t": "button",
       "x": 8,
-      "y": 294,
+      "y": 388,
       "w": 64,
       "h": 20,
       "text": "Dismiss"
@@ -298,7 +441,7 @@
     {
       "t": "button",
       "x": 184,
-      "y": 294,
+      "y": 388,
       "w": 64,
       "h": 20,
       "text": "Close"

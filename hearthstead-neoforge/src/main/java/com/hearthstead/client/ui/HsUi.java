@@ -196,6 +196,43 @@ public final class HsUi {
 
     // -- text -------------------------------------------------------------
 
+    /**
+     * A short trade badge: the identity colour as a dim fill with a bright
+     * rim, the same colour again for the text — the "profession badge in
+     * trade colour" the citizen-card recipe calls for, built without a new
+     * sprite. The fill mixes toward {@code oak_carved[0]} (texlib's darkest
+     * oak stop, not pure black) so it sits on the same ramp as the rest of
+     * the dark ground rather than introducing a foreign grey.
+     *
+     * <p>Ellipsises inside {@code maxWidth} exactly like {@link #labelIn},
+     * and returns the drawn width so a caller can lay out what comes next
+     * (a mayor mark, say) beside it without guessing.
+     */
+    public static int badge(GuiGraphics g, Font font, Component text, int x, int y,
+                            int maxWidth, int trade) {
+        int innerMax = Math.max(0, maxWidth - 6);
+        int inner = Math.min(font.width(text), innerMax);
+        int w = inner + 6;
+        int h = 10;
+        int rim = 0xFF000000 | (trade & 0xFFFFFF);
+        int fill = mixToward(trade, 0x241A0E, 0.62F);
+        g.fill(x, y, x + w, y + h, fill);
+        g.fill(x, y, x + w, y + 1, rim);
+        g.fill(x, y + h - 1, x + w, y + h, rim);
+        g.fill(x, y, x + 1, y + h, rim);
+        g.fill(x + w - 1, y, x + w, y + h, rim);
+        labelIn(g, font, text, x + 3, y + 1, inner, rim);
+        return w;
+    }
+
+    /** Blends {@code rgb} toward {@code towardRgb} by {@code t} (0..1), alpha forced opaque. */
+    private static int mixToward(int rgb, int towardRgb, float t) {
+        int r = Math.round(((rgb >> 16) & 0xFF) * (1 - t) + ((towardRgb >> 16) & 0xFF) * t);
+        int g2 = Math.round(((rgb >> 8) & 0xFF) * (1 - t) + ((towardRgb >> 8) & 0xFF) * t);
+        int b = Math.round((rgb & 0xFF) * (1 - t) + (towardRgb & 0xFF) * t);
+        return 0xFF000000 | (r << 16) | (g2 << 8) | b;
+    }
+
     public static void label(GuiGraphics g, Font font, Component text,
                              int x, int y, int colour) {
         g.drawString(font, text, x, y, colour, true);
