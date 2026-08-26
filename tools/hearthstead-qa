@@ -31,11 +31,24 @@ fingerprint() {
     # it would change the fingerprint on every run and it would never settle.
     # __pycache__ is out for the same reason — running a generator rewrites
     # .pyc files and would invalidate evidence that nothing real had changed.
+    #
+    # The CONTROLLER ITSELF is in as of 2026-08-26. It was excluded, which
+    # was the same hole one level up from the one this comment already
+    # warns about: qa/scripts is fingerprinted because an assertion can be
+    # loosened there, but the file that decides PASS from FAIL -- that reads
+    # the log, counts the failures and writes the verdict -- was not. It had
+    # been under-reporting failures for an unknown number of runs (a
+    # `head -5` roster and a count of error lines rather than of tests), and
+    # no stored fingerprint would have changed when that was fixed. A judge
+    # that is not fingerprinted is a judge that can be edited without the
+    # evidence noticing. Adding it invalidates every fingerprint stored
+    # before this date, which is correct: those runs were judged by a
+    # different judge.
     { find "$MOD/src" "$MOD/tools" "$QA/scripts" "$QA/scenarios" \
            -type f -not -path '*/__pycache__/*' 2>/dev/null \
         | sort | xargs sha256sum 2>/dev/null
       sha256sum "$MOD/build.gradle" "$MOD/gradle.properties" "$MOD/settings.gradle" \
-                "$QA/PROTOCOL.md" 2>/dev/null
+                "$QA/PROTOCOL.md" "$REPO/tools/hearthstead-qa" 2>/dev/null
     } | sha256sum | cut -d' ' -f1
 }
 
@@ -152,14 +165,56 @@ run_gametests() { # extra JVM props via $1
     (cd "$MOD" && ./gradlew runGameTestServer > "$RUN_DIR/gametest.log" 2>&1)
 }
 
+# The complete failure evidence for a GameTest log, written whole.
+#
+# Two defects lived here until 2026-08-26 and both made the judge
+# under-report, which is the one direction a judge must never err in:
+#
+#   1. The roster was piped through `head -5`. A run with fourteen failures
+#      stored five of them, so the artifact silently disagreed with the
+#      server that produced it -- and the artifact is what survives the run.
+#   2. The recorded count came from `grep -c "failed at"`, which counts
+#      ERROR lines, not tests. One run reported `failures=5` in its manifest
+#      while GameTestServer's own summary said 20. Reproduced directly:
+#      run 20260826T020820Z stored five lines and 20 tests had failed.
+#
+# The count now comes from GameTestServer's own "N required tests failed"
+# line -- the authority on how many tests failed -- and both the roster and
+# the detail lines are written in full, however long they are.
+gametest_evidence() { # $1 = log, $2 = failures file
+    {
+        echo "=== roster (GameTestServer's own summary) ==="
+        sed -n '/required tests failed/,/^.*=====================/p' "$1" \
+            | sed 's/.*GameTestServer\]: *//'
+        echo
+        echo "=== detail (every failure line, untruncated) ==="
+        grep "failed at" "$1"
+    } > "$2"
+}
+
+# How many TESTS failed, per the server itself. Falls back to counting
+# "failed at" lines only if that summary line is absent (a crash before the
+# summary was printed), and says so rather than reporting a smaller number
+# as though it were the truth.
+gametest_failcount() { # $1 = log
+    local n
+    n=$(grep -oP '^\S+ \S+ \S+ \K[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
+    if [ -z "$n" ]; then
+        n=$(grep -oP '[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
+    fi
+    if [ -n "$n" ]; then echo "$n"; else
+        echo "$(grep -c "failed at" "$1" 2>/dev/null || echo 0)+ (no server summary; error lines, not tests)"
+    fi
+}
+
 suite_gametest() {
     mkdir -p "$RUN_DIR"
     run_gametests ""
     if grep -q "required tests passed" "$RUN_DIR/gametest.log"; then
         record gametest PASS "$(grep -o 'All [0-9]* required tests passed' "$RUN_DIR/gametest.log" | tail -1)"
     else
-        local fails; fails=$(grep -c "failed at" "$RUN_DIR/gametest.log" 2>/dev/null || echo "?")
-        grep "failed at" "$RUN_DIR/gametest.log" | head -5 > "$RUN_DIR/gametest-failures.txt"
+        local fails; fails=$(gametest_failcount "$RUN_DIR/gametest.log")
+        gametest_evidence "$RUN_DIR/gametest.log" "$RUN_DIR/gametest-failures.txt"
         record gametest FAIL "failures=$fails see gametest-failures.txt"; return 1
     fi
 }
@@ -171,7 +226,7 @@ suite_behavior() {
     (cd "$MOD" && HSQA_TRACE=1 HSQA_TRACE_FILE="$trace" ./gradlew runGameTestServer \
         > "$RUN_DIR/behavior.log" 2>&1)
     if ! grep -q "required tests passed" "$RUN_DIR/behavior.log"; then
-        grep "failed at" "$RUN_DIR/behavior.log" | head -5 > "$RUN_DIR/behavior-failures.txt"
+        gametest_evidence "$RUN_DIR/behavior.log" "$RUN_DIR/behavior-failures.txt"
         record behavior FAIL "gametests failed under trace"; return 1
     fi
     if [ ! -s "$trace" ]; then
