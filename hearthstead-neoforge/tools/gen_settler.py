@@ -156,6 +156,20 @@ PROFESSION_OUTFITS = {
                       apron_wool="leather", hoop_band=True),
     "archer":    dict(headgear="hood", hood_wool="forest", quiver=True,
                       bracers=True, bracer_wool="leather"),
+    # ARMOURY-3 (Profession id 22): the armoury's own trade, the same
+    # follow-up shape as MILLER/BREWER above. Deliberately headgear="bare",
+    # like the smith right next to it in this table -- a hood or helm shell
+    # would need SettlerModel's hood.visible switch (client/model, outside
+    # this slice's file ownership) extended to show it, the exact bug this
+    # table's own header comment already documents seven trades once hit.
+    # Distinct from the smith by part combination (gauntlets, not bracers --
+    # an armourer's own hands are gripping plate all day, not just a hot
+    # tang) and by ramp family (ember's forge-glow orange, not the smith's
+    # cool iron), and distinct from every other bare-headed apron trade
+    # (tanner, butcher, carpenter, fletcher, sawyer, lumberer) the same two
+    # ways -- checked pairwise, the archer/scholar doctrine above.
+    "armourer":  dict(headgear="bare", apron=True, apron_wool="ember",
+                      gauntlets=True),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed

@@ -154,24 +154,49 @@ Status marks: [LANDET] committed; [I ARBEID] a fix worker owns it now;
   fixtures FLAKE-2 fixed (KF-021); that fix landed first and this slice's
   new tests were written against the corrected `GameTestFixtures.register`
   helper from the start, so no collision.**
-- **Still open, MILITARY-OUT-adjacent, present tense**: the armoury
-  building has no trade in `Employment`'s `TRADES` map and no matching
-  `Profession` — `Employment.tradeOf(BuildingType.ARMOURY)` is
-  `Profession.NONE`, so `Employment.hire()` refuses every attempt with
-  `no_trade`, and nobody can be hired to run these recipes through the
-  game's normal hire screen or `CrafterWorkGoal`. This is a THIRD gap on
-  top of the two BALANCE_AUDIT.md finding 1 already named (empty
-  Production table, unbuilt MILITARY-OUT route) — the recipes are real and
-  chest-true today, but a player cannot yet get a settler to actually run
-  them without hand-placing armour pieces the same way they always could.
-  The precedent is already in the codebase: MILL and BREWERY shipped their
-  Production tables one slice before MILLER/BREWER professions did (see
-  Employment.java's "Coordinator addendum, 2026-08-25" comment) — the same
-  shape of follow-up (an ARMOURER profession or reusing SMITH, plus one
-  `TRADES.put(BuildingType.ARMOURY, ...)` line) closes this. Out of scope
-  for this slice: `Employment.java` and `Profession.java` are outside
-  Production.java's file ownership and other workers were live on
-  adjacent files tonight.
+- [LANDET 2026-08-26, ARMOURY-3] **The THIRD gap, closed**: the armoury
+  now has a trade. `Profession.ARMOURER` (id 22) joins right after `ARCHER`
+  — hands free like every other crafting trade (CHAINS-1's convention),
+  identity colour `0x6E7A8A`, a cool steel-blue distinct from every colour
+  already in use. `Employment.TRADES.put(BuildingType.ARMOURY,
+  Profession.ARMOURER)` makes `Employment.hire()` accept a worker instead
+  of refusing with `no_trade`; `motionOf` gives the trade
+  `SettlerActivity.WORK_HAMMER` — an armourer hammering plate at an anvil
+  IS a smith hammering a blade at one, so this reuses the smithy's own
+  HAMMER_ANVIL clip rather than authoring a bespoke one (the same call
+  already made for INNKEEPER/SCHOLAR/MILLER/BREWER/ARCHER), which means
+  `soundOf`/`soundPeriodOf`/`soundContactOf` (ANVIL_RING at contact tick 9)
+  follow for free since those three key off the motion, not the trade —
+  no separate table entries needed; `trainedBy` joins the smith/mason/
+  smelter/lumberer/miner group under `Attribute.STRENGTH`. The idle gate
+  in `SettlerEntity#setupAnimationStates` adds `ARMOURER` to
+  `idleForgeState` alongside `SMITH`/`SMELTER` (no new clip, per the
+  fourteen-idle set's own invariant: one profession, one gate). The outfit
+  (`gen_settler.py`) is bare-headed with an ember-toned apron and gauntlets
+  — deliberately NOT a hood or helm, which would need
+  `SettlerModel#setupAnim`'s `hood.visible` switch (client/model, outside
+  this slice's file ownership) extended, the exact bug that switch's own
+  header comment already documents seven trades once hit; distinct from
+  the smith (apron/iron + bracers/leather) and every other bare-headed
+  apron trade by both ramp family and part combination, checked pairwise
+  per the archer/scholar doctrine. Both lang files carry
+  `hearthstead.profession.armourer` (`nb_no`: "Rustningssmed", matching the
+  `-smed` family `Smed`/`Smeltemester` already use); `validate_assets.py`
+  is 850/850. Proof: `ArmouryGameTests#aHiredArmourerActuallyForgesAHelmetIntoTheArmouryChest`
+  goes through `Employment.hire()` and the settler's own `CrafterWorkGoal`
+  — not `Production.run()` directly, the shape (e)-(g) in that file
+  deliberately use to pin the recipe table — so it is the one proof in the
+  file that a PERSON can be put to work at this building at all, and it
+  was red (hire refused `no_trade`) before this slice.
+- **Still open, present tense**: MILITARY-OUT itself — the courier route
+  that would carry smithed goods (arrows/armour/tools) OUT to the armoury,
+  barracks and watchtower chests — remains unbuilt. `CrafterWorkGoal`
+  reads only the armoury's OWN chest (D-007, "a building works alone"), so
+  the armourer above works fine standing alone; what is still missing is
+  the delivery leg TO the barracks/watchtower that would put that armour
+  where `GuardRank.applyEquipment` looks for it without a player hand-
+  carrying it there. That is `CourierWorkGoal` territory (F1), not this
+  slice's file ownership.
 
 **In flight (fix workers own the files):**
 - [I ARBEID] FARMER-BOOTSTRAP: first-planting on tilled ground (orphaned

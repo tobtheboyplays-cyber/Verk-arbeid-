@@ -7,10 +7,12 @@ import com.hearthstead.building.Production;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.GuardRank;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
@@ -501,5 +503,81 @@ public class ArmouryGameTests {
             }
         }
         return null;
+    }
+
+    // ------------------------------------------------- (h) the armoury EMPLOYS ---
+    //
+    // ARMOURY-3 (docs/project/PLAN_CIRCULATION.md, "still open,
+    // MILITARY-OUT-adjacent"): (e)-(g) above proved the recipe table itself,
+    // but every one of them drives Production.ready()/Production.run()
+    // directly -- exactly the shape ChainsGameTests uses to pin a recipe
+    // table, and exactly the shape that CANNOT catch a missing hire path,
+    // because it never calls Employment.hire() at all. Before this slice,
+    // Employment.tradeOf(BuildingType.ARMOURY) was Profession.NONE: no
+    // TRADES entry, no Profession for it, so Employment.hire() refused every
+    // attempt with "no_trade" and the recipes above were reachable only from
+    // a test harness, never from a player's hire screen. This test goes
+    // through the real path start to finish -- Employment.hire(), then the
+    // settler's own CrafterWorkGoal (added unconditionally in
+    // SettlerEntity's constructor) finding the work and running it -- so it
+    // is red the instant either the TRADES entry or the Profession is
+    // missing, and it is the one proof in this file that a PERSON can be put
+    // to work here at all.
+
+    /**
+     * (h) Hired through the front door, not summoned: {@link Employment#hire}
+     * must accept a settler into the armoury (it refused with {@code
+     * no_trade} before this slice), the settler's synced profession must
+     * become {@link Profession#ARMOURER}, and — with nothing driving
+     * {@link Production} directly — the settler's own {@code CrafterWorkGoal}
+     * must find the leather in the armoury's chest, actually perform
+     * {@link SettlerActivity#WORK_HAMMER} (the smithy's own hammer-at-anvil
+     * clip, reused rather than a bespoke one — ARMOURY-3's motionOf comment),
+     * and turn it into a real leather helmet sitting in that same chest.
+     * Five leather is exactly one helmet's cost (D-007's "a building works
+     * alone" — no tannery anywhere in this arena) and nothing else, so the
+     * chest ending at zero leather and one helmet is the conservation check.
+     */
+    @GameTest(batch = "armoury", template = "empty16", timeoutTicks = 700)
+    public void aHiredArmourerActuallyForgesAHelmetIntoTheArmouryChest(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement s = makeSettlement(helper, new BlockPos(7, 1, 7));
+        Building armoury = building(helper, s, BuildingType.ARMOURY, 3, 3);
+        helper.setBlock(new BlockPos(4, 1, 3), Blocks.CHEST);
+        Container chest = containerAt(helper, new BlockPos(4, 1, 3));
+        helper.assertTrue(chest != null, "the armoury chest should be a container");
+        chest.setItem(0, new ItemStack(Items.LEATHER, 5));
+
+        SettlerEntity kari = settler(helper, s, "Kari", 4, 4);
+        Employment.Hired hired = Employment.hire(helper.getLevel(), s, armoury, kari);
+        helper.assertTrue(hired.ok(),
+            "an armoury with a real recipe table must be able to hire a worker, "
+                + "refused with " + hired.refusal());
+        helper.assertTrue(kari.getProfession() == Profession.ARMOURER,
+            "hiring into the armoury must project Profession.ARMOURER onto the "
+                + "settler, found " + kari.getProfession());
+
+        // Mid-morning: working hours, so CrafterWorkGoal is allowed to run
+        // (same idiom as TradeSmelterGameTests#aHiredSmelterActuallySmelts).
+        helper.getLevel().setDayTime(3000);
+
+        boolean[] sawHammering = new boolean[1];
+
+        helper.succeedWhen(() -> {
+            if (kari.getActivity() == SettlerActivity.WORK_HAMMER) {
+                sawHammering[0] = true;
+            }
+            int helmets = countOf(chest, Items.LEATHER_HELMET);
+            int leather = countOf(chest, Items.LEATHER);
+            helper.assertTrue(leather + helmets * 5 == 5,
+                "five leather must become exactly one helmet with nothing left "
+                    + "over: leather=" + leather + " helmets=" + helmets);
+            helper.assertTrue(helmets > 0,
+                "a settler hired into the armoury through Employment.hire must "
+                    + "actually produce a helmet (activity=" + kari.getActivity() + ")");
+            helper.assertTrue(sawHammering[0],
+                "the armourer must actually be seen performing WORK_HAMMER at "
+                    + "some point, not just have the output appear while idle");
+        });
     }
 }
