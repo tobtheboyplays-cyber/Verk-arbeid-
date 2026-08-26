@@ -41,6 +41,12 @@ systems wearing a finished building shell. The Plaque is not lying about
 the room being correct; it's just that "correct room" is all four
 currently do.
 
+**Changed today:** the School, Market and Infirmary used to *offer* a Hire
+button on their plaque, which then refused every hire with "no trade" —
+an honest refusal to a dishonest offer. They no longer advertise the
+post at all. The building still validates and still does nothing, but it
+no longer promises a worker it cannot take. The Well never offered one.
+
 **Workaround:** none. Don't invest heavily in these four yet; everything
 else you can build (25 of 33 building types have a hireable trade) is
 real, including the newer Pasture, Fishery and Hunter's Lodge.
