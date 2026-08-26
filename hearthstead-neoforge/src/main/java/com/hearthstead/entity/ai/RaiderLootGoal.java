@@ -209,6 +209,9 @@ public class RaiderLootGoal extends Goal {
                 repathTimer = 0;
             }
             store.setChanged();
+            // Animation trigger: LOOT_SNATCH, the instant the stack actually
+            // leaves the chest (see RaiderEntity#triggerLootSnatch).
+            raider.triggerLootSnatch();
             // Visible on purpose (INV: chest truth). The count in the chest
             // going down is not enough on its own -- the task asks that a
             // raider "visibly take items", so the grab itself throws stuff

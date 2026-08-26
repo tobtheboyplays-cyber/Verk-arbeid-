@@ -1505,3 +1505,57 @@ misleading message in history is a smaller problem than a force-push under a
 reviewer. The same `cd`-drift has now cost this session a detached HEAD, a
 commit outside the branch, and this — the rule in WORK_STATE stands: use
 `git -C <path>`, never `cd`.
+
+### KF-027 — CLOSED. The ingots were never lost; the courier was murdered
+
+**2026-08-26 08:10Z, CONSERVE-1, ~21 instrumented runs.** Both standing
+hypotheses were wrong, and the method that has carried the whole night —
+instrument, catch it live, trust nothing — won again.
+
+**The hearth hypothesis (the coordinator's) was structurally impossible:**
+`returnsToSource()` is unconditionally true for `CRAFTER_RESTOCK`, so a
+giving-up restock courier can only ever fall back to the WAREHOUSE; the two
+`hearth.insertGoods` call sites are gated to other job types. Across 21 runs
+with the hearth's inventory dumped on every change, not one ingot ever
+appeared there. Recorded with satisfaction rather than embarrassment: the
+worker was told not to trust the hypothesis, and did not.
+
+**Nothing was destroyed either.** Caught live, twice, in the server log:
+
+```
+Named entity SettlerEntity['Bud'/142] died: Bud was slain by Raider
+```
+
+A raider belonging to a DIFFERENT test's raid ("Breachholm",
+RaidDamageGameTests) reached this test's arena and killed the courier.
+`SettlerEntity#die` drops the bag as real ground `ItemEntity`s — chest-truth
+compliant, nothing conjured or destroyed — but invisible to an assertion that
+counts chests and one bag. Killed mid-haul with 8 ingots in hand, the
+arithmetic reads exactly `smithy=0 warehouse=4 bag=0, total=4`. 2 failures
+in 21 runs, both this signature; `giveUp()` was never called once, and the
+rewritten arrival predicate (KF-023) worked correctly in every trace — 1-2
+repaths, arrival, done.
+
+**The real defect is `RaiderEntity`'s target selector:** it attacks ANY
+`SettlerEntity`, unscoped to the settlement its raid is against. In the
+suite that means cross-test murder; in the product it means that when NPC
+neighbour villages land (phase B2), any passing raider band will aggro
+villagers it was never raiding. The fix is to scope target selection to the
+raid's own settlement (retaliation via hurt-by stays universal — anyone who
+strikes a raider is fair game). Queued for the patch round; `RaiderEntity`
+is currently owned by the raider-animation worker, so it is not edited
+underneath them.
+
+**The worker changed nothing, and that was the assignment.** Instrumentation
+added and fully stripped, both owned files byte-identical to HEAD, no
+assertion widened — because widening the count to include ground drops would
+have made the test pass while papering over the targeting bug that put the
+drops there. A test that goes red when a courier is murdered by a raider
+from another test is not wrong about conservation; it is right about
+something else.
+
+**A stale-tree false alarm, resolved:** CONSERVE-1's ~21 runs also showed
+`everyTradeHasWorkAndAMotionOfItsOwn` red with "armoury has recipes but
+nobody can be hired". Its worktree predated d21d5e9 (the commit that wired
+ARMOURER's hire path); the main tree's 206/206 run at that commit includes
+this test green. No live defect.

@@ -18,11 +18,24 @@ import net.minecraft.util.Mth;
  * settler's broad, cloaked build.
  *
  * <p>Silhouette is the whole point. Both reference mods field raiders that
- * players cannot tell apart from each other or from their own guards —
+ * players cannot tell apart from each other or from their own guards --
  * MineColonies' own design intent is that raiders be "similar to guards",
  * and the resulting complaint is that "chief raiders don't even stand out".
  * A captain here is a different shape at fifty blocks: pauldron, helm, and a
  * taller stance.
+ *
+ * <p><b>Build geometry lives here, motion lives in {@link RaiderAnimations}.</b>
+ * {@link RaiderEntity.Variant#BRUTE} is reshaped every frame, entirely on
+ * {@code ModelPart} {@code SCALE} -- mass forward (a broader, flatter
+ * chest), arms too long, a wide low skull sunk toward the shoulders by the
+ * torso's own compression, stockier legs. SCALE is deliberately the only
+ * channel touched here: no clip in {@code RaiderAnimations} ever keys
+ * SCALE, so this persistent shape can never be summed with (or erased by)
+ * anything the authored clips do to ROTATION/POSITION, in either direction.
+ * A captain of either build stands a few degrees straighter than the troops
+ * around them -- confidence is the tell, same principle as the guard's
+ * confident-vs-nervous {@code GUARD_STANCE} split (animation-quality
+ * skill): same skeleton, a shallower number.
  *
  * <p>Texture atlas is 64x64; the UV table is mirrored by tools/gen_raider.py.
  */
@@ -41,8 +54,23 @@ public class RaiderModel extends HierarchicalModel<RaiderEntity> {
     private final ModelPart rightLeg;
     private final ModelPart leftLeg;
 
-    /** How far a raider leans into their advance. They do not stroll. */
-    private static final float PROWL_LEAN = 0.14F;
+    // ---- BRUTE geometry (ModelPart SCALE only -- see class doc). ----
+    private static final float BRUTE_TORSO_X = 1.30F; // broad chest
+    private static final float BRUTE_TORSO_Y = 0.90F; // squashed low; pulls
+    // the head pivot (torso's child) down toward the shoulders for free
+    private static final float BRUTE_TORSO_Z = 1.22F;
+    private static final float BRUTE_ARM_LENGTH = 1.38F; // the door-breaker's reach
+    private static final float BRUTE_ARM_GIRTH = 1.16F;
+    private static final float BRUTE_HEAD_WIDTH = 1.10F;
+    private static final float BRUTE_HEAD_HEIGHT = 0.94F; // never taller
+    private static final float BRUTE_LEG_GIRTH = 1.14F;
+    private static final float BRUTE_LEG_HEIGHT = 0.94F;
+
+    /** Confidence is the captain's tell -- a few degrees straighter than
+     * the troops around them, applied after every clip below has run so it
+     * corrects STALK, BRUTE_MARCH, SPRINT and MENACE_IDLE alike from one
+     * line rather than needing a captain branch baked into each. */
+    private static final float CAPTAIN_STRAIGHTEN = 0.09F; // ~5deg
 
     public RaiderModel(ModelPart root) {
         this.root = root.getChild("root");
@@ -106,32 +134,94 @@ public class RaiderModel extends HierarchicalModel<RaiderEntity> {
                           float ageInTicks, float netHeadYaw, float headPitch) {
         root().getAllParts().forEach(ModelPart::resetPose);
 
+        RaiderEntity.Variant variant = entity.variant();
         boolean captain = entity.isCaptain();
+        boolean brute = variant == RaiderEntity.Variant.BRUTE;
+
         helm.visible = captain;
         pauldron.visible = captain;
         hood.visible = !captain; // the helm replaces the hood, never stacks
 
-        // A longer, lower stride than a settler's: they are covering ground.
-        float stride = limbSwing * 0.75F;
-        float swing = limbSwingAmount * 1.1F;
-        rightLeg.xRot = Mth.cos(stride) * 1.3F * swing;
-        leftLeg.xRot = Mth.cos(stride + (float) Math.PI) * 1.3F * swing;
-        rightArm.xRot = Mth.cos(stride + (float) Math.PI) * 1.1F * swing;
-        leftArm.xRot = Mth.cos(stride) * 1.1F * swing;
-        // Arms held slightly out from the body -- weapon-ready, not relaxed.
-        rightArm.zRot = 0.10F;
-        leftArm.zRot = -0.10F;
+        // ---- Geometry first: the silhouette must read before a single
+        // frame of motion plays. SCALE only -- see class doc for why.
+        if (brute) {
+            torso.xScale = BRUTE_TORSO_X;
+            torso.yScale = BRUTE_TORSO_Y;
+            torso.zScale = BRUTE_TORSO_Z;
+            rightArm.yScale = BRUTE_ARM_LENGTH;
+            leftArm.yScale = BRUTE_ARM_LENGTH;
+            rightArm.xScale = BRUTE_ARM_GIRTH;
+            leftArm.xScale = BRUTE_ARM_GIRTH;
+            rightArm.zScale = BRUTE_ARM_GIRTH;
+            leftArm.zScale = BRUTE_ARM_GIRTH;
+            head.xScale = BRUTE_HEAD_WIDTH;
+            head.zScale = BRUTE_HEAD_WIDTH;
+            head.yScale = BRUTE_HEAD_HEIGHT;
+            rightLeg.xScale = BRUTE_LEG_GIRTH;
+            leftLeg.xScale = BRUTE_LEG_GIRTH;
+            rightLeg.zScale = BRUTE_LEG_GIRTH;
+            leftLeg.zScale = BRUTE_LEG_GIRTH;
+            rightLeg.yScale = BRUTE_LEG_HEIGHT;
+            leftLeg.yScale = BRUTE_LEG_HEIGHT;
+        }
 
-        torso.xRot = PROWL_LEAN + swing * 0.06F;
-        head.xRot = -PROWL_LEAN * 0.7F;
+        // ---- Locomotion: mutually exclusive, same reasoning SettlerModel
+        // documents for WALK/WALK_HURRIED/RUN_PANIC -- animateWalk always
+        // writes legs+arms+torso, so only one clip may drive it. SPRINT is
+        // the SKIRMISHER's charge and only plays while actually closing on
+        // a live target; BRUTE always gets BRUTE_MARCH -- "the walk itself
+        // is the threat" is true whether it is idle travel or a charge.
+        boolean sprinting = !brute && entity.getTarget() != null
+            && entity.getTarget().isAlive();
+        var locomotion = brute ? RaiderAnimations.BRUTE_MARCH
+            : (sprinting ? RaiderAnimations.SPRINT : RaiderAnimations.STALK);
+        animateWalk(locomotion, limbSwing, limbSwingAmount, 2.0F, 2.5F);
 
-        // The swing itself: vanilla's attack arc, on the lead arm only.
-        float attack = getAttackAnim(ageInTicks);
-        if (attack > 0.0F) {
-            float arc = Mth.sin(attack * (float) Math.PI);
-            rightArm.xRot = -1.9F * arc;
-            rightArm.yRot = -0.35F * arc;
-            torso.yRot = 0.25F * arc;
+        // MENACE_IDLE: the stationary read, additive on top of a locomotion
+        // clip that is already near-zero while stopped (animateWalk scales
+        // its whole output by limbSwingAmount, the same mechanism the
+        // settler's own IDLE relies on). Every raider gets it while
+        // stopped -- pack, brute, captain, and the telegraph scout, all the
+        // same gate, no variant/profession condition.
+        int id = entity.getId();
+        animate(entity.menaceIdleState, RaiderAnimations.MENACE_IDLE,
+            ageInTicks + (id % 53));
+
+        if (captain) {
+            torso.xRot -= CAPTAIN_STRAIGHTEN;
+            head.xRot -= CAPTAIN_STRAIGHTEN * 0.5F;
+        }
+
+        // ---- One-shots: clear only the MOTION (rotation) of the bones
+        // they own, never a full resetPose() -- that would zero out the
+        // BRUTE scale set above right when the strike needs it most.
+        // Mutually exclusive: exactly one of these three ever plays at once
+        // (RaiderEntity gates strikeState/breachSlamState/lootSnatchState
+        // from three different, non-overlapping trigger sites).
+        if (entity.strikeState.isStarted()) {
+            clearMotion(rightArm);
+            clearMotion(leftArm);
+            clearMotion(torso);
+            clearMotion(head);
+            clearMotion(rightLeg);
+            clearMotion(leftLeg);
+            animate(entity.strikeState, RaiderAnimations.RAIDER_STRIKE, ageInTicks);
+        } else if (entity.breachSlamState.isStarted()) {
+            clearMotion(rightArm);
+            clearMotion(leftArm);
+            clearMotion(torso);
+            clearMotion(head);
+            clearMotion(rightLeg);
+            clearMotion(leftLeg);
+            animate(entity.breachSlamState, RaiderAnimations.BREACH_SLAM, ageInTicks);
+        } else if (entity.lootSnatchState.isStarted()) {
+            clearMotion(rightArm);
+            clearMotion(leftArm);
+            clearMotion(torso);
+            clearMotion(head);
+            clearMotion(rightLeg);
+            clearMotion(leftLeg);
+            animate(entity.lootSnatchState, RaiderAnimations.LOOT_SNATCH, ageInTicks);
         }
 
         head.yRot += Mth.clamp(netHeadYaw, -55.0F, 55.0F) * ((float) Math.PI / 180F);
@@ -143,11 +233,23 @@ public class RaiderModel extends HierarchicalModel<RaiderEntity> {
         }
     }
 
-    private float getAttackAnim(float ageInTicks) {
-        return this.attackTime;
+    /** Zeroes a part's ROTATION only -- never SCALE, so the BRUTE's
+     * persistent silhouette shaping above survives a one-shot clearing
+     * whatever clip's motion came before it. Position is left alone too:
+     * no clip in {@link RaiderAnimations} keys POSITION on anything but
+     * {@code root}, so there is nothing on these bones to clear. */
+    private static void clearMotion(ModelPart part) {
+        part.xRot = 0.0F;
+        part.yRot = 0.0F;
+        part.zRot = 0.0F;
     }
 
-    /** Set by the renderer each frame from the entity's swing progress. */
+    /** Kept only because {@code RaiderRenderer} (not owned by this file)
+     * still writes to it every frame via {@code entity.getAttackAnim(partialTick)}
+     * -- vanilla's own generic arm-swing progress. No longer read here:
+     * {@link RaiderAnimations#RAIDER_STRIKE}, an authored one-shot
+     * triggered from {@code RaiderEntity#doHurtTarget}, replaced it as the
+     * actual attack motion. */
     public float attackTime;
 
     @Override

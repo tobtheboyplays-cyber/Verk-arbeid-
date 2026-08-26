@@ -3249,19 +3249,20 @@ raiders keep vanilla's own death roll.
 SKIRMISHER's walk, and nothing like the settler's upright, loose-armed
 `WALK`: the torso holds a heavy 24–28° forward crouch the whole cycle
 (against `WALK`'s 3°), `root` sits permanently 1.2 px low, and both hands
-stay tucked tight near the belt (±16° travel, not `WALK`'s freely swinging
-28°) with a `z`-axis knife-hand flex riding the same beat as the 38° leg
-stride. The head stays low and hunts a 24° arc side to side rather than
-tracking level.
+stay tucked tight near the belt — a 30° total swing (arm `x` −16° to 14°),
+well inside `WALK`'s free 56° arc — with a `z`-axis knife-hand flex riding
+the same beat as the 38° leg stride. The head stays low and hunts a 24°
+arc side to side rather than tracking level.
 
 ### 23.2 `BRUTE_MARCH` — the walk itself is the threat *(1.20 s, loop)*
 
-Slow and ground-eating: a 40° stride at a third again `STALK`'s cadence, a
-shoulder-led torso that twists a full 24° peak-to-peak (`y`) while holding
-a 28–32° forward lean, and a heavy asymmetric footfall — `torso` drops a
-full pixel on contact (0.30 s) and rises almost flat by 0.60 s before
-dropping 1.1 px on the next step. `root` rides a full 2 px lower than
-`STALK`'s, the BRUTE's low centre of gravity made literal.
+Slow and ground-eating: a 40° stride on a 1.20 s cycle (half again
+`STALK`'s 0.80 s), a shoulder-led torso that twists a full 24°
+peak-to-peak (`y`) while holding a 28–32° forward lean, and a heavy
+asymmetric footfall — `torso` drops a full pixel on contact (0.30 s) and
+rises almost flat by 0.60 s before dropping 1.1 px on the next step.
+`root` sits a full 2 px low the whole cycle (against `STALK`'s 1.2), the
+BRUTE's low centre of gravity made literal.
 
 ### 23.3 `SPRINT` — feral, all-out, arms trailing *(0.60 s, loop)*
 
@@ -3278,16 +3279,18 @@ full-pixel bob every half-step. The head thrusts forward and stops hunting
 BRUTE's signature: a huge wind-up (`right_arm` cocked to −165° by 0.35 s),
 a two-tick LINEAR strike that travels 215° in total (−160° to 55°, roughly
 108°/tick — solidly in heavy-impact range), a 3-tick LINEAR hold, then a
-controlled follow-through overshoot to 58° (13% past rest) before an ugly
-off-balance stagger (`torso` and both legs lurch the wrong way at 1.25 s)
-finally settles by 1.50 s. `torso` leads the arm by three ticks (peak at
-0.40 s, 30–50% of the arm's own range) and `root` drops a full 1.2 px
-extra at contact. Triggered from `RaiderBreachGoal` the instant the target
-actually gives way, so the scar and this clip's playback start the same
-tick — the clip's own internal impact keyframe lands a few ticks into that
-playback rather than on tick zero, the same shape as `MELEE`'s own
-precedent (§17.3) where the damage tick and the clip's visual accent are
-not literally identical either.
+follow-through overshoot to 58° — 20% past the 15° rest pose, past the
+usual 5–15% "controlled" range on purpose, because this is the one blow in
+the set that earns it — before an ugly off-balance stagger (`torso` and
+both legs lurch the wrong way at 1.25 s) finally settles by 1.50 s. `torso`
+leads the arm by three ticks (peak at 0.40 s, ~30% of the arm's own range)
+and `root` drops a full 2 px extra at the strike (−1.1 to −3.2). Triggered
+from `RaiderBreachGoal` the instant the target actually gives way, so the
+scar and this clip's playback start the same tick — the clip's own
+internal impact keyframe lands a few ticks into that playback rather than
+on tick zero, the same shape as `MELEE`'s own precedent (§17.3) where the
+damage tick and the clip's visual accent are not literally identical
+either.
 
 ### 23.5 `RAIDER_STRIKE` — the wild swing *(0.55 s, one-shot)*
 
@@ -3296,19 +3299,20 @@ the guard's `MELEE` (§4.4) — that contrast is the point. The wind-up
 travels further off-axis (`right_arm` to −175° with a 48° `z` twist, against
 `MELEE`'s cleaner −168° with none), the two-tick LINEAR strike swings 217°
 in total, and recovery does not return cleanly: it overshoots hard into a
-−58° sloppy backswing at 0.40 s before snapping home, instead of `MELEE`'s
-controlled ease back. Also plays when a SKIRMISHER breaches a door or wall
-(`RaiderBreachGoal`); the BRUTE's own breach gets `BREACH_SLAM` instead.
+−58° sloppy backswing at 0.40 s (15% past the −25° rest pose, against
+`MELEE`'s controlled 6%) before easing home. Also plays when a SKIRMISHER
+breaches a door or wall (`RaiderBreachGoal`); the BRUTE's own breach gets
+`BREACH_SLAM` instead.
 
 ### 23.6 `LOOT_SNATCH` — fast grab, look over the shoulder *(0.70 s, one-shot)*
 
-A quick two-tick LINEAR reach into the chest (`right_arm` to −100° by
-0.30 s), then the torso and head whip together into a hard look-back —
-head yaw to −50° held from 0.45 s to 0.60 s, well past `MENACE_IDLE`'s
-scan range, the clip's one clearly held pose (per §21's emote recipe:
-reach fast, hold the storytelling pose, release) — before snapping back to
-neutral by 0.70 s. Triggered from `RaiderLootGoal` the instant a stack
-actually leaves the chest.
+A fast reach into the chest (`right_arm` out to −95° by 0.20 s, LINEAR
+into the −100° grip by 0.30 s), then the torso and head whip together into
+a hard look-back — head yaw to −50°, held from 0.45 s to 0.60 s and well
+past `MENACE_IDLE`'s 42° scan range, the clip's one clearly held pose
+(the counter-move/reach/hold/release emote structure the animation-quality
+skill specifies) — before releasing back to neutral by 0.70 s. Triggered
+from `RaiderLootGoal` the instant a stack actually leaves the chest.
 
 ### 23.7 `MENACE_IDLE` — the stationary read *(4.20 s, loop)*
 

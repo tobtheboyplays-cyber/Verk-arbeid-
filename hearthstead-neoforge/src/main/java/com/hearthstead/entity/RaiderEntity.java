@@ -12,6 +12,7 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -93,6 +94,26 @@ public class RaiderEntity extends Monster {
             return all[Math.floorMod(ord, all.length)];
         }
     }
+
+    // -------------------------------------------------- animation states ---
+    // Client-side AnimationState + entity-event trigger idiom, mirroring
+    // SettlerEntity's EV_*/handleEntityEvent/setupAnimationStates pattern
+    // exactly (a distinct byte range per class, not a shared namespace --
+    // handleEntityEvent dispatches per entity instance). See RaiderModel
+    // and RaiderAnimations for what plays and how the builds differ.
+
+    public static final byte EV_STRIKE = 64;
+    public static final byte EV_BREACH_SLAM = 65;
+    public static final byte EV_LOOT_SNATCH = 66;
+
+    /** RAIDER_STRIKE -- the ordinary wild swing, both builds. */
+    public final AnimationState strikeState = new AnimationState();
+    /** BREACH_SLAM -- the BRUTE's door-breaking blow. */
+    public final AnimationState breachSlamState = new AnimationState();
+    /** LOOT_SNATCH -- the instant a stack actually leaves a chest. */
+    public final AnimationState lootSnatchState = new AnimationState();
+    /** MENACE_IDLE -- the stationary read; gated purely on not moving. */
+    public final AnimationState menaceIdleState = new AnimationState();
 
     /** Health and damage a captain carries over an ordinary follower. */
     public static final float CAPTAIN_HEALTH_BONUS = 14.0F;
@@ -325,6 +346,86 @@ public class RaiderEntity extends Monster {
         return !(target instanceof RaiderEntity) && super.canAttack(target);
     }
 
+    // ------------------------------------------------------------- tick ---
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (level().isClientSide) {
+            setupRaiderAnimationStates();
+        }
+    }
+
+    /** Client-side AnimationState gating + one-shot expiry -- the same
+     * animateWhen idiom {@code SettlerEntity.setupAnimationStates()} uses,
+     * scaled down to what a raider actually needs. */
+    private void setupRaiderAnimationStates() {
+        boolean moving = walkAnimation.speed() > 0.05F;
+        // MENACE_IDLE is the stationary read: rolling shoulders, head
+        // hunting side to side. Every raider gets it while stopped -- pack
+        // and captain, brute and skirmisher, and the telegraph scout at the
+        // treeline (RaidTelegraph#spawnScout just stands watching, which is
+        // already !moving) -- because a raider that is not moving is never
+        // merely waiting, it is looking for the opening. No profession- or
+        // variant-specific condition, unlike the settler's own idle gates.
+        menaceIdleState.animateWhen(!moving, tickCount);
+
+        // One-shots expire on their own clock (same idiom as SettlerEntity).
+        // Lengths match each clip's own catalogue duration (§23).
+        if (strikeState.isStarted() && strikeState.getAccumulatedTime() > 550L) {
+            strikeState.stop();
+        }
+        if (breachSlamState.isStarted() && breachSlamState.getAccumulatedTime() > 1500L) {
+            breachSlamState.stop();
+        }
+        if (lootSnatchState.isStarted() && lootSnatchState.getAccumulatedTime() > 700L) {
+            lootSnatchState.stop();
+        }
+    }
+
+    @Override
+    public void handleEntityEvent(byte id) {
+        if (id == EV_STRIKE) {
+            strikeState.start(tickCount);
+        } else if (id == EV_BREACH_SLAM) {
+            breachSlamState.start(tickCount);
+        } else if (id == EV_LOOT_SNATCH) {
+            lootSnatchState.start(tickCount);
+        } else {
+            super.handleEntityEvent(id);
+        }
+    }
+
+    /**
+     * Fired from {@link com.hearthstead.entity.ai.RaiderBreachGoal} the
+     * instant a door or wall actually gives way, so the scar and this
+     * clip's playback start the same tick (see {@code RaiderAnimations}'s
+     * header for why the clip's own internal impact keyframe still lands a
+     * few ticks later -- the same shape as {@code MELEE}'s own precedent).
+     * A BRUTE gets its own huge door-breaking blow ({@code BREACH_SLAM}); a
+     * SKIRMISHER breaching reuses the ordinary swing ({@code RAIDER_STRIKE})
+     * -- the pack build was never given a signature demolition clip, only
+     * the door-breaker was.
+     */
+    public void triggerBreach() {
+        if (level().isClientSide) {
+            return;
+        }
+        if (variant() == Variant.BRUTE) {
+            level().broadcastEntityEvent(this, EV_BREACH_SLAM);
+        } else {
+            level().broadcastEntityEvent(this, EV_STRIKE);
+        }
+    }
+
+    /** Fired from {@link com.hearthstead.entity.ai.RaiderLootGoal} the
+     * instant a stack actually leaves the chest. */
+    public void triggerLootSnatch() {
+        if (!level().isClientSide) {
+            level().broadcastEntityEvent(this, EV_LOOT_SNATCH);
+        }
+    }
+
     /**
      * Tallies a landed hit on a settler for the morning defense report
      * (D-A3-8 / the task's "Aftermath"). Scoped to a LIVE raid on purpose
@@ -334,6 +435,12 @@ public class RaiderEntity extends Monster {
      */
     @Override
     public boolean doHurtTarget(net.minecraft.world.entity.Entity target) {
+        // RAIDER_STRIKE's trigger, mirroring SettlerEntity's own EV_MELEE
+        // broadcast on doHurtTarget exactly: unconditional, before the
+        // outcome is known -- MeleeAttackGoal only calls this once the
+        // target is already in reach, so this is genuinely "the swing", not
+        // a speculative check.
+        level().broadcastEntityEvent(this, EV_STRIKE);
         boolean hit = super.doHurtTarget(target);
         if (hit && target instanceof SettlerEntity
             && level() instanceof ServerLevel server) {

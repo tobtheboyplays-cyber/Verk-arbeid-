@@ -172,6 +172,12 @@ Koordinatorens beslutninger, tas i patch-runden ETTER gjennomspillingen
 - Rekrutt-vs-mat-dalen (pop 5-8, dag 1-3): demp rekrutt-tempo eller øk
   start-spiskammer; spilltesten avgjør hvilken.
 
+**FRA KF-027 (lukket):**
+- RaiderEntity angriper ENHVER settler, ikke bare raidets eget mål —
+  kryss-test-drap i suiten i dag, feil aggro mot NPC-nabolandsbyer i B2.
+  Skop målvalget til raidets settlement (hurt-by-gjengjeldelse forblir
+  universell). Venter på at RAIDER-ANIM slipper RaiderEntity.java.
+
 **INERTE SYSTEMER (BALANCE_AUDIT):**
 - 4 av 6 forskningsprosjekter kutter tikk ingen når: bytt bonusen fra
   tikk-kutt til DAGSVERK-kutt (effort er det som binder) — da blir de ekte

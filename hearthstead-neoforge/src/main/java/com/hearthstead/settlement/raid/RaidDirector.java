@@ -247,6 +247,7 @@ public final class RaidDirector {
             }
             raider.moveTo(ground.getX() + 0.5, ground.getY(), ground.getZ() + 0.5,
                 plan.approachDegrees() + 180.0F, 0.0F);
+            raider.setVariant(variantFor(i, random));
             raider.assign(captain.id(), settlement.id, plan.objective(),
                 captain.menace(), isCaptain);
             raider.setObjectivePos(settlement.center);
@@ -264,6 +265,41 @@ public final class RaidDirector {
             spawned.add(raider);
         }
         return spawned;
+    }
+
+    /** How rarely a follower is built BRUTE rather than SKIRMISHER,
+     * expressed as "one in this many" -- roughly one per 4-5 per the task
+     * brief. Deliberately never fires below index 5: a band under {@link
+     * #BRUTE_SPACING} strong spends its only follower slots on the pack,
+     * not the door, so BRUTE only shows up once there are enough
+     * SKIRMISHERs around it to read as a pack with one heavy, not a heavy
+     * alone. */
+    public static final int BRUTE_SPACING = 5;
+    /** How often the CAPTAIN themself is built BRUTE rather than
+     * SKIRMISHER -- captaincy is a role either build can hold ({@link
+     * RaiderEntity.Variant}'s own doc), so this is an independent roll, not
+     * a follow-on from the follower spacing above. */
+    public static final float BRUTE_CAPTAIN_CHANCE = 0.30F;
+
+    /**
+     * Which build raider {@code index} in this band should be. The captain
+     * (index 0) rolls independently; every follower after it is BRUTE only
+     * on every {@link #BRUTE_SPACING}th slot. Since index 0 is handled
+     * separately and {@code index % BRUTE_SPACING == 0} cannot fire again
+     * until {@code index == BRUTE_SPACING}, every band with fewer than
+     * {@link #BRUTE_SPACING} followers gets an all-SKIRMISHER tail
+     * regardless of the captain's own roll -- the band's SKIRMISHER floor
+     * the brief asks for ("never zero SKIRMISHERs") falls out of that
+     * spacing alone, with no separate fallback needed, and {@link
+     * #MIN_BAND} (2) guarantees index 1 always exists to carry it.
+     */
+    static RaiderEntity.Variant variantFor(int index, RandomSource random) {
+        if (index == 0) {
+            return random.nextFloat() < BRUTE_CAPTAIN_CHANCE
+                ? RaiderEntity.Variant.BRUTE : RaiderEntity.Variant.SKIRMISHER;
+        }
+        return index % BRUTE_SPACING == 0
+            ? RaiderEntity.Variant.BRUTE : RaiderEntity.Variant.SKIRMISHER;
     }
 
     /**

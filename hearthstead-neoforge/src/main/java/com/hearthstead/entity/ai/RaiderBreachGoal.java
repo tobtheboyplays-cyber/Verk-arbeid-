@@ -440,6 +440,10 @@ public class RaiderBreachGoal extends Goal {
      * broke open", not "how many block positions changed".
      */
     private void breakTarget(ServerLevel level, Settlement settlement, BlockState lowerState) {
+        // Animation trigger: fires the same tick the scar is recorded below
+        // (RaidDirector's own ordering requirement), so the visible blow
+        // and the actual breach land together -- see RaiderEntity#triggerBreach.
+        raider.triggerBreach();
         if (isDoor) {
             BlockPos upper = target.above();
             BlockState upperState = level.getBlockState(upper);
