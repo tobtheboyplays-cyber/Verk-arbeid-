@@ -320,6 +320,13 @@ public class CourierStopReasonGameTests {
                 BlockPos approach = chestRel.west();
                 helper.setBlock(approach, Blocks.AIR);
                 helper.setBlock(approach.above(), Blocks.AIR);
+                // A chest with a full block directly above it is still
+                // physically sealed: the courier's eye ray hits that cap
+                // before the chest, just as a player's interaction would.
+                // Open the lid as well as the two-block approach corridor so
+                // this phase changes the fixture from genuinely unreachable
+                // to genuinely usable rather than weakening hasArrived().
+                helper.setBlock(chestRel.above(), Blocks.AIR);
                 openedAfterFailure[0] = true;
             }
             helper.assertTrue(openedAfterFailure[0],
