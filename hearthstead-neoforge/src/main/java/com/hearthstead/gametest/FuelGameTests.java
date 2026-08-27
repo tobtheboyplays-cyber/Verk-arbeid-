@@ -30,8 +30,8 @@ import java.util.UUID;
  * FUEL — the firewood half of DESIGN.md pillar 2 / R20's decided upkeep
  * flows ("food + firewood/warmth + tool wear"): burning buildings
  * ({@link com.hearthstead.building.Fuel#burns} — smelter, bakery, smithy,
- * brewery) consume one fuel item per finished batch, and a cold forge does
- * nothing at all.
+ * brewery) consume exactly two fuel units per finished batch: one
+ * charcoal/coal or two ordinary logs. A cold forge does nothing at all.
  *
  * <p>Arena idiom copied from {@code TradeSmelterGameTests}. Tests (a) and
  * (b) reuse its deliberate trick of seeding 2 raw iron, BELOW the
@@ -45,8 +45,8 @@ import java.util.UUID;
  * <li>(a) the GATE — ore, a hired smelter, working hours, and still nothing,
  *     because there is no fuel;</li>
  * <li>(b) the LEDGER — with charcoal in the chest the same smelter smelts,
- *     and exactly one charcoal is destroyed per batch, never more, never
- *     sooner (the one sanctioned item sink — INV-3's amended note in
+ *     and exactly one two-unit charcoal is destroyed per batch, never more,
+ *     never sooner (the one sanctioned item sink — INV-3's amended note in
  *     {@link Production});</li>
  * <li>(c) the COLD-START EXEMPTION — bare logs still become charcoal,
  *     conserving count exactly (the charcoal batch burns nothing beyond its
@@ -74,7 +74,13 @@ import java.util.UUID;
  *     (renamed to say what it measures, matching
  *     {@code ChainsGameTests#fedPathsClearTheFlowsBandMeasuredAsEffortAcrossAllBuildings})
  *     and {@link com.hearthstead.building.Production}'s SMELTER/SMITHY
- *     comments for the corrected arithmetic.</li>
+ *     comments for the corrected arithmetic;</li>
+ * <li>(f) the UNIT BOUNDARIES — all four burners reject one log and consume
+ *     two logs exactly, while charcoal and coal each carry two units;</li>
+ * <li>(g) NO HIDDEN CREDIT — mixed charcoal/log stock burns an exact subset,
+ *     and a later one-log batch remains cold until another log arrives;</li>
+ * <li>(h) PREFLIGHT CONSERVATION — a no-room refusal leaves every physical
+ *     input and fuel slot unchanged before withdrawal begins.</li>
  * </ul>
  */
 @GameTestHolder(Hearthstead.MODID)
@@ -159,6 +165,18 @@ public class FuelGameTests {
             total += chest.getItem(slot).getCount();
         }
         return total;
+    }
+
+    /** Physical charcoal needed for a number of exact two-unit batches. */
+    private static int denseFuelItemsForBatches(BuildingType type, int batches) {
+        int units = batches * Fuel.unitsPerBatch(type);
+        int charcoalUnits = Fuel.unitsPerItem(new ItemStack(Items.CHARCOAL));
+        if (charcoalUnits <= 0 || units % charcoalUnits != 0) {
+            throw new IllegalStateException("charcoal cannot exactly fund "
+                + batches + " " + type.id() + " batches (units=" + units
+                + ", charcoalUnits=" + charcoalUnits + ")");
+        }
+        return units / charcoalUnits;
     }
 
     // ------------------------------------------------------------------ (a) ---
@@ -359,6 +377,193 @@ public class FuelGameTests {
         helper.succeed();
     }
 
+    // ---------------------------------------------------------- unit ledger ---
+
+    /**
+     * The frozen owner rule at every burning trade, through the real
+     * Production transaction: one ordinary log is only one unit and MUST be
+     * refused without touching input; two logs are the exact two-unit batch
+     * and both burn. Coal and charcoal are each two units, preserving their
+     * familiar equal vanilla furnace value while making log -> charcoal an
+     * actual x2 heat conversion.
+     */
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 200)
+    public void allFourBurnersRequireExactlyTwoFuelUnits(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+
+        helper.assertTrue(Fuel.units(new ItemStack(Items.OAK_LOG)) == 1,
+            "one ordinary log must be exactly one fuel unit");
+        helper.assertTrue(Fuel.units(new ItemStack(Items.CHARCOAL)) == 2,
+            "one charcoal must be exactly two fuel units");
+        helper.assertTrue(Fuel.units(new ItemStack(Items.COAL)) == 2,
+            "coal must retain charcoal's equal two-unit vanilla-like value");
+        helper.assertTrue(Fuel.units(new ItemStack(Items.CHARCOAL, 3)) == 6,
+            "stack units must scale exactly with count, with no hidden credit");
+
+        Building smelter = building(helper, s, BuildingType.SMELTER, 1, 1);
+        assertTwoLogBoundary(helper, smelter,
+            chestAt(helper, new BlockPos(2, 1, 1)), "copper",
+            new ItemStack(Items.RAW_COPPER), Items.COPPER_INGOT);
+
+        Building bakery = building(helper, s, BuildingType.BAKERY, 7, 1);
+        assertTwoLogBoundary(helper, bakery,
+            chestAt(helper, new BlockPos(8, 1, 1)), "bread",
+            new ItemStack(Items.WHEAT, 3), Items.BREAD);
+
+        Building smithy = building(helper, s, BuildingType.SMITHY, 1, 7);
+        assertTwoLogBoundary(helper, smithy,
+            chestAt(helper, new BlockPos(2, 1, 7)), "hoe",
+            new ItemStack(Items.IRON_INGOT, 2), Items.IRON_HOE);
+
+        Building brewery = building(helper, s, BuildingType.BREWERY, 7, 7);
+        assertTwoLogBoundary(helper, brewery,
+            chestAt(helper, new BlockPos(8, 1, 7)), "ale",
+            new ItemStack(Items.WHEAT, 3), ModItems.ALE.get());
+
+        helper.succeed();
+    }
+
+    /**
+     * One dense item plus one loose log is three nominal units, but the
+     * exact planner burns ONLY the two-unit charcoal. The surviving log is
+     * not combined with an invisible one-unit remainder: a second batch is
+     * correctly cold until a second physical log arrives. Those two
+     * different log stacks then burn together without normalising species.
+     */
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 200)
+    public void mixedFuelNeverOverburnsOrBanksHiddenCredit(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building bakery = building(helper, s, BuildingType.BAKERY, 4, 4);
+        Container chest = chestAt(helper, new BlockPos(5, 1, 4));
+        Production.Recipe bread = recipeById(helper, BuildingType.BAKERY, "bread");
+
+        chest.setItem(0, new ItemStack(Items.WHEAT, 6));
+        chest.setItem(1, new ItemStack(Items.OAK_LOG));
+        chest.setItem(2, new ItemStack(Items.CHARCOAL));
+
+        helper.assertTrue(Production.run(helper.getLevel(), bakery, bread),
+            "the exact two-unit charcoal should fund the first loaf");
+        helper.assertTrue(countOf(chest, Items.CHARCOAL) == 0
+                && countOf(chest, Items.OAK_LOG) == 1,
+            "mixed fuel must burn charcoal exactly and leave the spare log: "
+                + "charcoal=" + countOf(chest, Items.CHARCOAL)
+                + " oak=" + countOf(chest, Items.OAK_LOG));
+        helper.assertTrue(countOf(chest, Items.WHEAT) == 3
+                && countOf(chest, Items.BREAD) == 1,
+            "first mixed-fuel ledger must be exact: wheat="
+                + countOf(chest, Items.WHEAT) + " bread="
+                + countOf(chest, Items.BREAD));
+
+        int beforeRefusal = countAll(chest);
+        helper.assertTrue(Production.ready(helper.getLevel(), bakery) == null,
+            "one surviving log is one unit, so no second batch is ready");
+        helper.assertTrue(Production.starvedForFuel(helper.getLevel(), bakery),
+            "the second batch must diagnose cold: there is no hidden unit");
+        helper.assertTrue(!Production.run(helper.getLevel(), bakery, bread),
+            "one log may not borrow an invisible remainder from prior charcoal");
+        helper.assertTrue(countAll(chest) == beforeRefusal
+                && countOf(chest, Items.OAK_LOG) == 1
+                && countOf(chest, Items.WHEAT) == 3,
+            "an inexact fuel refusal must be mutation-free");
+
+        chest.setItem(3, new ItemStack(Items.SPRUCE_LOG));
+        helper.assertTrue(Production.run(helper.getLevel(), bakery, bread),
+            "two physical one-unit logs in separate stacks should fund exactly");
+        helper.assertTrue(countOf(chest, Items.OAK_LOG) == 0
+                && countOf(chest, Items.SPRUCE_LOG) == 0
+                && countOf(chest, Items.WHEAT) == 0
+                && countOf(chest, Items.BREAD) == 2,
+            "second ledger must consume both exact log species and conserve "
+                + "both loaves: oak=" + countOf(chest, Items.OAK_LOG)
+                + " spruce=" + countOf(chest, Items.SPRUCE_LOG)
+                + " wheat=" + countOf(chest, Items.WHEAT)
+                + " bread=" + countOf(chest, Items.BREAD));
+        helper.succeed();
+    }
+
+    /**
+     * A transaction that cannot place its output refuses in preflight before
+     * touching either recipe input or dense fuel. All 27 physical slots are
+     * compared after the refusal. This deliberately proves the reachable
+     * no-room boundary; it does not pretend to inject the impossible normal
+     * server-thread race guarded by Production's defensive rollback branch.
+     */
+    @GameTest(batch = "fuel", template = "empty16", timeoutTicks = 200)
+    public void noRoomPreflightConservesEveryPhysicalStack(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building bakery = building(helper, s, BuildingType.BAKERY, 4, 4);
+        Container chest = chestAt(helper, new BlockPos(5, 1, 4));
+        Production.Recipe bread = recipeById(helper, BuildingType.BAKERY, "bread");
+
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            chest.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+        chest.setItem(0, new ItemStack(Items.WHEAT, 3));
+        chest.setItem(1, new ItemStack(Items.CHARCOAL));
+        ItemStack[] before = new ItemStack[chest.getContainerSize()];
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            before[slot] = chest.getItem(slot).copy();
+        }
+
+        helper.assertTrue(!Production.run(helper.getLevel(), bakery, bread),
+            "a full chest with no bread slot must refuse the whole transaction");
+        helper.assertTrue(Production.ready(helper.getLevel(), bakery) == null,
+            "the same no-room transaction must never advertise as ready");
+        helper.assertTrue(!Production.starvedForFuel(helper.getLevel(), bakery),
+            "fuel is present; no output room, not heat, is the refusal reason");
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            ItemStack after = chest.getItem(slot);
+            helper.assertTrue(after.getCount() == before[slot].getCount()
+                    && ItemStack.isSameItemSameComponents(after, before[slot]),
+                "failed transaction changed slot " + slot + ": before="
+                    + before[slot] + " after=" + after);
+        }
+        helper.succeed();
+    }
+
+    /** One-log refusal followed by exact two-log completion for one burner. */
+    private static void assertTwoLogBoundary(GameTestHelper helper,
+                                             Building building,
+                                             Container chest,
+                                             String recipeId,
+                                             ItemStack input,
+                                             Item expectedOutput) {
+        Production.Recipe recipe = recipeById(helper, building.type, recipeId);
+        helper.assertTrue(Fuel.burns(building.type),
+            building.type.id() + " must be one of the four burning trades");
+        helper.assertTrue(Fuel.unitsPerBatch(building.type) == 2,
+            building.type.id() + " must cost exactly two units per batch");
+
+        chest.setItem(0, input.copy());
+        chest.setItem(1, new ItemStack(Items.OAK_LOG));
+        int seededWithOneLog = countAll(chest);
+        helper.assertTrue(!Production.run(helper.getLevel(), building, recipe),
+            building.type.id() + " must refuse a one-unit log");
+        helper.assertTrue(countAll(chest) == seededWithOneLog
+                && countOf(chest, input.getItem()) == input.getCount()
+                && countOf(chest, Items.OAK_LOG) == 1
+                && countOf(chest, expectedOutput) == 0,
+            building.type.id() + " one-log refusal mutated inventory");
+
+        chest.setItem(1, new ItemStack(Items.OAK_LOG, 2));
+        Production.Recipe ready = Production.ready(helper.getLevel(), building);
+        helper.assertTrue(ready != null && ready.id().equals(recipeId),
+            building.type.id() + " should become ready at exactly two log "
+                + "units; got " + (ready == null ? "null" : ready.id()));
+        helper.assertTrue(Production.run(helper.getLevel(), building, recipe),
+            building.type.id() + " exact two-log batch should run");
+        helper.assertTrue(countOf(chest, Items.OAK_LOG) == 0
+                && countOf(chest, input.getItem()) == 0
+                && countOf(chest, expectedOutput) == recipe.outputCount(),
+            building.type.id() + " exact ledger failed: logs="
+                + countOf(chest, Items.OAK_LOG) + " input="
+                + countOf(chest, input.getItem()) + " output="
+                + countOf(chest, expectedOutput));
+    }
+
     // ------------------------------------------------------------------ (e) ---
 
     /** The named recipe from a type's table, or a failed test. */
@@ -492,7 +697,7 @@ public class FuelGameTests {
         // --- the fed path, physically run, fuel and all ---
         smelterChest.setItem(0, new ItemStack(Items.RAW_IRON, rawSeeded));
         smelterChest.setItem(1, new ItemStack(Items.CHARCOAL,
-            bloomBatches * Fuel.perBatch(BuildingType.SMELTER)));
+            denseFuelItemsForBatches(BuildingType.SMELTER, bloomBatches)));
 
         Production.Recipe picked = Production.ready(helper.getLevel(), smelter);
         helper.assertTrue(picked != null && picked.id().equals(bloom.id()),
@@ -532,7 +737,7 @@ public class FuelGameTests {
         }
         helper.assertTrue(fuelSlot >= 0, "the smithy chest must have room for fuel");
         smithyChest.setItem(fuelSlot, new ItemStack(Items.CHARCOAL,
-            finishBatches * Fuel.perBatch(BuildingType.SMITHY)));
+            denseFuelItemsForBatches(BuildingType.SMITHY, finishBatches)));
         for (int i = 0; i < finishBatches; i++) {
             helper.assertTrue(Production.run(helper.getLevel(), smithy, finish),
                 "finishing batch " + (i + 1) + " should have run (fuel present)"
@@ -554,9 +759,9 @@ public class FuelGameTests {
                 + countOf(smithyChest, Items.CHARCOAL));
 
         // --- the fuel/ore ledgers, read off the recipes that just ran ---
-        int fedFuel = bloomBatches * Fuel.perBatch(BuildingType.SMELTER)
-            + finishBatches * Fuel.perBatch(BuildingType.SMITHY);
-        int roughFuel = roughBatches * Fuel.perBatch(BuildingType.SMELTER);
+        int fedFuel = bloomBatches * Fuel.unitsPerBatch(BuildingType.SMELTER)
+            + finishBatches * Fuel.unitsPerBatch(BuildingType.SMITHY);
+        int roughFuel = roughBatches * Fuel.unitsPerBatch(BuildingType.SMELTER);
         int roughOre = roughBatches * rough.inputCount();
 
         helper.assertTrue(fedFuel <= roughFuel,

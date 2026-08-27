@@ -40,16 +40,33 @@ import net.minecraft.world.item.Items;
  *
  * <h2>Frozen contract</h2>
  *
+ * <p>Fuel is counted in integer <em>units</em>, not physical items. One log
+ * is one unit; charcoal is exactly two. A burning batch costs two units, so
+ * the smelter's one-log-to-one-charcoal recipe genuinely doubles the stored
+ * heat without inventing a fractional remainder or a hidden credit. Coal is
+ * also two units: vanilla gives coal and charcoal the same furnace burn time,
+ * and making mined coal mysteriously weaker here would violate that familiar
+ * contract.
+ *
  * <p>Courier restocking (fuel as a standing workshop need) is wired against
- * exactly these three methods — {@link #burns}, {@link #perBatch},
- * {@link #isFuel}. Keep the signatures stable; widen behavior only here, in
- * one place, so the logistics layer and {@link Production}'s gate can never
- * disagree about what fire wants.
+ * {@link #burns}, {@link #unitsPerBatch}, {@link #units} and
+ * {@link #isFuel}. Keep those meanings centralised here so the logistics
+ * layer and {@link Production}'s gate can never disagree about what fire
+ * wants.
  *
  * <p>Where the consumed fuel goes: {@link Production#run} destroys it — the
  * one sanctioned item sink in the mod. See the INV-3 note there.
  */
 public final class Fuel {
+
+    /** One ordinary log is the baseline unit of firewood. */
+    public static final int LOG_UNITS = 1;
+
+    /** Coal and charcoal retain their familiar equal, denser burn value. */
+    public static final int DENSE_FUEL_UNITS = 2;
+
+    /** Every burning trade spends this many whole units per finished batch. */
+    public static final int BATCH_UNITS = 2;
 
     /**
      * Whether this kind of building works by fire — and therefore whether
@@ -70,27 +87,52 @@ public final class Fuel {
     }
 
     /**
-     * How many fuel ITEMS one finished batch consumes at a burning building
-     * — one, for all four trades. Flat on purpose: a single log per batch is
-     * an upkeep hum, not a second recipe cost, and a flat rate keeps the
-     * courier's "how much firewood does this workshop want" arithmetic
-     * trivial. Returns 0 for a building that does not burn.
+     * How many fuel UNITS one finished batch consumes at a burning building
+     * — two, for all four trades. That is exactly one charcoal/coal or two
+     * ordinary logs. Returns 0 for a building that does not burn.
      */
+    public static int unitsPerBatch(BuildingType type) {
+        return burns(type) ? BATCH_UNITS : 0;
+    }
+
+    /**
+     * Compatibility name retained for callers compiled against the original
+     * API. The return value is now UNITS, never a physical item count; new
+     * code should say {@link #unitsPerBatch} so that distinction is visible.
+     */
+    @Deprecated(forRemoval = false)
     public static int perBatch(BuildingType type) {
-        return burns(type) ? 1 : 0;
+        return unitsPerBatch(type);
+    }
+
+    /**
+     * Whole fuel units carried by ONE item of this stack's kind. Charcoal and
+     * coal are worth two; every member of {@link ItemTags#LOGS} is worth one;
+     * anything else is worth zero.
+     */
+    public static int unitsPerItem(ItemStack stack) {
+        if (stack.isEmpty()) {
+            return 0;
+        }
+        if (stack.is(Items.CHARCOAL) || stack.is(Items.COAL)) {
+            return DENSE_FUEL_UNITS;
+        }
+        return stack.is(ItemTags.LOGS) ? LOG_UNITS : 0;
+    }
+
+    /** Total whole fuel units represented by this stack. */
+    public static int units(ItemStack stack) {
+        return unitsPerItem(stack) * stack.getCount();
     }
 
     /**
      * Whether this stack feeds a fire: charcoal, coal, or any log
      * ({@link ItemTags#LOGS} — every wood type, so no settlement's biome
-     * locks it out of warmth). A kind test, not a count test — callers count
-     * items themselves against {@link #perBatch}.
+     * locks it out of warmth). Magnitude lives in {@link #units}; callers
+     * must not infer equal value merely because two stacks both pass here.
      */
     public static boolean isFuel(ItemStack stack) {
-        return !stack.isEmpty()
-            && (stack.is(Items.CHARCOAL)
-                || stack.is(Items.COAL)
-                || stack.is(ItemTags.LOGS));
+        return unitsPerItem(stack) > 0;
     }
 
     private Fuel() {

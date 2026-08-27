@@ -19,6 +19,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -45,17 +46,18 @@ import java.util.Map;
  * checked first — it is dropped into the world rather than voided.
  *
  * <p><b>THE ONE SANCTIONED EXCEPTION — burned fuel.</b> At a burning
- * building ({@link Fuel#burns}) each finished batch also consumes
- * {@link Fuel#perBatch} fuel from the same chests, and that fuel is
- * DESTROYED, deliberately and in exactly one place ({@link #run}). This is
+ * building ({@link Fuel#burns}) each finished batch also consumes exactly
+ * {@link Fuel#unitsPerBatch} whole fuel units from the same chests, and the
+ * physical fuel items carrying those units are DESTROYED, deliberately and
+ * in exactly one place ({@link #run}). This is
  * the vanilla furnace's own bargain — coal in, nothing of the coal out,
  * finished goods instead — and it is the "firewood/warmth" upkeep flow
  * DESIGN.md pillar 2 / R20 decided. It converts to finished goods, it never
- * silently vanishes on a failure path (every refusal and race gives fuel
- * back), and no OTHER path through this class reduces the number of items
- * in the world. Tests that assert whole-chest conservation over a burning
- * building must account for it: total shrinks by exactly perBatch per
- * completed batch, never more.
+ * silently vanishes on a failure path (every refusal and race gives the
+ * exact stacks back), and no OTHER path through this class reduces the
+ * number of items in the world. The physical item count may shrink by one
+ * dense fuel or two logs, but the energy ledger always shrinks by exactly
+ * {@code unitsPerBatch}, never more and never through hidden credit.
  *
  * <p><b>D-009 — domains, not recipe lists.</b> Inputs are matched with
  * {@link Ingredient}, so a recipe can accept a whole tag rather than one item.
@@ -335,9 +337,11 @@ public final class Production {
             // self-loop ("charcoal is fuel, and fuel makes charcoal") lives
             // only in the FUEL ledger, and the exemption is exactly what
             // keeps that loop safe: charcoal creation consumes only its log
-            // (1:1, value-conserving), while charcoal CONSUMPTION is pure
-            // destruction (the sanctioned sink above) — every trip around
-            // the "loop" strictly loses a log and mints nothing.
+            // and conserves physical item count, while deliberately doubling
+            // stored heat (one log unit -> two charcoal units). That exact
+            // x2 is the point of the smelter's labour, and charcoal
+            // CONSUMPTION remains pure destruction (the sanctioned sink
+            // above) — no hidden fractional credit survives a burned batch.
             new Recipe("charcoal", Ingredient.of(ItemTags.LOGS), 1, Items.CHARCOAL, 1, 90));
 
         // The kitchen turns what the settlement has into something worth
@@ -704,8 +708,9 @@ public final class Production {
      *
      * <p><b>Fire is part of "satisfiable".</b> At a burning building
      * ({@link Fuel#burns}) a recipe joins the need-aware contest only if the
-     * chests also hold at least {@link Fuel#perBatch} fuel — a cold forge
-     * has no candidates at all, not a candidate it will fail to run. The
+     * chests also hold an exact combination worth
+     * {@link Fuel#unitsPerBatch} units — a cold forge has no candidates at
+     * all, not a candidate it will fail to run. The
      * one exception is the smelter's {@code charcoal} recipe (see its table
      * entry): fuel-MAKING is exempt from the fuel gate, or an empty-handed
      * settlement could never light its first fire.
@@ -824,11 +829,12 @@ public final class Production {
      * says items are conserved and a race is not an excuse.
      *
      * <p><b>Fuel burns in the same transaction.</b> At a burning building a
-     * fuel-gated recipe (see {@link #fuelGated}) also removes
-     * {@link Fuel#perBatch} fuel here, atomically with the inputs: refuse
-     * up front if the fuel is not there, and if a race empties the fuel
-     * slots between the check and the take, EVERYTHING already removed —
-     * fuel and inputs alike — goes back exactly as it was. Only a batch
+     * fuel-gated recipe (see {@link #fuelGated}) also removes an exact,
+     * lossless combination worth {@link Fuel#unitsPerBatch} units here,
+     * atomically with the inputs. Refuse up front if no exact combination
+     * exists — total nominal heat is not permission to overburn — and if a
+     * race changes a planned fuel slot, EVERYTHING already removed goes
+     * back, with the original fuel kind and components intact. Only a batch
      * that fully completes burns anything. The burned fuel is then simply
      * gone: THE ONE SANCTIONED ITEM SINK (see the class doc's INV-3 note) —
      * it converted to finished goods, the way a vanilla furnace's coal does.
@@ -838,11 +844,14 @@ public final class Production {
     public static boolean run(ServerLevel level, Building building, Recipe recipe) {
         List<Container> containers = containersOf(level, building);
         boolean burns = fuelGated(building.type, recipe);
-        int fuelNeeded = burns ? Fuel.perBatch(building.type) : 0;
+        int fuelNeeded = burns ? Fuel.unitsPerBatch(building.type) : 0;
+        List<FuelWithdrawal> fuelPlan = burns
+            ? planFuel(containers, fuelNeeded)
+            : List.of();
         if (containers.isEmpty()
             || count(containers, recipe) < recipe.inputCount()
             || !hasRoomFor(containers, recipe)
-            || (burns && countFuel(containers) < fuelNeeded)) {
+            || fuelPlan == null) {
             return false;
         }
         int taken = take(containers, recipe, recipe.inputCount());
@@ -853,23 +862,11 @@ public final class Production {
             return false;
         }
         if (burns) {
-            // Exact stacks recorded, because fuel is a KIND (charcoal, coal,
-            // any log) and a give-back must return the very items it took,
-            // not a normalised substitute.
-            List<ItemStack> fuelTaken = takeFuel(containers, fuelNeeded);
-            int fuelGot = 0;
-            for (ItemStack stack : fuelTaken) {
-                fuelGot += stack.getCount();
-            }
-            if (fuelGot < fuelNeeded) {
+            FuelTake fuelTake = takeFuel(fuelPlan, fuelNeeded);
+            if (!fuelTake.complete()) {
                 // The race path: the fire went out under us. Undo the whole
                 // transaction — fuel first, then the inputs — and refuse.
-                for (ItemStack stack : fuelTaken) {
-                    ItemStack left = insert(containers, stack);
-                    if (!left.isEmpty()) {
-                        Block.popResource(level, building.anchor, left);
-                    }
-                }
+                restoreFuel(level, building, containers, fuelTake.taken());
                 giveBack(level, building, containers, recipe, taken);
                 return false;
             }
@@ -908,52 +905,160 @@ public final class Production {
     /** The fuel half of "satisfiable": trivially true for anything not
      *  fuel-gated. (No current gated recipe's INPUT is itself a fuel item —
      *  the only overlap, logs into charcoal, is the exempt recipe — so
-     *  counting inputs and fuel independently cannot double-promise one
+     *  planning inputs and fuel independently cannot double-promise one
      *  stack; if a future recipe overlaps, run()'s race path still gives
      *  everything back rather than half-running.) */
     private static boolean hasFuelFor(List<Container> containers,
                                       BuildingType type, Recipe recipe) {
         return !fuelGated(type, recipe)
-            || countFuel(containers) >= Fuel.perBatch(type);
+            || planFuel(containers, Fuel.unitsPerBatch(type)) != null;
     }
 
-    /** How much fuel of any kind the building's chests hold. */
-    private static int countFuel(List<Container> containers) {
+    /** How many whole fuel units the building's physical chest stacks hold. */
+    private static int countFuelUnits(List<Container> containers) {
         int total = 0;
         for (Container container : containers) {
             for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                ItemStack stack = container.getItem(slot);
-                if (Fuel.isFuel(stack)) {
-                    total += stack.getCount();
-                }
+                total += Fuel.units(container.getItem(slot));
             }
         }
         return total;
     }
 
     /**
-     * Removes up to {@code wanted} fuel items and returns EXACTLY what was
-     * taken, stack by stack, so the race path in {@link #run} can put back
-     * the very items it removed — fuel is a kind, not one item, and a
-     * give-back that swapped spruce logs for oak would violate chest truth
-     * in spirit even while conserving the count.
+     * One exact withdrawal from one physical slot. The stack is a snapshot
+     * with the count to remove, including every component, so rollback can
+     * restore oak as oak, named coal as named coal, and so on.
      */
-    private static List<ItemStack> takeFuel(List<Container> containers, int wanted) {
-        List<ItemStack> taken = new ArrayList<>();
-        int got = 0;
+    private record FuelWithdrawal(Container container, int slot, ItemStack stack) {
+    }
+
+    /** Result of attempting a previously validated plan. */
+    private record FuelTake(boolean complete, List<FuelWithdrawal> taken) {
+    }
+
+    /** Candidate slot for the bounded exact-unit planner. */
+    private record FuelSlot(Container container, int slot, ItemStack stack,
+                            int unitsPerItem) {
+    }
+
+    /**
+     * Plans a subset worth EXACTLY {@code wantedUnits}, without changing any
+     * inventory. This is a tiny bounded-knapsack problem (today the target is
+     * two and item values are one or two), written generally so a future fuel
+     * value cannot silently turn {@code total >= wanted} into overburn.
+     *
+     * <p>Dense fuels are considered first. Thus a mixed chest with one
+     * charcoal and one log burns the exact charcoal and leaves the log; it
+     * never consumes three units, and it never banks the spare unit in an
+     * invisible credit. Equal-value slots keep physical container order.
+     *
+     * @return immutable-by-convention withdrawal records, or {@code null}
+     *         when no exact combination exists
+     */
+    @Nullable
+    private static List<FuelWithdrawal> planFuel(List<Container> containers,
+                                                  int wantedUnits) {
+        if (wantedUnits < 0) {
+            return null;
+        }
+        if (wantedUnits == 0) {
+            return List.of();
+        }
+
+        List<FuelSlot> slots = new ArrayList<>();
         for (Container container : containers) {
-            for (int slot = 0; slot < container.getContainerSize() && got < wanted; slot++) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
                 ItemStack stack = container.getItem(slot);
-                if (!Fuel.isFuel(stack)) {
+                int perItem = Fuel.unitsPerItem(stack);
+                if (perItem <= 0) {
                     continue;
                 }
-                int move = Math.min(wanted - got, stack.getCount());
-                taken.add(stack.copyWithCount(move));
-                container.removeItem(slot, move);
-                got += move;
+                slots.add(new FuelSlot(container, slot, stack.copy(), perItem));
             }
         }
-        return taken;
+        if (slots.isEmpty() || countFuelUnits(containers) < wantedUnits) {
+            return null;
+        }
+        // List.sort is stable: equal-value fuels retain chest/slot order.
+        slots.sort((left, right) ->
+            Integer.compare(right.unitsPerItem(), left.unitsPerItem()));
+
+        Map<Integer, List<FuelWithdrawal>> plans = new HashMap<>();
+        plans.put(0, List.of());
+        for (FuelSlot candidate : slots) {
+            Map<Integer, List<FuelWithdrawal>> before =
+                new HashMap<>(plans);
+            int maxItems = Math.min(candidate.stack().getCount(),
+                wantedUnits / candidate.unitsPerItem());
+            for (int total = 0; total <= wantedUnits; total++) {
+                List<FuelWithdrawal> prefix = before.get(total);
+                if (prefix == null) {
+                    continue;
+                }
+                for (int amount = 1; amount <= maxItems; amount++) {
+                    int next = total + amount * candidate.unitsPerItem();
+                    if (next > wantedUnits) {
+                        break;
+                    }
+                    if (plans.containsKey(next)) {
+                        continue;
+                    }
+                    List<FuelWithdrawal> plan = new ArrayList<>(prefix);
+                    plan.add(new FuelWithdrawal(candidate.container(),
+                        candidate.slot(), candidate.stack().copyWithCount(amount)));
+                    plans.put(next, plan);
+                }
+            }
+        }
+        return plans.get(wantedUnits);
+    }
+
+    /**
+     * Executes a precomputed exact plan. Every slot is revalidated BEFORE
+     * the first mutation; if anything changed, refusal is mutation-free. If
+     * a nonstandard container nevertheless changes during removal, every
+     * exact stack actually obtained is returned to {@link #run} for rollback.
+     */
+    private static FuelTake takeFuel(List<FuelWithdrawal> plan,
+                                     int wantedUnits) {
+        for (FuelWithdrawal withdrawal : plan) {
+            ItemStack current = withdrawal.container().getItem(withdrawal.slot());
+            if (current.isEmpty()
+                || !ItemStack.isSameItemSameComponents(current, withdrawal.stack())
+                || current.getCount() < withdrawal.stack().getCount()) {
+                return new FuelTake(false, List.of());
+            }
+        }
+
+        List<FuelWithdrawal> taken = new ArrayList<>();
+        int unitsTaken = 0;
+        for (FuelWithdrawal withdrawal : plan) {
+            ItemStack removed = withdrawal.container().removeItem(
+                withdrawal.slot(), withdrawal.stack().getCount());
+            if (!removed.isEmpty()) {
+                taken.add(new FuelWithdrawal(withdrawal.container(),
+                    withdrawal.slot(), removed.copy()));
+                unitsTaken += Fuel.units(removed);
+            }
+            if (removed.getCount() != withdrawal.stack().getCount()
+                || !ItemStack.isSameItemSameComponents(removed, withdrawal.stack())) {
+                return new FuelTake(false, taken);
+            }
+        }
+        return new FuelTake(unitsTaken == wantedUnits, taken);
+    }
+
+    /** Restores the exact fuel stacks from a failed transaction. */
+    private static void restoreFuel(ServerLevel level, Building building,
+                                    List<Container> containers,
+                                    List<FuelWithdrawal> taken) {
+        for (FuelWithdrawal withdrawal : taken) {
+            ItemStack left = insert(containers, withdrawal.stack());
+            if (!left.isEmpty()) {
+                Block.popResource(level, building.anchor, left);
+            }
+        }
     }
 
     private static List<Container> containersOf(ServerLevel level, Building building) {
