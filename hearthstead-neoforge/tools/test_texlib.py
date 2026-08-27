@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import gzip
 import io
 import random
 import statistics
@@ -11,6 +12,7 @@ import unittest
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 
 import texlib
 import validate_assets
@@ -21,6 +23,9 @@ from validate_assets import (
     STONE_SEED_MATRIX,
     _configure_windows_console,
     _entity_texture_key_and_folder,
+    _format_pipeline_paths,
+    _pipeline_bytes_equal,
+    _pipeline_committed_output_equal,
     _stone_edge_contract_violations,
     _stone_seam_ratios,
     entity_atlas_sizes_from_models,
@@ -255,6 +260,197 @@ class PaletteFoundationTests(unittest.TestCase):
             self.assertEqual(raw.getvalue().decode("utf-8"), symbols)
         finally:
             stream.detach()
+
+
+class PipelinePortabilityTests(unittest.TestCase):
+
+    @staticmethod
+    def _png_bytes(image: Image.Image, *, compression: int,
+                   comment: str | None = None) -> bytes:
+        output = io.BytesIO()
+        metadata = None
+        if comment is not None:
+            metadata = PngInfo()
+            metadata.add_text("Comment", comment)
+        image.save(output, format="PNG", compress_level=compression,
+                   pnginfo=metadata)
+        return output.getvalue()
+
+    def _compare(self, suffix: str, fresh_bytes: bytes,
+                 committed_bytes: bytes) -> tuple[bool, str]:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            fresh = root / f"fresh{suffix}"
+            committed = root / f"committed{suffix}"
+            fresh.write_bytes(fresh_bytes)
+            committed.write_bytes(committed_bytes)
+            return _pipeline_committed_output_equal(fresh, committed)
+
+    def test_png_same_pixels_different_compression_and_metadata_pass(self):
+        image = Image.new("RGBA", (3, 2), (48, 36, 24, 255))
+        image.putpixel((1, 1), (142, 94, 46, 173))
+        compact = self._png_bytes(image, compression=9)
+        decorated = self._png_bytes(
+            image, compression=0, comment="encoding metadata may vary")
+        self.assertNotEqual(compact, decorated)
+        self.assertEqual(self._compare(".png", compact, decorated), (True, ""))
+
+    def test_png_one_pixel_delta_and_corruption_fail_closed(self):
+        original = Image.new("RGBA", (2, 2), (10, 20, 30, 255))
+        changed = original.copy()
+        changed.putpixel((1, 0), (10, 20, 31, 255))
+        original_bytes = self._png_bytes(original, compression=6)
+        changed_bytes = self._png_bytes(changed, compression=6)
+
+        equal, reason = self._compare(".png", original_bytes, changed_bytes)
+        self.assertFalse(equal)
+        self.assertIn("pixel bytes differ", reason)
+
+        equal, reason = self._compare(".png", original_bytes, b"not a PNG")
+        self.assertFalse(equal)
+        self.assertIn("decode/parse failed", reason)
+
+    def test_png_mode_and_size_are_part_of_the_contract(self):
+        rgba = self._png_bytes(
+            Image.new("RGBA", (2, 2), (10, 20, 30, 255)), compression=6)
+        rgb = self._png_bytes(
+            Image.new("RGB", (2, 2), (10, 20, 30)), compression=6)
+        wider = self._png_bytes(
+            Image.new("RGBA", (3, 2), (10, 20, 30, 255)), compression=6)
+
+        equal, reason = self._compare(".png", rgba, rgb)
+        self.assertFalse(equal)
+        self.assertIn("mode differs", reason)
+
+        equal, reason = self._compare(".png", rgba, wider)
+        self.assertFalse(equal)
+        self.assertIn("size differs", reason)
+
+    def test_mcmeta_uses_strict_deep_json_equality(self):
+        compact = (b'{"animation":{"frametime":2,"frames":[0,1]},'
+                   b'"interpolate":true}\n')
+        reformatted = (b'{\r\n  "interpolate": true,\r\n  "animation": '
+                       b'{"frames": [0, 1], "frametime": 2}\r\n}\r\n')
+        self.assertEqual(
+            self._compare(".mcmeta", compact, reformatted), (True, ""))
+
+        changed = compact.replace(b"[0,1]", b"[0,2]")
+        equal, reason = self._compare(".mcmeta", compact, changed)
+        self.assertFalse(equal)
+        self.assertIn("structure/value differs", reason)
+
+        # Python considers True == 1; JSON structural equality must not.
+        equal, reason = self._compare(
+            ".mcmeta", b'{"interpolate":true}', b'{"interpolate":1}')
+        self.assertFalse(equal)
+        self.assertIn("structure/value differs", reason)
+
+        for malformed in (b'{"animation":', b'{"x":1,"x":2}',
+                          b'{"x":NaN}', b'\xff'):
+            with self.subTest(malformed=malformed):
+                equal, reason = self._compare(".mcmeta", compact, malformed)
+                self.assertFalse(equal)
+                self.assertIn("decode/parse failed", reason)
+
+    def test_mcmeta_rejects_every_non_finite_number_on_either_side(self):
+        valid = b'{"x":1.25}'
+        non_finite_values = (
+            b'{"x":1e9999}',
+            b'{"x":-1e9999}',
+            b'{"x":Infinity}',
+            b'{"x":-Infinity}',
+            b'{"x":NaN}',
+        )
+        for malformed in non_finite_values:
+            for fresh, committed in ((malformed, valid), (valid, malformed)):
+                with self.subTest(malformed=malformed,
+                                  side="fresh" if fresh is malformed else "committed"):
+                    equal, reason = self._compare(".mcmeta", fresh, committed)
+                    self.assertFalse(equal)
+                    self.assertIn("decode/parse failed", reason)
+
+    def test_mcmeta_preserves_distinct_finite_numeric_values(self):
+        collisions = (
+            (b'{"x":1e-9999}', b'{"x":0.0}'),
+            (b'{"x":0.100000000000000005}', b'{"x":0.1}'),
+        )
+        for left, right in collisions:
+            for fresh, committed in ((left, right), (right, left)):
+                with self.subTest(fresh=fresh, committed=committed):
+                    equal, reason = self._compare(".mcmeta", fresh, committed)
+                    self.assertFalse(equal)
+                    self.assertIn("structure/value differs", reason)
+
+    def test_pipeline_file_set_diagnostic_is_bounded(self):
+        paths = [f"generated/path-{index:02d}.png" for index in range(13)]
+        message = _format_pipeline_paths(paths)
+        self.assertIn("path-00.png", message)
+        self.assertIn("path-07.png", message)
+        self.assertNotIn("path-08.png", message)
+        self.assertIn("... and 5 more", message)
+
+    def test_java_normalizes_only_newline_representation(self):
+        lf = b"final class Token {\n    int value = 1;\n}\n"
+        crlf = lf.replace(b"\n", b"\r\n")
+        cr = lf.replace(b"\n", b"\r")
+        self.assertEqual(self._compare(".java", lf, crlf), (True, ""))
+        self.assertEqual(self._compare(".java", lf, cr), (True, ""))
+
+        for changed in (lf.replace(b"value = 1", b"value = 2"),
+                        lf.replace(b"    int", b"     int")):
+            with self.subTest(changed=changed):
+                equal, reason = self._compare(".java", lf, changed)
+                self.assertFalse(equal)
+                self.assertIn("differs beyond newline", reason)
+
+        equal, reason = self._compare(".java", lf, b"class X { // \xff\n}\n")
+        self.assertFalse(equal)
+        self.assertIn("decode/parse failed", reason)
+
+    def test_nbt_compares_decompressed_payload_not_gzip_wrapper(self):
+        payload = b"\x0a\x00\x00hearthstead-nbt-payload\x00"
+        fast = gzip.compress(payload, compresslevel=1, mtime=0)
+        wrapped = bytearray(gzip.compress(payload, compresslevel=9, mtime=7))
+        wrapped[9] = 3 if wrapped[9] != 3 else 0  # vary gzip OS metadata too
+        wrapped = bytes(wrapped)
+        self.assertNotEqual(fast, wrapped)
+        self.assertEqual(self._compare(".nbt", fast, wrapped), (True, ""))
+
+        changed = gzip.compress(payload + b"changed", compresslevel=9, mtime=0)
+        equal, reason = self._compare(".nbt", fast, changed)
+        self.assertFalse(equal)
+        self.assertIn("payload differs", reason)
+
+        equal, reason = self._compare(".nbt", fast, b"not gzip")
+        self.assertFalse(equal)
+        self.assertIn("decode/parse failed", reason)
+
+    def test_unknown_suffix_falls_back_to_exact_bytes(self):
+        self.assertEqual(self._compare(".bin", b"same", b"same"), (True, ""))
+        equal, reason = self._compare(".bin", b"same", b"different")
+        self.assertFalse(equal)
+        self.assertIn("byte content differs", reason)
+
+    def test_fresh_run_determinism_gate_remains_byte_exact(self):
+        image = Image.new("RGBA", (2, 2), (75, 63, 51, 255))
+        first_bytes = self._png_bytes(image, compression=0)
+        second_bytes = self._png_bytes(
+            image, compression=9, comment="same pixels, different bytes")
+        self.assertNotEqual(first_bytes, second_bytes)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first = root / "run-a.png"
+            second = root / "run-b.png"
+            first.write_bytes(first_bytes)
+            second.write_bytes(second_bytes)
+            # Fresh-vs-committed portability accepts the equivalent pixels ...
+            self.assertEqual(
+                _pipeline_committed_output_equal(first, second), (True, ""))
+            # ... but fresh run A-vs-B still rejects their different raw bytes.
+            equal, reason = _pipeline_bytes_equal(first, second)
+            self.assertFalse(equal)
+            self.assertEqual(reason, "byte content differs")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import argparse
 import colorsys
+import gzip
 import json
+import math
 import os
 import random
 import re
@@ -28,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 from collections import OrderedDict
+from decimal import Decimal
 from pathlib import Path, PurePath
 
 try:
@@ -1361,6 +1364,200 @@ def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tupl
 _PIPELINE_OUTPUT_SUFFIXES = (".png", ".nbt", ".mcmeta", ".java")
 
 
+def _pipeline_error(exc: Exception) -> str:
+    """Return a compact, single-line diagnostic safe for the final report."""
+    detail = str(exc).strip().splitlines()
+    message = detail[0] if detail else "no detail"
+    return f"{type(exc).__name__}: {message}"[:180]
+
+
+def _pipeline_files_exist(first: Path, second: Path) -> tuple[bool, str]:
+    if not first.is_file():
+        return False, "fresh output is missing"
+    if not second.is_file():
+        return False, "comparison output is missing"
+    return True, ""
+
+
+def _pipeline_bytes_equal(first: Path, second: Path) -> tuple[bool, str]:
+    """Compare two outputs byte-for-byte, failing closed on read errors.
+
+    This is deliberately separate from the committed-output comparison below:
+    fresh run A versus fresh run B is the determinism contract and MUST remain
+    byte exact, even for formats whose encoding can legitimately vary between
+    platforms.
+    """
+    present, reason = _pipeline_files_exist(first, second)
+    if not present:
+        return False, reason
+    try:
+        equal = first.read_bytes() == second.read_bytes()
+    except Exception as exc:  # fail closed; cleanup belongs to the caller
+        return False, f"byte read failed ({_pipeline_error(exc)})"
+    return (True, "") if equal else (False, "byte content differs")
+
+
+def _load_pipeline_png(path: Path):
+    if not HAVE_PIL:
+        raise RuntimeError("Pillow is unavailable")
+
+    # verify() catches malformed/truncated PNG structure without decoding it;
+    # reopen and load() then proves the pixel stream itself is decodable.
+    with Image.open(path) as candidate:
+        if candidate.format != "PNG":
+            raise ValueError(f"expected PNG, decoded {candidate.format or 'unknown format'}")
+        candidate.verify()
+    with Image.open(path) as candidate:
+        if candidate.format != "PNG":
+            raise ValueError(f"expected PNG, decoded {candidate.format or 'unknown format'}")
+        candidate.load()
+        # Native bytes enforce the requested exact decoded-pixel contract.
+        # RGBA additionally makes palette/transparency changes observable for
+        # indexed PNGs, where equal index bytes alone do not mean equal pixels.
+        return (candidate.mode, candidate.size, candidate.tobytes(),
+                candidate.convert("RGBA").tobytes())
+
+
+def _reject_json_constant(token: str):
+    raise ValueError(f"non-finite JSON number {token!r}")
+
+
+def _parse_finite_json_float(token: str) -> Decimal:
+    # Keep an explicit binary-float overflow gate so exponent forms such as
+    # 1e9999 remain invalid. Return Decimal only after that gate: comparing
+    # binary floats would collapse distinct finite JSON values such as
+    # 1e-9999 and 0.0 before the deep comparison can see the difference.
+    value = float(token)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite JSON number {token!r}")
+    return Decimal(token)
+
+
+def _json_object_without_duplicates(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _load_pipeline_json(path: Path):
+    text = path.read_bytes().decode("utf-8")
+    return json.loads(
+        text,
+        object_pairs_hook=_json_object_without_duplicates,
+        parse_constant=_reject_json_constant,
+        parse_float=_parse_finite_json_float,
+    )
+
+
+def _json_deep_equal(first, second) -> bool:
+    """JSON structural equality without Python's True == 1 shortcut."""
+    if first is None or second is None:
+        return first is None and second is None
+    if isinstance(first, bool) or isinstance(second, bool):
+        return isinstance(first, bool) and isinstance(second, bool) and first == second
+    numeric_types = (int, float, Decimal)
+    if isinstance(first, numeric_types) or isinstance(second, numeric_types):
+        return (isinstance(first, numeric_types)
+                and isinstance(second, numeric_types)
+                and first == second)
+    if isinstance(first, str) or isinstance(second, str):
+        return isinstance(first, str) and isinstance(second, str) and first == second
+    if isinstance(first, list) or isinstance(second, list):
+        return (isinstance(first, list) and isinstance(second, list)
+                and len(first) == len(second)
+                and all(_json_deep_equal(a, b) for a, b in zip(first, second)))
+    if isinstance(first, dict) or isinstance(second, dict):
+        return (isinstance(first, dict) and isinstance(second, dict)
+                and first.keys() == second.keys()
+                and all(_json_deep_equal(first[key], second[key]) for key in first))
+    return type(first) is type(second) and first == second
+
+
+def _load_pipeline_java(path: Path) -> str:
+    # Only newline representation is portable. No trimming, whitespace
+    # folding, Unicode replacement or source transformation is allowed.
+    return path.read_bytes().decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _load_pipeline_nbt(path: Path) -> bytes:
+    return gzip.decompress(path.read_bytes())
+
+
+def _pipeline_committed_output_equal(fresh: Path,
+                                     committed: Path) -> tuple[bool, str]:
+    """Format-aware fresh-vs-committed comparison, always fail closed.
+
+    The normalization here is intentionally narrow: encoded PNG bytes, JSON
+    layout, Java newline form and gzip wrapping may vary by platform, while
+    pixels, JSON values, Java source and decompressed NBT payload may not.
+    Unknown formats retain the byte-exact fallback.
+    """
+    present, reason = _pipeline_files_exist(fresh, committed)
+    if not present:
+        return False, reason
+
+    suffix = fresh.suffix.lower()
+    try:
+        if suffix == ".png":
+            fresh_png = _load_pipeline_png(fresh)
+            committed_png = _load_pipeline_png(committed)
+            if fresh_png[0] != committed_png[0]:
+                return False, f"PNG mode differs ({fresh_png[0]} != {committed_png[0]})"
+            if fresh_png[1] != committed_png[1]:
+                return False, f"PNG size differs ({fresh_png[1]} != {committed_png[1]})"
+            if fresh_png[2] != committed_png[2] or fresh_png[3] != committed_png[3]:
+                return False, "PNG pixel bytes differ"
+            return True, ""
+
+        if suffix == ".mcmeta":
+            fresh_json = _load_pipeline_json(fresh)
+            committed_json = _load_pipeline_json(committed)
+            return ((True, "") if _json_deep_equal(fresh_json, committed_json)
+                    else (False, "JSON structure/value differs"))
+
+        if suffix == ".java":
+            equal = _load_pipeline_java(fresh) == _load_pipeline_java(committed)
+            return ((True, "") if equal else
+                    (False, "UTF-8 Java differs beyond newline representation"))
+
+        if suffix == ".nbt":
+            equal = _load_pipeline_nbt(fresh) == _load_pipeline_nbt(committed)
+            return ((True, "") if equal else
+                    (False, "decompressed NBT payload differs"))
+
+        return _pipeline_bytes_equal(fresh, committed)
+    except Exception as exc:
+        return False, f"{suffix or 'fallback'} decode/parse failed ({_pipeline_error(exc)})"
+
+
+def _pipeline_mismatches(first_root: Path, second_root: Path, outputs,
+                         comparator) -> list[tuple[str, str]]:
+    mismatches = []
+    for rel_out in outputs:
+        equal, reason = comparator(first_root / rel_out, second_root / rel_out)
+        if not equal:
+            mismatches.append((str(rel_out), reason))
+    return mismatches
+
+
+def _format_pipeline_mismatches(mismatches: list[tuple[str, str]],
+                                limit: int = 8) -> str:
+    shown = ", ".join(f"{path} [{reason}]" for path, reason in mismatches[:limit])
+    hidden = len(mismatches) - limit
+    return f"{shown}, ... and {hidden} more" if hidden > 0 else shown
+
+
+def _format_pipeline_paths(paths, limit: int = 8) -> str:
+    """Bound a generated file-set diagnostic just like content mismatches."""
+    ordered = sorted(str(path) for path in paths)
+    shown = ", ".join(ordered[:limit])
+    hidden = len(ordered) - limit
+    return f"[{shown}, ... and {hidden} more]" if hidden > 0 else f"[{shown}]"
+
+
 def check_pipeline(*, tools_src: Path | None = None,
                    generators=None) -> None:
     """A regression guard is worthless the moment it stops running and
@@ -1412,31 +1609,28 @@ def check_pipeline(*, tools_src: Path | None = None,
                   f"{script}: PYTHONHASHSEED=0 and PYTHONHASHSEED=1 runs produced the same file set"
                   if outs_a == outs_b else
                   f"{script}: PYTHONHASHSEED=0 and PYTHONHASHSEED=1 runs produced DIFFERENT file "
-                  f"sets: only-in-0={sorted(set(outs_a) - set(outs_b))} "
-                  f"only-in-1={sorted(set(outs_b) - set(outs_a))}")
+                  f"sets: only-in-0={_format_pipeline_paths(set(outs_a) - set(outs_b))} "
+                  f"only-in-1={_format_pipeline_paths(set(outs_b) - set(outs_a))}")
 
-            mismatched = []
-            for rel_out in outs_a:
-                pb = res_b / rel_out
-                if not pb.is_file() or (res_a / rel_out).read_bytes() != pb.read_bytes():
-                    mismatched.append(str(rel_out))
+            # The two fresh executions are intentionally compared as raw
+            # bytes. Never route this through the platform-portable committed
+            # comparator: nondeterministic encodings are still nondeterminism.
+            mismatched = _pipeline_mismatches(
+                res_a, res_b, outs_a, _pipeline_bytes_equal)
             check("Pipeline", not mismatched,
-                  f"{script}: byte-identical output across PYTHONHASHSEED=0 and PYTHONHASHSEED=1"
-                  if not mismatched
-                  else f"{script}: non-deterministic — differs across process-salted hash() runs: "
-                       f"{', '.join(mismatched)}")
+                   f"{script}: byte-identical output across PYTHONHASHSEED=0 and PYTHONHASHSEED=1"
+                   if not mismatched
+                   else f"{script}: non-deterministic — differs across process-salted hash() runs: "
+                        f"{_format_pipeline_mismatches(mismatched)}")
 
             src_root = PROJECT_ROOT / "src"
-            committed_mismatch = []
-            for rel_out in outs_a:
-                committed = src_root / rel_out
-                if not committed.is_file() or (res_a / rel_out).read_bytes() != committed.read_bytes():
-                    committed_mismatch.append(str(rel_out))
+            committed_mismatch = _pipeline_mismatches(
+                res_a, src_root, outs_a, _pipeline_committed_output_equal)
             check("Pipeline", not committed_mismatch,
-                  f"{script}: committed assets match a fresh deterministic run"
-                  if not committed_mismatch
-                  else f"{script}: committed assets are stale vs. the generator — re-run and commit: "
-                       f"{', '.join(committed_mismatch)}")
+                   f"{script}: committed assets match a fresh deterministic run"
+                   if not committed_mismatch
+                   else f"{script}: committed assets are stale vs. the generator — re-run and commit: "
+                        f"{_format_pipeline_mismatches(committed_mismatch)}")
         finally:
             shutil.rmtree(tmp_a, ignore_errors=True)
             shutil.rmtree(tmp_b, ignore_errors=True)
