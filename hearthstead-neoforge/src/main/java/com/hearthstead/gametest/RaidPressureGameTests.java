@@ -451,22 +451,13 @@ public class RaidPressureGameTests {
         helper.succeed();
     }
 
-    /**
-     * On Peaceful nothing hostile can exist, so the schedule must not run
-     * at all. Found by playing, not by testing: raiders reported
-     * "Summoned" and were discarded a tick later, which would have left the
-     * Tingbok announcing a siege that could never arrive.
-     */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_peaceful_means_no_raids_and_no_pressure")
-    public void peacefulMeansNoRaidsAndNoPressure(GameTestHelper helper) {
-        helper.assertTrue(!RaidDirector.raidsPossibleAt(
-                net.minecraft.world.Difficulty.PEACEFUL),
-            "raids must be impossible on peaceful");
+    /** Hearthstead's profile owns raids independently of vanilla difficulty. */
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "raid_pressure_all_world_difficulties_support_hearthstead_raids")
+    public void allWorldDifficultiesSupportHearthsteadRaids(GameTestHelper helper) {
         for (var d : net.minecraft.world.Difficulty.values()) {
-            if (d != net.minecraft.world.Difficulty.PEACEFUL) {
-                helper.assertTrue(RaidDirector.raidsPossibleAt(d),
-                    "raids must be possible on " + d);
-            }
+            helper.assertTrue(RaidDirector.raidsPossibleAt(d),
+                "Hearthstead raids must be possible on " + d);
         }
         helper.succeed();
     }

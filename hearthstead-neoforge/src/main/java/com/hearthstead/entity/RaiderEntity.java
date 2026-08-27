@@ -1,5 +1,6 @@
 package com.hearthstead.entity;
 
+import com.hearthstead.registry.ModDamageTypes;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
@@ -12,7 +13,9 @@ import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.AnimationState;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -28,6 +31,7 @@ import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.ai.navigation.GroundPathNavigation;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.level.Level;
 
 import java.util.UUID;
@@ -416,7 +420,22 @@ public class RaiderEntity extends Monster {
     /** Raiders never turn on each other, however the melee goes. */
     @Override
     public boolean canAttack(LivingEntity target) {
-        return !(target instanceof RaiderEntity) && super.canAttack(target);
+        if (target instanceof RaiderEntity) {
+            return false;
+        }
+        // LivingEntity rejects every Player target on Peaceful before the
+        // target selector can even consider it. Hearthstead's raid profile is
+        // independent of that world setting, so keep the ordinary visibility
+        // and invulnerability checks while bypassing only that difficulty
+        // veto. Settlers and all other targets retain vanilla semantics.
+        return target instanceof Player
+            ? target.canBeSeenAsEnemy() : super.canAttack(target);
+    }
+
+    /** A Hearthstead raid remains present when the world itself is Peaceful. */
+    @Override
+    protected boolean shouldDespawnInPeaceful() {
+        return false;
     }
 
     // ------------------------------------------------------------- tick ---
@@ -513,14 +532,40 @@ public class RaiderEntity extends Monster {
      * must never inflate a report for a raid that never actually happened.
      */
     @Override
-    public boolean doHurtTarget(net.minecraft.world.entity.Entity target) {
+    public boolean doHurtTarget(Entity target) {
         // RAIDER_STRIKE's trigger, mirroring SettlerEntity's own EV_MELEE
         // broadcast on doHurtTarget exactly: unconditional, before the
         // outcome is known -- MeleeAttackGoal only calls this once the
         // target is already in reach, so this is genuinely "the swing", not
         // a speculative check.
         level().broadcastEntityEvent(this, EV_STRIKE);
-        boolean hit = super.doHurtTarget(target);
+        // Mob#doHurtTarget is reproduced with one intentional substitution:
+        // the data-driven Hearthstead source uses scaling=never, so Player
+        // damage is not multiplied to zero on Peaceful. The enchantment,
+        // knockback, post-attack, sound and last-target hooks stay identical
+        // to vanilla 1.21.1.
+        float damage = (float) getAttributeValue(Attributes.ATTACK_DAMAGE);
+        DamageSource source = damageSources().source(
+            ModDamageTypes.RAIDER_ATTACK, this);
+        if (level() instanceof ServerLevel server) {
+            damage = EnchantmentHelper.modifyDamage(server, getWeaponItem(),
+                target, source, damage);
+        }
+        boolean hit = target.hurt(source, damage);
+        if (hit) {
+            float knockback = getKnockback(target, source);
+            if (knockback > 0.0F && target instanceof LivingEntity living) {
+                living.knockback((double) (knockback * 0.5F),
+                    (double) Mth.sin(getYRot() * (float) (Math.PI / 180.0)),
+                    (double) -Mth.cos(getYRot() * (float) (Math.PI / 180.0)));
+                setDeltaMovement(getDeltaMovement().multiply(0.6, 1.0, 0.6));
+            }
+            if (level() instanceof ServerLevel server) {
+                EnchantmentHelper.doPostAttackEffects(server, target, source);
+            }
+            setLastHurtMob(target);
+            playAttackSound();
+        }
         if (hit && target instanceof SettlerEntity
             && level() instanceof ServerLevel server) {
             Settlement s = settlement();
@@ -537,6 +582,26 @@ public class RaiderEntity extends Monster {
         return false; // a raid that despawns is a raid that never happened
     }
 
+    /** Keep a tracked participant in the settlement's dimension. */
+    @Override
+    public boolean canUsePortal(boolean allowPassengers) {
+        return false;
+    }
+
+    /**
+     * Explicit destruction is terminal; chunk unload is deliberately not.
+     * {@link Entity#discard()} dispatches through this virtual method, while
+     * the chunk manager calls final setRemoved(UNLOADED_TO_CHUNK) directly.
+     */
+    @Override
+    public void remove(Entity.RemovalReason reason) {
+        if (reason == Entity.RemovalReason.KILLED
+            || reason == Entity.RemovalReason.DISCARDED) {
+            recordDefinitiveRaidTerminal();
+        }
+        super.remove(reason);
+    }
+
     /**
      * SAGA v1: tells the settlement its captain fell here, so
      * {@code RaidDirector#recordAftermath} can retire them permanently and
@@ -548,7 +613,7 @@ public class RaiderEntity extends Monster {
      * than dying: an escaped captain is alive and richer for it, not slain.
      */
     @Override
-    public void die(net.minecraft.world.damagesource.DamageSource cause) {
+    public void die(DamageSource cause) {
         super.die(cause);
         if (isCaptain() && level() instanceof ServerLevel server) {
             Settlement s = settlement();
@@ -556,6 +621,32 @@ public class RaiderEntity extends Monster {
                 s.raidCaptainSlainId = captainId;
                 SettlementSavedData.get(server).setDirty();
             }
+        }
+        // Death is definitive immediately; waiting for the later death-timer
+        // removal would make the saved ledger depend on whether the chunk
+        // stayed loaded for the animation.
+        recordDefinitiveRaidTerminal();
+    }
+
+    private void recordDefinitiveRaidTerminal() {
+        if (!(level() instanceof ServerLevel server) || isScout()) {
+            return;
+        }
+        Settlement settlement = settlement();
+        if (settlement == null
+            || !settlement.raidLifecycle.isAuthoredFirstRaidActive()) {
+            return;
+        }
+        // Feed every non-scout raider assigned to this settlement through
+        // the strict ledger. A UUID outside the sealed set is not harmless:
+        // it proves the live band and the persisted capture disagree, so the
+        // lifecycle records integrity loss and permanently disarms Blessing.
+        boolean integrityWasLost = settlement.raidLifecycle.integrityLost();
+        boolean recorded = settlement.raidLifecycle
+            .recordTerminalParticipant(getUUID());
+        if (recorded || (!integrityWasLost
+            && settlement.raidLifecycle.integrityLost())) {
+            SettlementSavedData.get(server).setDirty();
         }
     }
 

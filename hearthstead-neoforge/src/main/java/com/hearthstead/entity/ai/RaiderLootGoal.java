@@ -4,6 +4,7 @@ import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.building.BuildingType;
@@ -250,6 +251,7 @@ public class RaiderLootGoal extends Goal {
             // much -- read and reset there, tallied live here as it happens.
             s.raidLootEscaped = true;
             s.raidItemsStolenTonight += raider.lootCount();
+            SettlementSavedData.get((ServerLevel) raider.level()).setDirty();
             raider.discard();
             done = true;
             return;

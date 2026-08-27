@@ -18,6 +18,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.util.RandomSource;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -49,6 +50,9 @@ public class SettlementStateGameTests {
             "second participant should be tracked");
         helper.assertTrue(original.raidLifecycle.sealParticipants(),
             "non-empty participant capture should seal");
+        helper.assertTrue(original.raidLifecycle.recordTerminalParticipant(first)
+                && original.raidLifecycle.recordTerminalParticipant(second),
+            "both definitive participant outcomes should be recorded");
         helper.assertTrue(original.raidLifecycle.completeFirstRaid(true),
             "held first raid should complete");
 
@@ -88,6 +92,10 @@ public class SettlementStateGameTests {
                 && loaded.raidLifecycle.participants().contains(first)
                 && loaded.raidLifecycle.participants().contains(second),
             "bounded participant set should round-trip");
+        helper.assertTrue(loaded.raidLifecycle.terminalParticipants().size() == 2
+                && loaded.raidLifecycle.terminalParticipants().contains(first)
+                && loaded.raidLifecycle.terminalParticipants().contains(second),
+            "bounded terminal subset should round-trip");
         helper.assertTrue(loaded.raidLifecycle.mayGrantReward(),
             "intact held first raid should remain reward-eligible");
         helper.assertTrue(loaded.blessingState.earned() == 2
@@ -380,12 +388,19 @@ public class SettlementStateGameTests {
             "valid lifecycle should queue its plan");
         helper.assertTrue(valid.beginFirstRaid(plan),
             "valid lifecycle should activate");
+        java.util.List<UUID> participantIds = new java.util.ArrayList<>();
         for (int i = 0; i < RaidLifecycle.MAX_PARTICIPANTS; i++) {
-            helper.assertTrue(valid.recordParticipant(UUID.randomUUID()),
+            UUID id = UUID.randomUUID();
+            participantIds.add(id);
+            helper.assertTrue(valid.recordParticipant(id),
                 "first nine participants should fit");
         }
         helper.assertTrue(valid.sealParticipants(),
             "nine-participant capture should seal");
+        for (UUID id : participantIds) {
+            helper.assertTrue(valid.recordTerminalParticipant(id),
+                "every definitive participant should fit the terminal ledger");
+        }
         helper.assertTrue(valid.completeFirstRaid(true), "valid lifecycle should complete");
 
         CompoundTag overflowTag = valid.writeNbt();
@@ -418,6 +433,23 @@ public class SettlementStateGameTests {
         helper.assertTrue(malformedList.integrityLost()
                 && !malformedList.mayGrantReward(),
             "wrong Participants tag type must fail closed");
+
+        CompoundTag unknownTerminalTag = valid.writeNbt();
+        CompoundTag unknownTerminal = new CompoundTag();
+        unknownTerminal.putUUID("Id", UUID.randomUUID());
+        unknownTerminalTag.getList("TerminalParticipants", Tag.TAG_COMPOUND)
+            .add(unknownTerminal);
+        RaidLifecycle unknownTerminalLoaded = RaidLifecycle.readNbt(unknownTerminalTag);
+        helper.assertTrue(unknownTerminalLoaded.integrityLost()
+                && !unknownTerminalLoaded.mayGrantReward(),
+            "a terminal UUID outside the sealed participant set must fail closed");
+
+        CompoundTag missingTerminalTag = valid.writeNbt();
+        missingTerminalTag.remove("TerminalParticipants");
+        RaidLifecycle missingTerminalLoaded = RaidLifecycle.readNbt(missingTerminalTag);
+        helper.assertTrue(missingTerminalLoaded.integrityLost()
+                && !missingTerminalLoaded.mayGrantReward(),
+            "a missing terminal ledger must fail closed rather than infer victory");
 
         CompoundTag malformedEntryTag = valid.writeNbt();
         ListTag malformedEntries = new ListTag();
@@ -512,9 +544,10 @@ public class SettlementStateGameTests {
             "zero-capture lifecycle should begin the exact queued plan");
         helper.assertTrue(!emptyCapture.sealParticipants(),
             "an empty participant capture must not seal");
-        helper.assertTrue(emptyCapture.completeFirstRaid(true)
+        helper.assertTrue(!emptyCapture.completeFirstRaid(true)
+                && emptyCapture.firstState() == FirstRaidState.ACTIVE
                 && !emptyCapture.mayGrantReward(),
-            "a completed raid with zero actual UUIDs must never yield a Blessing");
+            "a raid with zero actual UUIDs must neither complete nor yield a Blessing");
 
         RaidLifecycle partialCapture = new RaidLifecycle();
         helper.assertTrue(partialCapture.initializeAtFounding(40L, 4, 2),
@@ -531,6 +564,24 @@ public class SettlementStateGameTests {
                 && !partialReload.rewardEligible()
                 && !partialReload.integrityLost(),
             "unsealed partial evidence must survive reload but remain ineligible");
+
+        RaidLifecycle unknownRuntimeTerminal = new RaidLifecycle();
+        helper.assertTrue(unknownRuntimeTerminal.initializeAtFounding(60L, 4, 2),
+            "unknown-terminal fixture should initialize");
+        RaidPlan unknownRuntimePlan = plan(64L);
+        UUID knownRuntimeId = UUID.randomUUID();
+        helper.assertTrue(unknownRuntimeTerminal.queueFirstPlan(unknownRuntimePlan)
+                && unknownRuntimeTerminal.beginFirstRaid(unknownRuntimePlan)
+                && unknownRuntimeTerminal.recordParticipant(knownRuntimeId)
+                && unknownRuntimeTerminal.sealParticipants(),
+            "unknown-terminal fixture should seal one known UUID");
+        helper.assertTrue(!unknownRuntimeTerminal.recordTerminalParticipant(UUID.randomUUID())
+                && unknownRuntimeTerminal.integrityLost(),
+            "an unknown runtime terminal UUID must permanently lose integrity");
+        helper.assertTrue(unknownRuntimeTerminal.recordTerminalParticipant(knownRuntimeId)
+                && unknownRuntimeTerminal.completeFirstRaid(true)
+                && !unknownRuntimeTerminal.mayGrantReward(),
+            "known completion may close corrupted state but must never reward it");
 
         CompoundTag blessingTag = new CompoundTag();
         blessingTag.putInt("Earned", 2);

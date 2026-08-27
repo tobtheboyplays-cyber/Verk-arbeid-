@@ -7,6 +7,8 @@ import com.hearthstead.saga.CaptainRoster;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.state.FirstRaidState;
+import com.hearthstead.settlement.state.RaidLifecycle;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.HolderLookup;
@@ -23,7 +25,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.Difficulty;
 import net.minecraft.util.RandomSource;
 
 /**
@@ -115,21 +116,12 @@ public final class RaidDirector {
     }
 
     /**
-     * Whether raids are possible at this difficulty at all.
-     *
-     * <p>On Peaceful, {@code Monster.shouldDespawnInPeaceful()} is true and
-     * vanilla discards every hostile on the next tick — so a raider would
-     * spawn and vanish before it took a step. Found by looking at the game:
-     * the QA world runs Peaceful, raiders were reported "Summoned" and were
-     * gone a tick later.
-     *
-     * <p>Without this gate the schedule would keep accumulating pressure and
-     * announcing BELEIRING in the Tingbok while nothing could ever arrive —
-     * a threat display that is quietly lying to the player, which is worse
-     * than no threat at all.
+     * Hearthstead profiles, not vanilla world difficulty, own raid policy.
+     * Raiders explicitly survive and deal non-scaled damage on Peaceful, so
+     * every vanilla difficulty is a supported raid runtime.
      */
-    public static boolean raidsPossibleAt(Difficulty difficulty) {
-        return difficulty != Difficulty.PEACEFUL;
+    public static boolean raidsPossibleAt(net.minecraft.world.Difficulty difficulty) {
+        return difficulty != null;
     }
 
     /**
@@ -238,11 +230,17 @@ public final class RaidDirector {
             BlockPos ground = footingFor(level, settlement,
                 plan.approachDegrees() + spread, distance, isCaptain);
             if (ground == null) {
+                if (isCaptain) {
+                    return spawned; // never create a leaderless "raid"
+                }
                 continue; // no footing on this bearing; the rest still come
             }
             RaiderEntity raider =
                 com.hearthstead.registry.ModEntities.RAIDER.get().create(level);
             if (raider == null) {
+                if (isCaptain) {
+                    return spawned;
+                }
                 continue;
             }
             raider.moveTo(ground.getX() + 0.5, ground.getY(), ground.getZ() + 0.5,
@@ -261,8 +259,14 @@ public final class RaidDirector {
                         captain.victories(), saga.hasEpithet());
                 }
             }
-            level.addFreshEntity(raider);
-            spawned.add(raider);
+            // Only return entities the level actually accepted. The first
+            // lifecycle seals this exact UUID list, so "constructed" is not
+            // good enough evidence for "spawned".
+            if (level.addFreshEntity(raider)) {
+                spawned.add(raider);
+            } else if (isCaptain) {
+                return spawned;
+            }
         }
         return spawned;
     }
@@ -379,6 +383,133 @@ public final class RaidDirector {
                 .getCollisionShape(level, pos.below()).isEmpty();
     }
 
+    // ----------------------------------------- authored first-raid runtime ---
+
+    /**
+     * Queues and announces the first warning once its persisted warning night
+     * is due. The plan is authored for the already-rolled attack night and is
+     * never replaced on later ticks or after reload.
+     *
+     * @return true only for the tick that created the persisted warning plan
+     */
+    public static boolean queueFirstWarningIfDue(ServerLevel level,
+                                                 Settlement settlement,
+                                                 long currentNight) {
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        if (lifecycle.firstState() != FirstRaidState.SCHEDULED
+            || lifecycle.integrityLost()
+            || currentNight < lifecycle.firstWarningNight()
+            || lifecycle.queuedPlan().isPresent()) {
+            return false;
+        }
+        CaptainRoster.ensureRoster(settlement, level.getRandom());
+        RaidPlan plan = planRaid(level, settlement, lifecycle.firstAttackNight());
+        if (!lifecycle.queueFirstPlan(plan)) {
+            // A failure after plan creation means runtime and persisted dates
+            // disagree. Never keep rolling replacements for a warning the
+            // player cannot audit.
+            lifecycle.markIntegrityLost();
+            SettlementSavedData.get(level).setDirty();
+            return false;
+        }
+        SettlementSavedData.get(level).setDirty();
+        RaidBroadcast.send(level, settlement, Component.translatable(
+            "hearthstead.message.raid_omen", settlement.name));
+        return true;
+    }
+
+    /**
+     * Spawns and seals the exact first plan players were warned about.
+     * Nothing becomes active until at least one entity was accepted by the
+     * level. A zero-spawn terrain failure therefore leaves the plan queued for
+     * a later safe retry and never announces a false arrival.
+     */
+    public static java.util.List<RaiderEntity> startQueuedFirstRaid(
+            ServerLevel level, Settlement settlement, long currentNight) {
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        RaidPlan plan = lifecycle.queuedPlan().orElse(null);
+        if (lifecycle.firstState() != FirstRaidState.SCHEDULED
+            || lifecycle.integrityLost() || plan == null
+            || plan.night() != lifecycle.firstAttackNight()
+            || currentNight < lifecycle.firstAttackNight()) {
+            return java.util.List.of();
+        }
+
+        java.util.List<RaiderEntity> spawned = spawnBand(level, settlement, plan);
+        if (spawned.isEmpty()) {
+            return java.util.List.of();
+        }
+
+        java.util.LinkedHashSet<java.util.UUID> ids = new java.util.LinkedHashSet<>();
+        boolean validCapture = spawned.size() <= RaidLifecycle.MAX_PARTICIPANTS;
+        for (RaiderEntity raider : spawned) {
+            validCapture &= raider != null && !raider.isRemoved()
+                && settlement.id.equals(raider.settlementId())
+                && ids.add(raider.getUUID());
+        }
+        if (!validCapture || ids.isEmpty()) {
+            lifecycle.markIntegrityLost();
+            for (RaiderEntity raider : spawned) {
+                if (raider != null && !raider.isRemoved()) {
+                    raider.discard();
+                }
+            }
+            SettlementSavedData.get(level).setDirty();
+            return java.util.List.of();
+        }
+
+        if (!lifecycle.beginFirstRaid(plan)) {
+            for (RaiderEntity raider : spawned) {
+                if (!raider.isRemoved()) {
+                    raider.discard();
+                }
+            }
+            return java.util.List.of();
+        }
+        for (java.util.UUID id : ids) {
+            if (!lifecycle.recordParticipant(id)) {
+                lifecycle.markIntegrityLost();
+                break;
+            }
+        }
+        if (!lifecycle.integrityLost() && !lifecycle.sealParticipants()) {
+            lifecycle.markIntegrityLost();
+        }
+        if (lifecycle.integrityLost()) {
+            for (RaiderEntity raider : spawned) {
+                if (!raider.isRemoved()) {
+                    raider.discard();
+                }
+            }
+            SettlementSavedData.get(level).setDirty();
+            return java.util.List.of();
+        }
+
+        settlement.pendingRaid = plan;
+        settlement.raidLootEscaped = false;
+        settlement.raidItemsStolenTonight = 0;
+        settlement.raidSettlersHurtTonight = 0;
+        settlement.raidCaptainSlainId = null;
+        // A terrain/chunk retry may finally arrive after the authored date.
+        // Block the recurring roll for the night of the actual arrival, not
+        // merely the older plan date.
+        settlement.raidPressure.recordAuthoredRaidStarted(currentNight);
+        RaidScars.get(level).resetArson(settlement.id);
+        SettlementSavedData.get(level).setDirty();
+
+        RaidCaptain captain = captainOf(settlement, plan.captainId());
+        if (captain != null) {
+            Captain saga = CaptainRoster.find(settlement, captain.id());
+            String leaderName = saga != null ? saga.displayName() : captain.name();
+            RaidBroadcast.send(level, settlement, Component.translatable(
+                "hearthstead.message.raid_captain_leads", leaderName, settlement.name));
+        }
+        Hearthstead.LOGGER.info(
+            "Authored first raid arrived at {} on planned night {} with {} participant(s)",
+            settlement.name, plan.night(), spawned.size());
+        return java.util.List.copyOf(spawned);
+    }
+
     /** How far past the settlement edge a raid still counts as in progress. */
     public static final int RAID_BOUNDS_MARGIN = 48;
 
@@ -394,12 +525,30 @@ public final class RaidDirector {
      * that system converges on safe however the player plays.
      */
     public static boolean resolveIfOver(ServerLevel level, Settlement settlement) {
-        RaidPlan plan = settlement.pendingRaid;
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        boolean authoredFirst = lifecycle.isAuthoredFirstRaidActive();
+        RaidPlan plan = authoredFirst
+            ? lifecycle.activePlan().orElse(null) : settlement.pendingRaid;
         if (plan == null) {
             return false;
         }
-        if (!livingRaidersOf(level, settlement).isEmpty()) {
-            return false; // still going
+        if (authoredFirst) {
+            // The lifecycle plan is authoritative after reload. A missing or
+            // mismatched legacy mirror is repaired but loses reward integrity;
+            // it is never allowed to substitute a different band.
+            if (settlement.pendingRaid == null) {
+                settlement.pendingRaid = plan;
+                SettlementSavedData.get(level).setDirty();
+            } else if (!settlement.pendingRaid.equals(plan)) {
+                lifecycle.markIntegrityLost();
+                settlement.pendingRaid = plan;
+                SettlementSavedData.get(level).setDirty();
+            }
+            if (!lifecycle.allParticipantsTerminal()) {
+                return false; // unloaded is not terminal
+            }
+        } else if (!livingRaidersOf(level, settlement).isEmpty()) {
+            return false; // legacy/recurring raid is still going
         }
         RaidCaptain captain = captainOf(settlement, plan.captainId());
         // Read BEFORE resetArson (below) clears it -- the arson tally is
@@ -415,6 +564,14 @@ public final class RaidDirector {
         // let a raid that gutted the village still broadcast "held through
         // the raid". See objectiveSucceeded for the per-objective signal.
         boolean lost = objectiveSucceeded(plan.objective(), settlement, arsonCount);
+        if (authoredFirst && !lifecycle.completeFirstRaid(!lost)) {
+            // All-terminal was checked above; reaching this branch means the
+            // persisted state changed under us. Fail closed before applying
+            // pressure, history or a reward twice.
+            lifecycle.markIntegrityLost();
+            SettlementSavedData.get(level).setDirty();
+            return false;
+        }
         if (lost) {
             settlement.raidPressure.recordLost();
             if (captain != null) {
@@ -433,6 +590,9 @@ public final class RaidDirector {
         boolean captainSlain = captain != null
             && captain.id().equals(settlement.raidCaptainSlainId);
         settlement.pendingRaid = null;
+        if (!authoredFirst) {
+            lifecycle.completeLegacyBridge(plan);
+        }
         settlement.raidLootEscaped = false;
         settlement.raidCaptainSlainId = null; // reset so tomorrow starts honest
         // SLICE REPAIR-1: the arson budget describes exactly one raid, like
@@ -442,6 +602,16 @@ public final class RaidDirector {
         // settler actually fixes them (RepairWorkGoal).
         RaidScars.get(level).resetArson(settlement.id);
         recordAftermath(level, settlement, plan, captain, !lost, captainSlain, arsonCount);
+        if (authoredFirst && lifecycle.mayGrantReward()) {
+            if (settlement.blessingState.grantOffer()) {
+                lifecycle.markRewardGranted();
+            } else {
+                // A quarantined or saturated Blessing ledger cannot accept an
+                // offer. Do not leave a reload-retry token that might mint a
+                // second reward after external repair.
+                lifecycle.markIntegrityLost();
+            }
+        }
         SettlementSavedData.get(level).setDirty();
         Hearthstead.LOGGER.info(
             "Raid on {} is over -- {} {} (pressure now {}, stage {})",
@@ -640,14 +810,52 @@ public final class RaidDirector {
      * per night, so a re-entrant or duplicated tick cannot double-roll.
      */
     public static void tick(ServerLevel level, Settlement settlement) {
-        if (!raidsPossibleAt(level.getDifficulty())) {
-            return; // peaceful: no raiders can exist, so no pressure either
-        }
         // SAGA v1: the named cast exists once there is any raid pressure to
         // speak of (CaptainRoster gates on worthRaiding itself). Cheap and
         // idempotent -- see CaptainRoster#ensureRoster -- and must run
         // before planRaid below ever picks a captain to lead tonight.
         CaptainRoster.ensureRoster(settlement, level.getRandom());
+
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        if (lifecycle.firstState() == FirstRaidState.SCHEDULED) {
+            // The authored schedule owns this phase completely: no legacy
+            // pressure roll or telegraph may race it and double-spawn.
+            long dayTime = level.getDayTime();
+            long night = nightOf(dayTime);
+            if (isRollTime(dayTime)) {
+                queueFirstWarningIfDue(level, settlement, night);
+                if (night >= lifecycle.firstAttackNight()
+                    && lifecycle.queuedPlan().isPresent()) {
+                    startQueuedFirstRaid(level, settlement, night);
+                }
+            }
+            return;
+        }
+
+        if (lifecycle.isAuthoredFirstRaidActive()) {
+            // Completion is driven solely by the persisted terminal ledger.
+            // This bounded query is still useful for live arson behaviour,
+            // but an empty result is never interpreted as victory.
+            RaidPlan plan = lifecycle.activePlan().orElseThrow();
+            if (settlement.pendingRaid == null) {
+                settlement.pendingRaid = plan;
+                SettlementSavedData.get(level).setDirty();
+            } else if (!settlement.pendingRaid.equals(plan)) {
+                lifecycle.markIntegrityLost();
+                settlement.pendingRaid = plan;
+                SettlementSavedData.get(level).setDirty();
+            }
+            if (lifecycle.allParticipantsTerminal()) {
+                resolveIfOver(level, settlement);
+                return;
+            }
+            java.util.List<RaiderEntity> loaded = livingRaidersOf(level, settlement);
+            if (!loaded.isEmpty()) {
+                tickArson(level, settlement, plan, loaded);
+            }
+            return;
+        }
+
         if (settlement.pendingRaid != null) {
             // A raid is on. Resolve it before considering another night --
             // "deliveries that silently never happen" applied to raids would
@@ -665,6 +873,14 @@ public final class RaidDirector {
             // burns -- the director's own arson, recorded scar-first so the
             // repair dugnad knows exactly what stood there.
             tickArson(level, settlement, plan, living);
+            return;
+        }
+        if (lifecycle.integrityLost()
+            && lifecycle.firstState() != FirstRaidState.COMPLETED) {
+            // A damaged first-raid record with no recoverable active mirror
+            // must not quietly fall through into recurring raids. That could
+            // overlap an unloaded/unknown first band. Completion (including
+            // the explicit v0 bridge above) is the only hand-off point.
             return;
         }
         // Before tonight's own roll: the telegraph. Checked every tick like

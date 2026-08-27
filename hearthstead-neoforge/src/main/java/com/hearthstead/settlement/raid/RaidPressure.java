@@ -229,6 +229,19 @@ public final class RaidPressure {
         addPressure(-LOSS_RELIEF);
     }
 
+    /**
+     * Records an authored first raid without performing a random pressure
+     * roll. This prevents the recurring director from rolling a second band
+     * on the same night and preserves the normal morning-after grace.
+     */
+    public void recordAuthoredRaidStarted(long night) {
+        if (night < 0L) {
+            return;
+        }
+        lastRolledNight = Math.max(lastRolledNight, night);
+        nightsSinceRaid = 0;
+    }
+
     private void addPressure(int delta) {
         pressure = Mth.clamp(pressure + delta, 0, MAX_PRESSURE);
     }

@@ -16,11 +16,11 @@ import java.util.UUID;
 /**
  * Versioned, server-authoritative state for the first authored raid.
  *
- * <p>This class is deliberately dormant with respect to the existing raid
- * director. Slice B will switch runtime scheduling to it. Until then the
- * legacy {@code Settlement.pendingRaid} field remains runtime-authoritative;
- * v0 migration copies that one legacy plan into {@link #activePlan} only to
- * preserve state, and permanently disarms its reward eligibility.
+ * <p>The authored first raid is runtime-authoritative here. The legacy
+ * {@code Settlement.pendingRaid} field remains a compatibility mirror for
+ * existing objective goals and recurring raids; v0 migration copies that one
+ * old plan into {@link #activePlan} only to preserve state, and permanently
+ * disarms its reward eligibility.
  */
 public final class RaidLifecycle {
     public static final long DAY_LENGTH = 24_000L;
@@ -39,6 +39,14 @@ public final class RaidLifecycle {
     private RaidPlan activePlan;
     /** Actual spawned raider entity UUIDs, in capture order (never players). */
     private final LinkedHashSet<UUID> participants = new LinkedHashSet<>();
+    /**
+     * Participants that reached a definitive terminal state. This is a
+     * subset of {@link #participants}: death and explicit destruction count;
+     * a chunk unload never does. Keeping this bounded ledger in the
+     * settlement save is what prevents an unloaded band from becoming a
+     * false victory after an empty local entity query.
+     */
+    private final LinkedHashSet<UUID> terminalParticipants = new LinkedHashSet<>();
     /** True only after the 1-9 UUID capture has been explicitly sealed. */
     private boolean participantsTracked;
     private boolean rewardEligible;
@@ -72,6 +80,10 @@ public final class RaidLifecycle {
         return Collections.unmodifiableSet(new LinkedHashSet<>(participants));
     }
 
+    public Set<UUID> terminalParticipants() {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(terminalParticipants));
+    }
+
     public boolean participantsTracked() {
         return participantsTracked;
     }
@@ -83,6 +95,29 @@ public final class RaidLifecycle {
 
     public boolean integrityLost() {
         return integrityLost;
+    }
+
+    /** Whether this is the authored first raid rather than a v0 bridge. */
+    public boolean isAuthoredFirstRaidActive() {
+        return firstState == FirstRaidState.ACTIVE && datesValid()
+            && activePlan != null;
+    }
+
+    public boolean isParticipant(UUID participantId) {
+        return participantId != null && participants.contains(participantId);
+    }
+
+    /**
+     * True only when every sealed, actually-spawned participant has reached a
+     * definitive terminal state. Integrity loss intentionally does not make
+     * this false forever: a damaged ledger may still close once all of its
+     * remaining known entities resolve, but it can never mint a reward.
+     */
+    public boolean allParticipantsTerminal() {
+        return firstState == FirstRaidState.ACTIVE && participantsTracked
+            && !participants.isEmpty()
+            && terminalParticipants.size() == participants.size()
+            && participants.containsAll(terminalParticipants);
     }
 
     /** A completed, intact first raid may issue exactly one offer in Slice B. */
@@ -161,6 +196,7 @@ public final class RaidLifecycle {
         activePlan = plan;
         queuedPlan = null;
         participants.clear();
+        terminalParticipants.clear();
         participantsTracked = false;
         rewardEligible = false;
         normalize();
@@ -196,14 +232,58 @@ public final class RaidLifecycle {
         return true;
     }
 
+    /**
+     * Records death or explicit destruction for one sealed participant.
+     * Duplicate delivery is idempotent. An unknown UUID is evidence that the
+     * runtime and persisted capture disagree, so it permanently disarms the
+     * reward instead of being silently accepted.
+     */
+    public boolean recordTerminalParticipant(UUID participantId) {
+        if (participantId == null || firstState != FirstRaidState.ACTIVE
+            || !participantsTracked) {
+            return false;
+        }
+        if (!participants.contains(participantId)) {
+            markIntegrityLost();
+            return false;
+        }
+        if (terminalParticipants.contains(participantId)) {
+            return false;
+        }
+        if (terminalParticipants.size() >= MAX_PARTICIPANTS) {
+            markIntegrityLost();
+            return false;
+        }
+        terminalParticipants.add(participantId);
+        return true;
+    }
+
     /** Closes the first raid; only a held, intact defense remains eligible. */
     public boolean completeFirstRaid(boolean held) {
-        if (firstState != FirstRaidState.ACTIVE || activePlan == null) {
+        if (firstState != FirstRaidState.ACTIVE || activePlan == null
+            || !allParticipantsTerminal()) {
             return false;
         }
         firstState = FirstRaidState.COMPLETED;
         rewardEligible = held && participantsTracked && !participants.isEmpty()
             && participants.size() <= MAX_PARTICIPANTS && !integrityLost;
+        normalize();
+        return true;
+    }
+
+    /**
+     * Closes the deliberately unauditable v0 ACTIVE bridge after the legacy
+     * director resolves its persisted pending plan. It can never grant a
+     * Blessing and cannot be used for a valid authored schedule.
+     */
+    public boolean completeLegacyBridge(RaidPlan resolvedPlan) {
+        if (resolvedPlan == null || firstState != FirstRaidState.ACTIVE
+            || datesValid() || !integrityLost || activePlan == null
+            || !activePlan.equals(resolvedPlan)) {
+            return false;
+        }
+        firstState = FirstRaidState.COMPLETED;
+        rewardEligible = false;
         normalize();
         return true;
     }
@@ -239,6 +319,13 @@ public final class RaidLifecycle {
             participantList.add(entry);
         }
         tag.put("Participants", participantList);
+        ListTag terminalList = new ListTag();
+        for (UUID participant : terminalParticipants) {
+            CompoundTag entry = new CompoundTag();
+            entry.putUUID("Id", participant);
+            terminalList.add(entry);
+        }
+        tag.put("TerminalParticipants", terminalList);
         tag.putBoolean("ParticipantsTracked", participantsTracked);
         tag.putBoolean("RewardEligible", rewardEligible);
         tag.putBoolean("IntegrityLost", integrityLost);
@@ -304,6 +391,39 @@ public final class RaidLifecycle {
                 lifecycle.participants.add(participant);
             }
         }
+
+        Tag terminalTag = tag.get("TerminalParticipants");
+        if (terminalTag == null) {
+            // Compatibility with the brief M1-only save shape: before the
+            // runtime existed, an uninitialized/scheduled lifecycle could not
+            // have any terminal outcomes. Empty is therefore provable there;
+            // ACTIVE/COMPLETED state without the ledger is unauditable.
+            if (lifecycle.firstState == FirstRaidState.ACTIVE
+                || lifecycle.firstState == FirstRaidState.COMPLETED
+                || lifecycle.participantsTracked
+                || !lifecycle.participants.isEmpty()
+                || lifecycle.rewardEligible) {
+                lifecycle.integrityLost = true;
+            }
+        } else if (!(terminalTag instanceof ListTag terminalList)) {
+            lifecycle.integrityLost = true;
+        } else {
+            for (int i = 0; i < terminalList.size(); i++) {
+                Tag rawEntry = terminalList.get(i);
+                if (!(rawEntry instanceof CompoundTag entry) || !entry.hasUUID("Id")) {
+                    lifecycle.integrityLost = true;
+                    continue;
+                }
+                UUID participant = entry.getUUID("Id");
+                if (!lifecycle.participants.contains(participant)
+                    || lifecycle.terminalParticipants.contains(participant)
+                    || lifecycle.terminalParticipants.size() >= MAX_PARTICIPANTS) {
+                    lifecycle.integrityLost = true;
+                    continue;
+                }
+                lifecycle.terminalParticipants.add(participant);
+            }
+        }
         lifecycle.normalize();
         return lifecycle;
     }
@@ -365,7 +485,8 @@ public final class RaidLifecycle {
                 || firstAttackNight != UNSET_NIGHT
                 || firstWarningNight != UNSET_NIGHT
                 || queuedPlan != null || activePlan != null
-                || !participants.isEmpty() || participantsTracked || rewardEligible;
+                || !participants.isEmpty() || !terminalParticipants.isEmpty()
+                || participantsTracked || rewardEligible;
             if (carriedState) {
                 integrityLost = true;
             }
@@ -375,6 +496,7 @@ public final class RaidLifecycle {
             queuedPlan = null;
             activePlan = null;
             participants.clear();
+            terminalParticipants.clear();
             participantsTracked = false;
             rewardEligible = false;
             return;
@@ -398,7 +520,12 @@ public final class RaidLifecycle {
                 queuedPlan = null;
                 integrityLost = true;
             }
+            if (!participants.isEmpty() || !terminalParticipants.isEmpty()
+                || participantsTracked || rewardEligible) {
+                integrityLost = true;
+            }
             participants.clear();
+            terminalParticipants.clear();
             participantsTracked = false;
             rewardEligible = false;
         } else {
@@ -413,6 +540,7 @@ public final class RaidLifecycle {
                 firstAttackNight = UNSET_NIGHT;
                 firstWarningNight = UNSET_NIGHT;
                 participants.clear();
+                terminalParticipants.clear();
                 participantsTracked = false;
                 rewardEligible = false;
                 integrityLost = true;
@@ -429,9 +557,23 @@ public final class RaidLifecycle {
             // An in-progress partial capture is evidence worth preserving.
             // It is simply not reward-capable until sealed.
             rewardEligible = false;
+            if (!terminalParticipants.isEmpty()) {
+                terminalParticipants.clear();
+                integrityLost = true;
+            }
         }
         if (participantsTracked && participants.isEmpty()) {
             participantsTracked = false;
+            rewardEligible = false;
+            integrityLost = true;
+        }
+        if (!participants.containsAll(terminalParticipants)) {
+            terminalParticipants.removeIf(id -> !participants.contains(id));
+            rewardEligible = false;
+            integrityLost = true;
+        }
+        if (firstState == FirstRaidState.COMPLETED
+            && (!participantsTracked || terminalParticipants.size() != participants.size())) {
             rewardEligible = false;
             integrityLost = true;
         }
