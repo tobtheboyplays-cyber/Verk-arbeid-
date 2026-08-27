@@ -16,6 +16,11 @@
 #     cmd <command without slash>         open chat, type /command, submit (as player)
 #     scmd <command>                      run a command on the server console
 #     click [left|right]                  click at screen centre
+#     insert_plan_at <plaque x y z> <stand x y z> <target x y z>
+#                                          verify selected Build Plan, aim at
+#                                          the target centre, physically
+#                                          right-click, and retry only while
+#                                          server block state still lacks it
 #     move <dx> <dy>                      move the mouse (look around)
 #     shot <name>                         capture shots/<name>.png
 #     expect_server <regex>               FAIL unless regex is in the server's
@@ -374,6 +379,58 @@ safe_regrab() {
     scmd "tp $PLAYER $x $y $z $yaw $pitch"
     sleep 1
 }
+
+# Establishes the grab somewhere harmless first, then makes the LAST camera
+# operation an absolute server teleport whose rotation is calculated from the
+# player's EYE anchor to the exact centre of the block being interacted with.
+# A plain `tp ... facing x y z` calculates from the feet: the first live proof
+# produced pitch -36.869637 and visibly aimed above the wall even though the
+# position was correct. `execute ... anchored eyes facing ... run tp` computes
+# the client-ray rotation from the right origin, while the absolute destination
+# passed to the inner tp keeps the feet at the frozen stand point.
+# Restoring the position/rotation
+# captured before regrab is not sufficient for precise world interaction:
+# a real failed run restored the player to 299.247/-60/305.225 while the
+# frozen stand point was 300.5/-60/304.5, leaving the plaque far left of the
+# reticle. The second identical tp absorbs late client movement packets from
+# the first large round trip. Pos/Rotation and an aim screenshot are captured
+# immediately before the one physical click, so a miss is diagnosable as
+# reticle/position/input rather than inferred from downstream state.
+OPEN_AT_POS=""
+OPEN_AT_ROT=""
+open_at() { # stand-x stand-y stand-z target-x target-y target-z button label
+    local sx="$1" sy="$2" sz="$3" tx="$4" ty="$5" tz="$6"
+    local button="${7:-right}" label="${8:-open-at}"
+    local button_num=3 pose_anchor
+    [ "$button" = "left" ] && button_num=1
+
+    focus
+    safe_regrab
+    scmd "tp $PLAYER $sx $sy $sz 0 0"
+    sleep 2
+    scmd "execute as $PLAYER at $PLAYER anchored eyes facing $tx $ty $tz run tp @s $sx $sy $sz ~ ~"
+    sleep 3
+    # Reassert once after the client has received the large position change;
+    # this absorbs a late movement packet without changing the calculated aim.
+    scmd "execute as $PLAYER at $PLAYER anchored eyes facing $tx $ty $tz run tp @s $sx $sy $sz ~ ~"
+    sleep 1
+
+    pose_anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+    scmd "data get entity $PLAYER Pos"
+    sleep 1
+    OPEN_AT_POS=$(tail -n +"$((pose_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+        | grep -F "$PLAYER has the following entity data:" | tail -1)
+    scmd "data get entity $PLAYER Rotation"
+    sleep 1
+    OPEN_AT_ROT=$(tail -n +"$((pose_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+        | grep -F "$PLAYER has the following entity data:" | tail -1)
+
+    focus
+    shot "$label"
+    xdotool mousemove 640 360
+    xdotool click "$button_num"
+    sleep 3
+}
 shot() { # <name>
     focus
     if [ -n "$WIN" ]; then
@@ -422,7 +479,7 @@ while read -r verb rest; do
     done
     DIR_IDX=$((DIR_IDX + 1))
     case "${verb:-}" in
-        cmd|scmd|click|move|key|type) LOG_ANCHOR=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0);;
+        cmd|scmd|click|insert_plan_at|move|key|type) LOG_ANCHOR=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0);;
     esac
     case "${verb:-}" in
         # '#'* not '#': only a bare '#' matched before, so a comment written
@@ -516,6 +573,73 @@ while read -r verb rest; do
                xdotool mousemove 640 360
                xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2
                check_pass "$DIR_IDX:open" "opened (${rest:-left} click, after regrab)";;
+        insert_plan_at)
+               # This directive is intentionally state-aware instead of a
+               # chain of blind clicks. Every attempt remains a real client
+               # right-click, but another is sent only when the authoritative
+               # plaque block data still lacks the plan. It also proves the
+               # selected hotbar item before touching the world, separating a
+               # bad slot from a bad reticle or a dropped input event.
+               set -- $rest
+               if [ "$#" -ne 9 ]; then
+                   die "$DIR_IDX:insert_plan_at" "expected plaque xyz, stand xyz and target xyz; got: $rest"
+               fi
+               _ip_px="$1"; _ip_py="$2"; _ip_pz="$3"
+               _ip_sx="$4"; _ip_sy="$5"; _ip_sz="$6"
+               _ip_tx="$7"; _ip_ty="$8"; _ip_tz="$9"
+
+               _ip_hotbar_anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+               scmd "data get entity $PLAYER SelectedItemSlot"
+               sleep 1
+               _ip_slot=$(tail -n +"$((_ip_hotbar_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                   | grep -F "$PLAYER has the following entity data:" | tail -1)
+               scmd "data get entity $PLAYER SelectedItem"
+               sleep 1
+               _ip_item=$(tail -n +"$((_ip_hotbar_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                   | grep -F "$PLAYER has the following entity data:" | tail -1)
+               if ! echo "$_ip_item" | grep -Fq 'hearthstead:build_plan'; then
+                   die "$DIR_IDX:insert_plan_hotbar" "selected item is not a Build Plan; slot=[$_ip_slot] item=[$_ip_item]"
+               fi
+               check_pass "$DIR_IDX:insert_plan_hotbar" "slot=[$_ip_slot] selected=hearthstead:build_plan"
+
+               _ip_ok=0
+               _ip_last_state=""
+               _ip_attempt=0
+               for _ip_try in 1 2 3; do
+                   _ip_attempt="$_ip_try"
+                   _ip_pre_anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+                   scmd "data get block $_ip_px $_ip_py $_ip_pz"
+                   sleep 1
+                   _ip_last_state=$(tail -n +"$((_ip_pre_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                       | grep -F "$_ip_px, $_ip_py, $_ip_pz has the following block data:" | tail -1)
+                   if echo "$_ip_last_state" | grep -Fq 'hearthstead:build_plan'; then
+                       _ip_ok=1
+                       break
+                   fi
+
+                   open_at "$_ip_sx" "$_ip_sy" "$_ip_sz" \
+                       "$_ip_tx" "$_ip_ty" "$_ip_tz" right \
+                       "plaque-insert-attempt-${_ip_try}-aim"
+                   check_pass "$DIR_IDX:insert_plan_aim_${_ip_try}" \
+                       "pos=[$OPEN_AT_POS] rotation=[$OPEN_AT_ROT] shot=plaque-insert-attempt-${_ip_try}-aim.png"
+
+                   _ip_post_anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+                   scmd "data get block $_ip_px $_ip_py $_ip_pz"
+                   sleep 1
+                   _ip_last_state=$(tail -n +"$((_ip_post_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                       | grep -F "$_ip_px, $_ip_py, $_ip_pz has the following block data:" | tail -1)
+                   if echo "$_ip_last_state" | grep -Fq 'hearthstead:build_plan'; then
+                       _ip_ok=1
+                       break
+                   fi
+                   echo "insert_plan_at: attempt $_ip_try left plaque unchanged; state=[$_ip_last_state]" >&2
+               done
+               if [ "$_ip_ok" -ne 1 ]; then
+                   die "$DIR_IDX:insert_plan_at" \
+                       "three aimed physical clicks failed; slot=[$_ip_slot] item=[$_ip_item] pos=[$OPEN_AT_POS] rotation=[$OPEN_AT_ROT] state=[$_ip_last_state]"
+               fi
+               check_pass "$DIR_IDX:insert_plan_at" \
+                   "physical right-click inserted plan on attempt $_ip_attempt; pos=[$OPEN_AT_POS] rotation=[$OPEN_AT_ROT] state=[$_ip_last_state]";;
         move)  focus
                # A prior grab-establishing click does not reliably survive
                # to a LATER `move` several directives on — proven live,
@@ -586,6 +710,7 @@ while read -r verb rest; do
                    # coordinates are still seam coordinates. Standing at the
                    # centre removes the ambiguity instead of making it rarer.
                    CAPTURED_VARS["${cp_name}_CX"]="$(python3 -c "print($cp_ix + 0.5)")"
+                   CAPTURED_VARS["${cp_name}_CY"]="$(python3 -c "print($cp_iy + 0.5)")"
                    CAPTURED_VARS["${cp_name}_CZ"]="$(python3 -c "print($cp_iz + 0.5)")"
                    check_pass "$DIR_IDX:capture_pos" "captured $cp_name = ($cp_ix, $cp_iy, $cp_iz)"
                fi;;

@@ -14,14 +14,15 @@ wait 3
 shot playtest-02-daylight
 expect_shot playtest-02-daylight
 
-# The mod's own starter kit: hearth, writs, handbook, settler eggs.
-cmd hearthstead demo
+# The mod's own starter kit: hearth, writs, handbook, settler eggs. Run this
+# setup command as the player from the server console. `demo` intentionally
+# reports through player-only client messages, so the `cmd` driver's
+# server-log-based retry mistakes a successful call for swallowed input and
+# presses Escape — opening the pause menu before the hearth click. Player chat
+# input is proven later by `recruit`, where broadcastToAdmins gives the driver
+# an authoritative server response.
+scmd execute as $PLAYER run hearthstead demo
 wait 3
-
-# --- INPUT CLASS 1/4: cmd. broadcastToAdmins=true so the console log gets
-# the resolved feedback text regardless of who issued it (AC-2).
-cmd hearthstead recruit
-expect_server Recruitment timers advanced
 
 # --- INPUT CLASS 2/4: key. Switching hotbar slots must visibly move the
 # selection highlight in the lower third of the screen (AC-2).
@@ -80,6 +81,18 @@ expect_shot 04-settlement
 # plus a settler-entity echo, both independent of the screenshot itself.
 scmd hearthstead info
 expect_server population 3
+
+# --- INPUT CLASS 1/4: cmd. This must run only after a settlement is
+# authoritative. The tavern-gate contract added in c3ed4d6 deliberately makes
+# `hearthstead recruit` reject an empty world, so the old pre-hearth placement
+# could only expect a message the command was no longer allowed to emit.
+# There is no tavern yet here: the honest result is zero settlements advanced
+# plus a named skip. broadcastToAdmins=true still puts the resolved first line
+# in the server log, proving real player command input without weakening the
+# tavern rule (AC-2).
+cmd hearthstead recruit
+expect_server Recruitment timers advanced for 0 settlement
+
 scmd execute if entity @e[type=hearthstead:settler] run say HS_SETTLER_PRESENT
 expect_server HS_SETTLER_PRESENT
 
@@ -275,39 +288,18 @@ expect_server Awaiting a build plan
 scmd give $PLAYER hearthstead:build_plan[hearthstead:building_type="house"] 1
 key 1
 wait 10
-# Same belt-and-braces reasoning as the empty-hand click above -- this one
-# matters more, since insertPlan() is NOT idempotent in the interesting
-# sense: once state leaves EMPTY the plaque no longer matches useItemOn's
-# own EMPTY guard, so a genuine second attempt after a real first success
-# just falls through to useWithoutItem (opens the screen again -- harmless,
-# already open) rather than double-inserting.
-# `open right`, NOT plain `click right` (2026-08-26). All three attempts
-# below used the unverified primitive, and on 2026-08-26 all three missed
-# twice in a row: the plan stayed in the player's hand and the step failed
-# with "server log never matched build_plan". Retrying a click three times
-# does not help when the GLFW grab is dead -- that is KF-035, and this
-# repository already learned once that the fix for a race is not a bigger
-# number but waiting on the condition. `open` is the primitive built for
-# exactly this case (its own comment names the plaque): it runs ensure_grab,
-# which verifies the input pipe is actually alive and regrabs with evidence
-# if it is not, before clicking. Safe here because no screen is open yet.
-#
-# The mechanic itself was never in doubt after this failure: PlaqueUseGameTests
-# proves deterministically, with no window and no input layer, that the
-# right-click fits the plan, consumes it in survival, and refuses an ordinary
-# item. That is what said the fault was in the click, not the game.
-open right
-wait 3
-open right
-wait 3
-# A THIRD attempt, with a longer settle. KF-012's correction records this
-# exact step failing intermittently because BOTH clicks missed -- the plan
-# sat in the player's hand and the later scan reported "Awaiting a build
-# plan" instead of "Registered", 30 steps downstream of the real cause.
-# Extra attempts are safe for the reason given above (a click after a real
-# insert falls through to useWithoutItem and merely re-opens the screen).
-open right
-wait 5
+# This is a real physical right-click, but no longer three blind retries.
+# A failing run on 2026-08-27 captured the exact cause: the frozen stand point
+# was (300.5,-60,304.5), yet safe_regrab restored a later drifted position
+# (299.247,-60,305.225); plaque-02-empty-clicked.png shows the reticle on the
+# door/bed with the plaque far left. `insert_plan_at` verifies slot + selected
+# item NBT, regrabs somewhere harmless, then makes its LAST camera operation
+# an absolute tp from the frozen stand point whose rotation is calculated from
+# the player's eye anchor to the plaque block centre (matching the client ray).
+# It records click-time Pos/Rotation and an aim screenshot. A retry happens
+# only if authoritative block data still lacks the plan, so a successful
+# physical click is never followed by another blind GUI/world click.
+insert_plan_at $PLAQUE_X $PLAQUE_Y $PLAQUE_Z $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ $PLAQUE_CX $PLAQUE_CY $PLAQUE_CZ
 # Prove the insert actually happened, HERE, rather than inferring it from a
 # scan much later. A miss now fails at the insert instead of as a confusing
 # missing-"Registered" thirty steps downstream.

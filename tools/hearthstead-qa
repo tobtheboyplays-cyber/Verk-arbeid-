@@ -71,6 +71,36 @@ record() { # suite status note
     echo "[$1] $2 ${3:-}"
 }
 
+# Successful real-client suites deliberately leave Minecraft running until
+# their EXIT trap tears down the process group. Bash job control can therefore
+# append `Killed ... runClient` AFTER result.json and the suite's explicit
+# success echo. Blind `tail -1` made that planned cleanup look like a crash in
+# otherwise-green manifests. Require the suite-owned success marker instead;
+# an exit code of zero without that marker is not silently accepted.
+explicit_success_note() { # log fixed-marker
+    local log="$1" marker="$2" line
+    line=$(grep -F "$marker" "$log" 2>/dev/null | tail -1)
+    [ -n "$line" ] || return 1
+    printf '%s\n' "$line"
+}
+
+cmd_note_selftest() {
+    local log got rc=0
+    log=$(mktemp)
+    printf '%s\n' \
+        'client boot ok under Xvfb; screenshot: shots/screenshot-title.png' \
+        'client_boot.sh: line 18: 123 Killed runClient' > "$log"
+    got=$(explicit_success_note "$log" 'client boot ok under Xvfb;') || rc=1
+    [ "$got" = 'client boot ok under Xvfb; screenshot: shots/screenshot-title.png' ] || rc=1
+    if explicit_success_note "$log" 'playtest ok:' >/dev/null; then rc=1; fi
+    rm -f "$log"
+    if [ "$rc" -ne 0 ]; then
+        echo "FAIL: explicit success-note selection accepted teardown noise or a missing marker"
+        return 1
+    fi
+    echo "PASS: explicit success-note selection ignores trailing teardown noise and rejects a missing marker"
+}
+
 write_manifest() { # overall
     local overall="$1"
     local fp; fp="$(fingerprint)"
@@ -328,7 +358,13 @@ suite_client() {
         record client BLOCKED "Xvfb unavailable; run 'tools/hearthstead-qa client' on a desktop"; return 0
     fi
     if bash "$QA/scripts/client_boot.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/client.log" 2>&1; then
-        record client PASS "$(tail -1 "$RUN_DIR/client.log")"
+        local note
+        if note=$(explicit_success_note "$RUN_DIR/client.log" 'client boot ok under Xvfb;'); then
+            record client PASS "$note"
+        else
+            record client FAIL "client exited 0 but explicit success marker is missing — see $RUN_DIR/client.log"
+            return 1
+        fi
     else
         record client FAIL "$(tail -4 "$RUN_DIR/client.log" | tr '\n' ' ')"; return 1
     fi
@@ -447,7 +483,13 @@ suite_playtest() {
         record playtest BLOCKED "Xvfb unavailable"; return 0
     fi
     if bash "$QA/scripts/playtest.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/playtest.log" 2>&1; then
-        record playtest PASS "$(tail -1 "$RUN_DIR/playtest.log")"
+        local note
+        if note=$(explicit_success_note "$RUN_DIR/playtest.log" 'playtest ok:'); then
+            record playtest PASS "$note"
+        else
+            record playtest FAIL "playtest exited 0 but explicit success marker is missing — see $RUN_DIR/playtest.log"
+            return 1
+        fi
     else
         record playtest FAIL "$(tail -6 "$RUN_DIR/playtest.log" | tr '\n' ' ')"; return 1
     fi
@@ -547,6 +589,7 @@ case "${1:-help}" in
     live)        shift; bash "$QA/scripts/live.sh" "$@";;
     reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
     negative)    shift; bash "$QA/scripts/negative_tests.sh" "$@";;
+    note-selftest) cmd_note_selftest;;
     provision)   cmd_provision;;
     fast)
         # The iteration gate: every check that does NOT boot a Minecraft
@@ -608,5 +651,5 @@ case "${1:-help}" in
     gate)        cmd_gate;;
     status)      cmd_status;;
     reproduce)   shift; cmd_reproduce "${1:-}";;
-    *) sed -n '1,3p' "$0"; echo "commands: quick fast doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
+    *) sed -n '1,3p' "$0"; echo "commands: quick fast doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative note-selftest full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
 esac
