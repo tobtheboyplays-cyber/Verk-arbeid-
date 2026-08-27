@@ -51,6 +51,17 @@ public final class RaidLifecycle {
     private boolean participantsTracked;
     private boolean rewardEligible;
     private boolean integrityLost;
+    /**
+     * Provenance for the one deliberately unauditable v0 ACTIVE bridge.
+     *
+     * <p>This must never be inferred merely from damaged authored dates:
+     * doing so would let a corrupt v1+ first raid fall back to the legacy
+     * loaded-AABB completion path and become a false victory while a tracked
+     * participant is only unloaded. The marker is written only by
+     * {@link #migrateV0}; {@link #normalize()} accepts it only alongside the
+     * exact empty-ledger, all-dates-unset v0 shape.
+     */
+    private boolean legacyBridge;
 
     public long foundedNight() {
         return foundedNight;
@@ -97,10 +108,24 @@ public final class RaidLifecycle {
         return integrityLost;
     }
 
-    /** Whether this is the authored first raid rather than a v0 bridge. */
+    /**
+     * Whether an ACTIVE first raid must resolve through its persisted
+     * terminal ledger rather than the old loaded-entity query.
+     *
+     * <p>Invalid dates and integrity loss deliberately do not make this
+     * false. They disarm the reward, but the known participant evidence is
+     * still the only safe completion authority. If that evidence is itself
+     * missing, {@link #allParticipantsTerminal()} remains false and the raid
+     * stops fail-closed instead of falling through to recurring runtime.
+     */
     public boolean isAuthoredFirstRaidActive() {
-        return firstState == FirstRaidState.ACTIVE && datesValid()
+        return firstState == FirstRaidState.ACTIVE && !legacyBridge
             && activePlan != null;
+    }
+
+    /** True only for the structurally validated v0 compatibility bridge. */
+    public boolean isLegacyBridgeActive() {
+        return legacyBridge && exactLegacyBridgeShape();
     }
 
     public boolean isParticipant(UUID participantId) {
@@ -277,12 +302,13 @@ public final class RaidLifecycle {
      * Blessing and cannot be used for a valid authored schedule.
      */
     public boolean completeLegacyBridge(RaidPlan resolvedPlan) {
-        if (resolvedPlan == null || firstState != FirstRaidState.ACTIVE
-            || datesValid() || !integrityLost || activePlan == null
+        if (resolvedPlan == null || !isLegacyBridgeActive()
+            || activePlan == null
             || !activePlan.equals(resolvedPlan)) {
             return false;
         }
         firstState = FirstRaidState.COMPLETED;
+        legacyBridge = false;
         rewardEligible = false;
         normalize();
         return true;
@@ -329,6 +355,7 @@ public final class RaidLifecycle {
         tag.putBoolean("ParticipantsTracked", participantsTracked);
         tag.putBoolean("RewardEligible", rewardEligible);
         tag.putBoolean("IntegrityLost", integrityLost);
+        tag.putBoolean("LegacyBridge", legacyBridge);
         return tag;
     }
 
@@ -366,6 +393,12 @@ public final class RaidLifecycle {
         lifecycle.participantsTracked = tag.getBoolean("ParticipantsTracked");
         lifecycle.rewardEligible = tag.getBoolean("RewardEligible");
         lifecycle.integrityLost |= tag.getBoolean("IntegrityLost");
+        // Missing means an earlier v1 authored record (false), never an
+        // inferred legacy bridge. A previously migrated interim v0 save that
+        // predates this marker therefore stops fail-closed; safety wins over
+        // guessing whether damaged authored state was really old state.
+        lifecycle.legacyBridge = tag.contains("LegacyBridge", Tag.TAG_BYTE)
+            && tag.getBoolean("LegacyBridge");
 
         Tag participantTag = tag.get("Participants");
         if (participantTag == null) {
@@ -440,6 +473,7 @@ public final class RaidLifecycle {
             lifecycle.firstState = FirstRaidState.ACTIVE;
             lifecycle.activePlan = validateLegacyPlan(legacyPendingRaid);
             lifecycle.integrityLost = true;
+            lifecycle.legacyBridge = lifecycle.activePlan != null;
         } else if (hasLegacyRaidResult) {
             lifecycle.firstState = FirstRaidState.COMPLETED;
             lifecycle.integrityLost = true;
@@ -499,6 +533,7 @@ public final class RaidLifecycle {
             terminalParticipants.clear();
             participantsTracked = false;
             rewardEligible = false;
+            legacyBridge = false;
             return;
         }
 
@@ -583,6 +618,30 @@ public final class RaidLifecycle {
         if (activePlan == null || integrityLost) {
             rewardEligible = false;
         }
+
+        // A single corrupted boolean must never opt an authored raid into
+        // legacy AABB completion. Only the exact v0-active shape survives;
+        // every mismatch clears provenance and leaves the lifecycle on the
+        // non-legacy, fail-closed path with rewards disarmed.
+        if (legacyBridge && !exactLegacyBridgeShape()) {
+            legacyBridge = false;
+            integrityLost = true;
+            rewardEligible = false;
+        }
+    }
+
+    private boolean exactLegacyBridgeShape() {
+        return firstState == FirstRaidState.ACTIVE
+            && activePlan != null
+            && foundedNight == UNSET_NIGHT
+            && firstAttackNight == UNSET_NIGHT
+            && firstWarningNight == UNSET_NIGHT
+            && queuedPlan == null
+            && participants.isEmpty()
+            && terminalParticipants.isEmpty()
+            && !participantsTracked
+            && !rewardEligible
+            && integrityLost;
     }
 
     private boolean datesValid() {

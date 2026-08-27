@@ -615,6 +615,13 @@ public class RaiderEntity extends Monster {
     @Override
     public void die(DamageSource cause) {
         super.die(cause);
+        // NeoForge's LivingDeathEvent is cancellable. LivingEntity#die
+        // returns before setting its protected `dead` flag when another mod
+        // cancels that event; recording a captain kill or terminal UUID in
+        // that case would let a living raider complete the raid ledger.
+        if (!dead) {
+            return;
+        }
         if (isCaptain() && level() instanceof ServerLevel server) {
             Settlement s = settlement();
             if (s != null && s.pendingRaid != null && captainId != null) {

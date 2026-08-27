@@ -527,27 +527,40 @@ public final class RaidDirector {
     public static boolean resolveIfOver(ServerLevel level, Settlement settlement) {
         RaidLifecycle lifecycle = settlement.raidLifecycle;
         boolean authoredFirst = lifecycle.isAuthoredFirstRaidActive();
-        RaidPlan plan = authoredFirst
+        boolean legacyBridge = lifecycle.isLegacyBridgeActive();
+        // Damaged non-legacy first-raid state must never reach the generic
+        // loaded-AABB path through a surviving pendingRaid mirror. That path
+        // is reserved for recurring raids after a clean hand-off, plus the
+        // one explicitly marked v0 compatibility bridge below.
+        if (!authoredFirst && !legacyBridge && lifecycle.integrityLost()
+            && lifecycle.firstState() != FirstRaidState.COMPLETED) {
+            return false;
+        }
+        RaidPlan plan = authoredFirst || legacyBridge
             ? lifecycle.activePlan().orElse(null) : settlement.pendingRaid;
         if (plan == null) {
             return false;
         }
-        if (authoredFirst) {
+        if (authoredFirst || legacyBridge) {
             // The lifecycle plan is authoritative after reload. A missing or
-            // mismatched legacy mirror is repaired but loses reward integrity;
-            // it is never allowed to substitute a different band.
+            // mismatched compatibility mirror is repaired; it is never
+            // allowed to substitute a different band. Authored mismatch
+            // disarms its reward. A legacy bridge was unauditable already.
             if (settlement.pendingRaid == null) {
                 settlement.pendingRaid = plan;
                 SettlementSavedData.get(level).setDirty();
             } else if (!settlement.pendingRaid.equals(plan)) {
-                lifecycle.markIntegrityLost();
+                if (authoredFirst) {
+                    lifecycle.markIntegrityLost();
+                }
                 settlement.pendingRaid = plan;
                 SettlementSavedData.get(level).setDirty();
             }
-            if (!lifecycle.allParticipantsTerminal()) {
+            if (authoredFirst && !lifecycle.allParticipantsTerminal()) {
                 return false; // unloaded is not terminal
             }
-        } else if (!livingRaidersOf(level, settlement).isEmpty()) {
+        }
+        if (!authoredFirst && !livingRaidersOf(level, settlement).isEmpty()) {
             return false; // legacy/recurring raid is still going
         }
         RaidCaptain captain = captainOf(settlement, plan.captainId());
@@ -572,6 +585,13 @@ public final class RaidDirector {
             SettlementSavedData.get(level).setDirty();
             return false;
         }
+        if (legacyBridge && !lifecycle.completeLegacyBridge(plan)) {
+            // Provenance or structure changed after the checks above. Apply
+            // no pressure/history side effects from an unauditable close.
+            lifecycle.markIntegrityLost();
+            SettlementSavedData.get(level).setDirty();
+            return false;
+        }
         if (lost) {
             settlement.raidPressure.recordLost();
             if (captain != null) {
@@ -590,9 +610,6 @@ public final class RaidDirector {
         boolean captainSlain = captain != null
             && captain.id().equals(settlement.raidCaptainSlainId);
         settlement.pendingRaid = null;
-        if (!authoredFirst) {
-            lifecycle.completeLegacyBridge(plan);
-        }
         settlement.raidLootEscaped = false;
         settlement.raidCaptainSlainId = null; // reset so tomorrow starts honest
         // SLICE REPAIR-1: the arson budget describes exactly one raid, like
@@ -856,6 +873,33 @@ public final class RaidDirector {
             return;
         }
 
+        if (lifecycle.isLegacyBridgeActive()) {
+            // The only loaded-AABB first-raid runtime that still exists.
+            // Its explicit, structurally validated provenance prevents a
+            // damaged authored record from entering this branch.
+            RaidPlan plan = lifecycle.activePlan().orElseThrow();
+            if (settlement.pendingRaid == null
+                || !settlement.pendingRaid.equals(plan)) {
+                settlement.pendingRaid = plan;
+                SettlementSavedData.get(level).setDirty();
+            }
+            java.util.List<RaiderEntity> living = livingRaidersOf(level, settlement);
+            if (living.isEmpty()) {
+                resolveIfOver(level, settlement);
+                return;
+            }
+            tickArson(level, settlement, plan, living);
+            return;
+        }
+
+        if (lifecycle.integrityLost()
+            && lifecycle.firstState() != FirstRaidState.COMPLETED) {
+            // This guard intentionally precedes the generic pending mirror:
+            // corrupt ACTIVE state may retain that mirror even when its
+            // lifecycle plan/dates were lost. It must stop, not AABB-close.
+            return;
+        }
+
         if (settlement.pendingRaid != null) {
             // A raid is on. Resolve it before considering another night --
             // "deliveries that silently never happen" applied to raids would
@@ -873,14 +917,6 @@ public final class RaidDirector {
             // burns -- the director's own arson, recorded scar-first so the
             // repair dugnad knows exactly what stood there.
             tickArson(level, settlement, plan, living);
-            return;
-        }
-        if (lifecycle.integrityLost()
-            && lifecycle.firstState() != FirstRaidState.COMPLETED) {
-            // A damaged first-raid record with no recoverable active mirror
-            // must not quietly fall through into recurring raids. That could
-            // overlap an unloaded/unknown first band. Completion (including
-            // the explicit v0 bridge above) is the only hand-off point.
             return;
         }
         // Before tonight's own roll: the telegraph. Checked every tick like

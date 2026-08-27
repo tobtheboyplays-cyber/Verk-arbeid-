@@ -20,11 +20,14 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /** Slice B: authored first-raid runtime and Peaceful combat contracts. */
 @GameTestHolder(Hearthstead.MODID)
@@ -260,7 +263,10 @@ public class FirstRaidRuntimeGameTests {
         helper.assertTrue(settlement.raidLifecycle.sealParticipants(),
             "two actual UUIDs should seal");
 
-        fallen.die(helper.getLevel().damageSources().genericKill());
+        helper.assertTrue(fallen.hurt(helper.getLevel().damageSources().genericKill(),
+                fallen.getMaxHealth() + 100.0F)
+                && !fallen.isAlive(),
+            "the fixture must use the real lethal damage path before recording death");
         escaped.discard();
         helper.assertTrue(settlement.raidLifecycle.allParticipantsTerminal(),
             "death and explicit discard should both be definitive");
@@ -307,15 +313,135 @@ public class FirstRaidRuntimeGameTests {
             0.0F, 3L);
         settlement.pendingRaid = legacy;
         settlement.raidLifecycle = RaidLifecycle.migrateV0(legacy, false, false);
+        helper.assertTrue(settlement.raidLifecycle.isLegacyBridgeActive(),
+            "migrateV0 must be the only source of an explicit active bridge");
+        settlement.raidLifecycle = RaidLifecycle.readNbt(
+            settlement.raidLifecycle.writeNbt());
+        helper.assertTrue(settlement.raidLifecycle.isLegacyBridgeActive(),
+            "the explicit bridge provenance must survive reload");
 
         helper.assertTrue(RaidDirector.resolveIfOver(helper.getLevel(), settlement),
             "an empty legacy pending band should still close through its old runtime");
         helper.assertTrue(settlement.raidLifecycle.firstState()
                 == FirstRaidState.COMPLETED
+                && !settlement.raidLifecycle.isLegacyBridgeActive()
                 && settlement.raidLifecycle.integrityLost()
                 && !settlement.raidLifecycle.mayGrantReward()
                 && settlement.blessingState.earned() == 0,
             "the v0 bridge must complete but can never mint a Blessing");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "first_raid_corrupt_authored_never_uses_legacy_aabb")
+    public void corruptAuthoredDatesStillRequireTerminalLedger(GameTestHelper helper) {
+        buildArena(helper, 10);
+        Settlement settlement = registeredSettlement(helper, "Sikkerhavn",
+            new BlockPos(5, 1, 5));
+        RaidPlan plan = armFirstRaid(helper, settlement, RaidObjective.KORN);
+        RaiderEntity unloaded = participant(helper, settlement, plan,
+            new BlockPos(3, 1, 5));
+        helper.assertTrue(settlement.raidLifecycle.sealParticipants(),
+            "one actual UUID should seal the authored capture");
+
+        UUID participantId = unloaded.getUUID();
+        unloaded.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        net.minecraft.nbt.CompoundTag damaged = settlement.raidLifecycle.writeNbt();
+        damaged.remove("FirstWarningNight");
+        // Adversarially flip the new marker too. Structural validation must
+        // reject it because an authored ledger/dates can never be a v0 shape.
+        damaged.putBoolean("LegacyBridge", true);
+        settlement.raidLifecycle = RaidLifecycle.readNbt(damaged);
+
+        helper.assertTrue(settlement.raidLifecycle.integrityLost()
+                && settlement.raidLifecycle.isAuthoredFirstRaidActive()
+                && !settlement.raidLifecycle.isLegacyBridgeActive(),
+            "damaged authored state must stay on terminal-ledger resolution");
+        helper.assertTrue(!RaidDirector.resolveIfOver(helper.getLevel(), settlement)
+                && settlement.pendingRaid != null
+                && settlement.raidLog.isEmpty()
+                && settlement.blessingState.earned() == 0,
+            "an empty loaded AABB must not close a corrupt authored raid");
+        RaidDirector.tick(helper.getLevel(), settlement);
+        helper.assertTrue(settlement.pendingRaid != null
+                && settlement.raidLog.isEmpty(),
+            "the ordinary tick path must not fall through to legacy completion");
+
+        helper.assertTrue(settlement.raidLifecycle.recordTerminalParticipant(participantId),
+            "definitive evidence for the sealed UUID should still be accepted");
+        helper.assertTrue(RaidDirector.resolveIfOver(helper.getLevel(), settlement)
+                && settlement.pendingRaid == null
+                && settlement.raidLog.size() == 1
+                && settlement.blessingState.earned() == 0,
+            "terminal evidence may close damaged authored state but never reward it");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "first_raid_missing_active_plan_is_fail_closed")
+    public void missingAuthoredPlanCannotResolveThroughPendingMirror(GameTestHelper helper) {
+        Settlement settlement = registeredSettlement(helper, "Stengtvik",
+            new BlockPos(8, 1, 8));
+        armFirstRaid(helper, settlement, RaidObjective.BLOD);
+        net.minecraft.nbt.CompoundTag damaged = settlement.raidLifecycle.writeNbt();
+        damaged.remove("ActivePlan");
+        settlement.raidLifecycle = RaidLifecycle.readNbt(damaged);
+
+        helper.assertTrue(settlement.raidLifecycle.integrityLost()
+                && settlement.raidLifecycle.firstState() == FirstRaidState.UNINITIALIZED
+                && settlement.pendingRaid != null,
+            "normalization may quarantine the plan but the mirror remains adversarially present");
+        helper.assertTrue(!RaidDirector.resolveIfOver(helper.getLevel(), settlement),
+            "the public resolver must stop before reading a corrupt pending mirror");
+        RaidDirector.tick(helper.getLevel(), settlement);
+        helper.assertTrue(settlement.pendingRaid != null
+                && settlement.raidLog.isEmpty()
+                && settlement.blessingState.earned() == 0,
+            "tick must fail closed before generic recurring/AABB resolution");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "first_raid_cancelled_death_is_not_terminal")
+    public void cancelledLivingDeathNeverCompletesParticipant(GameTestHelper helper) {
+        buildArena(helper, 10);
+        Settlement settlement = registeredSettlement(helper, "Livvik",
+            new BlockPos(5, 1, 5));
+        RaidPlan plan = armFirstRaid(helper, settlement, RaidObjective.KORN);
+        RaiderEntity raider = participant(helper, settlement, plan,
+            new BlockPos(3, 1, 5));
+        helper.assertTrue(settlement.raidLifecycle.sealParticipants(),
+            "one actual UUID should seal the authored capture");
+
+        Consumer<LivingDeathEvent> cancelThisDeath = event -> {
+            if (event.getEntity() == raider) {
+                // A compatibility mod that saves an entity commonly heals it
+                // while cancelling the event. This proves `dead`, not health,
+                // is the only correct post-super acceptance signal.
+                event.getEntity().setHealth(1.0F);
+                event.setCanceled(true);
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(LivingDeathEvent.class, cancelThisDeath);
+        try {
+            helper.assertTrue(raider.hurt(helper.getLevel().damageSources().genericKill(),
+                    raider.getMaxHealth() + 100.0F),
+                "the lethal hit itself should land before death is cancelled");
+        } finally {
+            NeoForge.EVENT_BUS.unregister(cancelThisDeath);
+        }
+
+        helper.assertTrue(raider.isAlive() && !raider.isRemoved()
+                && settlement.raidLifecycle.terminalParticipants().isEmpty()
+                && settlement.raidCaptainSlainId == null,
+            "a cancelled LivingDeathEvent must leave both entity and raid ledger alive");
+        helper.assertTrue(!RaidDirector.resolveIfOver(helper.getLevel(), settlement)
+                && settlement.pendingRaid != null
+                && settlement.blessingState.earned() == 0,
+            "a cancelled death must never close or reward the raid");
+        raider.discard();
+        helper.assertTrue(RaidDirector.resolveIfOver(helper.getLevel(), settlement),
+            "later explicit destruction should still close the participant normally");
         helper.succeed();
     }
 }
