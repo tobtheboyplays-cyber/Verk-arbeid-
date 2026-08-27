@@ -85,31 +85,49 @@ public class FirstRaidRuntimeGameTests {
         batch = "first_raid_peaceful_attack_is_real")
     public void peacefulRaiderSurvivesTargetsAndDamagesPlayer(GameTestHelper helper) {
         buildArena(helper, 8);
-        helper.assertTrue(helper.getLevel().getDifficulty() == Difficulty.PEACEFUL,
-            "the QA level must be Peaceful for this regression to prove anything");
+        // The shared QA installation deliberately defaults to Easy for the
+        // older combat fixtures. This uniquely-batched regression owns the
+        // global difficulty for two ticks, then restores it even when an
+        // assertion fails. Merely assuming the installation is Peaceful made
+        // the first isolated Slice-B run stop before exercising any runtime
+        // code (20260827T011037Z, 302/303).
+        Difficulty previousDifficulty = helper.getLevel().getDifficulty();
+        helper.getLevel().getServer().setDifficulty(Difficulty.PEACEFUL, true);
+        try {
+            helper.assertTrue(helper.getLevel().getDifficulty() == Difficulty.PEACEFUL,
+                "the fixture must enter Peaceful before exercising the raid contract");
 
-        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(),
-            new BlockPos(2, 1, 2));
-        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
-        player.setPos(helper.absolutePos(new BlockPos(3, 1, 2)).getCenter());
-        float before = player.getHealth();
+            RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(),
+                new BlockPos(2, 1, 2));
+            Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+            player.setPos(helper.absolutePos(new BlockPos(3, 1, 2)).getCenter());
+            float before = player.getHealth();
 
-        helper.assertTrue(raider.canAttack(player),
-            "Peaceful must not veto a visible Player target");
-        helper.assertTrue(raider.doHurtTarget(player),
-            "the real raider melee path must land on Peaceful");
-        helper.assertTrue(player.getHealth() < before,
-            "scaling=never must reduce Player health on Peaceful: before="
-                + before + " after=" + player.getHealth());
-        helper.assertTrue(player.getLastDamageSource() != null
-                && player.getLastDamageSource().is(ModDamageTypes.RAIDER_ATTACK),
-            "the landed hit must use hearthstead:raider_attack");
+            helper.assertTrue(raider.canAttack(player),
+                "Peaceful must not veto a visible Player target");
+            helper.assertTrue(raider.doHurtTarget(player),
+                "the real raider melee path must land on Peaceful");
+            helper.assertTrue(player.getHealth() < before,
+                "scaling=never must reduce Player health on Peaceful: before="
+                    + before + " after=" + player.getHealth());
+            helper.assertTrue(player.getLastDamageSource() != null
+                    && player.getLastDamageSource().is(ModDamageTypes.RAIDER_ATTACK),
+                "the landed hit must use hearthstead:raider_attack");
 
-        helper.runAfterDelay(2, () -> {
-            helper.assertTrue(raider.isAlive() && !raider.isRemoved(),
-                "a raid entity must not be discarded by Peaceful ticking");
-            helper.succeed();
-        });
+            helper.runAfterDelay(2, () -> {
+                try {
+                    helper.assertTrue(raider.isAlive() && !raider.isRemoved(),
+                        "a raid entity must not be discarded by Peaceful ticking");
+                    helper.succeed();
+                } finally {
+                    helper.getLevel().getServer()
+                        .setDifficulty(previousDifficulty, true);
+                }
+            });
+        } catch (RuntimeException | Error failure) {
+            helper.getLevel().getServer().setDifficulty(previousDifficulty, true);
+            throw failure;
+        }
     }
 
     @GameTest(template = "empty16", timeoutTicks = 300,
