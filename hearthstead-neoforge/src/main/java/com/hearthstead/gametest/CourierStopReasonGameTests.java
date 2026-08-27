@@ -35,6 +35,7 @@ import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.items.ItemStackHandler;
 
 import java.util.UUID;
 
@@ -118,6 +119,17 @@ public class CourierStopReasonGameTests {
         int total = 0;
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
             ItemStack stack = container.getItem(slot);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    private static int count(ItemStackHandler inventory, Item item) {
+        int total = 0;
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            ItemStack stack = inventory.getStackInSlot(slot);
             if (stack.is(item)) {
                 total += stack.getCount();
             }
@@ -315,8 +327,20 @@ public class CourierStopReasonGameTests {
                     + " [reason=" + courier.logisticsStopReason()
                     + " retry=" + courier.logisticsRetrySeconds()
                     + " trace=" + courier.routeFailureNote() + "]");
-            helper.assertTrue(count(warehouse, Items.OAK_LOG) == 4,
-                "after opening the route, the real retry should deliver all four logs");
+            int delivered = count(warehouse, Items.OAK_LOG);
+            helper.assertTrue(delivered == 4,
+                "after opening the route, the real retry should deliver all four logs"
+                    + " [delivered=" + delivered
+                    + " bag=" + bagCount(courier, Items.OAK_LOG)
+                    + " hearth=" + count(hearth.getInventory(), Items.OAK_LOG)
+                    + " pos=" + courier.blockPosition()
+                    + " activity=" + courier.getActivity()
+                    + " reason=" + courier.logisticsStopReason()
+                    + " retry=" + courier.logisticsRetrySeconds()
+                    + " trace=" + courier.routeFailureNote()
+                    + " warehousePresent=" + settlement.buildings.stream()
+                        .anyMatch(building -> building.type == BuildingType.WAREHOUSE)
+                    + "]");
             helper.assertTrue(courier.logisticsStopReason() == StopReason.NONE,
                 "a successful retry must clear the old stop reason, got "
                     + courier.logisticsStopReason());
