@@ -1089,9 +1089,9 @@ public class CourierWorkGoal extends Goal {
      * close to the chest as the world lets her stand always is, whether or
      * not that spot is inside the building's own recorded box. Reach alone
      * cannot tell those two cases apart on its own, so the fallback below
-     * also demands a clear line of sight to the target,
-     * {@link #hasClearPathTo} -- the same physical test vanilla itself uses
-     * to decide whether a block can be interacted with.
+     * also demands a visible face on the target,
+     * {@link #hasVisibleContainerFace} -- the same physical test vanilla
+     * itself uses to decide whether a block can be interacted with.
      *
      * <p>LIVE REGRESSION (coordinator diagnostic, run 20260826T013935Z): a
      * strict {@code bounds.isInside(at)} gate used to be checked FIRST and
@@ -1137,33 +1137,49 @@ public class CourierWorkGoal extends Goal {
      * container and a clear ray to it must hold, so a courier who arrives by
      * the fallback has gone exactly as far toward the chest as the world
      * lets her, with nothing solid between her and it.
+     *
+     * <p>ROOT CAUSE, fourth pass (run 20260827T010118Z): a reopened west
+     * approach still failed when navigation stopped on the north-west node.
+     * That node was within honest container reach, but the one ray to the
+     * block CENTER clipped the still-solid north wall at the corner. A player
+     * can reach the exposed west face from the same spot. Arrival therefore
+     * samples the center plus four inset horizontal faces. Every accepted ray
+     * must still miss all collision or hit this exact container block; reach
+     * is not widened, and being inside a building no longer bypasses the wall
+     * check. This fixes the corner without reopening delivery through an
+     * internal wall.
      */
     private boolean hasArrived(Building building, BlockPos target) {
         BlockPos at = settler.blockPosition();
         if (at.distSqr(target) > CHEST_REACH_SQR) {
             return false;
         }
-        return building.bounds == null || building.bounds.isInside(at)
-            || hasClearPathTo(target);
+        return hasVisibleContainerFace(target);
     }
 
     /**
-     * Whether nothing solid stands between the courier's eyes and
-     * {@code target} -- a straight-line ray cast with real block collision,
-     * the same physical test vanilla itself uses to decide whether a block
-     * is interactable (e.g. {@code Level.clip} under a player's own reach
-     * check). A miss, or a hit that lands ON the target block itself
-     * (the ordinary case: the ray reaches the chest and stops there,
-     * because the chest has collision), both count as clear; a hit on
-     * anything else means a wall, a door or some other obstruction is
-     * genuinely between her and the chest.
+     * Whether at least one interactable point on the container is visible.
+     * The center catches ordinary approaches; the inset face samples catch a
+     * real exposed side at a doorway corner without sampling outside the
+     * target block. A miss, or a hit that lands ON the exact target block,
+     * counts as clear. Anything else is a wall, door or other obstruction.
      */
-    private boolean hasClearPathTo(BlockPos target) {
+    private boolean hasVisibleContainerFace(BlockPos target) {
         if (!(settler.level() instanceof ServerLevel level)) {
             return false;
         }
         Vec3 from = settler.getEyePosition();
-        Vec3 to = Vec3.atCenterOf(target);
+        Vec3 center = Vec3.atCenterOf(target);
+        double faceInset = 0.49;
+        return rayReachesTarget(level, from, center, target)
+            || rayReachesTarget(level, from, center.add(faceInset, 0.0, 0.0), target)
+            || rayReachesTarget(level, from, center.add(-faceInset, 0.0, 0.0), target)
+            || rayReachesTarget(level, from, center.add(0.0, 0.0, faceInset), target)
+            || rayReachesTarget(level, from, center.add(0.0, 0.0, -faceInset), target);
+    }
+
+    private boolean rayReachesTarget(ServerLevel level, Vec3 from, Vec3 to,
+                                     BlockPos target) {
         BlockHitResult hit = level.clip(new ClipContext(from, to,
             ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, settler));
         return hit.getType() == HitResult.Type.MISS || target.equals(hit.getBlockPos());

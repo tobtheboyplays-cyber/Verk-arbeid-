@@ -366,6 +366,73 @@ public class CourierStopReasonGameTests {
         });
     }
 
+    /**
+     * Being inside a warehouse's broad registered box is not permission to
+     * stow through an internal wall. This pins the physical half of the
+     * arrival contract independently of the small single-cell fixture above:
+     * both the courier and chest are inside the same bounds and already
+     * within ordinary reach, but the partition must produce NO_PATH until a
+     * real two-block doorway is opened.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2200,
+        batch = "courier_stop_reason_day")
+    public void warehouseBoundsNeverBypassAnInternalWall(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(3, 1, 7);
+        Settlement settlement = settlement(helper, hearthRel, 12);
+        HearthBlockEntity hearth = hearth(helper, settlement, hearthRel);
+        hearth.insertGoods(new ItemStack(Items.OAK_LOG, 4));
+
+        BlockPos chestRel = new BlockPos(10, 1, 7);
+        building(helper, settlement, BuildingType.WAREHOUSE,
+            new BlockPos(2, 1, 1), new BlockPos(12, 3, 12),
+            new BlockPos(12, 1, 12));
+        helper.setBlock(chestRel, Blocks.CHEST);
+        Container warehouse = container(helper, chestRel);
+        helper.assertTrue(warehouse != null, "setup: warehouse chest should exist");
+
+        // A floor-to-head-height partition spans the whole bounded arena.
+        // The courier can stand two blocks west of the chest -- inside both
+        // CHEST_REACH and the warehouse bounds -- but cannot see or reach the
+        // container until this test opens the door after a real failure.
+        for (int z = 1; z <= 12; z++) {
+            helper.setBlock(new BlockPos(9, 1, z), Blocks.STONE_BRICKS);
+            helper.setBlock(new BlockPos(9, 2, z), Blocks.STONE_BRICKS);
+        }
+        SettlerEntity courier = courier(helper, settlement, new BlockPos(6, 1, 7));
+        boolean[] opened = {false};
+
+        helper.succeedWhen(() -> {
+            int delivered = count(warehouse, Items.OAK_LOG);
+            if (!opened[0]) {
+                helper.assertTrue(delivered == 0,
+                    "warehouse bounds must never authorize delivery through the partition"
+                        + " [delivered=" + delivered
+                        + " pos=" + courier.blockPosition()
+                        + " reason=" + courier.logisticsStopReason() + "]");
+                if (courier.logisticsStopReason() == StopReason.NO_PATH
+                    && courier.logisticsRetrySeconds() > 0) {
+                    helper.setBlock(new BlockPos(9, 1, 7), Blocks.AIR);
+                    helper.setBlock(new BlockPos(9, 2, 7), Blocks.AIR);
+                    opened[0] = true;
+                }
+            }
+            helper.assertTrue(opened[0],
+                "the intact partition should first produce visible NO_PATH");
+            helper.assertTrue(delivered == 4,
+                "after opening a physical doorway, all four logs should arrive"
+                    + " [delivered=" + delivered
+                    + " bag=" + bagCount(courier, Items.OAK_LOG)
+                    + " hearth=" + count(hearth.getInventory(), Items.OAK_LOG)
+                    + " pos=" + courier.blockPosition()
+                    + " reason=" + courier.logisticsStopReason()
+                    + " trace=" + courier.routeFailureNote() + "]");
+            helper.assertTrue(courier.logisticsStopReason() == StopReason.NONE,
+                "a successful physical retry must clear NO_PATH");
+        });
+    }
+
     @GameTest(template = "empty5", timeoutTicks = 60,
         batch = "courier_stop_reason_contract")
     public void stopReasonWireIdsAreStable(GameTestHelper helper) {
