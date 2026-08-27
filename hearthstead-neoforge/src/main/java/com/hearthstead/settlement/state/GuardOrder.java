@@ -147,7 +147,7 @@ public final class GuardOrder {
         if (decoded.isEmpty() || decoded.get() == Mode.NONE) {
             return order;
         }
-        BlockPos decodedPos = tag.contains("Pos", Tag.TAG_COMPOUND)
+        BlockPos decodedPos = tag.contains("Pos", Tag.TAG_INT_ARRAY)
             ? NbtUtils.readBlockPos(tag, "Pos").orElse(null) : null;
         long decodedUntil = tag.getLong("Until");
         if (decodedPos == null || decodedUntil <= 0L) {
