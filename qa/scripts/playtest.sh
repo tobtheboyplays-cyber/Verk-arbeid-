@@ -63,6 +63,12 @@ DISPLAY_NUM=":98"
 export LIBGL_ALWAYS_SOFTWARE=1
 export GALLIUM_DRIVER=llvmpipe
 export DISPLAY="$DISPLAY_NUM"
+# This suite does not judge sound. OpenAL's changing WSL/RDP default device
+# has blocked the render thread for 30s while enumerating a replacement
+# device (20260827T023842Z), which in turn prevented client teleport acks and
+# made an input test fail for an unrelated host-audio event. The null backend
+# keeps audio initialization deterministic without changing any game logic.
+export ALSOFT_DRIVERS=null
 
 ev_init "$ROLE"
 
@@ -84,6 +90,8 @@ teardown() {
     tmux has-session -t "$TMUX_PT" 2>/dev/null && tmux kill-session -t "$TMUX_PT" 2>/dev/null
     pkill -9 -f "hsqa.instanceDir=.*/$ROLE" 2>/dev/null || true
     [ -n "${XVFB_PID:-}" ] && kill -9 "$XVFB_PID" 2>/dev/null
+    [ -n "${FRAME_REQUEST:-}" ] && rm -f -- "$FRAME_REQUEST"
+    [ -n "${FRAME_REQUEST_TMP:-}" ] && rm -f -- "$FRAME_REQUEST_TMP"
     clear_pidfile "$ROLE"
     clear_pidfile "${ROLE}-xvfb"
 }
@@ -158,6 +166,9 @@ check_pass xvfb "Xvfb :98 up (pid $XVFB_PID)"
 # drive.
 RUN_DIR="$MOD/run"
 mkdir -p "$RUN_DIR"
+FRAME_REQUEST="$RUN_DIR/hsqa-frame-request"
+FRAME_REQUEST_TMP=""
+rm -f -- "$FRAME_REQUEST"
 cat > "$RUN_DIR/options.txt" <<'OPTS'
 onboardAccessibility:false
 skipMultiplayerWarning:true
@@ -168,6 +179,7 @@ overrideWidth:1280
 overrideHeight:720
 tutorialStep:none
 rawMouseInput:false
+mouseSensitivity:0.5
 renderDistance:6
 simulationDistance:6
 OPTS
@@ -212,7 +224,8 @@ cd "$MOD"
 # screenshot, rather than misreporting it as a server or build problem.
 JOIN_PORT="${HSQA_TEST_BAD_JOIN_PORT:-$PORT}"
 set -m
-HSQA_JOIN="127.0.0.1:$JOIN_PORT" timeout --foreground 900 ./gradlew runClient > "$EV_LOGS/playtest-client.log" 2>&1 &
+HSQA_CLIENT_OBSERVER=1 HSQA_JOIN="127.0.0.1:$JOIN_PORT" \
+    timeout --foreground 900 ./gradlew runClient > "$EV_LOGS/playtest-client.log" 2>&1 &
 GRADLE_PID=$!
 set +m
 register_pid "$ROLE" "-$GRADLE_PID"
@@ -302,82 +315,410 @@ focus() {
     return 1
 }
 
-# KF-009's actual root cause (opus review, 2026-08-24): `cmd` and `move`
-# each end with a click to re-establish GLFW's relative-mouse grab, and
-# that click landed at WHATEVER the crosshair was already pointing at --
-# the comment here used to call it "a harmless left-click on empty space",
-# which was never actually verified. In CREATIVE MODE (what every scenario
-# uses) a left-click is an INSTANT block break regardless of what is under
-# it. This destroyed the plaque scenario's own plaque immediately after a
-# successful survey, deterministically, and was misdiagnosed for hours as
-# unexplained input-delivery flakiness before the evidence (the block
-# actually vanishing between two screenshots) was read correctly.
+# KF-009/KF-035: the old grab-restoring LEFT click could break the exact
+# block a test was observing. Moving the player to Y=300 before that click
+# avoided the block, but created a much larger asynchronous chunk/render
+# transition: under load the restore ack arrived 28s late, and a following
+# sky teleport never reached the render thread inside 30s
+# (20260827T023842Z). The safety mechanism had become the flake.
 #
-# First fix (looking straight up before clicking) was NOT sufficient on its
-# own: PLAQUE-1's room is built underground (Y around -60), so "straight
-# up" from inside or near it hits the room's own roof or the natural
-# terrain above, well within creative reach -- not open sky. That click
-# still broke a block, and CommonEvents.onBlockBreak -> BuildingManager.
-# nudgeNear (32-block radius) re-surveys every known plaque near ANY block
-# change, silently (nudgeNear's re-survey only plays a sound/particle, it
-# never sends a chat line -- see PlaqueBlockEntity.announce()). Proven live
-# (20260824T100153Z): the scan command's OWN chat message logged "Registered"
-# at 10:08:27, then this function's trailing click ran, then `hearthstead
-# info` twelve seconds later reported "Homes: 0 registered" with nothing
-# in between explaining it -- a silent re-unlink from the click's collateral
-# block break, not the mod losing track of anything.
+# X11 Button8 maps through GLFW's scroll-button gap to mouse index 3
+# (`key.mouse.4`). The opt-in observer enumerates the fully registered runtime
+# KeyMappings and refuses every frame ack unless that index is unbound. More
+# importantly, the only Button8 press is sent after the observer has proved
+# PauseScreen is open and mouse capture released; it is never sent into the
+# world. The following Escape closes PauseScreen and invokes grabMouse().
 #
-# Real fix: don't rely on LOOK direction being safe -- rely on POSITION.
-# Capture the player's exact position and rotation, teleport straight up to
-# a fixed height (300) far above build height on anything this harness ever
-# constructs (every test structure sits below Y=110), click there where
-# NOTHING can possibly be in reach, then restore the exact original
-# position and rotation via a second absolute `tp`. Both teleports use
-# fully absolute coordinates (never `~`), so there is no relative round-trip
-# to accumulate error in either position or rotation.
-#
-# Third fix, still the same underlying gotcha KF-006 already named for
-# rotation ("the server-side change needs time to reach the client before
-# its LOCAL camera -- what the click raycasts against -- actually matches
-# it; 1s was not always enough"): a 360-block VERTICAL teleport is a much
-# bigger scene change than a rotation snap (new chunks, new lighting), so
-# the SAME 1s gap between issuing the up-teleport and firing the click was
-# proven live (20260824T103155Z) to still be too short sometimes -- the
-# click can fire while the client is still rendering the old, underground
-# scene, breaking a block there even though the SERVER already considers
-# the player to be at Y=300. Give it the same real margin the hearth-aim
-# click already needed for the identical reason.
+# A chat ack is NOT an input fence: network work runs before mouse handling,
+# while GLFW events are polled at the end of a frame. The opt-in client QA
+# observer acknowledges a nonce only after two later RenderFrame.Post events.
+# That spans updateDisplay/poll plus the following
+# handleAccumulatedMovement, and also exposes the actual screen/grab state.
+FRAME_COUNTER=0
+FRAME_ACK_LINE=""
+wait_client_frame() { # <expected screen|any> <expected grabbed|any> <context>
+    local expected_screen="$1" expected_grabbed="$2" context="$3"
+    local anchor nonce line="" timeout deadline
+    anchor=$(wc -l < "$EV_LOGS/playtest-client.log" 2>/dev/null || echo 0)
+    FRAME_COUNTER=$((FRAME_COUNTER + 1))
+    nonce="${ROLE}_${FRAME_COUNTER}_${RANDOM}"
+    FRAME_REQUEST_TMP="$RUN_DIR/.hsqa-frame-request.${nonce}.$$"
+    printf '%s\n' "$nonce" > "$FRAME_REQUEST_TMP" \
+        || { echo "$context: could not write client-frame nonce" >&2; return 1; }
+    mv -f -- "$FRAME_REQUEST_TMP" "$FRAME_REQUEST" \
+        || { echo "$context: could not publish client-frame nonce" >&2; return 1; }
+    FRAME_REQUEST_TMP=""
+    timeout="${HSQA_CLIENT_FRAME_TIMEOUT:-45}"
+    deadline=$((SECONDS + timeout))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        line=$(tail -n +"$((anchor + 1))" "$EV_LOGS/playtest-client.log" 2>/dev/null \
+            | grep -F "HSQA_FRAME_ACK nonce=$nonce " | tail -1)
+        if [ -n "$line" ]; then
+            rm -f -- "$FRAME_REQUEST"
+            if [[ "$line" != *" auxButtonBound=none "* ]]; then
+                echo "$context: auxiliary X button has a runtime KeyMapping: $line" >&2
+                return 1
+            fi
+            if [ "$expected_screen" != any ] \
+                && [[ "$line" != *" screen=$expected_screen "* ]]; then
+                echo "$context: unexpected client screen: $line" >&2
+                return 1
+            fi
+            if [ "$expected_grabbed" != any ] \
+                && [[ "$line" != *" grabbed=$expected_grabbed "* ]]; then
+                echo "$context: unexpected mouse-grab state: $line" >&2
+                return 1
+            fi
+            FRAME_ACK_LINE="$line"
+            return 0
+        fi
+        if tail -n +"$((anchor + 1))" "$EV_LOGS/playtest-client.log" 2>/dev/null \
+            | grep -Fq 'HSQA_FRAME_ERROR'; then
+            rm -f -- "$FRAME_REQUEST"
+            echo "$context: client observer reported an error" >&2
+            return 1
+        fi
+        kill -0 "$GRADLE_PID" 2>/dev/null || {
+            rm -f -- "$FRAME_REQUEST"
+            echo "$context: client exited while waiting for its frame ack" >&2
+            return 1
+        }
+        sleep 0.10
+    done
+    rm -f -- "$FRAME_REQUEST"
+    echo "$context: no post-input client frame ack within ${timeout}s" >&2
+    shot "FAILED-client-frame" 2>/dev/null || true
+    echo "--- client log tail ---" >&2
+    tail -12 "$EV_LOGS/playtest-client.log" >&2 2>/dev/null || true
+    return 1
+}
+
 safe_regrab() {
-    scmd "data get entity $PLAYER Pos"
-    sleep 1
-    local pos x y z
-    pos=$(grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d" "$SRV_LOG" 2>/dev/null | tail -1)
-    x=$(echo "$pos" | cut -d',' -f1 | tr -d 'd ')
-    y=$(echo "$pos" | cut -d',' -f2 | tr -d 'd ')
-    z=$(echo "$pos" | cut -d',' -f3 | tr -d 'd ')
-
-    scmd "data get entity $PLAYER Rotation"
-    sleep 1
-    local rot yaw pitch
-    rot=$(grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+f, [-0-9.]+f" "$SRV_LOG" 2>/dev/null | tail -1)
-    yaw=$(echo "$rot" | cut -d',' -f1 | tr -d 'f ')
-    pitch=$(echo "$rot" | cut -d',' -f2 | tr -d 'f ')
-
-    if [ -z "$x" ] || [ -z "$y" ] || [ -z "$z" ] || [ -z "$yaw" ] || [ -z "$pitch" ]; then
-        # Could not read position/rotation back -- fall back to the old
-        # unsafe click rather than silently skipping regrab (which broke
-        # move/look entirely, the original failure mode this workaround
-        # exists for). This should not happen in practice; if it does, it
-        # is itself worth seeing in the transcript rather than hiding.
-        echo "safe_regrab: could not read $PLAYER's position/rotation, falling back to a direct click" >&2
-        focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
-        return
+    local focused original after post_error="" click_error=""
+    local original_yaw original_pitch after_yaw after_pitch
+    local flush_yaw flush_pitch
+    wait_client_frame null any "safe_regrab precondition" \
+        || die "${DIR_IDX:-setup}:safe_regrab_precondition" \
+            "client is not in a verified in-world state before regrab"
+    original=$(fresh_rotation) \
+        || die "${DIR_IDX:-setup}:safe_regrab_pose" \
+            "could not capture the complete pre-regrab rotation"
+    read -r original_yaw original_pitch <<< "$original"
+    focus || die "${DIR_IDX:-setup}:safe_regrab_focus" \
+        "Minecraft window could not be focused before the auxiliary click"
+    focused=$(xdotool getwindowfocus 2>/dev/null) \
+        || die "${DIR_IDX:-setup}:safe_regrab_focus" \
+            "xdotool could not read the focused window"
+    [ "$focused" = "$WIN" ] \
+        || die "${DIR_IDX:-setup}:safe_regrab_focus" \
+            "focused window $focused does not match Minecraft window $WIN"
+    # The observer turns the old comment-only screen contract into a measured
+    # precondition. Open PauseScreen, prove mouse release, send the physical
+    # auxiliary click ONLY while that screen is authoritatively open, then
+    # close and prove screen=null + grabbed=true. No button press touches the
+    # world, even if a future dependency binds the auxiliary mouse key.
+    xdotool key --clearmodifiers Escape \
+        || die "${DIR_IDX:-setup}:safe_regrab_release" \
+            "xdotool could not open the release screen"
+    wait_client_frame PauseScreen false "safe_regrab release" \
+        || die "${DIR_IDX:-setup}:safe_regrab_release" \
+            "PauseScreen/mouse release was not observed"
+    xdotool click 8 || click_error="xdotool rejected auxiliary X button 8"
+    wait_client_frame PauseScreen false "safe_regrab paused click" \
+        || die "${DIR_IDX:-setup}:safe_regrab_click" \
+            "auxiliary click was not consumed safely inside PauseScreen"
+    xdotool key --clearmodifiers Escape \
+        || die "${DIR_IDX:-setup}:safe_regrab_restore" \
+            "xdotool could not close the release screen"
+    wait_client_frame null true "safe_regrab restore" \
+        || die "${DIR_IDX:-setup}:safe_regrab_restore" \
+            "screen close did not produce a verified in-world mouse grab"
+    [ -z "$click_error" ] \
+        || die "${DIR_IDX:-setup}:safe_regrab_click" "$click_error"
+    # grabMouse() and cursorEntered() set ignoreFirstMove=true. Consume that
+    # one intentionally ignored event here; interpreting it as a dead grab
+    # and clicking again would reset ignoreFirstMove forever.
+    if ! xdotool mousemove_relative -- 1 0; then
+        post_error="xdotool rejected the sacrificial cursor event"
     fi
-    scmd "execute at $PLAYER run tp $PLAYER ~ 300 ~ $yaw -90"
-    sleep 3
-    focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
-    scmd "tp $PLAYER $x $y $z $yaw $pitch"
-    sleep 1
+    # A post-input frame ack drains that event before we inspect the
+    # authoritative rotation. If ignoreFirstMove consumed it, there is
+    # nothing to undo. If GLFW had already consumed ignoreFirstMove, +1 is a
+    # real ~0.15-degree yaw input and must be explicitly reversed. Capturing
+    # the pose BEFORE every pointer event keeps standalone regrabs (startup,
+    # cmd and open) from accumulating invisible camera drift.
+    if ! wait_client_frame null true "safe_regrab cursor flush"; then
+        post_error="${post_error:+$post_error; }client did not acknowledge the sacrificial cursor frame"
+    elif after=$(fresh_rotation); then
+        if [ -z "$post_error" ]; then
+            read -r after_yaw after_pitch <<< "$after"
+            flush_yaw=$(signed_yaw_delta "$original_yaw" "$after_yaw")
+            flush_pitch=$(signed_pitch_delta "$original_pitch" "$after_pitch")
+            if ! awk -v y="$flush_yaw" -v p="$flush_pitch" 'BEGIN {
+                if (p<0) p=-p;
+                yaw_ok=(y>=-0.02 && y<=0.02) || (y>0.05 && y<=0.40);
+                exit !(yaw_ok && p<=0.02)
+            }'; then
+                post_error="sacrificial +1 changed rotation unexpectedly: $original -> $after"
+            fi
+        fi
+    else
+        post_error="${post_error:+$post_error; }could not inspect rotation after the sacrificial cursor event"
+    fi
+
+    # Common finally path: after the first synthetic movement, no success or
+    # error path may leave until the complete captured rotation is restored.
+    # restore_rotation_exact first uses measured inverse X input and reserves
+    # a same-position server rotation for exceptional cleanup only.
+    if ! restore_rotation_exact "$original_yaw" "$original_pitch"; then
+        die "${DIR_IDX:-setup}:safe_regrab_restore" \
+            "could not restore the complete pre-regrab rotation after: ${post_error:-normal flush}"
+    fi
+    if [ "${ROTATION_FALLBACK_USED:-0}" = 1 ]; then
+        post_error="${post_error:+$post_error; }rotation cleanup required the exceptional server fallback"
+    fi
+    if [ -n "$post_error" ]; then
+        die "${DIR_IDX:-setup}:safe_regrab_flush" \
+            "$post_error (complete rotation cleanup verified)"
+    fi
+}
+
+# KF-035 already made live.sh's long-form driver self-verifying, but the
+# release playtest still used two blind regrab+move attempts and marked the
+# `move` directive PASS without observing any motion. Read each probe from a
+# fresh, anchored server-log slice, then bounded-retry the proven regrab path.
+# The last regrab is always followed by one final check; otherwise a recovery
+# on the final allowed attempt would be reported as a false failure.
+fresh_rotation() { # -> "yaw pitch" from one fresh, player-specific reply
+    local anchor deadline rot yaw pitch
+    anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+    scmd "data get entity $PLAYER Rotation"
+    deadline=$((SECONDS + ${HSQA_ROTATION_QUERY_TIMEOUT:-8}))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        rot=$(tail -n +"$((anchor + 1))" "$SRV_LOG" 2>/dev/null \
+            | grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+f, [-0-9.]+f" \
+            | tail -1)
+        if [ -n "$rot" ]; then
+            yaw=$(echo "$rot" | cut -d',' -f1 | tr -d 'f ')
+            pitch=$(echo "$rot" | cut -d',' -f2 | tr -d 'f ')
+            printf '%s %s\n' "$yaw" "$pitch"
+            return 0
+        fi
+        sleep 0.2
+    done
+    return 1
+}
+
+fresh_yaw() {
+    local rotation
+    rotation=$(fresh_rotation) || return 1
+    echo "${rotation%% *}"
+}
+
+yaw_delta() { # <yaw a> <yaw b>
+    awk -v a="$1" -v b="$2" 'BEGIN {
+        d=a-b; if (d<0) d=-d; while (d>=360) d-=360; if (d>180) d=360-d;
+        printf "%.6f", d
+    }'
+}
+
+signed_yaw_delta() { # <yaw before> <yaw after>, normalized to (-180, 180]
+    awk -v a="$1" -v b="$2" 'BEGIN {
+        d=b-a; while (d<=-180) d+=360; while (d>180) d-=360;
+        printf "%.6f", d
+    }'
+}
+
+signed_pitch_delta() { # <pitch before> <pitch after>
+    awk -v a="$1" -v b="$2" 'BEGIN { printf "%.6f", b-a }'
+}
+
+pitch_delta() { # <pitch a> <pitch b>
+    awk -v a="$1" -v b="$2" 'BEGIN {
+        d=a-b; if (d<0) d=-d; printf "%.6f", d
+    }'
+}
+
+wait_changed_yaw() { # <baseline yaw> -> first fresh "yaw pitch" >0.5 yaw away
+    local baseline="$1" current current_yaw current_pitch delta
+    local deadline=$((SECONDS + ${HSQA_INPUT_RESPONSE_TIMEOUT:-20}))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        current=$(fresh_rotation) || return 1
+        read -r current_yaw current_pitch <<< "$current"
+        delta=$(yaw_delta "$baseline" "$current_yaw")
+        if awk -v d="$delta" 'BEGIN { exit !(d > 0.5) }'; then
+            echo "$current"
+            return 0
+        fi
+        sleep 0.25
+    done
+    return 1
+}
+
+wait_restored_rotation() { # <target yaw> <target pitch> -> complete rotation
+    local target_yaw="$1" target_pitch="$2"
+    local current current_yaw current_pitch dyaw dpitch
+    local deadline=$((SECONDS + ${HSQA_INPUT_RESPONSE_TIMEOUT:-20}))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        current=$(fresh_rotation) || return 1
+        read -r current_yaw current_pitch <<< "$current"
+        dyaw=$(yaw_delta "$target_yaw" "$current_yaw")
+        dpitch=$(pitch_delta "$target_pitch" "$current_pitch")
+        if awk -v y="$dyaw" -v p="$dpitch" \
+            'BEGIN { exit !(y<=0.02 && p<=0.02) }'; then
+            echo "$current"
+            return 0
+        fi
+        sleep 0.25
+    done
+    return 1
+}
+
+ROTATION_FALLBACK_USED=0
+restore_rotation_exact() { # <target yaw> <target pitch>
+    local target_yaw="$1" target_pitch="$2"
+    local current current_yaw current_pitch correction_yaw correction_pitch
+    local dx dy restored
+    ROTATION_FALLBACK_USED=0
+
+    current=$(fresh_rotation) || current=""
+    if [ -n "$current" ]; then
+        read -r current_yaw current_pitch <<< "$current"
+        if awk -v y="$(yaw_delta "$target_yaw" "$current_yaw")" \
+               -v p="$(pitch_delta "$target_pitch" "$current_pitch")" \
+               'BEGIN { exit !(y<=0.02 && p<=0.02) }'; then
+            return 0
+        fi
+
+        correction_yaw=$(signed_yaw_delta "$current_yaw" "$target_yaw")
+        correction_pitch=$(signed_pitch_delta "$current_pitch" "$target_pitch")
+        dx=$(awk -v d="$correction_yaw" \
+            'BEGIN { v=d/0.15; printf "%d", v<0 ? int(v-0.5) : int(v+0.5) }')
+        dy=$(awk -v d="$correction_pitch" \
+            'BEGIN { v=d/0.15; printf "%d", v<0 ? int(v-0.5) : int(v+0.5) }')
+        if { [ "$dx" -ne 0 ] || [ "$dy" -ne 0 ]; } \
+            && focus \
+            && xdotool mousemove_relative -- "$dx" "$dy" \
+            && wait_client_frame null true "rotation rollback"; then
+            restored=$(wait_restored_rotation "$target_yaw" "$target_pitch") \
+                && return 0
+        fi
+    fi
+
+    # Exceptional cleanup fallback. The release playtest's controlled player
+    # is always unmounted with its own camera; same-position tp therefore has
+    # no additional state to discard. Normal successful recovery never uses
+    # this path. It exists so even an XTEST/focus failure cannot return a
+    # half-applied probe to the scenario.
+    ROTATION_FALLBACK_USED=1
+    scmd "execute as $PLAYER at @s run tp @s ~ ~ ~ $target_yaw $target_pitch"
+    restored=$(wait_restored_rotation "$target_yaw" "$target_pitch") \
+        || return 1
+    return 0
+}
+
+wait_move_rotation() { # <yaw0> <pitch0> <expected yaw> <expected pitch> <yaw tol> <pitch tol>
+    local yaw0="$1" pitch0="$2" expected_yaw="$3" expected_pitch="$4"
+    local tolerance_yaw="$5" tolerance_pitch="$6"
+    local current yaw pitch observed_yaw observed_pitch
+    local deadline=$((SECONDS + ${HSQA_INPUT_RESPONSE_TIMEOUT:-20}))
+    while [ "$SECONDS" -lt "$deadline" ]; do
+        current=$(fresh_rotation) || return 1
+        read -r yaw pitch <<< "$current"
+        observed_yaw=$(signed_yaw_delta "$yaw0" "$yaw")
+        observed_pitch=$(signed_pitch_delta "$pitch0" "$pitch")
+        if awk -v ey="$expected_yaw" -v ep="$expected_pitch" \
+               -v ty="$tolerance_yaw" -v tp="$tolerance_pitch" \
+               -v oy="$observed_yaw" -v op="$observed_pitch" 'BEGIN {
+            dy=oy-ey; if (dy<0) dy=-dy;
+            dp=op-ep; if (dp<0) dp=-dp;
+            exit !(dy<=ty && dp<=tp)
+        }'; then
+            echo "$current"
+            return 0
+        fi
+        sleep 0.25
+    done
+    return 1
+}
+
+ensure_grab() {
+    local rotation0 rotation1 rotation2 probe_error
+    local yaw0 pitch0 yaw1 pitch1
+    local probe_yaw probe_pitch attempt=1
+    local probe_observed
+    # One bounded recovery after the initial check. More blind recovery
+    # rounds would increase the chance of stale X events leaking into the
+    # asserted action; a verified release/grab cycle either works or this is
+    # a real wall worth surfacing.
+    local max="${HSQA_ENSURE_GRAB_ATTEMPTS:-1}"
+    while :; do
+        focus || die "${DIR_IDX:-setup}:input_focus" \
+            "Minecraft window could not be focused for the input probe"
+        rotation0=$(fresh_rotation) \
+            || die "${DIR_IDX:-setup}:input_probe" \
+                "could not read fresh pre-probe rotation"
+        read -r yaw0 pitch0 <<< "$rotation0"
+        probe_error=""
+        probe_observed=0
+        if ! xdotool mousemove_relative -- 40 0; then
+            probe_error="xdotool rejected the positive yaw probe"
+        fi
+        # Unlike the retired chat fence, this ack is emitted only after the
+        # X event has crossed GLFW pollEvents and a later
+        # handleAccumulatedMovement frame. A timed-out probe cannot leak into
+        # the next baseline or asserted movement.
+        if ! wait_client_frame null true "input probe"; then
+            probe_error="${probe_error:+$probe_error; }client did not acknowledge the post-probe input frame"
+        elif [ -z "$probe_error" ] && rotation1=$(wait_changed_yaw "$yaw0"); then
+            probe_observed=1
+            read -r yaw1 pitch1 <<< "$rotation1"
+            probe_yaw=$(signed_yaw_delta "$yaw0" "$yaw1")
+            probe_pitch=$(signed_pitch_delta "$pitch0" "$pitch1")
+        fi
+
+        # Common finally path for every branch after +40, including xdotool,
+        # liveness, shape and timeout failures. No caller sees a half-applied
+        # probe. Exceptional X/focus failures are cleaned by the controlled
+        # same-position server fallback inside restore_rotation_exact.
+        if ! restore_rotation_exact "$yaw0" "$pitch0"; then
+            check_fail "${DIR_IDX:-setup}:input_probe_cleanup" \
+                "could not restore complete pre-probe rotation after ${probe_error:-probe}"
+            return 1
+        fi
+        if [ "${ROTATION_FALLBACK_USED:-0}" = 1 ]; then
+            probe_error="${probe_error:+$probe_error; }rotation cleanup required the exceptional server fallback"
+        fi
+        rotation2=$(fresh_rotation) || rotation2="$rotation0"
+
+        if [ -n "$probe_error" ]; then
+            check_fail "${DIR_IDX:-setup}:input_probe_late" \
+                "$probe_error; complete rotation cleanup verified"
+            return 1
+        fi
+        if [ "$probe_observed" -eq 1 ]; then
+            if ! awk -v y="$probe_yaw" -v p="$probe_pitch" 'BEGIN {
+                if (p<0) p=-p; exit !(y>=4.5 && y<=7.5 && p<=0.02)
+            }'; then
+                check_fail "${DIR_IDX:-setup}:input_probe_shape" \
+                    "horizontal +40 probe changed rotation unexpectedly: $rotation0 -> $rotation1; cleanup $rotation2"
+                return 1
+            fi
+            if [ "$attempt" -gt 1 ]; then
+                check_pass "${DIR_IDX:-setup}:input_regrab" \
+                    "recovered after $attempt checks (probe $rotation0 -> $rotation1; undo $rotation2)"
+            fi
+            return 0
+        fi
+        if [ "$attempt" -ge "$((max + 1))" ]; then
+            check_fail "${DIR_IDX:-setup}:input_dead" \
+                "grab did not recover after $max regrab attempts"
+            return 1
+        fi
+        echo "ensure_grab: check $attempt saw no rotation from $rotation0; regrabbing $attempt/$max" >&2
+        safe_regrab
+        attempt=$((attempt + 1))
+    done
 }
 
 # Establishes the grab somewhere harmless first, then makes the LAST camera
@@ -442,15 +783,10 @@ shot() { # <name>
 
 shot playtest-00-title
 
-# GLFW does not grab the mouse for relative look until the FIRST real click
-# into the window — proven live: `look`/`move` silently produce zero
-# rotation change before any click has happened, on every attempt, and
-# start working immediately after one. quickPlay drops the player straight
-# into the world with no menu to click through, so nothing else establishes
-# this grab. One harmless click here (empty air, before any scenario
-# directive) means every scenario's look/move directives actually work
-# regardless of what order it does things in.
-focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
+# quickPlay drops straight into the world without a menu click. Establish
+# the initial grab through the same non-world-mutating auxiliary-button path
+# every later recovery uses; never spend a left click merely to gain focus.
+safe_regrab
 
 # AC-14: every directive gets a recorded outcome, not just expect_* ones —
 # a typo'd or silently-no-op directive must be visible in result.json, not
@@ -463,6 +799,11 @@ focus; xdotool mousemove 640 360; xdotool click 1; sleep 1
 # (e.g. `$PLAQUE_X`) instead of a live `~`-relative offset. See capture_pos
 # below for why this exists.
 declare -A CAPTURED_VARS
+# The most recent move's own server-observed bracket. `ensure_grab` performs
+# extra yaw probes by design, so expect_rotation_change must not infer its
+# bracket from "the last two Rotation lines" after those probes were added.
+LAST_MOVE_YAW_BEFORE=""
+LAST_MOVE_YAW_AFTER=""
 # BLOCKER_GATE (2026-08-24): `expect_server` used to grep the WHOLE
 # cumulative log every time, so it could be satisfied by a line written
 # minutes earlier in the same run rather than anything the directive right
@@ -640,37 +981,100 @@ while read -r verb rest; do
                fi
                check_pass "$DIR_IDX:insert_plan_at" \
                    "physical right-click inserted plan on attempt $_ip_attempt; pos=[$OPEN_AT_POS] rotation=[$OPEN_AT_ROT] state=[$_ip_last_state]";;
-        move)  focus
-               # A prior grab-establishing click does not reliably survive
-               # to a LATER `move` several directives on — proven live,
-               # exact cause not fully isolated (not simply "any key press"
-               # or "any chat", since some sequences of those did survive
-               # while others with an apparently identical shape did not).
-               # Belt and braces: regrab-then-send TWICE, empirically more
-               # reliable than either a single regrab or a single send
-               # alone. `safe_regrab` (see its own comment, above the
-               # directive loop) replaces the old bare click here — that
-               # click fired at whatever the crosshair already held, which
-               # in creative mode is an instant block break, not "harmless".
-               safe_regrab
-               xdotool mousemove_relative -- $rest; sleep 1
-               safe_regrab
-               xdotool mousemove_relative -- $rest; sleep 1
-               check_pass "$DIR_IDX:move" "moved $rest";;
+        move)  set -- $rest
+               [ "$#" -eq 2 ] \
+                   || die "$DIR_IDX:move" "expected dx dy; got: $rest"
+               # Recovery retries belong only to setup. Once ensure_grab has
+               # proven the channel, the asserted action is sent exactly once;
+               # retrying the action itself until it passes would launder an
+               # input flake into a false green result.
+               ensure_grab \
+                   || die "$DIR_IDX:move" \
+                       "input grab stayed dead after bounded recovery"
+               _mv_before=$(fresh_rotation) \
+                   || die "$DIR_IDX:move" "could not read pre-move rotation"
+               read -r _mv_yaw_before _mv_pitch_before <<< "$_mv_before"
+               _mv_raw_yaw=$(awk -v dx="$1" 'BEGIN { printf "%.6f", dx*0.15 }')
+               if ! awk -v e="$_mv_raw_yaw" \
+                   'BEGIN { if (e<0) e=-e; exit !(e<180) }'; then
+                   die "$DIR_IDX:move" \
+                       "dx=$1 spans 180 degrees or more and cannot be proven from one final server rotation"
+               fi
+               _mv_expected_yaw="$_mv_raw_yaw"
+               # A final server rotation cannot distinguish the full input
+               # from an earlier partial input once pitch clamps at +/-90.
+               # Reject such directives instead of claiming to prove them.
+               _mv_target_pitch=$(awk -v p="$_mv_pitch_before" -v dy="$2" \
+                   'BEGIN { printf "%.6f", p+(dy*0.15) }')
+               if ! awk -v p="$_mv_target_pitch" \
+                   'BEGIN { exit !(p>=-90 && p<=90) }'; then
+                   die "$DIR_IDX:move" \
+                       "dy=$2 would clamp pitch at +/-90 and cannot be fully proven from the final rotation"
+               fi
+               _mv_expected_pitch=$(awk -v p="$_mv_pitch_before" -v t="$_mv_target_pitch" \
+                   'BEGIN { printf "%.6f", t-p }')
+                if awk -v y="$_mv_expected_yaw" -v p="$_mv_expected_pitch" 'BEGIN {
+                   if (y<0) y=-y; if (p<0) p=-p; exit !(y<=0.05 && p<=0.05)
+               }'; then
+                   die "$DIR_IDX:move" \
+                        "movement is too small (or pitch is already clamped) to prove: $rest"
+                fi
+                # options.txt pins sensitivity to 0.5: vanilla's resulting
+                # scale is 0.15 degrees per pixel on both axes. Compute the
+                # final signed envelope before sending input so the polling
+                # helper waits for the claimed conclusion, not merely the
+                # first non-zero intermediate rotation.
+                _mv_tolerance_yaw=$(awk -v e="$_mv_expected_yaw" 'BEGIN {
+                    if (e<0) e=-e; t=e*0.20; if (t<0.20) t=0.20; printf "%.6f", t
+                }')
+                _mv_tolerance_pitch=$(awk -v e="$_mv_expected_pitch" 'BEGIN {
+                    if (e<0) e=-e; t=e*0.20; if (t<0.20) t=0.20; printf "%.6f", t
+                }')
+                focus || die "$DIR_IDX:move" \
+                    "Minecraft window lost focus before the asserted movement"
+                xdotool mousemove_relative -- "$1" "$2" \
+                    || die "$DIR_IDX:move" \
+                        "xdotool rejected the asserted movement"
+                wait_client_frame null true "asserted movement" \
+                    || die "$DIR_IDX:move" \
+                        "client did not acknowledge the asserted movement after a complete input frame"
+                _mv_after=$(wait_move_rotation \
+                    "$_mv_yaw_before" "$_mv_pitch_before" \
+                    "$_mv_expected_yaw" "$_mv_expected_pitch" \
+                    "$_mv_tolerance_yaw" "$_mv_tolerance_pitch") \
+                    || die "$DIR_IDX:move" \
+                        "asserted movement never reached its signed 2-axis envelope within the input deadline"
+               read -r _mv_yaw_after _mv_pitch_after <<< "$_mv_after"
+               _mv_signed_yaw=$(signed_yaw_delta "$_mv_yaw_before" "$_mv_yaw_after")
+               _mv_signed_pitch=$(signed_pitch_delta "$_mv_pitch_before" "$_mv_pitch_after")
+                 # Recheck the same envelope for a self-contained diagnostic.
+                if ! awk -v ay="$_mv_signed_yaw" -v ey="$_mv_expected_yaw" -v ty="$_mv_tolerance_yaw" \
+                        -v ap="$_mv_signed_pitch" -v ep="$_mv_expected_pitch" -v tp="$_mv_tolerance_pitch" \
+                    'BEGIN {
+                        dy=ay-ey; if (dy<0) dy=-dy;
+                        dp=ap-ep; if (dp<0) dp=-dp;
+                        exit !(dy<=ty && dp<=tp)
+                    }'; then
+                    die "$DIR_IDX:move" \
+                        "asserted movement was outside its signed 2-axis envelope: yaw $_mv_signed_yaw vs $_mv_expected_yaw +/- $_mv_tolerance_yaw; pitch $_mv_signed_pitch vs $_mv_expected_pitch +/- $_mv_tolerance_pitch ($_mv_before -> $_mv_after)"
+                fi
+               LAST_MOVE_YAW_BEFORE="$_mv_yaw_before"
+                LAST_MOVE_YAW_AFTER="$_mv_yaw_after"
+                check_pass "$DIR_IDX:move" \
+                    "moved $rest once; server rotation $_mv_before -> $_mv_after (yaw $_mv_signed_yaw vs $_mv_expected_yaw +/- $_mv_tolerance_yaw; pitch $_mv_signed_pitch vs $_mv_expected_pitch +/- $_mv_tolerance_pitch)";;
         scmd)  scmd "$rest"; check_pass "$DIR_IDX:scmd" "issued on console: $rest";;
         # `capture_pos NAME dx dy dz`: freezes the player's CURRENT position
         # (floored, plus the given integer offset) into $NAME_X/$NAME_Y/$NAME_Z
-        # for later directives to reference by name. Exists because a chain of
-        # regrab-teleport round trips (safe_regrab, potentially several
-        # before a later directive runs) was proven live to leave the
+         # for later directives to reference by name. Exists because the
+         # former teleport-based safe_regrab (retired in favour of unbound
+         # X button 8) was proven live to leave the
         # player's true position drifted by up to ~0.4 blocks from where it
         # was moments earlier (20260824T103155Z, 20260824T111340Z) --
         # apparently residual client movement packets trickling in and
         # getting accepted after the round trip's own restore already ran.
         # A LATER `~`-relative offset computed from that drifted position can
         # floor to a different integer block than intended. Capturing once,
-        # right after a position is established and before any further
-        # regrab churn can touch it, then using the frozen integers from then
+         # right after a position is established, then using the frozen integers from then
         # on, makes a later command's targeting immune to that drift entirely.
         capture_pos)
                set -- $rest
@@ -763,15 +1167,14 @@ while read -r verb rest; do
 
         expect_rotation_change)
             MINDEG="${rest:-30}"
-            RESULT=$(python3 - "$SRV_LOG" "$MINDEG" <<'PYEOF'
-import re, sys
-log, min_deg = sys.argv[1], float(sys.argv[2])
-rots = re.findall(r"has the following entity data: \[(-?[0-9.]+)f, (-?[0-9.]+)f\]", open(log).read())
-if len(rots) < 2:
-    print("FAIL: fewer than 2 Rotation queries captured")
+            RESULT=$(python3 - "$MINDEG" \
+                "${LAST_MOVE_YAW_BEFORE:-}" "${LAST_MOVE_YAW_AFTER:-}" <<'PYEOF'
+import sys
+min_deg, move_y0, move_y1 = float(sys.argv[1]), sys.argv[2], sys.argv[3]
+if not move_y0 or not move_y1:
+    print("FAIL: no server-observed move bracket is available")
     sys.exit(1)
-(y0, _p0), (y1, _p1) = rots[-2], rots[-1]
-y0, y1 = float(y0), float(y1)
+y0, y1 = float(move_y0), float(move_y1)
 delta = abs(y0 - y1) % 360
 delta = min(delta, 360 - delta)
 if delta > min_deg:
@@ -781,6 +1184,8 @@ print(f"FAIL: yaw {y0} -> {y1} (delta {delta:.1f} <= {min_deg})")
 sys.exit(1)
 PYEOF
 )
+            LAST_MOVE_YAW_BEFORE=""
+            LAST_MOVE_YAW_AFTER=""
             if [[ "$RESULT" == PASS:* ]]; then
                 check_pass "$DIR_IDX:expect_rotation_change" "$RESULT"
             else
