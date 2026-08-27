@@ -1,7 +1,9 @@
 package com.hearthstead.settlement.raid;
 
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -24,16 +26,47 @@ public record RaidPlan(UUID captainId, RaidObjective objective,
         return tag;
     }
 
-    public static RaidPlan readNbt(CompoundTag tag) {
-        RaidObjective objective = RaidObjective.BLOD;
+    /**
+     * Strict shared parser for both the transitional legacy field and the
+     * versioned lifecycle. It never invents defaults for malformed save data.
+     */
+    public static Optional<RaidPlan> tryReadNbt(Tag rawTag) {
+        if (!(rawTag instanceof CompoundTag tag)
+            || !tag.hasUUID("CaptainId")
+            || !tag.contains("Objective", Tag.TAG_STRING)
+            || !tag.contains("Approach", Tag.TAG_FLOAT)
+            || !tag.contains("Night", Tag.TAG_LONG)) {
+            return Optional.empty();
+        }
+        RaidObjective objective = null;
         String id = tag.getString("Objective");
-        for (RaidObjective o : RaidObjective.values()) {
-            if (o.id().equals(id)) {
-                objective = o;
+        for (RaidObjective candidate : RaidObjective.values()) {
+            if (candidate.id().equals(id)) {
+                objective = candidate;
                 break;
             }
         }
-        return new RaidPlan(tag.getUUID("CaptainId"), objective,
-            tag.getFloat("Approach"), tag.getLong("Night"));
+        float approach = tag.getFloat("Approach");
+        long night = tag.getLong("Night");
+        if (objective == null || !Float.isFinite(approach)
+            || approach < -180.0F || approach >= 180.0F || night < 0L) {
+            return Optional.empty();
+        }
+        return Optional.of(new RaidPlan(tag.getUUID("CaptainId"), objective,
+            approach, night));
+    }
+
+    public static boolean isValid(RaidPlan plan) {
+        return plan != null && plan.captainId() != null && plan.objective() != null
+            && Float.isFinite(plan.approachDegrees())
+            && plan.approachDegrees() >= -180.0F
+            && plan.approachDegrees() < 180.0F
+            && plan.night() >= 0L;
+    }
+
+    /** Kept for source compatibility; invalid data now fails explicitly. */
+    public static RaidPlan readNbt(CompoundTag tag) {
+        return tryReadNbt(tag).orElseThrow(() ->
+            new IllegalArgumentException("Invalid persisted Hearthstead RaidPlan"));
     }
 }

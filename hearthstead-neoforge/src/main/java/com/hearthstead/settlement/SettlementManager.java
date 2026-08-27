@@ -6,6 +6,7 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModSounds;
+import com.hearthstead.settlement.state.RaidLifecycle;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
@@ -95,6 +96,14 @@ public final class SettlementManager {
         }
         Settlement s = new Settlement(UUID.randomUUID(),
             SettlerNames.pickSettlementName(level.random), hearthPos);
+        long foundedNight = Math.max(0L,
+            Math.floorDiv(level.getDayTime(), RaidLifecycle.DAY_LENGTH));
+        if (!s.raidLifecycle.initializeAtFounding(foundedNight, level.random,
+            s.raidProfile)) {
+            // A fresh instance has no competing lifecycle state, so failure
+            // here would mean the founding record is unsafe to persist.
+            return null;
+        }
         data.settlements.put(s.id, s);
         data.setDirty();
 

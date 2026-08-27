@@ -1,6 +1,10 @@
 package com.hearthstead.settlement;
 
 import com.hearthstead.entity.Profession;
+import com.hearthstead.settlement.state.BlessingState;
+import com.hearthstead.settlement.state.GuardOrder;
+import com.hearthstead.settlement.state.RaidLifecycle;
+import com.hearthstead.settlement.state.RaidProfile;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -9,6 +13,7 @@ import net.minecraft.nbt.Tag;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -47,6 +52,17 @@ public class Settlement {
         new com.hearthstead.settlement.raid.RaidPressure();
 
     /**
+     * M1 server-authoritative settlement state. These records belong to the
+     * shared village, never to an individual player. Slice B will make the
+     * raid director consume {@link #raidLifecycle}; until then it is persisted
+     * but intentionally dormant.
+     */
+    public RaidProfile raidProfile = RaidProfile.PEACEFUL;
+    public RaidLifecycle raidLifecycle = new RaidLifecycle();
+    public BlessingState blessingState = new BlessingState();
+    public GuardOrder guardOrder = new GuardOrder();
+
+    /**
      * Enemies this settlement has met, and the raid it is currently
      * expecting. This is the Tingbok's enemy gallery: captains persist so a
      * beaten one can come back harder and by a different road, which is the
@@ -54,6 +70,13 @@ public class Settlement {
      */
     public final List<com.hearthstead.settlement.raid.RaidCaptain> raidCaptains =
         new ArrayList<>();
+    /**
+     * Transitional legacy runtime bridge. The current RaidDirector remains
+     * authoritative for this field until Slice B switches atomically to
+     * {@link #raidLifecycle}; M1 never tries to make both objects drive one
+     * raid. A v0 pending plan is copied once into lifecycle migration solely
+     * as an ineligible ACTIVE historical state.
+     */
     public com.hearthstead.settlement.raid.RaidPlan pendingRaid;
     /**
      * Set when a laden raider gets clear of the settlement. Decides whether
@@ -224,6 +247,11 @@ public class Settlement {
             buildingList.add(b.writeNbt());
         }
         tag.put("Buildings", buildingList);
+        tag.putInt("RaidProfileWireId", raidProfile.wireId());
+        tag.putString("RaidProfile", raidProfile.id());
+        tag.put("RaidLifecycle", raidLifecycle.writeNbt());
+        tag.put("BlessingState", blessingState.writeNbt());
+        tag.put("GuardOrder", guardOrder.writeNbt());
         tag.put("RaidPressure", raidPressure.writeNbt());
         ListTag captainList = new ListTag();
         for (com.hearthstead.settlement.raid.RaidCaptain c : raidCaptains) {
@@ -252,7 +280,18 @@ public class Settlement {
         return tag;
     }
 
+    /**
+     * Reads a settlement tag produced by the current code. Standalone
+     * GameTest fixtures and round-trip tests do not carry the root
+     * {@code DataVersion}, so this overload deliberately assumes the current
+     * schema. Real world loads always call {@link #readNbt(CompoundTag, int)}
+     * with the root source version, including explicit v0 migration.
+     */
     public static Settlement readNbt(CompoundTag tag) {
+        return readNbt(tag, SettlementSavedData.CURRENT_DATA_VERSION);
+    }
+
+    public static Settlement readNbt(CompoundTag tag, int sourceVersion) {
         Settlement s = new Settlement(tag.getUUID("Id"), tag.getString("Name"),
             NbtUtils.readBlockPos(tag, "Center").orElse(BlockPos.ZERO));
         s.radius = tag.getInt("Radius");
@@ -301,9 +340,20 @@ public class Settlement {
             s.raidLog.add(com.hearthstead.settlement.raid.RaidLogEntry
                 .readNbt(raidLogList.getCompound(i)));
         }
-        if (tag.contains("PendingRaid")) {
-            s.pendingRaid = com.hearthstead.settlement.raid.RaidPlan
-                .readNbt(tag.getCompound("PendingRaid"));
+        boolean malformedPendingRaid = false;
+        Tag rawPendingRaid = tag.get("PendingRaid");
+        if (rawPendingRaid != null) {
+            Optional<com.hearthstead.settlement.raid.RaidPlan> decoded =
+                com.hearthstead.settlement.raid.RaidPlan.tryReadNbt(rawPendingRaid);
+            if (decoded.isPresent()) {
+                s.pendingRaid = decoded.get();
+            } else {
+                // Never turn unknown objectives or wrong numeric tag types
+                // into a fabricated live raid. The versioned lifecycle below
+                // retains the integrity loss so it cannot become a new first
+                // raid or issue a reward after reload.
+                malformedPendingRaid = true;
+            }
         }
         // New keys; absent on an older save defaults to an empty roster and
         // no captain mid-death -- exactly right, an old save has no Saga
@@ -315,7 +365,75 @@ public class Settlement {
         }
         s.raidCaptainSlainId = tag.hasUUID("RaidCaptainSlainId")
             ? tag.getUUID("RaidCaptainSlainId") : null;
+
+        if (sourceVersion <= 0) {
+            // V0 had no authored profile/lifecycle and no auditable reward
+            // participants. A real pending raid continues through the legacy
+            // field above, but it must never become a free Blessing. RaidLog
+            // is the v0 persisted result/history; forecast fields in
+            // RaidPressure are deliberately ignored as queued plans.
+            s.raidProfile = RaidProfile.PEACEFUL;
+            s.raidLifecycle = RaidLifecycle.migrateV0(s.pendingRaid,
+                hasLegacyRaidResult(s), malformedPendingRaid);
+            s.blessingState = new BlessingState();
+            s.guardOrder = new GuardOrder();
+        } else {
+            s.raidProfile = readRaidProfile(tag).orElse(RaidProfile.PEACEFUL);
+            if (tag.contains("RaidLifecycle", Tag.TAG_COMPOUND)) {
+                s.raidLifecycle = RaidLifecycle.readNbt(tag.getCompound("RaidLifecycle"));
+            } else {
+                // A v1 settlement may not silently become a pristine new
+                // first-raid lifecycle after its authoritative record was
+                // removed or changed to the wrong tag type. Reading an empty
+                // compound retains UNINITIALIZED but marks integrity lost, so
+                // a later runtime bootstrap cannot mint a repeat reward.
+                s.raidLifecycle = RaidLifecycle.readNbt(new CompoundTag());
+            }
+            if (tag.contains("BlessingState", Tag.TAG_COMPOUND)) {
+                s.blessingState = BlessingState.readNbt(tag.getCompound("BlessingState"));
+            } else {
+                s.blessingState = BlessingState.quarantinedEmpty();
+            }
+            if (tag.contains("GuardOrder", Tag.TAG_COMPOUND)) {
+                s.guardOrder = GuardOrder.readNbt(tag.getCompound("GuardOrder"));
+            }
+            if (malformedPendingRaid) {
+                s.raidLifecycle.markIntegrityLost();
+            }
+        }
         return s;
+    }
+
+    private static Optional<RaidProfile> readRaidProfile(CompoundTag tag) {
+        if (tag.contains("RaidProfileWireId", Tag.TAG_INT)) {
+            Optional<RaidProfile> wire = RaidProfile.tryFromWireId(
+                tag.getInt("RaidProfileWireId"));
+            if (wire.isEmpty()) {
+                return Optional.empty();
+            }
+            if (tag.contains("RaidProfile", Tag.TAG_STRING)
+                && !wire.get().id().equals(tag.getString("RaidProfile"))) {
+                return Optional.empty();
+            }
+            return wire;
+        }
+        return RaidProfile.tryFromId(tag.getString("RaidProfile"));
+    }
+
+    private static boolean hasLegacyRaidResult(Settlement settlement) {
+        if (!settlement.raidLog.isEmpty()) {
+            return true;
+        }
+        // Captain records predate the morning RaidLog. A win or loss is an
+        // equally decisive v0 result marker; merely knowing a named captain
+        // is not, because rosters can be generated before the first attack.
+        for (com.hearthstead.settlement.raid.RaidCaptain captain
+            : settlement.raidCaptains) {
+            if (captain.victories() > 0 || captain.defeats() > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class SettlerRecord {
