@@ -15,10 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.MobSpawnType;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.items.ItemStackHandler;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -171,8 +168,22 @@ public final class SettlementManager {
             settler.bindTo(s.id, s.center);
             s.putRecord(settler.getUUID(), name, Profession.NONE);
         }
+        if (!level.addFreshEntity(settler)) {
+            // The target clock must only renew after an entity entered the
+            // world. Roll back the bookkeeping performed above if the level
+            // refused the spawn (another mod/event may cancel it).
+            if (traveler) {
+                if (settler.getUUID().equals(s.travelerId)) {
+                    s.travelerId = null;
+                    s.travelerSinceGameTime = 0L;
+                }
+            } else {
+                s.removeRecord(settler.getUUID());
+            }
+            data(level).setDirty();
+            return null;
+        }
         data(level).setDirty();
-        level.addFreshEntity(settler);
         return settler;
     }
 
@@ -185,11 +196,10 @@ public final class SettlementManager {
      * gone from the hearth, so this method only ever does the joining, the
      * same as it always has.
      */
-    public static void convertTraveler(ServerLevel level, SettlerEntity settler) {
+    public static boolean convertTraveler(ServerLevel level, SettlerEntity settler) {
         Settlement s = byId(level, settler.getTargetSettlementId());
         if (s == null || s.population() >= s.capacity()) {
-            settler.discard();
-            return;
+            return false;
         }
         settler.bindTo(s.id, s.center);
         s.putRecord(settler.getUUID(), settler.getSettlerName(), Profession.NONE);
@@ -200,6 +210,7 @@ public final class SettlementManager {
         broadcast(level, s, Component.translatable("hearthstead.message.recruited",
             settler.getSettlerName(), s.name));
         data(level).setDirty();
+        return true;
     }
 
     /** One-second cadence, driven by the hearth block entity. */
@@ -221,48 +232,39 @@ public final class SettlementManager {
             return;
         }
 
-        // PLAN_TAVERN_GATE.md, D-TAVERN-1: a settlement draws NO new
-        // traveler at all without a valid tavern -- MineColonies-fidelity
-        // where the owner's 2026-08-26 order says it matters. Gated on
-        // BUILDING validity (firstValidTavern requires b.valid, never
-        // b.workers): a staffing-level gate would deadlock a settlement
-        // whose only innkeeper-candidate dies before ever being hired,
-        // with nobody left to staff the very building that would let a
-        // replacement arrive. Staffing still matters -- it accelerates the
-        // gain below, and separately discounts the price via
-        // Costs.discountsFor(RECRUIT) -- it just never gets to be the
-        // on/off switch. Joining is NOT gated the same way: see
-        // tickWaitingTraveler, unchanged, and D-TAVERN-2's grandfather
-        // clause for a guest already waiting when a tavern invalidates.
-        boolean attractive = s.population() < s.capacity()
-            && s.foodCache >= 8
-            && s.moraleCache >= 60
-            && tavern != null;
-        if (attractive) {
-            if (s.recruitTarget <= 0) {
-                s.recruitTarget = 200 + level.random.nextInt(80);
+        RecruitmentPolicy.Assessment assessment = RecruitmentPolicy.assess(
+            level, s, RecruitmentPolicy.Stage.ATTRACTION);
+        if (assessment.eligible()) {
+            // One manager tick is one qualified real second. Hospitality can
+            // lower the material price, never compress a 2-4 Minecraft-day
+            // wall-clock into minutes.
+            if (s.recruitProgress < s.recruitTarget) {
+                s.recruitProgress++;
             }
-            int gain = s.moraleCache >= 80 ? 2 : 1;
-            if (tavern != null) {
-                // A tavern is the front door travelers actually notice; a
-                // hospitality-minded settlement (an innkeeper on shift)
-                // is noticed further still. Scales the SAME gauge rather
-                // than adding a second one, so the hearth's recruit bar
-                // stays the one number that tells the whole story.
-                gain += tavern.workers.isEmpty() ? 1 : 2;
+            if (s.recruitQualifiedSeconds
+                < RecruitmentPolicy.MIN_QUALIFIED_SECONDS) {
+                s.recruitQualifiedSeconds++;
             }
-            s.recruitProgress += gain;
-            if (s.recruitProgress >= s.recruitTarget) {
-                s.recruitProgress = 0;
-                s.recruitTarget = 200 + level.random.nextInt(80);
+            if (s.recruitProgress >= s.recruitTarget
+                && s.recruitQualifiedSeconds >= RecruitmentPolicy.MIN_QUALIFIED_SECONDS) {
                 SettlerEntity traveler = spawnSettler(level, s, true);
                 if (traveler != null) {
+                    // Only a real entity accepted by the level ends a cycle.
+                    s.recruitProgress = 0;
+                    s.recruitQualifiedSeconds = 0;
+                    if (s.recruitCycle < Integer.MAX_VALUE) {
+                        s.recruitCycle++;
+                    }
+                    s.recruitTarget = RecruitmentPolicy.targetFor(s.id, s.recruitCycle);
                     broadcast(level, s,
                         Component.translatable("hearthstead.message.traveler_spotted"));
                 }
             }
-        } else if (s.recruitProgress > 0) {
-            s.recruitProgress--;
+        } else {
+            // A blocked village cannot bank a hidden almost-complete guest.
+            // Decay is controlled and symmetric across both required clocks.
+            s.recruitProgress = Math.max(0, s.recruitProgress - 1);
+            s.recruitQualifiedSeconds = Math.max(0, s.recruitQualifiedSeconds - 1);
         }
         data(level).setDirty();
     }
@@ -301,20 +303,17 @@ public final class SettlementManager {
         BlockPos waitingSpot = tavern != null ? tavern.anchor : s.center;
         boolean arrived = waitingSpot != null
             && guest.blockPosition().distSqr(waitingSpot) <= 9;
-        Costs.Price price = recruitPrice(level, s);
-        if (arrived && level.getBlockEntity(s.center) instanceof HearthBlockEntity hearth
-            && Costs.canPay(hearth.getInventory(), price)) {
-            // Capacity is checked BEFORE the price leaves the hearth. The
-            // audit wave found the old order paid first and let
-            // convertTraveler discard the guest at a full settlement --
-            // four bread and eight planks burned for nobody, silently. A
-            // full house is not a sale: the guest keeps waiting (a bed may
-            // yet be built or freed before their patience runs out), and
-            // the goods stay where they are.
-            if (s.population() >= s.capacity()) {
-                return;
-            }
-            Costs.pay(hearth.getInventory(), price);
+        RecruitmentPolicy.Assessment assessment = RecruitmentPolicy.assess(
+            level, s, RecruitmentPolicy.Stage.WAITING_ADMISSION);
+        HearthBlockEntity hearth = RecruitmentPolicy.hearth(level, s);
+        if (arrived && assessment.eligible() && hearth != null
+            && s.id.equals(guest.getTargetSettlementId())
+            // Same-tick defensive recheck: no live stack is touched unless
+            // the exact discounted transaction remains payable.
+            && Costs.canPay(hearth.getInventory(), assessment.price())) {
+            Costs.pay(hearth.getInventory(), assessment.price());
+            // Every conversion gate was approved above on this server tick;
+            // convertTraveler has no remaining fallible inventory work.
             convertTraveler(level, guest);
             return;
         }
@@ -350,6 +349,27 @@ public final class SettlementManager {
         return firstValidTavern(s) != null;
     }
 
+    /**
+     * Admin fast-forward used by {@code /hearthstead recruit}. It advances
+     * both clocks to one qualified second before completion, but refuses the
+     * same attraction blockers normal runtime does. Admission remains a
+     * separate, fully assessed and paid transaction after the guest arrives.
+     */
+    public static boolean primeRecruitment(ServerLevel level, Settlement s) {
+        if (s.travelerId != null) {
+            return false;
+        }
+        RecruitmentPolicy.Assessment assessment = RecruitmentPolicy.assess(
+            level, s, RecruitmentPolicy.Stage.ATTRACTION);
+        if (!assessment.eligible()) {
+            return false;
+        }
+        s.recruitProgress = Math.max(0, s.recruitTarget - 1);
+        s.recruitQualifiedSeconds = RecruitmentPolicy.MIN_QUALIFIED_SECONDS - 1;
+        data(level).setDirty();
+        return true;
+    }
+
     // ------------------------------------------------------- the price ---
 
     /**
@@ -371,30 +391,6 @@ public final class SettlementManager {
      */
     public static List<Costs.Discount> recruitDiscounts(ServerLevel level, Settlement s) {
         return Costs.discountsFor(level, s, Costs.PriceKey.RECRUIT);
-    }
-
-    private static int countItem(ItemStackHandler inventory, Item item) {
-        int total = 0;
-        for (int i = 0; i < inventory.getSlots(); i++) {
-            ItemStack stack = inventory.getStackInSlot(i);
-            if (stack.is(item)) {
-                total += stack.getCount();
-            }
-        }
-        return total;
-    }
-
-    /** Extracts real stacks out of real slots — chest truth (INV-3). */
-    private static void extractExact(ItemStackHandler inventory, Item item, int amount) {
-        int remaining = amount;
-        for (int i = 0; i < inventory.getSlots() && remaining > 0; i++) {
-            if (!inventory.getStackInSlot(i).is(item)) {
-                continue;
-            }
-            int took = inventory.extractItem(i, remaining,
-                false).getCount();
-            remaining -= took;
-        }
     }
 
     public static void raiseAlert(ServerLevel level, Settlement s, BlockPos threatPos) {

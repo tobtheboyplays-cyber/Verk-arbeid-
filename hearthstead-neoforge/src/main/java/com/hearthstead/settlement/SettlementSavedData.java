@@ -14,7 +14,7 @@ import java.util.UUID;
 /** Per-dimension registry of settlements, persisted with the world save. */
 public class SettlementSavedData extends SavedData {
     /** Root save schema. Missing means the pre-M1 v0 format. */
-    public static final int CURRENT_DATA_VERSION = 1;
+    public static final int CURRENT_DATA_VERSION = 2;
     private static final String DATA_NAME = "hearthstead_settlements";
 
     public final Map<UUID, Settlement> settlements = new HashMap<>();
@@ -72,7 +72,7 @@ public class SettlementSavedData extends SavedData {
         }
         if (sourceVersion < CURRENT_DATA_VERSION) {
             // Ensure an otherwise-idle upgraded world eventually writes the
-            // explicit v1 schema instead of depending on unrelated gameplay
+            // explicit current schema instead of depending on unrelated gameplay
             // to dirty the SavedData after migration.
             data.setDirty();
         }

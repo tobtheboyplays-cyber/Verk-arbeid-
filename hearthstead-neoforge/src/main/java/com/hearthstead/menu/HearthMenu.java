@@ -31,7 +31,14 @@ public class HearthMenu extends AbstractContainerMenu {
      *  blocker BEFORE the progress bar, so it needs its own synced slot
      *  rather than inferring the gate from DATA_RECRUIT alone. */
     public static final int DATA_TAVERN = 8;
-    public static final int DATA_COUNT = 9;
+    /** Stable {@link com.hearthstead.settlement.RecruitmentPolicy.Blocker} wire id. */
+    public static final int DATA_RECRUIT_BLOCKER = 9;
+    public static final int DATA_READY_AFTER_PRICE = 10;
+    public static final int DATA_REQUIRED_RESERVE = 11;
+    public static final int DATA_MISSING_RESERVE = 12;
+    /** Stable {@link com.hearthstead.settlement.RecruitmentPolicy.Stage} wire id. */
+    public static final int DATA_RECRUIT_STAGE = 13;
+    public static final int DATA_COUNT = 14;
 
     public static final int COMMUNAL_SLOTS = HearthBlockEntity.INVENTORY_SIZE;
     public static final int COMMUNAL_X = 104;

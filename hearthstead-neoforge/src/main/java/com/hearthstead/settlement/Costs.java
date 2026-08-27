@@ -215,9 +215,9 @@ public final class Costs {
         switch (key) {
             case RECRUIT -> {
                 // Hospitality is the innkeeper's trade -- an employed
-                // innkeeper haggles the price down the same way a staffed
-                // tavern already speeds up the recruit gauge
-                // (SettlementManager#tickRecruitment). Read straight off
+                // innkeeper haggles the price down and extends a waiting
+                // guest's patience. The 2-4 day attraction clock itself is
+                // deliberately never accelerated. Read straight off
                 // Building#workers, never a flag kept in step by hand.
                 Building tavern = firstValid(s, BuildingType.TAVERN);
                 if (tavern != null && !tavern.workers.isEmpty()) {

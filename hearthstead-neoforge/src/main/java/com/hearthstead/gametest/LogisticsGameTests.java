@@ -12,6 +12,7 @@ import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
+import com.hearthstead.settlement.RecruitmentPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -676,7 +677,7 @@ public class LogisticsGameTests {
         Container source = containerAt(helper, warehouseChestRel);
         helper.assertTrue(source != null, "arena warehouse chest should exist");
         int ingotSeed = 12;
-        int breadSeed = 8;
+        int breadSeed = 24;
         source.setItem(0, new ItemStack(Items.IRON_INGOT, ingotSeed));
         source.setItem(1, new ItemStack(Items.BREAD, breadSeed));
 
@@ -689,7 +690,8 @@ public class LogisticsGameTests {
         helper.assertTrue(com.hearthstead.settlement.Employment
             .hire(helper.getLevel(), s, warehouse, bud).ok(),
             "the warehouse must be able to take the courier");
-        int threshold = CourierWorkGoal.hearthFoodThreshold(s.population());
+        int threshold = RecruitmentPolicy.assess(helper.getLevel(), s,
+            RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
 
         final boolean[] breadMovedBeforeRestock = {false};
 

@@ -2,6 +2,8 @@ package com.hearthstead.block;
 
 import com.hearthstead.menu.HearthMenu;
 import com.hearthstead.registry.ModBlockEntities;
+import com.hearthstead.settlement.ReadyFood;
+import com.hearthstead.settlement.RecruitmentPolicy;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import net.minecraft.core.BlockPos;
@@ -14,7 +16,6 @@ import net.minecraft.world.MenuProvider;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ContainerData;
 import net.minecraft.world.item.ItemStack;
@@ -30,9 +31,15 @@ import java.util.UUID;
 public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     public static final int INVENTORY_SIZE = 24;
 
+    private long assessmentCacheTick = Long.MIN_VALUE;
+    @Nullable
+    private RecruitmentPolicy.Assessment assessmentCache;
+
     private final ItemStackHandler inventory = new ItemStackHandler(INVENTORY_SIZE) {
         @Override
         protected void onContentsChanged(int slot) {
+            assessmentCacheTick = Long.MIN_VALUE;
+            assessmentCache = null;
             setChanged();
         }
     };
@@ -89,14 +96,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
 
     /** Number of edible items in communal storage. */
     public int countFoodUnits() {
-        int units = 0;
-        for (int i = 0; i < inventory.getSlots(); i++) {
-            ItemStack stack = inventory.getStackInSlot(i);
-            if (!stack.isEmpty() && stack.getFoodProperties(null) != null) {
-                units += stack.getCount();
-            }
-        }
-        return units;
+        return ReadyFood.count(inventory);
     }
 
     /**
@@ -104,20 +104,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
      * Returns EMPTY when the larder is bare.
      */
     public ItemStack extractBestFood() {
-        int bestSlot = -1;
-        int bestNutrition = -1;
-        for (int i = 0; i < inventory.getSlots(); i++) {
-            ItemStack stack = inventory.getStackInSlot(i);
-            FoodProperties food = stack.isEmpty() ? null : stack.getFoodProperties(null);
-            if (food != null && food.nutrition() > bestNutrition) {
-                bestNutrition = food.nutrition();
-                bestSlot = i;
-            }
-        }
-        if (bestSlot < 0) {
-            return ItemStack.EMPTY;
-        }
-        return inventory.extractItem(bestSlot, 1, false);
+        return ReadyFood.extractBest(inventory);
     }
 
     /** Burns up to {@code count} food items (recruitment cost). */
@@ -146,6 +133,8 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     /** Direct binding for tests and admin tools; skips the founding flow. */
     public void bindSettlement(@Nullable UUID id) {
         this.settlementId = id;
+        assessmentCacheTick = Long.MIN_VALUE;
+        assessmentCache = null;
         setChanged();
     }
 
@@ -180,8 +169,15 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
             }
             Settlement s = SettlementManager.byId(serverLevel, settlementId);
             if (s == null) {
-                return 0;
+                return switch (index) {
+                    case HearthMenu.DATA_RECRUIT_BLOCKER ->
+                        RecruitmentPolicy.Blocker.INVALID_STATE.wireId();
+                    case HearthMenu.DATA_RECRUIT_STAGE ->
+                        RecruitmentPolicy.Stage.INVALID.wireId();
+                    default -> 0;
+                };
             }
+            RecruitmentPolicy.Assessment assessment = menuAssessment(serverLevel, s);
             return switch (index) {
                 case HearthMenu.DATA_POPULATION -> s.population();
                 case HearthMenu.DATA_CAPACITY -> s.capacity();
@@ -191,8 +187,16 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 case HearthMenu.DATA_RADIUS -> s.radius;
                 case HearthMenu.DATA_ALERT -> s.alertActive(serverLevel.getGameTime()) ? 1 : 0;
                 case HearthMenu.DATA_RECRUIT ->
-                    s.recruitTarget > 0 ? Math.min(100, s.recruitProgress * 100 / s.recruitTarget) : 0;
+                    s.recruitTarget > 0
+                        ? (int) Math.min(100L,
+                            (long) s.recruitProgress * 100L / s.recruitTarget)
+                        : 0;
                 case HearthMenu.DATA_TAVERN -> SettlementManager.hasValidTavern(s) ? 1 : 0;
+                case HearthMenu.DATA_RECRUIT_BLOCKER -> assessment.blocker().wireId();
+                case HearthMenu.DATA_READY_AFTER_PRICE -> assessment.readyFoodAfterPrice();
+                case HearthMenu.DATA_REQUIRED_RESERVE -> assessment.requiredReadyFood();
+                case HearthMenu.DATA_MISSING_RESERVE -> assessment.missingReadyFood();
+                case HearthMenu.DATA_RECRUIT_STAGE -> assessment.stage().wireId();
                 default -> 0;
             };
         }
@@ -206,6 +210,18 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
             return HearthMenu.DATA_COUNT;
         }
     };
+
+    private RecruitmentPolicy.Assessment menuAssessment(ServerLevel serverLevel,
+                                                         Settlement settlement) {
+        long now = serverLevel.getGameTime();
+        RecruitmentPolicy.Stage stage = RecruitmentPolicy.stageFor(settlement);
+        if (assessmentCache == null || assessmentCacheTick != now
+            || assessmentCache.stage() != stage) {
+            assessmentCache = RecruitmentPolicy.assess(serverLevel, settlement, stage);
+            assessmentCacheTick = now;
+        }
+        return assessmentCache;
+    }
 
     @Override
     public Component getDisplayName() {
@@ -234,5 +250,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         super.loadAdditional(tag, registries);
         inventory.deserializeNBT(registries, tag.getCompound("Inventory"));
         settlementId = tag.hasUUID("SettlementId") ? tag.getUUID("SettlementId") : null;
+        assessmentCacheTick = Long.MIN_VALUE;
+        assessmentCache = null;
     }
 }

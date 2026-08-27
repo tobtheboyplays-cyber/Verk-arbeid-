@@ -33,8 +33,14 @@ public class Settlement {
     /** Automatically detected buildings (homes first; more types later). */
     public final List<Building> buildings = new ArrayList<>();
 
+    /** Eligible seconds accumulated toward this settlement's locked target. */
     public int recruitProgress;
+    /** Independently proves the universal two-day minimum was qualified. */
+    public int recruitQualifiedSeconds;
+    /** Deterministic 2-4 day target, locked until a traveler really spawns. */
     public int recruitTarget;
+    /** Successful traveler-spawn generation used to derive the next target. */
+    public int recruitCycle;
     public long alertUntilGameTime;
     public BlockPos alertPos;
     /** A traveler currently walking toward the hearth, if any. */
@@ -139,6 +145,7 @@ public class Settlement {
         this.id = id;
         this.name = name;
         this.center = center;
+        this.recruitTarget = RecruitmentPolicy.targetFor(id, 0);
     }
 
     /** Three founders shelter at the hearth; growth beyond that needs beds. */
@@ -224,7 +231,9 @@ public class Settlement {
         tag.put("Center", NbtUtils.writeBlockPos(center));
         tag.putInt("Radius", radius);
         tag.putInt("RecruitProgress", recruitProgress);
+        tag.putInt("RecruitQualifiedSeconds", recruitQualifiedSeconds);
         tag.putInt("RecruitTarget", recruitTarget);
+        tag.putInt("RecruitCycle", recruitCycle);
         tag.putLong("AlertUntil", alertUntilGameTime);
         if (alertPos != null) {
             tag.put("AlertPos", NbtUtils.writeBlockPos(alertPos));
@@ -292,6 +301,10 @@ public class Settlement {
     }
 
     public static Settlement readNbt(CompoundTag tag, int sourceVersion) {
+        if (sourceVersion < 0 || sourceVersion > SettlementSavedData.CURRENT_DATA_VERSION) {
+            throw new SettlementSavedData.DataVersionException(
+                "Unsupported settlement source version " + sourceVersion);
+        }
         Settlement s = new Settlement(tag.getUUID("Id"), tag.getString("Name"),
             NbtUtils.readBlockPos(tag, "Center").orElse(BlockPos.ZERO));
         s.radius = tag.getInt("Radius");
@@ -301,8 +314,7 @@ public class Settlement {
         s.mayorId = tag.hasUUID("MayorId") ? tag.getUUID("MayorId") : null;
         s.mayorSince = tag.getLong("MayorSince");
         s.mourningUntil = tag.getLong("MourningUntil");
-        s.recruitProgress = tag.getInt("RecruitProgress");
-        s.recruitTarget = tag.getInt("RecruitTarget");
+        readRecruitment(tag, sourceVersion, s);
         s.alertUntilGameTime = tag.getLong("AlertUntil");
         if (tag.contains("AlertPos")) {
             s.alertPos = NbtUtils.readBlockPos(tag, "AlertPos").orElse(null);
@@ -310,6 +322,12 @@ public class Settlement {
         if (tag.hasUUID("TravelerId")) {
             s.travelerId = tag.getUUID("TravelerId");
             s.travelerSinceGameTime = tag.getLong("TravelerSince");
+            // A real traveler spawn clears both attraction clocks before the
+            // save can be written. Non-zero clocks beside a waiting guest are
+            // therefore malformed hidden progress; quarantine only the
+            // counters while preserving the already-locked next target.
+            s.recruitProgress = 0;
+            s.recruitQualifiedSeconds = 0;
         }
         ListTag list = tag.getList("Settlers", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
@@ -382,7 +400,7 @@ public class Settlement {
             if (tag.contains("RaidLifecycle", Tag.TAG_COMPOUND)) {
                 s.raidLifecycle = RaidLifecycle.readNbt(tag.getCompound("RaidLifecycle"));
             } else {
-                // A v1 settlement may not silently become a pristine new
+                // A versioned settlement may not silently become a pristine new
                 // first-raid lifecycle after its authoritative record was
                 // removed or changed to the wrong tag type. Reading an empty
                 // compound retains UNINITIALIZED but marks integrity lost, so
@@ -402,6 +420,83 @@ public class Settlement {
             }
         }
         return s;
+    }
+
+    /**
+     * DataVersion 2 replaces the old 200-279 point gauge with real eligible
+     * seconds. V0/v1 progress migrates as a fraction of its old locked
+     * target, deterministically against the settlement UUID. Wrong tag types
+     * or impossible ranges reset only these clocks to a safe non-ready state;
+     * they never fabricate a nearly-complete candidate during load.
+     */
+    private static void readRecruitment(CompoundTag tag, int sourceVersion,
+                                        Settlement settlement) {
+        if (sourceVersion <= 1) {
+            boolean hasProgress = tag.contains("RecruitProgress", Tag.TAG_INT);
+            boolean hasTarget = tag.contains("RecruitTarget", Tag.TAG_INT);
+            if (!hasProgress || !hasTarget) {
+                resetRecruitmentClocks(settlement);
+                return;
+            }
+            int oldProgress = tag.getInt("RecruitProgress");
+            int oldTarget = tag.getInt("RecruitTarget");
+            // An untouched legacy settlement persisted 0/0 before its first
+            // attractive second. It is valid, but carries no fraction.
+            if (oldProgress == 0 && oldTarget == 0) {
+                resetRecruitmentClocks(settlement);
+                return;
+            }
+            // The complete v0/v1 contract was target 200..279 and progress
+            // between zero and that target. Anything else is quarantined.
+            if (oldTarget < 200 || oldTarget > 279
+                || oldProgress < 0 || oldProgress > oldTarget) {
+                resetRecruitmentClocks(settlement);
+                return;
+            }
+            settlement.recruitCycle = 0;
+            settlement.recruitTarget = RecruitmentPolicy.targetFor(settlement.id, 0);
+            settlement.recruitProgress = proportional(oldProgress, oldTarget,
+                settlement.recruitTarget);
+            settlement.recruitQualifiedSeconds = proportional(oldProgress, oldTarget,
+                RecruitmentPolicy.MIN_QUALIFIED_SECONDS);
+            return;
+        }
+
+        if (!tag.contains("RecruitProgress", Tag.TAG_INT)
+            || !tag.contains("RecruitQualifiedSeconds", Tag.TAG_INT)
+            || !tag.contains("RecruitTarget", Tag.TAG_INT)
+            || !tag.contains("RecruitCycle", Tag.TAG_INT)) {
+            resetRecruitmentClocks(settlement);
+            return;
+        }
+        int progress = tag.getInt("RecruitProgress");
+        int qualified = tag.getInt("RecruitQualifiedSeconds");
+        int target = tag.getInt("RecruitTarget");
+        int cycle = tag.getInt("RecruitCycle");
+        if (cycle < 0
+            || target != RecruitmentPolicy.targetFor(settlement.id, cycle)
+            || progress < 0 || progress > target
+            || qualified < 0
+            || qualified > RecruitmentPolicy.MIN_QUALIFIED_SECONDS) {
+            resetRecruitmentClocks(settlement);
+            return;
+        }
+        settlement.recruitCycle = cycle;
+        settlement.recruitTarget = target;
+        settlement.recruitProgress = progress;
+        settlement.recruitQualifiedSeconds = qualified;
+    }
+
+    private static int proportional(int numerator, int denominator, int scale) {
+        long scaled = (long) numerator * scale;
+        return (int) ((scaled + denominator / 2L) / denominator);
+    }
+
+    private static void resetRecruitmentClocks(Settlement settlement) {
+        settlement.recruitCycle = 0;
+        settlement.recruitProgress = 0;
+        settlement.recruitQualifiedSeconds = 0;
+        settlement.recruitTarget = RecruitmentPolicy.targetFor(settlement.id, 0);
     }
 
     private static Optional<RaidProfile> readRaidProfile(CompoundTag tag) {

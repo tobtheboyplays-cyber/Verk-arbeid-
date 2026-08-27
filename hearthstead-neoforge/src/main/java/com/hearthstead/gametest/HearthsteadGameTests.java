@@ -10,6 +10,7 @@ import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.RecruitmentPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -473,7 +474,9 @@ public class HearthsteadGameTests {
         s.radius = 48;
         s.foodCache = 17;
         s.recruitProgress = 55;
-        s.recruitTarget = 240;
+        s.recruitQualifiedSeconds = 44;
+        s.recruitCycle = 3;
+        s.recruitTarget = RecruitmentPolicy.targetFor(s.id, s.recruitCycle);
         s.putRecord(UUID.randomUUID(), "Sigrun", Profession.GUARD);
         s.putRecord(UUID.randomUUID(), "Aldric", Profession.NONE);
 
@@ -492,6 +495,11 @@ public class HearthsteadGameTests {
             helper.assertTrue(loaded.population() == 2, "records survive");
             helper.assertTrue(loaded.employed() == 1, "professions survive");
             helper.assertTrue(loaded.recruitProgress == 55, "recruit progress survives");
+            helper.assertTrue(loaded.recruitQualifiedSeconds == 44,
+                "qualified seconds survive");
+            helper.assertTrue(loaded.recruitCycle == 3
+                && loaded.recruitTarget == s.recruitTarget,
+                "locked deterministic target and generation survive");
         });
     }
 

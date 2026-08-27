@@ -241,14 +241,10 @@ public final class HearthsteadCommand {
     }
 
     /**
-     * PLAN_TAVERN_GATE.md krav 4 (severity 1, "stille feil"): a settlement
-     * with no valid tavern cannot be force-advanced -- the gate this slice
-     * added ({@link SettlementManager#hasValidTavern}) applies here exactly
-     * as it does to the real tick, so this admin shortcut never lies about
-     * the same rule a player is shown in {@code HearthScreen}. Feedback
-     * always names WHAT happened, one line per settlement actually
-     * advanced or skipped -- never a single opaque success message that
-     * could silently do nothing.
+     * The admin shortcut consumes the same complete attraction assessment as
+     * normal runtime through {@link SettlementManager#primeRecruitment}; it
+     * cannot bypass the hearth, tavern, bed, morale, price or post-payment
+     * reserve gates. Feedback names every settlement advanced or skipped.
      */
     private static int recruit(CommandSourceStack source) {
         ServerLevel level = source.getLevel();
@@ -260,11 +256,10 @@ public final class HearthsteadCommand {
         int forced = 0;
         java.util.List<String> skipped = new java.util.ArrayList<>();
         for (Settlement s : all) {
-            if (!SettlementManager.hasValidTavern(s)) {
+            if (!SettlementManager.primeRecruitment(level, s)) {
                 skipped.add(s.name);
                 continue;
             }
-            s.recruitProgress = Math.max(0, s.recruitTarget - 1);
             forced++;
         }
         SettlementManager.data(level).setDirty();

@@ -8,6 +8,7 @@ import com.hearthstead.menu.HearthMenu;
 import com.hearthstead.network.HearthMayorAction;
 import com.hearthstead.network.HearthMayorSnapshot;
 import com.hearthstead.settlement.Mayor;
+import com.hearthstead.settlement.RecruitmentPolicy;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Tooltip;
@@ -436,51 +437,51 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
             boolean blink = (System.currentTimeMillis() / 400) % 2 == 0;
             graphics.drawString(font, Component.translatable("hearthstead.gui.alert"),
                 STAT_X, BAR_Y + 14, blink ? 0xFFA03030 : 0xFF702020, false);
-        } else if (menu.get(HearthMenu.DATA_TAVERN) == 0) {
-            // PLAN_TAVERN_GATE.md krav 1 (severity 1, "dishonest"): a
-            // tavern-less settlement can still be sitting on DECAYING
-            // recruit progress from before its tavern broke -- DATA_RECRUIT
-            // would read > 0 for that whole decay. Rendered BEFORE the
-            // recruit > 0 branch below so that case can never fall through
-            // to "A traveler draws near..." while nothing is actually
-            // gaining: the gate must never lie about which stripe is true.
-            graphics.drawString(font,
-                Component.translatable("hearthstead.gui.recruit_blocked.tavern"),
-                STAT_X, BAR_Y + 13, INK_SOFT, false);
         } else {
             int recruit = menu.get(HearthMenu.DATA_RECRUIT);
-            if (recruit > 0) {
-                graphics.drawString(font,
-                    Component.translatable("hearthstead.gui.recruit_progress"),
-                    STAT_X, BAR_Y + 13, INK_SOFT, false);
+            RecruitmentPolicy.Blocker blocker = RecruitmentPolicy.Blocker.fromWireId(
+                menu.get(HearthMenu.DATA_RECRUIT_BLOCKER));
+            graphics.drawString(font, recruitStatus(blocker, pop, cap, morale),
+                STAT_X, BAR_Y + 13, INK_SOFT, false);
+            if (blocker == RecruitmentPolicy.Blocker.NONE && recruit > 0
+                && RecruitmentPolicy.Stage.fromWireId(
+                    menu.get(HearthMenu.DATA_RECRUIT_STAGE))
+                    == RecruitmentPolicy.Stage.ATTRACTION) {
                 graphics.fill(BAR_X, BAR_Y + 23, BAR_X + BAR_W, BAR_Y + 26, 0xFF54432F);
                 graphics.fill(BAR_X, BAR_Y + 23, BAR_X + recruit * BAR_W / 100,
                     BAR_Y + 26, 0xFFC9A83C);
-            } else {
-                // The stripe used to vanish entirely when recruitment was
-                // blocked -- the owner's masterplan called growth invisible,
-                // and byggherre-dom #4 located the actual gap here: the bar
-                // existed, the REASON did not, and the thresholds (food >= 8,
-                // morale >= 60, a free bed) were written nowhere a player
-                // could see. The conditions mirror SettlementManager's
-                // attractiveness test and are all already synced; show the
-                // FIRST blocker in its priority order, or the all-clear.
-                Component why;
-                if (pop >= cap) {
-                    why = Component.translatable("hearthstead.gui.recruit_blocked.beds",
-                        pop, cap);
-                } else if (food < 8) {
-                    why = Component.translatable("hearthstead.gui.recruit_blocked.food",
-                        food, 8);
-                } else if (morale < 60) {
-                    why = Component.translatable("hearthstead.gui.recruit_blocked.morale",
-                        morale, 60);
-                } else {
-                    why = Component.translatable("hearthstead.gui.recruit_ready");
-                }
-                graphics.drawString(font, why, STAT_X, BAR_Y + 13, INK_SOFT, false);
             }
         }
+    }
+
+    /** Formats only the server-selected blocker; no client-side gate logic. */
+    private Component recruitStatus(RecruitmentPolicy.Blocker blocker,
+                                    int population, int capacity, int morale) {
+        RecruitmentPolicy.Stage stage = RecruitmentPolicy.Stage.fromWireId(
+            menu.get(HearthMenu.DATA_RECRUIT_STAGE));
+        return switch (blocker) {
+            case NONE -> stage == RecruitmentPolicy.Stage.WAITING_ADMISSION
+                ? Component.translatable("hearthstead.gui.recruit_waiting.ready")
+                : menu.get(HearthMenu.DATA_RECRUIT) > 0
+                    ? Component.translatable("hearthstead.gui.recruit_progress")
+                    : Component.translatable("hearthstead.gui.recruit_ready");
+            case NO_HEARTH -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.hearth");
+            case NO_TAVERN -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.tavern");
+            case NO_BED -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.beds", population, capacity);
+            case LOW_MORALE -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.morale", morale, 60);
+            case CANNOT_PAY -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.price");
+            case INSUFFICIENT_READY_FOOD -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.reserve",
+                menu.get(HearthMenu.DATA_READY_AFTER_PRICE),
+                menu.get(HearthMenu.DATA_REQUIRED_RESERVE));
+            case INVALID_STATE -> Component.translatable(
+                "hearthstead.gui.recruit_blocked.invalid");
+        };
     }
 
     /** One icon (from the texture's icon strip at u=224) + value text. */
@@ -557,11 +558,37 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
                 lines.add(Component.translatable("hearthstead.gui.tooltip.morale.desc")
                     .withStyle(net.minecraft.ChatFormatting.GRAY));
             } else if (menu.get(HearthMenu.DATA_ALERT) != 1
-                && menu.get(HearthMenu.DATA_TAVERN) == 1
-                && menu.get(HearthMenu.DATA_RECRUIT) > 0
                 && localY >= BAR_Y + 12 && localY < BAR_Y + 27) {
-                lines.add(Component.translatable("hearthstead.gui.tooltip.recruit",
-                    menu.get(HearthMenu.DATA_RECRUIT)));
+                RecruitmentPolicy.Stage stage = RecruitmentPolicy.Stage.fromWireId(
+                    menu.get(HearthMenu.DATA_RECRUIT_STAGE));
+                RecruitmentPolicy.Blocker blocker = RecruitmentPolicy.Blocker.fromWireId(
+                    menu.get(HearthMenu.DATA_RECRUIT_BLOCKER));
+                String stageKey = switch (stage) {
+                    case ATTRACTION -> "hearthstead.gui.tooltip.recruit.stage.attraction";
+                    case WAITING_ADMISSION -> "hearthstead.gui.tooltip.recruit.stage.waiting";
+                    case INVALID -> "hearthstead.gui.tooltip.recruit.stage.invalid";
+                };
+                lines.add(Component.translatable(stageKey));
+                lines.add(recruitStatus(blocker,
+                    menu.get(HearthMenu.DATA_POPULATION),
+                    menu.get(HearthMenu.DATA_CAPACITY),
+                    menu.get(HearthMenu.DATA_MORALE)).copy()
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+                lines.add(Component.translatable("hearthstead.gui.tooltip.recruit.reserve",
+                    menu.get(HearthMenu.DATA_READY_AFTER_PRICE),
+                    menu.get(HearthMenu.DATA_REQUIRED_RESERVE))
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+                int missing = menu.get(HearthMenu.DATA_MISSING_RESERVE);
+                if (missing > 0) {
+                    lines.add(Component.translatable(
+                        "hearthstead.gui.tooltip.recruit.missing", missing)
+                        .withStyle(net.minecraft.ChatFormatting.RED));
+                }
+                if (stage == RecruitmentPolicy.Stage.ATTRACTION
+                    && blocker == RecruitmentPolicy.Blocker.NONE) {
+                    lines.add(Component.translatable("hearthstead.gui.tooltip.recruit",
+                        menu.get(HearthMenu.DATA_RECRUIT)));
+                }
             }
         }
         if (!lines.isEmpty()) {

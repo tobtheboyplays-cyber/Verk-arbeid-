@@ -142,9 +142,9 @@ public class RecruitGameTests {
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
-        // Exactly the price, plus an unrelated good that must survive
-        // untouched -- proof this charges the price and nothing else.
-        hearth.insertGoods(new ItemStack(Items.BREAD, 4));
+        // Exact price plus the post-payment two-day reserve. The reserve
+        // survives; only the four-bread price leaves.
+        hearth.insertGoods(new ItemStack(Items.BREAD, 12));
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
         hearth.insertGoods(new ItemStack(Items.IRON_INGOT, 5));
 
@@ -163,8 +163,9 @@ public class RecruitGameTests {
             "the settlement roster must gain them");
         helper.assertTrue(s.travelerId == null, "no guest is left waiting after they join");
 
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "the bread price must be gone, found " + countInHearth(hearth, Items.BREAD));
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 8,
+            "the bread price must leave exactly eight reserve meals, found "
+                + countInHearth(hearth, Items.BREAD));
         helper.assertTrue(countInHearth(hearth, Items.OAK_PLANKS) == 0,
             "the planks price must be gone, found " + countInHearth(hearth, Items.OAK_PLANKS));
         helper.assertTrue(countInHearth(hearth, Items.IRON_INGOT) == 5,
@@ -232,54 +233,31 @@ public class RecruitGameTests {
      * SAME recruit gauge rather than adding a second, hidden one.
      */
     @GameTest(batch = "recruit", template = "empty16", timeoutTicks = 200)
-    public void aTavernAndItsInnkeeperAccelerateTheRecruitGauge(GameTestHelper helper) {
+    public void anInnkeeperDiscountDoesNotCompressTheRecruitClock(GameTestHelper helper) {
+        floor(helper, 16);
         ServerLevel level = helper.getLevel();
-        // No physical settlements share this template's small footprint, so
-        // every one of these three stays deliberately unregistered in
-        // SettlementSavedData -- this test only ever calls tickRecruitment
-        // directly on the object it holds, and skipping registration is one
-        // less way an ad-hoc test settlement could answer for a real one
-        // (see settlement()'s own radius comment for the failure this avoids).
+        BlockPos hearthRel = new BlockPos(6, 1, 6);
+        Settlement s = settlement(helper, hearthRel);
+        Building tavern = building(helper, s, BuildingType.TAVERN, 10, 10);
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.insertGoods(new ItemStack(Items.BREAD, 48));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 48));
+        s.moraleCache = 80;
 
-        Settlement bare = new Settlement(UUID.randomUUID(), "Uten Vertshus",
-            helper.absolutePos(new BlockPos(2, 1, 2)));
-        bare.foodCache = 10;
-        bare.moraleCache = 60;
-        SettlementManager.tickRecruitment(level, bare);
-        // The gate itself, made explicit rather than only implied by the
-        // ">" comparison below: a tavern-less settlement earns nothing, not
-        // just less.
-        helper.assertTrue(bare.recruitProgress == 0,
-            "a tavern-less settlement must gain no recruit progress at all "
-                + "under the gate, got " + bare.recruitProgress);
+        SettlementManager.tickRecruitment(level, s);
+        helper.assertTrue(s.recruitProgress == 1 && s.recruitQualifiedSeconds == 1,
+            "an eligible settlement must gain exactly one qualified second");
 
-        Settlement withTavern = new Settlement(UUID.randomUUID(), "Med Vertshus",
-            helper.absolutePos(new BlockPos(2, 1, 6)));
-        withTavern.foodCache = 10;
-        withTavern.moraleCache = 60;
-        building(helper, withTavern, BuildingType.TAVERN, 4, 6);
-        SettlementManager.tickRecruitment(level, withTavern);
-
-        helper.assertTrue(withTavern.recruitProgress > bare.recruitProgress,
-            "a tavern must speed up recruiting: no tavern got "
-                + bare.recruitProgress + ", with a tavern got " + withTavern.recruitProgress);
-
-        Settlement withInnkeeper = new Settlement(UUID.randomUUID(), "Med Vert",
-            helper.absolutePos(new BlockPos(2, 1, 10)));
-        withInnkeeper.foodCache = 10;
-        withInnkeeper.moraleCache = 60;
-        Building innTavern = building(helper, withInnkeeper, BuildingType.TAVERN, 4, 10);
-        SettlerEntity keeper = settler(helper, withInnkeeper, "Kroverten", 6, 10);
-        helper.assertTrue(Employment.hire(level, withInnkeeper, innTavern, keeper).ok(),
+        SettlerEntity keeper = settler(helper, s, "Kroverten", 8, 10);
+        helper.assertTrue(Employment.hire(level, s, tavern, keeper).ok(),
             "a tavern must be able to take an innkeeper");
         helper.assertTrue(keeper.getProfession() == Profession.INNKEEPER,
             "hired into a tavern, they keep it");
-        SettlementManager.tickRecruitment(level, withInnkeeper);
-
-        helper.assertTrue(withInnkeeper.recruitProgress > withTavern.recruitProgress,
-            "hospitality must raise the bonus further still: tavern alone got "
-                + withTavern.recruitProgress + ", with an innkeeper got "
-                + withInnkeeper.recruitProgress);
+        SettlementManager.tickRecruitment(level, s);
+        helper.assertTrue(s.recruitProgress == 2 && s.recruitQualifiedSeconds == 2,
+            "an innkeeper may discount goods but must not turn one second into "
+                + "multiple clock seconds");
         helper.succeed();
     }
 
@@ -305,12 +283,15 @@ public class RecruitGameTests {
         s.foodCache = 10;
         s.moraleCache = 80;
         s.recruitProgress = 50;
+        s.recruitQualifiedSeconds = 50;
 
         SettlementManager.tickRecruitment(level, s);
 
         helper.assertTrue(s.recruitProgress == 49,
             "no tavern must decay recruit progress by exactly one tick, even "
                 + "while otherwise attractive -- got " + s.recruitProgress);
+        helper.assertTrue(s.recruitQualifiedSeconds == 49,
+            "the universal qualified clock must decay with the target clock");
         helper.assertTrue(s.travelerId == null,
             "no tavern must never spawn a traveler, no matter how full the "
                 + "gauge once was");
@@ -336,6 +317,11 @@ public class RecruitGameTests {
         s.foodCache = 10;
         s.moraleCache = 80;
         s.recruitProgress = 20;
+        s.recruitQualifiedSeconds = 20;
+        HearthBlockEntity hearth = (HearthBlockEntity) level
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.insertGoods(new ItemStack(Items.BREAD, 12));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
 
         // Gate shut: no tavern yet, progress only decays.
         SettlementManager.tickRecruitment(level, s);
@@ -348,9 +334,8 @@ public class RecruitGameTests {
         building(helper, s, BuildingType.TAVERN, tavernRel.getX(), tavernRel.getZ());
         SettlementManager.tickRecruitment(level, s);
 
-        helper.assertTrue(s.recruitProgress > 19,
-            "a valid tavern must reopen the gate and grow progress again -- "
-                + "had 19 after decay, got " + s.recruitProgress + " with a tavern");
+        helper.assertTrue(s.recruitProgress == 20 && s.recruitQualifiedSeconds == 20,
+            "a valid tavern must reopen the gate at exactly one second per tick");
         helper.succeed();
     }
 
@@ -379,7 +364,7 @@ public class RecruitGameTests {
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
-        hearth.insertGoods(new ItemStack(Items.BREAD, 4));
+        hearth.insertGoods(new ItemStack(Items.BREAD, 12));
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
 
         // The room stopped meeting its requirements mid-wait -- the real
@@ -401,8 +386,9 @@ public class RecruitGameTests {
                 + "invalidated tavern, not stranded");
         helper.assertTrue(guest.isBound(), "...and must actually join the settlement");
         helper.assertTrue(s.travelerId == null, "no guest is left waiting once they join");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "the exact bread price must be gone, found " + countInHearth(hearth, Items.BREAD));
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 8,
+            "the price must leave the required reserve, found "
+                + countInHearth(hearth, Items.BREAD));
         helper.assertTrue(countInHearth(hearth, Items.OAK_PLANKS) == 0,
             "the exact planks price must be gone, found " + countInHearth(hearth, Items.OAK_PLANKS));
         helper.succeed();

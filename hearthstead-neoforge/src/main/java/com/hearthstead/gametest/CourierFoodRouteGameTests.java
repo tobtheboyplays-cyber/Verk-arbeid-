@@ -3,6 +3,7 @@ package com.hearthstead.gametest;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.building.Fuel;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.ai.CourierWorkGoal;
@@ -11,6 +12,7 @@ import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
+import com.hearthstead.settlement.RecruitmentPolicy;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -36,7 +38,7 @@ import java.util.UUID;
  * hungry beside it, because settlers only ever eat from the hearth
  * ({@code EatFromHearthGoal}).
  *
- * <p>Three food claims and one fuel claim: a starving hearth is fed,
+ * <p>Six food claims and four fuel claims: a starving hearth is fed,
  * chest-true; a stocked hearth is left alone -- the LOW threshold
  * ({@link CourierWorkGoal#hearthFoodThreshold}) is a real gate, not
  * decoration; feeding the hearth outranks tidying a mine's shelves
@@ -51,6 +53,7 @@ public class CourierFoodRouteGameTests {
 
     private static final BlockPos HEARTH_REL = new BlockPos(2, 1, 2);
     private static final BlockPos WAREHOUSE_CHEST_REL = new BlockPos(5, 1, 3);
+    private static final BlockPos SECOND_WAREHOUSE_CHEST_REL = new BlockPos(9, 1, 3);
     private static final BlockPos WORKSHOP_CHEST_REL = new BlockPos(3, 1, 6);
 
     /** Copied from {@link LogisticsGameTests}: flat floor, low rim wall. */
@@ -154,6 +157,21 @@ public class CourierFoodRouteGameTests {
         return n;
     }
 
+    private static int fuelUnitsIn(Container container) {
+        if (container == null) {
+            return 0;
+        }
+        int units = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            units += Fuel.units(container.getItem(slot));
+        }
+        return units;
+    }
+
+    private static int fuelUnitsInBag(SettlerEntity settler) {
+        return fuelUnitsIn(settler.bag);
+    }
+
     /**
      * A courier who will not snack on the evidence: every test here does
      * conservation arithmetic over seeded FOOD, and a peckish settler
@@ -205,13 +223,14 @@ public class CourierFoodRouteGameTests {
         addWarehouse(helper, s);
         Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
         helper.assertTrue(source != null, "arena warehouse chest should exist");
-        source.setItem(0, new ItemStack(Items.BREAD, 16));
+        source.setItem(0, new ItemStack(Items.BREAD, 32));
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
         // Computed AFTER the courier's record exists: 1 living settler.
-        int threshold = CourierWorkGoal.hearthFoodThreshold(s.population());
-        helper.assertTrue(threshold == 4,
-            "fixture arithmetic: one living settler should put the LOW mark at 4, got "
+        int threshold = RecruitmentPolicy.assess(helper.getLevel(), s,
+            RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
+        helper.assertTrue(threshold == 20,
+            "one resident plus the next recruit and bread price should target 20, got "
                 + threshold);
         final boolean[] sawHeld = {false};
         final boolean[] sawReleasedAfterHold = {false};
@@ -228,7 +247,7 @@ public class CourierFoodRouteGameTests {
             int atWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL), Items.BREAD);
             int inBag = bagCountOf(bud, Items.BREAD);
             int total = atHearth + atWarehouse + inBag;
-            helper.assertTrue(total == 17,
+            helper.assertTrue(total == 33,
                 "bread must be conserved across the food route, saw " + total
                     + " [hearth=" + atHearth + " warehouse=" + atWarehouse
                     + " bag=" + inBag + " act=" + bud.getActivity() + "]");
@@ -263,7 +282,7 @@ public class CourierFoodRouteGameTests {
     @GameTest(template = "empty16", timeoutTicks = 2000, batch = "courier_food_route_day")
     public void stockedLarderTriggersNoDelivery(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
-        int seeded = 8;
+        int seeded = 20;
         hearthAt(helper).insertGoods(new ItemStack(Items.BREAD, seeded));
         addWarehouse(helper, s);
         Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
@@ -271,7 +290,8 @@ public class CourierFoodRouteGameTests {
         source.setItem(0, new ItemStack(Items.BREAD, 16));
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
-        int threshold = CourierWorkGoal.hearthFoodThreshold(s.population());
+        int threshold = RecruitmentPolicy.assess(helper.getLevel(), s,
+            RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
         helper.assertTrue(seeded >= threshold,
             "fixture arithmetic: the seed of " + seeded
                 + " must sit at/above the LOW mark of " + threshold);
@@ -291,6 +311,171 @@ public class CourierFoodRouteGameTests {
             quietTicks[0]++;
             helper.assertTrue(quietTicks[0] >= 400,
                 "watching the whole window: " + quietTicks[0] + "/400 quiet ticks");
+        });
+    }
+
+    /**
+     * A scalar meal target cannot prove that an exact price is payable:
+     * twenty baked potatoes already satisfy the one-resident courier target,
+     * but recruiting still names four loaves. The courier must claim bread
+     * anyway, carry exactly the four-loaf shortfall, conserve every loaf and
+     * stop once the exact price line is covered. Old generic-only routing
+     * never claimed this job because the hearth already held twenty meals.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400,
+        batch = "courier_food_route_day")
+    public void exactRecruitmentBreadOutranksSatisfiedMealTotal(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        HearthBlockEntity hearth = hearthAt(helper);
+        hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 20));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
+        addWarehouse(helper, s);
+        Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
+        helper.assertTrue(source != null, "arena warehouse chest should exist");
+        source.setItem(0, new ItemStack(Items.BREAD, 8));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        RecruitmentPolicy.Assessment opening = RecruitmentPolicy.assess(
+            helper.getLevel(), s, RecruitmentPolicy.stageFor(s));
+        helper.assertTrue(opening.courierReadyFoodTarget() == 20,
+            "fixture target should be 20 meals, got "
+                + opening.courierReadyFoodTarget());
+        helper.assertTrue(hearth.countFoodUnits() == 20,
+            "potatoes should already satisfy the scalar meal target");
+        var openingNeed = RecruitmentPolicy.missingReadyFoodPrices(
+                hearth.getInventory(), opening.price()).stream()
+            .filter(need -> need.matches(new ItemStack(Items.BREAD)))
+            .findFirst();
+        helper.assertTrue(openingNeed.isPresent()
+                && openingNeed.get().missing() == 4,
+            "fixture should expose an exact four-bread price deficit");
+        final boolean[] sawHeld = {false};
+        final boolean[] sawReleasedAfterHold = {false};
+
+        helper.succeedWhen(() -> {
+            boolean held = CourierWorkGoal.restockJobIsHeld(s.id, Items.BREAD);
+            if (held) {
+                sawHeld[0] = true;
+            }
+            if (sawHeld[0] && !held) {
+                sawReleasedAfterHold[0] = true;
+            }
+            int atHearth = countInHearth(hearthAt(helper), Items.BREAD);
+            int atWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
+                Items.BREAD);
+            int inBag = bagCountOf(bud, Items.BREAD);
+            helper.assertTrue(atHearth + atWarehouse + inBag == 8,
+                "bread must be conserved across exact-price delivery, saw "
+                    + (atHearth + atWarehouse + inBag));
+            helper.assertTrue(countInHearth(hearthAt(helper), Items.BAKED_POTATO) == 20,
+                "price routing must not consume or relocate the twenty reserve meals");
+            helper.assertTrue(atHearth == 4 && atWarehouse == 4 && inBag == 0,
+                "courier should deliver exactly the four missing loaves, saw "
+                    + "[hearth=" + atHearth + " warehouse=" + atWarehouse
+                    + " bag=" + inBag + " act=" + bud.getActivity() + "]");
+            boolean breadStillNeeded = RecruitmentPolicy.missingReadyFoodPrices(
+                    hearthAt(helper).getInventory(),
+                    RecruitmentPolicy.assess(helper.getLevel(), s,
+                        RecruitmentPolicy.stageFor(s)).price()).stream()
+                .anyMatch(need -> need.matches(new ItemStack(Items.BREAD)));
+            helper.assertTrue(!breadStillNeeded,
+                "the exact edible recruitment-price deficit should now be closed");
+            helper.assertTrue(sawHeld[0] && sawReleasedAfterHold[0],
+                "exact-price food job should claim and release its reservation");
+        });
+    }
+
+    /**
+     * The price-specific route consumes the live discounted policy price,
+     * not the four-loaf base table. A staffed tavern lowers bread to three;
+     * nineteen wrong meals satisfy the scalar target, yet exactly three
+     * loaves still move and the fourth remains on the warehouse shelf.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2400,
+        batch = "courier_food_route_day")
+    public void courierHonoursLiveInnkeeperBreadDiscount(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        Building tavern = addBuilding(helper, s, BuildingType.TAVERN,
+            new BlockPos(8, 1, 5), new BlockPos(10, 3, 7), new BlockPos(8, 1, 5));
+        tavern.workers.add(UUID.randomUUID());
+        HearthBlockEntity hearth = hearthAt(helper);
+        hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 19));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 6));
+        addWarehouse(helper, s);
+        Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
+        helper.assertTrue(source != null, "arena warehouse chest should exist");
+        source.setItem(0, new ItemStack(Items.BREAD, 8));
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+
+        RecruitmentPolicy.Assessment opening = RecruitmentPolicy.assess(
+            helper.getLevel(), s, RecruitmentPolicy.stageFor(s));
+        helper.assertTrue(opening.price().lines().get(0).count() == 3
+                && opening.courierReadyFoodTarget() == 19
+                && hearth.countFoodUnits() == 19,
+            "staffed tavern fixture must expose a three-bread discounted target");
+
+        helper.succeedWhen(() -> {
+            int atHearth = countInHearth(hearthAt(helper), Items.BREAD);
+            int atWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
+                Items.BREAD);
+            int inBag = bagCountOf(bud, Items.BREAD);
+            helper.assertTrue(atHearth + atWarehouse + inBag == 8,
+                "discounted bread route must conserve all eight loaves");
+            helper.assertTrue(atHearth == 3 && atWarehouse == 5 && inBag == 0,
+                "courier should deliver the discounted three loaves exactly, saw "
+                    + "[hearth=" + atHearth + " warehouse=" + atWarehouse
+                    + " bag=" + inBag + "]");
+        });
+    }
+
+    /**
+     * A food claim is intent, never permission to withdraw stale stock. Once
+     * bread is reserved but before the courier reaches the warehouse, the
+     * player fills the four-loaf price line directly at the hearth. The trip
+     * must then take nothing, release its lease and leave all warehouse bread
+     * untouched.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 2600,
+        batch = "courier_food_route_day")
+    public void priceFilledAfterClaimCancelsFoodWithdrawal(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        HearthBlockEntity hearth = hearthAt(helper);
+        hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 20));
+        addWarehouse(helper, s);
+        Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
+        helper.assertTrue(source != null, "arena warehouse chest should exist");
+        source.setItem(0, new ItemStack(Items.BREAD, 8));
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        final boolean[] filledAfterClaim = {false};
+        final boolean[] sawHeld = {false};
+        final boolean[] sawReleased = {false};
+
+        helper.succeedWhen(() -> {
+            boolean held = CourierWorkGoal.restockJobIsHeld(s.id, Items.BREAD);
+            sawHeld[0] |= held;
+            if (!filledAfterClaim[0] && held) {
+                ItemStack left = hearth.insertGoods(new ItemStack(Items.BREAD, 4));
+                helper.assertTrue(left.isEmpty(),
+                    "hearth should accept the player's four-loaf intervention");
+                filledAfterClaim[0] = true;
+            }
+            if (sawHeld[0] && !held) {
+                sawReleased[0] = true;
+            }
+            int atHearth = countInHearth(hearthAt(helper), Items.BREAD);
+            int atWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
+                Items.BREAD);
+            int inBag = bagCountOf(bud, Items.BREAD);
+            helper.assertTrue(!filledAfterClaim[0]
+                    || atHearth + atWarehouse + inBag == 12,
+                "player fill plus warehouse bread must remain conserved");
+            helper.assertTrue(filledAfterClaim[0] && atHearth == 4
+                    && atWarehouse == 8 && inBag == 0,
+                "stale food claim should withdraw nothing, saw [hearth="
+                    + atHearth + " warehouse=" + atWarehouse + " bag="
+                    + inBag + "]");
+            helper.assertTrue(sawHeld[0] && sawReleased[0],
+                "stale food job should claim once, then release without cargo");
         });
     }
 
@@ -315,7 +500,7 @@ public class CourierFoodRouteGameTests {
         addWarehouse(helper, s);
         Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
         helper.assertTrue(source != null, "arena warehouse chest should exist");
-        source.setItem(0, new ItemStack(Items.BREAD, 8));
+        source.setItem(0, new ItemStack(Items.BREAD, 24));
 
         addBuilding(helper, s, BuildingType.MINE,
             new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
@@ -325,7 +510,8 @@ public class CourierFoodRouteGameTests {
         mineChest.setItem(0, new ItemStack(Items.COBBLESTONE, 12));
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
-        int threshold = CourierWorkGoal.hearthFoodThreshold(s.population());
+        int threshold = RecruitmentPolicy.assess(helper.getLevel(), s,
+            RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
         final boolean[] cobbleMovedBeforeBread = {false};
 
         helper.succeedWhen(() -> {
@@ -341,7 +527,7 @@ public class CourierFoodRouteGameTests {
             if (cobbleAtMine < 12 && breadAtHearth < threshold) {
                 cobbleMovedBeforeBread[0] = true;
             }
-            helper.assertTrue(breadAtHearth + breadAtWarehouse + breadInBag == 8,
+            helper.assertTrue(breadAtHearth + breadAtWarehouse + breadInBag == 24,
                 "bread must be conserved, saw "
                     + (breadAtHearth + breadAtWarehouse + breadInBag)
                     + " [hearth=" + breadAtHearth + " warehouse=" + breadAtWarehouse
@@ -371,18 +557,174 @@ public class CourierFoodRouteGameTests {
     // ------------------------------------------------------------- the fuel ---
 
     /**
+     * A broad "room for some fuel" check is not enough. This smelter chest
+     * is full except for room in an oak-log stack; warehouse charcoal cannot
+     * merge there. The courier must reject that exact load before claiming
+     * it and continue down the priority ladder to feed the empty hearth.
+     * The old predicate-only check looped charcoal warehouse -> bag -> full
+     * smelter -> warehouse forever and starved this bread route.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 3000,
+        batch = "courier_food_route_day")
+    public void incompatibleFuelStackCannotStarveFoodDelivery(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        addWarehouse(helper, s);
+        Container warehouse = containerAt(helper, WAREHOUSE_CHEST_REL);
+        helper.assertTrue(warehouse != null, "arena warehouse chest should exist");
+        warehouse.setItem(0, new ItemStack(Items.CHARCOAL, 8));
+        warehouse.setItem(1, new ItemStack(Items.BREAD, 32));
+
+        Building smelter = addBuilding(helper, s, BuildingType.SMELTER,
+            new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
+        helper.setBlock(WORKSHOP_CHEST_REL, Blocks.CHEST);
+        Container firebox = containerAt(helper, WORKSHOP_CHEST_REL);
+        helper.assertTrue(firebox != null, "arena smelter chest should exist");
+        firebox.setItem(0, new ItemStack(Items.OAK_LOG, 7));
+        for (int slot = 1; slot < firebox.getContainerSize(); slot++) {
+            firebox.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        int foodTarget = RecruitmentPolicy.assess(helper.getLevel(), s,
+            RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
+        final boolean[] fuelWasEverClaimed = {false};
+
+        helper.succeedWhen(() -> {
+            fuelWasEverClaimed[0] |= CourierWorkGoal.fuelJobIsHeld(smelter.id);
+            int breadAtHearth = countInHearth(hearthAt(helper), Items.BREAD);
+            int breadAtWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
+                Items.BREAD);
+            int breadInBag = bagCountOf(bud, Items.BREAD);
+            helper.assertTrue(breadAtHearth + breadAtWarehouse + breadInBag == 32,
+                "bread must stay conserved while bypassing incompatible fuel");
+            helper.assertTrue(countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
+                    Items.CHARCOAL) == 8
+                    && countIn(containerAt(helper, WORKSHOP_CHEST_REL),
+                        Items.CHARCOAL) == 0,
+                "charcoal that cannot fit must never leave its warehouse");
+            helper.assertTrue(!fuelWasEverClaimed[0],
+                "an exact fuel stack with no physical destination room was claimed");
+            helper.assertTrue(breadAtHearth >= foodTarget && breadInBag == 0,
+                "food delivery must continue below the rejected fuel job, saw "
+                    + breadAtHearth + "/" + foodTarget + " at hearth [act="
+                    + bud.getActivity() + "]");
+        });
+    }
+
+    /**
+     * Fuel is one demand lane, not one job per species. With charcoal in the
+     * first warehouse and coal in the second, two couriers must not reserve
+     * both against the same empty eight-unit firebox. Exactly one courier
+     * carries fuel and the destination stops at the shared unit target.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 3200,
+        batch = "courier_food_route_day")
+    public void mixedFuelTypesShareOneCourierReservation(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        addWarehouse(helper, s);
+        Container denseWarehouse = containerAt(helper, WAREHOUSE_CHEST_REL);
+        helper.assertTrue(denseWarehouse != null, "first warehouse chest should exist");
+        denseWarehouse.setItem(0, new ItemStack(Items.CHARCOAL, 4));
+        addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(8, 1, 2), new BlockPos(10, 3, 4), new BlockPos(8, 1, 2));
+        helper.setBlock(SECOND_WAREHOUSE_CHEST_REL, Blocks.CHEST);
+        Container coalWarehouse = containerAt(helper, SECOND_WAREHOUSE_CHEST_REL);
+        helper.assertTrue(coalWarehouse != null, "second warehouse chest should exist");
+        coalWarehouse.setItem(0, new ItemStack(Items.COAL, 4));
+
+        Building smelter = addBuilding(helper, s, BuildingType.SMELTER,
+            new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
+        helper.setBlock(WORKSHOP_CHEST_REL, Blocks.CHEST);
+        SettlerEntity first = courier(helper, s, new BlockPos(6, 1, 8));
+        SettlerEntity second = courier(helper, s, new BlockPos(8, 1, 8));
+        final boolean[] firstCarriedFuel = {false};
+        final boolean[] secondCarriedFuel = {false};
+        final boolean[] sawHeld = {false};
+        final boolean[] sawReleased = {false};
+
+        helper.succeedWhen(() -> {
+            firstCarriedFuel[0] |= fuelUnitsInBag(first) > 0;
+            secondCarriedFuel[0] |= fuelUnitsInBag(second) > 0;
+            boolean held = CourierWorkGoal.fuelJobIsHeld(smelter.id);
+            sawHeld[0] |= held;
+            if (sawHeld[0] && !held) {
+                sawReleased[0] = true;
+            }
+            int atFirebox = fuelUnitsIn(containerAt(helper, WORKSHOP_CHEST_REL));
+            int inWarehouses = fuelUnitsIn(containerAt(helper, WAREHOUSE_CHEST_REL))
+                + fuelUnitsIn(containerAt(helper, SECOND_WAREHOUSE_CHEST_REL));
+            int inBags = fuelUnitsInBag(first) + fuelUnitsInBag(second);
+            helper.assertTrue(atFirebox + inWarehouses + inBags == 16,
+                "mixed fuel units must be conserved across both routes");
+            helper.assertTrue(!(firstCarriedFuel[0] && secondCarriedFuel[0]),
+                "two couriers carried different fuels for one shared deficit");
+            helper.assertTrue(atFirebox == 8 && inBags == 0,
+                "firebox should stop at exactly eight units, saw " + atFirebox);
+            helper.assertTrue(sawHeld[0] && sawReleased[0],
+                "shared fuel lane must be claimed once and released after delivery");
+        });
+    }
+
+    /**
+     * Delivery revalidates the firebox too. Once the courier has physically
+     * lifted four charcoal, the player fills the target with four coal. The
+     * stale load must turn around untouched and return to the warehouse;
+     * otherwise a valid eight-unit reserve becomes sixteen.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 3600,
+        batch = "courier_food_route_day")
+    public void fuelFilledInTransitReturnsTheStaleLoad(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        addWarehouse(helper, s);
+        Container warehouse = containerAt(helper, WAREHOUSE_CHEST_REL);
+        helper.assertTrue(warehouse != null, "arena warehouse chest should exist");
+        warehouse.setItem(0, new ItemStack(Items.CHARCOAL, 8));
+        Building smelter = addBuilding(helper, s, BuildingType.SMELTER,
+            new BlockPos(2, 1, 5), new BlockPos(4, 3, 7), new BlockPos(2, 1, 5));
+        helper.setBlock(WORKSHOP_CHEST_REL, Blocks.CHEST);
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        final boolean[] filledInTransit = {false};
+        final boolean[] sawHeld = {false};
+        final boolean[] sawReleased = {false};
+
+        helper.succeedWhen(() -> {
+            boolean held = CourierWorkGoal.fuelJobIsHeld(smelter.id);
+            sawHeld[0] |= held;
+            if (!filledInTransit[0] && bagCountOf(bud, Items.CHARCOAL) == 4) {
+                Container firebox = containerAt(helper, WORKSHOP_CHEST_REL);
+                firebox.setItem(0, new ItemStack(Items.COAL, 4));
+                filledInTransit[0] = true;
+            }
+            if (sawHeld[0] && !held) {
+                sawReleased[0] = true;
+            }
+            int charcoalWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
+                Items.CHARCOAL);
+            int charcoalFirebox = countIn(containerAt(helper, WORKSHOP_CHEST_REL),
+                Items.CHARCOAL);
+            int coalFirebox = countIn(containerAt(helper, WORKSHOP_CHEST_REL), Items.COAL);
+            int charcoalBag = bagCountOf(bud, Items.CHARCOAL);
+            helper.assertTrue(charcoalWarehouse + charcoalFirebox + charcoalBag == 8,
+                "stale charcoal load must remain conserved");
+            helper.assertTrue(!filledInTransit[0] || fuelUnitsIn(
+                    containerAt(helper, WORKSHOP_CHEST_REL)) == 8,
+                "delivery must never raise the player-filled firebox above eight units");
+            helper.assertTrue(filledInTransit[0] && charcoalWarehouse == 8
+                    && charcoalFirebox == 0 && charcoalBag == 0 && coalFirebox == 4,
+                "stale load should return whole after the live deficit disappears");
+            helper.assertTrue(sawHeld[0] && sawReleased[0],
+                "stale fuel reservation should release before the return leg ends");
+        });
+    }
+
+    /**
      * FUEL through the restock tier: a smelter with a bone-dry fuel chest
      * and sixteen charcoal on a warehouse shelf must have charcoal hauled
-     * to it -- the contract work against {@code com.hearthstead.building
-     * .Fuel} (burns / perBatch / isFuel), whose values belong to that
-     * class, not to this test. Assertions are therefore gated on MOVEMENT
-     * only: some charcoal reaches the smelter, every charcoal stays
-     * accounted for at every poll, and the trip runs under the shared
-     * (building, item) ledger key like any other restock. How MUCH moves
-     * is {@code FUEL_RESERVE_BATCHES x Fuel.perBatch(SMELTER)} -- pinned
-     * where perBatch is, once Fuel's own numbers are testable. Assumes the
-     * Fuel contract marks SMELTER as a burner (FLOWS.md gives the smelter
-     * the charcoal recipe for exactly this loop).
+     * to it under {@link Fuel}'s unit contract. Four reserve batches times
+     * two units, divided by charcoal's exact two units per item, means four
+     * physical charcoal must move -- not eight. Every item stays accounted
+     * for at every poll, and the trip runs under the shared (building, item)
+     * ledger key like any other restock.
      */
     @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_food_route_day")
     public void fuelReachesTheColdSmelter(GameTestHelper helper) {
@@ -397,10 +739,16 @@ public class CourierFoodRouteGameTests {
         helper.setBlock(WORKSHOP_CHEST_REL, Blocks.CHEST);
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
+        int targetUnits = CourierWorkGoal.FUEL_RESERVE_BATCHES
+            * Fuel.unitsPerBatch(BuildingType.SMELTER);
+        int expectedCharcoal = targetUnits
+            / Fuel.unitsPerItem(new ItemStack(Items.CHARCOAL));
+        helper.assertTrue(targetUnits == 8 && expectedCharcoal == 4,
+            "fixture should request exactly four dense charcoal items");
         final boolean[] sawHeld = {false};
 
         helper.succeedWhen(() -> {
-            if (CourierWorkGoal.restockJobIsHeld(smelterB.id, Items.CHARCOAL)) {
+            if (CourierWorkGoal.fuelJobIsHeld(smelterB.id)) {
                 sawHeld[0] = true;
             }
             int atSmelter = countIn(containerAt(helper, WORKSHOP_CHEST_REL), Items.CHARCOAL);
@@ -412,8 +760,10 @@ public class CourierFoodRouteGameTests {
                 "charcoal must be conserved across the fuel route, saw " + total
                     + " [smelter=" + atSmelter + " warehouse=" + atWarehouse
                     + " bag=" + inBag + " act=" + bud.getActivity() + "]");
-            helper.assertTrue(atSmelter > 0,
-                "charcoal should reach the cold smelter's chest, saw " + atSmelter
+            helper.assertTrue(atSmelter == expectedCharcoal
+                    && atWarehouse == 16 - expectedCharcoal && inBag == 0,
+                "courier should deliver exactly the cold smelter's unit deficit, saw "
+                    + atSmelter
                     + " [warehouse=" + atWarehouse + " bag=" + inBag
                     + " act=" + bud.getActivity()
                     + " pos=" + bud.blockPosition().toShortString()

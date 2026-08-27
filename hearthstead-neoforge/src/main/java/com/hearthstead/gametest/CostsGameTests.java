@@ -149,7 +149,7 @@ public class CostsGameTests {
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
-        hearth.insertGoods(new ItemStack(Items.BREAD, 4));
+        hearth.insertGoods(new ItemStack(Items.BREAD, 12));
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
         hearth.insertGoods(new ItemStack(Items.IRON_INGOT, 5));
 
@@ -157,8 +157,9 @@ public class CostsGameTests {
         SettlementManager.tickRecruitment(level, s);
 
         helper.assertFalse(guest.isTraveler(), "the full price must be payable and admit them");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "the full bread price must be gone, found " + countInHearth(hearth, Items.BREAD));
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 8,
+            "the full price must leave eight reserve meals, found "
+                + countInHearth(hearth, Items.BREAD));
         helper.assertTrue(countInHearth(hearth, Items.OAK_PLANKS) == 0,
             "the full planks price must be gone, found " + countInHearth(hearth, Items.OAK_PLANKS));
         helper.assertTrue(countInHearth(hearth, Items.IRON_INGOT) == 5,
@@ -195,10 +196,10 @@ public class CostsGameTests {
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
-        // Exactly the DISCOUNTED price -- not the full 4 bread + 8 planks.
-        // If the discount were fiction (still charging full price), this
-        // guest could never join.
-        hearth.insertGoods(new ItemStack(Items.BREAD, 3));
+        // Discounted price plus sixteen meals for the existing innkeeper and
+        // incoming guest. If the full price were still charged, only fifteen
+        // would remain and admission would fail at the reserve gate.
+        hearth.insertGoods(new ItemStack(Items.BREAD, 19));
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 6));
 
         SettlerEntity guest = waitingTraveler(helper, s, "Gjest", tavernRel);
@@ -206,9 +207,9 @@ public class CostsGameTests {
 
         helper.assertFalse(guest.isTraveler(),
             "the discounted price alone must be enough to admit them");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 16
                 && countInHearth(hearth, Items.OAK_PLANKS) == 0,
-            "exactly the discounted price must be spent, found "
+            "exactly the discounted price must be spent above the reserve, found "
                 + countInHearth(hearth, Items.BREAD) + " bread, "
                 + countInHearth(hearth, Items.OAK_PLANKS) + " planks left");
         helper.succeed();
@@ -301,7 +302,7 @@ public class CostsGameTests {
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
-        hearth.insertGoods(new ItemStack(Items.BREAD, 4));
+        hearth.insertGoods(new ItemStack(Items.BREAD, 12));
         // Birch, not oak -- the exact-item mistake this line must not repeat.
         hearth.insertGoods(new ItemStack(Items.BIRCH_PLANKS, 8));
 
