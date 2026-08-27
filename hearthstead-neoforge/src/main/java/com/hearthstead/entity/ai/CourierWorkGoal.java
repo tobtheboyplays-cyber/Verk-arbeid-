@@ -1,12 +1,14 @@
 package com.hearthstead.entity.ai;
 
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.Fuel;
 import com.hearthstead.building.Production;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.logistics.Weight;
+import com.hearthstead.logistics.StopReason;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
@@ -356,6 +358,14 @@ public class CourierWorkGoal extends Goal {
     private int consecutiveFailures;
     private int restockCooldown;
     private boolean done;
+    /** First blocked tier seen during the bounded 40-tick logistics scan. */
+    private StopReason observedStop = StopReason.NONE;
+    private BlockPos observedStopTarget;
+    private Building observedStopBuilding;
+    /** Plaque this courier last coloured, so clearing cannot leave stale light. */
+    private BlockPos publishedStopPlaque;
+    private StopReason publishedStopReason = StopReason.NONE;
+    private long lastPlaqueHeartbeatTick = Long.MIN_VALUE;
 
     public CourierWorkGoal(SettlerEntity settler) {
         this.settler = settler;
@@ -372,8 +382,10 @@ public class CourierWorkGoal extends Goal {
         if (!(settler.level() instanceof ServerLevel level)) {
             return false;
         }
+        heartbeatPlaqueStop();
         Settlement s = settler.settlement();
         if (s == null) {
+            clearPublishedStop();
             return false;
         }
         boolean carrying = bagCount() > 0;
@@ -394,6 +406,7 @@ public class CourierWorkGoal extends Goal {
             restockCooldown--;
         } else {
             restockCooldown = RESTOCK_LOOK_INTERVAL;
+            resetStopObservation();
             RestockJob restock = findRestockJob(level, s);
             if (restock != null) {
                 beginRestock(restock);
@@ -416,6 +429,14 @@ public class CourierWorkGoal extends Goal {
                 beginCollection(collection);
                 return true;
             }
+            // Consolidation remains the last priority rung. On the scan
+            // tick it also gets the chance to explain a missing/full
+            // warehouse before the observation is published.
+            if (beginConsolidation(level, s)) {
+                return true;
+            }
+            publishStopObservation();
+            return false;
         }
         return beginConsolidation(level, s);
     }
@@ -435,6 +456,7 @@ public class CourierWorkGoal extends Goal {
                 // deliver to, so the raw material goes back to the warehouse
                 // rather than sitting out of circulation in a bag.
                 releaseReservation();
+                reportStop(StopReason.RESTING_AFTER_FAIL, craftDropOff, null);
                 mode = Mode.RETURNING;
                 return true;
             }
@@ -450,6 +472,8 @@ public class CourierWorkGoal extends Goal {
                 // meals go back to the warehouse they came from rather
                 // than riding out of circulation in a bag.
                 releaseReservation();
+                reportStop(StopReason.RESTING_AFTER_FAIL,
+                    settler.getHearthPos(), null);
                 mode = Mode.RETURNING;
                 return true;
             }
@@ -471,6 +495,9 @@ public class CourierWorkGoal extends Goal {
                 // which is read as "goods awaiting their first haul", and
                 // never held hostage in the bag.
                 releaseReservation();
+                Building source = findBuildingById(s, sourceWarehouseId);
+                reportStop(StopReason.NO_WAREHOUSE_SPACE,
+                    source == null ? null : source.plaquePos, source);
                 mode = Mode.RETURNING;
                 return true;
             }
@@ -488,6 +515,7 @@ public class CourierWorkGoal extends Goal {
             warehouseId = null;
             dropOff = null;
             job = JobPriority.WAREHOUSE_CONSOLIDATION;
+            reportStop(StopReason.NO_WAREHOUSE_SPACE, settler.getHearthPos(), null);
             mode = Mode.RETURNING;
             return true;
         }
@@ -502,13 +530,18 @@ public class CourierWorkGoal extends Goal {
     }
 
     private boolean beginConsolidation(ServerLevel level, Settlement s) {
+        // Do not diagnose an empty warehouse network when there is no cargo
+        // waiting at the hearth in the first place.
+        if (!hearthHasHaulableGoods()) {
+            return false;
+        }
         Building warehouse = pickWarehouse(s);
         BlockPos target = warehouse == null ? null : pickDropOff(level, warehouse);
         if (target == null) {
+            observeStop(StopReason.NO_WAREHOUSE_SPACE,
+                warehouse == null ? settler.getHearthPos() : warehouse.plaquePos,
+                warehouse);
             return false; // idle visibly rather than thrash (MineColonies #2932)
-        }
-        if (!hearthHasHaulableGoods()) {
-            return false;
         }
         warehouseId = warehouse.id;
         dropOff = target;
@@ -552,6 +585,112 @@ public class CourierWorkGoal extends Goal {
         reservedItem = collection.item();
         reservationKey = collection.key();
         mode = Mode.TO_SOURCE;
+    }
+
+    /**
+     * The route ladder is also the diagnosis ladder. Only the first blocked
+     * tier is retained, so adding visibility cannot accidentally change the
+     * job order or turn a lower-priority full shelf into the explanation for
+     * a stopped top-priority crafter.
+     */
+    private void resetStopObservation() {
+        observedStop = StopReason.NONE;
+        observedStopTarget = null;
+        observedStopBuilding = null;
+    }
+
+    private void observeStop(StopReason reason, BlockPos target, Building building) {
+        if (observedStop != StopReason.NONE || reason == StopReason.NONE) {
+            return;
+        }
+        observedStop = reason;
+        observedStopTarget = target == null ? null : target.immutable();
+        observedStopBuilding = building;
+    }
+
+    private void publishStopObservation() {
+        if (observedStop == StopReason.NONE) {
+            clearPublishedStop();
+            return;
+        }
+        settler.setLogisticsStop(observedStop, observedStopTarget, 0);
+        setPlaqueStop(observedStopBuilding, observedStop);
+    }
+
+    private void reportStop(StopReason reason, BlockPos target, Building building) {
+        reportStop(reason, target, building, 0);
+    }
+
+    private void reportStop(StopReason reason, BlockPos target, Building building,
+                            int retryTicks) {
+        settler.setLogisticsStop(reason, target, retryTicks);
+        setPlaqueStop(building, reason);
+    }
+
+    /** Clears both channels this courier owns: overhead line and lamp. */
+    private void clearPublishedStop() {
+        settler.clearLogisticsStop();
+        clearPublishedPlaqueStop();
+    }
+
+    /**
+     * Removes only this courier's contribution to the previous plaque.
+     * A hearth-only or otherwise building-less stop must keep its overhead
+     * explanation while no longer colouring an unrelated old destination.
+     */
+    private void clearPublishedPlaqueStop() {
+        if (publishedStopPlaque != null
+            && settler.level() instanceof ServerLevel level
+            && level.getBlockEntity(publishedStopPlaque) instanceof PlaqueBlockEntity plaque) {
+            plaque.setLogisticsStopReason(level, settler.getUUID(), StopReason.NONE);
+        }
+        publishedStopPlaque = null;
+        publishedStopReason = StopReason.NONE;
+        lastPlaqueHeartbeatTick = Long.MIN_VALUE;
+    }
+
+    private void setPlaqueStop(Building building, StopReason reason) {
+        if (building == null) {
+            clearPublishedPlaqueStop();
+            return;
+        }
+        if (!(settler.level() instanceof ServerLevel level)) {
+            return;
+        }
+        if (publishedStopPlaque != null && !publishedStopPlaque.equals(building.plaquePos)) {
+            clearPublishedPlaqueStop();
+        }
+        if (level.getBlockEntity(building.plaquePos) instanceof PlaqueBlockEntity plaque) {
+            plaque.setLogisticsStopReason(level, settler.getUUID(), reason);
+            publishedStopPlaque = reason == StopReason.NONE ? null : building.plaquePos;
+            publishedStopReason = reason;
+            lastPlaqueHeartbeatTick = reason == StopReason.NONE
+                ? Long.MIN_VALUE : level.getGameTime();
+        } else if (reason == StopReason.NONE) {
+            publishedStopPlaque = null;
+            publishedStopReason = StopReason.NONE;
+            lastPlaqueHeartbeatTick = Long.MIN_VALUE;
+        }
+    }
+
+    /** One direct block-entity heartbeat per second; no world scan. */
+    private void heartbeatPlaqueStop() {
+        if (publishedStopPlaque == null || publishedStopReason == StopReason.NONE
+            || !(settler.level() instanceof ServerLevel level)) {
+            return;
+        }
+        long now = level.getGameTime();
+        if (now % 20 != 0 || now == lastPlaqueHeartbeatTick) {
+            return;
+        }
+        if (level.getBlockEntity(publishedStopPlaque) instanceof PlaqueBlockEntity plaque) {
+            plaque.setLogisticsStopReason(level, settler.getUUID(), publishedStopReason);
+            lastPlaqueHeartbeatTick = now;
+        } else {
+            publishedStopPlaque = null;
+            publishedStopReason = StopReason.NONE;
+            lastPlaqueHeartbeatTick = Long.MIN_VALUE;
+        }
     }
 
     /** Prefers a warehouse this settler is actually employed at (D-A2a-4). */
@@ -778,6 +917,7 @@ public class CourierWorkGoal extends Goal {
 
     @Override
     public void tick() {
+        heartbeatPlaqueStop();
         if (setDownThudIn >= 0 && setDownThudIn-- == 0) {
             playAt(ModSounds.CRATE_DOWN.get(), 0.8F,
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
@@ -807,6 +947,7 @@ public class CourierWorkGoal extends Goal {
             // A laden food trip re-decides through canUseCarrying, which
             // sends the meals back to their warehouse; an empty-handed
             // consolidation walk just stands down.
+            reportStop(StopReason.RESTING_AFTER_FAIL, null, null);
             done = true;
             return;
         }
@@ -833,7 +974,7 @@ public class CourierWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = REPATH_INTERVAL;
             if (++stuckChecks > HEARTH_STUCK_LIMIT) {
-                giveUp(); // unreachable hearth: rest the route, don't spin
+                giveUp(hearthPos, null); // unreachable hearth: rest the route, don't spin
             } else {
                 pathAbove(hearthPos);
             }
@@ -854,6 +995,7 @@ public class CourierWorkGoal extends Goal {
         }
         HearthBlockEntity hearth = settler.hearth();
         if (hearth == null) {
+            reportStop(StopReason.RESTING_AFTER_FAIL, settler.getHearthPos(), null);
             done = true;
             return;
         }
@@ -896,13 +1038,20 @@ public class CourierWorkGoal extends Goal {
     }
 
     private void tickToWarehouse() {
-        if (dropOff == null || !(settler.level() instanceof ServerLevel level)) {
+        if (!(settler.level() instanceof ServerLevel level)) {
             done = true;
             return;
         }
         Settlement s = settler.settlement();
         Building warehouse = s == null ? null : findBuildingById(s, warehouseId);
+        if (dropOff == null) {
+            reportStop(StopReason.NO_WAREHOUSE_SPACE,
+                warehouse == null ? null : warehouse.plaquePos, warehouse);
+            done = true;
+            return;
+        }
         if (warehouse == null) {
+            reportStop(StopReason.NO_WAREHOUSE_SPACE, dropOff, null);
             beginReturn(); // dissolved mid-trip: carry the goods home
             return;
         }
@@ -927,7 +1076,7 @@ public class CourierWorkGoal extends Goal {
                 // The warehouse cannot be reached from here. Carry the load
                 // back to the hearth so the goods stay in circulation, and
                 // rest the route so this is not an invisible busy-loop.
-                giveUp();
+                giveUp(warehouse.plaquePos, warehouse);
             } else {
                 pathToChest(dropOff);
             }
@@ -1059,6 +1208,7 @@ public class CourierWorkGoal extends Goal {
         Settlement s = settler.settlement();
         Building warehouse = s == null ? null : findBuildingById(s, warehouseId);
         if (warehouse == null) {
+            reportStop(StopReason.NO_WAREHOUSE_SPACE, dropOff, null);
             beginReturn(); // dissolved mid-delivery: take them home
             return;
         }
@@ -1076,6 +1226,8 @@ public class CourierWorkGoal extends Goal {
             settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
             settler.bag.setItem(i, leftover);
             if (!leftover.isEmpty()) {
+                reportStop(StopReason.NO_WAREHOUSE_SPACE,
+                    warehouse.plaquePos, warehouse);
                 beginReturn(); // warehouse full: stop, and carry what is left back home
             }
             return; // one stack per cycle -- the animation beat
@@ -1084,24 +1236,34 @@ public class CourierWorkGoal extends Goal {
         // A collection trip holds a ledger key exactly like a restock does;
         // consolidation never has one, so this is a no-op for it.
         releaseReservation();
+        clearPublishedStop();
+        setPlaqueStop(warehouse, StopReason.NONE);
         done = true; // bag empty: delivery complete
     }
 
     // ------------------------------------------------------ restock legs ---
 
     private void tickToSource() {
-        if (sourcePos == null || !(settler.level() instanceof ServerLevel level)) {
+        if (!(settler.level() instanceof ServerLevel level)) {
             done = true;
             releaseReservation();
             return;
         }
         Settlement s = settler.settlement();
         Building source = s == null ? null : findBuildingById(s, sourceWarehouseId);
+        if (sourcePos == null) {
+            reportStop(StopReason.RESTING_AFTER_FAIL,
+                source == null ? null : source.plaquePos, source);
+            done = true;
+            releaseReservation();
+            return;
+        }
         if (source == null) {
             // The source building (a warehouse for a restock, the workshop
             // for a collection) dissolved mid-trip. Nothing has been taken
             // yet -- the bag is still empty at this point in the route --
             // so there is nothing to lose; just stand down.
+            reportStop(StopReason.WAITING_INPUT, sourcePos, null);
             done = true;
             releaseReservation();
             return;
@@ -1116,7 +1278,7 @@ public class CourierWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = REPATH_INTERVAL;
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
-                giveUp();
+                giveUp(source.plaquePos, source);
             } else {
                 pathToChest(sourcePos);
             }
@@ -1141,6 +1303,10 @@ public class CourierWorkGoal extends Goal {
         if (!(level.getBlockEntity(sourcePos) instanceof Container container)) {
             // The chest is gone by the time we arrived -- nothing has been
             // taken yet, so nothing is lost. Stand down rather than assume.
+            Settlement s = settler.settlement();
+            Building source = s == null ? null : findBuildingById(s, sourceWarehouseId);
+            reportStop(StopReason.WAITING_INPUT,
+                source == null ? sourcePos : source.plaquePos, source);
             done = true;
             releaseReservation();
             return;
@@ -1185,6 +1351,10 @@ public class CourierWorkGoal extends Goal {
             // chest (or, for a collection, the surplus fell back under the
             // keep-back). Chest truth is re-read here, never assumed from
             // reservation time; nothing was picked up, so nothing is lost.
+            Settlement s = settler.settlement();
+            Building source = s == null ? null : findBuildingById(s, sourceWarehouseId);
+            reportStop(StopReason.WAITING_INPUT,
+                source == null ? sourcePos : source.plaquePos, source);
             done = true;
             releaseReservation();
             return;
@@ -1307,17 +1477,25 @@ public class CourierWorkGoal extends Goal {
     }
 
     private void tickToCrafter() {
-        if (craftDropOff == null || !(settler.level() instanceof ServerLevel level)) {
+        if (!(settler.level() instanceof ServerLevel level)) {
             done = true;
             releaseReservation();
             return;
         }
         Settlement s = settler.settlement();
         Building crafter = s == null ? null : findBuildingById(s, craftBuildingId);
+        if (craftDropOff == null) {
+            reportStop(StopReason.RESTING_AFTER_FAIL,
+                crafter == null ? null : crafter.plaquePos, crafter);
+            done = true;
+            releaseReservation();
+            return;
+        }
         if (crafter == null) {
             // Dissolved mid-trip: the raw material goes back to the
             // warehouse it came from, not into a building that no longer
             // exists.
+            reportStop(StopReason.RESTING_AFTER_FAIL, craftDropOff, null);
             beginReturn();
             return;
         }
@@ -1335,7 +1513,7 @@ public class CourierWorkGoal extends Goal {
         } else if (--repathTimer <= 0) {
             repathTimer = REPATH_INTERVAL;
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
-                giveUp();
+                giveUp(crafter.plaquePos, crafter);
             } else {
                 pathToChest(craftDropOff);
             }
@@ -1355,6 +1533,7 @@ public class CourierWorkGoal extends Goal {
         Settlement s = settler.settlement();
         Building crafter = s == null ? null : findBuildingById(s, craftBuildingId);
         if (crafter == null) {
+            reportStop(StopReason.RESTING_AFTER_FAIL, craftDropOff, null);
             beginReturn();
             return;
         }
@@ -1377,6 +1556,7 @@ public class CourierWorkGoal extends Goal {
             if (!leftover.isEmpty()) {
                 // Crafter's chests filled mid-delivery: the rest goes back
                 // to the warehouse, not into the void.
+                reportStop(StopReason.CHEST_FULL, crafter.plaquePos, crafter);
                 beginReturn();
             }
             return;
@@ -1384,6 +1564,8 @@ public class CourierWorkGoal extends Goal {
         // Delivered: a later courier's scan sees the crafter's real, now
         // lower need, so holding the lease any further protects nothing.
         releaseReservation();
+        clearPublishedStop();
+        setPlaqueStop(crafter, StopReason.NONE);
         done = true;
     }
 
@@ -1403,6 +1585,7 @@ public class CourierWorkGoal extends Goal {
         }
         HearthBlockEntity hearth = settler.hearth();
         if (hearth == null) {
+            reportStop(StopReason.RESTING_AFTER_FAIL, settler.getHearthPos(), null);
             beginReturn(); // razed mid-delivery: the meals go back to the warehouse
             return;
         }
@@ -1417,6 +1600,7 @@ public class CourierWorkGoal extends Goal {
             settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
             settler.bag.setItem(i, leftover);
             if (!leftover.isEmpty()) {
+                reportStop(StopReason.HEARTH_FULL, settler.getHearthPos(), null);
                 beginReturn(); // hearth full: the rest goes back, never the floor
             }
             return; // one stack per cycle -- the animation beat
@@ -1425,6 +1609,7 @@ public class CourierWorkGoal extends Goal {
         // Delivered: EatFromHearthGoal and Settlement.foodCache read the
         // hearth directly, so the village can eat the moment this lands.
         releaseReservation();
+        clearPublishedStop();
         done = true;
     }
 
@@ -1444,6 +1629,7 @@ public class CourierWorkGoal extends Goal {
      */
     private void tickReturning() {
         if (bagCount() <= 0) {
+            clearPublishedStop();
             done = true;
             return;
         }
@@ -1457,7 +1643,7 @@ public class CourierWorkGoal extends Goal {
             // able to cause. Keep the load and rest the route: without the
             // cooldown, canUse() re-selects RETURNING on the very next tick
             // and this becomes a one-tick busy loop.
-            restRoute();
+            restRoute(StopReason.RESTING_AFTER_FAIL, null, null);
             done = true;
             return;
         }
@@ -1477,13 +1663,24 @@ public class CourierWorkGoal extends Goal {
                 // warehouse would ping-pong a courier between them every
                 // shift with no cooldown -- the same busy loop
                 // RETRY_COOLDOWN exists to prevent on every other leg.
-                restRoute();
+                Building source = backToSource && settler.settlement() != null
+                    ? findBuildingById(settler.settlement(), sourceWarehouseId) : null;
+                StopReason full = backToSource
+                    ? (source != null && source.type == BuildingType.WAREHOUSE
+                        ? StopReason.NO_WAREHOUSE_SPACE : StopReason.CHEST_FULL)
+                    : StopReason.HEARTH_FULL;
+                restRoute(full, backToSource
+                    ? (source == null ? returnPos : source.plaquePos) : returnPos,
+                    source);
             }
             done = true;
         } else if (--repathTimer <= 0) {
             repathTimer = REPATH_INTERVAL;
             if (++stuckChecks > HAUL_STUCK_LIMIT) {
-                restRoute();
+                Building source = backToSource && settler.settlement() != null
+                    ? findBuildingById(settler.settlement(), sourceWarehouseId) : null;
+                restRoute(StopReason.NO_PATH,
+                    source == null ? returnPos : source.plaquePos, source);
                 done = true;
             } else {
                 pathAbove(returnPos);
@@ -1558,8 +1755,8 @@ public class CourierWorkGoal extends Goal {
      * the courier does something else instead of re-entering this goal on
      * the very next tick, and bring any load home first.
      */
-    private void giveUp() {
-        restRoute();
+    private void giveUp(BlockPos target, Building building) {
+        restRoute(StopReason.NO_PATH, target, building);
         if (bagCount() > 0) {
             beginReturn();
         } else {
@@ -1574,7 +1771,7 @@ public class CourierWorkGoal extends Goal {
      * immediately qualifies again is the wedge shape from KF-013, not a fix
      * for it.
      */
-    private void restRoute() {
+    private void restRoute(StopReason reason, BlockPos target, Building building) {
         consecutiveFailures = Math.min(consecutiveFailures + 1, 8);
         int rest = Math.min(RETRY_COOLDOWN_TICKS,
             FIRST_REST_TICKS * (1 << (consecutiveFailures - 1)));
@@ -1583,6 +1780,7 @@ public class CourierWorkGoal extends Goal {
         // that has nothing to do. Say which leg failed (KF-014).
         settler.recordRouteFailure("courier:" + mode + ":stuck" + stuckChecks
             + ":rest" + rest + ":run" + consecutiveFailures);
+        reportStop(reason, target, building, rest);
     }
 
     private void playAt(net.minecraft.sounds.SoundEvent sound, float volume, float pitch) {
@@ -1651,6 +1849,7 @@ public class CourierWorkGoal extends Goal {
             }
             List<Held> mine = liveContainers(level, crafter);
             if (mine.isEmpty()) {
+                observeStop(StopReason.CHEST_FULL, crafter.plaquePos, crafter);
                 continue;
             }
             if (Production.produces(crafter.type)) {
@@ -1659,8 +1858,12 @@ public class CourierWorkGoal extends Goal {
                     // Short means "below MATERIAL_RESERVE_BATCHES batches",
                     // not "below one" -- see that constant's own reasoning.
                     int keep = MATERIAL_RESERVE_BATCHES * recipe.inputCount();
-                    if (countMatching(mine, want) >= keep || !roomFor(mine, want)) {
-                        continue; // not short, or nowhere to put more even if fetched
+                    if (countMatching(mine, want) >= keep) {
+                        continue; // this recipe has its working reserve
+                    }
+                    if (!roomFor(mine, want)) {
+                        observeStop(StopReason.CHEST_FULL, crafter.plaquePos, crafter);
+                        continue; // short, but nowhere to put more even if fetched
                     }
                     RestockJob claimed = claimRestockFrom(level, s, crafter, mine, want, now);
                     if (claimed != null) {
@@ -1675,10 +1878,12 @@ public class CourierWorkGoal extends Goal {
             // scan order stable, not because it outranks the firebox. The
             // trip this claims is an ordinary restock in every other way:
             // same ledger key, same legs, same conservation discipline.
-            if (burns
-                && countMatching(mine, Fuel::isFuel)
-                    < FUEL_RESERVE_BATCHES * Fuel.perBatch(crafter.type)
-                && roomFor(mine, Fuel::isFuel)) {
+            if (burns && countMatching(mine, Fuel::isFuel)
+                    < FUEL_RESERVE_BATCHES * Fuel.perBatch(crafter.type)) {
+                if (!roomFor(mine, Fuel::isFuel)) {
+                    observeStop(StopReason.CHEST_FULL, crafter.plaquePos, crafter);
+                    continue;
+                }
                 RestockJob claimed = claimRestockFrom(level, s, crafter, mine,
                     Fuel::isFuel, now);
                 if (claimed != null) {
@@ -1699,11 +1904,17 @@ public class CourierWorkGoal extends Goal {
     private RestockJob claimRestockFrom(ServerLevel level, Settlement s, Building crafter,
                                         List<Held> mine, Predicate<ItemStack> want,
                                         long now) {
+        Building firstWarehouse = null;
+        boolean hasWarehouseStorage = false;
         for (Building warehouse : s.buildings) {
             if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
                 continue;
             }
+            if (firstWarehouse == null) {
+                firstWarehouse = warehouse;
+            }
             List<Held> theirs = liveContainers(level, warehouse);
+            hasWarehouseStorage |= !theirs.isEmpty();
             Held stock = findStock(theirs, want);
             if (stock == null) {
                 continue;
@@ -1714,13 +1925,21 @@ public class CourierWorkGoal extends Goal {
             }
             RestockKey key = new RestockKey(crafter.id, item);
             if (isReservedByOther(key, now)) {
+                observeStop(StopReason.RESERVED_BY_OTHER, crafter.plaquePos, crafter);
                 continue; // another courier already has this job
             }
             if (!reserve(key, now)) {
+                observeStop(StopReason.RESERVED_BY_OTHER, crafter.plaquePos, crafter);
                 continue; // lost a same-tick race to another courier's claim
             }
             return new RestockJob(crafter, mine.get(0).pos(),
                 warehouse, stock.pos(), item, key);
+        }
+        if (hasWarehouseStorage) {
+            observeStop(StopReason.WAITING_INPUT, crafter.plaquePos, crafter);
+        } else {
+            Building target = firstWarehouse == null ? crafter : firstWarehouse;
+            observeStop(StopReason.NO_WAREHOUSE_SPACE, target.plaquePos, target);
         }
         return null;
     }
@@ -1760,11 +1979,17 @@ public class CourierWorkGoal extends Goal {
             return null; // the larder is stocked; nothing to do
         }
         long now = level.getGameTime();
+        Building firstWarehouse = null;
+        boolean hasWarehouseStorage = false;
         for (Building warehouse : s.buildings) {
             if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
                 continue;
             }
+            if (firstWarehouse == null) {
+                firstWarehouse = warehouse;
+            }
             List<Held> theirs = liveContainers(level, warehouse);
+            hasWarehouseStorage |= !theirs.isEmpty();
             Held stock = findStock(theirs, CourierWorkGoal::isEdible);
             if (stock == null) {
                 continue;
@@ -1778,16 +2003,26 @@ public class CourierWorkGoal extends Goal {
                 // a load lifted now would only bounce straight back to the
                 // warehouse -- the ping-pong shape RETRY_COOLDOWN exists to
                 // prevent. Consolidation is the route that makes this room.
+                observeStop(StopReason.HEARTH_FULL, settler.getHearthPos(), null);
                 return null;
             }
             RestockKey key = new RestockKey(s.id, item);
             if (isReservedByOther(key, now)) {
+                observeStop(StopReason.RESERVED_BY_OTHER, settler.getHearthPos(), null);
                 continue; // another courier is already feeding the hearth this
             }
             if (!reserve(key, now)) {
+                observeStop(StopReason.RESERVED_BY_OTHER, settler.getHearthPos(), null);
                 continue; // lost a same-tick race to another courier's claim
             }
             return new FoodJob(warehouse, stock.pos(), item, key);
+        }
+        if (hasWarehouseStorage) {
+            observeStop(StopReason.WAITING_INPUT, settler.getHearthPos(), null);
+        } else {
+            observeStop(StopReason.NO_WAREHOUSE_SPACE,
+                firstWarehouse == null ? settler.getHearthPos() : firstWarehouse.plaquePos,
+                firstWarehouse);
         }
         return null;
     }
@@ -1919,21 +2154,27 @@ public class CourierWorkGoal extends Goal {
             }
             RestockKey key = new RestockKey(source.id, item);
             if (isReservedByOther(key, now)) {
+                observeStop(StopReason.RESERVED_BY_OTHER, source.plaquePos, source);
                 continue; // another courier is already emptying this shelf
             }
             Held stock = findStock(theirs, Ingredient.of(item));
             if (stock == null) {
                 continue;
             }
+            Building firstWarehouse = null;
             for (Building warehouse : s.buildings) {
                 if (warehouse.type != BuildingType.WAREHOUSE || !warehouse.valid) {
                     continue;
+                }
+                if (firstWarehouse == null) {
+                    firstWarehouse = warehouse;
                 }
                 List<Held> store = liveContainers(level, warehouse);
                 if (store.isEmpty() || !roomFor(store, Ingredient.of(item))) {
                     continue; // this one cannot take it; maybe another can
                 }
                 if (!reserve(key, now)) {
+                    observeStop(StopReason.RESERVED_BY_OTHER, source.plaquePos, source);
                     break; // lost a same-tick race; leave this building alone
                 }
                 BlockPos drop = pickDropOff(level, warehouse);
@@ -1942,6 +2183,9 @@ public class CourierWorkGoal extends Goal {
                 }
                 return new CollectionJob(source, stock.pos(), warehouse, drop, item, key);
             }
+            Building target = firstWarehouse == null ? source : firstWarehouse;
+            observeStop(StopReason.NO_WAREHOUSE_SPACE, target.plaquePos,
+                target);
         }
         return null;
     }

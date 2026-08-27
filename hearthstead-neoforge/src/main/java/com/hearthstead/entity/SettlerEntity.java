@@ -17,6 +17,7 @@ import com.hearthstead.entity.ai.ReturnToSettlementGoal;
 import com.hearthstead.entity.ai.SettlerDefenseTargetGoal;
 import com.hearthstead.entity.ai.SettlerPanicGoal;
 import com.hearthstead.entity.ai.TravelerJoinGoal;
+import com.hearthstead.logistics.StopReason;
 import com.hearthstead.network.OpenSettlerScreenPayload;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Settlement;
@@ -61,6 +62,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
+import java.util.Optional;
 import java.util.UUID;
 
 public class SettlerEntity extends PathfinderMob {
@@ -87,6 +89,17 @@ public class SettlerEntity extends PathfinderMob {
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_CARRY_CAPACITY =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /**
+     * Low 3 bits: {@link StopReason#wireId()}. High 5 bits: whole retry
+     * seconds remaining (0..31). One byte is enough for all eight stable
+     * reasons and the courier's current 20-second maximum backoff.
+     */
+    private static final EntityDataAccessor<Byte> DATA_LOGISTICS_STOP =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.BYTE);
+    /** Plaque or hearth the diagnosis points at; projection only, never NBT. */
+    private static final EntityDataAccessor<Optional<BlockPos>> DATA_LOGISTICS_TARGET =
+        SynchedEntityData.defineId(SettlerEntity.class,
+            EntityDataSerializers.OPTIONAL_BLOCK_POS);
 
     public static final byte EV_CELEBRATE = 64;
     public static final byte EV_MELEE = 65;
@@ -164,6 +177,14 @@ public class SettlerEntity extends PathfinderMob {
      *  like "nothing to do". */
     @Nullable
     private GuardRank lastAppliedGuardRank;
+
+    // Server-authoritative transient logistics diagnosis. The client sees a
+    // throttled projection through DATA_LOGISTICS_STOP/TARGET; none of this
+    // is persisted because it must be re-derived from today's real chests.
+    private StopReason logisticsStopReason = StopReason.NONE;
+    @Nullable
+    private BlockPos logisticsStopTarget;
+    private long logisticsRetryUntil = Long.MIN_VALUE;
 
     // Server-side accent scheduler: countdowns to staggered one-shot
     // broadcasts and their delayed sound accents (-1 = idle). One-shot
@@ -294,6 +315,8 @@ public class SettlerEntity extends PathfinderMob {
         builder.define(DATA_APPEARANCE_SEED, 0);
         builder.define(DATA_CARRY_LOAD, 0);
         builder.define(DATA_CARRY_CAPACITY, BASE_CARRY_CAPACITY);
+        builder.define(DATA_LOGISTICS_STOP, (byte) 0);
+        builder.define(DATA_LOGISTICS_TARGET, Optional.empty());
     }
 
     @Override
@@ -494,6 +517,7 @@ public class SettlerEntity extends PathfinderMob {
             entityData.set(DATA_PROFESSION, Profession.NONE.id());
             setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         }
+        clearLogisticsStop();
         setActivity(SettlerActivity.IDLE);
     }
 
@@ -538,6 +562,9 @@ public class SettlerEntity extends PathfinderMob {
     public void setProfessionProjection(Profession profession) {
         if (getProfession() == profession) {
             return;
+        }
+        if (getProfession() == Profession.COURIER && profession != Profession.COURIER) {
+            clearLogisticsStop();
         }
         entityData.set(DATA_PROFESSION, profession.id());
         setItemSlot(EquipmentSlot.MAINHAND, profession.tool());
@@ -960,6 +987,7 @@ public class SettlerEntity extends PathfinderMob {
             if (tickCount % 20 == 0) {
                 tickNeeds();
                 tickGuardEquipment();
+                syncLogisticsStopProjection();
                 com.hearthstead.util.QaTrace.record(this);
             }
             tickAccents();
@@ -999,6 +1027,66 @@ public class SettlerEntity extends PathfinderMob {
             return "none";
         }
         return lastRouteFailure + "@" + lastRouteFailureTick;
+    }
+
+    /**
+     * Publishes an additive, player-facing logistics diagnosis. The old
+     * {@link #recordRouteFailure(String)} trace remains untouched for tests
+     * and debugging; this is the bounded network projection beside it.
+     *
+     * @param retryTicks 0 when merely waiting, otherwise the courier's real
+     *                   remaining backoff duration
+     */
+    public void setLogisticsStop(StopReason reason, @Nullable BlockPos target,
+                                 int retryTicks) {
+        if (level().isClientSide) {
+            return;
+        }
+        logisticsStopReason = java.util.Objects.requireNonNull(reason);
+        logisticsStopTarget = target == null ? null : target.immutable();
+        logisticsRetryUntil = retryTicks > 0
+            ? level().getGameTime() + retryTicks : Long.MIN_VALUE;
+    }
+
+    public void clearLogisticsStop() {
+        setLogisticsStop(StopReason.NONE, null, 0);
+    }
+
+    /** Client-safe view of the packed projection. */
+    public StopReason logisticsStopReason() {
+        int packed = Byte.toUnsignedInt(entityData.get(DATA_LOGISTICS_STOP));
+        return StopReason.fromWireId(packed & 0x07);
+    }
+
+    /** Whole seconds left in the visible retry countdown, 0 when not resting. */
+    public int logisticsRetrySeconds() {
+        return Byte.toUnsignedInt(entityData.get(DATA_LOGISTICS_STOP)) >>> 3;
+    }
+
+    /** Target plaque/hearth for the diegetic diagnosis. */
+    public Optional<BlockPos> logisticsStopTarget() {
+        return entityData.get(DATA_LOGISTICS_TARGET);
+    }
+
+    /**
+     * At most one entity-data publication per second. Fifty settlers create
+     * fifty tiny dirty-byte updates per second in the worst blocked case,
+     * never a per-frame poll or a world scan.
+     */
+    private void syncLogisticsStopProjection() {
+        long now = level().getGameTime();
+        int seconds = logisticsRetryUntil > now
+            ? Mth.clamp((int) ((logisticsRetryUntil - now + 19L) / 20L), 1, 31)
+            : 0;
+        int packed = seconds << 3 | logisticsStopReason.wireId();
+        byte wire = (byte) packed;
+        if (entityData.get(DATA_LOGISTICS_STOP) != wire) {
+            entityData.set(DATA_LOGISTICS_STOP, wire);
+        }
+        Optional<BlockPos> target = Optional.ofNullable(logisticsStopTarget);
+        if (!entityData.get(DATA_LOGISTICS_TARGET).equals(target)) {
+            entityData.set(DATA_LOGISTICS_TARGET, target);
+        }
     }
 
     /** How many items are on this settler's back right now. */

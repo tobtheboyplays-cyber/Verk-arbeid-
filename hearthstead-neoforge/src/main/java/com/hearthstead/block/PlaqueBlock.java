@@ -27,6 +27,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
@@ -55,6 +56,8 @@ public class PlaqueBlock extends BaseEntityBlock {
     public static final MapCodec<PlaqueBlock> CODEC = simpleCodec(PlaqueBlock::new);
     public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
     public static final EnumProperty<Glow> GLOW = EnumProperty.create("glow", Glow.class);
+    /** Registration truth is independent from the multiplexed lamp colour. */
+    public static final BooleanProperty REGISTERED = BooleanProperty.create("registered");
 
     /**
      * What the plaque signals across the village square. Amber specifically
@@ -91,7 +94,8 @@ public class PlaqueBlock extends BaseEntityBlock {
         super(properties);
         registerDefaultState(stateDefinition.any()
             .setValue(FACING, Direction.NORTH)
-            .setValue(GLOW, Glow.EMPTY));
+            .setValue(GLOW, Glow.EMPTY)
+            .setValue(REGISTERED, false));
     }
 
     @Override
@@ -101,7 +105,7 @@ public class PlaqueBlock extends BaseEntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(FACING, GLOW);
+        builder.add(FACING, GLOW, REGISTERED);
     }
 
     @Override

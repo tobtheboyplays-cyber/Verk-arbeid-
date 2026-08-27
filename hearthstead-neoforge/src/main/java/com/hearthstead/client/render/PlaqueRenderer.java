@@ -4,6 +4,7 @@ import com.hearthstead.block.PlaqueBlock;
 import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.PlaqueSheet;
+import com.hearthstead.building.PlaqueState;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -281,13 +282,11 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
             return; // no plan fitted: an empty well, and nothing to say
         }
 
-        // GREEN is the one glow value the sealed texture belongs to (see
-        // plaque_green.json); reading it straight off the block state keeps
-        // this in lockstep with the lamp rather than re-deriving it from the
-        // sheet, which is exactly the kind of second source of truth D-006
-        // warns against.
-        boolean registered =
-            plaque.getBlockState().getValue(PlaqueBlock.GLOW) == PlaqueBlock.Glow.GREEN;
+        // Lamp colour is now multiplexed with live logistics health, so a
+        // perfectly valid but blocked building may be amber or red. The
+        // parchment's sealed/registered layout must continue to read the
+        // actual registration truth, never the operational colour.
+        boolean registered = plaque.state() == PlaqueState.LINKED_VALID;
 
         int titleWidth = font.width(sheet.title());
         float widest = titleWidth * TITLE_SCALE;

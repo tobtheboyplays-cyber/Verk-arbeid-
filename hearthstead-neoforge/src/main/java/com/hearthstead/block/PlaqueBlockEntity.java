@@ -4,6 +4,7 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.PlaqueState;
 import com.hearthstead.building.Requirement;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.logistics.StopReason;
 import com.hearthstead.registry.ModBlockEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.RoomScanner;
@@ -31,7 +32,9 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -95,6 +98,17 @@ public class PlaqueBlockEntity extends BlockEntity {
      */
     private int occupants;
     private int capacity;
+
+    /**
+     * Live courier diagnosis for this building. Like the survey projection,
+     * it is derived from real containers, sent to clients and never saved.
+     */
+    private StopReason logisticsStopReason = StopReason.NONE;
+    /** One transient heartbeat per courier; never persisted. */
+    private final Map<UUID, LogisticsReport> logisticsReports = new HashMap<>();
+    private long nextLogisticsPruneTick;
+    private static final int LOGISTICS_REPORT_TTL = 100;
+    private static final int LOGISTICS_PRUNE_INTERVAL = 20;
 
     /** How many times a real room scan has been attempted — test telemetry for W3. */
     private int scanAttempts;
@@ -160,6 +174,32 @@ public class PlaqueBlockEntity extends BlockEntity {
     /** How many the building holds — 0 unless it is registered. */
     public int capacity() {
         return capacity;
+    }
+
+    public StopReason logisticsStopReason() {
+        return logisticsStopReason;
+    }
+
+    /**
+     * Multiplexes the already-authored lamp: a valid building stays valid,
+     * while green/amber/red now says whether its current goods flow is
+     * operating, waiting, or blocked. The targeted courier's overhead text
+     * remains the non-colour channel that explains the exact reason.
+     */
+    public void setLogisticsStopReason(ServerLevel level, UUID courierId,
+                                       StopReason reason) {
+        StopReason next = java.util.Objects.requireNonNull(reason);
+        java.util.Objects.requireNonNull(courierId);
+        long now = level.getGameTime();
+        logisticsReports.entrySet().removeIf(entry ->
+            entry.getValue().expiresAtTick() <= now);
+        if (next == StopReason.NONE) {
+            logisticsReports.remove(courierId);
+        } else {
+            logisticsReports.put(courierId, new LogisticsReport(next,
+                now + LOGISTICS_REPORT_TTL));
+        }
+        refreshLogisticsAggregate(level);
     }
 
     @Nullable
@@ -239,6 +279,8 @@ public class PlaqueBlockEntity extends BlockEntity {
         insertedPlan = ItemStack.EMPTY;
         lastSurvey = List.of();
         lastScanReason = null;
+        logisticsReports.clear();
+        logisticsStopReason = StopReason.NONE;
         occupants = 0;
         capacity = 0;
         state = PlaqueState.EMPTY;
@@ -252,10 +294,18 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     public static void serverTick(net.minecraft.world.level.Level level, BlockPos pos,
                                   BlockState state, PlaqueBlockEntity plaque) {
-        if (level instanceof ServerLevel serverLevel
-            && serverLevel.getGameTime() >= plaque.nextSurveyTick) {
-            plaque.nextSurveyTick = serverLevel.getGameTime() + SURVEY_INTERVAL;
-            plaque.survey(serverLevel);
+        if (level instanceof ServerLevel serverLevel) {
+            long now = serverLevel.getGameTime();
+            if (now >= plaque.nextLogisticsPruneTick) {
+                plaque.nextLogisticsPruneTick = now + LOGISTICS_PRUNE_INTERVAL;
+                plaque.logisticsReports.entrySet().removeIf(entry ->
+                    entry.getValue().expiresAtTick() <= now);
+                plaque.refreshLogisticsAggregate(serverLevel);
+            }
+            if (now >= plaque.nextSurveyTick) {
+                plaque.nextSurveyTick = now + SURVEY_INTERVAL;
+                plaque.survey(serverLevel);
+            }
         }
     }
 
@@ -484,6 +534,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             releaseResidents(level, building);
             SettlementSavedData.get(level).setDirty();
         }
+        logisticsReports.clear();
+        logisticsStopReason = StopReason.NONE;
         state = newState;
     }
 
@@ -497,6 +549,8 @@ public class PlaqueBlockEntity extends BlockEntity {
         releaseResidents(level, building);
         settlement.buildings.remove(building);
         buildingId = null;
+        logisticsReports.clear();
+        logisticsStopReason = StopReason.NONE;
         state = PlaqueState.PLAN_INSERTED_UNLINKED;
         SettlementSavedData.get(level).setDirty();
         if (breaker != null) {
@@ -564,11 +618,48 @@ public class PlaqueBlockEntity extends BlockEntity {
         for (Requirement.Status status : lastSurvey) {
             anyProgress |= status.met() || status.partial();
         }
-        PlaqueBlock.Glow glow = PlaqueBlock.Glow.forState(state, anyProgress);
-        BlockState current = getBlockState();
-        if (current.getValue(PlaqueBlock.GLOW) != glow) {
-            level.setBlock(worldPosition, current.setValue(PlaqueBlock.GLOW, glow), 3);
+        PlaqueBlock.Glow glow;
+        if (state == PlaqueState.LINKED_VALID) {
+            glow = logisticsStopReason == StopReason.NONE
+                ? PlaqueBlock.Glow.GREEN
+                : logisticsStopReason.isWaiting()
+                    ? PlaqueBlock.Glow.AMBER : PlaqueBlock.Glow.RED;
+        } else {
+            glow = PlaqueBlock.Glow.forState(state, anyProgress);
         }
+        BlockState current = getBlockState();
+        boolean registered = state == PlaqueState.LINKED_VALID;
+        if (current.getValue(PlaqueBlock.GLOW) != glow
+            || current.getValue(PlaqueBlock.REGISTERED) != registered) {
+            level.setBlock(worldPosition, current
+                .setValue(PlaqueBlock.GLOW, glow)
+                .setValue(PlaqueBlock.REGISTERED, registered), 3);
+        }
+    }
+
+    /** Red outranks amber; equal-severity ties use stable wire-id order. */
+    private void refreshLogisticsAggregate(ServerLevel level) {
+        StopReason aggregate = StopReason.NONE;
+        for (LogisticsReport report : logisticsReports.values()) {
+            StopReason candidate = report.reason();
+            int candidateSeverity = candidate.isWaiting() ? 1 : 2;
+            int aggregateSeverity = aggregate == StopReason.NONE ? 0
+                : aggregate.isWaiting() ? 1 : 2;
+            if (candidateSeverity > aggregateSeverity
+                || (candidateSeverity == aggregateSeverity
+                    && candidate.wireId() < aggregate.wireId())) {
+                aggregate = candidate;
+            }
+        }
+        if (logisticsStopReason == aggregate) {
+            return;
+        }
+        logisticsStopReason = aggregate;
+        updateGlow(level);
+        // Two amber reasons share a block state, so the block-entity packet
+        // must still carry the changed text reason to the client.
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
+            Block.UPDATE_CLIENTS);
     }
 
     private void announce(ServerLevel level, PlaqueState previous) {
@@ -638,6 +729,10 @@ public class PlaqueBlockEntity extends BlockEntity {
         state = PlaqueState.byId(tag.getString("State"), buildingId != null);
         revision = tag.getInt("Revision");
         failedSurveys = tag.getInt("FailedSurveys");
+        logisticsReports.clear();
+        logisticsStopReason = tag.contains(LOGISTICS_STOP_KEY, Tag.TAG_BYTE)
+            ? StopReason.fromWireId(tag.getByte(LOGISTICS_STOP_KEY))
+            : StopReason.NONE;
         if (tag.contains(SURVEY_KEY)) {
             List<Requirement.Status> restored = new ArrayList<>();
             ListTag list = tag.getList(SURVEY_KEY, Tag.TAG_COMPOUND);
@@ -669,6 +764,8 @@ public class PlaqueBlockEntity extends BlockEntity {
     /** Keys for the occupancy line. Wire-only, never on disk — see the fields. */
     private static final String OCCUPANTS_KEY = "Occupants";
     private static final String CAPACITY_KEY = "Capacity";
+    /** Courier stop reason. Wire-only and recomputed from real containers. */
+    private static final String LOGISTICS_STOP_KEY = "LogisticsStop";
 
     /**
      * The client needs the type, the state AND the survey to draw the sheet.
@@ -696,6 +793,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         tag.put(SURVEY_KEY, list);
         tag.putInt(OCCUPANTS_KEY, occupants);
         tag.putInt(CAPACITY_KEY, capacity);
+        tag.putByte(LOGISTICS_STOP_KEY, (byte) logisticsStopReason.wireId());
         return tag;
     }
 
@@ -703,5 +801,8 @@ public class PlaqueBlockEntity extends BlockEntity {
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    private record LogisticsReport(StopReason reason, long expiresAtTick) {
     }
 }

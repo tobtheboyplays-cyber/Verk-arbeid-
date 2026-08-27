@@ -1,10 +1,13 @@
 package com.hearthstead.client.render;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.client.model.SettlerModel;
 import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.logistics.StopReason;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
@@ -54,6 +57,9 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     private static final int PLATE_FILL = HsUiTokens.FIELD; // charcoal, #1A1A1A
     private static final int NAME_COLOR = HsUiTokens.TEXT_STRONG;
     private static final int STATUS_COLOR = HsUiTokens.TEXT_MUTED;
+    private static final int STOP_COLOR = 0xFFF0D7B0;
+    private static final int STOP_WAITING = 0xFFD6A447;
+    private static final int STOP_BLOCKED = 0xFFD35F52;
     private static final int DIM_TEXT_ALPHA = 0x26; // the through-wall tone, same feel the old 0x20 had
     private static final float PAD_X = 3.0F;
     private static final float PAD_TOP = 2.0F;
@@ -61,6 +67,7 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     private static final float DOT_SIZE = 4.0F;
     private static final float DOT_GAP = 3.0F;
     private static final float LINE2_Y = HsUiTokens.LINE_GAP; // 11
+    private static final float LINE3_Y = LINE2_Y + HsUiTokens.LINE_GAP;
 
     public SettlerRenderer(EntityRendererProvider.Context context) {
         super(context, new SettlerModel(context.bakeLayer(SettlerModel.LAYER)), 0.5F);
@@ -147,14 +154,39 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
         }
         boolean badge = profession.employed();
 
+        // World-first diagnostics stay quiet at village scale: only the one
+        // courier the player deliberately targets while sneaking gets the
+        // actionable third line. Fifty settlers therefore cost no fifty-line
+        // overlay and no per-frame world scan.
+        StopReason stop = entity.logisticsStopReason();
+        boolean inspectStop = targeted && profession == Profession.COURIER
+            && stop != StopReason.NONE
+            && Minecraft.getInstance().player != null
+            && Minecraft.getInstance().player.isShiftKeyDown();
+        Component stopLine = null;
+        if (inspectStop) {
+            Component targetName = logisticsTargetName(entity);
+            int seconds = entity.logisticsRetrySeconds();
+            stopLine = seconds > 0
+                ? Component.translatable("hearthstead.logistics.line.retry",
+                    stop.displayName(), targetName, seconds)
+                : Component.translatable("hearthstead.logistics.line",
+                    stop.displayName(), targetName);
+        }
+
         int nameWidth = font.width(name);
         int statusWidth = status != null ? font.width(status) : 0;
         float statusClusterWidth = status != null
             ? statusWidth + (badge ? DOT_SIZE + DOT_GAP : 0.0F)
             : 0.0F;
-        float plateHalfWidth = Math.max(nameWidth, statusClusterWidth) / 2.0F + PAD_X;
+        int stopWidth = stopLine == null ? 0 : font.width(stopLine);
+        float stopClusterWidth = stopLine == null
+            ? 0.0F : stopWidth + DOT_SIZE + DOT_GAP;
+        float plateHalfWidth = Math.max(nameWidth,
+            Math.max(statusClusterWidth, stopClusterWidth)) / 2.0F + PAD_X;
         float plateTop = -PAD_TOP;
-        float plateBottom = (status != null ? LINE2_Y + HsUiTokens.TEXT_H : HsUiTokens.TEXT_H)
+        float plateBottom = (stopLine != null ? LINE3_Y + HsUiTokens.TEXT_H
+            : status != null ? LINE2_Y + HsUiTokens.TEXT_H : HsUiTokens.TEXT_H)
             + PAD_BOTTOM;
 
         // One shared backplate under both lines -- a single designed tag,
@@ -183,7 +215,34 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
             font.drawInBatch(status, textX, LINE2_Y, withAlpha(STATUS_COLOR, fullAlpha), false,
                 matrix, buffers, Font.DisplayMode.NORMAL, 0, packedLight);
         }
+        if (stopLine != null) {
+            float clusterHalf = stopClusterWidth / 2.0F;
+            float dotX = -clusterHalf + DOT_SIZE / 2.0F;
+            float dotY = LINE3_Y + HsUiTokens.TEXT_H / 2.0F;
+            drawDot(pose, buffers, packedLight, dotX, dotY,
+                stop.isWaiting() ? STOP_WAITING : STOP_BLOCKED, fade);
+            float textX = -clusterHalf + DOT_SIZE + DOT_GAP;
+            font.drawInBatch(stopLine, textX, LINE3_Y, withAlpha(STOP_COLOR, dimAlpha), false,
+                matrix, buffers, Font.DisplayMode.SEE_THROUGH, 0, packedLight);
+            font.drawInBatch(stopLine, textX, LINE3_Y, withAlpha(STOP_COLOR, fullAlpha), false,
+                matrix, buffers, Font.DisplayMode.NORMAL, 0, packedLight);
+        }
         pose.popPose();
+    }
+
+    private static Component logisticsTargetName(SettlerEntity entity) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.level == null || entity.logisticsStopTarget().isEmpty()) {
+            return Component.translatable("hearthstead.logistics.target.unknown");
+        }
+        net.minecraft.core.BlockPos target = entity.logisticsStopTarget().get();
+        if (minecraft.level.getBlockEntity(target) instanceof PlaqueBlockEntity plaque) {
+            return plaque.type().displayName();
+        }
+        if (minecraft.level.getBlockEntity(target) instanceof HearthBlockEntity) {
+            return Component.translatable("hearthstead.logistics.target.hearth");
+        }
+        return Component.translatable("hearthstead.logistics.target.destination");
     }
 
     /**
