@@ -312,8 +312,15 @@ public class CourierStopReasonGameTests {
         helper.assertTrue(warehouse != null, "setup: sealed warehouse chest should exist");
         SettlerEntity courier = courier(helper, settlement, new BlockPos(4, 1, 4));
         boolean[] openedAfterFailure = {false};
+        String[] lastFailureTrace = {""};
+        java.util.List<String> failureSnapshots = new java.util.ArrayList<>();
 
         helper.succeedWhen(() -> {
+            if (courier.logisticsStopReason() == StopReason.NO_PATH
+                && !courier.routeFailureNote().equals(lastFailureTrace[0])) {
+                lastFailureTrace[0] = courier.routeFailureNote();
+                failureSnapshots.add(courier.blockPosition() + " " + lastFailureTrace[0]);
+            }
             if (!openedAfterFailure[0]
                 && courier.logisticsStopReason() == StopReason.NO_PATH
                 && courier.logisticsRetrySeconds() > 0) {
@@ -334,6 +341,10 @@ public class CourierStopReasonGameTests {
                     + " [reason=" + courier.logisticsStopReason()
                     + " retry=" + courier.logisticsRetrySeconds()
                     + " trace=" + courier.routeFailureNote() + "]");
+            helper.assertTrue(helper.getBlockState(chestRel.west()).isAir()
+                    && helper.getBlockState(chestRel.west().above()).isAir()
+                    && helper.getBlockState(chestRel.above()).isAir(),
+                "the recovery corridor and lid must remain physically open");
             int delivered = count(warehouse, Items.OAK_LOG);
             helper.assertTrue(delivered == 4,
                 "after opening the route, the real retry should deliver all four logs"
@@ -345,6 +356,7 @@ public class CourierStopReasonGameTests {
                     + " reason=" + courier.logisticsStopReason()
                     + " retry=" + courier.logisticsRetrySeconds()
                     + " trace=" + courier.routeFailureNote()
+                    + " failures=" + failureSnapshots
                     + " warehousePresent=" + settlement.buildings.stream()
                         .anyMatch(building -> building.type == BuildingType.WAREHOUSE)
                     + "]");
