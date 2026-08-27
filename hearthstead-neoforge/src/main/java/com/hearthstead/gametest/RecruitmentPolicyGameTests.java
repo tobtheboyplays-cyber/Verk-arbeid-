@@ -84,11 +84,9 @@ public class RecruitmentPolicyGameTests {
 
     private static Building tavern(GameTestHelper helper, Settlement s) {
         BlockPos anchor = helper.absolutePos(TAVERN);
-        Building building = new Building(UUID.randomUUID(), BuildingType.TAVERN,
-            anchor, anchor, BoundingBox.fromCorners(anchor, anchor.offset(2, 2, 2)));
-        building.valid = true;
-        s.buildings.add(building);
-        return building;
+        return GameTestFixtures.registerWithBounds(helper, s, BuildingType.TAVERN,
+            TAVERN, TAVERN.above(),
+            BoundingBox.fromCorners(anchor, anchor.offset(2, 2, 2)));
     }
 
     private static void seedFullBoundary(HearthBlockEntity hearth) {
