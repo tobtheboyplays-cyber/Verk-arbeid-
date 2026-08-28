@@ -404,3 +404,29 @@ refused with `no_trade`. The refusal was honest; the offer was not. Capacities
 set to 0 until the matching trades exist. The plaque is the surveyor this
 whole design rests on, and a plaque that advertises a post that cannot be
 filled teaches the player its promises are decorative.
+
+## Spec correction 2026-08-28 — the playtest's recruit expectation predated the tavern gate
+
+**What changed.** `qa/scenarios/default.txt` expected `/hearthstead recruit`,
+issued BEFORE the hearth is even placed, to print "Recruitment timers
+advanced". The tavern gate (c3ed4d6, byggherre-dom 5) deliberately made that
+sentence conditional: it is only true when at least one settlement has a
+valid tavern. The first `full` run after the gate landed (fresh container,
+2026-08-28, artifacts 20260828T190734Z) correctly failed the stale
+expectation: with no settlement founded yet, recruit's answer is a
+`sendFailure` the server log never carries at all.
+
+**Why this is a correction and not a weakened judge.** The old expectation
+only ever passed because the PRE-gate command printed "Recruitment timers
+advanced" unconditionally — "for 0 settlement(s)" included (verified in
+c3ed4d6's diff: the count argument was added there). The scenario was
+asserting a sentence the product printed even when it had done nothing.
+The replacement asserts strictly more truth, through the same real command
+path: (1) pre-founding, the cmd input class is now probed with
+`hearthstead info`, whose no-settlement answer is console-visible and
+honestly "No settlement founded"; (2) post-founding, `hearthstead recruit`
+must name the tavernless settlement it SKIPPED — the gate's "stille
+feil"-forbud exercised live in a real world. The positive path is covered
+at the correct layer by RecruitGameTests (noTavernMeansTheGaugeNeverFills,
+aValidTavernReopensTheGate, aTavernAndItsInnkeeperAccelerateTheRecruitGauge);
+no assertion anywhere was deleted or loosened.

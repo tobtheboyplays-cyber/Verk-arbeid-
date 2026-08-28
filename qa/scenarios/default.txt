@@ -19,9 +19,18 @@ cmd hearthstead demo
 wait 3
 
 # --- INPUT CLASS 1/4: cmd. broadcastToAdmins=true so the console log gets
-# the resolved feedback text regardless of who issued it (AC-2).
-cmd hearthstead recruit
-expect_server Recruitment timers advanced
+# the resolved feedback text regardless of who issued it (AC-2). `info` is
+# the probe here, not `recruit`: at this point NO settlement exists (the
+# hearth is placed 20 directives below), and the honest answer to that is
+# info's console-visible "No settlement founded" — whereas recruit's
+# no-settlement branch is a sendFailure the server log never carries. The
+# recruit command is exercised after founding, where it has something true
+# to say (see TAVERN GATE below). Until 2026-08-28 this step expected
+# "Recruitment timers advanced" from a pre-founding recruit — which only
+# ever passed because the pre-gate command printed it unconditionally,
+# "for 0 settlement(s)" included. Ledger: spec correction 2026-08-28.
+cmd hearthstead info
+expect_server No settlement founded
 
 # --- INPUT CLASS 2/4: key. Switching hotbar slots must visibly move the
 # selection highlight in the lower third of the screen (AC-2).
@@ -82,6 +91,17 @@ scmd hearthstead info
 expect_server population 3
 scmd execute if entity @e[type=hearthstead:settler] run say HS_SETTLER_PRESENT
 expect_server HS_SETTLER_PRESENT
+
+# --- TAVERN GATE (PLAN_TAVERN_GATE krav 4, "stille feil" severity 1) -----
+# A settlement now exists and has NO tavern, so the admin recruit shortcut
+# must SAY it skipped — one line naming the settlement, never a silent
+# no-op and never a claim that timers advanced. This asserts the gate's
+# honest voice in a real world through the real command path. The positive
+# path (valid tavern → gauge advances, innkeeper accelerates) is covered at
+# the right layer by RecruitGameTests (noTavernMeansTheGaugeNeverFills,
+# aValidTavernReopensTheGate, aTavernAndItsInnkeeperAccelerateTheRecruitGauge).
+cmd hearthstead recruit
+expect_server no tavern
 
 # --- INPUT CLASS 4/4: look. Server-side Rotation must change by more than
 # 30 degrees of yaw (AC-2) — never trust the client's own idea of where it's
