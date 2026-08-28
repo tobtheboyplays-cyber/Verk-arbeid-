@@ -1,0 +1,2 @@
+[18:50:05] [Server thread/ERROR] [minecraft/LogTestReporter]: homeinvalidatedwhenwallbroken failed at 3765236, -60, 9655143! waiting for registration
+[18:50:05] [Server thread/ERROR] [minecraft/LogTestReporter]: settlersleepsinclaimedbed failed at 3765174, -60, 9655165! settler should claim the bed (act=RESTING homes=0 buildings=0 gameTime=1605 dayTime=16901 energy=100.0)

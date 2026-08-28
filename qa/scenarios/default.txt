@@ -1,0 +1,411 @@
+# Default playtest. quickPlay drops us straight into the world with NO screen
+# open, so an Escape here would OPEN the pause menu, not dismiss one.
+# See qa/scripts/playtest.sh for the full directive language (AC-14).
+wait 5
+shot playtest-01-inworld
+expect_shot playtest-01-inworld
+
+# Clear conditions so the screenshots show the art rather than mud and rain.
+scmd gamemode creative @a
+scmd time set 1000
+scmd weather clear
+scmd gamerule doDaylightCycle false
+wait 3
+shot playtest-02-daylight
+expect_shot playtest-02-daylight
+
+# The mod's own starter kit: hearth, writs, handbook, settler eggs.
+cmd hearthstead demo
+wait 3
+
+# --- INPUT CLASS 1/4: cmd. broadcastToAdmins=true so the console log gets
+# the resolved feedback text regardless of who issued it (AC-2). `info` is
+# the probe here, not `recruit`: at this point NO settlement exists (the
+# hearth is placed 20 directives below), and the honest answer to that is
+# info's console-visible "No settlement founded" — whereas recruit's
+# no-settlement branch is a sendFailure the server log never carries. The
+# recruit command is exercised after founding, where it has something true
+# to say (see TAVERN GATE below). Until 2026-08-28 this step expected
+# "Recruitment timers advanced" from a pre-founding recruit — which only
+# ever passed because the pre-gate command printed it unconditionally,
+# "for 0 settlement(s)" included. Ledger: spec correction 2026-08-28.
+cmd hearthstead info
+expect_server No settlement founded
+
+# --- INPUT CLASS 2/4: key. Switching hotbar slots must visibly move the
+# selection highlight in the lower third of the screen (AC-2).
+key 2
+wait 1
+shot before-key
+key 1
+wait 1
+shot after-key
+expect_pixel_change before-key after-key 2.0 lower-third
+shot playtest-03-hotbar
+
+# --- INPUT CLASS 3/4: click. Aim down and right-click to place the hearth,
+# then have the server itself confirm the block landed (AC-2). The input
+# class under test here is the BUTTON PRESS, proven live to be 100%
+# reliable (it reliably broke a known test block) independent of the mouse
+# camera-look reliability problem documented in the `move`/`look` handlers —
+# so the aim itself is set deterministically via console `tp <player> ~ ~ ~
+# <yaw> <pitch>` rather than through synthetic mouse motion, isolating this
+# check to what it actually tests. Exactly where the crosshair then lands is
+# still not hand-derived: count hearth blocks in a generous reach-distance
+# box around the player's own position — deterministic and non-destructive
+# (fill replaces hearth with itself, a no-op where it matches).
+# NOT a bare `tp $PLAYER ~ ~ ~ ...` — a console-issued command's `~`
+# resolves against the CONSOLE's own position context, not the target
+# entity's (proven live: it teleported the player to the console's default
+# origin instead of keeping their position). `execute at` anchors the
+# position context to the player first. Pitch 45 (not steeper) is
+# deliberate: proven live that 60 places the target too close to the
+# player's own feet/hitbox for the placement to succeed; 45 reliably lands
+# a few blocks out on open ground and actually founds the settlement.
+scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 45
+# The server-side rotation change from tp needs time to reach the client
+# over the network before its LOCAL camera (what the click raycasts
+# against) actually matches it — 1s was not always enough in the scripted
+# run even though manual testing (with longer gaps between tool
+# invocations) never showed this. Give it a real margin.
+wait 3
+shot before-hearth-click
+click right
+wait 2
+shot after-hearth-click
+# NOT expect_block_near_player: proven live that `fill <box> hearthstead:hearth
+# replace hearthstead:hearth` is a no-op the game never counts, even when the
+# block is right there (self-replace changes nothing, so nothing is
+# reported "filled") — it would report FAIL unconditionally regardless of
+# truth. A settlement can only exist if the hearth placement actually
+# succeeded, so that is the real, authoritative, non-destructive proof.
+scmd hearthstead info
+expect_server population
+wait 12
+shot 04-settlement
+expect_shot 04-settlement
+
+# AC-4: the settlement screenshot corroborated server-side — population >=3
+# plus a settler-entity echo, both independent of the screenshot itself.
+scmd hearthstead info
+expect_server population 3
+scmd execute if entity @e[type=hearthstead:settler] run say HS_SETTLER_PRESENT
+expect_server HS_SETTLER_PRESENT
+
+# --- TAVERN GATE (PLAN_TAVERN_GATE krav 4, "stille feil" severity 1) -----
+# A settlement now exists and has NO tavern, so the admin recruit shortcut
+# must SAY it skipped — one line naming the settlement, never a silent
+# no-op and never a claim that timers advanced. This asserts the gate's
+# honest voice in a real world through the real command path. The positive
+# path (valid tavern → gauge advances, innkeeper accelerates) is covered at
+# the right layer by RecruitGameTests (noTavernMeansTheGaugeNeverFills,
+# aValidTavernReopensTheGate, aTavernAndItsInnkeeperAccelerateTheRecruitGauge).
+cmd hearthstead recruit
+expect_server no tavern
+
+# --- INPUT CLASS 4/4: look. Server-side Rotation must change by more than
+# 30 degrees of yaw (AC-2) — never trust the client's own idea of where it's
+# facing. 500 is a proven-reliable delta (see the 400 note above).
+scmd data get entity $PLAYER Rotation
+move 500 0
+wait 1
+scmd data get entity $PLAYER Rotation
+expect_rotation_change 30
+
+# Settlers spawn at the hearth: pan across them.
+move 200 -60
+wait 3
+shot playtest-05-settlers-right
+move -400 0
+wait 3
+shot playtest-06-settlers-left
+move 200 0
+wait 2
+
+# The settlement report, then the handbook UI (the premium-UI gate reads these).
+cmd hearthstead info
+wait 3
+shot playtest-07-info
+# Slot 3, not 5. `hearthstead demo` gives HEARTH, BUILD_PLAN, HANDBOOK,
+# BREAD, WHEAT_SEEDS, OAK_SAPLING, IRON_HOE, SPAWN_EGG in that order, so the
+# handbook is the third item. This said `key 5`, which selects the wheat
+# seeds, and the failure that caused was not local: the right-click below did
+# nothing, so no screen was open when the Escape ran -- and an Escape with no
+# screen open OPENS the pause menu, exactly as this file's own opening
+# comment warns. From that point every later click in the scenario went to
+# the Game Menu instead of the world, and the run failed 25 directives later
+# at the plaque insert, reporting "server log never matched build_plan" as
+# though the plaque were broken. It was not; the plaque was never clicked.
+# Proven from the evidence: shots/playtest-08-handbook-ui.png shows the world
+# with slot 5 (seeds) selected, and shots/plaque-02-empty-clicked.png shows
+# the pause menu sitting open over the village.
+key 3
+wait 1
+# `open`, not `click`: verified regrab before the first click that opens a
+# screen. Belt to the braces above -- the slot fix is the actual cause, this
+# stops a dead grab from reproducing the same cascade.
+open right
+wait 4
+shot playtest-08-handbook-ui
+key Escape
+wait 2
+shot playtest-09-back-in-world
+
+# --- PLAQUE-1 -------------------------------------------------------------
+# Hangs a blank plaque, proves server-side (never a screenshot alone) that
+# no screen opens while it is empty, fits a Build Plan, and proves the
+# building registers via `hearthstead scan`/`hearthstead info`.
+
+# Move well clear of the hearth+recruit test above before doing anything
+# else. Two independent reasons, both proven live: (1) that hearth's
+# settlement can by now have starved and disbanded ("the hearth has gone
+# cold" — a real, timing-dependent outcome of a long scenario, never
+# scripted), so its exact fate is not something this section can assume;
+# (2) even when it is STILL alive, Settlement.inside() only covers the 48
+# blocks around its OWN hearth, while a new settlement refuses to found
+# within a combined 96 blocks of an existing one (Settlement.DEFAULT_RADIUS
+# on each side) -- so a plaque built merely "nearby" can land in the gap
+# between those two radii: too close for a new settlement to form, too far
+# for the old one to cover it, and PlaqueBlockEntity.link() reports that
+# gap as "No room found" (proven live; see the note further down where the
+# new hearth is placed). 300 blocks clears both radii with a wide margin
+# regardless of which way this run's earlier section happened to wander.
+scmd execute at $PLAYER run tp $PLAYER ~300 ~ ~300 0 0
+scmd execute at $PLAYER run forceload add ~-8 ~-8
+wait 3
+scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 0
+wait 1
+
+# A small house shell 1-6 blocks straight ahead (world +Z: yaw 0 faces
+# south) of wherever the player now stands: a hollow 5-wide x 4-tall x
+# 5-deep box, a door and a lit bed inside, and a BLANK plaque hung on the
+# outside of the door wall, facing into it (D-006 -- no Build Plan means no
+# type and no survey yet). Built via `execute at $PLAYER run` for the same
+# tilde-resolution reason as the hearth aim above (a console command's `~`
+# resolves against the CONSOLE's own position, not the player's); `execute
+# ... run`'s own feedback is dropped (documented, proven live for `fill`) —
+# harmless here, since the room's existence is proven afterward through the
+# plaque's own survey, never through fill/setblock's own text.
+scmd execute at $PLAYER run fill ~-3 ~-1 ~1 ~3 ~4 ~7 minecraft:air
+scmd execute at $PLAYER run fill ~-2 ~0 ~2 ~2 ~3 ~6 minecraft:stone_bricks hollow
+scmd execute at $PLAYER run setblock ~0 ~1 ~2 minecraft:oak_door[half=lower,facing=south]
+scmd execute at $PLAYER run setblock ~0 ~2 ~2 minecraft:oak_door[half=upper,facing=south]
+scmd execute at $PLAYER run setblock ~0 ~1 ~4 minecraft:red_bed[facing=north,part=foot]
+scmd execute at $PLAYER run setblock ~0 ~1 ~5 minecraft:red_bed[facing=north,part=head]
+scmd execute at $PLAYER run setblock ~-1 ~1 ~4 minecraft:torch
+scmd execute at $PLAYER run setblock ~1 ~1 ~1 hearthstead:plaque[facing=north]
+wait 1
+# Freeze the plaque's ABSOLUTE position now, while the player is still
+# exactly where the room was built (no regrab-teleport churn has happened
+# yet to drift it). The two `hearthstead scan` calls further down target
+# these frozen integers instead of a live `~`-relative offset from the
+# player's CURRENT position -- proven live that position can drift by
+# several tenths of a block across intervening cmd/click interactions
+# (20260824T103155Z, 20260824T111340Z), enough to floor to the wrong block.
+capture_pos PLAQUE 1 1 1
+# Same freeze, same reason, for the later stand-back reposition below --
+# RELEASE_GATE re-review (2026-08-24) found this one was STILL computed
+# from a live `~1 ~ ~-1` at the time it runs, well after the 15s founding
+# wait that follows. Proven from a failing run's own evidence
+# (20260824T130654Z): the pre-click screenshot shows the crosshair a full
+# block off the plaque before any click happens, and the log's own
+# "Teleported Dev to ..." line for that reposition, worked backward,
+# implies about a block of drift in the player's position across just
+# that wait -- not a click-delivery problem at all, the aim itself was
+# already wrong. Captured now, at the same safe moment as PLAQUE, so the
+# later reposition uses these frozen coordinates instead of live `~` math.
+capture_pos STANDBACK 1 0 -1
+
+# A plaque can only ever LINK to a settlement, never merely to a valid room:
+# PlaqueBlockEntity.link() looks up the nearest settlement whose radius
+# covers the plaque and bails to PLAN_INSERTED_UNLINKED ("No room found") if
+# none does -- proven live: an identical room, with and without a settlement
+# in range, surveys to "No room found" and "Registered" respectively, with
+# nothing else different. By this point in the scenario the ORIGINAL
+# settlement from the recruiting test above may already have starved and
+# disbanded ("the hearth has gone cold" is a real, timing-dependent outcome
+# of a long scenario, not scripted) -- so this section founds its OWN hearth
+# rather than depending on that one surviving. Founding needs its chunk
+# force-loaded and a real number of seconds to complete (see the explicit
+# wait right after placing it, below, for exactly why).
+scmd execute at $PLAYER run setblock ~0 ~1 ~-2 hearthstead:hearth
+scmd execute at $PLAYER run forceload add ~0 ~-2
+
+# Explicit, not incidental: founding needs ~15-20s in this environment
+# (proven live), and the second `hearthstead scan` below is a ONE-SHOT
+# survey -- expect_server's own retry loop re-reads the log, it does not
+# re-issue the scan command, so if founding is still incomplete at the
+# moment that command dispatches, no later retry will save it. This wait
+# makes that requirement self-contained rather than an accident of how much
+# time the empty-plaque UI steps below happen to take.
+wait 15
+
+# Stand exactly 2 blocks back from the plaque, level with it, facing it
+# dead-on (yaw 0 again = +Z, toward the wall it hangs on). Absolute frozen
+# coordinates, not live `~` math -- see capture_pos STANDBACK above.
+# _CX/_CZ, not _X/_Z: the centre of the block, not its corner. Teleporting
+# to integer x/z lands the player exactly on the seam between two blocks, so
+# a yaw-0 pick ray runs down that seam and picks a neighbour on some runs and
+# the plaque on others -- an intermittent one-block-left miss that survived
+# both the retry and the regrab fixes because neither was the cause. See
+# capture_pos in playtest.sh for the evidence.
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
+wait 2
+
+# Empty hotbar, empty hand: right-clicking a blank plaque must open no
+# screen at all, just a hint (W4).
+scmd clear $PLAYER
+key 9
+wait 1
+shot plaque-01-before-click
+# Belt and braces, same shape and same reason as `move`'s (see playtest.sh):
+# proven live, this session, that a `click` several directives into a long
+# scenario can silently fail to register as a world interaction even with
+# the crosshair dead-centred on the target and the correct item in hand,
+# for reasons not fully isolated (GLFW/XTEST input delivery in this
+# environment, not the mod -- the identical action taken directly, close to
+# session start, works every time). A second click costs nothing here: the
+# empty-hand interaction is idempotent (same hint, or nothing, either way).
+click right
+wait 2
+click right
+wait 2
+shot plaque-02-empty-clicked
+
+# Server-side proof, never a screenshot alone: survey the plaque directly.
+# A console `~` would resolve against the CONSOLE's own position (the same
+# gotcha as the hearth aim above), so this is asked AS THE PLAYER (`cmd`,
+# real chat, real command dispatch) whose position it then resolves
+# against. The plaque sits 1 right, 1 up, 2 ahead of here.
+# Belt and braces, same reasoning as the click tests below: proven live
+# (20260824T094934Z, 20260824T102119Z) that this exact chat-typed command
+# can intermittently land on the wrong block -- `hearthstead scan`'s own
+# no_plaque failure is player-only feedback (never logged), so a dropped
+# keystroke here shows up only as "server log never matched", nothing
+# else. survey() is safe to call repeatedly (its own contract), so a
+# second identical send costs nothing and self-corrects a one-off miss.
+cmd hearthstead scan $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
+wait 2
+cmd hearthstead scan $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
+expect_server Awaiting a build plan
+
+# Fit a Build Plan for a house and open the plaque -- this is the moment
+# the surveyor starts working (D-006). A cleared, empty hotbar before the
+# give means the plan is guaranteed to land in slot 1.
+scmd give $PLAYER hearthstead:build_plan[hearthstead:building_type="house"] 1
+key 1
+wait 10
+# Same belt-and-braces reasoning as the empty-hand click above -- this one
+# matters more, since insertPlan() is NOT idempotent in the interesting
+# sense: once state leaves EMPTY the plaque no longer matches useItemOn's
+# own EMPTY guard, so a genuine second attempt after a real first success
+# just falls through to useWithoutItem (opens the screen again -- harmless,
+# already open) rather than double-inserting.
+# `open right`, NOT plain `click right` (2026-08-26). All three attempts
+# below used the unverified primitive, and on 2026-08-26 all three missed
+# twice in a row: the plan stayed in the player's hand and the step failed
+# with "server log never matched build_plan". Retrying a click three times
+# does not help when the GLFW grab is dead -- that is KF-035, and this
+# repository already learned once that the fix for a race is not a bigger
+# number but waiting on the condition. `open` is the primitive built for
+# exactly this case (its own comment names the plaque): it runs ensure_grab,
+# which verifies the input pipe is actually alive and regrabs with evidence
+# if it is not, before clicking. Safe here because no screen is open yet.
+#
+# The mechanic itself was never in doubt after this failure: PlaqueUseGameTests
+# proves deterministically, with no window and no input layer, that the
+# right-click fits the plan, consumes it in survival, and refuses an ordinary
+# item. That is what said the fault was in the click, not the game.
+#
+# Re-aim IMMEDIATELY before every attempt (2026-08-28). Over a minute
+# passes between the stand-back tp above and these clicks (the empty-plaque
+# steps, the give, the slot select), and this section's own hearth founds
+# THREE settlers two blocks from the stand spot -- proven from run
+# 20260828T192544Z's evidence: the grab probes read the player at
+# x=307.9986 while $STANDBACK_CX was 308.5, half a block of settler-shove,
+# so a yaw-0 pick ray missed the plaque's box by millimetres on all three
+# attempts and the plan stayed in hand. Same drift class capture_pos
+# already documents; same cure the hearth click uses -- re-establish the
+# aimed state right before acting, never a bigger retry count. wait 3
+# after each tp for the same client-camera-sync reason as the hearth click.
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
+wait 3
+open right
+wait 3
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
+wait 3
+open right
+wait 3
+# A THIRD attempt, with a longer settle. KF-012's correction records this
+# exact step failing intermittently because BOTH clicks missed -- the plan
+# sat in the player's hand and the later scan reported "Awaiting a build
+# plan" instead of "Registered", 30 steps downstream of the real cause.
+# Extra attempts are safe for the reason given above (a click after a real
+# insert falls through to useWithoutItem and merely re-opens the screen).
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
+wait 3
+open right
+wait 5
+# Prove the insert actually happened, HERE, rather than inferring it from a
+# scan much later. A miss now fails at the insert instead of as a confusing
+# missing-"Registered" thirty steps downstream.
+#
+# Assert on the PLAN ITEM being in the plaque, not on a state id: insertPlan
+# sets PLAN_INSERTED_UNLINKED and then calls survey() in the same tick, so a
+# room that already satisfies its plaque never persists that state at all --
+# it lands on linked_valid. Asserting the transient state is how the first
+# version of this check failed a run while the insert had worked perfectly.
+scmd data get block $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
+expect_server hearthstead:build_plan
+shot plaque-03-screen-open
+expect_shot plaque-03-screen-open
+
+# Close the plaque screen first -- Minecraft only opens the chat screen
+# (what `cmd` needs) from Minecraft.screen == null, so a `t` sent while the
+# plaque UI is still open goes nowhere and the following `cmd` types into
+# the void, never running.
+key Escape
+wait 1
+
+# The room already satisfies a house (a bed, a door, a torch, floor space
+# well past the minimum) -- prove registration two ways, both server-side
+# and mod-authoritative, exactly as the plan requires. Same belt-and-braces
+# double-send as the first scan above, same reason.
+cmd hearthstead scan $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
+wait 2
+cmd hearthstead scan $PLAQUE_X $PLAQUE_Y $PLAQUE_Z
+expect_server Registered
+# NOT scmd: HearthsteadCommand.info()'s "nearest settlement" search is
+# distance-from-the-COMMAND-SOURCE's-own-position, same as `~`'s console
+# gotcha documented above the hearth-aim tp -- a console-issued command's
+# position is a fixed point near world spawn, not wherever the player has
+# since walked to. This section relocated 300+ blocks away specifically to
+# clear the earlier hearth+recruit settlement's radius, so `scmd hearthstead
+# info` here was silently reporting on THAT settlement (near spawn, zero
+# buildings) every single time, regardless of what the plaque had just
+# registered 300 blocks away -- proven live across four separate runs
+# (20260824T100153Z, 103155Z, 111340Z, 112735Z), each showing "Registered"
+# immediately followed by "Homes: 0 registered" with no re-invalidation in
+# between. `cmd`, asked as the player, resolves against the player's actual
+# position -- exactly the fix the two scan calls above already needed for
+# the same reason, and exactly what line 106's `cmd hearthstead info`
+# earlier in this same scenario already does correctly.
+#
+# Belt and braces, same shape as the two scan calls above -- kept for
+# consistency even though the actual cause of this check's failures
+# (113853Z through 122434Z, five straight runs) turned out to be neither
+# input delivery nor anything a resend could fix: the dedicated server
+# under test was running a stale build/libs jar that predated the scmd->cmd
+# and sendSuccess fixes above, so every one of those runs asserted against
+# code that was never actually deployed (BLOCKER_GATE, 2026-08-24; see the
+# jar-freshness check playtest.sh now enforces before it will run at all).
+# info() is a pure read with no side effects, so the second send still
+# costs nothing -- it just was never what any of those runs needed.
+#
+# Screenshot kept as routine evidence of the pre-check game state, not as
+# an active diagnostic -- the mystery it was added to chase is resolved.
+shot plaque-05-before-final-info
+cmd hearthstead info
+wait 2
+cmd hearthstead info
+expect_server Homes: 1 registered

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "ingredients": [
+    { "tag": "minecraft:logs" },
+    { "tag": "minecraft:logs" },
+    { "tag": "minecraft:logs" },
+    { "tag": "minecraft:stone_crafting_materials" },
+    { "tag": "minecraft:stone_crafting_materials" },
+    { "tag": "minecraft:stone_crafting_materials" },
+    { "tag": "minecraft:stone_crafting_materials" },
+    { "tag": "minecraft:stone_crafting_materials" },
+    { "item": "minecraft:campfire" }
+  ],
+  "result": {
+    "id": "hearthstead:hearth",
+    "count": 1
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "display": {
+    "icon": {
+      "id": "hearthstead:hearth",
+      "count": 1
+    },
+    "title": {
+      "translate": "hearthstead.advancement.root.title"
+    },
+    "description": {
+      "translate": "hearthstead.advancement.root.description"
+    },
+    "background": "minecraft:textures/gui/advancements/backgrounds/husbandry.png",
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "place_hearth": {
+      "trigger": "minecraft:placed_block",
+      "conditions": {
+        "location": [
+          {
+            "condition": "minecraft:block_state_property",
+            "block": "hearthstead:hearth"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "place_hearth"
+    ]
+  ]
+}

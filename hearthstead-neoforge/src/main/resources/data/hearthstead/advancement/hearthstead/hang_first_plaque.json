@@ -1,0 +1,35 @@
+{
+  "parent": "hearthstead:hearthstead/root",
+  "display": {
+    "icon": {
+      "id": "hearthstead:plaque",
+      "count": 1
+    },
+    "title": {
+      "translate": "hearthstead.advancement.hang_first_plaque.title"
+    },
+    "description": {
+      "translate": "hearthstead.advancement.hang_first_plaque.description"
+    },
+    "show_toast": true,
+    "announce_to_chat": true
+  },
+  "criteria": {
+    "place_plaque": {
+      "trigger": "minecraft:placed_block",
+      "conditions": {
+        "location": [
+          {
+            "condition": "minecraft:block_state_property",
+            "block": "hearthstead:plaque"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "place_plaque"
+    ]
+  ]
+}

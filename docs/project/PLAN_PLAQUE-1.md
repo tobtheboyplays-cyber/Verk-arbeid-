@@ -1,0 +1,156 @@
+# PLAN — SLICE PLAQUE-1 (PLAN_GATE)
+
+**Status:** approved plan, not started. Begins only after HARNESS-1 reaches
+OPUS_APPROVED. No code in this document.
+
+## Goal
+
+Make the plaque match the owner's spec (`DECISIONS.md` D-005, D-006): a plaque
+is hung blank, and it does nothing at all until a **Build Plan** — a separate
+item that carries the building type — is inserted into it. Inserting the plan
+is the moment the surveyor starts working. This closes KF-001, KF-004 and
+KF-005, and gives the plaque a survival acquisition path it does not currently
+have (there is no `plaque` recipe in the repo at all).
+
+## Product spec
+
+- **The plaque is the surveyor** (INV-2). A building exists because a player
+  hung a plaque and the room satisfied that plaque's requirements. No plaque,
+  no building.
+- **No inserted Build Plan means no plaque UI** (D-006). An empty plaque is a
+  blank board with a dark lamp; right-clicking it opens nothing and says, once,
+  what it is waiting for.
+- **The plan is the dedication.** The building type lives on the Build Plan
+  item, not on the plaque item. One plaque item, six plans (house, lodging,
+  warehouse, lumber_camp, farmhouse, architects_study) — so a player re-purposes
+  a wall by swapping a slip of paper, not by re-crafting the board.
+- The plaque stays an ACCESS POINT (INV-2): type, state, revision, building id.
+  No building registry, no resident list of its own.
+- Taking the plan back out returns the physical item (INV-3, conservation) and
+  dissolves the building exactly as breaking the plaque does today.
+
+## State machine (replaces the current four-state enum)
+
+    EMPTY                    hung, no plan            no UI, dark lamp
+      | insert Build Plan
+    PLAN_INSERTED_UNLINKED   plan in, no room found   UI, red lamp
+      | room found, requirements unmet
+    LINKED_INCOMPLETE        UI lists what is missing  amber lamp
+      | requirements met
+    LINKED_VALID             building registered       green lamp
+      | building gone from the settlement
+    ORPHANED                 UI offers re-survey       red lamp
+
+`NO_PERMISSION` stays out of the enum on purpose — it is a property of the
+viewer, decided when a screen opens, never stored or synced.
+
+## Work items
+
+| # | Item | Acceptance criterion |
+|---|---|---|
+| W1 | `BuildPlanItem` + `build_plan` registration, `BUILDING_TYPE` component reused | six stamped stacks exist; an unstamped plan is not obtainable |
+| W2 | `PlaqueState` gains `EMPTY` and `PLAN_INSERTED_UNLINKED`; `LINKED`→`LINKED_VALID`, `INCOMPLETE`→`LINKED_INCOMPLETE` | `byId` round-trips every value; an old save's `State` string still loads |
+| W3 | `PlaqueBlockEntity` stores the inserted plan and refuses to survey while `EMPTY` | a hung plaque with no plan runs zero scans over 400 ticks (trace-proven) |
+| W4 | `PlaqueBlock.useItemOn` inserts a plan; `useWithoutItem` on `EMPTY` opens no screen and sends one hint | GameTest: screen open count is 0 while empty, 1 after insertion |
+| W5 | Plan extraction (empty-hand sneak-use) returns the exact stamped item and dissolves the building | item in = item out, same component; residents released |
+| W6 | `GLOW` gains `EMPTY`; four block models (`plaque_empty|red|amber|green`) | KF-005: every blockstate variant resolves; validator green |
+| W7 | Lang keys from `docs/PLAQUE_LANG_KEYS.md` (25 missing) in `en_us` + `nb_no` | KF-004: validator's key-parity check green |
+| W8 | Recipes: `plaque`, and one `build_plan` per building type with the component on the result | each recipe loads; result carries the right `building_type` |
+| W9 | GameTest helper `hangPlaque()` hangs in the **air cell** against the wall and inserts a plan | KF-001: `roomdetectedashome` reports `vol=27`, not `vol=1856`; 15/15 green |
+
+## Test plan (pyramid)
+
+- **A (cheap, after every change):** `tools/hearthstead-qa gametest`, then
+  `assets` for W6–W8. Repeat-run rule: the five KF-001 tests must be green
+  **5/5**, not once — this suite has been flaky-green before.
+- **B (feature complete):** `tools/hearthstead-qa playtest` with a new scenario
+  that hangs a plaque, proves no screen opens, inserts a plan, and proves the
+  building registers — verified server-side via `hearthstead info`, never from
+  a screenshot alone.
+- **C (before RELEASE_GATE):** `tools/hearthstead-qa full`, green_streak ≥ 2.
+
+## Out of scope
+
+Building tiers, furnishing quality, resident assignment UI, the Architect's
+Study as a working profession building, and any settler behaviour change. This
+slice makes the plaque behave as specified and clears its three known failures;
+it does not extend what a building means.
+
+## Risks
+
+- **Save compatibility.** Existing worlds hold `State=linked|incomplete`.
+  W2 must map the old ids forward, not default them to `EMPTY` — that would
+  silently un-home a running settlement. A GameTest loads a synthetic old tag.
+- **Scan budget (INV-4).** Adding a state that never scans reduces work; but
+  insertion must not trigger an unbounded immediate re-survey storm if a player
+  fills a wall with plaques. Insertion reuses the existing `SURVEY_INTERVAL`
+  cooldown path.
+
+---
+
+## W6 refined — read from the actual pipeline (2026-08-24)
+
+Surveyed before starting so the slice does not discover this mid-flight.
+
+**KF-005 needs art, not just models.** `tools/gen_plaque.py` emits fourteen
+files and **no status lamp among them** — there is no red/amber/green source
+art anywhere, so the three missing models could not have been written by
+copying an existing variant. The generator must gain
+`plaque_lamp_{off,red,amber,green}.png` (four, not three: `EMPTY` shows a dark
+lamp, per D-006 — a blank board must not glow a warning colour at a player who
+simply has not slipped a plan in yet).
+
+**Do not write four full models.** `block/plaque.json` is a hand-authored
+10-element model with 6 texture slots (`board`, `edge`, `brass`, `iron`,
+`panel`, `particle`) and no parent. Duplicating it four times means four copies
+of ten elements to keep in step. Instead: promote it to `block/plaque_base.json`
+with one added lamp element bound to a `#lamp` slot, and make each variant a
+three-line child that sets `lamp` and nothing else. Then the blockstate's
+existing `facing x glow` variant table resolves without further change.
+
+**W1's item art already exists.** `textures/item/build_plan.png` and
+`textures/item/building_plaque.png` are already generated, so the Build Plan
+item needs registration and a model, not new art.
+
+**Pipeline rule still applies:** edit the generator, never the PNGs, and the
+"run twice, identical bytes" check must hold — `gen_plaque.py` already seeds
+explicitly and says so in its own docstring, unlike `gen_settler.py` (KF-007).
+
+---
+
+## W2 refined — the save-compat failure is real and has a specific shape
+
+Read from `PlaqueBlockEntity.loadAdditional` before starting, so it is designed
+rather than discovered:
+
+```java
+state = PlaqueState.byId(tag.getString("State"));   // byId falls back to UNLINKED
+buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
+```
+
+`byId` returns its **default for any unrecognised id**. W2 renames the ids, so
+every plaque already saved in a live world writes `"linked"`, `"incomplete"` or
+`"unlinked"` — none of which the new enum answers to. With `EMPTY` first in the
+new enum and the fallback left as-is, **every registered building in an
+existing world loads as EMPTY**: the plaque stops surveying, and the settlement
+quietly loses its houses on the first reload after an update. That is the
+un-homing risk the plan named, and this is its exact mechanism.
+
+**Required, not optional:**
+
+1. `byId` maps the legacy ids forward explicitly — `unlinked` →
+   `PLAN_INSERTED_UNLINKED`, `incomplete` → `LINKED_INCOMPLETE`, `linked` →
+   `LINKED_VALID`, `orphaned` → `ORPHANED`. Keep them as a legacy alias table,
+   not as enum ids, so the new names stay the only ones written.
+2. The unknown-id fallback must **not** be `EMPTY`. An unknown id on a plaque
+   that carries a `Building` UUID means "this was linked to something"; resolve
+   it to `LINKED_VALID` and let the next survey correct it downward. Only a
+   plaque with no `Building` UUID may fall back to `EMPTY`.
+3. `loadAdditional` reconciles the pair: `EMPTY` while holding a `Building`
+   UUID is contradictory and must not be representable after a load.
+4. The GameTest for this loads a **synthetic old tag** (`State="linked"` plus a
+   `Building` UUID) and asserts the building is still there — a test written
+   against the new ids only would pass while the bug shipped.
+
+`getUpdateTag` delegates to `saveAdditional`, so the client sees the same ids
+and needs no separate compatibility path.

@@ -1,0 +1,32 @@
+modLoader="javafml"
+loaderVersion="[4,)"
+license="All Rights Reserved"
+issueTrackerURL="https://github.com/tobtheboyplays-cyber/verk-arbeid-/issues"
+
+[[mods]]
+modId="hearthstead"
+version="${file.jarVersion}"
+displayName="Hearthstead"
+logoFile="hearthstead_logo.png"
+authors="Hearthstead Team"
+description='''
+Found a hearth. Welcome settlers. Watch a living medieval settlement grow.
+
+Build the village with your own hands - the mod brings it to life. Settlers
+with real needs, professions and memories work your fields, fell your timber
+and hold your walls when the raiders come.
+'''
+
+[[dependencies.hearthstead]]
+    modId="neoforge"
+    type="required"
+    versionRange="[21.1.0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.hearthstead]]
+    modId="minecraft"
+    type="required"
+    versionRange="[1.21.1,1.21.2)"
+    ordering="NONE"
+    side="BOTH"

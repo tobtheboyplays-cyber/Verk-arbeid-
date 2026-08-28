@@ -1,0 +1,1 @@
+[18:40:18] [Server thread/ERROR] [minecraft/LogTestReporter]: settlersleepsinclaimedbed failed at -8108747, -60, 9176186! settler should sleep in the bed (act=IDLE pos=BlockPos{x=-8108739, y=-59, z=9176192})

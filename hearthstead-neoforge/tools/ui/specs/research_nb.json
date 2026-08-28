@@ -1,0 +1,300 @@
+{
+  "name": "research_nb",
+  "width": 320,
+  "height": 338,
+  "elements": [
+    {
+      "t": "window",
+      "x": 0,
+      "y": 0,
+      "w": 320,
+      "h": 338
+    },
+    {
+      "t": "title",
+      "x": 160,
+      "y": 12,
+      "align": "center",
+      "text": "Forskning",
+      "id": "title"
+    },
+    {
+      "t": "divider",
+      "x": 10,
+      "y": 26,
+      "w": 300
+    },
+    {
+      "t": "divider",
+      "x": 10,
+      "y": 30,
+      "w": 300
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 54,
+      "w": 296,
+      "h": 58
+    },
+    {
+      "t": "item",
+      "x": 16,
+      "y": 58,
+      "text": ""
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 59,
+      "text": "Tørrsett Tømmer",
+      "tone": "text_strong",
+      "box": 258,
+      "id": "hero_name"
+    },
+    {
+      "t": "label",
+      "x": 18,
+      "y": 71,
+      "text": "Vaktene: trener styrke 10 % raskere.",
+      "tone": "accent",
+      "box": 276,
+      "id": "hero_effect"
+    },
+    {
+      "t": "bar",
+      "x": 18,
+      "y": 84,
+      "w": 276,
+      "h": 6,
+      "value": 0.5,
+      "tone": "good"
+    },
+    {
+      "t": "label",
+      "x": 18,
+      "y": 94,
+      "text": "I arbeid: Gislebert the Younger   4 / 4 arbeidsdager",
+      "tone": "text_muted",
+      "box": 276,
+      "id": "hero_progress"
+    },
+    {
+      "t": "label",
+      "x": 18,
+      "y": 104,
+      "text": "Betalt: Papir ×4, Hvetefrø ×16",
+      "tone": "text_muted",
+      "box": 276,
+      "id": "hero_paid"
+    },
+    {
+      "t": "button",
+      "x": 232,
+      "y": 60,
+      "w": 64,
+      "h": 20,
+      "text": "Avbryt"
+    },
+    {
+      "t": "divider",
+      "x": 10,
+      "y": 116,
+      "w": 300
+    },
+    {
+      "t": "card_hover",
+      "x": 8,
+      "y": 124,
+      "w": 296,
+      "h": 50
+    },
+    {
+      "t": "item",
+      "x": 14,
+      "y": 129,
+      "text": ""
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 129,
+      "text": "Tørrsett Tømmer",
+      "tone": "text_strong",
+      "box": 190,
+      "id": "row0_name"
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 141,
+      "text": "Sagbruk: arbeider 15 % raskere.",
+      "tone": "text_muted",
+      "box": 190,
+      "id": "row0_effect"
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 154,
+      "text": "Papir 4/4",
+      "tone": "good",
+      "box": 90,
+      "id": "row0_cost_a"
+    },
+    {
+      "t": "label",
+      "x": 94,
+      "y": 154,
+      "text": "Eikestokk 24/24",
+      "tone": "warn",
+      "box": 132,
+      "id": "row0_cost_b"
+    },
+    {
+      "t": "button",
+      "x": 232,
+      "y": 139,
+      "w": 64,
+      "h": 20,
+      "text": "Velg"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 178,
+      "w": 296,
+      "h": 50
+    },
+    {
+      "t": "item",
+      "x": 14,
+      "y": 183,
+      "text": ""
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 183,
+      "text": "Vaktdrill",
+      "tone": "text_strong",
+      "box": 190,
+      "id": "row1_name"
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 195,
+      "text": "Vaktene: trener styrke 10 % raskere.",
+      "tone": "text_muted",
+      "box": 190,
+      "id": "row1_effect"
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 208,
+      "text": "Papir 4/4",
+      "tone": "good",
+      "box": 90,
+      "id": "row1_cost_a"
+    },
+    {
+      "t": "label",
+      "x": 94,
+      "y": 208,
+      "text": "Jernbarre 8/8",
+      "tone": "good",
+      "box": 132,
+      "id": "row1_cost_b"
+    },
+    {
+      "t": "button",
+      "x": 232,
+      "y": 193,
+      "w": 64,
+      "h": 20,
+      "text": "Velg"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 232,
+      "w": 296,
+      "h": 50
+    },
+    {
+      "t": "item",
+      "x": 14,
+      "y": 237,
+      "text": ""
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 237,
+      "text": "Åkerskifte",
+      "tone": "text_strong",
+      "box": 190,
+      "id": "row2_name"
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 249,
+      "text": "Dyrkede vekster: gror 15 % oftere.",
+      "tone": "text_muted",
+      "box": 190,
+      "id": "row2_effect"
+    },
+    {
+      "t": "label",
+      "x": 36,
+      "y": 262,
+      "text": "Papir 4/4",
+      "tone": "good",
+      "box": 90,
+      "id": "row2_cost_a"
+    },
+    {
+      "t": "label",
+      "x": 94,
+      "y": 262,
+      "text": "Hvetefrø 16/16",
+      "tone": "good",
+      "box": 132,
+      "id": "row2_cost_b"
+    },
+    {
+      "t": "button",
+      "x": 232,
+      "y": 247,
+      "w": 64,
+      "h": 20,
+      "text": "Velg"
+    },
+    {
+      "t": "divider",
+      "x": 10,
+      "y": 288,
+      "w": 300
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 295,
+      "text": "3 av 6 utforsket",
+      "tone": "accent",
+      "box": 296,
+      "id": "footer"
+    },
+    {
+      "t": "button",
+      "x": 232,
+      "y": 308,
+      "w": 64,
+      "h": 20,
+      "text": "Lukk"
+    }
+  ]
+}

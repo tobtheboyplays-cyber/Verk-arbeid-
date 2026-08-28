@@ -1,0 +1,98 @@
+package com.hearthstead.event;
+
+import com.hearthstead.Hearthstead;
+import com.hearthstead.client.ClientHooks;
+import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.network.OpenSettlerScreenPayload;
+import com.hearthstead.registry.ModBlockEntities;
+import com.hearthstead.registry.ModEntities;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.event.entity.EntityAttributeCreationEvent;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+
+@EventBusSubscriber(modid = Hearthstead.MODID)
+public final class ModBusEvents {
+
+    @SubscribeEvent
+    public static void onAttributeCreation(EntityAttributeCreationEvent event) {
+        event.put(ModEntities.SETTLER.get(), SettlerEntity.createAttributes().build());
+        event.put(ModEntities.RAIDER.get(),
+            com.hearthstead.entity.RaiderEntity.createAttributes().build());
+    }
+
+    @SubscribeEvent
+    public static void onRegisterCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerBlockEntity(Capabilities.ItemHandler.BLOCK,
+            ModBlockEntities.HEARTH.get(), (hearth, side) -> hearth.getInventory());
+    }
+
+    @SubscribeEvent
+    public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
+        PayloadRegistrar registrar = event.registrar("1");
+        registrar.playToClient(OpenSettlerScreenPayload.TYPE, OpenSettlerScreenPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.openSettlerScreen(payload.entityId())));
+        registrar.playToClient(com.hearthstead.network.PlaqueSnapshot.TYPE,
+            com.hearthstead.network.PlaqueSnapshot.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showPlaque(payload)));
+        registrar.playToServer(com.hearthstead.network.PlaqueAction.TYPE,
+            com.hearthstead.network.PlaqueAction.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.PlaqueNetwork.handle(player, payload);
+                }
+            }));
+        registrar.playToClient(com.hearthstead.network.StorageIndexPayload.TYPE,
+            com.hearthstead.network.StorageIndexPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showStorage(payload)));
+        registrar.playToServer(com.hearthstead.network.StorageRequestPayload.TYPE,
+            com.hearthstead.network.StorageRequestPayload.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.StorageNetwork.handleRequest(player);
+                }
+            }));
+        registrar.playToClient(com.hearthstead.network.SettlerSnapshotPayload.TYPE,
+            com.hearthstead.network.SettlerSnapshotPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showSettlerSnapshot(payload)));
+        registrar.playToServer(com.hearthstead.network.SettlerActionPayload.TYPE,
+            com.hearthstead.network.SettlerActionPayload.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.SettlerNetwork.handle(player, payload);
+                }
+            }));
+        registrar.playToClient(com.hearthstead.network.HearthMayorSnapshot.TYPE,
+            com.hearthstead.network.HearthMayorSnapshot.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showHearthMayor(payload)));
+        registrar.playToServer(com.hearthstead.network.HearthMayorAction.TYPE,
+            com.hearthstead.network.HearthMayorAction.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.HearthNetwork.handle(player, payload);
+                }
+            }));
+        registrar.playToClient(com.hearthstead.network.ResearchSnapshotPayload.TYPE,
+            com.hearthstead.network.ResearchSnapshotPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> ClientHooks.showResearchSnapshot(payload)));
+        registrar.playToServer(com.hearthstead.network.ResearchActionPayload.TYPE,
+            com.hearthstead.network.ResearchActionPayload.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.network.ResearchNetwork.handle(player, payload);
+                }
+            }));
+    }
+
+    private ModBusEvents() {
+    }
+}

@@ -1,0 +1,64 @@
+{
+  "variants": {
+    "facing=north,glow=empty": {
+      "model": "hearthstead:block/plaque_empty"
+    },
+    "facing=north,glow=red": {
+      "model": "hearthstead:block/plaque_red"
+    },
+    "facing=north,glow=amber": {
+      "model": "hearthstead:block/plaque_amber"
+    },
+    "facing=north,glow=green": {
+      "model": "hearthstead:block/plaque_green"
+    },
+    "facing=east,glow=empty": {
+      "model": "hearthstead:block/plaque_empty",
+      "y": 90
+    },
+    "facing=east,glow=red": {
+      "model": "hearthstead:block/plaque_red",
+      "y": 90
+    },
+    "facing=east,glow=amber": {
+      "model": "hearthstead:block/plaque_amber",
+      "y": 90
+    },
+    "facing=east,glow=green": {
+      "model": "hearthstead:block/plaque_green",
+      "y": 90
+    },
+    "facing=south,glow=empty": {
+      "model": "hearthstead:block/plaque_empty",
+      "y": 180
+    },
+    "facing=south,glow=red": {
+      "model": "hearthstead:block/plaque_red",
+      "y": 180
+    },
+    "facing=south,glow=amber": {
+      "model": "hearthstead:block/plaque_amber",
+      "y": 180
+    },
+    "facing=south,glow=green": {
+      "model": "hearthstead:block/plaque_green",
+      "y": 180
+    },
+    "facing=west,glow=empty": {
+      "model": "hearthstead:block/plaque_empty",
+      "y": 270
+    },
+    "facing=west,glow=red": {
+      "model": "hearthstead:block/plaque_red",
+      "y": 270
+    },
+    "facing=west,glow=amber": {
+      "model": "hearthstead:block/plaque_amber",
+      "y": 270
+    },
+    "facing=west,glow=green": {
+      "model": "hearthstead:block/plaque_green",
+      "y": 270
+    }
+  }
+}

@@ -1,0 +1,82 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.144'
+}
+
+group = 'com.hearthstead'
+version = mod_version
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neoforge_version
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // Decision tracing for the QA behaviour suite. The game runs in a
+            // forked JVM, so a -D on the Gradle command line never reaches it;
+            // it has to be declared on the run itself. Off unless the QA
+            // controller asks for it, and the trace path is passed explicitly
+            // so the controller never has to guess the run directory.
+            systemProperty 'hearthstead.qa.trace',
+                System.getenv('HSQA_TRACE') ? 'true' : 'false'
+            if (System.getenv('HSQA_TRACE_FILE')) {
+                systemProperty 'hearthstead.qa.traceFile', System.getenv('HSQA_TRACE_FILE')
+            }
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+        // QA playtest: jump the client straight into a prepared save instead
+        // of driving the world-creation menus with synthetic clicks.
+        client {
+            if (System.getenv('HSQA_JOIN')) {
+                programArgument '--quickPlayMultiplayer'
+                programArgument System.getenv('HSQA_JOIN')
+            }
+            // The QA harness's fixed resolution (qa/PROTOCOL.md) is 1280x720
+            // so screenshots are comparable run to run. options.txt's
+            // overrideWidth/overrideHeight do NOT control the initial GLFW
+            // window size on this launch path — the window still opened at
+            // vanilla's hardcoded 854x480 default even with those options
+            // set, which is what --width/--height (read directly by
+            // Main.java) actually control.
+            programArgument '--width'
+            programArgument '1280'
+            programArgument '--height'
+            programArgument '720'
+        }
+    }
+
+    mods {
+        hearthstead {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+jar {
+    manifest {
+        attributes(
+            'Specification-Title'   : 'hearthstead',
+            'Specification-Vendor'  : 'Hearthstead',
+            'Specification-Version' : '1',
+            'Implementation-Title'  : 'Hearthstead',
+            'Implementation-Version': mod_version,
+            'Implementation-Vendor' : 'Hearthstead'
+        )
+    }
+}

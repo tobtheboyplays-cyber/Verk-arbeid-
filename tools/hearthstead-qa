@@ -1,0 +1,612 @@
+#!/usr/bin/env bash
+# Hearthstead QA controller — the only approved entry point for testing.
+# See qa/PROTOCOL.md (PROTOCOL_VERSION 1.0.0).
+set -u
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+MOD="$REPO/hearthstead-neoforge"
+QA="$REPO/qa"
+REPORTS="$QA/reports"
+ARTIFACTS="$REPORTS/artifacts"
+PROTOCOL_VERSION="1.0.0"
+mkdir -p "$REPORTS" "$ARTIFACTS"
+export HSQA_ACTIVE=1   # lets the pre-tool hook distinguish controller runs
+# Finding 5: durable evidence (ev_init/check_pass/finish_result/
+# write_reproduction) for cmd_provision below.
+. "$QA/scripts/lib_harness.sh"
+
+TS="$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_DIR="$ARTIFACTS/$TS"
+
+fingerprint() {
+    # Covers everything that decides either what the mod DOES or what the
+    # suites ASSERT. qa/scripts and qa/scenarios are in deliberately: an
+    # assertion can be loosened there, and without them a stored green would
+    # go on looking current — which is INV-10 with the lock removed, and the
+    # same self-satisfying shape the review's findings 1-3 were about, one
+    # level up. Proven live: commit 4487f1b changed live.sh's and
+    # lib_harness.sh's verdict logic while every stored manifest carried on
+    # reporting the same fingerprint.
+    #
+    # qa/reports is deliberately OUT: every run writes into it, so including
+    # it would change the fingerprint on every run and it would never settle.
+    # __pycache__ is out for the same reason — running a generator rewrites
+    # .pyc files and would invalidate evidence that nothing real had changed.
+    #
+    # The CONTROLLER ITSELF is in as of 2026-08-26. It was excluded, which
+    # was the same hole one level up from the one this comment already
+    # warns about: qa/scripts is fingerprinted because an assertion can be
+    # loosened there, but the file that decides PASS from FAIL -- that reads
+    # the log, counts the failures and writes the verdict -- was not. It had
+    # been under-reporting failures for an unknown number of runs (a
+    # `head -5` roster and a count of error lines rather than of tests), and
+    # no stored fingerprint would have changed when that was fixed. A judge
+    # that is not fingerprinted is a judge that can be edited without the
+    # evidence noticing. Adding it invalidates every fingerprint stored
+    # before this date, which is correct: those runs were judged by a
+    # different judge.
+    { find "$MOD/src" "$MOD/tools" "$QA/scripts" "$QA/scenarios" \
+           -type f -not -path '*/__pycache__/*' 2>/dev/null \
+        | sort | xargs sha256sum 2>/dev/null
+      sha256sum "$MOD/build.gradle" "$MOD/gradle.properties" "$MOD/settings.gradle" \
+                "$QA/PROTOCOL.md" "$REPO/tools/hearthstead-qa" 2>/dev/null
+    } | sha256sum | cut -d' ' -f1
+}
+
+git_state() {
+    git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown
+}
+
+dirty_hash() {
+    git -C "$REPO" status --porcelain 2>/dev/null | sha256sum | cut -d' ' -f1
+}
+
+json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+
+declare -A SUITE_STATUS
+declare -A SUITE_NOTE
+
+record() { # suite status note
+    SUITE_STATUS["$1"]="$2"
+    SUITE_NOTE["$1"]="${3:-}"
+    echo "[$1] $2 ${3:-}"
+}
+
+write_manifest() { # overall
+    local overall="$1"
+    local fp; fp="$(fingerprint)"
+    local prev_streak=0
+    if [ -f "$REPORTS/latest.json" ]; then
+        prev_streak=$(python3 -c "
+import json
+try:
+    m=json.load(open('$REPORTS/latest.json'))
+    print(m.get('green_streak',0) if m.get('fingerprint')=='$fp' and m.get('overall')=='PASS' else 0)
+except Exception: print(0)")
+    fi
+    local streak=0
+    [ "$overall" = "PASS" ] && streak=$((prev_streak + 1))
+    python3 - "$overall" "$fp" "$streak" <<PYEOF
+import json, sys, os, subprocess, time
+overall, fp, streak = sys.argv[1], sys.argv[2], int(sys.argv[3])
+suites = {}
+$(for s in "${!SUITE_STATUS[@]}"; do
+    printf 'suites["%s"] = {"status": "%s", "note": %s}\n' \
+        "$s" "${SUITE_STATUS[$s]}" "$(printf '%s' "${SUITE_NOTE[$s]}" | json_escape)"
+done)
+manifest = {
+    "protocol_version": "$PROTOCOL_VERSION",
+    "fingerprint": fp,
+    "git_commit": "$(git_state)",
+    "dirty_hash": "$(dirty_hash)",
+    "minecraft": "1.21.1",
+    "neoforge": "$(grep -oP 'neoforge_version=\K.*' "$MOD/gradle.properties")",
+    "java": "$(java -version 2>&1 | head -1 | tr -d '"')",
+    "mod_version": "$(grep -oP 'mod_version=\K.*' "$MOD/gradle.properties")",
+    "started": "$TS",
+    "finished": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
+    "suites": suites,
+    "overall": overall,
+    "green_streak": streak,
+    "artifacts": "$RUN_DIR",
+}
+os.makedirs("$RUN_DIR", exist_ok=True)
+path = os.path.join("$RUN_DIR", "manifest.json")
+json.dump(manifest, open(path, "w"), indent=2)
+json.dump(manifest, open("$REPORTS/latest.json", "w"), indent=2)
+print("manifest:", path, "overall:", overall, "green_streak:", streak)
+PYEOF
+    if [ "$overall" = "PASS" ]; then rm -f "$REPORTS/.stale"; fi
+}
+
+suite_doctor() {
+    local problems=""
+    java -version 2>&1 | grep -q 'version "21' || problems+="java21-missing "
+    [ -x "$MOD/gradlew" ] || problems+="gradlew-missing "
+    [ -f "$QA/PROTOCOL.md" ] || problems+="protocol-missing "
+    python3 -c "import PIL" 2>/dev/null || problems+="pillow-missing "
+    command -v Xvfb >/dev/null || problems+="xvfb-missing(client-suite-blocked) "
+    command -v tmux >/dev/null || problems+="tmux-missing(live-suite-blocked) "
+    command -v lsof >/dev/null || problems+="lsof-missing(port-detection-unreliable) "
+    command -v ffmpeg >/dev/null || problems+="ffmpeg-missing(film-blocked) "
+    python3 "$QA/hooks/test_bash_guard.py" >/dev/null 2>&1 || problems+="bash_guard-selftest-failed "
+    bash "$QA/scripts/reap.sh" selftest >/dev/null 2>&1 || problems+="reap-matcher-selftest-failed "
+    # KF-021: a GameTest fixture that registers a live settlement and
+    # hand-builds a Building but never places a plaque is one edit away from
+    # BuildingManager's sweep silently dissolving it. Run the script
+    # directly (python3 qa/scripts/check_fixture_plaques.py) for the full,
+    # per-file explanation this terse tag doesn't carry.
+    python3 "$QA/scripts/check_fixture_plaques.py" >/dev/null 2>&1 || problems+="fixture-plaque-guard-failed "
+    if [ -z "$problems" ]; then record doctor PASS "toolchain ok"
+    else record doctor FAIL "$problems"; return 1; fi
+}
+
+suite_assets() {
+    mkdir -p "$RUN_DIR"
+    if (cd "$MOD" && python3 tools/validate_assets.py --quiet > "$RUN_DIR/assets.log" 2>&1); then
+        record assets PASS "$(tail -1 "$RUN_DIR/assets.log")"
+    else
+        record assets FAIL "$(tail -3 "$RUN_DIR/assets.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_animation() {
+    mkdir -p "$RUN_DIR"
+    if (cd "$MOD/tools" && python3 anim_check.py > "$RUN_DIR/animation.log" 2>&1); then
+        record animation PASS "$(tail -1 "$RUN_DIR/animation.log")"
+    else
+        record animation FAIL "$(tail -3 "$RUN_DIR/animation.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_build() {
+    mkdir -p "$RUN_DIR"
+    if (cd "$MOD" && ./gradlew --quiet clean build > "$RUN_DIR/build.log" 2>&1); then
+        record build PASS "jar: $(ls "$MOD"/build/libs/*.jar 2>/dev/null | head -1)"
+    else
+        record build FAIL "$(grep -m3 -E 'error|FAILURE' "$RUN_DIR/build.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+# GameTests must start from an EMPTY world, every time.
+#
+# They did not, until 2026-08-26. `runGameTestServer` reuses
+# hearthstead-neoforge/run/world, and nothing ever cleared it: the main
+# tree's had grown to 217 MB of accumulated settlements, buildings and
+# entities dating back to 23 August, and a fresh worktree reached 14 MB in
+# two runs. FLAKE-2 measured the growth directly across two back-to-back
+# invocations with no code change --
+# run/world/data/hearthstead_settlements.dat 52080 -> 65905 bytes, poi
+# region files 28 -> 34.
+#
+# That is not untidiness, it is the reproducibility bug. BuildingManager
+# sweeps ONE building per 20 ticks across every settlement in the save and
+# dissolves any whose plaque block is missing (D-005, correctly). Which
+# building the cursor reaches in a given test's lifetime depends on how many
+# buildings the save holds -- 441 in one run FLAKE-2 instrumented -- so a
+# suite carrying yesterday's buildings gives a different answer than one
+# starting clean, and the same commit produced 1, 12, 14 and 20 red tonight.
+# A run whose result depends on what the last run left behind cannot gate
+# anything.
+#
+# Only `world` is removed. mods/, config/ and server.properties are the
+# installation, not the state under test.
+run_gametests() { # extra JVM props via $1
+    rm -rf "$MOD/run/world"
+    (cd "$MOD" && ./gradlew runGameTestServer > "$RUN_DIR/gametest.log" 2>&1)
+}
+
+# The complete failure evidence for a GameTest log, written whole.
+#
+# Two defects lived here until 2026-08-26 and both made the judge
+# under-report, which is the one direction a judge must never err in:
+#
+#   1. The roster was piped through `head -5`. A run with fourteen failures
+#      stored five of them, so the artifact silently disagreed with the
+#      server that produced it -- and the artifact is what survives the run.
+#   2. The recorded count came from `grep -c "failed at"`, which counts
+#      ERROR lines, not tests. One run reported `failures=5` in its manifest
+#      while GameTestServer's own summary said 20. Reproduced directly:
+#      run 20260826T020820Z stored five lines and 20 tests had failed.
+#
+# The count now comes from GameTestServer's own "N required tests failed"
+# line -- the authority on how many tests failed -- and both the roster and
+# the detail lines are written in full, however long they are.
+gametest_evidence() { # $1 = log, $2 = failures file
+    local roster detail
+    roster=$(sed -n '/required tests failed/,/^.*=====================/p' "$1" \
+        | sed 's/.*GameTestServer\]: *//' | grep -c '^- ')
+    # `grep -c` exits 1 on zero matches while still PRINTING "0", so a
+    # `|| echo 0` fallback appends a second zero, the variable becomes
+    # "0\n0", and the numeric comparison below dies with "integer expression
+    # expected" -- silently skipping the note in the one case the note exists
+    # for. Found by reading, not observed in a run: every run so far has had
+    # a message for every failure (roster 15, detail 15), so the zero-detail
+    # branch has never yet been reached. `|| true` keeps grep's own "0" and
+    # nothing else.
+    detail=$(grep -c "failed at" "$1" 2>/dev/null || true)
+    detail=${detail:-0}
+    {
+        echo "=== roster (GameTestServer's own summary -- AUTHORITATIVE) ==="
+        sed -n '/required tests failed/,/^.*=====================/p' "$1" \
+            | sed 's/.*GameTestServer\]: *//'
+        echo
+        echo "=== detail (every failure line, untruncated) ==="
+        if [ "$detail" -lt "$roster" ]; then
+            # Not every failure prints a "failed at" line: a test that runs out
+            # of ticks without tripping an assertion fails with no message of
+            # its own. Run 20260826T020820Z had 20 failed tests and 5 such
+            # lines. The roster above is the count; this section is detail for
+            # the subset that had something to say, and saying so here is the
+            # whole reason the old `grep -c` count was wrong for so long.
+            echo "NOTE: $roster tests failed but only $detail printed a message."
+            echo "      The roster above is the truth; the rest timed out silently."
+            echo
+        fi
+        grep "failed at" "$1"
+    } > "$2"
+}
+
+# How many TESTS failed, per the server itself. Falls back to counting
+# "failed at" lines only if that summary line is absent (a crash before the
+# summary was printed), and says so rather than reporting a smaller number
+# as though it were the truth.
+gametest_failcount() { # $1 = log
+    local n
+    # Anchor on the emitter, not on a token count. The first version of this
+    # counted three whitespace-separated tokens before the number -- and
+    # GameTestServer's own prefix is "[time] [Server thread/INFO]
+    # [minecraft/GameTestServer]:", which has a space INSIDE the second
+    # bracket, so the anchored pattern never matched a single real log and
+    # the unanchored fallback below did all the work silently. Caught by an
+    # adversarial review, not by a failure: a fallback that always fires
+    # looks exactly like a primary that always works.
+    n=$(grep -oP 'GameTestServer\]: \K[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
+    if [ -z "$n" ]; then
+        n=$(grep -oP '[0-9]+(?= required tests failed)' "$1" 2>/dev/null | tail -1)
+    fi
+    if [ -n "$n" ]; then echo "$n"; else
+        echo "$(grep -c "failed at" "$1" 2>/dev/null || echo 0)+ (no server summary; error lines, not tests)"
+    fi
+}
+
+suite_gametest() {
+    mkdir -p "$RUN_DIR"
+    run_gametests ""
+    if grep -q "required tests passed" "$RUN_DIR/gametest.log"; then
+        record gametest PASS "$(grep -o 'All [0-9]* required tests passed' "$RUN_DIR/gametest.log" | tail -1)"
+    else
+        local fails; fails=$(gametest_failcount "$RUN_DIR/gametest.log")
+        gametest_evidence "$RUN_DIR/gametest.log" "$RUN_DIR/gametest-failures.txt"
+        record gametest FAIL "failures=$fails see gametest-failures.txt"; return 1
+    fi
+}
+
+suite_behavior() {
+    mkdir -p "$RUN_DIR"
+    local trace="$RUN_DIR/trace-raw.jsonl"
+    rm -f "$trace"
+    rm -rf "$MOD/run/world"   # same reason as run_gametests above
+    (cd "$MOD" && HSQA_TRACE=1 HSQA_TRACE_FILE="$trace" ./gradlew runGameTestServer \
+        > "$RUN_DIR/behavior.log" 2>&1)
+    if ! grep -q "required tests passed" "$RUN_DIR/behavior.log"; then
+        gametest_evidence "$RUN_DIR/behavior.log" "$RUN_DIR/behavior-failures.txt"
+        record behavior FAIL "gametests failed under trace"; return 1
+    fi
+    if [ ! -s "$trace" ]; then
+        record behavior FAIL "no decision trace produced"; return 1
+    fi
+    cp "$trace" "$RUN_DIR/trace.jsonl"
+    if python3 "$QA/scripts/analyze_trace.py" "$RUN_DIR/trace.jsonl" \
+        > "$RUN_DIR/behavior-analysis.txt" 2>&1; then
+        record behavior PASS "$(tail -1 "$RUN_DIR/behavior-analysis.txt")"
+    else
+        record behavior FAIL "$(tail -3 "$RUN_DIR/behavior-analysis.txt" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_dedicated() {
+    mkdir -p "$RUN_DIR"
+    if bash "$QA/scripts/dedicated_e2e.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/dedicated.log" 2>&1; then
+        record dedicated PASS "$(tail -1 "$RUN_DIR/dedicated.log")"
+    else
+        record dedicated FAIL "$(tail -4 "$RUN_DIR/dedicated.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_performance() {
+    mkdir -p "$RUN_DIR"
+    if bash "$QA/scripts/perf_probe.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/performance.log" 2>&1; then
+        record performance PASS "$(tail -1 "$RUN_DIR/performance.log")"
+    else
+        record performance FAIL "$(tail -4 "$RUN_DIR/performance.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_client() {
+    mkdir -p "$RUN_DIR"
+    if ! command -v Xvfb >/dev/null; then
+        record client BLOCKED "Xvfb unavailable; run 'tools/hearthstead-qa client' on a desktop"; return 0
+    fi
+    if bash "$QA/scripts/client_boot.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/client.log" 2>&1; then
+        record client PASS "$(tail -1 "$RUN_DIR/client.log")"
+    else
+        record client FAIL "$(tail -4 "$RUN_DIR/client.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+suite_visual() {
+    mkdir -p "$RUN_DIR"
+    # D-H3: readers glob both the old flat layout (qa/reports/artifacts/<TS>/)
+    # and the new scenario-keyed layout (qa/reports/artifacts/<scenario>/<TS>/shots/).
+    if ls "$RUN_DIR"/screenshot-*.png >/dev/null 2>&1 \
+        || ls "$ARTIFACTS"/*/screenshot-*.png >/dev/null 2>&1 \
+        || ls "$ARTIFACTS"/*/*/shots/*.png >/dev/null 2>&1; then
+        record visual PASS "screenshots present; inspect them before scoring UI"
+    else
+        record visual BLOCKED "no screenshots captured yet; client suite must produce them, then a human/model must inspect"; return 0
+    fi
+}
+
+cmd_changed() {
+    local base="HEAD"
+    [ -f "$REPORTS/latest.json" ] && base=$(python3 -c "import json;print(json.load(open('$REPORTS/latest.json')).get('git_commit','HEAD'))")
+    { git -C "$REPO" diff --name-only "$base" 2>/dev/null; git -C "$REPO" status --porcelain | awk '{print $2}'; } | sort -u | while read -r f; do
+        [ -z "$f" ] && continue
+        case "$f" in
+            qa/scenarios/*|qa/scripts/playtest.sh|qa/scripts/live.sh|qa/scripts/check_screenshot.py|qa/scripts/pixel_diff.py|qa/scripts/build_contact_sheet.py) echo "$f -> playtest full";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/entity/*|hearthstead-neoforge/src/main/java/com/hearthstead/settlement/*|hearthstead-neoforge/src/main/java/com/hearthstead/event/*) echo "$f -> behavior gametest dedicated";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/client/*) echo "$f -> build client visual animation";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/menu/*) echo "$f -> gametest client visual";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/registry/*|hearthstead-neoforge/build.gradle|hearthstead-neoforge/gradle.properties|hearthstead-neoforge/src/main/resources/META-INF/*|qa/*) echo "$f -> full";;
+            hearthstead-neoforge/src/main/resources/assets/*) echo "$f -> assets animation client visual";;
+            hearthstead-neoforge/src/main/resources/data/*) echo "$f -> assets gametest";;
+            hearthstead-neoforge/src/main/java/com/hearthstead/gametest/*) echo "$f -> gametest";;
+            hearthstead-neoforge/*) echo "$f -> gametest";;
+        esac
+    done
+}
+
+cmd_gate() {
+    local fp; fp="$(fingerprint)"
+    # Documented-blocker escape: qa/reports/BLOCKED must contain the failing
+    # command, error evidence, work completed and the exact resume action.
+    # It permits stopping with an honest "NOT READY — BLOCKED" only; it is
+    # deleted by the next full run so it cannot linger past the blocker.
+    if [ -s "$REPORTS/BLOCKED" ]; then
+        echo "GATE: BLOCKED — external blocker documented in qa/reports/BLOCKED."
+        echo "Completion status is NOT READY — BLOCKED (never PASS). Contents:"
+        sed 's/^/  | /' "$REPORTS/BLOCKED"
+        return 0
+    fi
+    # AC-12: single-suite commands (doctor, dedicated, ...) never write
+    # latest.json or clear .stale — only a full-scope `full` run may. So a
+    # red/stale state with no latest.json means literally that: no
+    # full-scope run exists yet, regardless of how many single suites ran.
+    if [ -f "$REPORTS/.stale" ] && [ ! -f "$REPORTS/latest.json" ]; then
+        echo "GATE: FAIL — no full-scope run exists yet (QA marked stale, no manifest). Run: tools/hearthstead-qa full"; return 2
+    fi
+    if [ ! -f "$REPORTS/latest.json" ]; then
+        if [ -f "$REPORTS/.stale" ]; then
+            echo "GATE: FAIL — no full-scope run exists yet (stale, no manifest). Run: tools/hearthstead-qa full"; return 2
+        fi
+        echo "GATE: PASS (no Hearthstead QA state and no Hearthstead edits this session)"; return 0
+    fi
+    python3 - "$fp" <<'PYEOF'
+import json, sys, os
+fp = sys.argv[1]
+m = json.load(open(os.path.join(os.environ["HSQA_REPORTS"], "latest.json")))
+problems = []
+if m.get("fingerprint") != fp:
+    problems.append("STALE: source changed since last QA run")
+if m.get("protocol_version") != os.environ["HSQA_PROTO"]:
+    problems.append("protocol version mismatch")
+if m.get("overall") != "PASS":
+    problems.append("last run overall=" + str(m.get("overall")))
+for name, s in m.get("suites", {}).items():
+    if s.get("status") == "FAIL":
+        problems.append(f"suite {name} FAIL: {s.get('note','')[:120]}")
+if problems:
+    print("GATE: FAIL")
+    for p in problems: print(" -", p)
+    print("Next: tools/hearthstead-qa full")
+    sys.exit(2)
+streak = m.get("green_streak", 0)
+print(f"GATE: PASS (green_streak={streak})")
+if streak < 2:
+    print("NOTE: completion claims need green_streak >= 2 "
+          "(run tools/hearthstead-qa full again with no changes)")
+PYEOF
+    local rc=$?
+    if [ -f "$REPORTS/.stale" ] && [ $rc -eq 0 ]; then
+        echo "GATE: FAIL — post-edit hook marked QA stale after the last run. Run: tools/hearthstead-qa full"
+        return 2
+    fi
+    return $rc
+}
+
+cmd_status() {
+    [ -f "$REPORTS/latest.json" ] || { echo "no QA runs recorded"; return 0; }
+    python3 -m json.tool "$REPORTS/latest.json"
+}
+
+cmd_reproduce() {
+    local id="${1:-}"
+    [ -n "$id" ] || { echo "usage: hearthstead-qa reproduce <failure-id>"; return 1; }
+    local hit
+    hit=$(grep -rl "$id" "$ARTIFACTS" 2>/dev/null | head -1)
+    [ -n "$hit" ] || { echo "failure id $id not found in $ARTIFACTS"; return 1; }
+    echo "failure $id recorded in: $hit"
+    sed -n "/$id/,+8p" "$hit"
+    echo "--- re-running originating suite (behavior) ---"
+    suite_behavior
+}
+
+suite_playtest() {
+    mkdir -p "$RUN_DIR"
+    if ! command -v Xvfb >/dev/null; then
+        record playtest BLOCKED "Xvfb unavailable"; return 0
+    fi
+    if bash "$QA/scripts/playtest.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/playtest.log" 2>&1; then
+        record playtest PASS "$(tail -1 "$RUN_DIR/playtest.log")"
+    else
+        record playtest FAIL "$(tail -6 "$RUN_DIR/playtest.log" | tr '\n' ' ')"; return 1
+    fi
+}
+
+cmd_provision() { # AC-10: rebuild the shared install from scratch, prove it with playtest
+    # Finding 5: durable transcript + verdict, same evidence layout as every
+    # other scenario — this used to be stored nowhere once the invoking
+    # process exited.
+    ev_init "provision"
+    local install_dir="${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install}"
+    local backup="${install_dir}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
+    if [ -d "$install_dir" ]; then
+        mv "$install_dir" "$backup"
+        echo "provision: moved existing install aside to $backup" | tee -a "$EV_LOGS/provision.log"
+    fi
+    if ! bash "$QA/scripts/server_install.sh" "$MOD" --force > "$EV_LOGS/install.log" 2>&1; then
+        echo "provision: FAIL — reinstall failed" | tee -a "$EV_LOGS/provision.log"
+        [ -d "$backup" ] && { rm -rf "$install_dir"; mv "$backup" "$install_dir"; echo "provision: restored backup (install could not be verified)" | tee -a "$EV_LOGS/provision.log"; }
+        check_fail provision "reinstall failed — see logs/install.log"
+        finish_result FAIL
+        write_reproduction "# Reproduce: provision
+tools/hearthstead-qa provision
+Verdict: FAIL — reinstall failed. See logs/install.log
+"
+        return 1
+    fi
+    check_pass reinstall "shared install rebuilt from scratch — see logs/install.log"
+    suite_playtest
+    if [ "${SUITE_STATUS[playtest]:-}" = "PASS" ]; then
+        [ -d "$backup" ] && rm -rf "$backup"
+        echo "provision: PASS — rebuilt install verified by a passing playtest; backup deleted" | tee -a "$EV_LOGS/provision.log"
+        check_pass verify_playtest "playtest PASSED against the rebuilt install — see $RUN_DIR/playtest.log"
+        finish_result PASS
+        write_reproduction "# Reproduce: provision
+tools/hearthstead-qa provision
+Verdict: PASS — rebuilt install verified by playtest ($RUN_DIR)
+"
+        return 0
+    else
+        echo "provision: FAIL — rebuilt install did not pass playtest; backup kept at $backup for comparison" | tee -a "$EV_LOGS/provision.log"
+        check_fail verify_playtest "playtest did not PASS against the rebuilt install — see $RUN_DIR/playtest.log; backup kept at $backup"
+        finish_result FAIL
+        write_reproduction "# Reproduce: provision
+tools/hearthstead-qa provision
+Verdict: FAIL — rebuilt install did not pass playtest. Backup kept at $backup
+"
+        return 1
+    fi
+}
+
+export HSQA_REPORTS="$REPORTS" HSQA_PROTO="$PROTOCOL_VERSION"
+
+# The fingerprint is computed in two places -- fingerprint() above and
+# hsqa_fingerprint() in qa/scripts/lib_harness.sh -- and PROTOCOL.md says
+# they MUST stay byte-for-byte equivalent, because a manifest's fingerprint
+# is only meaningful if it is comparable to latest.json's. Until now nothing
+# CHECKED that, and the requirement was a comment. Adding the controller
+# itself to the fingerprint (2026-08-26, KF-024) changed one of the two and
+# nearly drifted them silently; the near-miss is the reason this exists.
+# A judge whose two clocks disagree cannot tell whether anything changed, so
+# it refuses to sit rather than guess.
+assert_fingerprint_twins() {
+    local a b
+    a="$(fingerprint)"
+    b="$(HSQA_REPO="$REPO" hsqa_fingerprint)"
+    if [ "$a" != "$b" ]; then
+        echo "FATAL: the two fingerprint implementations disagree." >&2
+        echo "  tools/hearthstead-qa   : $a" >&2
+        echo "  qa/scripts/lib_harness : $b" >&2
+        echo "They must stay byte-for-byte equivalent (qa/PROTOCOL.md)." >&2
+        echo "Fix the drift before any suite runs -- every manifest written" >&2
+        echo "while they disagree records a fingerprint nothing can compare." >&2
+        exit 2
+    fi
+}
+assert_fingerprint_twins
+
+case "${1:-help}" in
+    # Every single-suite command must EXIT NON-ZERO on failure: a caller that
+    # checks $? (CI, a wrapper script, a human) must never read a red suite as
+    # success just because it ran. AC-12: single-suite commands NEVER write
+    # qa/reports/latest.json or clear .stale — that would let `doctor` alone
+    # turn a red gate green. ONLY `full` (a full-scope run) may do that; its
+    # green_streak only increments on a full-scope PASS.
+    doctor)      suite_doctor; [ "${SUITE_STATUS[doctor]}" = PASS ];;
+    changed)     cmd_changed;;
+    validate)    suite_assets;;
+    animation)   suite_animation;;
+    gametest)    suite_gametest; [ "${SUITE_STATUS[gametest]}" = PASS ];;
+    behavior)    suite_behavior; [ "${SUITE_STATUS[behavior]}" = PASS ];;
+    dedicated)   suite_dedicated; [ "${SUITE_STATUS[dedicated]}" = PASS ];;
+    performance) suite_performance; [ "${SUITE_STATUS[performance]}" = PASS ];;
+    client)      suite_client; [ "${SUITE_STATUS[client]}" != FAIL ];;
+    playtest)    suite_playtest; [ "${SUITE_STATUS[playtest]}" != FAIL ];;
+    visual)      suite_visual; [ "${SUITE_STATUS[visual]}" != FAIL ];;
+    live)        shift; bash "$QA/scripts/live.sh" "$@";;
+    reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
+    negative)    shift; bash "$QA/scripts/negative_tests.sh" "$@";;
+    provision)   cmd_provision;;
+    fast)
+        # The iteration gate: every check that does NOT boot a Minecraft
+        # client, in one command. Measured on this machine: doctor+assets+
+        # animation ~5s, build ~5s, gametest ~21s, behavior ~20s -- about a
+        # minute, against ~13 for `full`. That gap is entirely the four
+        # client/server-booting suites (dedicated ~2m33, performance ~2m06,
+        # client ~24s, playtest ~5m29), which is why they are NOT here.
+        #
+        # `fast` runs REAL tests: the whole GameTest suite and the
+        # decision-trace behaviour analysis both execute the mod in a real
+        # server. What it cannot see is anything that only exists on the
+        # client or in a live world -- rendering, animation-in-motion, UI,
+        # sound, chunk/world interaction, restart persistence, MSPT budget.
+        #
+        # Like every non-`full` command it NEVER writes latest.json and
+        # NEVER clears .stale (AC-12): a green `fast` is iteration
+        # confidence, never completion evidence. Completion still requires
+        # `full` twice at one fingerprint.
+        overall=PASS
+        suite_doctor    || overall=FAIL
+        suite_assets    || overall=FAIL
+        suite_animation || overall=FAIL
+        suite_build     || overall=FAIL
+        suite_gametest  || overall=FAIL
+        suite_behavior  || overall=FAIL
+        echo "FAST: $overall (no client boot — completion still requires 'full' x2 + 'gate')"
+        [ "$overall" = "PASS" ];;
+    quick)
+        # The one-command iteration check: compile, asset validators, the
+        # animation contract checker, then the changed-file advisory. Runs
+        # no game and never writes latest.json (AC-12) — a green `quick` is
+        # iteration feedback, NEVER completion evidence (the gate needs
+        # `full` twice at one fingerprint).
+        overall=PASS
+        suite_build     || overall=FAIL
+        suite_assets    || overall=FAIL
+        suite_animation || overall=FAIL
+        cmd_changed || true
+        echo "QUICK: $overall (cheap checks only — completion still requires 'full' x2 + 'gate')"
+        [ "$overall" = PASS ];;
+    full)
+        rm -f "$REPORTS/BLOCKED"   # a full run supersedes any documented blocker
+        overall=PASS
+        suite_doctor      || overall=FAIL
+        suite_assets      || overall=FAIL
+        suite_animation   || overall=FAIL
+        suite_build       || overall=FAIL
+        suite_gametest    || overall=FAIL
+        suite_behavior    || overall=FAIL
+        suite_dedicated   || overall=FAIL
+        suite_performance || overall=FAIL
+        suite_client      || overall=FAIL
+        suite_playtest    || overall=FAIL
+        suite_visual      || true   # BLOCKED allowed, FAIL not
+        [ "${SUITE_STATUS[visual]}" = FAIL ] && overall=FAIL
+        write_manifest "$overall"
+        [ "$overall" = PASS ];;
+    gate)        cmd_gate;;
+    status)      cmd_status;;
+    reproduce)   shift; cmd_reproduce "${1:-}";;
+    *) sed -n '1,3p' "$0"; echo "commands: quick fast doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
+esac

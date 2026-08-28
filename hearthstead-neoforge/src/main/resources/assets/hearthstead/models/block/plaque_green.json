@@ -1,0 +1,8 @@
+{
+  "parent": "hearthstead:block/plaque_base",
+  "textures": {
+    "lamp": "hearthstead:block/plaque_lamp_green",
+    "panel": "hearthstead:block/plaque_plan_sealed"
+  },
+  "__comment": "A plaque with a plan FITTED and the building REGISTERED. GREEN is the only glow state that reaches this -- RED and AMBER both mean a plan is fitted but survey has not passed, and share plaque_plan.png's untrimmed texture instead. plaque_plan_sealed.png is trimmed square and carries a pressed wax seal, bottom-centre, that PlaqueRenderer.SEAL_CLEARANCE (gated on this exact glow value) keeps clear of the picture and the writing above it."
+}

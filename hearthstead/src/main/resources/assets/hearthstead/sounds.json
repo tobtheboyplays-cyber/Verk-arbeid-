@@ -1,0 +1,85 @@
+{
+  "settlement_founded": {
+    "sounds": [
+      {
+        "name": "hearthstead:hearth_founded",
+        "volume": 1.0
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.settlement_founded"
+  },
+  "profession_assigned": {
+    "sounds": [
+      {
+        "name": "hearthstead:profession_assigned",
+        "volume": 0.9
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.profession_assigned"
+  },
+  "settler_recruited": {
+    "sounds": [
+      {
+        "name": "hearthstead:settler_recruited",
+        "volume": 0.9
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.settler_recruited"
+  },
+  "farmer_work": {
+    "sounds": [
+      {
+        "name": "hearthstead:farmer_work",
+        "volume": 0.85
+      },
+      {
+        "name": "hearthstead:farmer_work2",
+        "volume": 0.85
+      },
+      {
+        "name": "hearthstead:farmer_work3",
+        "volume": 0.85
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.farmer_work"
+  },
+  "chop": {
+    "sounds": [
+      {
+        "name": "hearthstead:chop",
+        "volume": 0.9
+      },
+      {
+        "name": "hearthstead:chop2",
+        "volume": 0.9
+      },
+      {
+        "name": "hearthstead:chop3",
+        "volume": 0.9
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.chop"
+  },
+  "guard_alert": {
+    "sounds": [
+      {
+        "name": "hearthstead:guard_alert",
+        "volume": 0.95
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.guard_alert"
+  },
+  "settler_hm": {
+    "sounds": [
+      {
+        "name": "hearthstead:settler_hm",
+        "volume": 0.6
+      },
+      {
+        "name": "hearthstead:settler_hm2",
+        "volume": 0.6
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.settler_hm"
+  }
+}
