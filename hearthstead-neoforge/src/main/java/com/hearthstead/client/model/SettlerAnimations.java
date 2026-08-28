@@ -1451,43 +1451,60 @@ public final class SettlerAnimations {
     // ------------------------------------------------------------ guard ---
 
     /** The low guard (Pflug): a trained swordsman at rest -- controlled,
-     *  threatening, zero wasted tension (animation-quality §2.2).
-     *  Blade 30-45° below horizontal continuing the forearm line
-     *  (right_arm x -28..-30, y -10..-11.5 draws the hilt in front of the
-     *  hip, z 5-6.5 tucks the upper arm to the ribs); off-hand across the
-     *  body at the hip; legs staggered (left foot leads, sword-side foot
-     *  back, x -10/+12), knees soft, weight ~60/40 front. Torso +6-7.5°
-     *  forward and ready. The clock IS the confidence: one 4.0 s breath
-     *  (rise 2.2 s, fall 1.8 s -- down faster), sway 3° total, and ONE
-     *  slow deliberate head scan (y ≤ 17°) per loop. Every channel seams
-     *  mid-motion (value AND velocity continuous, §3 check 6). 4s loop. */
+     *  threatening, zero wasted tension (animation-quality §2.2). REVISED
+     *  2026-08-26 (owner, standing: "vakten holder sverdet rart... han skal
+     *  virke selvsikker og kontrolert" -- the sword-hold still read wrong on
+     *  render, even though the prior build's numbers matched this skill's
+     *  own §2.2 table almost exactly). Rendered through the offline bridge
+     *  with the decorative cubes (backpack/belt/sack) stripped out to judge
+     *  the arms in isolation, and cross-checked with real world-space
+     *  bounding boxes (not just the Java numbers): the prior right_arm x
+     *  -28..-30 put the forearm box's own top edge visibly into the head's
+     *  vertical band even accounting for this rig's natural shoulder/neck
+     *  adjacency at rest (0.78 units more overlap than the true X=0 hang) --
+     *  reading as a raised, tense, chest-high grip rather than a lowered
+     *  hip-level guard. Both arms' X now sit closer to a true hang (right
+     *  -16..-18, left -10..-12, roughly 40% less raised than before) while Y
+     *  is UNCHANGED (still draws the hilt across to the front of the hip --
+     *  that cue was never the problem) and Z is kept (elbow-tuck implying
+     *  bend, so the arm never reads as a straight locked bar to the same
+     *  degree animation-quality principle 11 warns "a rigid rig" can). The
+     *  lowered guard is now visibly a lowered guard, not a chest-high one.
+     *  <p>"Weight in the hips" (this round's second ask) is now an explicit
+     *  cue, not just torso lean: root's baseline dropped ~0.4 units (a
+     *  settled crouch, not standing tall) and leg stagger widened by ~3°
+     *  each side (x -13/+15 vs the old -10/+12) -- knees read softer and the
+     *  60/40 front-weighted stance is more visible without changing the
+     *  breath-cycle's own asymmetric timing (rise 2.2s/fall 1.8s) or the one
+     *  slow head scan per loop, both already correct and left untouched.
+     *  Every channel still seams mid-motion (§3 check 6). 4s loop. */
     public static final AnimationDefinition GUARD_STANCE = AnimationDefinition.Builder
         .withLength(4.0F).looping()
         .addAnimation("right_leg", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(12.15F, -6, -3.15F), CATMULLROM),
-            new Keyframe(0.6F, KeyframeAnimations.degreeVec(12, -6, -3), CATMULLROM),
-            new Keyframe(2.8F, KeyframeAnimations.degreeVec(12.5F, -6, -3.4F), CATMULLROM),
-            new Keyframe(4.0F, KeyframeAnimations.degreeVec(12.15F, -6, -3.15F), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(15.15F, -6, -3.15F), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(15, -6, -3), CATMULLROM),
+            new Keyframe(2.8F, KeyframeAnimations.degreeVec(15.5F, -6, -3.4F), CATMULLROM),
+            new Keyframe(4.0F, KeyframeAnimations.degreeVec(15.15F, -6, -3.15F), CATMULLROM)))
         .addAnimation("left_leg", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-9.85F, 5, 3.15F), CATMULLROM),
-            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-10, 5, 3), CATMULLROM),
-            new Keyframe(2.8F, KeyframeAnimations.degreeVec(-9.6F, 5, 3.4F), CATMULLROM),
-            new Keyframe(4.0F, KeyframeAnimations.degreeVec(-9.85F, 5, 3.15F), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-12.85F, 5, 3.15F), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-13, 5, 3), CATMULLROM),
+            new Keyframe(2.8F, KeyframeAnimations.degreeVec(-12.6F, 5, 3.4F), CATMULLROM),
+            new Keyframe(4.0F, KeyframeAnimations.degreeVec(-12.85F, 5, 3.15F), CATMULLROM)))
         .addAnimation("torso", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(6.5F, 0.5F, 0), CATMULLROM),
             new Keyframe(0.6F, KeyframeAnimations.degreeVec(6, 1.5F, 0), CATMULLROM),
             new Keyframe(2.8F, KeyframeAnimations.degreeVec(7.5F, -1.5F, 0), CATMULLROM),
             new Keyframe(4.0F, KeyframeAnimations.degreeVec(6.5F, 0.5F, 0), CATMULLROM)))
         .addAnimation("right_arm", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-28.65F, -10.5F, 5.5F), CATMULLROM),
-            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-28, -10, 5), CATMULLROM),
-            new Keyframe(2.8F, KeyframeAnimations.degreeVec(-30, -11.5F, 6.5F), CATMULLROM),
-            new Keyframe(4.0F, KeyframeAnimations.degreeVec(-28.65F, -10.5F, 5.5F), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-17.15F, -10.5F, 5.5F), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-16.5F, -10, 5), CATMULLROM),
+            new Keyframe(2.8F, KeyframeAnimations.degreeVec(-18.5F, -11.5F, 6.5F), CATMULLROM),
+            new Keyframe(4.0F, KeyframeAnimations.degreeVec(-17.15F, -10.5F, 5.5F), CATMULLROM)))
         .addAnimation("left_arm", new AnimationChannel(ROTATION,
-            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-20.65F, 14.5F, 4.35F), CATMULLROM),
-            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-20, 14, 4), CATMULLROM),
-            new Keyframe(2.8F, KeyframeAnimations.degreeVec(-22, 15.5F, 5), CATMULLROM),
-            new Keyframe(4.0F, KeyframeAnimations.degreeVec(-20.65F, 14.5F, 4.35F), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.degreeVec(-11.65F, 14.5F, 4.35F), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.degreeVec(-11, 14, 4), CATMULLROM),
+            new Keyframe(2.8F, KeyframeAnimations.degreeVec(-13, 15.5F, 5), CATMULLROM),
+            new Keyframe(4.0F, KeyframeAnimations.degreeVec(-11.65F, 14.5F, 4.35F), CATMULLROM)))
         .addAnimation("head", new AnimationChannel(ROTATION,
             new Keyframe(0.0F, KeyframeAnimations.degreeVec(1, 0.6F, 0), CATMULLROM),
             new Keyframe(0.9F, KeyframeAnimations.degreeVec(1.8F, -1.2F, 0), CATMULLROM),
@@ -1502,10 +1519,10 @@ public final class SettlerAnimations {
             new Keyframe(2.95F, KeyframeAnimations.degreeVec(5.5F, 0, -1.5F), CATMULLROM),
             new Keyframe(4.0F, KeyframeAnimations.degreeVec(4.05F, 0, 0.25F), CATMULLROM)))
         .addAnimation("root", new AnimationChannel(POSITION,
-            new Keyframe(0.0F, KeyframeAnimations.posVec(0, 0.12F, 0), CATMULLROM),
-            new Keyframe(0.6F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
-            new Keyframe(2.8F, KeyframeAnimations.posVec(0, 0.35F, 0), CATMULLROM),
-            new Keyframe(4.0F, KeyframeAnimations.posVec(0, 0.12F, 0), CATMULLROM)))
+            new Keyframe(0.0F, KeyframeAnimations.posVec(0, -0.28F, 0), CATMULLROM),
+            new Keyframe(0.6F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM),
+            new Keyframe(2.8F, KeyframeAnimations.posVec(0, -0.05F, 0), CATMULLROM),
+            new Keyframe(4.0F, KeyframeAnimations.posVec(0, -0.28F, 0), CATMULLROM)))
         .build();
 
     /** Layers over WALK's legs/torso/cloak: locked pommel-hand + wide scan.
