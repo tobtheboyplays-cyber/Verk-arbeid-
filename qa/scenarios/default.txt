@@ -316,7 +316,23 @@ wait 10
 # proves deterministically, with no window and no input layer, that the
 # right-click fits the plan, consumes it in survival, and refuses an ordinary
 # item. That is what said the fault was in the click, not the game.
+#
+# Re-aim IMMEDIATELY before every attempt (2026-08-28). Over a minute
+# passes between the stand-back tp above and these clicks (the empty-plaque
+# steps, the give, the slot select), and this section's own hearth founds
+# THREE settlers two blocks from the stand spot -- proven from run
+# 20260828T192544Z's evidence: the grab probes read the player at
+# x=307.9986 while $STANDBACK_CX was 308.5, half a block of settler-shove,
+# so a yaw-0 pick ray missed the plaque's box by millimetres on all three
+# attempts and the plan stayed in hand. Same drift class capture_pos
+# already documents; same cure the hearth click uses -- re-establish the
+# aimed state right before acting, never a bigger retry count. wait 3
+# after each tp for the same client-camera-sync reason as the hearth click.
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
+wait 3
 open right
+wait 3
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
 wait 3
 open right
 wait 3
@@ -326,6 +342,8 @@ wait 3
 # plan" instead of "Registered", 30 steps downstream of the real cause.
 # Extra attempts are safe for the reason given above (a click after a real
 # insert falls through to useWithoutItem and merely re-opens the screen).
+scmd tp $PLAYER $STANDBACK_CX $STANDBACK_Y $STANDBACK_CZ 0 0
+wait 3
 open right
 wait 5
 # Prove the insert actually happened, HERE, rather than inferring it from a
