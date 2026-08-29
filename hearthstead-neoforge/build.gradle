@@ -39,6 +39,13 @@ neoForge {
         // QA playtest: jump the client straight into a prepared save instead
         // of driving the world-creation menus with synthetic clicks.
         client {
+            // Per-frame UI cost meter (client/debug/UiProfiler). Same
+            // discipline as the gameTestServer trace flag above: the game runs
+            // in a forked JVM, so a -D on the Gradle command line never
+            // reaches it, and it stays off unless the QA controller asks.
+            if (System.getenv('HSQA_UIPROFILE')) {
+                systemProperty 'hearthstead.uiprofile', 'true'
+            }
             if (System.getenv('HSQA_JOIN')) {
                 programArgument '--quickPlayMultiplayer'
                 programArgument System.getenv('HSQA_JOIN')

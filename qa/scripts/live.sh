@@ -363,7 +363,7 @@ start)
     tmux new-window -d -t "$TMUX_SESSION" -n server \
         "cd '$INST' && ./run.sh nogui 2>&1 | tee '$EV_LOGS/live-server.log'"
     tmux new-window -d -t "$TMUX_SESSION" -n client \
-        "cd '$MOD' && HSQA_JOIN='127.0.0.1:$PORT' ./gradlew runClient 2>&1 | tee '$EV_LOGS/live-client.log'"
+        "cd '$MOD' && HSQA_JOIN='127.0.0.1:$PORT' HSQA_UIPROFILE='${HSQA_UIPROFILE:-}' ./gradlew runClient 2>&1 | tee '$EV_LOGS/live-client.log'"
 
     sleep 2
     if ! tmux_up; then die tmux_session "tmux session '$TMUX_SESSION' failed to start"; fi
