@@ -348,7 +348,7 @@ start)
     # rawMouseInput:false: with it true (default), GLFW reads camera look
     # from XInput2 raw motion, which xdotool's XTest-synthesized motion
     # never generates (see playtest.sh for the diagnostic that found this).
-    printf 'onboardAccessibility:false\nskipMultiplayerWarning:true\npauseOnLostFocus:false\nguiScale:3\nfullscreen:false\noverrideWidth:1280\noverrideHeight:720\ntutorialStep:none\nrawMouseInput:false\nrenderDistance:6\nsimulationDistance:6\n' \
+    printf 'onboardAccessibility:false\nskipMultiplayerWarning:true\npauseOnLostFocus:false\nguiScale:'"${HSQA_GUISCALE:-3}"'\nfullscreen:false\noverrideWidth:1280\noverrideHeight:720\ntutorialStep:none\nrawMouseInput:false\nrenderDistance:6\nsimulationDistance:6\n' \
         > "$RUN_DIR/options.txt"
 
     # -x/-y: a DETACHED tmux session with no client attached otherwise
@@ -359,11 +359,11 @@ start)
     # middle sliced out and an ANSI cursor-move escape spliced in). A wide
     # pane avoids wrapping for any command this harness sends.
     tmux new-session -d -s "$TMUX_SESSION" -n xvfb -x 500 -y 50 \
-        "Xvfb $DISPLAY_NUM -screen 0 1280x720x24 > '$EV_LOGS/xvfb.log' 2>&1"
+        "Xvfb $DISPLAY_NUM -screen 0 ${HSQA_WIDTH:-1280}x${HSQA_HEIGHT:-720}x24 > '$EV_LOGS/xvfb.log' 2>&1"
     tmux new-window -d -t "$TMUX_SESSION" -n server \
         "cd '$INST' && ./run.sh nogui 2>&1 | tee '$EV_LOGS/live-server.log'"
     tmux new-window -d -t "$TMUX_SESSION" -n client \
-        "cd '$MOD' && HSQA_JOIN='127.0.0.1:$PORT' HSQA_UIPROFILE='${HSQA_UIPROFILE:-}' ./gradlew runClient 2>&1 | tee '$EV_LOGS/live-client.log'"
+        "cd '$MOD' && HSQA_JOIN='127.0.0.1:$PORT' HSQA_UIPROFILE='${HSQA_UIPROFILE:-}' HSQA_WIDTH='${HSQA_WIDTH:-}' HSQA_HEIGHT='${HSQA_HEIGHT:-}' ./gradlew runClient 2>&1 | tee '$EV_LOGS/live-client.log'"
 
     sleep 2
     if ! tmux_up; then die tmux_session "tmux session '$TMUX_SESSION' failed to start"; fi

@@ -2,6 +2,7 @@ package com.hearthstead.client.debug;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.SettlerEntity;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
@@ -39,28 +40,7 @@ public final class UiBenchCommand {
 
     private static final boolean ENABLED = Boolean.getBoolean("hearthstead.uiprofile");
 
-    /**
-     * QA-only A/B switch for the settler sheet's live entity preview.
-     *
-     * <p>The preview is the one thing on that sheet whose cost cannot be
-     * reasoned about from the source -- it is a full entity render, and how
-     * much it costs depends on the rasteriser. Toggling it at RUNTIME lets
-     * both halves of the comparison come from one client boot, on one world,
-     * with nothing else changed. Always true unless a QA session says
-     * otherwise, and unreachable at all without the profiler flag.
-     */
-    public static boolean entityPreview = true;
 
-    /**
-     * QA-only bisect switch: draw the screen's background and nothing else.
-     *
-     * <p>The settler sheet measured 118ms a frame with the entity preview on
-     * and 117ms with it off, which rules the preview out and says the cost is
-     * somewhere in the other several hundred draw calls -- or is not this
-     * screen's drawing at all. Skipping the panel entirely separates those two
-     * answers in one measurement instead of one client boot per guess.
-     */
-    public static boolean panelBody = true;
 
     @SubscribeEvent
     public static void onRegisterClientCommands(RegisterClientCommandsEvent event) {
@@ -69,19 +49,23 @@ public final class UiBenchCommand {
         }
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("hsui");
         root.then(Commands.literal("settler").executes(ctx -> openSettler()));
-        root.then(Commands.literal("entity").executes(ctx -> {
-            entityPreview = !entityPreview;
-            Minecraft.getInstance().player.displayClientMessage(
-                Component.literal("[hsui] entity preview " + (entityPreview ? "on" : "off")),
-                false);
-            return 1;
-        }));
-        root.then(Commands.literal("bare").executes(ctx -> {
-            panelBody = !panelBody;
-            Minecraft.getInstance().player.displayClientMessage(
-                Component.literal("[hsui] panel body " + (panelBody ? "on" : "off")), false);
-            return 1;
-        }));
+        // A GUI-scale sweep is an acceptance criterion, and restarting the
+        // client once per scale makes it a twenty-minute errand that nobody
+        // repeats. This sets the same option the video settings screen sets
+        // and re-runs the resize path, so every screen's init() recomputes
+        // exactly as it would for a player dragging that slider.
+        root.then(Commands.literal("scale")
+            .then(Commands.argument("value", IntegerArgumentType.integer(0, 4))
+                .executes(ctx -> {
+                    int value = IntegerArgumentType.getInteger(ctx, "value");
+                    Minecraft mc = Minecraft.getInstance();
+                    mc.options.guiScale().set(value);
+                    mc.resizeDisplay();
+                    mc.player.displayClientMessage(
+                        Component.literal("[hsui] guiScale " + value
+                            + " -> " + mc.getWindow().getGuiScale()), false);
+                    return 1;
+                })));
         root.then(Commands.literal("close").executes(ctx -> {
             Minecraft.getInstance().setScreen(null);
             return 1;

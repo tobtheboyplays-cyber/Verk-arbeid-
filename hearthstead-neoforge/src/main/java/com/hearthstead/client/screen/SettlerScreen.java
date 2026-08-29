@@ -357,9 +357,6 @@ public class SettlerScreen extends Screen {
         int a = left + l.colAX;
         int b = left + l.colBX;
 
-        if (!com.hearthstead.client.debug.UiBenchCommand.panelBody) {
-            return; // QA bisect: background only, nothing of this screen drawn
-        }
         HsUi.window(g, left, top, panelW, l.totalHeight);
 
         // -- column A ------------------------------------------------------
@@ -403,10 +400,8 @@ public class SettlerScreen extends Screen {
         HsUi.inset(g, px, py, PORTRAIT_W, PORTRAIT_H);
         // The settler looks toward the mouse — the same lively touch vanilla
         // uses for the player preview in the inventory screen.
-        if (com.hearthstead.client.debug.UiBenchCommand.entityPreview) {
-            InventoryScreen.renderEntityInInventoryFollowsMouse(g, px + 2, py + 2,
-                px + PORTRAIT_W - 2, py + PORTRAIT_H - 2, 22, 0.0625F, mouseX, mouseY, settler);
-        }
+        InventoryScreen.renderEntityInInventoryFollowsMouse(g, px + 2, py + 2,
+            px + PORTRAIT_W - 2, py + PORTRAIT_H - 2, 22, 0.0625F, mouseX, mouseY, settler);
 
         // Identity block, in the order the citizen-card recipe asks for:
         // name, then the profession badge in trade colour, with the mayor
