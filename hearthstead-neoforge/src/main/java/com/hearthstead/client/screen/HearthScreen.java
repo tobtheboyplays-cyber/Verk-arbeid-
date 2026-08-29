@@ -140,11 +140,12 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private static final int MAYOR_DIV2_Y = MAYOR_STATUS_Y + MAYOR_STATUS_H + 6;
     private static final int MAYOR_LABEL_Y = MAYOR_DIV2_Y + 8;
     private static final int MAYOR_LIST_TOP = MAYOR_LABEL_Y + 12;
-    private static final int MAYOR_ROWS = 3;
+    /** Most candidate rows the panel will ever show; fewer on a short viewport. */
+    private static final int MAYOR_ROWS_MAX = 3;
     private static final int MAYOR_CARD_H = 38;
     private static final int MAYOR_CARD_STEP = MAYOR_CARD_H + 4;
-    private static final int MAYOR_LIST_H = MAYOR_ROWS * MAYOR_CARD_STEP - 4;
-    private static final int MAYOR_FOOT = MAYOR_LIST_TOP + MAYOR_LIST_H + 6;
+    /** Everything in the panel that is not the candidate list. */
+    private static final int MAYOR_CHROME_H = MAYOR_LIST_TOP + 6 + 8;
     // The footer sometimes wraps to two lines -- "Appointing someone new
     // stands Gislebert the Younger down" measured 299px against a 240px box
     // (59px over) in English, 249px (9px over) in Norwegian, both from the
@@ -152,7 +153,12 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     // with room to spare; reserved unconditionally like the rest of this
     // panel's fixed shape.
     private static final int MAYOR_FOOTER_H = HsUiTokens.TEXT_H + 9;
-    private static final int MAYOR_PANEL_H = MAYOR_FOOT + 8 + MAYOR_FOOTER_H + 8;
+    /** "Tilbake" is 34px, "Back" 23; 52 clears both inside a button. */
+    private static final int MAYOR_BACK_W = 52;
+    /** The footer row holds the sentence and the Back control side by side. */
+    private static final int MAYOR_FOOTER_ROW_H =
+        Math.max(MAYOR_FOOTER_H, HsUiTokens.BUTTON_H);
+
 
     private static final int MAYOR_CARD_X = MAYOR_PAD;
     private static final int MAYOR_CARD_W =
@@ -171,6 +177,30 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private int mayorScroll;
     private int mayorPanelLeft;
     private int mayorPanelTop;
+    /** The seat panel's own buttons; drawn by the modal pass, not by super. */
+    private final List<HsButton> mayorButtons = new ArrayList<>();
+    /** True when the panel has to cover the window rather than sit beside it. */
+    private boolean mayorModal;
+
+    // The seat panel's height depends on the viewport, for the same reason the
+    // hearth's own does: at guiScale 3 on a 720p window there are 240px in
+    // total, and a three-row panel is 267 -- it drew its candidate list fine
+    // and then ran its divider and footer straight off the bottom of the
+    // screen (seen live, 2026-08-29, v4-mayor-modal.png). The list is the only
+    // part that can give, so it is the part that does; the rows that no longer
+    // fit are still reachable, because the list already scrolls.
+    private int mayorRows = MAYOR_ROWS_MAX;
+    private int mayorListH;
+    private int mayorFoot;
+    private int mayorPanelH;
+
+    private void updateMayorMetrics() {
+        int available = height - MAYOR_CHROME_H - MAYOR_FOOTER_ROW_H - 8 - 4;
+        mayorRows = Mth.clamp(available / MAYOR_CARD_STEP, 1, MAYOR_ROWS_MAX);
+        mayorListH = mayorRows * MAYOR_CARD_STEP - 4;
+        mayorFoot = MAYOR_LIST_TOP + mayorListH + 6;
+        mayorPanelH = mayorFoot + 8 + MAYOR_FOOTER_ROW_H + 8;
+    }
 
     // ------------------------------------------------- per-frame discipline --
     // Everything below exists so that render() ALLOCATES NOTHING. That is not
@@ -229,6 +259,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
         // Components so a re-wrapped status line is never stale.
         dataStamp = Long.MIN_VALUE;
         tooltipFor = -2;
+        updateMayorMetrics();
         rebuildSeatWidgets();
     }
 
@@ -322,6 +353,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
     private void rebuildSeatWidgets() {
         clearWidgets();
+        mayorButtons.clear();
         // Inside the frame, not above it. Hung above (the old topPos - TAB_H)
         // they left the screen entirely at guiScale 3, where topPos is 3.
         addRenderableWidget(new SeatTabButton(leftPos + CONTENT_X, topPos + TAB_Y, TAB_W, TAB_H,
@@ -342,13 +374,14 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
         }
         updateMayorPanelPosition();
         if (mayorSnapshot == null) {
+            addMayorBackButton();
             return;
         }
         List<HearthMayorSnapshot.Candidate> candidates = mayorSnapshot.candidates();
         int rows = candidates.size();
-        mayorScroll = Math.max(0, Math.min(mayorScroll, Math.max(0, rows - MAYOR_ROWS)));
+        mayorScroll = Math.max(0, Math.min(mayorScroll, Math.max(0, rows - mayorRows)));
         boolean canAppoint = !mayorSnapshot.mourning();
-        for (int row = 0; row < MAYOR_ROWS && row + mayorScroll < rows; row++) {
+        for (int row = 0; row < mayorRows && row + mayorScroll < rows; row++) {
             HearthMayorSnapshot.Candidate candidate = candidates.get(row + mayorScroll);
             int y = mayorPanelTop + MAYOR_LIST_TOP + row * MAYOR_CARD_STEP;
             HsButton appoint = HsButton.normal(mayorPanelLeft + MAYOR_BTN_X, y + 4, MAYOR_BTN_W,
@@ -359,19 +392,71 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
             appoint.setTooltip(Tooltip.create(canAppoint
                 ? Component.translatable("hearthstead.mayor.appoint.tip", candidate.name())
                 : Component.translatable("hearthstead.mayor.refused.mourning")));
-            addRenderableWidget(appoint);
+            // addWidget, NOT addRenderableWidget: clickable and narrated, but
+            // drawn by renderMayorPanel inside the modal's own raised pass.
+            // A renderable is drawn by AbstractContainerScreen#render BEFORE
+            // the slots and labels, which is under the panel these belong to.
+            addWidget(appoint);
+            mayorButtons.add(appoint);
         }
+        addMayorBackButton();
     }
 
-    /** Prefers the right of the window; falls back left, then clamps on-screen. */
+    /**
+     * The modal's way out.
+     *
+     * <p>When the seat panel has to cover the window (guiScale 3 and below,
+     * where 426px cannot hold a 256px window and a 256px panel side by side)
+     * it also covers the tab strip that opened it, and Escape -- which closes
+     * the whole screen -- became the only exit. A modal that can only be left
+     * by leaving everything is a dead end, so it carries its own way back.
+     */
+    private void addMayorBackButton() {
+        HsButton back = HsButton.normal(
+            mayorPanelLeft + MAYOR_PANEL_W - MAYOR_PAD - MAYOR_BACK_W,
+            mayorPanelTop + mayorPanelH - MAYOR_PAD - HsUiTokens.BUTTON_H,
+            MAYOR_BACK_W, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.gui.back"), () -> {
+                mayorTabOpen = false;
+                rebuildSeatWidgets();
+            });
+        addWidget(back);
+        mayorButtons.add(back);
+    }
+
+    /**
+     * Beside the window when the viewport is genuinely wide enough for both,
+     * centred as a modal when it is not.
+     *
+     * <p>The old rule clamped the panel onto the window whenever it did not
+     * fit beside it, which at guiScale 3 is always: a 426px viewport cannot
+     * hold a 256px window and a 256px panel side by side. The result drew the
+     * seat panel across the stores grid and the hearth's own labels, and ran
+     * its footer off the bottom of the screen. A panel that overlaps the
+     * window it belongs to IS a modal, so it is drawn as one -- centred, over
+     * a full-screen scrim, above everything (see render()).
+     */
     private void updateMayorPanelPosition() {
-        int preferred = leftPos + imageWidth + MAYOR_GAP;
-        if (preferred + MAYOR_PANEL_W > width) {
-            int leftSide = leftPos - MAYOR_GAP - MAYOR_PANEL_W;
-            preferred = leftSide >= 0 ? leftSide : Math.max(0, width - MAYOR_PANEL_W);
+        updateMayorMetrics();
+        int beside = leftPos + imageWidth + MAYOR_GAP;
+        if (beside + MAYOR_PANEL_W <= width) {
+            mayorPanelLeft = beside;
+            mayorPanelTop = Mth.clamp(topPos - (mayorPanelH - imageHeight) / 2,
+                0, Math.max(0, height - mayorPanelH));
+            mayorModal = false;
+            return;
         }
-        mayorPanelLeft = preferred;
-        mayorPanelTop = topPos - (MAYOR_PANEL_H - imageHeight) / 2;
+        int leftSide = leftPos - MAYOR_GAP - MAYOR_PANEL_W;
+        if (leftSide >= 0) {
+            mayorPanelLeft = leftSide;
+            mayorPanelTop = Mth.clamp(topPos - (mayorPanelH - imageHeight) / 2,
+                0, Math.max(0, height - mayorPanelH));
+            mayorModal = false;
+            return;
+        }
+        mayorPanelLeft = (width - MAYOR_PANEL_W) / 2;
+        mayorPanelTop = Math.max(0, (height - mayorPanelH) / 2);
+        mayorModal = true;
     }
 
     private void requestMayorData() {
@@ -390,11 +475,11 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
         if (mayorTabOpen && mayorSnapshot != null) {
             int rows = mayorSnapshot.candidates().size();
-            if (rows > MAYOR_ROWS && mouseX >= mayorPanelLeft
+            if (rows > mayorRows && mouseX >= mayorPanelLeft
                 && mouseX <= mayorPanelLeft + MAYOR_PANEL_W
-                && mouseY >= mayorPanelTop && mouseY <= mayorPanelTop + MAYOR_PANEL_H) {
+                && mouseY >= mayorPanelTop && mouseY <= mayorPanelTop + mayorPanelH) {
                 int before = mayorScroll;
-                mayorScroll = Math.max(0, Math.min(rows - MAYOR_ROWS, mayorScroll - (int) Math.signum(dy)));
+                mayorScroll = Math.max(0, Math.min(rows - mayorRows, mayorScroll - (int) Math.signum(dy)));
                 if (before != mayorScroll) {
                     rebuildSeatWidgets();
                     return true;
@@ -437,7 +522,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private void renderMayorPanel(GuiGraphics graphics, int mouseX, int mouseY) {
         int pl = mayorPanelLeft;
         int pt = mayorPanelTop;
-        HsUi.window(graphics, pl, pt, MAYOR_PANEL_W, MAYOR_PANEL_H);
+        HsUi.window(graphics, pl, pt, MAYOR_PANEL_W, mayorPanelH);
         HsUi.centred(graphics, font, Component.translatable("hearthstead.mayor.tab.title"),
             pl + MAYOR_PANEL_W / 2, pt + MAYOR_TITLE_Y, HsUiTokens.TEXT_STRONG);
         HsUi.divider(graphics, pl + MAYOR_PAD, pt + MAYOR_DIV1_Y, MAYOR_PANEL_W - 2 * MAYOR_PAD);
@@ -461,7 +546,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
                 pl + MAYOR_PAD, pt + MAYOR_LIST_TOP, MAYOR_PANEL_W - 2 * MAYOR_PAD,
                 HsUiTokens.TEXT_MUTED);
         }
-        for (int row = 0; row < MAYOR_ROWS && row + mayorScroll < candidates.size(); row++) {
+        for (int row = 0; row < mayorRows && row + mayorScroll < candidates.size(); row++) {
             HearthMayorSnapshot.Candidate candidate = candidates.get(row + mayorScroll);
             int y = pt + MAYOR_LIST_TOP + row * MAYOR_CARD_STEP;
             boolean hovered = mouseX >= pl + MAYOR_CARD_X && mouseX <= pl + MAYOR_CARD_X + MAYOR_CARD_W
@@ -478,17 +563,17 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
         int rows = candidates.size();
         HsUi.scrollbar(graphics, pl + MAYOR_PANEL_W - MAYOR_PAD - HsUiTokens.SCROLL_W,
-            pt + MAYOR_LIST_TOP, MAYOR_LIST_H,
-            rows == 0 ? 1.0F : Math.min(1.0F, (float) MAYOR_ROWS / rows),
-            rows <= MAYOR_ROWS ? 0.0F : (float) mayorScroll / (rows - MAYOR_ROWS), false);
+            pt + MAYOR_LIST_TOP, mayorListH,
+            rows == 0 ? 1.0F : Math.min(1.0F, (float) mayorRows / rows),
+            rows <= mayorRows ? 0.0F : (float) mayorScroll / (rows - mayorRows), false);
 
-        HsUi.divider(graphics, pl + MAYOR_PAD, pt + MAYOR_FOOT, MAYOR_PANEL_W - 2 * MAYOR_PAD);
+        HsUi.divider(graphics, pl + MAYOR_PAD, pt + mayorFoot, MAYOR_PANEL_W - 2 * MAYOR_PAD);
         // Word-wrapped, not labelIn -- the "stands X down" sentence can carry
         // the current mayor's full (possibly long) name, and ellipsising a
         // name mid-sentence here reads as a different, shorter sentence
         // rather than a merely-truncated one. See MAYOR_FOOTER_H.
-        graphics.drawWordWrap(font, mayorFooter(), pl + MAYOR_PAD, pt + MAYOR_FOOT + 7,
-            MAYOR_PANEL_W - 2 * MAYOR_PAD, HsUiTokens.ACCENT);
+        graphics.drawWordWrap(font, mayorFooter(), pl + MAYOR_PAD, pt + mayorFoot + 7,
+            MAYOR_PANEL_W - 2 * MAYOR_PAD - MAYOR_BACK_W - MAYOR_GAP, HsUiTokens.ACCENT);
     }
 
     /**
@@ -697,22 +782,35 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
         super.render(graphics, mouseX, mouseY, partialTick);
         if (mayorTabOpen) {
-            // At small GUI widths there is no room beside the window and
-            // updateMayorPanelPosition clamps the panel ONTO it. Dim what it
-            // covers first, so the overlap reads as a modal layer above the
-            // window rather than two screens fighting for the same pixels.
-            if (mayorPanelLeft < leftPos + imageWidth
-                && mayorPanelLeft + MAYOR_PANEL_W > leftPos) {
-                graphics.fill(leftPos, topPos, leftPos + imageWidth,
-                    topPos + imageHeight, 0xB0101010);
+            // Everything AbstractContainerScreen draws after its widgets --
+            // the slot items and renderLabels -- has already been issued by
+            // the super call above. Flushing here, then drawing the panel in
+            // its own pushed pose translated forward in z, is what puts the
+            // panel above them instead of underneath: without it the hearth's
+            // own labels and item stacks painted straight through the seat
+            // panel (seen live, 2026-08-29, v3-mayor-tab.png).
+            graphics.flush();
+            graphics.pose().pushPose();
+            graphics.pose().translate(0.0F, 0.0F, 300.0F);
+            if (mayorModal) {
+                // It covers the window, so it is a modal and says so: a
+                // full-screen scrim, not a patch over the window alone, which
+                // left the rest of the screen reading as still-live.
+                graphics.fill(0, 0, width, height, 0xC0101010);
             }
             renderMayorPanel(graphics, mouseX, mouseY);
+            for (HsButton button : mayorButtons) {
+                button.render(graphics, mouseX, mouseY, partialTick);
+            }
+            graphics.flush();
+            graphics.pose().popPose();
         }
         // No slot/stat tooltips from under the panel: the slot is covered,
         // so a tooltip for it would name something the player cannot see.
-        boolean overPanel = mayorTabOpen
-            && mouseX >= mayorPanelLeft && mouseX < mayorPanelLeft + MAYOR_PANEL_W
-            && mouseY >= mayorPanelTop && mouseY < mayorPanelTop + MAYOR_PANEL_H;
+        // A modal covers everything, so nothing under it may claim the cursor.
+        boolean overPanel = mayorTabOpen && (mayorModal
+            || (mouseX >= mayorPanelLeft && mouseX < mayorPanelLeft + MAYOR_PANEL_W
+                && mouseY >= mayorPanelTop && mouseY < mayorPanelTop + mayorPanelH));
         if (!overPanel) {
             renderTooltip(graphics, mouseX, mouseY);
             renderStatTooltip(graphics, mouseX, mouseY);

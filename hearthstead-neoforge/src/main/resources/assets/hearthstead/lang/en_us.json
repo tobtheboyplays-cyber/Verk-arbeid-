@@ -166,6 +166,7 @@
   "hearthstead.employ.suggested": "Suggested: %s",
   "hearthstead.employ.unemployed": "No post",
   "hearthstead.gui.alert": "⚠ The settlement is under threat!",
+  "hearthstead.gui.back": "Back",
   "hearthstead.gui.doing": "Now: %s",
   "hearthstead.gui.energy": "Energy",
   "hearthstead.gui.hunger": "Hunger",
