@@ -68,3 +68,29 @@ vanilla container screens, which skip the blur, were never affected.
 On a real machine (including the owner's), add `-Dhearthstead.uiprofile=true`
 to the launcher's JVM arguments and run `uiprofile_report.py` against
 `logs/latest.log`; pass two logs to diff them.
+
+## What the numbers could not have told us
+
+Two defects in this pass were found by pressing the button, not by measuring:
+the Mayor tab drew its panel *underneath* the hearth's own labels and item
+stacks, ran its footer off the bottom of a 240px viewport, and covered the tab
+strip it was opened from — leaving Escape, which closes everything, as the
+only way out. Every suite was green through all three.
+
+`shots/before-mayor-tab-bleeding.png` is what that looked like;
+`shots/after-mayor-modal.png` is the same tab afterwards. It is the reason the
+protocol says a green test is not visual quality.
+
+## Screenshots kept here
+
+| file | what it shows |
+|---|---|
+| `before-hearth-parchment.png` | the legacy ledger: clipped tabs, "Communal Stores" across the title bar, the status sentence running out of the window |
+| `after-hearth-command-centre.png` | the same screen rebuilt, guiScale 3 |
+| `after-hearth-scale2.png` | guiScale 2 |
+| `after-hearth-tooltip.png` | a stat row's tiered tooltip |
+| `before-settler-twocolumn-slow.png` | the two-column sheet before the backdrop fix (117ms/frame) |
+| `after-settler-scrim.png` | the same sheet at 3.98ms |
+| `after-settler-narrow-scale4.png` | the single-column fallback, guiScale 4, 320x256 |
+| `before-mayor-tab-bleeding.png` | the seat panel drawn under the screen it belongs to |
+| `after-mayor-modal.png` | the seat panel as a modal that fits, with its way back |
