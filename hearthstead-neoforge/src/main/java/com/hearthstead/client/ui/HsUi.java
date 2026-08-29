@@ -82,6 +82,10 @@ public final class HsUi {
     public static final ResourceLocation CARD_HOVER = sprite("panel/card_hover");
     public static final ResourceLocation DIVIDER = sprite("widget/divider");
     public static final ResourceLocation SLOT = sprite("widget/slot");
+    /** Whole fixed grids of sockets, one draw call each -- see slotGrid. */
+    public static final ResourceLocation SLOTS_6X4 = sprite("widget/slots_6x4");
+    public static final ResourceLocation SLOTS_9X3 = sprite("widget/slots_9x3");
+    public static final ResourceLocation SLOTS_9X1 = sprite("widget/slots_9x1");
     public static final ResourceLocation SCROLL_TRACK = sprite("widget/scroll_track");
     public static final ResourceLocation SCROLL_THUMB = sprite("widget/scroll_thumb");
     public static final ResourceLocation SCROLL_THUMB_HOVER =
@@ -145,6 +149,21 @@ public final class HsUi {
 
     public static void slot(GuiGraphics g, int x, int y) {
         g.blitSprite(SLOT, x, y, HsUiTokens.SLOT, HsUiTokens.SLOT);
+    }
+
+    /**
+     * A whole grid of sockets in ONE draw call.
+     *
+     * <p>Use this instead of a loop over {@link #slot} wherever the grid's
+     * shape is fixed by a menu rather than by data. Sixty separate
+     * {@code blitSprite} calls are sixty immediate GL draws, each re-running
+     * the shader's uniform setup; the grid sprites are baked from the very
+     * same {@code slot()} art by {@code gen_ui.py}, so this costs nothing in
+     * consistency and measured as the hearth's largest remaining draw cost.
+     */
+    public static void slotGrid(GuiGraphics g, ResourceLocation grid,
+                                int x, int y, int cols, int rows) {
+        g.blitSprite(grid, x, y, cols * HsUiTokens.SLOT, rows * HsUiTokens.SLOT);
     }
 
     /** A ruled line. Thin geometry is measured in screen pixels, not intent —

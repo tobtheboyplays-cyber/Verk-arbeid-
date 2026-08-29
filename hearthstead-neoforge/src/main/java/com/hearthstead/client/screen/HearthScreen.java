@@ -13,8 +13,10 @@ import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Inventory;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -46,31 +48,84 @@ import java.util.UUID;
  * has since changed hands is refused rather than applied blind.
  */
 public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
-    private static final ResourceLocation TEXTURE =
-        Hearthstead.id("textures/gui/hearth_screen.png");
+    // ---------------------------------------------------------- geometry ---
+    // Measured, not guessed (minecraft-ui skill, §2). Every number here is a
+    // vanilla metric, a 4px-grid multiple, or a real width from
+    // tools/mcfont.py against BOTH languages.
+    //
+    // The height budget is the binding constraint and it is not negotiable:
+    // at guiScale 3 on a 1280x720 window the entire viewport is 240px tall.
+    // The parchment screen was 222 and hung its tabs ABOVE the frame at
+    // topPos - TAB_H, which at that scale is y = -10 -- the owner's own
+    // screenshot has both tabs sliced off by the top of the window and the
+    // "Communal Stores" label sitting across the title bar. The tabs are
+    // inside the frame now, and everything below sums to PANEL_H = 234,
+    // which clears 240 with six pixels to spare.
+    private static final int PANEL_W = 256;
+    private static final int PAD = HsUiTokens.PAD;
+    private static final int CONTENT_X = PAD;
+    private static final int CONTENT_W = PANEL_W - 2 * PAD;
 
-    private static final int INK = 0xFF3F3024;
-    private static final int INK_SOFT = 0xFF69573C;
-    private static final int PARCHMENT_LIGHT = 0xFFEFE0BD;
+    private static final int TITLE_Y = 6;
+    // "Settlement" is 51px, "Ordfører" 47px; 72 clears both inside labelIn's
+    // box (TAB_W - 8 = 64) with room left for a longer translation.
+    private static final int TAB_W = 72;
+    private static final int TAB_H = 15;
+    private static final int TAB_Y = 17;
+    private static final int TAB_GAP = 4;
+    private static final int HEAD_DIV_Y = 35;
 
-    // Stat rows (icon + value) in the left column.
-    private static final int STAT_X = 14;
-    private static final int STAT_Y = 34;
+    // One band, two columns: the settlement's vitals on the left, the stores
+    // grid on the right. The grid's origin is HearthMenu.COMMUNAL_X/Y -- the
+    // MENU owns where a slot is; this screen only paints the socket under it,
+    // so the two can never drift apart.
+    private static final int BAND_Y = 42;
+    private static final int BAND_H = 82;
+    private static final int VITALS_X = CONTENT_X;
+    private static final int VITALS_W = HearthMenu.COMMUNAL_X - CONTENT_X - 8;
+
+    private static final int STAT_ROWS = 4;
     private static final int STAT_ROW_H = 16;
-    private static final int STAT_W = 84;
+    private static final int STAT_ICON = 12;
+    private static final int STAT_VALUE_X = STAT_ICON + 5;
 
-    // Morale bar geometry.
-    private static final int BAR_X = 14;
-    private static final int BAR_Y = 103;
-    private static final int BAR_W = 80;
-    private static final int BAR_H = 8;
+    private static final int MORALE_Y = BAND_Y + STAT_ROWS * STAT_ROW_H + 2;
+    private static final int MORALE_BAR_W = 64;
+    private static final int MORALE_BAR_H = 8;
 
-    // -- the Mayor tab: two folder tabs above the window's top-left corner --
-    // 50 clipped "Settlement" (51px) and "Ordfører" (47px) against its
-    // labelIn box (TAB_W - 8); 64 clears both with a few px to spare.
-    private static final int TAB_W = 64;
-    private static final int TAB_H = 14;
-    private static final int TAB_GAP = 3;
+    // The status strip. Its longest sentence measures 368px in Norwegian
+    // ("Neste settler trenger en taverna — vandrere har ingen steder å ta
+    // inn"), which is exactly why the old screen's single unwrapped line ran
+    // a hundred and fifty pixels past the frame and out over the world. No
+    // panel width this mod is allowed (skill §2 caps at ~320) fits that on
+    // one line, so two lines are reserved unconditionally and the text WRAPS.
+    // Ellipsising it instead would read as a different, shorter sentence.
+    private static final int STATUS_Y = BAND_Y + BAND_H + 4;
+    private static final int STATUS_LINES = 2;
+
+    /** Bottom of the hotbar row plus the frame's own bottom padding. */
+    private static final int PANEL_H =
+        HearthMenu.PLAYER_INV_Y + 58 + HsUiTokens.SLOT + 7;
+
+    private static final ResourceLocation ICON_POPULATION = Hearthstead.id("icon/population");
+    private static final ResourceLocation ICON_WORKFORCE = Hearthstead.id("icon/workforce");
+    private static final ResourceLocation ICON_FOOD = Hearthstead.id("icon/food");
+    private static final ResourceLocation ICON_RADIUS = Hearthstead.id("icon/radius");
+    private static final ResourceLocation ICON_MORALE = Hearthstead.id("icon/morale");
+    private static final ResourceLocation[] STAT_ICONS = {
+        ICON_POPULATION, ICON_WORKFORCE, ICON_FOOD, ICON_RADIUS
+    };
+
+    // Error text on a dark ground is crimson[4], never the BAD token: BAD
+    // measures 2.3:1 against the coal field and is fills-and-pips only. Both
+    // blink phases clear the 3:1 floor the design language sets for a
+    // blinking element (4.5:1 and 3.3:1, computed against FIELD #1A1A1A).
+    private static final int CRIMSON_TEXT = 0xFFD9584A;
+    private static final int BLINK_BRIGHT = CRIMSON_TEXT;
+    private static final int BLINK_DIM = 0xFFB8483C;
+
+    /** The morale bar's row index in the hover/tooltip mapping. */
+    private static final int MORALE_ROW = STAT_ROWS;
 
     // -- the Mayor tab's popout panel, laid out exactly like PlaqueScreen's
     //    card list (same PAD/SCROLL_W/CARD proportions) plus a status block
@@ -117,19 +172,141 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
     private int mayorPanelLeft;
     private int mayorPanelTop;
 
+    // ------------------------------------------------- per-frame discipline --
+    // Everything below exists so that render() ALLOCATES NOTHING. That is not
+    // premature tidiness; it was measured. With this screen open on a stocked
+    // settlement the client was allocating 947 KB per frame -- about 57 MB a
+    // second at 60fps, which is a young-generation collection every breath and
+    // reads to a player as "the UI stutters". A Component is not free: every
+    // Component.translatable(...) in a draw method is a fresh object, and
+    // every "a + " / " + b" is three more, sixty times a second, to say a
+    // number that changed once a minute.
+    //
+    // So the screen keeps the last values it drew and rebuilds a Component
+    // only when the value behind it actually changes. The container data is
+    // nine ints; packing them into one long makes "did anything change?" a
+    // single comparison instead of nine.
+    private long dataStamp = Long.MIN_VALUE;
+    private final Component[] statValues = new Component[STAT_ROWS];
+    private Component moraleBand = CommonComponents.EMPTY;
+    private int moraleColour = HsUiTokens.TEXT;
+    private float moraleRatio;
+    private boolean alerting;
+    /** Wrapped once per change: Font#split allocates a list and a line each call. */
+    private List<FormattedCharSequence> statusLines = List.of();
+
+    /** Static labels, built once rather than per frame. */
+    private Component headerLine = CommonComponents.EMPTY;
+    private Component storesLabel = CommonComponents.EMPTY;
+
+    /** Which vitals row the mouse is over (0-3, 4 = morale), or -1. */
+    private int hoveredStat = -1;
+    private List<Component> hoveredTooltip;
+    private int tooltipFor = -2;
+
     public HearthScreen(HearthMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
-        imageWidth = 220;
-        imageHeight = 222;
-        inventoryLabelX = HearthMenu.PLAYER_INV_X + 1;
-        inventoryLabelY = HearthMenu.PLAYER_INV_Y - 11;
-        titleLabelY = -1000; // we draw our own header
+        imageWidth = PANEL_W;
+        imageHeight = PANEL_H;
+        // Both vanilla labels are drawn by this screen instead, in places the
+        // layout chose: the settlement name is centred in the title band, and
+        // the row above the player inventory carries the settlement's status
+        // line rather than the word "Inventory" -- which is a row of pixels
+        // spent saying something the player can already see.
+        titleLabelY = -1000;
+        inventoryLabelY = -1000;
     }
 
     @Override
     protected void init() {
         super.init();
+        String name = menu.getSettlementName();
+        headerLine = name == null || name.isEmpty()
+            ? Component.translatable("container.hearthstead.hearth")
+            : Component.literal(name);
+        storesLabel = Component.translatable("hearthstead.gui.stores");
+        // A resize re-runs init(); force the next frame to rebuild the value
+        // Components so a re-wrapped status line is never stale.
+        dataStamp = Long.MIN_VALUE;
+        tooltipFor = -2;
         rebuildSeatWidgets();
+    }
+
+    /**
+     * Rebuilds the drawn Components, and only when the numbers behind them
+     * moved. Called at the top of every frame; nine int reads and one long
+     * compare is what a steady frame costs.
+     */
+    private void refreshIfChanged() {
+        int pop = menu.get(HearthMenu.DATA_POPULATION);
+        int cap = menu.get(HearthMenu.DATA_CAPACITY);
+        int employed = menu.get(HearthMenu.DATA_EMPLOYED);
+        int food = menu.get(HearthMenu.DATA_FOOD);
+        int morale = Mth.clamp(menu.get(HearthMenu.DATA_MORALE), 0, 100);
+        int radius = menu.get(HearthMenu.DATA_RADIUS);
+        int alert = menu.get(HearthMenu.DATA_ALERT);
+        int recruit = menu.get(HearthMenu.DATA_RECRUIT);
+        int tavern = menu.get(HearthMenu.DATA_TAVERN);
+
+        long stamp = (long) (pop & 0x3FF) | (long) (cap & 0x3FF) << 10
+            | (long) (employed & 0x3FF) << 20 | (long) (food & 0xFFF) << 30
+            | (long) (morale & 0x7F) << 42 | (long) (radius & 0x1FF) << 49
+            | (long) (alert & 1) << 58 | (long) (recruit & 0x7F) << 59
+            | (long) (tavern & 1) << 56;
+        if (stamp == dataStamp) {
+            return;
+        }
+        dataStamp = stamp;
+
+        statValues[0] = Component.literal(pop + " / " + cap);
+        statValues[1] = Component.literal(employed + " / " + pop);
+        statValues[2] = Component.literal(Integer.toString(food));
+        statValues[3] = Component.translatable("hearthstead.gui.radius_m", radius);
+
+        moraleRatio = morale / 100.0F;
+        moraleBand = moraleBand(morale);
+        moraleColour = moraleColour(morale);
+        alerting = alert == 1;
+
+        statusLines = font.split(statusText(alert, tavern, recruit, pop, cap, food, morale),
+            CONTENT_W);
+        // The shape must not depend on the data (skill §11): a status that
+        // wrapped to three lines would push the player inventory down into
+        // the frame. Two lines are reserved, so two lines are what is drawn.
+        if (statusLines.size() > STATUS_LINES) {
+            statusLines = statusLines.subList(0, STATUS_LINES);
+        }
+        tooltipFor = -2;
+    }
+
+    /**
+     * The one sentence under the vitals: what the settlement is doing about
+     * growing, or that it is under threat. Priority order is unchanged from
+     * the parchment screen -- threat, then the tavern gate, then progress,
+     * then the first unmet condition -- because that order is the honest one
+     * and PLAN_TAVERN_GATE krav 1 depends on the gate outranking progress.
+     */
+    private Component statusText(int alert, int tavern, int recruit,
+                                 int pop, int cap, int food, int morale) {
+        if (alert == 1) {
+            return Component.translatable("hearthstead.gui.alert");
+        }
+        if (tavern == 0) {
+            return Component.translatable("hearthstead.gui.recruit_blocked.tavern");
+        }
+        if (recruit > 0) {
+            return Component.translatable("hearthstead.gui.recruit_progress");
+        }
+        if (pop >= cap) {
+            return Component.translatable("hearthstead.gui.recruit_blocked.beds", pop, cap);
+        }
+        if (food < 8) {
+            return Component.translatable("hearthstead.gui.recruit_blocked.food", food, 8);
+        }
+        if (morale < 60) {
+            return Component.translatable("hearthstead.gui.recruit_blocked.morale", morale, 60);
+        }
+        return Component.translatable("hearthstead.gui.recruit_ready");
     }
 
     /**
@@ -145,12 +322,15 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
     private void rebuildSeatWidgets() {
         clearWidgets();
-        addRenderableWidget(new SeatTabButton(leftPos + 6, topPos - TAB_H, TAB_W, TAB_H,
+        // Inside the frame, not above it. Hung above (the old topPos - TAB_H)
+        // they left the screen entirely at guiScale 3, where topPos is 3.
+        addRenderableWidget(new SeatTabButton(leftPos + CONTENT_X, topPos + TAB_Y, TAB_W, TAB_H,
             Component.translatable("hearthstead.gui.tab.settlement"), !mayorTabOpen, () -> {
                 mayorTabOpen = false;
                 rebuildSeatWidgets();
             }));
-        addRenderableWidget(new SeatTabButton(leftPos + 6 + TAB_W + TAB_GAP, topPos - TAB_H,
+        addRenderableWidget(new SeatTabButton(leftPos + CONTENT_X + TAB_W + TAB_GAP,
+            topPos + TAB_Y,
             TAB_W, TAB_H, Component.translatable("hearthstead.gui.tab.mayor"), mayorTabOpen, () -> {
                 mayorTabOpen = true;
                 requestMayorData();
@@ -228,9 +408,22 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        int x = (width - imageWidth) / 2;
-        int y = (height - imageHeight) / 2;
-        graphics.blit(TEXTURE, x, y, 0, 0, imageWidth, imageHeight);
+        HsUi.window(graphics, leftPos, topPos, PANEL_W, PANEL_H);
+        // Sockets under the real slots. Drawn from the MENU's own origins so
+        // a socket can never end up somewhere a slot is not; HsUi.SLOT is
+        // 18x18 and is blitted at exactly that size, which is the one case
+        // vanilla's nine-slice takes as a single quad.
+        HsUi.inset(graphics, leftPos + HearthMenu.COMMUNAL_X - 1,
+            topPos + HearthMenu.COMMUNAL_Y - 1, 6 * HsUiTokens.SLOT + 2,
+            4 * HsUiTokens.SLOT + 2);
+        // Three draw calls, not sixty: the grids are fixed by the menu, so
+        // they are baked (HsUi.slotGrid) from the same socket art.
+        HsUi.slotGrid(graphics, HsUi.SLOTS_6X4,
+            leftPos + HearthMenu.COMMUNAL_X, topPos + HearthMenu.COMMUNAL_Y, 6, 4);
+        HsUi.slotGrid(graphics, HsUi.SLOTS_9X3,
+            leftPos + HearthMenu.PLAYER_INV_X, topPos + HearthMenu.PLAYER_INV_Y, 9, 3);
+        HsUi.slotGrid(graphics, HsUi.SLOTS_9X1,
+            leftPos + HearthMenu.PLAYER_INV_X, topPos + HearthMenu.PLAYER_INV_Y + 58, 9, 1);
         // The Mayor popout is NOT drawn here. renderBg runs first in the
         // frame, and AbstractContainerScreen draws slot items and then
         // renderLabels AFTER it -- so a panel painted here gets the
@@ -392,115 +585,101 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        // Header: settlement name, centered in the title band.
-        String name = menu.getSettlementName();
-        Component header = name == null || name.isEmpty()
-            ? Component.translatable("container.hearthstead.hearth")
-            : Component.literal(name);
-        graphics.drawString(font, header,
-            (imageWidth - font.width(header)) / 2, 10, PARCHMENT_LIGHT, false);
+        // Inside renderLabels the pose is ALREADY translated by leftPos/topPos
+        // (AbstractContainerScreen pushes it), so every coordinate here is
+        // panel-local. Adding leftPos again is the classic way to draw a
+        // screen twice as far right as intended.
+        HsUi.divider(graphics, CONTENT_X, HEAD_DIV_Y, CONTENT_W);
+        // Sprites first, then ALL the text in one managed batch.
+        //
+        // GuiGraphics#drawString ends in flushIfUnmanaged(), which -- outside
+        // a managed block -- flushes the whole buffer source on EVERY call:
+        // endBatch, sortQuads, and a fresh DirectFloatBuffer per string.
+        // Profiling caught it directly (JFR: drawString -> flushIfUnmanaged
+        // -> MeshData.sortQuads -> DirectByteBuffer.asFloatBuffer). A screen
+        // that draws a dozen strings pays that a dozen times a frame for no
+        // reason; drawManaged pays it once. Blits are unaffected either way,
+        // since blitSprite goes to BufferUploader directly -- which is also
+        // why they are issued BEFORE the batch, so the text lands on top.
+        graphics.drawManaged(() -> {
+            HsUi.centred(graphics, font, headerLine, PANEL_W / 2, TITLE_Y,
+                HsUiTokens.TEXT_STRONG);
+            HsUi.label(graphics, font, storesLabel, HearthMenu.COMMUNAL_X, BAND_Y,
+                HsUiTokens.TEXT_MUTED);
+            drawStatus(graphics);
+        });
+        drawVitals(graphics);
+    }
 
-        graphics.drawString(font, Component.translatable("hearthstead.gui.stores"),
-            HearthMenu.COMMUNAL_X + 1, HearthMenu.COMMUNAL_Y - 11, INK, false);
-        graphics.drawString(font, playerInventoryTitle,
-            inventoryLabelX, inventoryLabelY, INK, false);
-
-        // Stat rows.
-        int pop = menu.get(HearthMenu.DATA_POPULATION);
-        int cap = menu.get(HearthMenu.DATA_CAPACITY);
-        int employed = menu.get(HearthMenu.DATA_EMPLOYED);
-        int food = menu.get(HearthMenu.DATA_FOOD);
-        int radius = menu.get(HearthMenu.DATA_RADIUS);
-        drawStat(graphics, 0, 0, pop + " / " + cap);
-        drawStat(graphics, 1, 16, employed + " / " + pop);
-        drawStat(graphics, 2, 32, String.valueOf(food));
-        drawStat(graphics, 3, 48, radius + " m");
-
-        // Morale bar with semantic color.
-        int morale = Mth.clamp(menu.get(HearthMenu.DATA_MORALE), 0, 100);
-        graphics.drawString(font, Component.translatable("hearthstead.gui.morale"),
-            STAT_X, BAR_Y - 10, INK, false);
-        int fillColor = moraleColor(morale);
-        int fill = morale * (BAR_W - 2) / 100;
-        graphics.fill(BAR_X + 1, BAR_Y + 1, BAR_X + 1 + fill, BAR_Y + BAR_H - 1, fillColor);
-        // Quarter tick marks over the fill.
-        for (int q = 1; q < 4; q++) {
-            int tx = BAR_X + q * BAR_W / 4;
-            graphics.fill(tx, BAR_Y + 1, tx + 1, BAR_Y + BAR_H - 1, 0x33000000);
+    /**
+     * The left column: four counted facts and the morale bar.
+     *
+     * <p>Every row is icon then value, and the icon carries the label in its
+     * tooltip -- progressive disclosure, the same stat-row recipe the design
+     * language already uses. The numbers are exact counts in {@code a / b}
+     * form because that is the control an exact count deserves; morale is a
+     * 0-100 continuous value, so it gets a bar with its band named beside it.
+     */
+    private void drawVitals(GuiGraphics graphics) {
+        for (int row = 0; row < STAT_ROWS; row++) {
+            graphics.blitSprite(STAT_ICONS[row], VITALS_X, BAND_Y + row * STAT_ROW_H,
+                STAT_ICON, STAT_ICON);
         }
-        Component band = moraleBand(morale);
-        graphics.drawString(font, band, BAR_X + BAR_W + 4, BAR_Y, fillColor | 0xFF000000, false);
-
-        // Alert banner / recruit progress share the strip under the bar.
-        if (menu.get(HearthMenu.DATA_ALERT) == 1) {
-            boolean blink = (System.currentTimeMillis() / 400) % 2 == 0;
-            graphics.drawString(font, Component.translatable("hearthstead.gui.alert"),
-                STAT_X, BAR_Y + 14, blink ? 0xFFA03030 : 0xFF702020, false);
-        } else if (menu.get(HearthMenu.DATA_TAVERN) == 0) {
-            // PLAN_TAVERN_GATE.md krav 1 (severity 1, "dishonest"): a
-            // tavern-less settlement can still be sitting on DECAYING
-            // recruit progress from before its tavern broke -- DATA_RECRUIT
-            // would read > 0 for that whole decay. Rendered BEFORE the
-            // recruit > 0 branch below so that case can never fall through
-            // to "A traveler draws near..." while nothing is actually
-            // gaining: the gate must never lie about which stripe is true.
-            graphics.drawString(font,
-                Component.translatable("hearthstead.gui.recruit_blocked.tavern"),
-                STAT_X, BAR_Y + 13, INK_SOFT, false);
-        } else {
-            int recruit = menu.get(HearthMenu.DATA_RECRUIT);
-            if (recruit > 0) {
-                graphics.drawString(font,
-                    Component.translatable("hearthstead.gui.recruit_progress"),
-                    STAT_X, BAR_Y + 13, INK_SOFT, false);
-                graphics.fill(BAR_X, BAR_Y + 23, BAR_X + BAR_W, BAR_Y + 26, 0xFF54432F);
-                graphics.fill(BAR_X, BAR_Y + 23, BAR_X + recruit * BAR_W / 100,
-                    BAR_Y + 26, 0xFFC9A83C);
-            } else {
-                // The stripe used to vanish entirely when recruitment was
-                // blocked -- the owner's masterplan called growth invisible,
-                // and byggherre-dom #4 located the actual gap here: the bar
-                // existed, the REASON did not, and the thresholds (food >= 8,
-                // morale >= 60, a free bed) were written nowhere a player
-                // could see. The conditions mirror SettlementManager's
-                // attractiveness test and are all already synced; show the
-                // FIRST blocker in its priority order, or the all-clear.
-                Component why;
-                if (pop >= cap) {
-                    why = Component.translatable("hearthstead.gui.recruit_blocked.beds",
-                        pop, cap);
-                } else if (food < 8) {
-                    why = Component.translatable("hearthstead.gui.recruit_blocked.food",
-                        food, 8);
-                } else if (morale < 60) {
-                    why = Component.translatable("hearthstead.gui.recruit_blocked.morale",
-                        morale, 60);
-                } else {
-                    why = Component.translatable("hearthstead.gui.recruit_ready");
-                }
-                graphics.drawString(font, why, STAT_X, BAR_Y + 13, INK_SOFT, false);
+        graphics.blitSprite(ICON_MORALE, VITALS_X, MORALE_Y - 2, STAT_ICON, STAT_ICON);
+        HsUi.bar(graphics, VITALS_X + STAT_VALUE_X, MORALE_Y, MORALE_BAR_W, MORALE_BAR_H,
+            moraleRatio, HsUi.Tone.of(moraleRatio));
+        // Same reasoning as renderLabels: every value string in one batch.
+        graphics.drawManaged(() -> {
+            for (int row = 0; row < STAT_ROWS; row++) {
+                HsUi.labelIn(graphics, font, statValues[row], VITALS_X + STAT_VALUE_X,
+                    BAND_Y + row * STAT_ROW_H + 2, VITALS_W - STAT_VALUE_X,
+                    hoveredStat == row ? HsUiTokens.TEXT_STRONG : HsUiTokens.TEXT);
             }
+            HsUi.labelIn(graphics, font, moraleBand,
+                VITALS_X + STAT_VALUE_X, MORALE_Y + MORALE_BAR_H + 3,
+                VITALS_W - STAT_VALUE_X, moraleColour);
+        });
+    }
+
+    /**
+     * The status strip, in the row a container screen normally spends on the
+     * word "Inventory". Wrapped into height reserved unconditionally, so the
+     * panel's shape never depends on which sentence is true.
+     */
+    private void drawStatus(GuiGraphics graphics) {
+        // One blinking element, 400ms, and it is the thing that loses the
+        // settlement -- the skill's budget is exactly one, and this is it.
+        int colour = alerting
+            ? ((System.currentTimeMillis() / 400) % 2 == 0
+                ? BLINK_BRIGHT : BLINK_DIM)
+            : HsUiTokens.TEXT_MUTED;
+        for (int i = 0; i < statusLines.size(); i++) {
+            graphics.drawString(font, statusLines.get(i), CONTENT_X,
+                STATUS_Y + i * HsUiTokens.LINE_GAP, colour, true);
         }
     }
 
-    /** One icon (from the texture's icon strip at u=224) + value text. */
-    private void drawStat(GuiGraphics graphics, int row, int iconV, String value) {
-        int y = STAT_Y + row * STAT_ROW_H;
-        graphics.blit(TEXTURE, STAT_X, y, 224, iconV, 12, 12);
-        graphics.drawString(font, value, STAT_X + 17, y + 2, INK, false);
-    }
-
-    private static int moraleColor(int morale) {
+    /**
+     * The band's own colour, on the DARK ground this screen now uses.
+     *
+     * <p>Not the parchment set: those were ink values chosen against
+     * {@code #EFE0BD}. The token {@code BAD} is deliberately not used here
+     * either -- it measures 2.3:1 as text on the coal field, which the design
+     * language forbids outright; {@code crimson[4]} is the same meaning at
+     * 4.5:1. Tone colour is only ever spent on the value itself, never on the
+     * label beside it.
+     */
+    private static int moraleColour(int morale) {
         if (morale < 25) {
-            return 0xFFA03535;
+            return CRIMSON_TEXT;
         }
         if (morale < 50) {
-            return 0xFFC07A35;
+            return HsUiTokens.WARN;
         }
         if (morale < 75) {
-            return 0xFFC9A83C;
+            return HsUiTokens.TEXT;
         }
-        return 0xFF5B8A4A;
+        return HsUiTokens.GOOD;
     }
 
     private static Component moraleBand(int morale) {
@@ -511,6 +690,11 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Once per frame, before anything is drawn: rebuild the Components
+        // whose numbers moved, and none of the ones that did not.
+        refreshIfChanged();
+        hoveredStat = statRowAt(mouseX - leftPos, mouseY - topPos);
+
         super.render(graphics, mouseX, mouseY, partialTick);
         if (mayorTabOpen) {
             // At small GUI widths there is no room beside the window and
@@ -531,42 +715,58 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu> {
             && mouseY >= mayorPanelTop && mouseY < mayorPanelTop + MAYOR_PANEL_H;
         if (!overPanel) {
             renderTooltip(graphics, mouseX, mouseY);
-            renderStatTooltips(graphics, mouseX, mouseY);
+            renderStatTooltip(graphics, mouseX, mouseY);
         }
     }
 
-    private void renderStatTooltips(GuiGraphics graphics, int mouseX, int mouseY) {
-        int localX = mouseX - leftPos;
-        int localY = mouseY - topPos;
-        List<Component> lines = new ArrayList<>();
-        if (localX >= STAT_X && localX < STAT_X + STAT_W) {
-            int row = (localY - STAT_Y) / STAT_ROW_H;
-            if (localY >= STAT_Y && row >= 0 && row < 4
-                && localY < STAT_Y + 4 * STAT_ROW_H) {
-                String key = switch (row) {
-                    case 0 -> "population";
-                    case 1 -> "employed";
-                    case 2 -> "food";
-                    default -> "radius";
-                };
-                lines.add(Component.translatable("hearthstead.gui.tooltip." + key));
-                lines.add(Component.translatable("hearthstead.gui.tooltip." + key + ".desc")
-                    .withStyle(net.minecraft.ChatFormatting.GRAY));
-            } else if (localY >= BAR_Y - 10 && localY < BAR_Y + BAR_H + 2) {
-                lines.add(Component.translatable("hearthstead.gui.tooltip.morale"));
-                lines.add(Component.translatable("hearthstead.gui.tooltip.morale.desc")
-                    .withStyle(net.minecraft.ChatFormatting.GRAY));
-            } else if (menu.get(HearthMenu.DATA_ALERT) != 1
-                && menu.get(HearthMenu.DATA_TAVERN) == 1
-                && menu.get(HearthMenu.DATA_RECRUIT) > 0
-                && localY >= BAR_Y + 12 && localY < BAR_Y + 27) {
-                lines.add(Component.translatable("hearthstead.gui.tooltip.recruit",
-                    menu.get(HearthMenu.DATA_RECRUIT)));
-            }
+    /**
+     * Which vitals row a panel-local point is on: 0-3 for the counted stats,
+     * {@link #MORALE_ROW} for the morale bar, -1 for none.
+     *
+     * <p>Hit rows are the full width of the vitals column, not just the icon:
+     * a 12px glyph is a 4px target at guiScale 1 and the design language
+     * calls anything under 10px a miss.
+     */
+    private int statRowAt(int localX, int localY) {
+        if (localX < VITALS_X || localX >= VITALS_X + VITALS_W) {
+            return -1;
         }
-        if (!lines.isEmpty()) {
-            graphics.renderComponentTooltip(font, lines, mouseX, mouseY);
+        if (localY >= BAND_Y && localY < BAND_Y + STAT_ROWS * STAT_ROW_H) {
+            return (localY - BAND_Y) / STAT_ROW_H;
         }
+        if (localY >= MORALE_Y - 2 && localY < MORALE_Y + MORALE_BAR_H + 12) {
+            return MORALE_ROW;
+        }
+        return -1;
+    }
+
+    /**
+     * The label for a stat the icon alone cannot carry, plus what it means.
+     *
+     * <p>Built only when the hovered row CHANGES, not every frame the mouse
+     * rests on it. Two Components and an ArrayList sixty times a second, to
+     * say the same two lines, is exactly the kind of per-frame garbage this
+     * screen was rewritten to stop producing.
+     */
+    private void renderStatTooltip(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (hoveredStat < 0) {
+            return;
+        }
+        if (hoveredStat != tooltipFor) {
+            tooltipFor = hoveredStat;
+            String key = switch (hoveredStat) {
+                case 0 -> "population";
+                case 1 -> "employed";
+                case 2 -> "food";
+                case 3 -> "radius";
+                default -> "morale";
+            };
+            hoveredTooltip = List.of(
+                Component.translatable("hearthstead.gui.tooltip." + key),
+                Component.translatable("hearthstead.gui.tooltip." + key + ".desc")
+                    .withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
+        graphics.renderComponentTooltip(font, hoveredTooltip, mouseX, mouseY);
     }
 
     /** A folder tab sticking above the window's edge, like vanilla's creative tabs. */

@@ -75,13 +75,40 @@ public class SettlerScreen extends Screen {
     //    HsUi.labelIn's ellipsis as the safety net for long translations. --
     // 224 clipped the mayor badge's "settling in" sentence -- "Ordfører —
     // Nøysomt arbeid (setter seg inn)" measured 224px against its 200px box
-    // (CONTENT_W - 8), 24px over. 256 carries that box to 232px, clearing it
+    // (colW - 8), 24px over. 256 carries that box to 232px, clearing it
     // (and the English worst case, 175px) with margin; every other box on
-    // this panel derives from PANEL_W/CONTENT_W and only gains room.
-    private static final int PANEL_W = 256;
+    // this panel derives from panelW/colW and only gains room.
+    /**
+     * Narrow fallback: one column, the shape this sheet has always had.
+     * Only reached when the viewport cannot give {@link #PANEL_W_WIDE} its
+     * width, which at the default GUI scales means a very small window.
+     */
+    private static final int PANEL_W_NARROW = 256;
+    /**
+     * Two columns side by side, which is how this sheet FITS.
+     *
+     * <p>Stacked in one column the panel is 322px tall. At guiScale 3 on a
+     * 1280x720 window the viewport is 240 -- so the sheet did not fit, and
+     * the scroll that was added to cope with that is the "excessive
+     * scrolling" complaint. Standing the two halves beside each other instead
+     * takes it to about 219, which fits that viewport outright and every
+     * larger one with room to spare.
+     *
+     * <p>180 per column is measured, not chosen: the widest attribute name in
+     * either language is "Utholdenhet" at 59px, its value reads "100 / 100"
+     * at 50px, and the bar between them is 40 -- 157px of content in a 180px
+     * column. Two of those plus three paddings is 384, which clears the 426px
+     * a guiScale-3 720p viewport gives.
+     */
+    private static final int PANEL_W_WIDE = 384;
+    private static final int COL_W_WIDE = 180;
     private static final int PAD = HsUiTokens.PAD;
     private static final int GUTTER = HsUiTokens.GUTTER;
-    private static final int CONTENT_W = PANEL_W - 2 * PAD;
+
+    /** This screen's chosen width and column width, decided in {@link #init}. */
+    private int panelW = PANEL_W_NARROW;
+    private int colW = PANEL_W_NARROW - 2 * PAD;
+    private boolean wide;
     /** One compact text row: glyph height plus a hair of breathing room. */
     private static final int ROW = 12;
 
@@ -89,15 +116,18 @@ public class SettlerScreen extends Screen {
     private static final int PORTRAIT_H = 56;
     private static final int HEADER_H = PORTRAIT_H;
     private static final int HEADER_TEXT_X = PAD + PORTRAIT_W + 8;
-    private static final int HEADER_TEXT_W = PANEL_W - HEADER_TEXT_X - PAD;
+    /** Derived per layout: the identity text box beside the portrait. */
+    private int headerTextW = PANEL_W_NARROW - HEADER_TEXT_X - PAD;
     /** The mayor mark's own cap -- both languages' "Mayor"/"Ordfører" clear it. */
     private static final int MAYOR_MARK_W = 40;
 
-    // Measured against the widest attribute name plus the knack suffix in
-    // both languages ("Utholdenhet (naturlig lag)", 129px) -- 128 clipped it
-    // by a single pixel. 140 leaves a few px of margin and still sits clear
-    // of the pips column that starts at ATTR_LABEL_W + 4.
-    private static final int ATTR_LABEL_W = 140;
+    // The value column reads "100 / 100" at its widest, which measures 50px;
+    // 52 keeps it off the bar beside it. The bar is 40 -- wide enough to read
+    // a quarter-turn at a glance, narrow enough that name, bar and number all
+    // fit the 180px column (59 + 4 + 40 + 4 + 52 = 159).
+    private static final int ATTR_VALUE_W = 52;
+    private static final int ATTR_BAR_W = 40;
+    private static final int ATTR_BAR_H = 6;
     private static final int NEED_LABEL_W = 44;
     private static final int NEED_PCT_W = 26;
     private static final int NEED_BAR_H = 6;
@@ -137,6 +167,11 @@ public class SettlerScreen extends Screen {
     private int maxScroll;
     /** Set while drawing a hovered non-widget region; rendered once, last. */
     private List<Component> pendingTooltip;
+    /** Built by {@link #rebuild}, read by {@link #render} -- never per frame. */
+    private Layout cachedLayout;
+    private final Component[] attrValueCache = new Component[Attribute.COUNT];
+    private final int[] attrValueShown = new int[Attribute.COUNT];
+    private final ItemStack[] bagStacks = new ItemStack[BAG_SLOTS];
 
     public SettlerScreen(SettlerEntity settler) {
         super(Component.literal(settler.getSettlerName()));
@@ -152,13 +187,40 @@ public class SettlerScreen extends Screen {
     public void update(SettlerSnapshotPayload fresh) {
         if (fresh.entityId() == settler.getId()) {
             this.snapshot = fresh;
+            rebuildBagStacks();
             rebuild();
+        }
+    }
+
+    /**
+     * The bag's stacks, built once per snapshot instead of once per frame.
+     *
+     * <p>A settler's bag changes when they pick something up; rebuilding six
+     * ItemStacks sixty times a second to draw the same six items is garbage
+     * with no reader.
+     */
+    private void rebuildBagStacks() {
+        List<Integer> ids = snapshot.bagItemIds();
+        List<Integer> counts = snapshot.bagCounts();
+        for (int i = 0; i < BAG_SLOTS; i++) {
+            int count = i < counts.size() ? counts.get(i) : 0;
+            bagStacks[i] = count <= 0
+                ? ItemStack.EMPTY
+                : new ItemStack(BuiltInRegistries.ITEM.byId(
+                    i < ids.size() ? ids.get(i) : 0), count);
         }
     }
 
     @Override
     protected void init() {
-        left = (width - PANEL_W) / 2;
+        // Two columns whenever the viewport can hold them, one when it
+        // cannot. Decided here and nowhere else, so the panel's shape is
+        // settled before a single row is placed.
+        wide = width >= PANEL_W_WIDE + 2 * PAD;
+        panelW = wide ? PANEL_W_WIDE : PANEL_W_NARROW;
+        colW = wide ? COL_W_WIDE : PANEL_W_NARROW - 2 * PAD;
+        headerTextW = colW - PORTRAIT_W - 8;
+        left = (width - panelW) / 2;
         contentHeight = layout(0).totalHeight;
         // The panel is a fixed shape (see class doc) sized for its roomiest
         // content, not for the tightest viewport a player can have open. At
@@ -214,11 +276,16 @@ public class SettlerScreen extends Screen {
 
     private void rebuild() {
         clearWidgets();
-        Layout l = layout(top);
+        // The one place a Layout is built. render() reads this field instead
+        // of recomputing: a fresh Layout object every frame is 80 bytes of
+        // garbage sixty times a second to describe rows that only move when
+        // the window resizes or the sheet scrolls -- both of which land here.
+        cachedLayout = layout(top);
+        Layout l = cachedLayout;
 
         boolean employed = settler.getProfession().employed();
         if (employed) {
-            HsButton dismiss = HsButton.danger(left + PAD, l.footerTop, BTN_W,
+            HsButton dismiss = HsButton.danger(left + l.colBX, l.footerTop, BTN_W,
                 HsUiTokens.BUTTON_H,
                 Component.translatable("hearthstead.employ.dismiss"),
                 () -> act(SettlerActionPayload.Kind.DISMISS));
@@ -227,11 +294,11 @@ public class SettlerScreen extends Screen {
                 "hearthstead.settler.dismiss.tip", title, buildingName())));
             addRenderableWidget(dismiss);
         }
-        addRenderableWidget(HsButton.normal(left + PANEL_W - PAD - BTN_W, l.footerTop, BTN_W,
+        addRenderableWidget(HsButton.normal(left + l.colBX + colW - BTN_W, l.footerTop, BTN_W,
             HsUiTokens.BUTTON_H, Component.translatable("hearthstead.settler.close"),
             this::onClose));
 
-        HsButton appoint = HsButton.normal(left + PAD, l.appointTop, CONTENT_W,
+        HsButton appoint = HsButton.normal(left + l.colBX, l.appointTop, colW,
             HsUiTokens.BUTTON_H, Component.translatable("hearthstead.settler.appoint"),
             () -> act(SettlerActionPayload.Kind.APPOINT));
         appoint.active = appointEnabled();
@@ -270,29 +337,42 @@ public class SettlerScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g, mouseX, mouseY, partialTick);
         pendingTooltip = null;
-        Layout l = layout(top);
+        if (cachedLayout == null) {
+            rebuild();
+        }
+        Layout l = cachedLayout;
+        int a = left + l.colAX;
+        int b = left + l.colBX;
 
-        HsUi.window(g, left, top, PANEL_W, l.totalHeight);
+        HsUi.window(g, left, top, panelW, l.totalHeight);
+
+        // -- column A ------------------------------------------------------
         drawHeader(g, mouseX, mouseY, l);
-        drawMayorBadge(g, left + PAD, l.mayorBadgeTop, mouseX, mouseY);
+        drawMayorBadge(g, a, l.mayorBadgeTop, mouseX, mouseY);
 
-        HsUi.divider(g, left + PAD, l.dividerA, CONTENT_W);
-        drawNeeds(g, left + PAD, l.needsTop);
+        HsUi.divider(g, a, l.dividerA, colW);
+        drawNeeds(g, a, l.needsTop);
 
-        HsUi.divider(g, left + PAD, l.dividerB, CONTENT_W);
-        drawAttributes(g, left + PAD, l.attributesTop, mouseX, mouseY);
+        HsUi.divider(g, a, l.dividerB, colW);
+        drawAttributes(g, a, l.attributesTop, mouseX, mouseY);
 
-        HsUi.divider(g, left + PAD, l.dividerC, CONTENT_W);
-        drawTraits(g, left + PAD, l.traitsTop, mouseX, mouseY);
+        // -- column B ------------------------------------------------------
+        // dividerC is -1 in two-column mode: a rule across the top of its own
+        // column separates the frame from the first row, which is not a
+        // semantic group boundary.
+        if (l.dividerC >= 0) {
+            HsUi.divider(g, b, l.dividerC, colW);
+        }
+        drawTraits(g, b, l.traitsTop, mouseX, mouseY);
 
-        HsUi.divider(g, left + PAD, l.dividerPerson, CONTENT_W);
-        drawEmployment(g, left + PAD, l.employmentTop);
-        drawRefusal(g, left + PAD, l.refusalTop);
+        HsUi.divider(g, b, l.dividerPerson, colW);
+        drawEmployment(g, b, l.employmentTop);
+        drawRefusal(g, b, l.refusalTop);
 
-        HsUi.divider(g, left + PAD, l.dividerBag, CONTENT_W);
-        drawBag(g, left + PAD, l.bagLabelTop, l.bagSlotsTop);
+        HsUi.divider(g, b, l.dividerBag, colW);
+        drawBag(g, b, l.bagLabelTop, l.bagSlotsTop);
 
-        HsUi.divider(g, left + PAD, l.dividerD, CONTENT_W);
+        HsUi.divider(g, b, l.dividerD, colW);
 
         HsUi.widgets(this, g, mouseX, mouseY, partialTick);
 
@@ -316,13 +396,13 @@ public class SettlerScreen extends Screen {
         // doc -- the badge below carries its own accent card already).
         int tx = left + HEADER_TEXT_X;
         boolean mayor = snapshot != null && snapshot.isMayor();
-        int nameBox = HEADER_TEXT_W;
+        int nameBox = headerTextW;
         if (mayor) {
             Component mark = Component.translatable("hearthstead.settler.mayor_mark");
             int markW = Math.min(font.width(mark) + 6, MAYOR_MARK_W);
-            int markX = tx + HEADER_TEXT_W - markW;
+            int markX = tx + headerTextW - markW;
             HsUi.badge(g, font, mark, markX, l.nameTop, markW, HsUiTokens.ACCENT & 0xFFFFFF);
-            nameBox = HEADER_TEXT_W - markW - 4;
+            nameBox = headerTextW - markW - 4;
         }
         HsUi.labelIn(g, font, title, tx, l.nameTop, nameBox, HsUiTokens.TEXT_STRONG);
 
@@ -330,10 +410,10 @@ public class SettlerScreen extends Screen {
         Component job = profession.employed() ? profession.displayName()
             : Component.translatable("hearthstead.profession.none");
         int professionColor = 0xFF000000 | profession.color();
-        HsUi.badge(g, font, job, tx, l.professionTop, HEADER_TEXT_W, professionColor);
+        HsUi.badge(g, font, job, tx, l.professionTop, headerTextW, professionColor);
 
         HsUi.labelIn(g, font, Component.translatable("hearthstead.gui.doing",
-            settler.getActivity().displayName()), tx, l.activityTop, HEADER_TEXT_W,
+            settler.getActivity().displayName()), tx, l.activityTop, headerTextW,
             HsUiTokens.TEXT_MUTED);
     }
 
@@ -341,12 +421,12 @@ public class SettlerScreen extends Screen {
         if (snapshot == null || !snapshot.isMayor()) {
             return; // the row is reserved (a fixed shape); simply left blank
         }
-        HsUi.card(g, x, y, CONTENT_W, MAYOR_BADGE_H, false);
+        HsUi.card(g, x, y, colW, MAYOR_BADGE_H, false);
         Component line = Component.translatable(snapshot.mayorSettling()
                 ? "hearthstead.settler.mayor_settling" : "hearthstead.settler.mayor_badge",
             boonName());
-        HsUi.labelIn(g, font, line, x + 4, y + 2, CONTENT_W - 8, HsUiTokens.ACCENT);
-        if (hover(mouseX, mouseY, x, y, CONTENT_W, MAYOR_BADGE_H)) {
+        HsUi.labelIn(g, font, line, x + 4, y + 2, colW - 8, HsUiTokens.ACCENT);
+        if (hover(mouseX, mouseY, x, y, colW, MAYOR_BADGE_H)) {
             pendingTooltip = List.of(boonDescription());
         }
     }
@@ -361,42 +441,73 @@ public class SettlerScreen extends Screen {
         HsUi.labelIn(g, font, Component.translatable(labelKey), x, y, NEED_LABEL_W,
             HsUiTokens.TEXT);
         int barX = x + NEED_LABEL_W;
-        int barW = CONTENT_W - NEED_LABEL_W - NEED_PCT_W - GUTTER;
+        int barW = colW - NEED_LABEL_W - NEED_PCT_W - GUTTER;
         float ratio = Mth.clamp(value, 0.0F, 100.0F) / 100.0F;
         HsUi.bar(g, barX, y, barW, NEED_BAR_H, ratio, HsUi.Tone.of(ratio));
-        HsUi.right(g, font, Component.literal(String.valueOf((int) value)), x + CONTENT_W, y,
+        HsUi.right(g, font, Component.literal(String.valueOf((int) value)), x + colW, y,
             HsUiTokens.TEXT_MUTED);
     }
 
     private void drawAttributes(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
         if (snapshot == null) {
             HsUi.labelIn(g, font, Component.translatable("hearthstead.settler.loading"),
-                x, y + ROW * 2, CONTENT_W, HsUiTokens.TEXT_MUTED);
+                x, y + ROW * 2, colW, HsUiTokens.TEXT_MUTED);
             return;
         }
+        int valueX = x + colW;
+        int barX = valueX - ATTR_VALUE_W - GUTTER - ATTR_BAR_W;
         for (Attribute attribute : Attribute.ALL) {
             int rowY = y + attribute.ordinal() * ROW;
             boolean knack = attribute.ordinal() == snapshot.knackOrdinal();
-            Component label = knack
-                ? Component.translatable("hearthstead.settler.attribute_knack",
-                    attribute.displayName())
-                : attribute.displayName();
-            HsUi.labelIn(g, font, label, x, rowY, ATTR_LABEL_W,
-                knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
-            // Mirrors SettlerAttributes#pips exactly -- the client only has
-            // the raw 0..100 value, never the object that method lives on.
+            // The knack is marked by COLOUR, not by a suffix. "(naturlig
+            // lag)" cost 70px of a 180px column to repeat what the accent
+            // already says, and the tooltip names it in words for anyone the
+            // colour does not reach -- colour is never the only channel.
+            HsUi.labelIn(g, font, attribute.displayName(), x, rowY,
+                barX - x - GUTTER, knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
+
             int value = snapshot.attributeValues().get(attribute.ordinal());
-            int pips = Mth.clamp(Math.round(value / 20.0F), 0, 5);
-            HsUi.pips(g, x + ATTR_LABEL_W + 4, rowY + 1, pips, 5, HsUi.Tone.ACCENT);
-            if (hover(mouseX, mouseY, x, rowY, CONTENT_W, ROW)) {
+            float ratio = Mth.clamp(value / 100.0F, 0.0F, 1.0F);
+            HsUi.bar(g, barX, rowY + 1, ATTR_BAR_W, ATTR_BAR_H, ratio, HsUi.Tone.of(ratio));
+            // The owner asked for the number, in so many words: "25 / 100".
+            // The bar stays because a bar is what a 0-100 continuous value
+            // reads as at a glance; the number stays because an exact figure
+            // is the thing you compare two settlers by. Right-aligned, so a
+            // column of them lines up on the units digit.
+            HsUi.right(g, font, attributeValue(attribute.ordinal(), value), valueX, rowY,
+                knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
+
+            if (hover(mouseX, mouseY, x, rowY, colW, ROW)) {
                 // Tiered: what the attribute governs (why it matters), then
                 // what raises it (grey, secondary) -- the same "name, then
-                // grey description" tooltip shape as the Hearth ledger.
-                pendingTooltip = List.of(
-                    Component.translatable("hearthstead.attribute." + attribute.key() + ".role"),
-                    attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY));
+                // grey description" tooltip shape as the Hearth ledger. The
+                // knack line is appended only for the one attribute that has
+                // it, since that is the fact the accent colour is carrying.
+                Component role =
+                    Component.translatable("hearthstead.attribute." + attribute.key() + ".role");
+                Component trained = attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY);
+                pendingTooltip = knack
+                    ? List.of(role, trained,
+                        Component.translatable("hearthstead.settler.attribute_knack_tip")
+                            .withStyle(ChatFormatting.GRAY))
+                    : List.of(role, trained);
             }
         }
+    }
+
+    /**
+     * "25 / 100", cached per attribute.
+     *
+     * <p>An attribute moves when a settler trains, which is minutes apart;
+     * building the same five strings sixty times a second to say so is the
+     * per-frame garbage this pass exists to remove.
+     */
+    private Component attributeValue(int ordinal, int value) {
+        if (attrValueCache[ordinal] == null || attrValueShown[ordinal] != value) {
+            attrValueShown[ordinal] = value;
+            attrValueCache[ordinal] = Component.literal(value + " / 100");
+        }
+        return attrValueCache[ordinal];
     }
 
     /**
@@ -417,17 +528,17 @@ public class SettlerScreen extends Screen {
                 continue; // reserved but blank -- the settler has only one trait
             }
             Trait trait = Trait.ALL[ordinals.get(slot)];
-            boolean hovered = hover(mouseX, mouseY, x, cardY, CONTENT_W, TRAIT_CARD_H);
-            HsUi.card(g, x, cardY, CONTENT_W, TRAIT_CARD_H, hovered);
+            boolean hovered = hover(mouseX, mouseY, x, cardY, colW, TRAIT_CARD_H);
+            HsUi.card(g, x, cardY, colW, TRAIT_CARD_H, hovered);
             int tx = x + TRAIT_CARD_PAD;
-            int limit = x + CONTENT_W - TRAIT_CARD_PAD;
+            int limit = x + colW - TRAIT_CARD_PAD;
             HsUi.labelIn(g, font, trait.displayName(), tx, cardY + TRAIT_CARD_PAD,
-                CONTENT_W - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_STRONG);
+                colW - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_STRONG);
             int lineY = cardY + TRAIT_CARD_PAD + HsUiTokens.LINE_GAP;
             List<Effect> effects = wiredEffects(trait);
             if (effects.isEmpty()) {
                 HsUi.labelIn(g, font, trait.describe(), tx, lineY,
-                    CONTENT_W - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_MUTED);
+                    colW - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_MUTED);
             } else {
                 drawEffectChips(g, effects, tx, lineY, limit);
             }
@@ -520,7 +631,7 @@ public class SettlerScreen extends Screen {
         } else {
             line = Component.translatable("hearthstead.settler.employed_at", buildingName());
         }
-        HsUi.labelIn(g, font, line, x, y, CONTENT_W, HsUiTokens.TEXT);
+        HsUi.labelIn(g, font, line, x, y, colW, HsUiTokens.TEXT);
     }
 
     /**
@@ -539,7 +650,7 @@ public class SettlerScreen extends Screen {
             return;
         }
         snapshot.refusal().ifPresent(refusal ->
-            g.drawWordWrap(font, refusal, x, y, CONTENT_W, HsUiTokens.WARN));
+            g.drawWordWrap(font, refusal, x, y, colW, HsUiTokens.WARN));
     }
 
     /**
@@ -552,21 +663,17 @@ public class SettlerScreen extends Screen {
      */
     private void drawBag(GuiGraphics g, int x, int labelY, int slotsY) {
         HsUi.labelIn(g, font, Component.translatable("hearthstead.settler.bag"), x, labelY,
-            CONTENT_W, HsUiTokens.TEXT);
+            colW, HsUiTokens.TEXT);
         if (snapshot == null) {
             return;
         }
-        List<Integer> ids = snapshot.bagItemIds();
-        List<Integer> counts = snapshot.bagCounts();
         for (int i = 0; i < BAG_SLOTS; i++) {
             int slotX = x + i * BAG_SLOT_STEP;
             HsUi.slot(g, slotX, slotsY);
-            int count = i < counts.size() ? counts.get(i) : 0;
-            if (count <= 0) {
+            ItemStack stack = bagStacks[i];
+            if (stack == null || stack.isEmpty()) {
                 continue; // an empty slot: the slot sprite alone says so
             }
-            int itemId = i < ids.size() ? ids.get(i) : 0;
-            ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.byId(itemId), count);
             g.renderItem(stack, slotX + 1, slotsY + 1);
             g.renderItemDecorations(font, stack, slotX + 1, slotsY + 1);
         }
@@ -616,10 +723,14 @@ public class SettlerScreen extends Screen {
      * once, in {@link #init}, and never changes again for the life of the
      * screen — see the class doc.
      */
-    private static Layout layout(int originY) {
+    private Layout layout(int originY) {
         Layout l = new Layout();
+        l.colAX = PAD;
+        l.colBX = wide ? PAD + colW + PAD : PAD;
+
         int y = originY + PAD;
 
+        // -- column A: who this person IS ----------------------------------
         l.nameTop = y;
         l.professionTop = y + ROW;
         l.activityTop = y + ROW * 2;
@@ -640,8 +751,20 @@ public class SettlerScreen extends Screen {
         l.attributesTop = y;
         y += ROW * Attribute.COUNT + GUTTER;
 
-        l.dividerC = y;
-        y += HsUiTokens.DIVIDER_H + GUTTER;
+        int columnABottom = y;
+
+        // -- column B: what they DO ----------------------------------------
+        // Beside column A when there is width for it, underneath it when
+        // there is not. The leading divider only earns its place in the
+        // stacked case: at the top of its own column it would be a rule
+        // separating the panel's edge from its first row.
+        if (wide) {
+            y = originY + PAD;
+            l.dividerC = -1;
+        } else {
+            l.dividerC = y;
+            y += HsUiTokens.DIVIDER_H + GUTTER;
+        }
 
         l.traitsTop = y;
         y += TRAIT_SLOTS * (TRAIT_CARD_H + GUTTER);
@@ -682,12 +805,15 @@ public class SettlerScreen extends Screen {
         l.footerTop = y;
         y += HsUiTokens.BUTTON_H;
 
-        l.totalHeight = y - originY + PAD;
+        l.totalHeight = Math.max(y, columnABottom) - originY + PAD;
         return l;
     }
 
     /** Plain data holder; see {@link #layout}. */
     private static final class Layout {
+        /** Left column x, and the second column's x (equal when stacked). */
+        int colAX;
+        int colBX;
         int nameTop;
         int professionTop;
         int activityTop;

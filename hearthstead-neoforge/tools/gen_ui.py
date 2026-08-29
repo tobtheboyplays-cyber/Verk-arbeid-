@@ -298,6 +298,33 @@ def slot():
     return frame(18, 2, bands, COAL[2])
 
 
+def slot_grid(cols, rows):
+    """A whole grid of sockets as ONE sprite, drawn at exactly its own size.
+
+    A slot is 18x18 and is blitted at 18x18, so each one is a single quad --
+    but it is still a single DRAW CALL, and the hearth draws sixty of them
+    (24 communal + 36 player). Sixty immediate `blitSprite` calls, each with
+    its own `setDefaultUniforms`, measured as the largest remaining cost on
+    that screen once the tiling interiors were fixed.
+
+    A grid, unlike a panel, genuinely IS a fixed size: the menu declares 6x4
+    communal and 9x4 player slots and nothing can resize them. So baking the
+    grid is not the "art fixed at one size" trap the module docstring warns
+    about -- it is the same choice vanilla makes for its own container
+    backgrounds, and it turns sixty draw calls into three. The cell art is
+    `slot()` itself, so there is still exactly one definition of what a socket
+    looks like.
+    """
+    cell = slot()
+    img = new_image(cols * 18, rows * 18)
+    for r in range(rows):
+        for c in range(cols):
+            for y in range(18):
+                for x in range(18):
+                    img.putpixel((c * 18 + x, r * 18 + y), cell.getpixel((x, y)))
+    return img
+
+
 def divider():
     """A ruled line: one dark pixel, one catch-light. Tiles along x.
 
@@ -342,6 +369,121 @@ def bar(kind):
     return frame(frame_size(2), 2, bands, tone[3])
 
 
+# ------------------------------------------------------------------ icons ---
+
+# 12x12 status icons for the hearth's command centre. Silhouette first, the
+# way the art doctrine asks: block the shape in one colour, and if it does not
+# read at actual size no shading will save it. `#` is body, `.` is empty; the
+# dark rim is derived, never drawn by hand, so every icon is outlined by the
+# same rule and none of them can drift.
+ICON_ART = {
+    # Two heads over a crowd -- "how many people", not "a person".
+    "population": [
+        "............",
+        "..##....##..",
+        ".####..####.",
+        ".####..####.",
+        "..##....##..",
+        "............",
+        ".##########.",
+        "############",
+        "############",
+        "############",
+        ".##########.",
+        "............",
+    ],
+    # A hammer: head top-right, haft running down to the left.
+    "workforce": [
+        "......#####.",
+        ".....######.",
+        ".....######.",
+        "......####..",
+        "....###.....",
+        "...###......",
+        "..###.......",
+        ".###........",
+        ".##.........",
+        "##..........",
+        "##..........",
+        "............",
+    ],
+    # A loaf. At 12px a shape is read from its OUTLINE, so the crust scoring
+    # that looked right on paper only punched holes in the silhouette; the
+    # derived rim already gives it all the definition it needs.
+    "food": [
+        "............",
+        "............",
+        "............",
+        "...######...",
+        "..########..",
+        ".##########.",
+        "############",
+        "############",
+        ".##########.",
+        "..########..",
+        "............",
+        "............",
+    ],
+    # A ring with its centre marked: a distance FROM somewhere.
+    "radius": [
+        "............",
+        "....####....",
+        "..##....##..",
+        ".##......##.",
+        ".#........#.",
+        "##...##...##",
+        "##...##...##",
+        ".#........#.",
+        ".##......##.",
+        "..##....##..",
+        "....####....",
+        "............",
+    ],
+    # The hearth flame itself -- morale is the fire staying lit. A flame is
+    # read from its TIP: one pixel at the top tapering wide, or it is a
+    # raindrop. Kept symmetric; the asymmetric lick that reads as flame at
+    # 32px just reads as a lumpy bulb at 12.
+    "morale": [
+        ".....#......",
+        ".....#......",
+        "....###.....",
+        "....###.....",
+        "...#####....",
+        "...#####....",
+        "..#######...",
+        "..#######...",
+        ".#########..",
+        ".#########..",
+        "..#######...",
+        "...#####....",
+    ],
+}
+
+
+def icon(name, body, rim):
+    """A 12x12 glyph from ICON_ART, rimmed automatically.
+
+    The rim is every empty pixel orthogonally touching the body, filled with a
+    darker step of the body's OWN ramp -- never pure black, which is the
+    fastest way to make a 12px icon look pasted on rather than drawn."""
+    art = ICON_ART[name]
+    size = len(art)
+    img = new_image(size, size)
+    solid = [[art[y][x] == "#" for x in range(size)] for y in range(size)]
+    for y in range(size):
+        for x in range(size):
+            if solid[y][x]:
+                put(img, x, y, body)
+                continue
+            touching = any(
+                0 <= x + dx < size and 0 <= y + dy < size and solid[y + dy][x + dx]
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+            )
+            if touching:
+                put(img, x, y, rim)
+    return img
+
+
 # ------------------------------------------------------------------ emit ----
 
 SPRITE_SET = []
@@ -363,10 +505,20 @@ def build():
     emit("widget/scroll_thumb", scroll_thumb(False), border=2)
     emit("widget/scroll_thumb_hover", scroll_thumb(True), border=2)
     emit("widget/slot", slot(), border=2)
+    # `stretch`: each is drawn at exactly its own size, so one quad and one
+    # draw call for a whole grid (see slot_grid).
+    emit("widget/slots_6x4", slot_grid(6, 4), kind="stretch")
+    emit("widget/slots_9x3", slot_grid(9, 3), kind="stretch")
+    emit("widget/slots_9x1", slot_grid(9, 1), kind="stretch")
     emit("widget/divider", divider(), kind="tile")
     for tone in ("accent", "good", "bad", "warn"):
         emit(f"widget/pip_{tone}", pip(True, tone), kind="stretch")
     emit("widget/pip_empty", pip(False), kind="stretch")
+    for name in ("population", "workforce", "food", "radius", "morale"):
+        # `stretch`: always drawn at their own 12x12, so one quad each and no
+        # tiling loop at all (see the module docstring's second rule).
+        emit("icon/" + name, icon(name, BONE[4], shade(BONE[0], 0.55)),
+             kind="stretch")
     emit("bar/track", bar("track"), border=2)
     for tone in ("good", "warn", "bad"):
         emit(f"bar/fill_{tone}", bar("fill_" + tone), border=2)
