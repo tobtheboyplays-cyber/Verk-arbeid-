@@ -364,7 +364,8 @@ def bar(kind):
     if kind == "track":
         bands = [(shade(COAL[0], 0.6), IRON[1]), (COAL[0], COAL[1])]
         return frame(frame_size(2), 2, bands, COAL[0])
-    tone = {"fill_good": GREEN, "fill_warn": AMBER, "fill_bad": RED}[kind]
+    tone = {"fill_good": GREEN, "fill_warn": AMBER, "fill_bad": RED,
+            "fill_accent": BRASS}[kind]
     bands = [(tone[4], tone[1]), (tone[3], tone[2])]
     return frame(frame_size(2), 2, bands, tone[3])
 
@@ -520,7 +521,11 @@ def build():
         emit("icon/" + name, icon(name, BONE[4], shade(BONE[0], 0.55)),
              kind="stretch")
     emit("bar/track", bar("track"), border=2)
-    for tone in ("good", "warn", "bad"):
+    # accent is brass: a bar for a MAGNITUDE (an attribute, a knack) rather
+    # than for a status. Without it Tone.ACCENT had to borrow the green
+    # "good" fill, which said a settler's strength was going well rather than
+    # that it was simply that high.
+    for tone in ("good", "warn", "bad", "accent"):
         emit(f"bar/fill_{tone}", bar("fill_" + tone), border=2)
 
 

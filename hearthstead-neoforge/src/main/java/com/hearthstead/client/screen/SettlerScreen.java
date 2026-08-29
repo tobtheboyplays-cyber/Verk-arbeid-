@@ -333,6 +333,19 @@ public class SettlerScreen extends Screen {
 
     // ------------------------------------------------------------- drawing ---
 
+    /**
+     * A scrim, not a blur.
+     *
+     * <p>Vanilla's plain-Screen background runs a full-screen post-process
+     * blur every frame; its own container screens do not. Measured at 110 of
+     * this screen's 117ms per frame with the entire panel skipped. See
+     * {@code HsUi#BACKGROUND_POLICY} for the measurement and the reasoning.
+     */
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        renderTransparentBackground(g);
+    }
+
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g, mouseX, mouseY, partialTick);
@@ -344,6 +357,9 @@ public class SettlerScreen extends Screen {
         int a = left + l.colAX;
         int b = left + l.colBX;
 
+        if (!com.hearthstead.client.debug.UiBenchCommand.panelBody) {
+            return; // QA bisect: background only, nothing of this screen drawn
+        }
         HsUi.window(g, left, top, panelW, l.totalHeight);
 
         // -- column A ------------------------------------------------------
@@ -387,8 +403,10 @@ public class SettlerScreen extends Screen {
         HsUi.inset(g, px, py, PORTRAIT_W, PORTRAIT_H);
         // The settler looks toward the mouse — the same lively touch vanilla
         // uses for the player preview in the inventory screen.
-        InventoryScreen.renderEntityInInventoryFollowsMouse(g, px + 2, py + 2,
-            px + PORTRAIT_W - 2, py + PORTRAIT_H - 2, 22, 0.0625F, mouseX, mouseY, settler);
+        if (com.hearthstead.client.debug.UiBenchCommand.entityPreview) {
+            InventoryScreen.renderEntityInInventoryFollowsMouse(g, px + 2, py + 2,
+                px + PORTRAIT_W - 2, py + PORTRAIT_H - 2, 22, 0.0625F, mouseX, mouseY, settler);
+        }
 
         // Identity block, in the order the citizen-card recipe asks for:
         // name, then the profession badge in trade colour, with the mayor
@@ -468,7 +486,13 @@ public class SettlerScreen extends Screen {
 
             int value = snapshot.attributeValues().get(attribute.ordinal());
             float ratio = Mth.clamp(value / 100.0F, 0.0F, 1.0F);
-            HsUi.bar(g, barX, rowY + 1, ATTR_BAR_W, ATTR_BAR_H, ratio, HsUi.Tone.of(ratio));
+            // ACCENT, not Tone.of(ratio): an attribute is a MAGNITUDE that
+            // grows with training, not a status that is good or bad right
+            // now. Tone.of would paint every attribute of every newly
+            // arrived settler in the crimson that elsewhere means "this is
+            // going wrong" -- 8/100 strength is a beginner, not an alarm.
+            // It is the same tone the pips this replaced always used.
+            HsUi.bar(g, barX, rowY + 1, ATTR_BAR_W, ATTR_BAR_H, ratio, HsUi.Tone.ACCENT);
             // The owner asked for the number, in so many words: "25 / 100".
             // The bar stays because a bar is what a 0-100 continuous value
             // reads as at a glance; the number stays because an exact figure
