@@ -39,6 +39,13 @@ neoForge {
         // QA playtest: jump the client straight into a prepared save instead
         // of driving the world-creation menus with synthetic clicks.
         client {
+            // Per-frame UI cost meter (client/debug/UiProfiler). Same
+            // discipline as the gameTestServer trace flag above: the game runs
+            // in a forked JVM, so a -D on the Gradle command line never
+            // reaches it, and it stays off unless the QA controller asks.
+            if (System.getenv('HSQA_UIPROFILE')) {
+                systemProperty 'hearthstead.uiprofile', 'true'
+            }
             if (System.getenv('HSQA_JOIN')) {
                 programArgument '--quickPlayMultiplayer'
                 programArgument System.getenv('HSQA_JOIN')
@@ -50,10 +57,16 @@ neoForge {
             // vanilla's hardcoded 854x480 default even with those options
             // set, which is what --width/--height (read directly by
             // Main.java) actually control.
+            // 1280x720 by default so screenshots are comparable run to run
+            // (qa/PROTOCOL.md). Overridable because some acceptance checks
+            // need a viewport this one cannot produce: vanilla clamps the GUI
+            // scale down until width/scale >= 320 AND height/scale >= 240, so
+            // at 720p guiScale 4 silently becomes 3 and the narrow-layout
+            // path can never be reached at the fixed size.
             programArgument '--width'
-            programArgument '1280'
+            programArgument System.getenv('HSQA_WIDTH') ?: '1280'
             programArgument '--height'
-            programArgument '720'
+            programArgument System.getenv('HSQA_HEIGHT') ?: '720'
         }
     }
 

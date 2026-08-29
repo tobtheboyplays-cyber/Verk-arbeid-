@@ -297,6 +297,19 @@ public class PlaqueScreen extends Screen {
 
     // ------------------------------------------------------------- drawing ---
 
+    /**
+     * A scrim, not a blur.
+     *
+     * <p>Vanilla's plain-Screen background runs a full-screen post-process
+     * blur every frame; its own container screens do not. Measured at 110 of
+     * this screen's 117ms per frame with the entire panel skipped. See
+     * {@code HsUi#BACKGROUND_POLICY} for the measurement and the reasoning.
+     */
+    @Override
+    public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
+        renderTransparentBackground(g);
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);

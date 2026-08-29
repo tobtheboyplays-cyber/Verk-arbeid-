@@ -27,6 +27,32 @@ per-corner detail (rivets, plates) is drawn inside the fixed corner squares,
 which never tile. Directional light survives this, because which edge is
 nearest is itself constant along an edge.
 
+The second rule, which costs frames rather than looks
+-----------------------------------------------------
+Tiling is not free the way stretching is. Vanilla's `blitTiledSprite` (1.21.1,
+GuiGraphics line 761) is a doubly-nested loop that issues ONE `innerBlit` --
+one real GL draw call, each re-running `ShaderInstance.setDefaultUniforms` --
+per tile. So a sprite's cost at draw time is set by how big its TILING INTERIOR
+is, not by how big the PNG is.
+
+That made the interiors here the mod's single largest per-frame cost. The
+window was 18x18 with a 7px border, leaving a 4x4 middle: a 256x322 settler
+sheet tiled that middle 61x77 = 4697 times, and the whole sheet -- window,
+inset, cards, buttons, bars and six 2px-wide dividers -- measured out at rough-
+ly 9,400 draw calls EVERY FRAME. Profiled live 2026-08-29 (JFR, HsUi.tab ->
+blitNineSlicedSprite -> blitTiledSprite -> BufferUploader.drawWithShader).
+
+The fix is geometry, not art: the interior of every one of these sprites is a
+FLAT COLOUR, so growing the PNG changes not one rendered pixel -- it only means
+each tile covers more ground. INTERIOR below is that middle's size; the sprite
+is `2 * border + INTERIOR` square. At 50 the same sheet draws about 220 calls,
+a ~42x cut, with the art bit-identical. Vanilla 1.21.1 has no `stretch_inner`
+(it arrives later), so this IS the lever on this version.
+
+`slot` is deliberately exempt: it is always drawn at exactly its own 18x18, so
+it takes blitNineSlicedSprite's single-quad fast path already, and 18 is the
+vanilla metric an item's 16x16 sits inside.
+
 Everything here is deterministic: fixed integer seeds, never hash(). That is
 enforced, not asserted -- gen_ui.py is in validate_assets.py's
 PIPELINE_GENERATORS, which runs it twice under different PYTHONHASHSEEDs and
@@ -47,6 +73,17 @@ SPRITES = os.path.join(ASSETS, "textures/gui/sprites")
 TOKENS_JSON = os.path.join(HERE, "ui", "tokens.json")
 TOKENS_JAVA = os.path.join(
     HERE, "..", "src/main/java/com/hearthstead/client/ui/HsUiTokens.java")
+
+# The tiling middle every nine-slice sprite gets, in pixels (see the module
+# docstring's second rule). 50 keeps the biggest panel this mod draws under a
+# handful of tiles per axis while keeping the atlas footprint trivial -- the
+# largest sprite this produces is 64x64.
+INTERIOR = 50
+
+
+def frame_size(border):
+    """Sprite edge length that leaves INTERIOR px of flat middle."""
+    return 2 * border + INTERIOR
 
 SEED = 730114  # explicit constant: hash() is salted per process (KF-007)
 
@@ -180,7 +217,7 @@ def window():
         (BRASS[1], BRASS[0]),                         # 5 brass rule, dim
         (BRASS[3], BRASS[2]),                         # 6 brass rule, catch
     ]
-    return frame(18, 7, bands, COAL[1], corner_plate=rivet)
+    return frame(frame_size(7), 7, bands, COAL[1], corner_plate=rivet)
 
 
 def inset():
@@ -191,7 +228,7 @@ def inset():
         (COAL[0], IRON[1]),
         (COAL[1], COAL[2]),
     ]
-    return frame(8, 3, bands, COAL[1])
+    return frame(frame_size(3), 3, bands, COAL[1])
 
 
 def card(hover=False):
@@ -203,7 +240,7 @@ def card(hover=False):
         (shade(base, 1.08), shade(base, 0.94)),
         (base, base),
     ]
-    return frame(12, 4, bands, base)
+    return frame(frame_size(4), 4, bands, base)
 
 
 # ---------------------------------------------------------------- widgets ---
@@ -229,7 +266,7 @@ def button(state):
         bands = [(shade(edge, 1.1), shade(edge, 0.65)),
                  (shade(body, 1.18), shade(body, 0.82)),
                  (body, body)]
-    return frame(10, 3, bands, body)
+    return frame(frame_size(3), 3, bands, body)
 
 
 def tab(selected):
@@ -239,19 +276,19 @@ def tab(selected):
     else:
         bands = [(IRON[1], IRON[0]), (COAL[3], COAL[1]), (COAL[2], COAL[2])]
         centre = COAL[2]
-    return frame(8, 3, bands, centre)
+    return frame(frame_size(3), 3, bands, centre)
 
 
 def scroll_track():
     bands = [(shade(COAL[0], 0.7), COAL[2]), (COAL[0], COAL[1])]
-    return frame(6, 2, bands, COAL[0])
+    return frame(frame_size(2), 2, bands, COAL[0])
 
 
 def scroll_thumb(hover):
     top = BRASS[3] if hover else IRON[3]
     body = BRASS[1] if hover else IRON[2]
     bands = [(top, shade(body, 0.7)), (body, shade(body, 0.85))]
-    return frame(6, 2, bands, body)
+    return frame(frame_size(2), 2, bands, body)
 
 
 def slot():
@@ -261,10 +298,44 @@ def slot():
     return frame(18, 2, bands, COAL[2])
 
 
+def slot_grid(cols, rows):
+    """A whole grid of sockets as ONE sprite, drawn at exactly its own size.
+
+    A slot is 18x18 and is blitted at 18x18, so each one is a single quad --
+    but it is still a single DRAW CALL, and the hearth draws sixty of them
+    (24 communal + 36 player). Sixty immediate `blitSprite` calls, each with
+    its own `setDefaultUniforms`, measured as the largest remaining cost on
+    that screen once the tiling interiors were fixed.
+
+    A grid, unlike a panel, genuinely IS a fixed size: the menu declares 6x4
+    communal and 9x4 player slots and nothing can resize them. So baking the
+    grid is not the "art fixed at one size" trap the module docstring warns
+    about -- it is the same choice vanilla makes for its own container
+    backgrounds, and it turns sixty draw calls into three. The cell art is
+    `slot()` itself, so there is still exactly one definition of what a socket
+    looks like.
+    """
+    cell = slot()
+    img = new_image(cols * 18, rows * 18)
+    for r in range(rows):
+        for c in range(cols):
+            for y in range(18):
+                for x in range(18):
+                    img.putpixel((c * 18 + x, r * 18 + y), cell.getpixel((x, y)))
+    return img
+
+
 def divider():
-    """A ruled line: one dark pixel, one catch-light. Tiles along x."""
-    img = new_image(2, 2)
-    for x in range(2):
+    """A ruled line: one dark pixel, one catch-light. Tiles along x.
+
+    Both rows are constant along x, so the width is free to be anything -- and
+    it must not be 2. As a `tile` sprite it is laid down by the same per-tile
+    loop the module docstring's second rule describes, so a 2px-wide rule cost
+    one draw call per 2px: 120 for a single divider across the settler sheet's
+    240px content column, times six dividers, times every frame. At INTERIOR
+    wide the same rule costs four."""
+    img = new_image(INTERIOR, 2)
+    for x in range(INTERIOR):
         put(img, x, 0, shade(OAK[0], 0.7))
         put(img, x, 1, mix(OAK[3], BRASS[0], 0.4))
     return img
@@ -292,10 +363,126 @@ def bar(kind):
     """Need/progress bars. `track` is the groove, `fill` the contents."""
     if kind == "track":
         bands = [(shade(COAL[0], 0.6), IRON[1]), (COAL[0], COAL[1])]
-        return frame(6, 2, bands, COAL[0])
-    tone = {"fill_good": GREEN, "fill_warn": AMBER, "fill_bad": RED}[kind]
+        return frame(frame_size(2), 2, bands, COAL[0])
+    tone = {"fill_good": GREEN, "fill_warn": AMBER, "fill_bad": RED,
+            "fill_accent": BRASS}[kind]
     bands = [(tone[4], tone[1]), (tone[3], tone[2])]
-    return frame(6, 2, bands, tone[3])
+    return frame(frame_size(2), 2, bands, tone[3])
+
+
+# ------------------------------------------------------------------ icons ---
+
+# 12x12 status icons for the hearth's command centre. Silhouette first, the
+# way the art doctrine asks: block the shape in one colour, and if it does not
+# read at actual size no shading will save it. `#` is body, `.` is empty; the
+# dark rim is derived, never drawn by hand, so every icon is outlined by the
+# same rule and none of them can drift.
+ICON_ART = {
+    # Two heads over a crowd -- "how many people", not "a person".
+    "population": [
+        "............",
+        "..##....##..",
+        ".####..####.",
+        ".####..####.",
+        "..##....##..",
+        "............",
+        ".##########.",
+        "############",
+        "############",
+        "############",
+        ".##########.",
+        "............",
+    ],
+    # A hammer: head top-right, haft running down to the left.
+    "workforce": [
+        "......#####.",
+        ".....######.",
+        ".....######.",
+        "......####..",
+        "....###.....",
+        "...###......",
+        "..###.......",
+        ".###........",
+        ".##.........",
+        "##..........",
+        "##..........",
+        "............",
+    ],
+    # A loaf. At 12px a shape is read from its OUTLINE, so the crust scoring
+    # that looked right on paper only punched holes in the silhouette; the
+    # derived rim already gives it all the definition it needs.
+    "food": [
+        "............",
+        "............",
+        "............",
+        "...######...",
+        "..########..",
+        ".##########.",
+        "############",
+        "############",
+        ".##########.",
+        "..########..",
+        "............",
+        "............",
+    ],
+    # A ring with its centre marked: a distance FROM somewhere.
+    "radius": [
+        "............",
+        "....####....",
+        "..##....##..",
+        ".##......##.",
+        ".#........#.",
+        "##...##...##",
+        "##...##...##",
+        ".#........#.",
+        ".##......##.",
+        "..##....##..",
+        "....####....",
+        "............",
+    ],
+    # The hearth flame itself -- morale is the fire staying lit. A flame is
+    # read from its TIP: one pixel at the top tapering wide, or it is a
+    # raindrop. Kept symmetric; the asymmetric lick that reads as flame at
+    # 32px just reads as a lumpy bulb at 12.
+    "morale": [
+        ".....#......",
+        ".....#......",
+        "....###.....",
+        "....###.....",
+        "...#####....",
+        "...#####....",
+        "..#######...",
+        "..#######...",
+        ".#########..",
+        ".#########..",
+        "..#######...",
+        "...#####....",
+    ],
+}
+
+
+def icon(name, body, rim):
+    """A 12x12 glyph from ICON_ART, rimmed automatically.
+
+    The rim is every empty pixel orthogonally touching the body, filled with a
+    darker step of the body's OWN ramp -- never pure black, which is the
+    fastest way to make a 12px icon look pasted on rather than drawn."""
+    art = ICON_ART[name]
+    size = len(art)
+    img = new_image(size, size)
+    solid = [[art[y][x] == "#" for x in range(size)] for y in range(size)]
+    for y in range(size):
+        for x in range(size):
+            if solid[y][x]:
+                put(img, x, y, body)
+                continue
+            touching = any(
+                0 <= x + dx < size and 0 <= y + dy < size and solid[y + dy][x + dx]
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))
+            )
+            if touching:
+                put(img, x, y, rim)
+    return img
 
 
 # ------------------------------------------------------------------ emit ----
@@ -319,12 +506,26 @@ def build():
     emit("widget/scroll_thumb", scroll_thumb(False), border=2)
     emit("widget/scroll_thumb_hover", scroll_thumb(True), border=2)
     emit("widget/slot", slot(), border=2)
+    # `stretch`: each is drawn at exactly its own size, so one quad and one
+    # draw call for a whole grid (see slot_grid).
+    emit("widget/slots_6x4", slot_grid(6, 4), kind="stretch")
+    emit("widget/slots_9x3", slot_grid(9, 3), kind="stretch")
+    emit("widget/slots_9x1", slot_grid(9, 1), kind="stretch")
     emit("widget/divider", divider(), kind="tile")
     for tone in ("accent", "good", "bad", "warn"):
         emit(f"widget/pip_{tone}", pip(True, tone), kind="stretch")
     emit("widget/pip_empty", pip(False), kind="stretch")
+    for name in ("population", "workforce", "food", "radius", "morale"):
+        # `stretch`: always drawn at their own 12x12, so one quad each and no
+        # tiling loop at all (see the module docstring's second rule).
+        emit("icon/" + name, icon(name, BONE[4], shade(BONE[0], 0.55)),
+             kind="stretch")
     emit("bar/track", bar("track"), border=2)
-    for tone in ("good", "warn", "bad"):
+    # accent is brass: a bar for a MAGNITUDE (an attribute, a knack) rather
+    # than for a status. Without it Tone.ACCENT had to borrow the green
+    # "good" fill, which said a settler's strength was going well rather than
+    # that it was simply that high.
+    for tone in ("good", "warn", "bad", "accent"):
         emit(f"bar/fill_{tone}", bar("fill_" + tone), border=2)
 
 

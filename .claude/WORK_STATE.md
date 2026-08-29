@@ -15,6 +15,41 @@ krav, balanse. «ikke start på nytt» — alt i eksisterende kodebase. Frysen
 gjelder fortsatt for NYE systemer; eierens eksplisitte bestillinger går
 foran. Eieren vil SE fremdrift (film/skjermbilder/jar).
 
+## UI-ytelse landet 2026-08-29 (egen sesjon, Opus)
+Eieren meldte «UI FPS drop» som P0. Målt, ikke gjettet — instrumentet er
+`client/debug/UiProfiler` (QA-only, `-Dhearthstead.uiprofile=true`), som
+tar tiden på `ScreenEvent.Render` Pre→Post på render-tråden og logger
+ms/frame, KB/frame og fps per skjerm. Bevis: `qa/reports/uiperf/`.
+
+Tre funn, i rekkefølge etter hvor mye de kostet:
+1. **Bakgrunnen, ikke UI-et.** `Screen#renderBackground` kjører
+   `processBlurEffect` — en fullskjerms post-process hver frame.
+   Settler-arket: 117 ms/frame; med HELE panelet fjernet: 110 ms. Altså
+   ~7 ms Hearthstead, ~110 ms bakgrunn. `AbstractContainerScreen`
+   overstyrer den med `renderTransparentBackground` — derfor kostet
+   Hearth 4 ms mens settler-arket kostet 117. Alle mod-skjermer gjør nå
+   det samme. **117 ms → 3.98 ms.** Kontroll: vanilla `PauseScreen` og
+   `ConfirmLinkScreen` måler fortsatt ~115 ms i samme scene.
+2. **Nine-slice-flisene.** `blitTiledSprite` gir ÉN GL-draw per flis.
+   `panel/window` var 18x18 med 7px kant → 4x4 midte; et 256x322-ark
+   flisla den 4697 ganger. Midten er flat farge, så generatoren lager nå
+   `2*border + INTERIOR` (50) — bit-identisk kunst, ~42x færre draws.
+   `widget/divider` var 2px bred (120 draws per strek) → 50.
+3. **Allokering per frame.** Hearth bygde Components og strenger hver
+   frame for tall som endrer seg hvert minutt; render() allokerer nå
+   ingenting (pakket long-stempel + cache). 942 → 526 KB/frame.
+
+Skjermene selv: Hearth er kommandosentral på mørk eik (ikke pergament),
+faner INNI rammen (de lå på topPos-14 og ble klippet bort ved guiScale 3),
+statuslinjen brytes over to reserverte linjer (den lengste er 368px på
+norsk og rant ut av vinduet). Settler-arket er to kolonner når bredden
+finnes (322 → ~219 px høyt, ingen scroll ved normal oppløsning), én kolonne
+under 400px; attributter er tall — «25 / 100» — med brass-bar og
+hover-forklaring, slik eieren ba om.
+
+IKKE gjort: `DevelopmentScreen` finnes ikke i dette repoet i det hele
+tatt (ingen fil, ingen referanse). Den må bygges fra bunnen; ikke startet.
+
 ## Landet i denne sesjonen
 - Romskanner-fiksene (a09cc27→rebased): barriere=himmel (aldri tak);
   plakett-kandidat vinner kun med rom som oppfyller planens krav.

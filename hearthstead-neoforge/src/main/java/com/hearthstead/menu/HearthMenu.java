@@ -34,10 +34,16 @@ public class HearthMenu extends AbstractContainerMenu {
     public static final int DATA_COUNT = 9;
 
     public static final int COMMUNAL_SLOTS = HearthBlockEntity.INVENTORY_SIZE;
-    public static final int COMMUNAL_X = 104;
-    public static final int COMMUNAL_Y = 30;
-    public static final int PLAYER_INV_X = 29;
-    public static final int PLAYER_INV_Y = 140;
+    // Slot origins for the command-centre layout (see HearthScreen). They live
+    // here because the MENU owns where a slot is -- the screen only paints a
+    // socket under one -- and both sides construct this same class, so client
+    // and server can never disagree about which pixel belongs to which slot.
+    /** Stores grid: 6 columns starting at the right-hand column's left edge. */
+    public static final int COMMUNAL_X = 132;
+    public static final int COMMUNAL_Y = 52;
+    /** Player inventory, centred in the 256px panel: (256 - 9 * 18) / 2. */
+    public static final int PLAYER_INV_X = 47;
+    public static final int PLAYER_INV_Y = 151;
 
     private final ContainerData data;
     private final ContainerLevelAccess access;

@@ -74,6 +74,48 @@ public final class HsUi {
         }
     }
 
+    /**
+     * Why every plain-{@code Screen} in this mod overrides
+     * {@code renderBackground} with {@code renderTransparentBackground}.
+     *
+     * <h2>The measurement</h2>
+     *
+     * <p>The settler sheet measured 117ms a frame at guiScale 3 -- six frames
+     * a second. Skipping the entity preview changed it by 1ms. Skipping the
+     * ENTIRE panel -- every sprite, bar, card, divider and string this mod
+     * draws -- left it at 110ms. So roughly 7ms of that frame was Hearthstead
+     * and 110ms was the background, before a single pixel of UI.
+     *
+     * <h2>What the background does</h2>
+     *
+     * <p>{@code Screen#renderBackground} calls {@code renderBlurredBackground},
+     * which is {@code GameRenderer#processBlurEffect}: a full-screen
+     * post-process blur shader, run every frame the screen is open, sized to
+     * the whole framebuffer and gated only by the player's "Menu Background
+     * Blurriness" video option (default 5, so on by default).
+     *
+     * <p>{@code AbstractContainerScreen} does NOT inherit that. It overrides
+     * {@code renderBackground} to call {@code renderTransparentBackground} --
+     * one translucent {@code fillGradient} over the screen. That is why the
+     * hearth, which is a container screen, costs 4ms while the settler sheet
+     * beside it cost 117: not the layouts, the background.
+     *
+     * <p>So the fix is to do what vanilla's own container screens do. A
+     * chest does not blur the world behind it; neither should a settler
+     * sheet. The design language already says the same thing from the other
+     * direction -- {@code fillGradient} is for translucent black scrims, and
+     * a scrim is exactly what this is.
+     *
+     * <p>The absolute numbers above come off a software rasteriser and are
+     * not what a GPU produces. The SHAPE of the finding is not
+     * rasteriser-specific: a full-screen post-process every frame is a real
+     * cost on real hardware too, it scales with resolution rather than with
+     * how much UI is drawn, and it is precisely the "opening a screen drops
+     * my framerate" symptom. Nothing about it is cheap enough to be worth
+     * paying for a backdrop.
+     */
+    public static final String BACKGROUND_POLICY = "see javadoc";
+
     // -- sprites ----------------------------------------------------------
 
     public static final ResourceLocation WINDOW = sprite("panel/window");
@@ -82,6 +124,10 @@ public final class HsUi {
     public static final ResourceLocation CARD_HOVER = sprite("panel/card_hover");
     public static final ResourceLocation DIVIDER = sprite("widget/divider");
     public static final ResourceLocation SLOT = sprite("widget/slot");
+    /** Whole fixed grids of sockets, one draw call each -- see slotGrid. */
+    public static final ResourceLocation SLOTS_6X4 = sprite("widget/slots_6x4");
+    public static final ResourceLocation SLOTS_9X3 = sprite("widget/slots_9x3");
+    public static final ResourceLocation SLOTS_9X1 = sprite("widget/slots_9x1");
     public static final ResourceLocation SCROLL_TRACK = sprite("widget/scroll_track");
     public static final ResourceLocation SCROLL_THUMB = sprite("widget/scroll_thumb");
     public static final ResourceLocation SCROLL_THUMB_HOVER =
@@ -119,7 +165,7 @@ public final class HsUi {
         }
 
         public ResourceLocation barFill() {
-            return sprite("bar/fill_" + (this == ACCENT ? "good" : key));
+            return sprite("bar/fill_" + key);
         }
 
         /** The tone a 0..1 ratio deserves, so bars and pips agree everywhere. */
@@ -145,6 +191,21 @@ public final class HsUi {
 
     public static void slot(GuiGraphics g, int x, int y) {
         g.blitSprite(SLOT, x, y, HsUiTokens.SLOT, HsUiTokens.SLOT);
+    }
+
+    /**
+     * A whole grid of sockets in ONE draw call.
+     *
+     * <p>Use this instead of a loop over {@link #slot} wherever the grid's
+     * shape is fixed by a menu rather than by data. Sixty separate
+     * {@code blitSprite} calls are sixty immediate GL draws, each re-running
+     * the shader's uniform setup; the grid sprites are baked from the very
+     * same {@code slot()} art by {@code gen_ui.py}, so this costs nothing in
+     * consistency and measured as the hearth's largest remaining draw cost.
+     */
+    public static void slotGrid(GuiGraphics g, ResourceLocation grid,
+                                int x, int y, int cols, int rows) {
+        g.blitSprite(grid, x, y, cols * HsUiTokens.SLOT, rows * HsUiTokens.SLOT);
     }
 
     /** A ruled line. Thin geometry is measured in screen pixels, not intent —
