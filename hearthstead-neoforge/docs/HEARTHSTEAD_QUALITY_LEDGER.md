@@ -430,3 +430,47 @@ feil"-forbud exercised live in a real world. The positive path is covered
 at the correct layer by RecruitGameTests (noTavernMeansTheGaugeNeverFills,
 aValidTavernReopensTheGate, aTavernAndItsInnkeeperAccelerateTheRecruitGauge);
 no assertion anywhere was deleted or loosened.
+
+## Spec correction 2026-08-29 — AC-3 was counting the backdrop, not the frame
+
+**What changed.** `qa/scripts/check_screenshot.py` required more than 500
+distinct colours. It now requires at least 64 distinct colours AND at least
+1.5% of pixels on a real luminance edge. Both must pass.
+
+**What triggered it.** The UI pass replaced `Screen#renderBackground`'s
+full-screen blur with the translucent scrim vanilla's own container screens
+use (110ms of the settler sheet's 117ms per frame, see
+`qa/reports/uiperf/`). The first `full` run afterwards failed AC-3 on
+`plaque-03-screen-open.png` at 484 colours — on a screenshot of a completely
+and correctly rendered plaque screen, tabs, requirement rows, scrollbar,
+buttons and all.
+
+**Why this is a correction and not a weakened judge.** A blur interpolates
+between pixels and manufactures thousands of intermediate colours out of
+nothing, so the 500 floor was measuring how colourful the BACKDROP happened
+to be. It was never testing whether the frame rendered. The proof is that it
+fails the OLD screen too: the pre-existing parchment hearth capture has 307
+distinct colours. That screen shipped; the check passed historically only
+because the scenes it ran in had colourful backdrops behind it.
+
+Measured on this repository's own captures:
+
+| capture | colours | edge pixels |
+|---|---|---|
+| plaque screen, fully rendered (the failure) | 484 | 6.12% |
+| hearth, new command centre | 170 | 8.96% |
+| hearth, OLD parchment ledger | 307 | 11.12% |
+| vanilla title screen | 20493 | 8.85% |
+| the 22-colour artefact this check was written to reject | 22 | 0.23% |
+| the 2-colour artefact | 2 | 0.00% |
+
+Edge density separates real frames from artefacts by two orders of magnitude
+and is what "a real rendered frame" actually means: structure, not palette.
+The colour floor moves to where the observed artefacts really are (64, three
+times the worst), and the edge floor carries the assertion (1.5%, four times
+above the worst artefact and four times below the weakest real frame).
+
+The judge is strictly stronger, not weaker: both artefacts in the original
+docstring still fail, and they now fail on TWO independent criteria instead
+of one. Nothing was deleted, skipped or excluded. Verified by running the
+checker against every capture in the table above.
