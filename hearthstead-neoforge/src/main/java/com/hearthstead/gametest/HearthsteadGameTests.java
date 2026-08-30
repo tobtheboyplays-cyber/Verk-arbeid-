@@ -1295,12 +1295,17 @@ public class HearthsteadGameTests {
      *  again -- not still SLEEPING once energy has recovered past dawn. */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night_wake")
     public void settlerWakesAtDawnWithRecoveredEnergy(GameTestHelper helper) {
-        // Begin early enough in REST for room discovery, bed claiming and
-        // visible sleep to happen before RISE at 23000. Starting at 22600
-        // left only 400 ticks and made this a path/scanner timing race rather
-        // than a sleep-recovery test. The 1500-tick window still crosses dawn
-        // inside this test's 1600-tick timeout.
-        helper.getLevel().setDayTime(21500);
+        // GameTests share one ServerLevel. Almost one hundred neighbouring
+        // worker fixtures set that level's global dayTime during construction,
+        // so this regression cannot own the sky clock without making itself
+        // (and those tests) order-dependent. Give this one test settler a
+        // deterministic view of the same two real schedule phases instead:
+        // REST while recovering, then RISE once bed energy reaches the wake
+        // threshold. RestAtNightGoal, navigation, sleep pose and tickNeeds all
+        // remain the production implementations under test.
+        final com.hearthstead.settlement.DayPhase[] phase = {
+            com.hearthstead.settlement.DayPhase.REST
+        };
         buildArena(helper, 16, 16);
         BlockPos hearthRel = new BlockPos(2, 1, 2);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
@@ -1310,9 +1315,26 @@ public class HearthsteadGameTests {
             hearth.bindSettlement(s.id);
         }
         BlockPos hutOrigin = new BlockPos(6, 0, 6);
-        buildHut(helper, hutOrigin);
+        BlockPos bedRel = buildHut(helper, hutOrigin);
         hangPlaque(helper, hutOrigin, com.hearthstead.building.BuildingType.HOUSE);
-        SettlerEntity settler = boundSettler(helper, s, new BlockPos(4, 1, 3));
+        SettlerEntity settler = new SettlerEntity(ModEntities.SETTLER.get(),
+                helper.getLevel()) {
+            @Override
+            public com.hearthstead.settlement.DayPhase dayPhase() {
+                return phase[0];
+            }
+        };
+        BlockPos spawn = helper.absolutePos(new BlockPos(4, 1, 3));
+        settler.setPos(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D);
+        helper.assertTrue(helper.getLevel().addFreshEntity(settler),
+            "fixture: deterministic-clock settler must enter the server level");
+        settler.setSettlerName("Testar");
+        settler.bindTo(s.id, s.center);
+        s.putRecord(settler.getUUID(), settler.getSettlerName(), Profession.NONE);
+        // Bed discovery/claiming already has its own regression directly
+        // above. Pin the real bed here so this test measures only the complete
+        // sleep -> recovery -> dawn wake contract.
+        settler.claimBed(helper.absolutePos(bedRel));
         settler.setEnergy(20.0F); // realistic post-workday energy
 
         final boolean[] sawSleeping = {false};
@@ -1325,6 +1347,9 @@ public class HearthsteadGameTests {
                     energyAtSleepStart[0] = settler.getEnergy();
                 } else if (settler.getEnergy() > energyAtSleepStart[0] + 1.0F) {
                     sawEnergyRiseWhileAsleep[0] = true;
+                }
+                if (settler.getEnergy() >= 60.0F) {
+                    phase[0] = com.hearthstead.settlement.DayPhase.RISE;
                 }
             }
             helper.assertTrue(sawSleeping[0], "settler should have slept at some point "

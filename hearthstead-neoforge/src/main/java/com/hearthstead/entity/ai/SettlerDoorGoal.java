@@ -34,6 +34,7 @@ public final class SettlerDoorGoal extends Goal {
     private int openTicks;
     private double approachX;
     private double approachZ;
+    private boolean crossedPlane;
     private boolean passed;
 
     public SettlerDoorGoal(SettlerEntity settler) {
@@ -71,6 +72,7 @@ public final class SettlerDoorGoal extends Goal {
             return;
         }
         openTicks = MAX_OPEN_TICKS;
+        crossedPlane = false;
         passed = false;
         approachX = doorPos.getX() + 0.5D - settler.getX();
         approachZ = doorPos.getZ() + 0.5D - settler.getZ();
@@ -93,7 +95,14 @@ public final class SettlerDoorGoal extends Goal {
         setOpen(true);
         double remainingX = doorPos.getX() + 0.5D - settler.getX();
         double remainingZ = doorPos.getZ() + 0.5D - settler.getZ();
-        passed = approachX * remainingX + approachZ * remainingZ < 0.0D;
+        crossedPlane |= approachX * remainingX + approachZ * remainingZ < 0.0D;
+        // The old centre-plane check closed the door as soon as the mob's
+        // centre crossed the threshold.  At that instant roughly half of a
+        // settler's collision box can still occupy the doorway, so closing
+        // the door catches the back half and strands the route on the sill.
+        // Keep it open until the centre is a full block beyond the door: that
+        // clears the whole 0.6-block body with margin in every orientation.
+        passed = safelyClearedDoor(crossedPlane, remainingX, remainingZ);
     }
 
     @Override
@@ -102,6 +111,7 @@ public final class SettlerDoorGoal extends Goal {
             setOpen(false);
         }
         doorPos = null;
+        crossedPlane = false;
         passed = false;
         openTicks = 0;
     }
@@ -109,6 +119,13 @@ public final class SettlerDoorGoal extends Goal {
     @Override
     public boolean requiresUpdateEveryTick() {
         return true;
+    }
+
+    /** Package-visible pure seam for the collision-clearance regression. */
+    static boolean safelyClearedDoor(boolean crossedDoorPlane,
+                                     double remainingX, double remainingZ) {
+        return crossedDoorPlane
+            && remainingX * remainingX + remainingZ * remainingZ > 1.0D;
     }
 
     @Nullable
