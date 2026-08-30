@@ -19,6 +19,7 @@ import com.hearthstead.network.SettlerSnapshotPayload;
 import com.hearthstead.settlement.equipment.EquipmentRequest;
 import com.hearthstead.settlement.state.BlessingId;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
@@ -26,6 +27,7 @@ import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -163,16 +165,18 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private int cachedViewWidth = -1;
     private int cachedViewHeight = -1;
     private int cachedViewCombatExperience = -1;
+    private Font cachedViewFont;
     private String cachedViewLanguage = "";
-    /** Work Pace changes slowly; avoid allocating a new percent label per frame. */
-    private int cachedWorkPacePercent = -1;
-    private Component cachedWorkPaceValue = Component.empty();
+    /** Numeric need labels are stable between their rendered integer changes. */
+    private final NeedValueCache needValueCache = new NeedValueCache();
     private int cachedDoingActivity = -1;
+    private String cachedDoingLanguage = "";
     private Component cachedDoingLine = Component.empty();
     private int cachedVitalsHunger = Integer.MIN_VALUE;
     private int cachedVitalsEnergy = Integer.MIN_VALUE;
     private int cachedVitalsMorale = Integer.MIN_VALUE;
     private int cachedVitalsPace = Integer.MIN_VALUE;
+    private String cachedVitalsLanguage = "";
     private Component cachedCompactVitals = Component.empty();
     /** Rebuilt with the cached view when snapshot, size or locale changes. */
     private Component blessingStatusLine = Component.empty();
@@ -874,30 +878,34 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     }
 
     private void drawNeeds(GuiGraphics g, int x, int y, int width, CachedView view) {
-        drawNeed(g, x, y, width, view.needLabels[0], settler.getHunger());
-        drawNeed(g, x, y + ROW, width, view.needLabels[1], settler.getEnergy());
-        drawNeed(g, x, y + ROW * 2, width, view.needLabels[2], settler.getMorale());
+        float hunger = settler.getHunger();
+        float energy = settler.getEnergy();
+        float morale = settler.getMorale();
+        drawNeed(g, x, y, width, view.needLabels[0], hunger,
+            needValueCache.valueFor(0, hunger));
+        drawNeed(g, x, y + ROW, width, view.needLabels[1], energy,
+            needValueCache.valueFor(1, energy));
+        drawNeed(g, x, y + ROW * 2, width, view.needLabels[2], morale,
+            needValueCache.valueFor(2, morale));
         int pace = workPacePercent();
         drawNeed(g, x, y + ROW * 3, width, view.needLabels[3], pace,
-            cachedWorkPaceValue);
+            needValueCache.valueFor(3, pace));
     }
 
     private int workPacePercent() {
         int stamina = snapshot == null ? 0
             : snapshot.attributeValues().get(Attribute.STAMINA.ordinal());
-        int pace = Mth.clamp((int) Math.round(JobEffects.workPace(
+        return Mth.clamp((int) Math.round(JobEffects.workPace(
             settler.getEnergy(), stamina) * 100.0D), 0, 100);
-        if (pace != cachedWorkPacePercent) {
-            cachedWorkPacePercent = pace;
-            cachedWorkPaceValue = Component.literal(pace + "%");
-        }
-        return pace;
     }
 
     private Component doingLine() {
         int activity = settler.getActivity().ordinal();
-        if (activity != cachedDoingActivity) {
+        String language = currentLanguage();
+        if (activity != cachedDoingActivity
+            || !cachedDoingLanguage.equals(language)) {
             cachedDoingActivity = activity;
+            cachedDoingLanguage = language;
             cachedDoingLine = Component.translatable("hearthstead.gui.doing",
                 settler.getActivity().displayName());
         }
@@ -910,22 +918,18 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         int morale = (int) settler.getMorale();
         int pace = workPacePercent();
         if (hunger != cachedVitalsHunger || energy != cachedVitalsEnergy
-            || morale != cachedVitalsMorale || pace != cachedVitalsPace) {
+            || morale != cachedVitalsMorale || pace != cachedVitalsPace
+            || !cachedVitalsLanguage.equals(currentLanguage())) {
             cachedVitalsHunger = hunger;
             cachedVitalsEnergy = energy;
             cachedVitalsMorale = morale;
             cachedVitalsPace = pace;
+            cachedVitalsLanguage = currentLanguage();
             cachedCompactVitals = Component.translatable(
                 "hearthstead.settler.compact.vitals",
                 hunger, energy, morale, pace);
         }
         return cachedCompactVitals;
-    }
-
-    private void drawNeed(GuiGraphics g, int x, int y, int width,
-                          Component label, float value) {
-        drawNeed(g, x, y, width, label, value,
-            Component.literal(String.valueOf((int) value)));
     }
 
     private void drawNeed(GuiGraphics g, int x, int y, int width, Component label,
@@ -1186,7 +1190,14 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         if (snapshot == null || view.refusal == null) {
             return;
         }
-        g.drawWordWrap(font, view.refusal, x, y, CONTENT_W, HsUiTokens.WARN);
+        if (view.refusalLines.isEmpty()) {
+            // Font is unavailable only before Screen initialization. This path
+            // is outside normal steady-state rendering; the next view rebuild
+            // stores the immutable split lines.
+            g.drawWordWrap(font, view.refusal, x, y, CONTENT_W, HsUiTokens.WARN);
+            return;
+        }
+        HsUi.drawLines(g, font, view.refusalLines, x, y, HsUiTokens.WARN);
     }
 
     /**
@@ -1224,19 +1235,18 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
      * this cache safe if those components gain eager formatting later.
      */
     private CachedView view() {
-        String language = minecraft == null
-            ? ""
-            : minecraft.getLanguageManager().getSelected();
+        String language = currentLanguage();
         int combatExperience = settler.combatExperience();
-        if (cachedView == null || cachedViewSnapshot != snapshot
-            || cachedViewWidth != width || cachedViewHeight != height
-            || cachedViewCombatExperience != combatExperience
-            || !cachedViewLanguage.equals(language)) {
+        if (cachedView == null || !viewCacheMatches(cachedViewSnapshot,
+            cachedViewWidth, cachedViewHeight, cachedViewCombatExperience,
+            cachedViewFont, cachedViewLanguage, snapshot, width, height,
+            combatExperience, font, language)) {
             CachedView rebuilt = buildView();
             cachedViewSnapshot = snapshot;
             cachedViewWidth = width;
             cachedViewHeight = height;
             cachedViewCombatExperience = combatExperience;
+            cachedViewFont = font;
             cachedViewLanguage = language;
             cachedView = rebuilt;
         }
@@ -1245,6 +1255,26 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
 
     private void invalidateView() {
         cachedView = null;
+    }
+
+    private String currentLanguage() {
+        return minecraft == null ? ""
+            : minecraft.getLanguageManager().getSelected();
+    }
+
+    /** Pure cache key for this screen's immutable render view. */
+    static boolean viewCacheMatches(Object cachedSnapshot, int cachedWidth,
+                                    int cachedHeight, int cachedCombatExperience,
+                                    Object cachedFont, String cachedLanguage,
+                                    Object snapshot, int width, int height,
+                                    int combatExperience, Object font,
+                                    String language) {
+        return cachedSnapshot == snapshot
+            && cachedWidth == width
+            && cachedHeight == height
+            && cachedCombatExperience == combatExperience
+            && cachedFont == font
+            && cachedLanguage.equals(language);
     }
 
     /** All allocations here are paid only when {@link #view()} invalidates. */
@@ -1281,6 +1311,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         Component combatProgressLine = Component.empty();
         List<Component> combatProgressTooltip = List.of();
         Component refusal = null;
+        List<FormattedCharSequence> refusalLines = List.of();
         Component currentRequestLabel = Component.translatable(
             "hearthstead.settler.current_request");
         ItemStack currentRequestStack = ItemStack.EMPTY;
@@ -1388,6 +1419,9 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                     rankAttribute.displayName()).withStyle(ChatFormatting.GRAY));
             }
             refusal = snapshot.refusal().orElse(null);
+            if (refusal != null && font != null) {
+                refusalLines = HsUi.fitLines(font, refusal, CONTENT_W);
+            }
             if (snapshot.requestedItemId() >= 0) {
                 currentRequestStack = new ItemStack(BuiltInRegistries.ITEM.byId(
                     snapshot.requestedItemId()));
@@ -1420,7 +1454,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         return new CachedView(layout, needLabels, attributes, traits, bagStacks,
             loading, noProfession, bagLabel, mayorMark, mayorBadgeLine,
             mayorTooltip, employmentLine, combatProgressLine,
-            combatProgressTooltip, refusal, dismissTooltip,
+            combatProgressTooltip, refusal, refusalLines, dismissTooltip,
             appointTooltip, currentRequestLabel, currentRequestStack,
             currentRequestName, currentRequestInstruction,
             currentRequestTooltip, actionTitle, actionHelp);
@@ -1692,6 +1726,28 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                                  List<Component> tooltip) {
     }
 
+    /** Screen-owned cache for the four integer labels beside need bars. */
+    static final class NeedValueCache {
+        private final int[] renderedValues = {
+            Integer.MIN_VALUE, Integer.MIN_VALUE,
+            Integer.MIN_VALUE, Integer.MIN_VALUE
+        };
+        private final Component[] labels = new Component[renderedValues.length];
+
+        Component valueFor(int slot, float value) {
+            if (slot < 0 || slot >= renderedValues.length) {
+                throw new IllegalArgumentException("unknown need slot " + slot);
+            }
+            int rendered = (int) value;
+            if (renderedValues[slot] != rendered) {
+                renderedValues[slot] = rendered;
+                labels[slot] = Component.literal(Integer.toString(rendered)
+                    + (slot == 3 ? "%" : ""));
+            }
+            return labels[slot];
+        }
+    }
+
     /** Snapshot-authored trait card; its effect list is never rebuilt in render. */
     private record TraitView(Component name, Component description,
                              List<Effect> effects, List<Component> tooltip) {
@@ -1711,6 +1767,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                               Component combatProgressLine,
                               List<Component> combatProgressTooltip,
                               Component refusal,
+                              List<FormattedCharSequence> refusalLines,
                               Component dismissTooltip,
                               Component appointTooltip,
                               Component currentRequestLabel,

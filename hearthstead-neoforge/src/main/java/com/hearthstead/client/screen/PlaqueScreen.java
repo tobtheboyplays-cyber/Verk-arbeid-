@@ -9,6 +9,7 @@ import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.network.PlaqueAction;
 import com.hearthstead.network.PlaqueSnapshot;
 import com.hearthstead.settlement.state.BlessingId;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Tooltip;
@@ -22,8 +23,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -142,6 +145,8 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
     /** Rebuilt only on the existing open/action snapshot path, never per frame. */
     private Component blessingStatusLine = Component.empty();
     private boolean hasBlessings;
+    /** Immutable text/layout projection for steady-state rendering. */
+    private PlaqueRenderView renderView;
     private boolean uiOpenSoundPlayed;
     private boolean uiCloseSoundPlayed;
 
@@ -157,6 +162,7 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             return;
         }
         this.snapshot = fresh;
+        this.renderView = null;
         rebuildEmblem();
         rebuildBlessingStatus();
         rebuild();
@@ -212,6 +218,7 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
         footerTop = LIST_TOP + listHeight + 6;
         panelHeight = footerTop + 20 + HsUiTokens.BUTTON_H + 10;
         top = (height - panelHeight) / 2;
+        renderView = null;
         rebuildEmblem();
         rebuild();
         if (!uiOpenSoundPlayed) {
@@ -383,19 +390,21 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
             return;
         }
+        PlaqueRenderView view = renderView();
         HsUi.window(graphics, left, top, PANEL_W, panelHeight);
         if (!emblem.isEmpty()) {
             // The building's own item beside its name -- a small coat of arms,
             // not a functional slot (it never gets a tooltip or a hover state).
             graphics.renderItem(emblem, left + 10, top + 6);
         }
-        HsUi.centred(graphics, font, title(), left + PANEL_W / 2, top + 6,
+        HsUi.label(graphics, font, view.title().text(),
+            left + PANEL_W / 2 - view.title().width() / 2, top + 6,
             HsUiTokens.TEXT_STRONG);
         // The second header line uses space that was previously blank, so it
         // adds no height at either the normal three-row size or the compact
         // guiScale-4 one-row size.
-        HsUi.labelIn(graphics, font, blessingStatusLine, left + 32, top + 16,
-            PANEL_W - 42, hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
+        HsUi.label(graphics, font, view.blessing().text(), left + 32, top + 16,
+            hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
         // A double rule instead of one -- the same ink, just given a second
         // hairline of breathing room, the way a title page is ruled off from
         // its body. Both fit between the tabs (ending at top+42) and
@@ -404,9 +413,9 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
         HsUi.divider(graphics, left + 10, top + 48, PANEL_W - 20);
 
         switch (tab) {
-            case REQUIREMENTS -> drawRequirements(graphics);
-            case PEOPLE -> drawPeople(graphics, mouseX, mouseY);
-            case HIRE -> drawHire(graphics, mouseX, mouseY);
+            case REQUIREMENTS -> drawRequirements(graphics, view);
+            case PEOPLE -> drawPeople(graphics, mouseX, mouseY, view);
+            case HIRE -> drawHire(graphics, mouseX, mouseY, view);
         }
 
         int rows = rowCount();
@@ -416,8 +425,8 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             rows <= visibleRows ? 0.0F : (float) scroll / (rows - visibleRows), false);
 
         HsUi.divider(graphics, left + 10, top + footerTop, PANEL_W - 20);
-        HsUi.labelIn(graphics, font, footer(), left + 12, top + footerTop + 7,
-            PANEL_W - 24, HsUiTokens.ACCENT);
+        HsUi.label(graphics, font, view.footer(tab).text(), left + 12,
+            top + footerTop + 7, HsUiTokens.ACCENT);
         HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
     }
 
@@ -452,6 +461,7 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
         hasBlessings = any;
         blessingStatusLine = any ? Component.translatable("hearthstead.blessing.status", ranks)
             : Component.translatable("hearthstead.blessing.status.none");
+        renderView = null;
     }
 
     private static String roman(int rank) {
@@ -469,15 +479,15 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
      * never moves anybody on its own (D-013). The server has already sorted the
      * candidates, so the first one is the recommendation.
      */
-    private Component footer() {
-        if (tab == Tab.HIRE) {
+    private Component footer(Tab which) {
+        if (which == Tab.HIRE) {
             List<PlaqueSnapshot.Candidate> people = snapshot.candidates();
             return people.isEmpty()
                 ? Component.translatable("hearthstead.employ.no_candidates")
                 : Component.translatable("hearthstead.employ.suggested",
                     people.get(0).name());
         }
-        if (tab == Tab.PEOPLE) {
+        if (which == Tab.PEOPLE) {
             return usesHousingAssignment()
                 ? Component.translatable("hearthstead.plaque.people_count",
                     snapshot.occupants().size(), snapshot.capacity())
@@ -496,10 +506,10 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             "hearthstead.building.benefit." + snapshot.buildingType());
     }
 
-    private void drawRequirements(GuiGraphics graphics) {
+    private void drawRequirements(GuiGraphics graphics, PlaqueRenderView view) {
         List<PlaqueSnapshot.RequirementLine> lines = snapshot.requirements();
         if (lines.isEmpty()) {
-            drawNoRoomCard(graphics);
+            drawNoRoomCard(graphics, view);
             return;
         }
         for (int row = 0; row < visibleRows && row + scroll < lines.size(); row++) {
@@ -517,11 +527,9 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             // the real numbers instead of showing literal placeholders
             // (found by the UI pass: an argless call rendered "%s/%s").
             // One source of truth; the separate count chip went with it.
-            HsUi.labelIn(graphics, font,
-                Component.translatable("hearthstead.requirement." + line.id(),
-                    line.have(), line.needed()),
+            HsUi.label(graphics, font, view.requirements().get(row + scroll).text(),
                 left + REQ_TEXT_X, y + 14,
-                REQ_BOX, met ? HsUiTokens.TEXT_STRONG : HsUiTokens.WARN);
+                met ? HsUiTokens.TEXT_STRONG : HsUiTokens.WARN);
 
             HsUi.pips(graphics, left + BTN_X, y + 10,
                 line.needed() == 0 ? 5
@@ -540,19 +548,20 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
      * {@link PlaqueSnapshot#scanReason()}, the same sentence the chat
      * message and the physical sheet's fallback line now carry too.
      */
-    private void drawNoRoomCard(GuiGraphics graphics) {
+    private void drawNoRoomCard(GuiGraphics graphics, PlaqueRenderView view) {
         int y = top + LIST_TOP;
         HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, false);
-        boolean hasReason = snapshot.scanReason().isPresent();
-        HsUi.labelIn(graphics, font,
-            Component.translatable("hearthstead.plaque.state." + snapshot.state()),
-            left + TEXT_X, y + (hasReason ? 9 : 15),
-            COST_BOX, HsUiTokens.WARN);
-        snapshot.scanReason().ifPresent(reason -> HsUi.labelIn(graphics, font, reason,
-            left + TEXT_X, y + 22, COST_BOX, HsUiTokens.TEXT_MUTED));
+        boolean hasReason = view.noRoomReason() != null;
+        HsUi.label(graphics, font, view.noRoomState().text(), left + TEXT_X,
+            y + (hasReason ? 9 : 15), HsUiTokens.WARN);
+        if (hasReason) {
+            HsUi.label(graphics, font, view.noRoomReason().text(), left + TEXT_X,
+                y + 22, HsUiTokens.TEXT_MUTED);
+        }
     }
 
-    private void drawPeople(GuiGraphics graphics, int mouseX, int mouseY) {
+    private void drawPeople(GuiGraphics graphics, int mouseX, int mouseY,
+                            PlaqueRenderView view) {
         List<PlaqueSnapshot.Occupant> people = snapshot.occupants();
         boolean workplace = isWorkplace();
         int rows = rowCount();
@@ -560,7 +569,7 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             int visibleIndex = row + scroll;
             int y = top + LIST_TOP + row * CARD_STEP;
             if (workplace && visibleIndex == 0) {
-                drawStaffInstruction(graphics, y);
+                drawStaffInstruction(graphics, y, view);
                 continue;
             }
             int occupantIndex = workplace ? visibleIndex - 1 : visibleIndex;
@@ -571,14 +580,11 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             boolean hovered = hovering(mouseX, mouseY, y);
             HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
             cardFrame(graphics, y);
-            HsUi.labelIn(graphics, font, Component.literal(occupant.name()),
-                left + TEXT_X, y + 5, workplace ? COST_BOX : NAME_BOX,
-                HsUiTokens.TEXT_STRONG);
-            HsUi.labelIn(graphics, font,
-                Component.translatable("hearthstead.profession."
-                    + occupant.profession().toLowerCase(java.util.Locale.ROOT)),
-                left + TEXT_X, y + 17, workplace ? COST_BOX : POST_BOX,
-                HsUiTokens.TEXT_MUTED);
+            OccupantRenderView rowView = view.occupants().get(occupantIndex);
+            HsUi.label(graphics, font, rowView.name().text(), left + TEXT_X,
+                y + 5, HsUiTokens.TEXT_STRONG);
+            HsUi.label(graphics, font, rowView.profession().text(), left + TEXT_X,
+                y + 17, HsUiTokens.TEXT_MUTED);
             float morale = occupant.morale() / 100.0F;
             HsUi.bar(graphics, left + TEXT_X, y + 29,
                 workplace ? Math.min(160, COST_BOX) : 80, 6, morale,
@@ -587,11 +593,11 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
     }
 
     /** One wrapped rule card, always first on a workplace's Staff page. */
-    private void drawStaffInstruction(GuiGraphics graphics, int y) {
+    private void drawStaffInstruction(GuiGraphics graphics, int y,
+                                      PlaqueRenderView view) {
         HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, false);
         cardFrame(graphics, y);
-        List<FormattedCharSequence> lines = font.split(Component.translatable(
-            "hearthstead.plaque.staff.instructions"), COST_BOX);
+        List<FormattedCharSequence> lines = view.staffInstructions();
         int shown = Math.min(3, lines.size());
         int textTop = y + Math.max(5, (CARD_H - shown * 10) / 2);
         for (int line = 0; line < shown; line++) {
@@ -601,7 +607,8 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
         }
     }
 
-    private void drawHire(GuiGraphics graphics, int mouseX, int mouseY) {
+    private void drawHire(GuiGraphics graphics, int mouseX, int mouseY,
+                          PlaqueRenderView view) {
         if (!usesHousingAssignment()) {
             return;
         }
@@ -612,19 +619,18 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             boolean hovered = hovering(mouseX, mouseY, y);
             HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
             cardFrame(graphics, y);
-            HsUi.labelIn(graphics, font, Component.literal(candidate.name()),
-                left + TEXT_X, y + 5, NAME_BOX, HsUiTokens.TEXT_STRONG);
+            CandidateRenderView rowView = view.candidates().get(row + scroll);
+            HsUi.label(graphics, font, rowView.name().text(), left + TEXT_X,
+                y + 5, HsUiTokens.TEXT_STRONG);
             HsUi.pips(graphics, left + BTN_X - 36, y + 6, candidate.fitness(), 5,
                 HsUi.Tone.ACCENT);
-            HsUi.labelIn(graphics, font, currentPost(candidate),
-                left + TEXT_X, y + 17, POST_BOX, HsUiTokens.TEXT_MUTED);
+            HsUi.label(graphics, font, rowView.post().text(), left + TEXT_X,
+                y + 17, HsUiTokens.TEXT_MUTED);
             // The sentence that says what taking them costs, on its own row at
             // full card width, amber when a building would be left empty.
-            boolean empties = candidate.costKey()
-                .equals("hearthstead.employ.cost.leaves_empty");
-            HsUi.labelIn(graphics, font, costSentence(candidate),
-                left + TEXT_X, y + 28, COST_BOX,
-                empties ? HsUiTokens.WARN : HsUiTokens.TEXT_MUTED);
+            HsUi.label(graphics, font, rowView.cost().text(), left + TEXT_X,
+                y + 28, rowView.emptiesPost() ? HsUiTokens.WARN
+                    : HsUiTokens.TEXT_MUTED);
         }
     }
 
@@ -639,6 +645,111 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
             ? Component.translatable(candidate.costKey())
             : Component.translatable(candidate.costKey(),
                 Component.translatable(candidate.costArg()));
+    }
+
+    /**
+     * Creates all translated, measured and wrapped row text once per server
+     * snapshot/font/language epoch. Scrolling only selects another cached row;
+     * ordinary frames no longer allocate Components or split staff text.
+     */
+    private PlaqueRenderView renderView() {
+        Font currentFont = font;
+        String language = minecraft.getLanguageManager().getSelected();
+        if (renderView == null || !renderViewInputsMatch(renderView.snapshot(),
+            renderView.revision(), renderView.font(), renderView.language(),
+            snapshot, snapshot.revision(), currentFont, language)) {
+            renderView = buildRenderView(currentFont, language);
+        }
+        return renderView;
+    }
+
+    private PlaqueRenderView buildRenderView(Font currentFont, String language) {
+        List<HsUi.FittedLabel> requirements = new ArrayList<>(
+            snapshot.requirements().size());
+        for (PlaqueSnapshot.RequirementLine line : snapshot.requirements()) {
+            requirements.add(HsUi.fitLabel(currentFont,
+                Component.translatable("hearthstead.requirement." + line.id(),
+                    line.have(), line.needed()), REQ_BOX));
+        }
+
+        boolean workplace = isWorkplace();
+        int occupantNameWidth = workplace ? COST_BOX : NAME_BOX;
+        int occupantPostWidth = workplace ? COST_BOX : POST_BOX;
+        List<OccupantRenderView> occupants = new ArrayList<>(snapshot.occupants().size());
+        for (PlaqueSnapshot.Occupant occupant : snapshot.occupants()) {
+            occupants.add(new OccupantRenderView(
+                HsUi.fitLabel(currentFont, Component.literal(occupant.name()),
+                    occupantNameWidth),
+                HsUi.fitLabel(currentFont, Component.translatable(
+                    "hearthstead.profession."
+                        + occupant.profession().toLowerCase(java.util.Locale.ROOT)),
+                    occupantPostWidth)));
+        }
+
+        List<CandidateRenderView> candidates = new ArrayList<>(
+            snapshot.candidates().size());
+        for (PlaqueSnapshot.Candidate candidate : snapshot.candidates()) {
+            candidates.add(new CandidateRenderView(
+                HsUi.fitLabel(currentFont, Component.literal(candidate.name()), NAME_BOX),
+                HsUi.fitLabel(currentFont, currentPost(candidate), POST_BOX),
+                HsUi.fitLabel(currentFont, costSentence(candidate), COST_BOX),
+                candidate.costKey().equals("hearthstead.employ.cost.leaves_empty")));
+        }
+
+        List<HsUi.FittedLabel> footers = new ArrayList<>(Tab.values().length);
+        for (Tab which : Tab.values()) {
+            footers.add(HsUi.fitLabel(currentFont, footer(which), PANEL_W - 24));
+        }
+        HsUi.FittedLabel reason = snapshot.scanReason()
+            .map(component -> HsUi.fitLabel(currentFont, component, COST_BOX))
+            .orElse(null);
+        return new PlaqueRenderView(snapshot, snapshot.revision(), currentFont, language,
+            HsUi.fitLabel(currentFont, title(), PANEL_W - 64),
+            HsUi.fitLabel(currentFont, blessingStatusLine, PANEL_W - 42),
+            List.copyOf(footers), List.copyOf(requirements),
+            HsUi.fitLabel(currentFont,
+                Component.translatable("hearthstead.plaque.state." + snapshot.state()),
+                COST_BOX), reason, List.copyOf(occupants), List.copyOf(candidates),
+            HsUi.fitLines(currentFont,
+                Component.translatable("hearthstead.plaque.staff.instructions"),
+                COST_BOX));
+    }
+
+    /** Package-visible cache key for focused allocation/invalidation tests. */
+    static boolean renderViewInputsMatch(Object cachedSnapshot, int cachedRevision,
+                                         Object cachedFont, String cachedLanguage,
+                                         Object snapshot, int revision,
+                                         Object font, String language) {
+        return cachedSnapshot == snapshot
+            && cachedRevision == revision
+            && cachedFont == font
+            && Objects.equals(cachedLanguage, language);
+    }
+
+    private record PlaqueRenderView(PlaqueSnapshot snapshot, int revision,
+                                    Font font, String language,
+                                    HsUi.FittedLabel title,
+                                    HsUi.FittedLabel blessing,
+                                    List<HsUi.FittedLabel> footers,
+                                    List<HsUi.FittedLabel> requirements,
+                                    HsUi.FittedLabel noRoomState,
+                                    HsUi.FittedLabel noRoomReason,
+                                    List<OccupantRenderView> occupants,
+                                    List<CandidateRenderView> candidates,
+                                    List<FormattedCharSequence> staffInstructions) {
+        HsUi.FittedLabel footer(Tab tab) {
+            return footers.get(tab.ordinal());
+        }
+    }
+
+    private record OccupantRenderView(HsUi.FittedLabel name,
+                                      HsUi.FittedLabel profession) {
+    }
+
+    private record CandidateRenderView(HsUi.FittedLabel name,
+                                       HsUi.FittedLabel post,
+                                       HsUi.FittedLabel cost,
+                                       boolean emptiesPost) {
     }
 
     /**
