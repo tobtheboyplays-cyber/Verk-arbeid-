@@ -1,0 +1,87 @@
+{
+  "name": "Settler Inventory — physical equipment request",
+  "width": 768,
+  "height": 500,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 768, "h": 500},
+    {"t": "title", "x": 16, "y": 11, "text": "Runa's Inventory", "box": 220, "id": "inventory_title"},
+    {"t": "label", "x": 16, "y": 27, "text": "Move real items between the player and this settler — nothing is projected or duplicated", "tone": "text_muted", "box": 550, "id": "inventory_subtitle"},
+    {"t": "badge", "x": 622, "y": 12, "w": 126, "h": 20, "text": "SERVER OWNED", "tone": "good", "id": "authority_badge"},
+    {"t": "divider", "x": 12, "y": 43, "w": 744},
+
+    {"t": "frame", "x": 12, "y": 52, "w": 284, "h": 398, "surface": "inset", "tone": "warn", "inner_alpha": 48},
+    {"t": "ellipse", "x": 30, "y": 78, "w": 210, "h": 258, "tone": "warn", "alpha": 10},
+    {"t": "medallion", "x": 66, "y": 102, "radius": 30, "tone": "good", "asset": "item/lumberer_emblem.png", "icon_size": 30},
+    {"t": "label", "x": 108, "y": 76, "text": "Runa", "tone": "text_strong", "box": 100, "id": "settler_name"},
+    {"t": "label", "x": 108, "y": 94, "text": "Lumberer", "tone": "good", "box": 100, "id": "settler_job"},
+    {"t": "label", "x": 108, "y": 112, "text": "Waiting at Lumber Camp", "tone": "text_muted", "box": 150, "id": "settler_activity"},
+    {"t": "badge", "x": 204, "y": 76, "w": 70, "h": 20, "text": "BLOCKED", "tone": "warn", "id": "blocked_badge"},
+
+    {"t": "section", "x": 30, "y": 152, "w": 248, "text": "CURRENT REQUEST", "tone": "warn", "id": "request_section"},
+    {"t": "soft_panel", "x": 30, "y": 170, "w": 248, "h": 82, "tone": "warn", "alpha": 18, "stroke_alpha": 155},
+    {"t": "vanilla_icon", "x": 46, "y": 190, "size": 38, "resource": "textures/item/wooden_axe.png"},
+    {"t": "label", "x": 98, "y": 180, "text": "Needs a serviceable axe", "tone": "text_strong", "box": 162, "id": "request_title"},
+    {"t": "label", "x": 98, "y": 198, "text": "Any axe  •  at least 8 uses", "tone": "warn", "box": 162, "id": "request_rule"},
+    {"t": "paragraph", "x": 98, "y": 216, "w": 162, "h": 24, "box": 162, "lines": 2, "text": "Courier delivery or your transfer satisfies this request.", "tone": "text_muted", "id": "request_help"},
+
+    {"t": "section", "x": 30, "y": 274, "w": 248, "text": "SAFE TRANSFER", "tone": "good", "id": "safe_section"},
+    {"t": "road", "points": [[54, 316], [118, 316], [190, 316], [254, 316]], "tone": "good", "width": 3},
+    {"t": "medallion", "x": 54, "y": 316, "radius": 16, "tone": "good", "text": "1", "text_tone": "text"},
+    {"t": "medallion", "x": 118, "y": 316, "radius": 16, "tone": "good", "text": "2", "text_tone": "text"},
+    {"t": "medallion", "x": 190, "y": 316, "radius": 16, "tone": "good", "text": "3", "text_tone": "text"},
+    {"t": "medallion", "x": 254, "y": 316, "radius": 16, "tone": "accent", "text": "4", "text_tone": "text"},
+    {"t": "label", "x": 34, "y": 342, "text": "Select", "tone": "text_muted", "box": 46, "id": "transfer_select"},
+    {"t": "label", "x": 94, "y": 342, "text": "Move", "tone": "text_muted", "box": 42, "id": "transfer_move"},
+    {"t": "label", "x": 158, "y": 342, "text": "Validate", "tone": "text_muted", "box": 58, "id": "transfer_validate"},
+    {"t": "label", "x": 230, "y": 342, "text": "Equip", "tone": "accent", "box": 48, "id": "transfer_equip"},
+    {"t": "paragraph", "x": 30, "y": 374, "w": 248, "h": 34, "box": 248, "lines": 3, "text": "Invalid tools stay where they are. Closing, reconnecting or moving out of range never deletes an item.", "tone": "text_muted", "id": "safe_detail"},
+    {"t": "badge", "x": 30, "y": 418, "w": 248, "h": 20, "text": "REJECTED MOVES CONSUME NOTHING", "tone": "good", "id": "safe_badge"},
+
+    {"t": "frame", "x": 304, "y": 52, "w": 452, "h": 398, "surface": "window", "tone": "accent", "stroke": 2, "inner_alpha": 82},
+    {"t": "section", "x": 324, "y": 70, "w": 412, "text": "WORKER BAG  •  8 PHYSICAL SLOTS", "tone": "good", "id": "bag_section"},
+    {"t": "inventory_grid", "x": 324, "y": 94, "columns": 4, "rows": 2, "slot": 30, "gap": 2,
+      "items": [
+        {"index": 0, "resource": "textures/block/oak_log.png", "count": 12},
+        {"index": 1, "resource": "textures/item/apple.png", "count": 3},
+        {"index": 4, "resource": "textures/item/bread.png", "count": 2}
+      ]
+    },
+    {"t": "soft_panel", "x": 470, "y": 94, "w": 266, "h": 62, "tone": "warn", "alpha": 14, "stroke_alpha": 135},
+    {"t": "label", "x": 486, "y": 106, "text": "Equipment slot is empty", "tone": "warn", "box": 180, "id": "equipment_empty"},
+    {"t": "label", "x": 486, "y": 126, "text": "Closes only when a real axe is equipped.", "tone": "text_muted", "box": 230, "id": "equipment_truth"},
+
+    {"t": "section", "x": 324, "y": 178, "w": 412, "text": "PLAYER INVENTORY", "tone": "accent", "id": "player_section"},
+    {"t": "inventory_grid", "x": 324, "y": 202, "columns": 9, "rows": 3, "slot": 28, "gap": 1,
+      "items": [
+        {"index": 2, "resource": "textures/item/wooden_axe.png", "state": "good"},
+        {"index": 5, "resource": "textures/item/iron_ingot.png", "count": 16},
+        {"index": 11, "resource": "textures/item/bread.png", "count": 8},
+        {"index": 17, "resource": "textures/item/feather.png", "count": 6},
+        {"index": 22, "resource": "textures/block/oak_log.png", "count": 24}
+      ]
+    },
+    {"t": "label", "x": 598, "y": 208, "text": "Selected item", "tone": "good", "box": 110, "id": "selected_label"},
+    {"t": "vanilla_icon", "x": 606, "y": 230, "size": 42, "resource": "textures/item/wooden_axe.png"},
+    {"t": "label", "x": 660, "y": 232, "text": "Wooden Axe", "tone": "text_strong", "box": 80, "id": "selected_name"},
+    {"t": "label", "x": 660, "y": 250, "text": "59 / 59 uses", "tone": "good", "box": 80, "id": "selected_uses"},
+
+    {"t": "section", "x": 324, "y": 306, "w": 412, "text": "HOTBAR", "tone": "accent", "id": "hotbar_section"},
+    {"t": "inventory_grid", "x": 324, "y": 328, "columns": 9, "rows": 1, "slot": 28, "gap": 1,
+      "items": [
+        {"index": 0, "asset": "item/work_scepter.png", "state": "accent"},
+        {"index": 1, "asset": "item/handbook.png"},
+        {"index": 4, "resource": "textures/block/torch.png", "count": 32}
+      ]
+    },
+    {"t": "soft_panel", "x": 598, "y": 326, "w": 138, "h": 48, "tone": "good", "alpha": 14, "stroke_alpha": 125},
+    {"t": "label", "x": 610, "y": 336, "text": "Shift-click the axe", "tone": "text_strong", "box": 116, "id": "shift_instruction"},
+    {"t": "label", "x": 610, "y": 354, "text": "to help Runa now", "tone": "good", "box": 116, "id": "shift_result"},
+
+    {"t": "label", "x": 324, "y": 398, "text": "Open with empty hands + Shift-right-click on the settler.", "tone": "text_muted", "box": 330, "id": "open_instruction"},
+    {"t": "button", "x": 656, "y": 390, "w": 80, "h": 24, "text": "Close", "state": "idle"},
+    {"t": "badge", "x": 324, "y": 420, "w": 412, "h": 20, "text": "THE SAME PHYSICAL ITEM MOVES — NO COPY IS CREATED", "tone": "good", "id": "physical_badge"},
+
+    {"t": "label", "x": 16, "y": 470, "text": "The Courier can still fulfil this request later if the player chooses not to move the axe.", "tone": "text_muted", "box": 570, "id": "inventory_footer"},
+    {"t": "badge", "x": 624, "y": 462, "w": 124, "h": 20, "text": "REQUEST OPEN", "tone": "warn", "id": "request_footer"}
+  ]
+}

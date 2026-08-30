@@ -71,12 +71,7 @@ public class MinerWorkGoal extends Goal {
     @Override
     public boolean canUse() {
         if (settler.getProfession() != Profession.MINER || !settler.isBound()
-            || settler.getTarget() != null || settler.getEnergy() <= 15.0F
-            // The daily labor pool (docs/project/PLAN_EFFORT.md): once
-            // spent, no new block starts. The chest-full check further
-            // down is about where the ore goes; this is about how much
-            // digging one person does in a day.
-            || settler.isEffortSpent()) {
+            || settler.getTarget() != null) {
             return false;
         }
         if (lookCooldown > 0) {

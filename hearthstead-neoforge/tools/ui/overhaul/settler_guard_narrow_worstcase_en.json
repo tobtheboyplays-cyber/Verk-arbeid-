@@ -1,0 +1,55 @@
+{
+  "name": "settler_guard_narrow_worstcase_en",
+  "width": 304,
+  "height": 232,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 304, "h": 232},
+    {"t": "inset", "x": 12, "y": 8, "w": 40, "h": 44},
+    {"t": "item", "x": 24, "y": 20, "text": "A"},
+    {"t": "title", "x": 60, "y": 8, "text": "Aldith the Far-Travelled", "box": 180, "id": "settler_name"},
+    {"t": "label", "x": 252, "y": 8, "text": "MAYOR", "tone": "accent", "box": 40, "id": "mayor_badge"},
+    {"t": "label", "x": 60, "y": 20, "text": "Guard • Northwatch Barracks", "tone": "text_strong", "box": 232, "id": "role"},
+    {"t": "label", "x": 60, "y": 32, "text": "Night watch • Stand Post • order paused", "tone": "warn", "box": 232, "id": "activity"},
+    {"t": "label", "x": 60, "y": 44, "text": "Mayor boon: Good Counsel", "tone": "accent", "box": 232, "id": "mayor_boon"},
+    {"t": "divider", "x": 12, "y": 56, "w": 280},
+
+    {"t": "card", "x": 12, "y": 64, "w": 280, "h": 24},
+    {"t": "label", "x": 20, "y": 72, "text": "Needs", "tone": "text_strong", "box": 36, "id": "needs_title"},
+    {"t": "label", "x": 64, "y": 72, "text": "Hunger 18", "tone": "warn", "box": 60, "id": "hunger"},
+    {"t": "label", "x": 132, "y": 72, "text": "Energy 31", "tone": "warn", "box": 60, "id": "energy"},
+    {"t": "label", "x": 204, "y": 72, "text": "Morale 64", "tone": "good", "box": 72, "id": "morale"},
+
+    {"t": "card_hover", "x": 12, "y": 92, "w": 280, "h": 36},
+    {"t": "slot", "x": 20, "y": 100},
+    {"t": "item", "x": 21, "y": 101, "text": "S"},
+    {"t": "label", "x": 44, "y": 96, "text": "Current request: Iron Sword", "tone": "text_strong", "box": 240, "id": "request"},
+    {"t": "label", "x": 44, "y": 108, "text": "Blocked: no serviceable sword in Warehouse", "tone": "warn", "box": 240, "id": "request_blocker"},
+    {"t": "label", "x": 44, "y": 120, "text": "Delivery route: Warehouse → Barracks", "tone": "text_muted", "box": 240, "id": "request_route"},
+
+    {"t": "card", "x": 12, "y": 132, "w": 156, "h": 68},
+    {"t": "label", "x": 20, "y": 136, "text": "Attributes • hover", "tone": "text_strong", "box": 140, "id": "attributes_title"},
+    {"t": "label", "x": 20, "y": 148, "text": "Strength", "box": 72},
+    {"t": "label", "x": 160, "y": 148, "align": "right", "text": "72 / 100", "tone": "good", "box": 52, "id": "strength_value"},
+    {"t": "label", "x": 20, "y": 158, "text": "Dexterity", "box": 72},
+    {"t": "label", "x": 160, "y": 158, "align": "right", "text": "58 / 100", "tone": "good", "box": 52, "id": "dexterity_value"},
+    {"t": "label", "x": 20, "y": 168, "text": "Stamina", "box": 72},
+    {"t": "label", "x": 160, "y": 168, "align": "right", "text": "76 / 100", "tone": "accent", "box": 52, "id": "stamina_value"},
+    {"t": "label", "x": 20, "y": 178, "text": "Wits", "box": 72},
+    {"t": "label", "x": 160, "y": 178, "align": "right", "text": "39 / 100", "tone": "warn", "box": 52, "id": "wits_value"},
+    {"t": "label", "x": 20, "y": 188, "text": "Spirit", "box": 72},
+    {"t": "label", "x": 160, "y": 188, "align": "right", "text": "18 / 100", "tone": "bad", "box": 52, "id": "spirit_value"},
+
+    {"t": "card", "x": 172, "y": 132, "w": 120, "h": 68},
+    {"t": "label", "x": 180, "y": 136, "text": "Traits", "tone": "text_strong", "box": 104, "id": "traits_title"},
+    {"t": "label", "x": 180, "y": 148, "text": "Stoic", "tone": "text_strong", "box": 104, "id": "trait_1"},
+    {"t": "label", "x": 180, "y": 158, "text": "−30% decay", "tone": "good", "box": 104, "id": "trait_1_good"},
+    {"t": "label", "x": 180, "y": 168, "text": "−30% morale gain", "tone": "bad", "box": 104, "id": "trait_1_bad"},
+    {"t": "label", "x": 180, "y": 178, "text": "Quick Study", "tone": "text_strong", "box": 104, "id": "trait_2"},
+    {"t": "label", "x": 180, "y": 188, "text": "+40% learning", "tone": "good", "box": 104, "id": "trait_2_good"},
+
+    {"t": "button", "x": 12, "y": 204, "w": 76, "h": 20, "text": "Dismiss Job"},
+    {"t": "button", "x": 92, "y": 204, "w": 92, "h": 20, "text": "Guard Orders"},
+    {"t": "button", "x": 188, "y": 204, "w": 60, "h": 20, "text": "Inventory"},
+    {"t": "button", "x": 252, "y": 204, "w": 40, "h": 20, "text": "Close"}
+  ]
+}

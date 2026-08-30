@@ -6,11 +6,33 @@
 set -eu
 MOD="$1"
 FORCE="${2:-}"
-INSTALL_DIR="${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib_safe_paths.sh"
+MOD=$(realpath -m -- "$MOD")
+[ -d "$MOD" ] || { echo "FAIL: missing mod directory $MOD" >&2; exit 1; }
+[ -z "$FORCE" ] || [ "$FORCE" = "--force" ] \
+    || { echo "FAIL: unsupported server_install option '$FORCE'" >&2; exit 1; }
+INSTALL_DIR=$(hsqa_safe_target \
+    "${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install-v2}" "install") || exit 1
 NEO_VERSION=$(grep -oP 'neoforge_version=\K.*' "$MOD/gradle.properties")
 
+if [ ! -e "$INSTALL_DIR" ]; then
+    hsqa_claim_empty_directory \
+        "$INSTALL_DIR" .hsqa-install-owned hsqa-install-v1 || exit 1
+elif [ ! -e "$INSTALL_DIR/.hsqa-install-owned" ]; then
+    # Never infer ownership from familiar filenames. A user directory can
+    # contain libraries/run.sh too; adopting it would let a later --force
+    # recursively delete data that this harness did not create.
+    hsqa_claim_empty_directory \
+        "$INSTALL_DIR" .hsqa-install-owned hsqa-install-v1 || exit 1
+fi
+hsqa_require_owned_directory \
+    "$INSTALL_DIR" .hsqa-install-owned hsqa-install-v1 || exit 1
+
 if [ "$FORCE" = "--force" ]; then
-    rm -rf "$INSTALL_DIR"
+    rm -rf -- "$INSTALL_DIR"
+    hsqa_claim_empty_directory \
+        "$INSTALL_DIR" .hsqa-install-owned hsqa-install-v1 || exit 1
 fi
 
 if [ -f "$INSTALL_DIR/installed-$NEO_VERSION" ] && [ -d "$INSTALL_DIR/libraries" ]; then

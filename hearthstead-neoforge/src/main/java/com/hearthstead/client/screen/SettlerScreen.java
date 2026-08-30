@@ -1,15 +1,23 @@
 package com.hearthstead.client.screen;
 
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.client.QaClientObserver;
+import com.hearthstead.client.QaUiInspectable;
 import com.hearthstead.client.ui.HsButton;
 import com.hearthstead.client.ui.HsUi;
 import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.entity.Attribute;
+import com.hearthstead.entity.ArcherRank;
+import com.hearthstead.entity.GuardExperience;
+import com.hearthstead.entity.GuardRank;
+import com.hearthstead.entity.JobEffects;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.Trait;
 import com.hearthstead.network.SettlerActionPayload;
 import com.hearthstead.network.SettlerSnapshotPayload;
+import com.hearthstead.settlement.equipment.EquipmentRequest;
+import com.hearthstead.settlement.state.BlessingId;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
@@ -17,6 +25,7 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
@@ -59,16 +68,15 @@ import java.util.List;
  * actually reads; a trait with none of those still gets its existing
  * flavour line ({@link Trait#describe()}), just not a fabricated number.
  *
- * <h2>A fixed shape, so the panel never resizes under the mouse</h2>
+ * <h2>A compact shape derived from the authoritative snapshot</h2>
  *
- * <p>The mayor badge, the trait cards, the refusal banner and the bag are
- * all optional or variable-length content, but {@link #layout} reserves
- * their rows unconditionally — a settler with one trait simply leaves the
- * second card blank rather than the whole panel growing and shrinking as
- * settlers or actions change. A window that resizes while you are using it
- * reads as broken; a little unused space when a row is absent does not.
+ * <p>The mayor badge, combat progress, refusal banner and second trait are
+ * conditional rows. {@link #layout} includes only content present in the
+ * latest server snapshot, then keeps that geometry stable until a new
+ * snapshot arrives. This removes the large dead areas civilians used to show
+ * without letting ordinary scrolling resize controls under the pointer.
  */
-public class SettlerScreen extends Screen {
+public class SettlerScreen extends Screen implements QaUiInspectable {
 
     // -- geometry: vanilla metrics (20px buttons, 4px grid), see the
     //    minecraft-ui skill. Text boxes are generous and rely on
@@ -78,29 +86,40 @@ public class SettlerScreen extends Screen {
     // (CONTENT_W - 8), 24px over. 256 carries that box to 232px, clearing it
     // (and the English worst case, 175px) with margin; every other box on
     // this panel derives from PANEL_W/CONTENT_W and only gains room.
-    private static final int PANEL_W = 256;
+    // The overview is deliberately wide and shallow: the player compares a
+    // person, not a document. 336x340 is the reviewed compact target and fits
+    // a 1920x1080 client at GUI scale 3 without vertical scrolling.
+    private static final int PANEL_W = 336;
+    private static final BlessingId[] BLESSING_IDS = BlessingId.values();
     private static final int PAD = HsUiTokens.PAD;
     private static final int GUTTER = HsUiTokens.GUTTER;
     private static final int CONTENT_W = PANEL_W - 2 * PAD;
     /** One compact text row: glyph height plus a hair of breathing room. */
     private static final int ROW = 12;
 
-    private static final int PORTRAIT_W = 50;
-    private static final int PORTRAIT_H = 56;
+    private static final int PORTRAIT_W = 44;
+    private static final int PORTRAIT_H = 48;
     private static final int HEADER_H = PORTRAIT_H;
     private static final int HEADER_TEXT_X = PAD + PORTRAIT_W + 8;
     private static final int HEADER_TEXT_W = PANEL_W - HEADER_TEXT_X - PAD;
     /** The mayor mark's own cap -- both languages' "Mayor"/"Ordfører" clear it. */
     private static final int MAYOR_MARK_W = 40;
 
-    // Measured against the widest attribute name plus the knack suffix in
-    // both languages ("Utholdenhet (naturlig lag)", 129px) -- 128 clipped it
-    // by a single pixel. 140 leaves a few px of margin and still sits clear
-    // of the pips column that starts at ATTR_LABEL_W + 4.
-    private static final int ATTR_LABEL_W = 140;
+    // Eight attributes are a stable 2x4 first-page grid. The number remains
+    // the primary signal; the tiny bar and tone only reinforce it. Keeping
+    // the geometry fixed prevents a new attribute or a translated name from
+    // turning the Overview into an eight-row scrolling wall.
+    private static final int ATTRIBUTE_COLUMNS = 2;
+    private static final int ATTRIBUTE_ROWS = 4;
+    private static final int ATTRIBUTE_CELL_H = 22;
+    private static final int ATTRIBUTE_GAP = 2;
+    private static final int ATTRIBUTE_COL_W = (CONTENT_W - GUTTER) / 2;
+    private static final int ATTRIBUTE_VALUE_W = 48;
     private static final int NEED_LABEL_W = 44;
     private static final int NEED_PCT_W = 26;
     private static final int NEED_BAR_H = 6;
+    private static final int CURRENT_REQUEST_CARD_H = 34;
+    private static final int SUMMARY_COL_W = (CONTENT_W - GUTTER) / 2;
     private static final int MAYOR_BADGE_H = ROW + 2;
 
     // -- traits: one card per trait slot, fixed shape regardless of how many
@@ -115,19 +134,38 @@ public class SettlerScreen extends Screen {
     private static final int TRAIT_CARD_PAD = 4;
 
     // -- the bag: a fixed-shape row of BAG_SIZE ghost slots, the same 18px
-    //    slot HsUi and StorageScreen already use. Reserved unconditionally
-    //    (see the class doc and layout()) so an empty bag is a row of empty
+    //    slot HsUi and StorageScreen already use. Reserved even when empty so
+    //    an empty bag is a row of empty
     //    slots under its own label rather than a hole in the panel.
     private static final int BAG_SLOTS = SettlerEntity.BAG_SIZE;
     private static final int BAG_SLOT_STEP = HsUiTokens.SLOT + 2;
 
     private static final int BTN_W = 64;
+    private static final int REQUEST_BTN_W = 96;
+    private static final int CONTROL_BTN_W = (CONTENT_W - GUTTER * 3) / 4;
 
     protected final SettlerEntity settler;
     private SettlerSnapshotPayload snapshot;
+    /**
+     * Render-only data whose inputs are stable between network updates. The
+     * model uses layout offsets relative to {@link #top}, so scrolling never
+     * rebuilds it.
+     */
+    private CachedView cachedView;
+    private SettlerSnapshotPayload cachedViewSnapshot;
+    private int cachedViewWidth = -1;
+    private int cachedViewHeight = -1;
+    private int cachedViewCombatExperience = -1;
+    private String cachedViewLanguage = "";
+    /** Work Pace changes slowly; avoid allocating a new percent label per frame. */
+    private int cachedWorkPacePercent = -1;
+    private Component cachedWorkPaceValue = Component.empty();
+    /** Rebuilt with the cached view when snapshot, size or locale changes. */
+    private Component blessingStatusLine = Component.empty();
+    private boolean hasBlessings;
     private int left;
     private int top;
-    // -- scroll: only load-bearing when the fixed-shape panel does not fit
+    // -- scroll: only load-bearing when the content-shaped panel does not fit
     //    the current viewport (guiScale 3 or 4 on a modest window; see
     //    init()). At guiScale 1-2 maxScroll is 0 and every field below is
     //    inert, top staying the plain centred value it always was. --
@@ -137,6 +175,20 @@ public class SettlerScreen extends Screen {
     private int maxScroll;
     /** Set while drawing a hovered non-widget region; rendered once, last. */
     private List<Component> pendingTooltip;
+    /** Suppresses CLOSE while this exact sheet temporarily opens a child tab. */
+    private boolean openingChild;
+    private boolean uiSoundActive;
+    private HsButton dismissButton;
+    private HsButton closeButton;
+    private HsButton requestListButton;
+    private HsButton guardOrderButton;
+    private HsButton appointButton;
+    private HsButton inventoryButton;
+    private HsButton editWorkZoneButton;
+    private HsButton workplaceButton;
+    private HsButton locateButton;
+    /** True only between an Overview click and its server-authored zone reply. */
+    private boolean workZoneRequestPending;
 
     public SettlerScreen(SettlerEntity settler) {
         super(Component.literal(settler.getSettlerName()));
@@ -150,51 +202,74 @@ public class SettlerScreen extends Screen {
      * different settler's must never land on the wrong one.
      */
     public void update(SettlerSnapshotPayload fresh) {
-        if (fresh.entityId() == settler.getId()) {
-            this.snapshot = fresh;
+        if (!acceptsSnapshot(fresh)) {
+            return;
+        }
+        if (fresh.refusal().isPresent()) {
+            // A rejected child request leaves this Overview in place. Reset
+            // even when the same refusal is repeated and the render snapshot
+            // is byte-for-byte unchanged.
+            openingChild = false;
+            workZoneRequestPending = false;
+        }
+        if (fresh.equals(snapshot)) {
+            return;
+        }
+        this.snapshot = fresh;
+        invalidateView();
+        // A Courier request list keeps this sheet as its live parent.
+        // Cache server updates while hidden; init() rebuilds on return.
+        if (minecraft != null && minecraft.screen == this) {
             rebuild();
         }
     }
 
+    /** Exact-target guard used by update-only network deliveries. */
+    public boolean acceptsSnapshot(SettlerSnapshotPayload fresh) {
+        if (fresh == null || settler.getId() != fresh.entityId()
+            || !settler.getUUID().equals(fresh.settlerId())) {
+            return false;
+        }
+        if (snapshot == null) {
+            return fresh.delivery() == SettlerSnapshotPayload.Delivery.OPEN;
+        }
+        return snapshot.sessionId().equals(fresh.sessionId())
+            && snapshot.settlerId().equals(fresh.settlerId());
+    }
+
+    /** Tell the server this sheet is no longer a legitimate refresh viewer. */
+    @Override
+    public void removed() {
+        if (!openingChild && snapshot != null && minecraft != null
+            && minecraft.getConnection() != null) {
+            PacketDistributor.sendToServer(new SettlerActionPayload(
+                snapshot.entityId(), snapshot.settlerId(), snapshot.sessionId(),
+                SettlerActionPayload.Kind.CLOSE, snapshot.revision()));
+        }
+        if (uiSoundActive) {
+            uiSoundActive = false;
+            HsUi.playCloseSound();
+        }
+        super.removed();
+    }
+
     @Override
     protected void init() {
+        openingChild = false;
         left = (width - PANEL_W) / 2;
-        contentHeight = layout(0).totalHeight;
-        // The panel is a fixed shape (see class doc) sized for its roomiest
-        // content, not for the tightest viewport a player can have open. At
-        // guiScale 3 on a 1280x720 window the viewport is 240px tall against
-        // this panel's 322 -- centring unconditionally, as this used to,
-        // clipped 41px off BOTH edges: the whole header identity block (the
-        // settler's name and profession -- exactly what a player opens this
-        // sheet to read) vanished off the top, and both footer buttons,
-        // Close included, vanished off the bottom, with no on-screen sign
-        // that either existed. That is not a cosmetic crop; Escape still
-        // closed the screen, but nothing on it said so (found live,
-        // 2026-08-26, guiScale-3 finding, sheet_00_none_try1.png and
-        // sheet_blur_check_*.png).
-        //
-        // Centring stays exactly as it was whenever the panel fits
-        // (maxScroll == 0, true today at guiScale 1-2 and at any wider
-        // window). Only when it does not fit does the panel anchor near the
-        // top instead -- the header is visible the instant the sheet opens,
-        // matching the two fields the owner actually checks each sheet for
-        // ("is the name there", "is the profession named correctly") -- and
-        // mouseScrolled below walks the rest of the panel, footer included,
-        // into view.
-        maxScroll = Math.max(0, contentHeight - height + PAD * 2);
-        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
-        baseTop = maxScroll == 0 ? (height - contentHeight) / 2 : PAD;
-        top = baseTop - scrollOffset;
         rebuild();
+        if (!uiSoundActive) {
+            uiSoundActive = true;
+            HsUi.playOpenSound();
+        }
     }
 
     /**
      * Only reachable once the panel has overflowed the viewport (see
      * {@link #init} -- a scrollbar that cannot move is not a feature, the
      * same guard {@code ResearchScreen} and {@code HandbookScreen} apply to
-     * their own lists). Rebuilding after every change moves the footer
-     * buttons' real hitboxes along with what is drawn, rather than
-     * scrolling the picture while leaving the clickable area behind.
+     * their own lists). Scrolling only translates the existing footer
+     * buttons' hitboxes; it does not clear or allocate the widget tree.
      */
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
@@ -202,8 +277,9 @@ public class SettlerScreen extends Screen {
             int before = scrollOffset;
             scrollOffset = Mth.clamp(scrollOffset - (int) Math.signum(scrollY) * ROW, 0, maxScroll);
             if (before != scrollOffset) {
+                QaClientObserver.markUiTransition("settler_scroll");
                 top = baseTop - scrollOffset;
-                rebuild();
+                relayoutWidgets();
                 return true;
             }
         }
@@ -214,29 +290,148 @@ public class SettlerScreen extends Screen {
 
     private void rebuild() {
         clearWidgets();
-        Layout l = layout(top);
+        CachedView view = view();
+        Layout l = view.layout;
+        contentHeight = l.totalHeight;
+        maxScroll = Math.max(0, contentHeight - height + PAD * 2);
+        scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
+        baseTop = maxScroll == 0 ? (height - contentHeight) / 2 : PAD;
+        top = baseTop - scrollOffset;
+        dismissButton = null;
+        closeButton = null;
+        requestListButton = null;
+        guardOrderButton = null;
+        appointButton = null;
+        inventoryButton = null;
+        editWorkZoneButton = null;
+        workplaceButton = null;
+        locateButton = null;
+
+        inventoryButton = HsButton.normal(left + PAD, top + l.controlsTop,
+            CONTROL_BTN_W, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.inventory"),
+            () -> requestChild(SettlerActionPayload.Kind.OPEN_INVENTORY));
+        inventoryButton.active = snapshot != null && snapshot.canManage();
+        inventoryButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.inventory.tip")));
+        addRenderableWidget(inventoryButton);
+
+        locateButton = HsButton.normal(left + PAD + (CONTROL_BTN_W + GUTTER),
+            top + l.controlsTop, CONTROL_BTN_W, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.locate", title),
+            () -> act(SettlerActionPayload.Kind.LOCATE));
+        locateButton.active = snapshot != null;
+        locateButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.locate.tip")));
+        addRenderableWidget(locateButton);
+
+        workplaceButton = HsButton.normal(left + PAD + 2 * (CONTROL_BTN_W + GUTTER),
+            top + l.controlsTop, CONTROL_BTN_W,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.workplace"),
+            () -> requestChild(SettlerActionPayload.Kind.OPEN_WORKPLACE));
+        workplaceButton.active = snapshot != null && snapshot.canManage()
+            && !snapshot.employerBuildingId().isEmpty();
+        workplaceButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.workplace.tip")));
+        addRenderableWidget(workplaceButton);
+
+        editWorkZoneButton = HsButton.normal(
+            left + PAD + 3 * (CONTROL_BTN_W + GUTTER),
+            top + l.controlsTop,
+            CONTROL_BTN_W, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.work_zone"),
+            this::requestWorkZone);
+        editWorkZoneButton.active = snapshot != null && snapshot.canManage()
+            && (settler.getProfession() == Profession.FARMER
+                || settler.getProfession() == Profession.LUMBERER);
+        editWorkZoneButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.work_zone.tip")));
+        addRenderableWidget(editWorkZoneButton);
 
         boolean employed = settler.getProfession().employed();
         if (employed) {
-            HsButton dismiss = HsButton.danger(left + PAD, l.footerTop, BTN_W,
+            dismissButton = HsButton.danger(left + PAD, top + l.footerTop, BTN_W,
                 HsUiTokens.BUTTON_H,
                 Component.translatable("hearthstead.employ.dismiss"),
                 () -> act(SettlerActionPayload.Kind.DISMISS));
-            dismiss.active = snapshot != null && snapshot.canManage();
-            dismiss.setTooltip(Tooltip.create(Component.translatable(
-                "hearthstead.settler.dismiss.tip", title, buildingName())));
-            addRenderableWidget(dismiss);
+            dismissButton.active = snapshot != null && snapshot.canManage();
+            dismissButton.setTooltip(Tooltip.create(view.dismissTooltip));
+            addRenderableWidget(dismissButton);
         }
-        addRenderableWidget(HsButton.normal(left + PANEL_W - PAD - BTN_W, l.footerTop, BTN_W,
+        closeButton = HsButton.normal(left + PANEL_W - PAD - BTN_W,
+            top + l.footerTop, BTN_W,
             HsUiTokens.BUTTON_H, Component.translatable("hearthstead.settler.close"),
-            this::onClose));
+            this::onClose);
+        addRenderableWidget(closeButton);
+        if (settler.getProfession() == Profession.COURIER) {
+            requestListButton = HsButton.normal(
+                left + (PANEL_W - REQUEST_BTN_W) / 2,
+                top + l.footerTop, REQUEST_BTN_W, HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.equipment.requests"),
+                this::openRequestList);
+            requestListButton.active = snapshot != null;
+            addRenderableWidget(requestListButton);
+        }
+        if (settler.getProfession().martial()) {
+            guardOrderButton = HsButton.normal(
+                left + (PANEL_W - REQUEST_BTN_W) / 2,
+                top + l.footerTop, REQUEST_BTN_W, HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.guard.command.open"),
+                this::openGuardOrders);
+            guardOrderButton.active = snapshot != null && snapshot.canManage();
+            guardOrderButton.setTooltip(Tooltip.create(Component.translatable(
+                "hearthstead.guard.command.open_tip")));
+            addRenderableWidget(guardOrderButton);
+        }
 
-        HsButton appoint = HsButton.normal(left + PAD, l.appointTop, CONTENT_W,
+        appointButton = HsButton.normal(left + PAD, top + l.appointTop, CONTENT_W,
             HsUiTokens.BUTTON_H, Component.translatable("hearthstead.settler.appoint"),
             () -> act(SettlerActionPayload.Kind.APPOINT));
-        appoint.active = appointEnabled();
-        appoint.setTooltip(Tooltip.create(appointTooltip()));
-        addRenderableWidget(appoint);
+        appointButton.active = appointEnabled();
+        appointButton.setTooltip(Tooltip.create(view.appointTooltip));
+        addRenderableWidget(appointButton);
+    }
+
+    /** Scrolling changes geometry only; it never reallocates the widget tree. */
+    private void relayoutWidgets() {
+        Layout l = view().layout;
+        if (dismissButton != null) {
+            dismissButton.setX(left + PAD);
+            dismissButton.setY(top + l.footerTop);
+        }
+        if (closeButton != null) {
+            closeButton.setX(left + PANEL_W - PAD - BTN_W);
+            closeButton.setY(top + l.footerTop);
+        }
+        if (requestListButton != null) {
+            requestListButton.setX(left + (PANEL_W - REQUEST_BTN_W) / 2);
+            requestListButton.setY(top + l.footerTop);
+        }
+        if (guardOrderButton != null) {
+            guardOrderButton.setX(left + (PANEL_W - REQUEST_BTN_W) / 2);
+            guardOrderButton.setY(top + l.footerTop);
+        }
+        if (appointButton != null) {
+            appointButton.setX(left + PAD);
+            appointButton.setY(top + l.appointTop);
+        }
+        if (inventoryButton != null) {
+            inventoryButton.setX(left + PAD);
+            inventoryButton.setY(top + l.controlsTop);
+        }
+        if (locateButton != null) {
+            locateButton.setX(left + PAD + CONTROL_BTN_W + GUTTER);
+            locateButton.setY(top + l.controlsTop);
+        }
+        if (workplaceButton != null) {
+            workplaceButton.setX(left + PAD + 2 * (CONTROL_BTN_W + GUTTER));
+            workplaceButton.setY(top + l.controlsTop);
+        }
+        if (editWorkZoneButton != null) {
+            editWorkZoneButton.setX(left + PAD + 3 * (CONTROL_BTN_W + GUTTER));
+            editWorkZoneButton.setY(top + l.controlsTop);
+        }
     }
 
     private boolean appointEnabled() {
@@ -260,7 +455,8 @@ public class SettlerScreen extends Screen {
     private void act(SettlerActionPayload.Kind kind) {
         if (snapshot != null) {
             PacketDistributor.sendToServer(
-                new SettlerActionPayload(settler.getId(), kind, snapshot.revision()));
+                new SettlerActionPayload(snapshot.entityId(), snapshot.settlerId(),
+                    snapshot.sessionId(), kind, snapshot.revision()));
         }
     }
 
@@ -270,29 +466,32 @@ public class SettlerScreen extends Screen {
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         renderBackground(g, mouseX, mouseY, partialTick);
         pendingTooltip = null;
-        Layout l = layout(top);
+        CachedView view = view();
+        Layout l = view.layout;
 
         HsUi.window(g, left, top, PANEL_W, l.totalHeight);
-        drawHeader(g, mouseX, mouseY, l);
-        drawMayorBadge(g, left + PAD, l.mayorBadgeTop, mouseX, mouseY);
+        drawHeader(g, mouseX, mouseY, l, view);
+        HsUi.divider(g, left + PAD, top + l.dividerA, CONTENT_W);
+        drawNeeds(g, left + PAD, top + l.needsTop, SUMMARY_COL_W, view);
+        int requestX = left + PAD + SUMMARY_COL_W + GUTTER;
+        drawCurrentRequest(g, requestX, top + l.currentRequestLabelTop,
+            top + l.currentRequestCardTop, SUMMARY_COL_W,
+            mouseX, mouseY, view);
 
-        HsUi.divider(g, left + PAD, l.dividerA, CONTENT_W);
-        drawNeeds(g, left + PAD, l.needsTop);
+        HsUi.divider(g, left + PAD, top + l.dividerB, CONTENT_W);
+        drawAttributes(g, left + PAD, top + l.attributesTop, mouseX, mouseY, view);
 
-        HsUi.divider(g, left + PAD, l.dividerB, CONTENT_W);
-        drawAttributes(g, left + PAD, l.attributesTop, mouseX, mouseY);
+        HsUi.divider(g, left + PAD, top + l.dividerC, CONTENT_W);
+        drawTraits(g, left + PAD, top + l.traitsTop, mouseX, mouseY, view);
 
-        HsUi.divider(g, left + PAD, l.dividerC, CONTENT_W);
-        drawTraits(g, left + PAD, l.traitsTop, mouseX, mouseY);
+        HsUi.divider(g, left + PAD, top + l.dividerPerson, CONTENT_W);
+        drawEmployment(g, left + PAD, top + l.employmentTop, view);
+        drawCombatProgress(g, left + PAD, top + l.combatProgressTop,
+            mouseX, mouseY, view);
+        drawBlessings(g, left + PAD, top + l.blessingsTop);
+        drawRefusal(g, left + PAD, top + l.refusalTop, view);
 
-        HsUi.divider(g, left + PAD, l.dividerPerson, CONTENT_W);
-        drawEmployment(g, left + PAD, l.employmentTop);
-        drawRefusal(g, left + PAD, l.refusalTop);
-
-        HsUi.divider(g, left + PAD, l.dividerBag, CONTENT_W);
-        drawBag(g, left + PAD, l.bagLabelTop, l.bagSlotsTop);
-
-        HsUi.divider(g, left + PAD, l.dividerD, CONTENT_W);
+        HsUi.divider(g, left + PAD, top + l.dividerD, CONTENT_W);
 
         HsUi.widgets(this, g, mouseX, mouseY, partialTick);
 
@@ -301,9 +500,10 @@ public class SettlerScreen extends Screen {
         }
     }
 
-    private void drawHeader(GuiGraphics g, int mouseX, int mouseY, Layout l) {
+    private void drawHeader(GuiGraphics g, int mouseX, int mouseY, Layout l,
+                            CachedView view) {
         int px = left + PAD;
-        int py = l.nameTop;
+        int py = top + l.nameTop;
         HsUi.inset(g, px, py, PORTRAIT_W, PORTRAIT_H);
         // The settler looks toward the mouse — the same lively touch vanilla
         // uses for the player preview in the inventory screen.
@@ -318,83 +518,156 @@ public class SettlerScreen extends Screen {
         boolean mayor = snapshot != null && snapshot.isMayor();
         int nameBox = HEADER_TEXT_W;
         if (mayor) {
-            Component mark = Component.translatable("hearthstead.settler.mayor_mark");
+            Component mark = view.mayorMark;
             int markW = Math.min(font.width(mark) + 6, MAYOR_MARK_W);
             int markX = tx + HEADER_TEXT_W - markW;
-            HsUi.badge(g, font, mark, markX, l.nameTop, markW, HsUiTokens.ACCENT & 0xFFFFFF);
+            HsUi.badge(g, font, mark, markX, top + l.nameTop, markW,
+                HsUiTokens.ACCENT & 0xFFFFFF);
             nameBox = HEADER_TEXT_W - markW - 4;
         }
-        HsUi.labelIn(g, font, title, tx, l.nameTop, nameBox, HsUiTokens.TEXT_STRONG);
+        HsUi.labelIn(g, font, title, tx, top + l.nameTop, nameBox,
+            HsUiTokens.TEXT_STRONG);
 
         Profession profession = settler.getProfession();
         Component job = profession.employed() ? profession.displayName()
-            : Component.translatable("hearthstead.profession.none");
+            : view.noProfession;
         int professionColor = 0xFF000000 | profession.color();
-        HsUi.badge(g, font, job, tx, l.professionTop, HEADER_TEXT_W, professionColor);
+        HsUi.badge(g, font, job, tx, top + l.professionTop, HEADER_TEXT_W,
+            professionColor);
 
         HsUi.labelIn(g, font, Component.translatable("hearthstead.gui.doing",
-            settler.getActivity().displayName()), tx, l.activityTop, HEADER_TEXT_W,
+            settler.getActivity().displayName()), tx, top + l.activityTop, HEADER_TEXT_W,
             HsUiTokens.TEXT_MUTED);
     }
 
-    private void drawMayorBadge(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
+    private void openRequestList() {
+        if (minecraft == null || snapshot == null
+            || settler.getProfession() != Profession.COURIER) {
+            return;
+        }
+        openingChild = true;
+        minecraft.setScreen(new EquipmentRequestListScreen(this,
+            snapshot.entityId(), snapshot.settlerId(), snapshot.sessionId()));
+    }
+
+    private void openGuardOrders() {
+        if (minecraft == null || snapshot == null
+            || !settler.getProfession().martial()) {
+            return;
+        }
+        openingChild = true;
+        minecraft.setScreen(new GuardOrderScreen(this, snapshot.entityId(),
+            snapshot.settlerId(), snapshot.sessionId()));
+    }
+
+    private void drawMayorBadge(GuiGraphics g, int x, int y, int mouseX, int mouseY,
+                                CachedView view) {
         if (snapshot == null || !snapshot.isMayor()) {
             return; // the row is reserved (a fixed shape); simply left blank
         }
         HsUi.card(g, x, y, CONTENT_W, MAYOR_BADGE_H, false);
-        Component line = Component.translatable(snapshot.mayorSettling()
-                ? "hearthstead.settler.mayor_settling" : "hearthstead.settler.mayor_badge",
-            boonName());
-        HsUi.labelIn(g, font, line, x + 4, y + 2, CONTENT_W - 8, HsUiTokens.ACCENT);
+        HsUi.labelIn(g, font, view.mayorBadgeLine, x + 4, y + 2,
+            CONTENT_W - 8, HsUiTokens.ACCENT);
         if (hover(mouseX, mouseY, x, y, CONTENT_W, MAYOR_BADGE_H)) {
-            pendingTooltip = List.of(boonDescription());
+            pendingTooltip = view.mayorTooltip;
         }
     }
 
-    private void drawNeeds(GuiGraphics g, int x, int y) {
-        drawNeed(g, x, y, "hearthstead.gui.hunger", settler.getHunger());
-        drawNeed(g, x, y + ROW, "hearthstead.gui.energy", settler.getEnergy());
-        drawNeed(g, x, y + ROW * 2, "hearthstead.gui.morale", settler.getMorale());
+    private void requestChild(SettlerActionPayload.Kind kind) {
+        if (snapshot == null) {
+            return;
+        }
+        openingChild = true;
+        act(kind);
     }
 
-    private void drawNeed(GuiGraphics g, int x, int y, String labelKey, float value) {
-        HsUi.labelIn(g, font, Component.translatable(labelKey), x, y, NEED_LABEL_W,
-            HsUiTokens.TEXT);
+    private void requestWorkZone() {
+        if (snapshot == null) {
+            return;
+        }
+        workZoneRequestPending = true;
+        openingChild = true;
+        act(SettlerActionPayload.Kind.EDIT_WORK_ZONE);
+    }
+
+    /**
+     * Consumes only the response to this screen's own pending Edit Work Zone
+     * request. Called by WorkZoneClient after a server-authored
+     * TARGET_SELECTED snapshot arrives, never on an optimistic click.
+     */
+    public boolean consumeAcceptedWorkZoneSelection() {
+        if (!workZoneRequestPending || snapshot == null) {
+            return false;
+        }
+        workZoneRequestPending = false;
+        openingChild = true;
+        return true;
+    }
+
+    private void drawNeeds(GuiGraphics g, int x, int y, int width, CachedView view) {
+        drawNeed(g, x, y, width, view.needLabels[0], settler.getHunger());
+        drawNeed(g, x, y + ROW, width, view.needLabels[1], settler.getEnergy());
+        drawNeed(g, x, y + ROW * 2, width, view.needLabels[2], settler.getMorale());
+        int stamina = snapshot == null ? 0
+            : snapshot.attributeValues().get(Attribute.STAMINA.ordinal());
+        int pace = Mth.clamp((int) Math.round(JobEffects.workPace(
+            settler.getEnergy(), stamina) * 100.0D), 0, 100);
+        if (pace != cachedWorkPacePercent) {
+            cachedWorkPacePercent = pace;
+            cachedWorkPaceValue = Component.literal(pace + "%");
+        }
+        drawNeed(g, x, y + ROW * 3, width, view.needLabels[3], pace,
+            cachedWorkPaceValue);
+    }
+
+    private void drawNeed(GuiGraphics g, int x, int y, int width,
+                          Component label, float value) {
+        drawNeed(g, x, y, width, label, value,
+            Component.literal(String.valueOf((int) value)));
+    }
+
+    private void drawNeed(GuiGraphics g, int x, int y, int width, Component label,
+                          float value, Component valueText) {
+        HsUi.labelIn(g, font, label, x, y, NEED_LABEL_W, HsUiTokens.TEXT);
         int barX = x + NEED_LABEL_W;
-        int barW = CONTENT_W - NEED_LABEL_W - NEED_PCT_W - GUTTER;
+        int barW = width - NEED_LABEL_W - NEED_PCT_W - GUTTER;
         float ratio = Mth.clamp(value, 0.0F, 100.0F) / 100.0F;
         HsUi.bar(g, barX, y, barW, NEED_BAR_H, ratio, HsUi.Tone.of(ratio));
-        HsUi.right(g, font, Component.literal(String.valueOf((int) value)), x + CONTENT_W, y,
+        HsUi.right(g, font, valueText, x + width, y,
             HsUiTokens.TEXT_MUTED);
     }
 
-    private void drawAttributes(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
+    private void drawAttributes(GuiGraphics g, int x, int y, int mouseX, int mouseY,
+                                CachedView view) {
         if (snapshot == null) {
-            HsUi.labelIn(g, font, Component.translatable("hearthstead.settler.loading"),
+            HsUi.labelIn(g, font, view.loading,
                 x, y + ROW * 2, CONTENT_W, HsUiTokens.TEXT_MUTED);
             return;
         }
-        for (Attribute attribute : Attribute.ALL) {
-            int rowY = y + attribute.ordinal() * ROW;
-            boolean knack = attribute.ordinal() == snapshot.knackOrdinal();
-            Component label = knack
-                ? Component.translatable("hearthstead.settler.attribute_knack",
-                    attribute.displayName())
-                : attribute.displayName();
-            HsUi.labelIn(g, font, label, x, rowY, ATTR_LABEL_W,
-                knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
-            // Mirrors SettlerAttributes#pips exactly -- the client only has
-            // the raw 0..100 value, never the object that method lives on.
-            int value = snapshot.attributeValues().get(attribute.ordinal());
-            int pips = Mth.clamp(Math.round(value / 20.0F), 0, 5);
-            HsUi.pips(g, x + ATTR_LABEL_W + 4, rowY + 1, pips, 5, HsUi.Tone.ACCENT);
-            if (hover(mouseX, mouseY, x, rowY, CONTENT_W, ROW)) {
+        for (int i = 0; i < view.attributes.length; i++) {
+            AttributeView attribute = view.attributes[i];
+            int column = i % ATTRIBUTE_COLUMNS;
+            int row = i / ATTRIBUTE_COLUMNS;
+            int cellX = x + column * (ATTRIBUTE_COL_W + GUTTER);
+            int cellY = y + row * (ATTRIBUTE_CELL_H + ATTRIBUTE_GAP);
+            boolean hovered = hover(mouseX, mouseY, cellX, cellY,
+                ATTRIBUTE_COL_W, ATTRIBUTE_CELL_H);
+            HsUi.card(g, cellX, cellY, ATTRIBUTE_COL_W, ATTRIBUTE_CELL_H,
+                hovered);
+            int textX = cellX + 4;
+            HsUi.labelIn(g, font, attribute.label, textX, cellY + 4,
+                ATTRIBUTE_COL_W - ATTRIBUTE_VALUE_W - 8,
+                attribute.knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
+            HsUi.right(g, font, attribute.valueText,
+                cellX + ATTRIBUTE_COL_W - 4, cellY + 4,
+                attribute.tone.colour());
+            HsUi.bar(g, textX, cellY + 14, ATTRIBUTE_COL_W - 8, 3,
+                attribute.ratio, attribute.tone);
+            if (hovered) {
                 // Tiered: what the attribute governs (why it matters), then
                 // what raises it (grey, secondary) -- the same "name, then
                 // grey description" tooltip shape as the Hearth ledger.
-                pendingTooltip = List.of(
-                    Component.translatable("hearthstead.attribute." + attribute.key() + ".role"),
-                    attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY));
+                pendingTooltip = attribute.tooltip;
             }
         }
     }
@@ -406,34 +679,34 @@ public class SettlerScreen extends Screen {
      * buff/malus chips when it has any, its existing flavour line when it
      * has none — see {@link #wiredEffects}.
      */
-    private void drawTraits(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
+    private void drawTraits(GuiGraphics g, int x, int y, int mouseX, int mouseY,
+                            CachedView view) {
         if (snapshot == null) {
             return;
         }
-        List<Integer> ordinals = snapshot.traitOrdinals();
         for (int slot = 0; slot < TRAIT_SLOTS; slot++) {
-            int cardY = y + slot * (TRAIT_CARD_H + GUTTER);
-            if (slot >= ordinals.size()) {
+            int cardW = (CONTENT_W - GUTTER) / 2;
+            int cardX = x + slot * (cardW + GUTTER);
+            int cardY = y;
+            TraitView trait = view.traits[slot];
+            if (trait == null) {
                 continue; // reserved but blank -- the settler has only one trait
             }
-            Trait trait = Trait.ALL[ordinals.get(slot)];
-            boolean hovered = hover(mouseX, mouseY, x, cardY, CONTENT_W, TRAIT_CARD_H);
-            HsUi.card(g, x, cardY, CONTENT_W, TRAIT_CARD_H, hovered);
-            int tx = x + TRAIT_CARD_PAD;
-            int limit = x + CONTENT_W - TRAIT_CARD_PAD;
-            HsUi.labelIn(g, font, trait.displayName(), tx, cardY + TRAIT_CARD_PAD,
-                CONTENT_W - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_STRONG);
+            boolean hovered = hover(mouseX, mouseY, cardX, cardY, cardW, TRAIT_CARD_H);
+            HsUi.card(g, cardX, cardY, cardW, TRAIT_CARD_H, hovered);
+            int tx = cardX + TRAIT_CARD_PAD;
+            int limit = cardX + cardW - TRAIT_CARD_PAD;
+            HsUi.labelIn(g, font, trait.name, tx, cardY + TRAIT_CARD_PAD,
+                cardW - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_STRONG);
             int lineY = cardY + TRAIT_CARD_PAD + HsUiTokens.LINE_GAP;
-            List<Effect> effects = wiredEffects(trait);
-            if (effects.isEmpty()) {
-                HsUi.labelIn(g, font, trait.describe(), tx, lineY,
-                    CONTENT_W - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_MUTED);
+            if (trait.effects.isEmpty()) {
+                HsUi.labelIn(g, font, trait.description, tx, lineY,
+                    cardW - 2 * TRAIT_CARD_PAD, HsUiTokens.TEXT_MUTED);
             } else {
-                drawEffectChips(g, effects, tx, lineY, limit);
+                drawEffectChips(g, trait.effects, tx, lineY, limit);
             }
             if (hovered) {
-                pendingTooltip = List.of(trait.displayName(),
-                    trait.describe().copy().withStyle(ChatFormatting.GRAY));
+                pendingTooltip = trait.tooltip;
             }
         }
     }
@@ -506,21 +779,94 @@ public class SettlerScreen extends Screen {
     private record Effect(Component text, HsUi.Tone tone) {
     }
 
-    private void drawEmployment(GuiGraphics g, int x, int y) {
+    private void drawEmployment(GuiGraphics g, int x, int y, CachedView view) {
         if (snapshot == null) {
             return;
         }
-        Component line;
-        if (snapshot.employerBuildingId().isEmpty()) {
-            line = Component.translatable("hearthstead.employ.unemployed");
-        } else if (settler.getProfession() == Profession.GUARD) {
-            line = Component.translatable("hearthstead.settler.employed_watch", buildingName(),
-                Component.translatable(snapshot.guardWatchNight()
-                    ? "hearthstead.settler.watch_night" : "hearthstead.settler.watch_day"));
-        } else {
-            line = Component.translatable("hearthstead.settler.employed_at", buildingName());
+        HsUi.labelIn(g, font, view.employmentLine, x, y, CONTENT_W, HsUiTokens.TEXT);
+    }
+
+    private void drawCurrentRequest(GuiGraphics g, int x, int labelY,
+                                    int cardY, int width, int mouseX, int mouseY,
+                                    CachedView view) {
+        HsUi.labelIn(g, font, view.currentRequestLabel, x, labelY,
+            width, HsUiTokens.TEXT_STRONG);
+        boolean hovered = hover(mouseX, mouseY, x, cardY, width,
+            CURRENT_REQUEST_CARD_H);
+        HsUi.card(g, x, cardY, width, CURRENT_REQUEST_CARD_H, hovered);
+
+        int textX = x + 6;
+        if (!view.currentRequestStack.isEmpty()) {
+            HsUi.slot(g, x + 5, cardY + 7);
+            g.renderItem(view.currentRequestStack, x + 6, cardY + 8);
+            textX = x + 29;
         }
-        HsUi.labelIn(g, font, line, x, y, CONTENT_W, HsUiTokens.TEXT);
+        int textWidth = x + width - 6 - textX;
+        HsUi.labelIn(g, font, view.currentRequestName, textX, cardY + 6,
+            textWidth, view.currentRequestStack.isEmpty()
+                ? HsUiTokens.GOOD : HsUiTokens.WARN);
+        HsUi.labelIn(g, font, view.currentRequestInstruction, textX,
+            cardY + 18, textWidth, HsUiTokens.TEXT_MUTED);
+        if (hovered && !view.currentRequestTooltip.isEmpty()) {
+            pendingTooltip = view.currentRequestTooltip;
+        }
+    }
+
+    /** Kill XP is live entity data; its cached component rebuilds only on change. */
+    private void drawCombatProgress(GuiGraphics g, int x, int y,
+                                    int mouseX, int mouseY, CachedView view) {
+        Profession profession = settler.getProfession();
+        if (snapshot == null
+            || (profession != Profession.GUARD && profession != Profession.ARCHER)) {
+            return; // the compact civilian layout does not reserve this row
+        }
+        HsUi.labelIn(g, font, view.combatProgressLine, x, y, CONTENT_W,
+            HsUiTokens.ACCENT);
+        if (hover(mouseX, mouseY, x, y, CONTENT_W, ROW)) {
+            pendingTooltip = view.combatProgressTooltip;
+        }
+    }
+
+    /**
+     * Permanent target status from the server-authored inspection snapshot.
+     * Zero ranks stay out of the line; the empty state remains explicit.
+     * Short translated names keep the worst-case three-rank line within the
+     * fixed 240px content width at GUI scales 2–4.
+     */
+    private void drawBlessings(GuiGraphics g, int x, int y) {
+        if (snapshot == null) {
+            return;
+        }
+        HsUi.labelIn(g, font, blessingStatusLine, x, y, CONTENT_W,
+            hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
+    }
+
+    /** No per-frame component churn: rebuilt only with the cached view. */
+    private void rebuildBlessingStatus() {
+        MutableComponent ranks = Component.empty();
+        int activeRanks = 0;
+        for (BlessingId blessing : BLESSING_IDS) {
+            activeRanks += snapshot.blessingRank(blessing) > 0 ? 1 : 0;
+        }
+        boolean any = false;
+        for (BlessingId blessing : BLESSING_IDS) {
+            int rank = snapshot.blessingRank(blessing);
+            if (rank <= 0) {
+                continue;
+            }
+            if (any) {
+                ranks.append(Component.literal(" • "));
+            }
+            ranks.append(Component.translatable("hearthstead.blessing."
+                + blessing.id() + (activeRanks == BLESSING_IDS.length
+                    ? ".short" : ".name")));
+            ranks.append(Component.literal(" " + roman(rank)));
+            any = true;
+        }
+        hasBlessings = any;
+        blessingStatusLine = any
+            ? Component.translatable("hearthstead.blessing.status", ranks)
+            : Component.translatable("hearthstead.blessing.status.none");
     }
 
     /**
@@ -532,14 +878,13 @@ public class SettlerScreen extends Screen {
      * which is exactly the kind of misleading cut {@code labelIn} exists to
      * avoid causing — so this row wraps instead. Two lines covers every
      * refusal string in both languages with room to spare (see
-     * {@link #layout}, which reserves the space unconditionally).
+     * {@link #layout}, which reserves it only while a refusal is present).
      */
-    private void drawRefusal(GuiGraphics g, int x, int y) {
-        if (snapshot == null) {
+    private void drawRefusal(GuiGraphics g, int x, int y, CachedView view) {
+        if (snapshot == null || view.refusal == null) {
             return;
         }
-        snapshot.refusal().ifPresent(refusal ->
-            g.drawWordWrap(font, refusal, x, y, CONTENT_W, HsUiTokens.WARN));
+        g.drawWordWrap(font, view.refusal, x, y, CONTENT_W, HsUiTokens.WARN);
     }
 
     /**
@@ -550,29 +895,229 @@ public class SettlerScreen extends Screen {
      * bag container, not a display fiction, so this can never disagree with
      * what a hearth deposit actually collects.
      */
-    private void drawBag(GuiGraphics g, int x, int labelY, int slotsY) {
-        HsUi.labelIn(g, font, Component.translatable("hearthstead.settler.bag"), x, labelY,
+    private void drawBag(GuiGraphics g, int x, int labelY, int slotsY, CachedView view) {
+        HsUi.labelIn(g, font, view.bagLabel, x, labelY,
             CONTENT_W, HsUiTokens.TEXT);
         if (snapshot == null) {
             return;
         }
-        List<Integer> ids = snapshot.bagItemIds();
-        List<Integer> counts = snapshot.bagCounts();
         for (int i = 0; i < BAG_SLOTS; i++) {
             int slotX = x + i * BAG_SLOT_STEP;
             HsUi.slot(g, slotX, slotsY);
-            int count = i < counts.size() ? counts.get(i) : 0;
-            if (count <= 0) {
+            ItemStack stack = view.bagStacks[i];
+            if (stack.isEmpty()) {
                 continue; // an empty slot: the slot sprite alone says so
             }
-            int itemId = i < ids.size() ? ids.get(i) : 0;
-            ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.byId(itemId), count);
             g.renderItem(stack, slotX + 1, slotsY + 1);
             g.renderItemDecorations(font, stack, slotX + 1, slotsY + 1);
         }
     }
 
     // -------------------------------------------------------------- helpers --
+
+    /**
+     * Returns the immutable render model for the current stable inputs. A
+     * translated component resolves through the active language, but rebuilding
+     * on an actual locale switch also refreshes cached widths/tooltips and keeps
+     * this cache safe if those components gain eager formatting later.
+     */
+    private CachedView view() {
+        String language = minecraft == null
+            ? ""
+            : minecraft.getLanguageManager().getSelected();
+        int combatExperience = settler.combatExperience();
+        if (cachedView == null || cachedViewSnapshot != snapshot
+            || cachedViewWidth != width || cachedViewHeight != height
+            || cachedViewCombatExperience != combatExperience
+            || !cachedViewLanguage.equals(language)) {
+            CachedView rebuilt = buildView();
+            cachedViewSnapshot = snapshot;
+            cachedViewWidth = width;
+            cachedViewHeight = height;
+            cachedViewCombatExperience = combatExperience;
+            cachedViewLanguage = language;
+            cachedView = rebuilt;
+        }
+        return cachedView;
+    }
+
+    private void invalidateView() {
+        cachedView = null;
+    }
+
+    /** All allocations here are paid only when {@link #view()} invalidates. */
+    private CachedView buildView() {
+        Profession profession = settler.getProfession();
+        boolean mayor = snapshot != null && snapshot.isMayor();
+        int traitRows = snapshot == null ? 1 : Math.max(1,
+            Math.min(TRAIT_SLOTS, snapshot.traitOrdinals().size()));
+        boolean combatRow = profession == Profession.GUARD
+            || profession == Profession.ARCHER;
+        boolean refusalRows = snapshot != null && snapshot.refusal().isPresent();
+        Layout layout = layout(0, mayor, traitRows, combatRow, refusalRows);
+        Component[] needLabels = {
+            Component.translatable("hearthstead.gui.hunger"),
+            Component.translatable("hearthstead.gui.energy"),
+            Component.translatable("hearthstead.gui.morale"),
+            Component.translatable("hearthstead.gui.work_pace")
+        };
+        AttributeView[] attributes = new AttributeView[Attribute.COUNT];
+        TraitView[] traits = new TraitView[TRAIT_SLOTS];
+        ItemStack[] bagStacks = new ItemStack[BAG_SLOTS];
+        for (int i = 0; i < BAG_SLOTS; i++) {
+            bagStacks[i] = ItemStack.EMPTY;
+        }
+
+        Component loading = Component.translatable("hearthstead.settler.loading");
+        Component noProfession = Component.translatable("hearthstead.profession.none");
+        Component bagLabel = Component.translatable("hearthstead.settler.bag");
+        Component mayorMark = Component.translatable("hearthstead.settler.mayor_mark");
+        Component mayorBadgeLine = Component.empty();
+        List<Component> mayorTooltip = List.of();
+        Component employmentLine = Component.empty();
+        Component combatProgressLine = Component.empty();
+        List<Component> combatProgressTooltip = List.of();
+        Component refusal = null;
+        Component currentRequestLabel = Component.translatable(
+            "hearthstead.settler.current_request");
+        ItemStack currentRequestStack = ItemStack.EMPTY;
+        Component currentRequestName = Component.translatable(
+            "hearthstead.settler.request.none");
+        Component currentRequestInstruction = Component.translatable(
+            "hearthstead.settler.request.none.instruction");
+        List<Component> currentRequestTooltip = List.of();
+
+        Component building = buildingName();
+        Component dismissTooltip = Component.translatable(
+            "hearthstead.settler.dismiss.tip", title, building);
+        Component appointTooltip = appointTooltip();
+
+        if (snapshot == null) {
+            blessingStatusLine = Component.empty();
+            hasBlessings = false;
+        } else {
+            for (Attribute attribute : Attribute.ALL) {
+                int ordinal = attribute.ordinal();
+                boolean knack = ordinal == snapshot.knackOrdinal();
+                Component name = attribute.displayName();
+                int value = snapshot.attributeValues().get(ordinal);
+                Component label = name;
+                Component tooltipName = knack
+                    ? Component.translatable("hearthstead.settler.attribute_knack", name)
+                    : name;
+                Component valueText = Component.literal(value + " / 100");
+                List<Component> tooltip = List.of(
+                    tooltipName.copy().append(Component.literal("  " + value
+                        + " / 100")).withStyle(knack
+                            ? ChatFormatting.GOLD : ChatFormatting.WHITE),
+                    Component.translatable("hearthstead.attribute."
+                        + attribute.key() + ".role"),
+                    attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY));
+                attributes[ordinal] = new AttributeView(label, valueText,
+                    value / 100.0F, attributeTone(value), knack, tooltip);
+            }
+
+            List<Integer> traitOrdinals = snapshot.traitOrdinals();
+            int visibleTraits = Math.min(TRAIT_SLOTS, traitOrdinals.size());
+            for (int slot = 0; slot < visibleTraits; slot++) {
+                Trait trait = Trait.ALL[traitOrdinals.get(slot)];
+                Component name = trait.displayName();
+                Component description = trait.describe();
+                List<Effect> effects = List.copyOf(wiredEffects(trait));
+                traits[slot] = new TraitView(name, description, effects,
+                    List.of(name,
+                        description.copy().withStyle(ChatFormatting.GRAY)));
+            }
+
+            List<Integer> ids = snapshot.bagItemIds();
+            List<Integer> counts = snapshot.bagCounts();
+            for (int slot = 0; slot < BAG_SLOTS; slot++) {
+                int count = slot < counts.size() ? counts.get(slot) : 0;
+                if (count > 0) {
+                    int itemId = slot < ids.size() ? ids.get(slot) : 0;
+                    bagStacks[slot] = new ItemStack(
+                        BuiltInRegistries.ITEM.byId(itemId), count);
+                }
+            }
+
+            Component boon = boonName();
+            if (snapshot.isMayor()) {
+                mayorBadgeLine = Component.translatable(snapshot.mayorSettling()
+                        ? "hearthstead.settler.mayor_settling"
+                        : "hearthstead.settler.mayor_badge",
+                    boon);
+                mayorTooltip = List.of(boonDescription());
+            }
+
+            if (snapshot.employerBuildingId().isEmpty()) {
+                employmentLine = Component.translatable("hearthstead.employ.unemployed");
+            } else if (settler.getProfession() == Profession.GUARD) {
+                employmentLine = Component.translatable(
+                    "hearthstead.settler.employed_watch", building,
+                    Component.translatable(snapshot.guardWatchNight()
+                        ? "hearthstead.settler.watch_night"
+                        : "hearthstead.settler.watch_day"));
+            } else {
+                employmentLine = Component.translatable(
+                    "hearthstead.settler.employed_at", building);
+            }
+            if (profession == Profession.GUARD || profession == Profession.ARCHER) {
+                int experience = settler.combatExperience();
+                GuardExperience.Tier tier = GuardExperience.tierOf(experience);
+                combatProgressLine = tier == GuardExperience.Tier.HERO
+                    ? Component.translatable("hearthstead.settler.combat_progress_max",
+                        tier.level(), experience)
+                    : Component.translatable("hearthstead.settler.combat_progress",
+                        tier.level(), experience,
+                        GuardExperience.nextThreshold(experience));
+                Attribute rankAttribute = profession == Profession.GUARD
+                    ? Attribute.STRENGTH : Attribute.DEXTERITY;
+                int rankValue = snapshot.attributeValues().get(rankAttribute.ordinal());
+                Component abilityRank = profession == Profession.GUARD
+                    ? GuardRank.of(rankValue).displayName()
+                    : ArcherRank.of(rankValue).displayName();
+                combatProgressTooltip = List.of(Component.translatable(
+                    "hearthstead.settler.combat_rank_tip", abilityRank,
+                    rankAttribute.displayName()).withStyle(ChatFormatting.GRAY));
+            }
+            refusal = snapshot.refusal().orElse(null);
+            if (snapshot.requestedItemId() >= 0) {
+                currentRequestStack = new ItemStack(BuiltInRegistries.ITEM.byId(
+                    snapshot.requestedItemId()));
+                if (!currentRequestStack.isEmpty()) {
+                    currentRequestName = Component.translatable(
+                        "hearthstead.settler.request.item",
+                        currentRequestStack.getHoverName());
+                    EquipmentRequest.Reason[] reasons =
+                        EquipmentRequest.Reason.values();
+                    EquipmentRequest.Reason reason = snapshot.requestReasonOrdinal() >= 0
+                        && snapshot.requestReasonOrdinal() < reasons.length
+                            ? reasons[snapshot.requestReasonOrdinal()]
+                            : EquipmentRequest.Reason.MISSING;
+                    String reasonKey = switch (reason) {
+                        case MISSING -> "missing";
+                        case WRONG_TOOL -> "wrong";
+                        case WORN -> "worn";
+                    };
+                    currentRequestInstruction = Component.translatable(
+                        "hearthstead.settler.request." + reasonKey + ".instruction");
+                    currentRequestTooltip = List.of(
+                        Component.translatable("hearthstead.settler.request.tooltip",
+                            currentRequestStack.getHoverName()),
+                        currentRequestInstruction.copy().withStyle(ChatFormatting.GRAY));
+                }
+            }
+            rebuildBlessingStatus();
+        }
+
+        return new CachedView(layout, needLabels, attributes, traits, bagStacks,
+            loading, noProfession, bagLabel, mayorMark, mayorBadgeLine,
+            mayorTooltip, employmentLine, combatProgressLine,
+            combatProgressTooltip, refusal, dismissTooltip,
+            appointTooltip, currentRequestLabel, currentRequestStack,
+            currentRequestName, currentRequestInstruction,
+            currentRequestTooltip);
+    }
 
     /** Both call sites already guard {@code snapshot != null} before reaching here. */
     private Component boonName() {
@@ -596,6 +1141,15 @@ public class SettlerScreen extends Screen {
         return mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
     }
 
+    private static String roman(int rank) {
+        return switch (rank) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            default -> "—";
+        };
+    }
+
     @Override
     public boolean isPauseScreen() {
         return false;
@@ -608,15 +1162,31 @@ public class SettlerScreen extends Screen {
         }
     }
 
+    @Override
+    public String qaUiState() {
+        CachedView current = view();
+        ItemStack request = current.currentRequestStack;
+        String equipment = request.isEmpty() ? "ready"
+            : "needs_" + BuiltInRegistries.ITEM.getKey(request.getItem());
+        int reason = snapshot == null ? -1 : snapshot.requestReasonOrdinal();
+        return "work=" + settler.getActivity().name() + ",equipment="
+            + equipment + ",reason=" + reason + ",panel=" + left + ":" + top
+            + ":" + PANEL_W + ":" + contentHeight + ",scroll=" + scrollOffset
+            + "/" + maxScroll + ",traits="
+            + (snapshot == null ? 0 : snapshot.traitOrdinals().size())
+            + ",mayor=" + (snapshot != null && snapshot.isMayor());
+    }
+
     // --------------------------------------------------------------- layout --
 
     /**
-     * Row positions for a fixed panel shape. Deliberately unconditional (it
-     * does not look at {@link #snapshot}) so the panel's height is decided
-     * once, in {@link #init}, and never changes again for the life of the
-     * screen — see the class doc.
+     * Row positions for one immutable render projection. Optional rows are
+     * selected while the authoritative snapshot is cached; ordinary frames
+     * and scrolling reuse this exact geometry until that snapshot changes.
      */
-    private static Layout layout(int originY) {
+    private static Layout layout(int originY, boolean showMayorBadge,
+                                 int traitRows, boolean showCombat,
+                                 boolean showRefusal) {
         Layout l = new Layout();
         int y = originY + PAD;
 
@@ -625,26 +1195,32 @@ public class SettlerScreen extends Screen {
         l.activityTop = y + ROW * 2;
         y += HEADER_H + GUTTER;
 
+        // The prominent MAYOR mark is part of the identity header. Keeping a
+        // second full-width mayor row made the common overview taller without
+        // adding another decision.
         l.mayorBadgeTop = y;
-        y += MAYOR_BADGE_H + GUTTER;
 
         l.dividerA = y;
         y += HsUiTokens.DIVIDER_H + GUTTER;
 
+        // Needs and the current blocker answer sibling questions and share one
+        // stable summary band instead of becoming a scrolling column.
         l.needsTop = y;
-        y += ROW * 3 + GUTTER;
+        l.currentRequestLabelTop = y;
+        l.currentRequestCardTop = y + ROW;
+        y += Math.max(ROW * 4, ROW + CURRENT_REQUEST_CARD_H) + GUTTER;
 
         l.dividerB = y;
         y += HsUiTokens.DIVIDER_H + GUTTER;
 
         l.attributesTop = y;
-        y += ROW * Attribute.COUNT + GUTTER;
+        y += ATTRIBUTE_ROWS * (ATTRIBUTE_CELL_H + ATTRIBUTE_GAP);
 
         l.dividerC = y;
         y += HsUiTokens.DIVIDER_H + GUTTER;
 
         l.traitsTop = y;
-        y += TRAIT_SLOTS * (TRAIT_CARD_H + GUTTER);
+        y += TRAIT_CARD_H + GUTTER;
 
         // A second divider between "who they are" (traits) and "what they
         // do" (employment, refusal) -- both are real semantic groups, and
@@ -655,26 +1231,29 @@ public class SettlerScreen extends Screen {
 
         l.employmentTop = y;
         y += ROW + GUTTER;
+        l.combatProgressTop = y;
+        if (showCombat) {
+            y += ROW + GUTTER;
+        }
+        l.blessingsTop = y;
+        y += ROW + GUTTER;
         l.refusalTop = y;
-        // Two rows: the longest refusal sentences wrap to two lines (see
-        // drawRefusal). Reserved unconditionally, same fixed-shape discipline
-        // as the mayor badge above.
-        y += ROW * 2 + GUTTER;
+        if (showRefusal) {
+            // Two rows: the longest refusal sentences wrap to two lines.
+            y += ROW * 2 + GUTTER;
+        }
 
-        // A third: "what they carry" is its own group too, same reasoning.
+        // Inventory has a real server-authoritative child screen. Duplicating
+        // its slot row here cost 34 vertical pixels and encouraged players to
+        // mistake read-only ghosts for usable slots.
         l.dividerBag = y;
-        y += HsUiTokens.DIVIDER_H + GUTTER;
-
         l.bagLabelTop = y;
-        y += ROW;
         l.bagSlotsTop = y;
-        // Reserved unconditionally at BAG_SLOTS wide, same fixed-shape
-        // discipline as everything else in this layout -- an empty bag is
-        // still BAG_SLOTS empty slots, never a shorter row.
-        y += HsUiTokens.SLOT + GUTTER;
-
         l.dividerD = y;
         y += HsUiTokens.DIVIDER_H + GUTTER;
+
+        l.controlsTop = y;
+        y += HsUiTokens.BUTTON_H + GUTTER;
 
         l.appointTop = y;
         y += HsUiTokens.BUTTON_H + GUTTER;
@@ -694,19 +1273,71 @@ public class SettlerScreen extends Screen {
         int mayorBadgeTop;
         int dividerA;
         int needsTop;
+        int currentRequestLabelTop;
+        int currentRequestCardTop;
         int dividerB;
         int attributesTop;
         int dividerC;
         int traitsTop;
         int dividerPerson;
         int employmentTop;
+        int combatProgressTop;
+        int blessingsTop;
         int refusalTop;
         int dividerBag;
         int bagLabelTop;
         int bagSlotsTop;
         int dividerD;
+        int controlsTop;
         int appointTop;
         int footerTop;
         int totalHeight;
+    }
+
+    /** Snapshot-authored attribute row, including its hover payload. */
+    private static HsUi.Tone attributeTone(int value) {
+        if (value <= 9) {
+            return HsUi.Tone.BAD;
+        }
+        if (value <= 39) {
+            return HsUi.Tone.WARN;
+        }
+        if (value <= 79) {
+            return HsUi.Tone.GOOD;
+        }
+        return HsUi.Tone.ACCENT;
+    }
+
+    private record AttributeView(Component label, Component valueText,
+                                 float ratio, HsUi.Tone tone, boolean knack,
+                                 List<Component> tooltip) {
+    }
+
+    /** Snapshot-authored trait card; its effect list is never rebuilt in render. */
+    private record TraitView(Component name, Component description,
+                             List<Effect> effects, List<Component> tooltip) {
+    }
+
+    /**
+     * Immutable-by-convention render projection. Arrays never escape this
+     * screen and are replaced as a unit when the cache key changes.
+     */
+    private record CachedView(Layout layout, Component[] needLabels,
+                              AttributeView[] attributes, TraitView[] traits,
+                              ItemStack[] bagStacks, Component loading,
+                              Component noProfession, Component bagLabel,
+                              Component mayorMark, Component mayorBadgeLine,
+                              List<Component> mayorTooltip,
+                              Component employmentLine,
+                              Component combatProgressLine,
+                              List<Component> combatProgressTooltip,
+                              Component refusal,
+                              Component dismissTooltip,
+                              Component appointTooltip,
+                              Component currentRequestLabel,
+                              ItemStack currentRequestStack,
+                              Component currentRequestName,
+                              Component currentRequestInstruction,
+                              List<Component> currentRequestTooltip) {
     }
 }

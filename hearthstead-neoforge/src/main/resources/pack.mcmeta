@@ -6,5 +6,12 @@
       "min_inclusive": 34,
       "max_inclusive": 48
     }
+  },
+  "language": {
+    "nb_no": {
+      "name": "Norsk bokmål",
+      "region": "Norge",
+      "bidirectional": false
+    }
   }
 }

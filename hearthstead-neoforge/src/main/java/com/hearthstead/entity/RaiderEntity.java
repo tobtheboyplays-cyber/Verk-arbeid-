@@ -4,10 +4,13 @@ import com.hearthstead.registry.ModDamageTypes;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidObjective;
+import com.hearthstead.settlement.state.TargetBlessingState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -145,6 +148,21 @@ public class RaiderEntity extends Monster {
     /** Health and damage a captain carries over an ordinary follower. */
     public static final float CAPTAIN_HEALTH_BONUS = 14.0F;
     public static final double CAPTAIN_DAMAGE_BONUS = 2.0;
+    /**
+     * The two ordinary combat silhouettes are also two honest stat profiles.
+     * Skirmishers are readable as the fast, fragile pack; Brutes are the slow,
+     * heavy line-breaker. Damage and armour deliberately stay equal so the
+     * first raid teaches movement and target choice without hiding a sudden
+     * damage spike behind a model change.
+     */
+    public static final double SKIRMISHER_MAX_HEALTH = 18.0;
+    public static final double SKIRMISHER_MOVEMENT_SPEED = 0.38;
+    public static final double SKIRMISHER_KNOCKBACK_RESISTANCE = 0.0;
+    public static final double BRUTE_MAX_HEALTH = 30.0;
+    public static final double BRUTE_MOVEMENT_SPEED = 0.26;
+    public static final double BRUTE_KNOCKBACK_RESISTANCE = 0.40;
+    public static final double VARIANT_ATTACK_DAMAGE = 3.0;
+    public static final double VARIANT_ARMOR = 2.0;
     /** Ceiling on menace scaling, so a long feud cannot become unwinnable. */
     public static final float MAX_MENACE = 3.0F;
 
@@ -178,6 +196,25 @@ public class RaiderEntity extends Monster {
     private UUID settlementId;
     private BlockPos objectivePos;
 
+    // Runtime-only Blessing combat cache. None of these values are written to
+    // NBT: a reload must never revive or stack a short snare. The building
+    // zone is refreshed on a bounded cadence (or immediately when its
+    // settlement revision changes), avoiding a spatial lookup every tick.
+    private int cachedBlessingZoneRank;
+    private long cachedBlessingZoneRevision = Long.MIN_VALUE;
+    private long nextBlessingZoneCheckTick = Long.MIN_VALUE;
+    private int transientBlessingSnareRank;
+    private long transientBlessingSnareUntilTick = Long.MIN_VALUE;
+
+    // A captain's visible identity is raid authority, not cosmetic metadata.
+    // Full Entity NBT owns CustomName/CustomNameVisible; these two flags make
+    // one bounded post-load comparison against the settlement's canonical
+    // roster and preserve a fail-closed decision if that identity was missing,
+    // malformed or spoofed. No per-tick roster scan remains after validation.
+    private boolean captainIdentityAuthorityCheckPending;
+    private boolean captainIdentityQuarantined;
+    private boolean captainIdentityQuarantineReported;
+
     public RaiderEntity(EntityType<? extends RaiderEntity> type, Level level) {
         super(type, level);
         if (getNavigation() instanceof GroundPathNavigation nav) {
@@ -191,10 +228,12 @@ public class RaiderEntity extends Monster {
 
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
-            .add(Attributes.MAX_HEALTH, 22.0)
-            .add(Attributes.MOVEMENT_SPEED, 0.32)
-            .add(Attributes.ATTACK_DAMAGE, 3.0)
-            .add(Attributes.ARMOR, 2.0)
+            .add(Attributes.MAX_HEALTH, SKIRMISHER_MAX_HEALTH)
+            .add(Attributes.MOVEMENT_SPEED, SKIRMISHER_MOVEMENT_SPEED)
+            .add(Attributes.ATTACK_DAMAGE, VARIANT_ATTACK_DAMAGE)
+            .add(Attributes.ARMOR, VARIANT_ARMOR)
+            .add(Attributes.KNOCKBACK_RESISTANCE,
+                SKIRMISHER_KNOCKBACK_RESISTANCE)
             .add(Attributes.FOLLOW_RANGE, 40.0);
     }
 
@@ -362,6 +401,73 @@ public class RaiderEntity extends Monster {
         return SettlementManager.byId(server, settlementId);
     }
 
+    // ------------------------------------------------ runtime Blessings ---
+
+    /**
+     * True at most once per interval unless a building edit invalidated the
+     * settlement index. Primitive comparisons only; no allocation or scan.
+     */
+    public boolean blessingZoneRefreshDue(long gameTime, long revision,
+                                          int intervalTicks) {
+        if (revision == cachedBlessingZoneRevision
+            && gameTime < nextBlessingZoneCheckTick) {
+            return false;
+        }
+        cachedBlessingZoneRevision = revision;
+        nextBlessingZoneCheckTick = gameTime + Math.max(1, intervalTicks);
+        return true;
+    }
+
+    public void cacheBlessingZoneRank(int rank) {
+        cachedBlessingZoneRank = Mth.clamp(rank, 0,
+            TargetBlessingState.MAX_RANK);
+    }
+
+    public int cachedBlessingZoneRank() {
+        return cachedBlessingZoneRank;
+    }
+
+    /**
+     * Applies/refreshes one non-stacking personal Thorned Roads snare. A
+     * weaker hit cannot extend a stronger active snare; equal rank may
+     * refresh it and stronger rank replaces it.
+     */
+    public void applyTransientBlessingSnare(int rank, long now,
+                                            int durationTicks) {
+        int bounded = Mth.clamp(rank, 0, TargetBlessingState.MAX_RANK);
+        if (bounded <= 0 || durationTicks <= 0) {
+            return;
+        }
+        if (now >= transientBlessingSnareUntilTick) {
+            transientBlessingSnareRank = 0;
+        }
+        long expiry = now + durationTicks;
+        if (bounded > transientBlessingSnareRank) {
+            transientBlessingSnareRank = bounded;
+            transientBlessingSnareUntilTick = expiry;
+        } else if (bounded == transientBlessingSnareRank) {
+            transientBlessingSnareUntilTick = Math.max(
+                transientBlessingSnareUntilTick, expiry);
+        }
+    }
+
+    public int transientBlessingSnareRank(long gameTime) {
+        if (gameTime >= transientBlessingSnareUntilTick) {
+            transientBlessingSnareRank = 0;
+            transientBlessingSnareUntilTick = Long.MIN_VALUE;
+        }
+        return transientBlessingSnareRank;
+    }
+
+    /** Immediate raid-end and reload cleanup; modifier removal is event-owned. */
+    public void clearBlessingRuntimeState() {
+        cachedBlessingZoneRank = 0;
+        cachedBlessingZoneRevision = Long.MIN_VALUE;
+        nextBlessingZoneCheckTick = Long.MIN_VALUE;
+        transientBlessingSnareRank = 0;
+        transientBlessingSnareUntilTick = Long.MIN_VALUE;
+    }
+
     /**
      * Arms this raider for a specific raid. Menace scales health and damage
      * together so a feared captain's band hits harder and lasts longer,
@@ -376,11 +482,23 @@ public class RaiderEntity extends Monster {
         entityData.set(DATA_MENACE, scaled);
         entityData.set(DATA_CAPTAIN, isCaptain);
 
-        double health = getAttributeBaseValue(Attributes.MAX_HEALTH) * scaled
+        Variant build = variant();
+        double baseHealth = build == Variant.BRUTE
+            ? BRUTE_MAX_HEALTH : SKIRMISHER_MAX_HEALTH;
+        double baseSpeed = build == Variant.BRUTE
+            ? BRUTE_MOVEMENT_SPEED : SKIRMISHER_MOVEMENT_SPEED;
+        double knockbackResistance = build == Variant.BRUTE
+            ? BRUTE_KNOCKBACK_RESISTANCE
+            : SKIRMISHER_KNOCKBACK_RESISTANCE;
+        double health = baseHealth * scaled
             + (isCaptain ? CAPTAIN_HEALTH_BONUS : 0.0);
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(health);
         setHealth((float) health);
-        double damage = getAttributeBaseValue(Attributes.ATTACK_DAMAGE)
+        getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(baseSpeed);
+        getAttribute(Attributes.ARMOR).setBaseValue(VARIANT_ARMOR);
+        getAttribute(Attributes.KNOCKBACK_RESISTANCE)
+            .setBaseValue(knockbackResistance);
+        double damage = VARIANT_ATTACK_DAMAGE
             + (scaled - 1.0F) * 2.0 + (isCaptain ? CAPTAIN_DAMAGE_BONUS : 0.0);
         getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(damage);
     }
@@ -451,7 +569,77 @@ public class RaiderEntity extends Monster {
             // boolean every tick costs one comparison and no packets.
             LivingEntity quarry = getTarget();
             entityData.set(DATA_CHARGING, quarry != null && quarry.isAlive());
+            validateLoadedCaptainIdentity();
         }
+    }
+
+    /**
+     * One-shot post-load authority check. Entity NBT is read before every
+     * settlement lookup is guaranteed to be available, so a syntactically
+     * valid captain waits here until its settlement can confirm the exact
+     * persisted display name. Invalid identity is demoted/frozen immediately,
+     * disarms the active raid's reward ledger once that ledger is reachable,
+     * then is discarded as a definitive terminal participant rather than
+     * fighting on with hidden captain bonuses.
+     */
+    private void validateLoadedCaptainIdentity() {
+        if (captainIdentityQuarantined) {
+            reportCaptainIdentityQuarantine();
+            if (captainIdentityQuarantineReported && !isRemoved()) {
+                discard();
+            }
+            return;
+        }
+        if (!captainIdentityAuthorityCheckPending || !isCaptain()) {
+            return;
+        }
+        Settlement owner = settlement();
+        if (owner == null) {
+            return;
+        }
+        String actual = getCustomName() == null
+            ? null : getCustomName().getString();
+        String expected = RaidDirector.leaderNameOf(owner, captainId)
+            .orElse(null);
+        if (expected == null || !expected.equals(actual)
+            || !isCustomNameVisible()) {
+            quarantineCaptainIdentity();
+            return;
+        }
+        captainIdentityAuthorityCheckPending = false;
+    }
+
+    private void quarantineCaptainIdentity() {
+        captainIdentityQuarantined = true;
+        captainIdentityAuthorityCheckPending = false;
+        entityData.set(DATA_CAPTAIN, false);
+        entityData.set(DATA_SAGA_MARKED, false);
+        setCustomName(null);
+        setCustomNameVisible(false);
+        setNoAi(true);
+    }
+
+    private void reportCaptainIdentityQuarantine() {
+        if (captainIdentityQuarantineReported
+            || !(level() instanceof ServerLevel server)) {
+            return;
+        }
+        Settlement owner = settlement();
+        if (owner == null) {
+            return;
+        }
+        boolean changed = false;
+        if (owner.raidLifecycle.isAuthoredFirstRaidActive()) {
+            changed = !owner.raidLifecycle.integrityLost();
+            owner.raidLifecycle.markIntegrityLost();
+        } else if (owner.recurringRaidRun.isActive()) {
+            changed = !owner.recurringRaidRun.integrityLost();
+            owner.recurringRaidRun.markIntegrityLost();
+        }
+        if (changed) {
+            SettlementSavedData.get(server).setDirty();
+        }
+        captainIdentityQuarantineReported = true;
     }
 
     /** Client-side AnimationState gating + one-shot expiry -- the same
@@ -499,7 +687,8 @@ public class RaiderEntity extends Monster {
      * instant a door or wall actually gives way, so the scar and this
      * clip's playback start the same tick (see {@code RaiderAnimations}'s
      * header for why the clip's own internal impact keyframe still lands a
-     * few ticks later -- the same shape as {@code MELEE}'s own precedent).
+     * few ticks later. This reaction-first breach is deliberately not the
+     * guard's newer ticketed-contact {@code MELEE} contract.)
      * A BRUTE gets its own huge door-breaking blow ({@code BREACH_SLAM}); a
      * SKIRMISHER breaching reuses the ordinary swing ({@code RAIDER_STRIKE})
      * -- the pack build was never given a signature demolition clip, only
@@ -640,20 +829,34 @@ public class RaiderEntity extends Monster {
             return;
         }
         Settlement settlement = settlement();
-        if (settlement == null
-            || !settlement.raidLifecycle.isAuthoredFirstRaidActive()) {
+        if (settlement == null) {
             return;
         }
-        // Feed every non-scout raider assigned to this settlement through
-        // the strict ledger. A UUID outside the sealed set is not harmless:
-        // it proves the live band and the persisted capture disagree, so the
-        // lifecycle records integrity loss and permanently disarms Blessing.
-        boolean integrityWasLost = settlement.raidLifecycle.integrityLost();
-        boolean recorded = settlement.raidLifecycle
-            .recordTerminalParticipant(getUUID());
-        if (recorded || (!integrityWasLost
-            && settlement.raidLifecycle.integrityLost())) {
-            SettlementSavedData.get(server).setDirty();
+        if (settlement.raidLifecycle.isAuthoredFirstRaidActive()) {
+            // Feed every non-scout raider assigned to this settlement through
+            // the strict first ledger. An UUID outside the sealed set proves
+            // the live band and capture disagree and disarms its Blessing.
+            boolean integrityWasLost = settlement.raidLifecycle.integrityLost();
+            boolean recorded = settlement.raidLifecycle
+                .recordTerminalParticipant(getUUID());
+            if (recorded || (!integrityWasLost
+                && settlement.raidLifecycle.integrityLost())) {
+                SettlementSavedData.get(server).setDirty();
+            }
+            return;
+        }
+        if (settlement.recurringRaidRun.isActive()) {
+            // Recurring raids use the same definitive evidence: death and
+            // explicit discard arrive here, while chunk unload never does.
+            // Unknown ids preserve the known ledger but permanently remove
+            // this serial's reward eligibility.
+            boolean integrityWasLost = settlement.recurringRaidRun.integrityLost();
+            boolean recorded = settlement.recurringRaidRun
+                .recordTerminalParticipant(getUUID());
+            if (recorded || (!integrityWasLost
+                && settlement.recurringRaidRun.integrityLost())) {
+                SettlementSavedData.get(server).setDirty();
+            }
         }
     }
 
@@ -700,6 +903,9 @@ public class RaiderEntity extends Monster {
         tag.putBoolean("Scout", isScout());
         tag.putBoolean("SagaMarked", isSagaMarked());
         tag.putByte("Variant", entityData.get(DATA_VARIANT));
+        if (captainIdentityQuarantined) {
+            tag.putBoolean("CaptainIdentityQuarantined", true);
+        }
     }
 
     @Override
@@ -720,5 +926,22 @@ public class RaiderEntity extends Monster {
         // exactly right -- an old captain never earned an epithet.
         entityData.set(DATA_SAGA_MARKED, tag.getBoolean("SagaMarked"));
         entityData.set(DATA_VARIANT, (byte) Variant.byOrdinal(tag.getByte("Variant")).ordinal());
+        captainIdentityQuarantined = tag.getBoolean(
+            "CaptainIdentityQuarantined");
+        captainIdentityQuarantineReported = false;
+        captainIdentityAuthorityCheckPending = isCaptain();
+        boolean persistedVisibleName = tag.contains("CustomName", Tag.TAG_STRING)
+            && tag.contains("CustomNameVisible", Tag.TAG_BYTE)
+            && tag.getBoolean("CustomNameVisible")
+            && getCustomName() != null
+            && RaidDirector.isValidLeaderName(getCustomName().getString());
+        if (captainIdentityQuarantined || (isCaptain()
+            && (captainId == null || settlementId == null
+                || !persistedVisibleName))) {
+            quarantineCaptainIdentity();
+        }
+        // Deliberately not persisted: neither a short personal snare nor a
+        // cached building-zone result may survive entity reconstruction.
+        clearBlessingRuntimeState();
     }
 }

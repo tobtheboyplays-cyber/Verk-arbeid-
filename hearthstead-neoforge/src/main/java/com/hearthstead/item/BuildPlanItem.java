@@ -1,6 +1,7 @@
 package com.hearthstead.item;
 
 import com.hearthstead.block.PlaqueItemData;
+import com.hearthstead.settlement.development.BuildingDescription;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
@@ -34,6 +35,8 @@ public class BuildPlanItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context,
                                 List<Component> tooltip, TooltipFlag flag) {
+        tooltip.add(BuildingDescription.shortDescription(
+            PlaqueItemData.buildingType(stack)).copy().withStyle(ChatFormatting.GOLD));
         tooltip.add(Component.translatable("item.hearthstead.build_plan.tooltip")
             .withStyle(ChatFormatting.GRAY));
     }

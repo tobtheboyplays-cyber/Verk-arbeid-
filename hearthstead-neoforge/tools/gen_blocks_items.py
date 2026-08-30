@@ -130,6 +130,85 @@ def gen_handbook():
     save(img, f"{ASSETS}/textures/item/handbook.png")
 
 
+def _gen_blessing_seal(filename, wax_name, ribbon_name, glyph_name,
+                       glyph_pixels, bright_pixels=()):
+    """One ceremonial wax seal from the shared Hearthstead palette.
+
+    The broken circular edge is deliberate: at inventory scale it reads as
+    hand-pressed wax, while the twin ribbon tails keep it distinct from a
+    coin. Each Blessing gets its own wax/ribbon pairing and stamped emblem.
+    """
+    img = new_image(16, 16)
+    wax = ramp(wax_name)
+    ribbon = ramp(ribbon_name)
+    glyph = ramp(glyph_name)
+
+    # Split ribbon, drawn first so the wax physically overlaps the knot.
+    for y in range(8, 15):
+        for x in range(4, 7):
+            put(img, x, y, ribbon[2 if x == 4 else 3])
+        for x in range(9, 12):
+            put(img, x, y, ribbon[3 if x == 9 else 2])
+    put(img, 4, 15, ribbon[2])
+    put(img, 6, 14, ribbon[1])
+    put(img, 9, 14, ribbon[1])
+    put(img, 11, 15, ribbon[2])
+
+    # A slightly irregular, beveled wax medallion under top-left light.
+    rows = {
+        2: (6, 10), 3: (4, 12), 4: (3, 13), 5: (2, 14),
+        6: (2, 14), 7: (2, 14), 8: (2, 14), 9: (2, 14),
+        10: (3, 13), 11: (4, 12), 12: (6, 10),
+    }
+    for y, (x0, x1) in rows.items():
+        for x in range(x0, x1):
+            edge = x in (x0, x1 - 1) or y in (2, 12)
+            if edge:
+                colour = wax[0]
+            elif y <= 4 or x <= 4:
+                colour = wax[4]
+            elif y >= 10 or x >= 12:
+                colour = wax[1]
+            else:
+                colour = wax[2]
+            put(img, x, y, colour)
+    # Pressed inner ring: sparse pixels preserve the wax body and legibility.
+    for x, y in ((6, 3), (9, 3), (4, 5), (11, 5), (3, 7),
+                 (12, 7), (4, 10), (11, 10), (6, 11), (9, 11)):
+        put(img, x, y, wax[1])
+
+    for x, y in glyph_pixels:
+        put(img, x, y, glyph[3])
+    for x, y in bright_pixels:
+        put(img, x, y, glyph[4])
+    save(img, f"{ASSETS}/textures/item/{filename}.png")
+
+
+def gen_blessing_seals():
+    """Three visually distinct, deterministic raid-reward seals."""
+    # Warden's Oath: burgundy officer's wax, iron ribbon, stamped shield.
+    _gen_blessing_seal(
+        "warden_oath_seal", "burgundy", "iron", "wheat",
+        ((6, 4), (7, 4), (8, 4), (9, 4), (10, 4),
+         (6, 5), (10, 5), (6, 6), (10, 6), (6, 7), (10, 7),
+         (7, 8), (9, 8), (8, 9)),
+        ((8, 5), (8, 6), (8, 7), (7, 6), (9, 6)))
+    # Hearthward: warm amber wax, parchment ribbon, living hearth flame.
+    _gen_blessing_seal(
+        "hearthward_seal", "amber", "parchment", "ember",
+        ((8, 4), (7, 5), (8, 5), (7, 6), (8, 6), (9, 6),
+         (6, 7), (7, 7), (8, 7), (9, 7), (10, 7),
+         (7, 8), (8, 8), (9, 8), (8, 9)),
+        ((8, 6), (8, 7), (8, 8)))
+    # Thorned Roads: forest wax, leather ribbon, a winding thorn branch.
+    _gen_blessing_seal(
+        "thorned_roads_seal", "forest", "leather", "wheat",
+        ((6, 4), (7, 5), (7, 6), (8, 7), (9, 8), (9, 9), (10, 10),
+         (8, 5), (9, 4), (6, 7), (5, 8), (10, 7), (11, 6),
+         (8, 9), (7, 10)),
+        ((7, 6), (8, 7), (9, 8)))
+
+
 # ----------------------------------------------------------------- logo ---
 
 FONT5 = {  # 5-row uppercase pixel font, widths vary
@@ -436,6 +515,7 @@ if __name__ == "__main__":
     gen_hearth_top()
     gen_hearth_ember()
     gen_handbook()
+    gen_blessing_seals()
     gen_logo()
     gen_item_flour()
     gen_item_malt()

@@ -1,17 +1,22 @@
 package com.hearthstead.client.screen;
 
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.client.QaClientObserver;
+import com.hearthstead.client.QaUiInspectable;
 import com.hearthstead.client.ui.HsButton;
 import com.hearthstead.client.ui.HsUi;
 import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.network.PlaqueAction;
 import com.hearthstead.network.PlaqueSnapshot;
+import com.hearthstead.settlement.state.BlessingId;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -23,33 +28,20 @@ import java.util.UUID;
 
 /**
  * The building plaque's screen: what this building is, what it still needs,
- * who works in it, and who could.
+ * and who currently belongs to it.
  *
  * <p>Drawn entirely from the server's snapshot. The screen holds no opinion
  * about capacity, eligibility or cost — it renders what it was sent and sends
  * back the revision it drew, so a click on a view the world has already moved
  * past is refused rather than applied.
  *
- * <h2>The hire tab, and the one sentence that makes it different</h2>
- *
- * <p>MineColonies' hire list is a wall of names and numbers, and hiring someone
- * quietly guts the building they came from — you find out the farm has no
- * farmer when the bread stops. Here every candidate is a card that states
- * <b>what taking them costs</b>, in words, before you press anything:
- *
- * <pre>  Bjørn Kvam            ●●●○○        [ Hire ]
- *   Farmhouse
- *   The Farmhouse would have no worker            &lt;- amber</pre>
- *
- * <p>The cost sentence is computed on the server and sent as a key, so it is
- * true and it is in the player's language. Fitness is drawn as pips because you
- * read "three of five" at a glance and never read "48" at a glance.
- *
- * <p>Every control here does something (D-014). A candidate who cannot be hired
- * is drawn disabled <i>with the reason in their tooltip</i> — including the
- * honest one, that no trade is practised in this building yet.
+ * <p>Homes retain their resident and move-in controls. A workplace deliberately
+ * has no candidate/hire controls: its Staff page is a read-only operational
+ * overview. The player gives a Job Emblem to the settler, and Hearthstead then
+ * selects an active compatible workplace. Keeping that rule visible on the
+ * plaque prevents two competing hiring loops from teaching opposite habits.
  */
-public class PlaqueScreen extends Screen {
+public class PlaqueScreen extends Screen implements QaUiInspectable {
 
     // 256 clipped the hire screen's cost sentence -- "The Carpenter's Shop
     // would have no worker" measured 224px against the 212px COST_BOX it
@@ -58,6 +50,7 @@ public class PlaqueScreen extends Screen {
     // 228px, and as a side effect also clears NAME_BOX past the crowded-
     // settlement "Gislebert the Younger" fallback (111px) with margin.
     private static final int PANEL_W = 272;
+    private static final BlessingId[] BLESSING_IDS = BlessingId.values();
     private static final int PAD = 8;
     private static final int SCROLL_W = HsUiTokens.SCROLL_W;
     private static final int CARD_X = PAD;
@@ -74,23 +67,15 @@ public class PlaqueScreen extends Screen {
     private static final int REFRESH_BTN_W = 92;
     private static final int TEXT_X = CARD_X + 10;
     private static final int LIST_TOP = 52;
-    /** Rows shown at once. Three keeps the panel inside a 240px-tall GUI. */
-    private static final int ROWS = 3;
-    private static final int LIST_H = ROWS * CARD_STEP - 4;
-    private static final int FOOT = LIST_TOP + LIST_H + 6;
-    private static final int PANEL_H = FOOT + 20 + HsUiTokens.BUTTON_H + 10;
+    /** Three rows normally; a short GUI uses the same list with fewer visible rows. */
+    private static final int MAX_ROWS = 3;
+    private static final int PANEL_FIXED_H = LIST_TOP - 4 + 6
+        + 20 + HsUiTokens.BUTTON_H + 10;
 
     /** The cost line gets the full card width; it is the point of the screen. */
     private static final int NAME_BOX = BTN_X - TEXT_X - 40;
     private static final int POST_BOX = BTN_X - TEXT_X - 6;
     private static final int COST_BOX = CARD_W - 20;
-
-    // A worker's row grows a second, shorter button under Dismiss: 14px tall
-    // (there is precedent for compact controls at this height already, e.g.
-    // HandbookScreen's page-list dots) fits the remaining 38 - 20 - 4 = 14px
-    // under Dismiss's 20px exactly. "Summon"/"Tilkall" measure 36px/28px
-    // against its 56px box (BTN_W - 8) with room to spare.
-    private static final int SUMMON_BTN_H = 14;
 
     // Requirements tab only: a local, wider text column that leaves room for
     // a 16x16 representative item icon. Kept separate from TEXT_X/POST_BOX so
@@ -137,8 +122,9 @@ public class PlaqueScreen extends Screen {
             this.key = key;
         }
 
-        Component label() {
-            return Component.translatable("hearthstead.plaque.tab." + key);
+        Component label(boolean staff) {
+            return Component.translatable("hearthstead.plaque.tab."
+                + (this == PEOPLE && staff ? "staff" : key));
         }
     }
 
@@ -147,19 +133,65 @@ public class PlaqueScreen extends Screen {
     private int scroll;
     private int left;
     private int top;
+    private int visibleRows = MAX_ROWS;
+    private int listHeight = MAX_ROWS * CARD_STEP - 4;
+    private int footerTop = LIST_TOP + listHeight + 6;
+    private int panelHeight = footerTop + 20 + HsUiTokens.BUTTON_H + 10;
     /** The header emblem -- rebuilt only when the building type changes. */
     private ItemStack emblem = ItemStack.EMPTY;
+    /** Rebuilt only on the existing open/action snapshot path, never per frame. */
+    private Component blessingStatusLine = Component.empty();
+    private boolean hasBlessings;
+    private boolean uiOpenSoundPlayed;
+    private boolean uiCloseSoundPlayed;
 
     public PlaqueScreen(PlaqueSnapshot snapshot) {
         super(Component.translatable("hearthstead.plaque.title"));
         this.snapshot = snapshot;
+        rebuildBlessingStatus();
     }
 
     /** A fresh snapshot from the server replaces what is on screen. */
     public void update(PlaqueSnapshot fresh) {
+        if (!acceptsSnapshot(fresh)) {
+            return;
+        }
         this.snapshot = fresh;
         rebuildEmblem();
+        rebuildBlessingStatus();
         rebuild();
+    }
+
+    /**
+     * Exact physical-screen guard used by update-only network deliveries.
+     *
+     * <p>The building id is deliberately not part of the client-side match:
+     * an authorized REFRESH may link an unlinked plaque (or replace its stale
+     * saved link) inside this same server-authored session. The next snapshot
+     * is the authority for that id transition; every action still echoes the
+     * latest id and the server independently validates plaque, session and
+     * building identity before it mutates anything.
+     */
+    public boolean acceptsSnapshot(PlaqueSnapshot fresh) {
+        return snapshot != null && fresh != null
+            && snapshot.pos().equals(fresh.pos())
+            && snapshot.sessionId().equals(fresh.sessionId());
+    }
+
+    /** Eagerly release the server's one bounded viewer entry on any close. */
+    @Override
+    public void removed() {
+        if (uiOpenSoundPlayed && !uiCloseSoundPlayed) {
+            uiCloseSoundPlayed = true;
+            HsUi.playCloseSound();
+        }
+        if (snapshot != null && minecraft != null && minecraft.getConnection() != null) {
+            PacketDistributor.sendToServer(new PlaqueAction(snapshot.pos(),
+                snapshot.buildingId(), snapshot.sessionId(),
+                PlaqueAction.Kind.CLOSE, PlaqueAction.NO_BUILDING,
+                snapshot.revision()));
+        }
+        super.removed();
     }
 
     /** The building's own item stands in for a coat of arms beside its name. */
@@ -171,9 +203,21 @@ public class PlaqueScreen extends Screen {
     @Override
     protected void init() {
         left = (width - PANEL_W) / 2;
-        top = (height - PANEL_H) / 2;
+        // 230px/3 rows at ordinary scales; 146px/1 row in a 180px-tall
+        // guiScale-4 viewport. The existing list scrollbar remains the only
+        // scroll authority, so controls and hitboxes never detach from art.
+        visibleRows = Math.max(1, Math.min(MAX_ROWS,
+            (height - HsUiTokens.GRID * 2 - PANEL_FIXED_H) / CARD_STEP));
+        listHeight = visibleRows * CARD_STEP - 4;
+        footerTop = LIST_TOP + listHeight + 6;
+        panelHeight = footerTop + 20 + HsUiTokens.BUTTON_H + 10;
+        top = (height - panelHeight) / 2;
         rebuildEmblem();
         rebuild();
+        if (!uiOpenSoundPlayed) {
+            uiOpenSoundPlayed = true;
+            HsUi.playOpenSound();
+        }
     }
 
     // ------------------------------------------------------------ widgets ---
@@ -183,13 +227,23 @@ public class PlaqueScreen extends Screen {
         if (snapshot == null) {
             return;
         }
-        int tabW = (PANEL_W - 20 - 2 * 4) / 3;
-        Tab[] tabs = Tab.values();
+        Tab[] tabs = availableTabs();
+        boolean currentTabAvailable = false;
+        for (Tab candidate : tabs) {
+            currentTabAvailable |= candidate == tab;
+        }
+        if (!currentTabAvailable) {
+            tab = Tab.REQUIREMENTS;
+            scroll = 0;
+        }
+        int tabW = (PANEL_W - 20 - (tabs.length - 1) * 4) / tabs.length;
+        boolean staffLabels = !usesHousingAssignment();
         for (int i = 0; i < tabs.length; i++) {
             Tab which = tabs[i];
             addRenderableWidget(new TabButton(
                 left + 10 + i * (tabW + 4), top + 26, tabW, 16,
-                which.label(), which == tab, () -> {
+                which.label(staffLabels), which == tab, () -> {
+                    QaClientObserver.markUiTransition("plaque_tab_" + which.key);
                     tab = which;
                     scroll = 0;
                     rebuild();
@@ -197,26 +251,31 @@ public class PlaqueScreen extends Screen {
         }
 
         int rows = rowCount();
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, rows - ROWS)));
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, rows - visibleRows)));
 
         if (tab == Tab.PEOPLE) {
             buildPeople();
-        } else if (tab == Tab.HIRE) {
+        } else if (tab == Tab.HIRE && usesHousingAssignment()) {
             buildHire();
         }
 
-        addRenderableWidget(HsButton.normal(left + 10, top + FOOT + 20, REFRESH_BTN_W,
+        addRenderableWidget(HsButton.normal(left + 10, top + footerTop + 20, REFRESH_BTN_W,
             HsUiTokens.BUTTON_H,
             Component.translatable("hearthstead.plaque.refresh"),
             () -> act(PlaqueAction.Kind.REFRESH, new UUID(0, 0))));
-        addRenderableWidget(HsButton.normal(left + BTN_X, top + FOOT + 20, BTN_W,
+        addRenderableWidget(HsButton.normal(left + BTN_X, top + footerTop + 20, BTN_W,
             HsUiTokens.BUTTON_H,
             Component.translatable("hearthstead.plaque.close"), this::onClose));
     }
 
     private void buildPeople() {
+        // Workplace staff is intentionally read-only. Housing keeps its
+        // existing resident eviction control; no work action is authored here.
+        if (!usesHousingAssignment()) {
+            return;
+        }
         List<PlaqueSnapshot.Occupant> people = snapshot.occupants();
-        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+        for (int row = 0; row < visibleRows && row + scroll < people.size(); row++) {
             PlaqueSnapshot.Occupant occupant = people.get(row + scroll);
             int y = top + LIST_TOP + row * CARD_STEP;
             HsButton dismiss = HsButton.danger(left + BTN_X, y + 4, BTN_W,
@@ -227,28 +286,15 @@ public class PlaqueScreen extends Screen {
             dismiss.setTooltip(Tooltip.create(Component.translatable(
                 "hearthstead.plaque.evict.tip", occupant.name())));
             addRenderableWidget(dismiss);
-
-            // "Come here" is only meaningful for someone who actually holds a
-            // post in this building -- a resident with no job here has no
-            // post to be called away from, matching the server's own
-            // not_employed refusal, so the row is simply left without the
-            // button rather than drawn and always refused (D-014).
-            if (occupant.worker()) {
-                HsButton summon = HsButton.normal(left + BTN_X, y + 4 + HsUiTokens.BUTTON_H,
-                    BTN_W, SUMMON_BTN_H,
-                    Component.translatable("hearthstead.plaque.summon"),
-                    () -> act(PlaqueAction.Kind.SUMMON, occupant.id()));
-                summon.active = snapshot.mayManage();
-                summon.setTooltip(Tooltip.create(Component.translatable(
-                    "hearthstead.plaque.summon.tip", occupant.name())));
-                addRenderableWidget(summon);
-            }
         }
     }
 
     private void buildHire() {
+        if (!usesHousingAssignment()) {
+            return;
+        }
         List<PlaqueSnapshot.Candidate> people = snapshot.candidates();
-        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+        for (int row = 0; row < visibleRows && row + scroll < people.size(); row++) {
             PlaqueSnapshot.Candidate candidate = people.get(row + scroll);
             int y = top + LIST_TOP + row * CARD_STEP;
             boolean eligible = candidate.blockedReason().isEmpty();
@@ -268,31 +314,64 @@ public class PlaqueScreen extends Screen {
 
     private int rowCount() {
         return switch (tab) {
-            case PEOPLE -> snapshot.occupants().size();
-            case HIRE -> snapshot.candidates().size();
+            case PEOPLE -> snapshot.occupants().size() + (isWorkplace() ? 1 : 0);
+            case HIRE -> usesHousingAssignment() ? snapshot.candidates().size() : 0;
             case REQUIREMENTS -> snapshot.requirements().size();
         };
+    }
+
+    /** Homes expose move-in candidates; every other plaque is inspection-only. */
+    private Tab[] availableTabs() {
+        return usesHousingAssignment()
+            ? Tab.values()
+            : new Tab[] {Tab.REQUIREMENTS, Tab.PEOPLE};
+    }
+
+    private BuildingType buildingType() {
+        return BuildingType.byId(snapshot.buildingType());
+    }
+
+    private boolean usesHousingAssignment() {
+        return buildingType().housesResidents();
+    }
+
+    private boolean isWorkplace() {
+        BuildingType type = buildingType();
+        return type.employsWorkers() && !type.housesResidents();
     }
 
     private void act(PlaqueAction.Kind kind, UUID target) {
         if (snapshot != null) {
             PacketDistributor.sendToServer(new PlaqueAction(
-                snapshot.pos(), kind, target, snapshot.revision()));
+                snapshot.pos(), snapshot.buildingId(), snapshot.sessionId(),
+                kind, target, snapshot.revision()));
         }
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
         int rows = rowCount();
-        if (rows > ROWS) {
+        if (rows > visibleRows) {
             int before = scroll;
-            scroll = Math.max(0, Math.min(rows - ROWS, scroll - (int) Math.signum(dy)));
+            scroll = Math.max(0,
+                Math.min(rows - visibleRows, scroll - (int) Math.signum(dy)));
             if (before != scroll) {
+                QaClientObserver.markUiTransition("plaque_scroll");
                 rebuild();
                 return true;
             }
         }
         return super.mouseScrolled(mouseX, mouseY, dx, dy);
+    }
+
+    @Override
+    public String qaUiState() {
+        String type = snapshot == null ? "none" : snapshot.buildingType();
+        int rows = snapshot == null ? 0 : rowCount();
+        return "tab=" + tab.key + ",scroll=" + scroll + "/"
+            + Math.max(0, rows - visibleRows) + ",rows=" + visibleRows
+            + ",building=" + type + ",panel=" + left + ":" + top + ":"
+            + PANEL_W + ":" + panelHeight;
     }
 
     // ------------------------------------------------------------- drawing ---
@@ -304,14 +383,19 @@ public class PlaqueScreen extends Screen {
             HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
             return;
         }
-        HsUi.window(graphics, left, top, PANEL_W, PANEL_H);
+        HsUi.window(graphics, left, top, PANEL_W, panelHeight);
         if (!emblem.isEmpty()) {
             // The building's own item beside its name -- a small coat of arms,
             // not a functional slot (it never gets a tooltip or a hover state).
             graphics.renderItem(emblem, left + 10, top + 6);
         }
-        HsUi.centred(graphics, font, title(), left + PANEL_W / 2, top + 12,
+        HsUi.centred(graphics, font, title(), left + PANEL_W / 2, top + 6,
             HsUiTokens.TEXT_STRONG);
+        // The second header line uses space that was previously blank, so it
+        // adds no height at either the normal three-row size or the compact
+        // guiScale-4 one-row size.
+        HsUi.labelIn(graphics, font, blessingStatusLine, left + 32, top + 16,
+            PANEL_W - 42, hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
         // A double rule instead of one -- the same ink, just given a second
         // hairline of breathing room, the way a title page is ruled off from
         // its body. Both fit between the tabs (ending at top+42) and
@@ -327,11 +411,12 @@ public class PlaqueScreen extends Screen {
 
         int rows = rowCount();
         HsUi.scrollbar(graphics, left + PANEL_W - PAD - SCROLL_W, top + LIST_TOP,
-            LIST_H, rows == 0 ? 1.0F : Math.min(1.0F, (float) ROWS / rows),
-            rows <= ROWS ? 0.0F : (float) scroll / (rows - ROWS), false);
+            listHeight, rows == 0 ? 1.0F
+                : Math.min(1.0F, (float) visibleRows / rows),
+            rows <= visibleRows ? 0.0F : (float) scroll / (rows - visibleRows), false);
 
-        HsUi.divider(graphics, left + 10, top + FOOT, PANEL_W - 20);
-        HsUi.labelIn(graphics, font, footer(), left + 12, top + FOOT + 7,
+        HsUi.divider(graphics, left + 10, top + footerTop, PANEL_W - 20);
+        HsUi.labelIn(graphics, font, footer(), left + 12, top + footerTop + 7,
             PANEL_W - 24, HsUiTokens.ACCENT);
         HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
     }
@@ -340,6 +425,42 @@ public class PlaqueScreen extends Screen {
         BuildingType type = BuildingType.byId(snapshot.buildingType());
         return type == null ? Component.translatable("hearthstead.plaque.title")
             : type.displayName();
+    }
+
+    /** Names plus Roman numerals; zero ranks are omitted, never colour-coded blanks. */
+    private void rebuildBlessingStatus() {
+        MutableComponent ranks = Component.empty();
+        int activeRanks = 0;
+        for (BlessingId blessing : BLESSING_IDS) {
+            activeRanks += snapshot.blessingRank(blessing) > 0 ? 1 : 0;
+        }
+        boolean any = false;
+        for (BlessingId blessing : BLESSING_IDS) {
+            int rank = snapshot.blessingRank(blessing);
+            if (rank <= 0) {
+                continue;
+            }
+            if (any) {
+                ranks.append(Component.literal(" • "));
+            }
+            ranks.append(Component.translatable("hearthstead.blessing."
+                + blessing.id() + (activeRanks == BLESSING_IDS.length
+                    ? ".short" : ".name")));
+            ranks.append(Component.literal(" " + roman(rank)));
+            any = true;
+        }
+        hasBlessings = any;
+        blessingStatusLine = any ? Component.translatable("hearthstead.blessing.status", ranks)
+            : Component.translatable("hearthstead.blessing.status.none");
+    }
+
+    private static String roman(int rank) {
+        return switch (rank) {
+            case 1 -> "I";
+            case 2 -> "II";
+            case 3 -> "III";
+            default -> "—";
+        };
     }
 
     /**
@@ -357,8 +478,11 @@ public class PlaqueScreen extends Screen {
                     people.get(0).name());
         }
         if (tab == Tab.PEOPLE) {
-            return Component.translatable("hearthstead.plaque.people_count",
-                snapshot.occupants().size(), snapshot.capacity());
+            return usesHousingAssignment()
+                ? Component.translatable("hearthstead.plaque.people_count",
+                    snapshot.occupants().size(), snapshot.capacity())
+                : Component.translatable("hearthstead.plaque.workers",
+                    snapshot.occupants().size(), snapshot.capacity());
         }
         // The requirements tab's one thing worth saying is what the building
         // GIVES. The screen listed costs and never the payoff -- the owner's
@@ -378,7 +502,7 @@ public class PlaqueScreen extends Screen {
             drawNoRoomCard(graphics);
             return;
         }
-        for (int row = 0; row < ROWS && row + scroll < lines.size(); row++) {
+        for (int row = 0; row < visibleRows && row + scroll < lines.size(); row++) {
             PlaqueSnapshot.RequirementLine line = lines.get(row + scroll);
             int y = top + LIST_TOP + row * CARD_STEP;
             boolean met = line.have() >= line.needed();
@@ -430,27 +554,59 @@ public class PlaqueScreen extends Screen {
 
     private void drawPeople(GuiGraphics graphics, int mouseX, int mouseY) {
         List<PlaqueSnapshot.Occupant> people = snapshot.occupants();
-        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
-            PlaqueSnapshot.Occupant occupant = people.get(row + scroll);
+        boolean workplace = isWorkplace();
+        int rows = rowCount();
+        for (int row = 0; row < visibleRows && row + scroll < rows; row++) {
+            int visibleIndex = row + scroll;
             int y = top + LIST_TOP + row * CARD_STEP;
+            if (workplace && visibleIndex == 0) {
+                drawStaffInstruction(graphics, y);
+                continue;
+            }
+            int occupantIndex = workplace ? visibleIndex - 1 : visibleIndex;
+            if (occupantIndex < 0 || occupantIndex >= people.size()) {
+                continue;
+            }
+            PlaqueSnapshot.Occupant occupant = people.get(occupantIndex);
             boolean hovered = hovering(mouseX, mouseY, y);
             HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
             cardFrame(graphics, y);
             HsUi.labelIn(graphics, font, Component.literal(occupant.name()),
-                left + TEXT_X, y + 5, NAME_BOX, HsUiTokens.TEXT_STRONG);
+                left + TEXT_X, y + 5, workplace ? COST_BOX : NAME_BOX,
+                HsUiTokens.TEXT_STRONG);
             HsUi.labelIn(graphics, font,
                 Component.translatable("hearthstead.profession."
                     + occupant.profession().toLowerCase(java.util.Locale.ROOT)),
-                left + TEXT_X, y + 17, POST_BOX, HsUiTokens.TEXT_MUTED);
+                left + TEXT_X, y + 17, workplace ? COST_BOX : POST_BOX,
+                HsUiTokens.TEXT_MUTED);
             float morale = occupant.morale() / 100.0F;
-            HsUi.bar(graphics, left + TEXT_X, y + 29, 80, 6, morale,
+            HsUi.bar(graphics, left + TEXT_X, y + 29,
+                workplace ? Math.min(160, COST_BOX) : 80, 6, morale,
                 HsUi.Tone.of(morale));
         }
     }
 
+    /** One wrapped rule card, always first on a workplace's Staff page. */
+    private void drawStaffInstruction(GuiGraphics graphics, int y) {
+        HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, false);
+        cardFrame(graphics, y);
+        List<FormattedCharSequence> lines = font.split(Component.translatable(
+            "hearthstead.plaque.staff.instructions"), COST_BOX);
+        int shown = Math.min(3, lines.size());
+        int textTop = y + Math.max(5, (CARD_H - shown * 10) / 2);
+        for (int line = 0; line < shown; line++) {
+            graphics.drawString(font, lines.get(line), left + TEXT_X,
+                textTop + line * 10, line == 0
+                    ? HsUiTokens.ACCENT : HsUiTokens.TEXT_STRONG, true);
+        }
+    }
+
     private void drawHire(GuiGraphics graphics, int mouseX, int mouseY) {
+        if (!usesHousingAssignment()) {
+            return;
+        }
         List<PlaqueSnapshot.Candidate> people = snapshot.candidates();
-        for (int row = 0; row < ROWS && row + scroll < people.size(); row++) {
+        for (int row = 0; row < visibleRows && row + scroll < people.size(); row++) {
             PlaqueSnapshot.Candidate candidate = people.get(row + scroll);
             int y = top + LIST_TOP + row * CARD_STEP;
             boolean hovered = hovering(mouseX, mouseY, y);

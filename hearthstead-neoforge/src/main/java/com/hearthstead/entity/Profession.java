@@ -27,8 +27,8 @@ public enum Profession {
     FLETCHER(13, "fletcher", () -> ItemStack.EMPTY, 0x5B7A50),
     WEAVER(14, "weaver", () -> ItemStack.EMPTY, 0xA8A294),
     TANNER(15, "tanner", () -> ItemStack.EMPTY, 0x7A5230),
-    // A starter trade in both references, and the one this roster was
-    // missing. The pick stays in hand: it is what reads at distance.
+    // A starter trade in both references. The pick is a request template,
+    // never projected into the hand by assigning the profession.
     MINER(16, "miner", () -> new ItemStack(Items.IRON_PICKAXE), 0x62604F),
     // SLICE RECRUIT-1: the settlement's other half of A2's recruiting chain
     // (DESIGN.md system 8) -- somebody has to stand behind the bar for the
@@ -49,9 +49,8 @@ public enum Profession {
     MILLER(19, "miller", () -> ItemStack.EMPTY, 0xD8CBA8),
     BREWER(20, "brewer", () -> ItemStack.EMPTY, 0x9C6B2F),
     // Owner's ask, 2026-08-25: an archer with abilities over time (ArcherRank
-    // -- Power Shot, Triple Shot). The bow stays in hand like the guard's
-    // sword: it is the trade's tool and what reads at distance, and the
-    // renderer's ItemInHandLayer draws it for free. Forest green, distinct
+    // -- Power Shot, Triple Shot). The bow is required physical equipment,
+    // not free profession projection. Forest green, distinct
     // from the guard's iron grey and the farmer/fletcher sage: the tower
     // archer is a woodland silhouette, not a wall one.
     ARCHER(21, "archer", () -> new ItemStack(Items.BOW), 0x2E5D34),
@@ -74,11 +73,8 @@ public enum Profession {
     // have a producer, instead of leaving the weaver, tanner and butcher to
     // live on whatever the player hands them directly.
     //
-    // Tools are the real, honest kit for each job -- SHEARS reads as
-    // "shepherd" at a glance the same way IRON_AXE reads as "lumberer", the
-    // FISHING_ROD is literally the trade, and the BOW matches the lodge's
-    // own plaque emblem (BuildingType.HUNTERS_LODGE) and HUNTER_LOOSE's
-    // draw-and-loose clip.
+    // These values are request templates, not starting equipment. SHEARS,
+    // FISHING_ROD and BOW must all enter the settlement as physical items.
     HERDER(23, "herder", () -> new ItemStack(Items.SHEARS), 0x8B9A6B),
     FISHER(24, "fisher", () -> new ItemStack(Items.FISHING_ROD), 0x3E7C8A),
     HUNTER(25, "hunter", () -> new ItemStack(Items.BOW), 0x5C4A32);
@@ -87,6 +83,11 @@ public enum Profession {
 
     private final byte id;
     private final String key;
+    /**
+     * Template for the equipment this profession requests. Calling this never
+     * equips a settler; the returned stack must come from real settlement or
+     * player inventory through the request/delivery system.
+     */
     private final Supplier<ItemStack> tool;
     private final int color;
 
@@ -105,8 +106,14 @@ public enum Profession {
         return key;
     }
 
-    public ItemStack tool() {
+    public ItemStack requestedTool() {
         return tool.get();
+    }
+
+    /** @deprecated use {@link #requestedTool()}; this never equips anything. */
+    @Deprecated(forRemoval = false)
+    public ItemStack tool() {
+        return requestedTool();
     }
 
     public int color() {

@@ -1,0 +1,887 @@
+{
+  "schemaVersion": 2,
+  "title": "Hearthstead native-client approval matrix",
+  "requiredNativeProfiles": [
+    "1280x720-gui2-en_us",
+    "1280x720-gui3-en_us",
+    "1280x720-gui3-nb_no",
+    "1920x1080-gui4-en_us"
+  ],
+  "rows": [
+    {
+      "id": "identity.exact_jar_native_boot",
+      "stage": "identity",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "screenshot"],
+      "acceptanceAssertions": [
+        "The native client boots from the exact installed candidate JAR, reports the same SHA-256 and game directory through the observer, joins the bound fresh world, and shows no duplicate Hearthstead JAR, development classpath, crash, missing resource, or loader error.",
+        "The first full-frame world capture and integrated-server acknowledgement share the same native session, world identity, display profile, language, and post-launch epoch."
+      ]
+    },
+    {
+      "id": "identity.keyboard_mouse_look_round_trip",
+      "stage": "identity",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "video"],
+      "requiredClientInteraction": {
+        "minAcks": 2,
+        "requireGrabbed": true,
+        "minLookDeltaDegrees": 5.0,
+        "minMovementDeltaBlocks": 0.5
+      },
+      "acceptanceAssertions": [
+        "Registered physical keyboard input moves the player by at least the required distance while Minecraft owns the foreground and has the mouse grabbed, and a release returns every pressed key to the neutral state.",
+        "Registered physical mouse input changes both camera pick direction and yaw or pitch by the required amount, produces row-nonced integrated-client acknowledgements, and leaves no unmatched input intent."
+      ]
+    },
+    {
+      "id": "journey.found_hearth_three_settlers",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "founding", "event": "FOUNDING_COMMITTED", "result": "COMMITTED", "targetPrefix": "settlement:", "reason": "three_founders_atomic"}
+      ],
+      "acceptanceAssertions": [
+        "Placing the Hearth commits exactly three distinct live founders once and presents an audible, visible founding moment without spawning them inside blocks or each other.",
+        "Founder nameplates remain readable at normal play distance, preserve name and role hierarchy, and do not overlap bodies, bags, held equipment, or each other during idle and movement."
+      ]
+    },
+    {
+      "id": "journey.hearth_and_development_navigation",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "screenshot", "video"],
+      "acceptanceAssertions": [
+        "Right-clicking the physical Hearth opens the settlement-bound Hearth screen, and Journey and Development are reachable through visible controls with clear current objectives, blockers, costs, building descriptions, and a reliable Back path.",
+        "Repeated tab changes, scrolling, Development pan and zoom, modal open and close, and returning to the world produce no overlap, dead control, stale settlement data, duplicate overlay, or visible frame hitch."
+      ]
+    },
+    {
+      "id": "journey.research_cost_and_plan_unlock",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "research", "event": "DEVELOPMENT_NODE_COMMITTED", "result": "COMMITTED", "targetPrefix": "development:", "reason": "node_unlock"},
+        {"id": "plan_unlock", "event": "PLAN_UNLOCK_COMMITTED", "result": "COMMITTED", "targetPrefix": "plans:", "reason": "settlement_knowledge"}
+      ],
+      "acceptanceAssertions": [
+        "Development begins as one readable trunk before branching into meaningful settlement choices with explicit trade-offs, costs, objectives, and building descriptions.",
+        "Research consumes the displayed physical cost exactly once, advances the node revision once, and teaches the matching build-plan recipe permanently without revealing locked plans."
+      ]
+    },
+    {
+      "id": "journey.house_plaque_and_housing_capacity",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "house_link", "event": "BUILDING_LINK_COMMITTED", "result": "COMMITTED", "targetPrefix": "building:", "reason": "type:house"}
+      ],
+      "acceptanceAssertions": [
+        "The learned House plan and plaque both show the same concise building purpose, exact room and bed requirements, and live validity state without blinking, overlay duplication, or consuming the plan before a valid link."
+      ]
+    },
+    {
+      "id": "journey.mayor_appointment_and_emblem_shop",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "mayor", "event": "MAYOR_APPOINTED", "result": "COMMITTED", "targetPrefix": "settler:", "reason": "first_appointment"},
+        {"id": "emblem_issue", "event": "EMBLEM_PURCHASED", "result": "COMMITTED", "targetPrefix": "emblem:", "reason": "hearth_payment_and_issue"}
+      ],
+      "acceptanceAssertions": [
+        "Inspect Mayor opens the ordinary settler sheet for the server-authenticated Mayor identity.",
+        "Out-of-range, wrong-identity, and stale-revision Mayor inspection attempts are denied without opening or mutating a sheet."
+      ]
+    },
+    {
+      "id": "journey.emblem_auto_hire",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "auto_hire", "event": "EMPLOYMENT_AUTO_HIRED", "result": "COMMITTED", "targetPrefix": "building:", "reasonPrefix": "settler:"}
+      ],
+      "acceptanceAssertions": [
+        "Normal-right-clicking a compatible settler with one purchased Job Emblem consumes it once and immediately auto-employs that exact settler at the nearest compatible valid building.",
+        "There is no separate Hire action, no starting job equipment is fabricated, and missing or incompatible workplaces refuse without consuming the Emblem or mutating employment."
+      ]
+    },
+    {
+      "id": "journey.settler_inventory_and_need_icon",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "need_request", "event": "EQUIPMENT_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "requester:"},
+        {"id": "inventory_transfer", "event": "SETTLER_INVENTORY_TRANSFER_COMMITTED", "result": "COMMITTED", "targetPrefix": "settler:", "reason": "player_to_settler"}
+      ],
+      "acceptanceAssertions": [
+        "A newly assigned worker starts without fabricated job tools and exposes a visible need icon and request.",
+        "Shift-right-click with both main hand and offhand empty opens that exact settler inventory and a player item transfer persists server-side."
+      ]
+    },
+    {
+      "id": "journey.lumber_work_zone",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "lumber_zone", "event": "WORK_ZONE_COMMITTED", "result": "COMMITTED", "targetPrefix": "work_zone:", "reason": "confirmed_bounds"}
+      ],
+      "acceptanceAssertions": [
+        "The player selects two physical 3D corners with the Work Scepter, reviews a transparent full-height Lumber Work Zone preview, and explicitly confirms or cancels before any server commit.",
+        "A confirmed Lumber Work Zone persists exact bounds and a monotonic revision through restart; without one the Lumberer stays idle behind a truthfully labelled no-zone fallback."
+      ]
+    },
+    {
+      "id": "journey.cultivated_ground_farmer_unlock",
+      "stage": "journey",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "farmer_need", "event": "EQUIPMENT_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "requester:"},
+        {"id": "farmer_tool", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "farmer_seed", "event": "FARM_SEED_PLANTED_COMMITTED", "result": "COMMITTED", "targetPrefix": "action:", "reasonPrefix": "farm_seed_terminal:"},
+        {"id": "farmer_output", "event": "WORKPLACE_OUTPUT_COMMITTED", "result": "COMMITTED", "targetPrefix": "receipt:", "reasonPrefix": "workplace_output:"}
+      ],
+      "acceptanceAssertions": [
+        "The Farmer begins without a hoe, requests it visibly, receives it through real inventory transfer, and deposits harvest in the farm job chest."
+      ]
+    },
+    {
+      "id": "journey.farm_work_zone",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "farm_zone", "event": "WORK_ZONE_COMMITTED", "result": "COMMITTED", "targetPrefix": "work_zone:", "reason": "confirmed_bounds"}
+      ],
+      "acceptanceAssertions": [
+        "The player selects two physical 3D corners with the Work Scepter, reviews a transparent full-height Farm Work Zone preview, and explicitly confirms or cancels before any server commit.",
+        "A confirmed Farm Work Zone persists exact bounds and a monotonic revision through restart; without one the Farmer stays idle behind a truthfully labelled no-zone fallback."
+      ]
+    },
+    {
+      "id": "journey.stores_roads_courier_unlock",
+      "stage": "journey",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "ledger_view", "event": "REQUEST_LEDGER_VIEWED", "result": "OBSERVED", "targetPrefix": "hearth:", "reasonPrefix": "bounded_"},
+        {"id": "output_request", "event": "OUTPUT_PICKUP_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "source:"},
+        {"id": "output_satisfied", "event": "OUTPUT_PICKUP_SATISFIED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"}
+      ],
+      "acceptanceAssertions": [
+        "The Courier reads the visible request list, collects from a real worker job chest, carries the item, and completes one server-authoritative delivery."
+      ]
+    },
+    {
+      "id": "journey.hospitality_tavern_unlock",
+      "stage": "journey",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "tavern_link", "event": "BUILDING_LINK_COMMITTED", "result": "COMMITTED", "targetPrefix": "building:", "reason": "type:tavern"}
+      ],
+      "acceptanceAssertions": [
+        "The Tavern plan, plaque, and Hearth recruitment view explain lodging, free-bed, food, safety, morale, Innkeeper, qualification, and admission purpose in plain English without ambiguous Hire controls.",
+        "The valid Tavern remains visibly active and restart-safe, and the UI truthfully presents an Innkeeper as an optional hospitality upgrade for price and patience rather than a hidden requirement for the four-settler Guard journey."
+      ]
+    },
+    {
+      "id": "journey.tavern_recruitment_fourth_settler",
+      "stage": "journey",
+      "triggerMode": "natural_runtime",
+      "requiredEvidenceKinds": ["server_log", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "qualification", "event": "RECRUITMENT_QUALIFICATION_STARTED", "result": "COMMITTED", "targetPrefix": "transaction:", "reasonPrefix": "qualification_persisted:"},
+        {"id": "arrival", "event": "TRAVELER_ARRIVED_AT_TAVERN", "result": "COMMITTED", "targetPrefix": "transaction:", "reasonPrefix": "arrival_persisted:"},
+        {"id": "admission_receipt", "event": "TRAVELER_ADMITTED", "result": "COMMITTED", "targetPrefix": "transaction:", "reasonPrefix": "admission_payment_persisted:"},
+        {"id": "membership", "event": "RECRUITMENT_COMMITTED", "result": "COMMITTED", "targetPrefix": "settler:", "reason": "explicit_tavern_admission"}
+      ],
+      "acceptanceAssertions": [
+        "The recruitment card continuously explains every met and unmet gate, shows the deterministic qualification progress, traveler identity, exact admission price and post-price food reserve, and exposes explicit Admit and Dismiss choices.",
+        "The fourth settler arrives through the authored natural Tavern window and is admitted exactly once with physical payment; no spawn, recruit, hire, or hidden progression command substitutes for the player flow."
+      ]
+    },
+    {
+      "id": "journey.first_watch_barracks_guard_unlock",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "barracks_link", "event": "BUILDING_LINK_COMMITTED", "result": "COMMITTED", "targetPrefix": "building:", "reason": "type:barracks"}
+      ],
+      "acceptanceAssertions": [
+        "After four physically housed settlers, First Watch displays and consumes its exact cost once, teaches the Barracks plan and Guard Emblem, and keeps both unavailable before the housing objective is satisfied.",
+        "A player-built valid Barracks links through one consumed plan and stable plaque, registers accessible storage, and exposes Guard auto-hire, weapon need, Courier delivery, and Guard Orders without a separate Hire action."
+      ]
+    },
+    {
+      "id": "journey.arm_the_watch_guard_weapon_delivery",
+      "stage": "journey",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "guard_need", "event": "EQUIPMENT_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "requester:"},
+        {"id": "guard_weapon", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"}
+      ],
+      "acceptanceAssertions": [
+        "The Guard starts without a weapon, raises a visible equipment need, and equips only after a real Courier delivery.",
+        "Arm the Watch remains locked until that exact Guard delivery objective is committed; buying it before the first raid unlocks the baseline Watchtower plan, Archer Emblem and Tower Post command without granting Shield Doctrine."
+      ]
+    },
+    {
+      "id": "journey.watchtower_archer_emblem_and_bow",
+      "stage": "journey",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "second_qualification", "event": "RECRUITMENT_QUALIFICATION_STARTED", "result": "COMMITTED", "targetPrefix": "transaction:", "reasonPrefix": "qualification_persisted:"},
+        {"id": "second_arrival", "event": "TRAVELER_ARRIVED_AT_TAVERN", "result": "COMMITTED", "targetPrefix": "transaction:", "reasonPrefix": "arrival_persisted:"},
+        {"id": "fifth_admission", "event": "TRAVELER_ADMITTED", "result": "COMMITTED", "targetPrefix": "transaction:", "reasonPrefix": "admission_payment_persisted:"},
+        {"id": "watchtower_link", "event": "BUILDING_LINK_COMMITTED", "result": "COMMITTED", "targetPrefix": "building:", "reason": "type:watchtower"},
+        {"id": "archer_hire", "event": "EMPLOYMENT_AUTO_HIRED", "result": "COMMITTED", "targetPrefix": "building:", "reasonPrefix": "settler:"},
+        {"id": "archer_bow", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "tower_post", "event": "GUARD_ORDER_COMMITTED", "result": "COMMITTED", "targetPrefix": "guard:", "reason": "set_tower_post"}
+      ],
+      "acceptanceAssertions": [
+        "After FJ-550 and Arm the Watch, Journey visibly requires at least five unique loaded physical bed heads, then durably binds the first eligible Watch-slot Tavern transaction, including the same nonterminal natural transaction already running when fifth-bed proof lands: four-to-eight-minute Call to Arms qualification on that attempt and every retry, physical arrival, real joining payment and one distinct admitted Watch recruit; dismissal, timeout, death, invalid Tavern, mature cycle numbers, missing bed, admin priming, and restart cannot skip or permanently deadlock the slot or demand a sixth bed.",
+        "One current settler receives an Archer Emblem through one exact purchase-and-bind transaction at the same valid linked Watchtower and must be distinct from the melee Guard; a wrong profession, worker, settlement, building or transaction does not advance staffing.",
+        "The Archer starts without a bow or arrows, exposes a visible bow request, and equips only after a real Courier delivery. At least one physical Arrow must be inside storage of this exact employer Watchtower; arrows in an unrelated tower or only an internal quiver do not satisfy the Journey.",
+        "FJ-559A truthfully says to stock arrows and then confirm Tower Post. The Tower Post click re-observes the exact rack and intentionally advances the physical-ammo and post facts together, reaches a real standable tower cell, and persists without changing the melee Guard."
+      ]
+    },
+    {
+      "id": "journey.first_raid_readiness_warning_attack",
+      "stage": "journey",
+      "triggerMode": "natural_runtime",
+      "requiredEvidenceKinds": ["server_log", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "raid_ready", "event": "RAID_READINESS_COMMITTED", "result": "COMMITTED", "targetPrefix": "first_raid_calendar:", "reason": "readiness_calendar_committed"},
+        {"id": "raid_warning", "event": "RAID_WARNING_COMMITTED", "result": "COMMITTED", "targetPrefix": "first_raid_warning:", "reasonPrefix": "persisted_plan:"},
+        {"id": "raid_started", "event": "RAID_STARTED", "result": "COMMITTED", "targetPrefix": "first_raid:", "reason": "participants_sealed"}
+      ],
+      "acceptanceAssertions": [
+        "The server-authored readiness panel lists every remaining blocker, keeps Declare Ready disabled while blocked, and commits one unchanged warning and attack calendar only after all blockers are clear.",
+        "Readiness requires five distinct live members and at least five unique physical bed heads plus two different defenders at the same time: Guard 1/1 with a serviceable physical melee weapon and Stand/Patrol order, and Archer 1/1 with a physical bow, a Tower Post order, and physical arrows either in the exact employer Watchtower rack or in that same Archer's bounded persisted quiver after real withdrawal from that rack.",
+        "Zero defenders, Guard-only, Archer-only, duplicate UUIDs, wrong profession or employer, missing or unserviceable equipment, arrows in another tower or another settler's quiver, either invalid order, fewer than five members or beds, and any stale or hand-mutated state each remain a visible blocker before and after restart.",
+        "The first warning, named captain, objective, approach, and sealed two-to-nine-raider band match the persisted plan and arrive without a teleport pop or silent replacement roll."
+      ]
+    },
+    {
+      "id": "journey.raid_resolution_and_reward",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "raid_resolved", "event": "RAID_RESOLVED", "result": "COMMITTED", "targetPrefix": "first_raid:", "reasonPrefix": "settlement_"},
+        {"id": "raid_reward", "event": "RAID_REWARD_ISSUED", "result": "COMMITTED", "targetPrefix": "blessing_offer:", "reason": "authoritative_raid_reward"},
+        {"id": "raid_aftermath", "event": "RAID_AFTERMATH_VIEWED", "result": "COMMITTED", "targetPrefix": "raid_aftermath:", "reasonPrefix": "report_viewed:"}
+      ],
+      "acceptanceAssertions": [
+        "The first raid presents a readable omen, named captain, objective, coordinated defenders, contact-synchronised combat, audible Guard XP, and a clear terminal victory or loss rather than merely spawning and despawning enemies.",
+        "Resolution records every sealed participant exactly once, issues at most one earned reward, opens the Aftermath review, and leaves no raider, objective, or reward replay stuck after combat."
+      ]
+    },
+    {
+      "id": "journey.shield_doctrine_permanent_choice",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "shield_doctrine", "event": "DOCTRINE_COMMITTED", "result": "COMMITTED", "targetPrefix": "development:shield_doctrine", "reason": "permanent_branch_choice"}
+      ],
+      "acceptanceAssertions": [
+        "After the first raid and exact objective and cost are satisfied, the confirmation names all three permanent doctrine trade-offs, commits exactly one selected branch, and leaves the other two unavailable without consuming their costs.",
+        "Shield Doctrine is a post-raid permanent specialization choice; it does not unlock the baseline Watchtower, Archer Emblem or Tower Post needed for the first raid, and its copy never tells the player otherwise.",
+        "The chosen doctrine's effect, icon, sound, Development state, defender behavior, and exclusion of both alternatives remain identical after a full client restart."
+      ]
+    },
+    {
+      "id": "journey.blessing_settler_permanent",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "settler_blessing", "event": "BLESSING_BOUND_SETTLER", "result": "COMMITTED", "targetPrefix": "settler:", "reasonPrefix": "warden_oath_"}
+      ],
+      "acceptanceAssertions": [
+        "With one physical Blessing Seal visible in hand, Shift-right-clicking a valid same-settlement settler consumes exactly one seal, binds exactly one permanent rank, and presents contact-synchronised visual feedback without mutating another target.",
+        "Invalid, cross-settlement, duplicate, empty-hand, and stale attempts consume nothing; the exact settler identity and Blessing rank remain inspectable and unchanged after restart."
+      ]
+    },
+    {
+      "id": "journey.blessing_building_permanent",
+      "stage": "journey",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "building_blessing", "event": "BLESSING_BOUND_BUILDING", "result": "COMMITTED", "targetPrefix": "building:", "reasonPrefix": "hearthward_"}
+      ],
+      "acceptanceAssertions": [
+        "With one physical Blessing Seal visible in hand, Shift-right-clicking a valid same-settlement linked plaque consumes exactly one seal, binds exactly one permanent building rank, and presents contact-synchronised feedback on that plaque only.",
+        "Invalid, unlinked, cross-settlement, duplicate, and stale plaque attempts consume nothing; the exact building identity and Blessing rank remain inspectable and unchanged after restart."
+      ]
+    },
+    {
+      "id": "journey.restart_persistence",
+      "stage": "journey",
+      "triggerMode": "restart",
+      "requiredEvidenceKinds": ["client_log", "server_log", "screenshot", "world_manifest"],
+      "requiredAuthorityTransactions": [
+        {"id": "state_reload", "event": "STATE_LOAD_SUMMARY", "result": "OBSERVED", "targetPrefix": "dimension:", "reasonPrefix": "buildings_", "minOccurrences": 2}
+      ],
+      "acceptanceAssertions": [
+        "After a full client stop and relaunch, settlement, buildings, settlers, Journey through FJ620, Development, permanent doctrine, jobs, request ledger, inventories, Guard orders, raid calendar/outcome, Guard XP, and both Blessing targets retain identical authoritative identities and values."
+      ]
+    },
+    {
+      "id": "role.lumberer_complete_physical_loop",
+      "stage": "roles",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "lumber_need", "event": "EQUIPMENT_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "requester:"},
+        {"id": "lumber_tool", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "tree_terminal", "event": "LUMBER_TREE_COMMITTED", "result": "COMMITTED", "targetPrefix": "action:", "reasonPrefix": "lumber_tree_terminal:"},
+        {"id": "log_deposit", "event": "WORKPLACE_OUTPUT_COMMITTED", "result": "COMMITTED", "targetPrefix": "receipt:", "reasonPrefix": "workplace_output:"},
+        {"id": "log_pickup_request", "event": "OUTPUT_PICKUP_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "source:"}
+      ],
+      "acceptanceAssertions": [
+        "The Lumberer starts without an axe, requests and receives one, deposits timber in the lumber job chest, and exposes it for Courier collection.",
+        "The lumber bag is attached only while worn; during ground packing the placed bag stays fixed while the Lumberer bends toward it, stows drops, picks it up, and resumes walking without a pop.",
+        "The Lumberer never searches, claims, breaks, collects, or deposits work sourced outside the explicitly committed Lumber Work Zone; with no zone it stays idle and the fallback is visibly labelled."
+      ]
+    },
+    {
+      "id": "role.farmer_complete_physical_loop",
+      "stage": "roles",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "farm_need", "event": "EQUIPMENT_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "requester:"},
+        {"id": "farm_tool", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "seed_terminal", "event": "FARM_SEED_PLANTED_COMMITTED", "result": "COMMITTED", "targetPrefix": "action:", "reasonPrefix": "farm_seed_terminal:"},
+        {"id": "harvest_terminal", "event": "FARM_HARVEST_COMMITTED", "result": "COMMITTED", "targetPrefix": "action:", "reasonPrefix": "farm_harvest_terminal:"},
+        {"id": "crop_deposit", "event": "WORKPLACE_OUTPUT_COMMITTED", "result": "COMMITTED", "targetPrefix": "receipt:", "reasonPrefix": "workplace_output:"}
+      ],
+      "acceptanceAssertions": [
+        "The Farmer starts without a hoe, requests and receives one, works only the player-defined field, and deposits harvest in the farm job chest for Courier collection.",
+        "The Farmer never tills, plants, searches, harvests, collects, or deposits work sourced outside the explicitly committed Farm Work Zone; with no zone it stays idle and the fallback is visibly labelled."
+      ]
+    },
+    {
+      "id": "role.courier_request_collection_delivery",
+      "stage": "roles",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "request_visible", "event": "REQUEST_LEDGER_VIEWED", "result": "OBSERVED", "targetPrefix": "hearth:", "reasonPrefix": "bounded_"},
+        {"id": "pickup_open", "event": "OUTPUT_PICKUP_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "source:"},
+        {"id": "pickup_reserved", "event": "OUTPUT_PICKUP_RESERVED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "pickup_physical", "event": "OUTPUT_PICKUP_PICKED_UP", "result": "COMMITTED", "targetPrefix": "courier:", "reasonPrefix": "request:"},
+        {"id": "pickup_delivered", "event": "OUTPUT_PICKUP_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "target:"},
+        {"id": "pickup_satisfied", "event": "OUTPUT_PICKUP_SATISFIED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"}
+      ],
+      "acceptanceAssertions": [
+        "Hearth to Requests visibly names the item and count, source-to-target route, assigned Courier, current physical owner, and truthful stop reason before the Courier acts.",
+        "The Courier physically removes the exact reserved stack from the correct worker job chest, carries it, inserts it into the exact destination, clears the request only after insertion, and resumes reachable work without duplication or unexplained idle."
+      ]
+    },
+    {
+      "id": "role.guard_equipment_hold_defend_patrol",
+      "stage": "roles",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "screenshot", "video", "audio"],
+      "requiredAuthorityTransactions": [
+        {"id": "guard_equipped", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "guard_hold", "event": "GUARD_ORDER_COMMITTED", "result": "COMMITTED", "targetPrefix": "guard:", "reason": "set_stand_post"},
+        {"id": "guard_hearth", "event": "GUARD_ORDER_COMMITTED", "result": "COMMITTED", "targetPrefix": "guard:", "reason": "set_hearth_post"},
+        {"id": "guard_patrol", "event": "GUARD_ORDER_COMMITTED", "result": "COMMITTED", "targetPrefix": "guard:", "reason": "set_patrol_route"},
+        {"id": "guard_contact", "event": "MELEE_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "attacker:", "reasonPrefix": "attack:"}
+      ],
+      "acceptanceAssertions": [
+        "Hold Here, Defend Hearth, and a two-to-eight-point Patrol Route each commit to the exact selected Guard with monotonic revisions, visible movement, stop/return behavior, and no mutation of another Guard.",
+        "The equipped Guard prioritises threatened civilians, interrupts the order only for real combat, lands damage only at authored contact, and returns to the persisted order afterward."
+      ]
+    },
+    {
+      "id": "role.guard_combat_credit_xp_and_return",
+      "stage": "roles",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "combat_contact", "event": "MELEE_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "attacker:", "reasonPrefix": "attack:"},
+        {"id": "combat_xp", "event": "GUARD_XP_COMMITTED", "result": "COMMITTED", "targetPrefix": "guard:", "reasonPrefix": "combat_xp:"}
+      ],
+      "acceptanceAssertions": [
+        "Only the Guard credited for a genuinely terminal raider kill gains exactly one persisted XP commit and one audible, unclipped experience cue; cancelled, duplicate, indirect, or uncredited deaths grant none.",
+        "After combat the same melee Guard returns to the exact pre-combat Hold, Hearth, or Patrol order without freezing, retargeting civilians, losing equipment, or receiving the Archer-only Tower Post order."
+      ]
+    },
+    {
+      "id": "role.archer_bow_stance_patrol_and_combat",
+      "stage": "roles",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "archer_need", "event": "EQUIPMENT_REQUEST_OPENED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "requester:"},
+        {"id": "archer_equipped", "event": "EQUIPMENT_ITEM_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "courier:"},
+        {"id": "archer_contact", "event": "ARCHER_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "archer:", "reasonPrefix": "projectile:"}
+      ],
+      "acceptanceAssertions": [
+        "The Archer starts without a bow or arrows, raises a visible request, receives physical equipment through player inventory or a real Courier delivery, and never fires fabricated ammunition."
+      ]
+    },
+    {
+      "id": "ui.hearth_mayor_journey",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_HearthScreen",
+        "hearth_settlement_tab",
+        "hearth_mayor_popout",
+        "hearth_mayor_scroll",
+        "hearth_journey_popout",
+        "hearth_journey_confirm_open",
+        "hearth_journey_confirm_cancel",
+        "hearth_recruitment_popout",
+        "hearth_recruitment_admit_submit",
+        "hearth_raid_readiness_check",
+        "hearth_raid_readiness_scroll",
+        "hearth_raid_readiness_declare",
+        "hearth_popout_close"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "Hearth, Mayor, Journey, Recruitment, and Raid Readiness remain readable, scroll-reachable, modal-safe, and within the frame budget in every required native profile.",
+        "Recruitment always explains housing, food, safety, morale, Tavern, traveler identity, admission price, and Admit or Dismiss state so a new player can tell exactly how to obtain the fourth settler.",
+        "Raid Readiness is a read-only server blocker list until ready; Check Again never mutates progression, Declare commits once, and the committed calendar receipt remains visible."
+      ]
+    },
+    {
+      "id": "ui.development_pan_zoom_inspector",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_DevelopmentScreen",
+        "development_inspector",
+        "development_zoom",
+        "development_center",
+        "development_pan_drag",
+        "development_pan_wheel",
+        "development_pan_key"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "The premium Development view shows the natural trunk and every reachable branch, readable building descriptions, explicit costs and objectives, permanent-choice trade-offs, and learned-plan state without overlap or dead pan, zoom, inspector, or scroll controls in every required native profile."
+      ]
+    },
+    {
+      "id": "ui.emblem_shop_scroll_and_purchase",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_EmblemShopScreen",
+        "emblem_shop_scroll",
+        "emblem_shop_scroll_key",
+        "emblem_result_ok"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "Every Emblem row explains the job, required unlocked building, physical price, compatibility, and locked reason; purchase consumes the exact cost once and the Emblem itself performs auto-hire with no separate Hire button.",
+        "The shop remains readable, keyboard and wheel scrollable, and free of clipped prices, dead locked rows, overlap, or repeated-result submission."
+      ]
+    },
+    {
+      "id": "ui.plaque_requirements_and_plan",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "acceptanceAssertions": [
+        "The plaque and learned build-plan preview remain continuously visible without blinking, z-fighting, stale overlay, or frame-to-frame disappearance."
+      ],
+      "requiredFrameTransitions": [
+        "screen_PlaqueScreen",
+        "plaque_scroll"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ]
+    },
+    {
+      "id": "ui.settler_sheet_inventory_guard_orders",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_SettlerScreen",
+        "settler_scroll",
+        "screen_SettlerInventoryScreen",
+        "settler_inventory_click",
+        "screen_GuardOrderScreen",
+        "guard_orders_open",
+        "guard_orders_applied",
+        "guard_orders_close"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "The Settler sheet presents identity, job, employer, needs, buffs, permanent Blessings, equipment, health, morale, work state, stop reason, and actionable inventory access in a clean hierarchy without overlapping cards or hidden scroll content.",
+        "Shift-right-click with both main hand and offhand empty opens the exact settler inventory, and Guard Orders clearly separates Hold Here, Defend Hearth, Patrol points and traversal, Clear, and locked or available Tower Post controls."
+      ]
+    },
+    {
+      "id": "ui.work_scepter_zone_preview_confirm_cancel",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "screenshot", "video", "frame_report"],
+      "acceptanceAssertions": [
+        "The Work Scepter identifies the selected job site and both physical corner blocks, then renders a readable transparent full-height 3D volume without hiding terrain or settlers.",
+        "Confirm commits the exact previewed bounds once, Cancel commits nothing, and every default, missing, invalid, stale, or unloaded state is labelled truthfully before input."
+      ],
+      "requiredFrameTransitions": [
+        "work_scepter_target_selected",
+        "work_scepter_corner_one",
+        "work_scepter_zone_preview",
+        "work_scepter_zone_confirm",
+        "work_scepter_zone_cancel"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ]
+    },
+    {
+      "id": "ui.courier_request_list",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_HearthScreen",
+        "hearth_request_ledger_open",
+        "hearth_request_ledger_refresh",
+        "hearth_request_ledger_scroll"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "Hearth to Requests visibly shows item and count, source-to-target route, assigned Courier, current physical owner, and a truthful Stop reason or empty state on every row.",
+        "Refresh, hover details, and scrolling remain reachable without stale Loading, clipping, overlap, or frame-budget regression in every required native profile.",
+        "Every hearth_request_ledger_open, hearth_request_ledger_refresh, and hearth_request_ledger_scroll settled frame acknowledgement is emitted by HearthScreen with inspectable uiState containing view=requests; the native video shows Refresh preserving the visible rows through its transient Loading feedback, the accepted post-refresh acknowledgement has requestOpen=true and requestLoading=false, and Scroll proves requestRows of at least four, requestScroll of at least one, and requestLoading=false."
+      ]
+    },
+    {
+      "id": "ui.blessing_offer_select_confirm_later",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_BlessingScreen",
+        "blessing_select",
+        "blessing_confirm_submit",
+        "blessing_confirm_accepted",
+        "blessing_later"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "The player physically opens an earned offer, selects a card, confirms it, receives the authoritative accepted receipt, reopens a separate pending offer, and uses Later without consuming it.",
+        "The native acknowledgements prove screen_BlessingScreen, blessing_select, blessing_confirm_submit, blessing_confirm_accepted, and blessing_later with inspectable offer, selected, and waiting state; screenshots and video show no overlap, clipping, dead control, or ambiguous permanent-target wording in every required profile."
+      ]
+    },
+    {
+      "id": "ui.handbook_navigation",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "video", "frame_report"],
+      "requiredFrameTransitions": [
+        "screen_HandbookScreen",
+        "handbook_page",
+        "handbook_body_scroll",
+        "handbook_chapter_scroll"
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "The Jobs chapter teaches normal-right-click Job Emblem auto-hire, no separate Hire action, no fabricated starter equipment, and Shift-right-click inventory access only with both hands empty.",
+        "The Logistics chapter teaches workplace chest to Hearth Requests to assigned Courier bag to Warehouse, including item/count, route, physical owner and Stop reason rather than a hidden or numeric-only transfer.",
+        "The Watch chapter teaches the real weapon request and Courier delivery, every Guard Orders mode, credited hostile-kill XP, and that promotion never conjures equipment."
+      ]
+    },
+    {
+      "id": "ui.en_us_compact_normal_large",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "frame_report"],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "All English screens, cards, buttons, tooltips, item textures, building textures, profession outfits, held equipment, packs, and overlays maintain one coherent premium medieval art direction with readable hierarchy at compact, normal, and large profiles."
+      ]
+    },
+    {
+      "id": "ui.nb_no_normal",
+      "stage": "ui",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["screenshot", "frame_report"],
+      "requiredNativeProfiles": ["1280x720-gui3-nb_no"],
+      "acceptanceAssertions": [
+        "Every Norwegian screen used by the demo is fully translated, readable, scroll-reachable, and free of clipped labels, raw translation keys, English fallback fragments, modal bleed-through, or layout regressions."
+      ]
+    },
+    {
+      "id": "animation.lumber_pack_ground_contact_turns",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["video", "contact_sheet"],
+      "acceptanceAssertions": [
+        "The real Lumberer finishes a tree, places a wood-frame sack stationary on the ground, bends forward toward it, collects every in-zone log at visible hand contact, lifts it, and resumes a laden walk and turn before depositing.",
+        "Reject any backward spine bend, hand over head, crawling gait, foot slide, lost fourth log, transition pop, or placed sack that follows, bobs, teleports, or remains attached to the worker."
+      ]
+    },
+    {
+      "id": "animation.farmer_work_and_carry",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "farmer_plant_contact", "event": "FARM_SEED_PLANTED_COMMITTED", "result": "COMMITTED", "targetPrefix": "action:", "reasonPrefix": "farm_seed_terminal:"},
+        {"id": "farmer_harvest_contact", "event": "FARM_HARVEST_COMMITTED", "result": "COMMITTED", "targetPrefix": "action:", "reasonPrefix": "farm_harvest_terminal:"}
+      ],
+      "acceptanceAssertions": [
+        "Planting commits exactly at the authored hand contact, harvesting commits exactly at crop contact before the later bag stow, and watering changes moisture exactly at the pour contact; interruption before contact changes nothing and retry commits once.",
+        "The Farmer walks, carries, deposits, and begins the next reachable in-zone task without limb clipping, foot slide, wrong-way bending, invisible item jumps, or unexplained idle."
+      ]
+    },
+    {
+      "id": "animation.courier_pack_and_transfer",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "courier_pickup_contact", "event": "OUTPUT_PICKUP_PICKED_UP", "result": "COMMITTED", "targetPrefix": "courier:", "reasonPrefix": "request:"},
+        {"id": "courier_delivery_contact", "event": "OUTPUT_PICKUP_DELIVERED", "result": "COMMITTED", "targetPrefix": "request:", "reasonPrefix": "target:"}
+      ],
+      "acceptanceAssertions": [
+        "The real Courier visibly grips and stows the exact reserved stack, carries it in the bag, and removes it from the bag only at the exact destination insertion contact.",
+        "Reject hand or head clipping, floating or following containers, fixed carried props in front of the body, foot slide, transition pops, invisible transfers, duplicate items, or reachable requests that end in unexplained idle."
+      ]
+    },
+    {
+      "id": "animation.guard_sword_hit_react",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "guard_sword_contact", "event": "MELEE_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "attacker:", "reasonPrefix": "attack:"}
+      ],
+      "acceptanceAssertions": [
+        "Sword anticipation, swing, blade contact, target reaction, impact sound, recovery, and return to the persisted order form one continuous real-AI take with no early or duplicate damage.",
+        "Reject arm or weapon clipping, sliding feet, frozen locomotion, wrong target, reaction before contact, or any disconnected flattering clips that hide transitions."
+      ]
+    },
+    {
+      "id": "animation.guard_melee_contact_authority",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "melee_contact", "event": "MELEE_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "attacker:", "reasonPrefix": "attack:"}
+      ],
+      "acceptanceAssertions": [
+        "The one server damage commit and impact sound occur on the authored blade-contact frame within two video frames; interruption, target loss, stun, restart, or replay before contact causes no damage and no impact cue."
+      ]
+    },
+    {
+      "id": "animation.guard_real_shield_block",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "shield_block", "event": "SHIELD_BLOCK_COMMITTED", "result": "COMMITTED", "targetPrefix": "guard:", "reasonPrefix": "block:"}
+      ],
+      "acceptanceAssertions": [
+        "A real serviceable offhand shield presents only for a persisted full block, receives exactly one durability loss, produces one contact-synchronised thud, and clears use and slot correctly on break.",
+        "Ordinary hurt, rejected, cancelled, duplicate, or non-blocked hits show no shield pose, commit no shield terminal, cause no shield wear, and remain silent."
+      ]
+    },
+    {
+      "id": "animation.archer_bow_stance_and_patrol",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "archer_release_contact", "event": "ARCHER_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "archer:", "reasonPrefix": "projectile:"}
+      ],
+      "acceptanceAssertions": [
+        "The real Archer carries a physical bow, patrols, aims, looses one physical arrow at authored release, signals empty ammunition, restocks from the real tower rack, and returns to the persisted post without a fake prop or duplicate shot.",
+        "Reject a bow behind the head, aim or release without bow and ammunition, fixed-pose sliding, wrong target, silent starvation, double damage, or a stuck restock state."
+      ]
+    },
+    {
+      "id": "animation.raider_arrival_combat_death",
+      "stage": "animation",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video", "audio", "contact_sheet"],
+      "requiredAuthorityTransactions": [
+        {"id": "raider_band_started", "event": "RAID_STARTED", "result": "COMMITTED", "targetPrefix": "first_raid:", "reason": "participants_sealed"},
+        {"id": "raider_band_resolved", "event": "RAID_RESOLVED", "result": "COMMITTED", "targetPrefix": "first_raid:", "reasonPrefix": "settlement_"}
+      ],
+      "acceptanceAssertions": [
+        "The warned named captain and sealed band form outside the settlement, approach without a teleport pop, pursue their visible objective, fight with readable anticipation/contact/reaction, and reach an unmistakable terminal death or escape state.",
+        "Reject spawn overlap, crawling or sliding locomotion, idle raiders with a reachable objective, duplicated terminal participants, abrupt despawn, missing captain identity, or combat contact that disagrees with damage and sound."
+      ]
+    },
+    {
+      "id": "audio.ui_and_research_mix",
+      "stage": "audio",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["audio", "video", "client_log"],
+      "acceptanceAssertions": [
+        "Every UI open, close, confirm, refusal, research payment, and learned-plan cue occurs once on the visible event, carries a correct subtitle, remains distinct from vanilla UI sounds, and is audible without clipping or a large loudness jump."
+      ]
+    },
+    {
+      "id": "audio.work_contact_mix",
+      "stage": "audio",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["audio", "video", "client_log"],
+      "acceptanceAssertions": [
+        "Chop, bag down, pickup, stow, bag up, crop pull, seed press, watering, crate grip, carry, and deposit cues each occur once within two video frames of their real contact and remain naturally balanced against footsteps.",
+        "Failure, interruption, retry-before-contact, and idle paths stay silent; reject clipping, missing subtitles, repetitive machine-gun cadence, wrong material character, or large adjacent loudness jumps."
+      ]
+    },
+    {
+      "id": "audio.combat_guard_xp_mix",
+      "stage": "audio",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["audio", "video", "client_log"],
+      "acceptanceAssertions": [
+        "Guard alert, blade contact, shield block, leap impact, armour movement, raider reaction, and Guard XP remain individually readable, occur once on their authoritative frame, and are balanced against footsteps and vanilla combat without clipping.",
+        "Cancelled, rejected, duplicated, ordinary-hurt, and uncredited-kill paths never leak a success, block, impact, or experience cue."
+      ]
+    },
+    {
+      "id": "audio.founding_recruitment_raid_blessing_mix",
+      "stage": "audio",
+      "triggerMode": "natural_runtime",
+      "requiredEvidenceKinds": ["audio", "video", "client_log"],
+      "acceptanceAssertions": [
+        "Founding, traveler arrival and admission, raid omen and arrival, named-captain combat, resolution and reward, doctrine, and both Blessing applications form a clear escalating mix with one cue per authoritative event and correct subtitles.",
+        "The first raid sounds materially more urgent than ordinary work while remaining unclipped, non-repetitive, audible at normal play distance, and balanced against vanilla ambience and combat."
+      ]
+    },
+    {
+      "id": "authority.invalid_range_stale_revision_no_mutation",
+      "stage": "authority",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "invalid_menu", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "hearth_menu", "reason": "invalid_open_menu_authority"},
+        {"id": "stale_revision", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "development:", "reason": "stale_revision"}
+      ],
+      "acceptanceAssertions": [
+        "An out-of-range or invalid-menu interaction and a stale Development revision are both rejected by the integrated server with the expected reasons, while screen authority, node revision, inventories, costs, settlement state, and learned plans remain byte-for-byte unchanged.",
+        "A fresh in-range retry with the current revision succeeds at most once, proving the rejected packets neither queued a delayed mutation nor consumed the later valid transaction."
+      ]
+    },
+    {
+      "id": "authority.work_zone_invalid_stale_unloaded_no_mutation",
+      "stage": "authority",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["server_log", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "zone_range", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_too_far"},
+        {"id": "zone_stale", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_stale"},
+        {"id": "zone_cross_settlement", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_wrong_settlement"},
+        {"id": "zone_oversize", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_oversize"},
+        {"id": "zone_malformed", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_malformed"},
+        {"id": "zone_unloaded", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_unloaded"},
+        {"id": "zone_boundary", "event": "AUTHORITY_REJECTED", "result": "REJECTED", "targetPrefix": "work_zone:", "reason": "work_zone_outside_settlement"}
+      ],
+      "acceptanceAssertions": [
+        "Out-of-range, stale-revision, cross-settlement, oversized, invalid-height, malformed, unloaded-chunk, and spherical-boundary Work Zone requests are denied without mutation or forced chunk loading; every one of the previewed box's eight corners must be inside the settlement.",
+        "Only one bounded server-validated two-corner confirmation may advance the persisted zone revision once; preview and Cancel never persist or revise a zone."
+      ]
+    },
+    {
+      "id": "authority.melee_interruption_no_early_damage",
+      "stage": "authority",
+      "triggerMode": "real_ai",
+      "requiredEvidenceKinds": ["server_log", "video"],
+      "requiredAuthorityTransactions": [
+        {"id": "post_interrupt_contact", "event": "MELEE_CONTACT_COMMITTED", "result": "COMMITTED", "targetPrefix": "attacker:", "reasonPrefix": "attack:"}
+      ],
+      "acceptanceAssertions": [
+        "Interrupting or invalidating a Guard melee wind-up before the authored contact frame causes zero target-health change, zero durability or combat-ledger credit, and no blade-hit or success cue.",
+        "One later uninterrupted retry commits exactly one contact, one bounded damage delta, one authority record, and one matching impact cue without replaying the cancelled strike."
+      ]
+    },
+    {
+      "id": "stability.no_ui_fps_regression_or_log_errors",
+      "stage": "stability",
+      "triggerMode": "physical_player",
+      "requiredEvidenceKinds": ["client_log", "server_log", "frame_report"],
+      "requiredAuthorityTransactions": [
+        {"id": "stable_state", "event": "STATE_LOAD_SUMMARY", "result": "OBSERVED", "targetPrefix": "dimension:", "reasonPrefix": "buildings_"}
+      ],
+      "requiredNativeProfiles": [
+        "1280x720-gui2-en_us",
+        "1280x720-gui3-en_us",
+        "1280x720-gui3-nb_no",
+        "1920x1080-gui4-en_us"
+      ],
+      "acceptanceAssertions": [
+        "After shader and resource warm-up, every required screen, modal, scroll, pan, zoom, slot click, request refresh, recruitment view, and readiness transition has at least 180 native samples, p95 at or below 33.3 ms, no repeated UI-caused frame above 100 ms, and no overlap, clipping, dead control, tooltip bleed, exception, missing resource, OpenAL error, stale revision, or navigation failure."
+      ]
+    }
+  ]
+}

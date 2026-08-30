@@ -1,0 +1,46 @@
+{
+  "name": "hearth_raid_readiness_en",
+  "width": 256,
+  "height": 285,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 256, "h": 285},
+    {"t": "title", "x": 128, "y": 12, "align": "center", "text": "First Raid Readiness", "box": 160, "id": "readiness_title"},
+    {"t": "button", "x": 204, "y": 4, "w": 44, "h": 20, "text": "Close"},
+    {"t": "divider", "x": 8, "y": 26, "w": 240},
+    {"t": "label", "x": 8, "y": 34, "text": "5 blockers remain", "tone": "warn", "box": 240, "id": "readiness_status"},
+    {"t": "label", "x": 8, "y": 45, "text": "Beds 4/4 · Food 28/32 · Queue 3/1", "tone": "text_muted", "box": 240, "id": "readiness_metrics"},
+    {"t": "divider", "x": 8, "y": 52, "w": 240},
+
+    {"t": "card", "x": 8, "y": 59, "w": 229, "h": 30},
+    {"t": "fill", "x": 8, "y": 59, "w": 3, "h": 30, "colour": "bad"},
+    {"t": "label", "x": 16, "y": 63, "text": "Let the Lumberer fell, collect and store", "tone": "text", "box": 215, "id": "blocker_1a"},
+    {"t": "label", "x": 16, "y": 73, "text": "real timber.", "tone": "text", "box": 215, "id": "blocker_1b"},
+
+    {"t": "card", "x": 8, "y": 93, "w": 229, "h": 30},
+    {"t": "fill", "x": 8, "y": 93, "w": 3, "h": 30, "colour": "bad"},
+    {"t": "label", "x": 16, "y": 97, "text": "Let the Farmer plant, harvest and store", "tone": "text", "box": 215, "id": "blocker_2a"},
+    {"t": "label", "x": 16, "y": 107, "text": "a real crop.", "tone": "text", "box": 215, "id": "blocker_2b"},
+
+    {"t": "card_hover", "x": 8, "y": 127, "w": 229, "h": 30},
+    {"t": "fill", "x": 8, "y": 127, "w": 3, "h": 30, "colour": "bad"},
+    {"t": "label", "x": 16, "y": 131, "text": "Give the armed Guard a Stand Post or", "tone": "text", "box": 215, "id": "blocker_3a"},
+    {"t": "label", "x": 16, "y": 141, "text": "Patrol Route order.", "tone": "text", "box": 215, "id": "blocker_3b"},
+
+    {"t": "card", "x": 8, "y": 161, "w": 229, "h": 30},
+    {"t": "fill", "x": 8, "y": 161, "w": 3, "h": 30, "colour": "bad"},
+    {"t": "label", "x": 16, "y": 165, "text": "Let the Courier finish or return", "tone": "text", "box": 215, "id": "blocker_4a"},
+    {"t": "label", "x": 16, "y": 175, "text": "in-transit cargo.", "tone": "text", "box": 215, "id": "blocker_4b"},
+
+    {"t": "card", "x": 8, "y": 195, "w": 229, "h": 30},
+    {"t": "fill", "x": 8, "y": 195, "w": 3, "h": 30, "colour": "bad"},
+    {"t": "label", "x": 16, "y": 199, "text": "Stock enough unreserved ready meals", "tone": "text", "box": 215, "id": "blocker_5a"},
+    {"t": "label", "x": 16, "y": 209, "text": "in the Hearth.", "tone": "text", "box": 215, "id": "blocker_5b"},
+
+    {"t": "fill", "x": 242, "y": 59, "w": 6, "h": 166, "colour": "field"},
+    {"t": "fill", "x": 243, "y": 60, "w": 4, "h": 80, "colour": "text_muted"},
+    {"t": "divider", "x": 8, "y": 232, "w": 240},
+    {"t": "label", "x": 8, "y": 240, "text": "Server-verified blockers · scroll to review all.", "tone": "text_muted", "box": 240, "id": "readiness_footer"},
+    {"t": "button", "x": 8, "y": 257, "w": 117, "h": 20, "text": "Check Again"},
+    {"t": "button", "x": 131, "y": 257, "w": 117, "h": 20, "text": "Declare Ready", "state": "disabled"}
+  ]
+}

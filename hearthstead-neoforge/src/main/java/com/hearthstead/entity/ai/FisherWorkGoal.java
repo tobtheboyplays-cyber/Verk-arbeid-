@@ -83,9 +83,7 @@ public class FisherWorkGoal extends Goal {
     private boolean workConditions() {
         return settler.getProfession() == Profession.FISHER
             && settler.isBound()
-            && settler.dayPhase().work()
-            && settler.getEnergy() > 15
-            && !settler.isEffortSpent();
+            && settler.dayPhase().work();
     }
 
     private int bagCount() {

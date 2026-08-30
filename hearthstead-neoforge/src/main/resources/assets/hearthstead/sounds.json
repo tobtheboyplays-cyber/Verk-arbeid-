@@ -26,6 +26,42 @@
     ],
     "subtitle": "subtitles.hearthstead.settler_recruited"
   },
+  "ui_open": {
+    "sounds": [
+      {
+        "name": "hearthstead:ui_open",
+        "volume": 0.45
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.ui_open"
+  },
+  "ui_close": {
+    "sounds": [
+      {
+        "name": "hearthstead:ui_close",
+        "volume": 0.4
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.ui_close"
+  },
+  "ui_confirm": {
+    "sounds": [
+      {
+        "name": "hearthstead:ui_confirm",
+        "volume": 0.35
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.ui_confirm"
+  },
+  "ui_error": {
+    "sounds": [
+      {
+        "name": "hearthstead:ui_error",
+        "volume": 0.4
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.ui_error"
+  },
   "farmer_work": {
     "sounds": [
       {
@@ -68,6 +104,15 @@
       }
     ],
     "subtitle": "subtitles.hearthstead.guard_alert"
+  },
+  "guard_experience": {
+    "sounds": [
+      {
+        "name": "hearthstead:guard_experience",
+        "volume": 0.72
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.guard_experience"
   },
   "leap_slam": {
     "sounds": [
@@ -283,6 +328,24 @@
       }
     ],
     "subtitle": "subtitles.hearthstead.bag_stow"
+  },
+  "bag_down": {
+    "sounds": [
+      {
+        "name": "hearthstead:bag_down",
+        "volume": 0.55
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.bag_down"
+  },
+  "bag_up": {
+    "sounds": [
+      {
+        "name": "hearthstead:bag_up",
+        "volume": 0.5
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.bag_up"
   },
   "water_pour": {
     "sounds": [

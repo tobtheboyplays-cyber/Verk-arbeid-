@@ -1,0 +1,40 @@
+{
+  "name": "hearth_request_ledger_en",
+  "width": 300,
+  "height": 238,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 300, "h": 238},
+    {"t": "title", "x": 150, "y": 12, "align": "center", "text": "Request Ledger", "box": 210, "id": "request_title"},
+    {"t": "button", "x": 8, "y": 4, "w": 62, "h": 20, "text": "Refresh"},
+    {"t": "button", "x": 248, "y": 4, "w": 44, "h": 20, "text": "Close"},
+    {"t": "divider", "x": 8, "y": 26, "w": 284},
+    {"t": "label", "x": 8, "y": 34, "text": "4 rows • transport revision 17 • equipment revision 9", "tone": "text_muted", "box": 284, "id": "request_summary"},
+    {"t": "divider", "x": 8, "y": 52, "w": 284},
+
+    {"t": "card_hover", "x": 8, "y": 59, "w": 273, "h": 42},
+    {"t": "fill", "x": 8, "y": 59, "w": 3, "h": 42, "colour": "bad"},
+    {"t": "label", "x": 15, "y": 62, "text": "Urgent • Output pickup • 16 × Oak Log", "tone": "text_strong", "box": 263, "id": "request_headline_1"},
+    {"t": "label", "x": 15, "y": 72, "text": "Lumber Camp [12, 64, 8] → Warehouse [2, 64, 2]", "tone": "text_muted", "box": 263, "id": "request_route_1"},
+    {"t": "label", "x": 15, "y": 82, "text": "Courier: Alda • owner: Courier bag", "tone": "text_muted", "box": 263, "id": "request_assignment_1"},
+    {"t": "label", "x": 15, "y": 92, "text": "In transit • Stop: Ready", "tone": "bad", "box": 263, "id": "request_stop_1"},
+
+    {"t": "card", "x": 8, "y": 105, "w": 273, "h": 42},
+    {"t": "fill", "x": 8, "y": 105, "w": 3, "h": 42, "colour": "warn"},
+    {"t": "label", "x": 15, "y": 108, "text": "High • Equipment • 1 × Iron Axe", "tone": "text_strong", "box": 263, "id": "request_headline_2"},
+    {"t": "label", "x": 15, "y": 118, "text": "Runa (Lumberer) → Lumber Camp [12, 64, 8]", "tone": "text_muted", "box": 263, "id": "request_route_2"},
+    {"t": "label", "x": 15, "y": 128, "text": "Courier: Brann • owner: unverified location", "tone": "text_muted", "box": 263, "id": "request_assignment_2"},
+    {"t": "label", "x": 15, "y": 138, "text": "Reserved • Stop: Limited equipment trace", "tone": "warn", "box": 263, "id": "request_stop_2"},
+
+    {"t": "card", "x": 8, "y": 151, "w": 273, "h": 42},
+    {"t": "fill", "x": 8, "y": 151, "w": 3, "h": 42, "colour": "warn"},
+    {"t": "label", "x": 15, "y": 154, "text": "Normal • Output pickup • 8 × Wheat", "tone": "text_strong", "box": 263, "id": "request_headline_3"},
+    {"t": "label", "x": 15, "y": 164, "text": "Farmhouse [6, 64, 14] → Warehouse [2, 64, 2]", "tone": "text_muted", "box": 263, "id": "request_route_3"},
+    {"t": "label", "x": 15, "y": 174, "text": "Courier: Edda • owner: Courier bag", "tone": "text_muted", "box": 263, "id": "request_assignment_3"},
+    {"t": "label", "x": 15, "y": 184, "text": "Blocked • Stop: Destination is full", "tone": "warn", "box": 263, "id": "request_stop_3"},
+
+    {"t": "fill", "x": 285, "y": 59, "w": 6, "h": 134, "colour": "field"},
+    {"t": "fill", "x": 286, "y": 60, "w": 4, "h": 99, "colour": "text_muted"},
+    {"t": "divider", "x": 8, "y": 211, "w": 284},
+    {"t": "label", "x": 8, "y": 219, "text": "4 bounded rows • open, active, and recent history", "tone": "text_muted", "box": 284, "id": "request_footer"}
+  ]
+}

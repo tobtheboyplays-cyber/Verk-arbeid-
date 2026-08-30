@@ -2,8 +2,10 @@ package com.hearthstead.entity;
 
 import net.minecraft.network.chat.Component;
 
+import java.util.Optional;
+
 /**
- * What a settler is made of. Five numbers, 0–100, that everything else reads.
+ * What a settler is made of. Eight numbers on a player-facing 0–100 scale.
  *
  * <p>They exist so that two settlers with the same job are not the same person.
  * A settlement of thirty interchangeable workers is a spreadsheet; a settlement
@@ -19,12 +21,18 @@ public enum Attribute {
     STRENGTH("strength"),
     /** Endurance. How slowly they tire and how long a shift they can stand. */
     STAMINA("stamina"),
-    /** Judgement. How fast they learn <i>everything</i>, and craft precision. */
+    /** Judgement. How quickly they understand and learn new work. */
     WITS("wits"),
-    /** Hands. Fine work — fields, benches, looms, bowstrings. */
+    /** Hands. Fine work — fields, benches, looms and bowstrings. */
     DEXTERITY("dexterity"),
     /** Heart. Morale under pressure, and how much they lift the people near them. */
-    SPIRIT("spirit");
+    SPIRIT("spirit"),
+    /** Awareness. Finding targets, reading terrain and noticing change. */
+    PERCEPTION("perception"),
+    /** Continuity. Setting up cleanly and staying on the current task. */
+    FOCUS("focus"),
+    /** Social force. Leading, reassuring and making an impression on others. */
+    PRESENCE("presence");
 
     public static final Attribute[] ALL = values();
     public static final int COUNT = ALL.length;
@@ -48,7 +56,12 @@ public enum Attribute {
         return Component.translatable("hearthstead.attribute." + key + ".trained_by");
     }
 
-    public static Attribute byOrdinal(int index) {
-        return index >= 0 && index < COUNT ? ALL[index] : STRENGTH;
+    /**
+     * Resolves persisted or network data without inventing Strength for an
+     * invalid ordinal. Callers must choose an explicit repair or rejection.
+     */
+    public static Optional<Attribute> byOrdinal(int index) {
+        return index >= 0 && index < COUNT
+            ? Optional.of(ALL[index]) : Optional.empty();
     }
 }

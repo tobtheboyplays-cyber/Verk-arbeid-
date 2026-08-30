@@ -17,9 +17,10 @@ import java.util.List;
  * accepts. Here it can be asserted on in a GameTest — see
  * {@code theSheetSaysWhatIsMissing}.
  *
- * <p>The sheet is a VIEW. It holds no state, caches nothing, and is rebuilt
- * from (type, state, survey) every frame. D-006: the plaque is an access
- * point, never a second source of truth.
+ * <p>The sheet is a VIEW. It holds no authority and caches nothing itself.
+ * Client renderers may reuse an immutable sheet only while every constructor
+ * input still matches; see {@code PlaqueSheetCache}. D-006: the plaque is an
+ * access point, never a second source of truth.
  */
 public record PlaqueSheet(@Nullable Component title, List<Line> lines) {
 

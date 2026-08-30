@@ -1,0 +1,97 @@
+{
+  "name": "Mayor Emblem Shop — Living selected state",
+  "width": 768,
+  "height": 540,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 768, "h": 540},
+    {"t": "title", "x": 16, "y": 11, "text": "The Mayor's Emblem Counter", "box": 320, "id": "shop_title"},
+    {"t": "label", "x": 16, "y": 27, "text": "Choose a profession • check its requirements • buy one physical Emblem", "tone": "text_muted", "box": 490, "id": "shop_subtitle"},
+    {"t": "badge", "x": 620, "y": 12, "w": 128, "h": 20, "text": "MAYOR HILDA", "tone": "accent", "id": "mayor_badge"},
+    {"t": "divider", "x": 12, "y": 43, "w": 744},
+
+    {"t": "frame", "x": 12, "y": 52, "w": 350, "h": 436, "surface": "inset", "tone": "good", "inner_alpha": 45},
+    {"t": "section", "x": 28, "y": 68, "w": 318, "text": "EMBLEM STOCK", "tone": "good", "id": "available_section"},
+    {"t": "label", "x": 28, "y": 86, "text": "Research grants access; the Mayor sells the physical Emblem.", "tone": "text_muted", "box": 318, "id": "shop_truth"},
+
+    {"t": "badge", "x": 42, "y": 106, "w": 74, "h": 18, "text": "ALL  8", "tone": "accent", "id": "filter_all"},
+    {"t": "badge", "x": 122, "y": 106, "w": 92, "h": 18, "text": "AVAILABLE  3", "tone": "good", "id": "filter_available"},
+    {"t": "badge", "x": 220, "y": 106, "w": 84, "h": 18, "text": "LOCKED  5", "tone": "warn", "id": "filter_locked"},
+
+    {"t": "soft_panel", "x": 42, "y": 132, "w": 300, "h": 52, "tone": "good", "alpha": 22, "stroke_alpha": 190},
+    {"t": "medallion", "x": 68, "y": 158, "radius": 20, "tone": "good", "asset": "item/lumberer_emblem.png", "icon_size": 22},
+    {"t": "label", "x": 100, "y": 142, "text": "Lumberer Emblem", "tone": "text_strong", "box": 130, "id": "lumber_name"},
+    {"t": "label", "x": 100, "y": 160, "text": "Flint ×2  •  Leather ×2", "tone": "good", "box": 148, "id": "lumber_cost"},
+    {"t": "badge", "x": 264, "y": 144, "w": 62, "h": 22, "text": "SELECTED", "tone": "good", "id": "lumber_selected"},
+
+    {"t": "soft_panel", "x": 42, "y": 192, "w": 300, "h": 52, "tone": "good", "alpha": 10, "stroke_alpha": 105},
+    {"t": "medallion", "x": 68, "y": 218, "radius": 18, "tone": "good", "asset": "item/courier_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 100, "y": 202, "text": "Courier Emblem", "tone": "text_strong", "box": 130, "id": "courier_name"},
+    {"t": "label", "x": 100, "y": 220, "text": "Chest ×1  •  Leather ×4", "tone": "good", "box": 148, "id": "courier_cost"},
+    {"t": "button", "x": 272, "y": 208, "w": 54, "h": 20, "text": "View", "state": "idle"},
+
+    {"t": "soft_panel", "x": 42, "y": 252, "w": 300, "h": 52, "tone": "good", "alpha": 10, "stroke_alpha": 105},
+    {"t": "medallion", "x": 68, "y": 278, "radius": 18, "tone": "good", "asset": "item/farmer_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 100, "y": 262, "text": "Farmer Emblem", "tone": "text_strong", "box": 130, "id": "farmer_name"},
+    {"t": "label", "x": 100, "y": 280, "text": "Seeds ×8  •  Leather ×2", "tone": "good", "box": 148, "id": "farmer_cost"},
+    {"t": "button", "x": 272, "y": 268, "w": 54, "h": 20, "text": "View", "state": "idle"},
+
+    {"t": "soft_panel", "x": 42, "y": 312, "w": 300, "h": 52, "tone": "warn", "alpha": 13, "stroke_alpha": 125},
+    {"t": "medallion", "x": 68, "y": 338, "radius": 18, "tone": "warn", "asset": "item/guard_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 100, "y": 322, "text": "Guard Emblem", "tone": "text_strong", "box": 130, "id": "guard_name"},
+    {"t": "label", "x": 100, "y": 340, "text": "Learn First Watch", "tone": "warn", "box": 148, "id": "guard_lock"},
+    {"t": "badge", "x": 270, "y": 328, "w": 56, "h": 20, "text": "LOCKED", "tone": "warn", "id": "guard_locked"},
+
+    {"t": "soft_panel", "x": 42, "y": 372, "w": 300, "h": 52, "tone": "warn", "alpha": 13, "stroke_alpha": 125},
+    {"t": "medallion", "x": 68, "y": 398, "radius": 18, "tone": "warn", "asset": "item/archer_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 100, "y": 382, "text": "Archer Emblem", "tone": "text_strong", "box": 130, "id": "archer_name"},
+    {"t": "label", "x": 100, "y": 400, "text": "Learn Arm the Watch", "tone": "warn", "box": 148, "id": "archer_lock"},
+    {"t": "badge", "x": 270, "y": 388, "w": 56, "h": 20, "text": "LOCKED", "tone": "warn", "id": "archer_locked"},
+
+    {"t": "label", "x": 28, "y": 446, "text": "5 shown  •  8 release-ready roles", "tone": "text_muted", "box": 220, "id": "list_count"},
+    {"t": "button", "x": 248, "y": 440, "w": 94, "h": 22, "text": "More Roles", "state": "idle"},
+    {"t": "label", "x": 28, "y": 470, "text": "Select a locked role to see its Development requirement.", "tone": "text_muted", "box": 310, "id": "locked_help"},
+
+    {"t": "frame", "x": 370, "y": 52, "w": 386, "h": 436, "surface": "window", "tone": "accent", "stroke": 2, "inner_alpha": 82},
+    {"t": "medallion", "x": 422, "y": 104, "radius": 34, "tone": "good", "asset": "item/lumberer_emblem.png", "icon_size": 36},
+    {"t": "label", "x": 470, "y": 72, "text": "Lumberer Emblem", "tone": "text_strong", "box": 176, "id": "selected_title"},
+    {"t": "label", "x": 470, "y": 90, "text": "Authorizes: Lumberer", "tone": "good", "box": 176, "id": "selected_role"},
+    {"t": "badge", "x": 664, "y": 72, "w": 72, "h": 20, "text": "READY", "tone": "good", "id": "selected_ready"},
+    {"t": "paragraph", "x": 470, "y": 112, "w": 254, "h": 24, "box": 254, "lines": 2, "text": "Assigns one settler to the nearest valid Lumber Camp with an open post.", "tone": "text_muted", "id": "selected_desc"},
+
+    {"t": "section", "x": 392, "y": 158, "w": 344, "text": "COST AT THE COUNTER", "tone": "accent", "id": "cost_section"},
+    {"t": "soft_panel", "x": 392, "y": 176, "w": 344, "h": 56, "tone": "accent", "alpha": 15, "stroke_alpha": 115},
+    {"t": "vanilla_icon", "x": 410, "y": 188, "size": 30, "resource": "textures/item/flint.png"},
+    {"t": "label", "x": 446, "y": 190, "text": "Flint ×2", "tone": "text", "box": 76, "id": "flint_cost"},
+    {"t": "vanilla_icon", "x": 526, "y": 188, "size": 30, "resource": "textures/item/leather.png"},
+    {"t": "label", "x": 562, "y": 190, "text": "Leather ×2", "tone": "text", "box": 92, "id": "leather_cost"},
+    {"t": "badge", "x": 640, "y": 194, "w": 78, "h": 22, "text": "YOU HAVE IT", "tone": "good", "id": "affordable"},
+
+    {"t": "title", "x": 392, "y": 246, "text": "BEST ATTRIBUTES FOR LUMBERER", "tone": "good", "box": 250, "id": "attributes_section"},
+    {"t": "badge", "x": 644, "y": 242, "w": 92, "h": 22, "text": "YOU CHOOSE", "tone": "accent", "id": "player_choice"},
+
+    {"t": "soft_panel", "x": 392, "y": 270, "w": 344, "h": 48, "tone": "good", "alpha": 18, "stroke_alpha": 165},
+    {"t": "medallion", "x": 416, "y": 294, "radius": 16, "tone": "good", "text": "STR", "text_tone": "text"},
+    {"t": "label", "x": 442, "y": 276, "text": "Strength", "tone": "text_strong", "box": 90, "id": "strength_label"},
+    {"t": "badge", "x": 618, "y": 274, "w": 98, "h": 18, "text": "MOST IMPORTANT", "tone": "good", "id": "strength_weight"},
+    {"t": "label", "x": 442, "y": 296, "text": "Fewer axe swings • carries more logs", "tone": "good", "box": 274, "id": "strength_effect"},
+
+    {"t": "soft_panel", "x": 392, "y": 324, "w": 344, "h": 42, "tone": "good", "alpha": 12, "stroke_alpha": 105},
+    {"t": "medallion", "x": 416, "y": 345, "radius": 14, "tone": "good", "text": "ST", "text_tone": "text"},
+    {"t": "label", "x": 442, "y": 330, "text": "Stamina", "tone": "text_strong", "box": 90, "id": "stamina_label"},
+    {"t": "badge", "x": 642, "y": 328, "w": 74, "h": 18, "text": "IMPORTANT", "tone": "good", "id": "stamina_weight"},
+    {"t": "label", "x": 442, "y": 348, "text": "Works longer • handles a heavy sack better", "tone": "good", "box": 274, "id": "stamina_effect"},
+
+    {"t": "soft_panel", "x": 392, "y": 372, "w": 344, "h": 42, "tone": "accent", "alpha": 10, "stroke_alpha": 95},
+    {"t": "medallion", "x": 416, "y": 393, "radius": 14, "tone": "accent", "text": "W", "text_tone": "text"},
+    {"t": "label", "x": 442, "y": 378, "text": "Wits", "tone": "text_strong", "box": 90, "id": "wits_label"},
+    {"t": "badge", "x": 650, "y": 376, "w": 66, "h": 18, "text": "HELPFUL", "tone": "accent", "id": "wits_weight"},
+    {"t": "label", "x": 442, "y": 396, "text": "Learns the trade faster • improves sooner", "tone": "accent", "box": 274, "id": "wits_effect"},
+
+    {"t": "label", "x": 392, "y": 422, "text": "Hover an attribute for its exact bonuses and next improvement.", "tone": "text_muted", "box": 344, "id": "attribute_choice_help"},
+    {"t": "label", "x": 392, "y": 436, "text": "After purchase: hold the Emblem and use it on your chosen settler.", "tone": "warn", "box": 344, "id": "assign_help"},
+    {"t": "button", "x": 392, "y": 454, "w": 344, "h": 26, "text": "Buy Lumberer Emblem  •  Flint ×2 + Leather ×2", "state": "idle"},
+
+    {"t": "label", "x": 16, "y": 510, "text": "Rejected or stale assignments never consume the Emblem.", "tone": "text_muted", "box": 380, "id": "safe_footer"},
+    {"t": "button", "x": 602, "y": 502, "w": 146, "h": 24, "text": "Inspect Mayor", "state": "idle"}
+  ]
+}

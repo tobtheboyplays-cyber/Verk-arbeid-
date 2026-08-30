@@ -1,5 +1,7 @@
 package com.hearthstead.network;
 
+import com.hearthstead.settlement.state.BlessingId;
+import com.hearthstead.settlement.state.TargetBlessingState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -33,14 +35,58 @@ import java.util.UUID;
  * carries a reason as a real {@link Component} so it renders in the player's
  * own language.
  */
-public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
+public record PlaqueSnapshot(BlockPos pos, UUID buildingId, UUID sessionId,
+                             String buildingType, String state,
                              int revision, int level,
                              List<RequirementLine> requirements,
                              List<Occupant> occupants,
                              List<Candidate> candidates,
                              int capacity, boolean mayManage,
+                             int wardenOathBlessingRank,
+                             int hearthwardBlessingRank,
+                             int thornedRoadsBlessingRank,
+                             Delivery delivery,
                              Optional<Component> scanReason)
     implements CustomPacketPayload {
+
+    /** Fixed three-scalar, fail-closed projection of the building ledger. */
+    public PlaqueSnapshot {
+        buildingId = buildingId == null ? PlaqueAction.NO_BUILDING : buildingId;
+        sessionId = sessionId == null ? PlaqueAction.NO_BUILDING : sessionId;
+        wardenOathBlessingRank = boundedBlessingRank(wardenOathBlessingRank);
+        hearthwardBlessingRank = boundedBlessingRank(hearthwardBlessingRank);
+        thornedRoadsBlessingRank = boundedBlessingRank(thornedRoadsBlessingRank);
+        delivery = delivery == null ? Delivery.UPDATE : delivery;
+    }
+
+    /** Source-compatible, fail-closed constructor: opening is always explicit. */
+    public PlaqueSnapshot(BlockPos pos, UUID buildingId, UUID sessionId,
+                          String buildingType, String state,
+                          int revision, int level,
+                          List<RequirementLine> requirements,
+                          List<Occupant> occupants, List<Candidate> candidates,
+                          int capacity, boolean mayManage,
+                          int wardenOathBlessingRank,
+                          int hearthwardBlessingRank,
+                          int thornedRoadsBlessingRank,
+                          Optional<Component> scanReason) {
+        this(pos, buildingId, sessionId, buildingType, state, revision, level,
+            requirements, occupants,
+            candidates, capacity, mayManage, wardenOathBlessingRank,
+            hearthwardBlessingRank, thornedRoadsBlessingRank,
+            Delivery.UPDATE, scanReason);
+    }
+
+    public enum Delivery {
+        /** Sent only for the player's explicit plaque interaction. */
+        OPEN,
+        /** Update-only; a client must already show this exact plaque. */
+        UPDATE;
+
+        static Delivery read(int wire) {
+            return wire == OPEN.ordinal() ? OPEN : UPDATE;
+        }
+    }
 
     public static final Type<PlaqueSnapshot> TYPE = new Type<>(
         ResourceLocation.fromNamespaceAndPath("hearthstead", "plaque_snapshot"));
@@ -113,6 +159,8 @@ public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
 
     private static void write(RegistryFriendlyByteBuf buf, PlaqueSnapshot snapshot) {
         buf.writeBlockPos(snapshot.pos);
+        buf.writeUUID(snapshot.buildingId);
+        buf.writeUUID(snapshot.sessionId);
         buf.writeUtf(snapshot.buildingType);
         buf.writeUtf(snapshot.state);
         buf.writeVarInt(snapshot.revision);
@@ -131,11 +179,17 @@ public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
         }
         buf.writeVarInt(snapshot.capacity);
         buf.writeBoolean(snapshot.mayManage);
+        buf.writeByte(snapshot.wardenOathBlessingRank);
+        buf.writeByte(snapshot.hearthwardBlessingRank);
+        buf.writeByte(snapshot.thornedRoadsBlessingRank);
+        buf.writeByte(snapshot.delivery.ordinal());
         ComponentSerialization.OPTIONAL_STREAM_CODEC.encode(buf, snapshot.scanReason);
     }
 
     private static PlaqueSnapshot read(RegistryFriendlyByteBuf buf) {
         BlockPos pos = buf.readBlockPos();
+        UUID buildingId = buf.readUUID();
+        UUID sessionId = buf.readUUID();
         String type = buf.readUtf();
         String state = buf.readUtf();
         int revision = buf.readVarInt();
@@ -157,10 +211,32 @@ public record PlaqueSnapshot(BlockPos pos, String buildingType, String state,
         }
         int capacity = buf.readVarInt();
         boolean mayManage = buf.readBoolean();
+        int wardenOathBlessingRank = buf.readUnsignedByte();
+        int hearthwardBlessingRank = buf.readUnsignedByte();
+        int thornedRoadsBlessingRank = buf.readUnsignedByte();
+        Delivery delivery = Delivery.read(buf.readUnsignedByte());
         Optional<Component> scanReason = ComponentSerialization.OPTIONAL_STREAM_CODEC.decode(buf);
-        return new PlaqueSnapshot(pos, type, state, revision, level,
+        return new PlaqueSnapshot(pos, buildingId, sessionId, type, state,
+            revision, level,
             List.copyOf(requirements), List.copyOf(occupants), List.copyOf(candidates),
-            capacity, mayManage, scanReason);
+            capacity, mayManage, wardenOathBlessingRank,
+            hearthwardBlessingRank, thornedRoadsBlessingRank, delivery, scanReason);
+    }
+
+    /** Constant-time view used by the inspection screen and packet tests. */
+    public int blessingRank(BlessingId blessing) {
+        if (blessing == null) {
+            return 0;
+        }
+        return switch (blessing) {
+            case WARDEN_OATH -> wardenOathBlessingRank;
+            case HEARTHWARD -> hearthwardBlessingRank;
+            case THORNED_ROADS -> thornedRoadsBlessingRank;
+        };
+    }
+
+    private static int boundedBlessingRank(int rank) {
+        return Math.max(0, Math.min(TargetBlessingState.MAX_RANK, rank));
     }
 
     @Override

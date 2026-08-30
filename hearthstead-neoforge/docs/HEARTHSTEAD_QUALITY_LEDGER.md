@@ -107,7 +107,8 @@ literal text, found and confirmed correct by the ANIM-1 RELEASE_GATE
 | Deviation | Catalogue text | What shipped | Why |
 |---|---|---|---|
 | `RUN_PANIC` length | 0.55 s loop | `withLength(0.6F)` | 0.55 s puts the accent's quarter-beats off the 0.05 s tick grid `anim_check.py` enforces; 0.6 s lands every keyframe on an integer tick with no perceptible change to the silhouette. |
-| `MELEE` end keyframes | catalogue's literal end-pose values | `right_arm`/`left_arm`/`torso`/`head`/`right_leg` end keyframes rewritten to exactly match each part's t=0 start pose | The catalogued end values left a visible pop back to rest the instant the one-shot expired (an interruption artifact, not a deliberate beat). Snapping the end pose to the start pose is the correct fix for any one-shot that is not itself a hold — the general form of `resetPose()`-safety authored into the clip data instead of the model code. |
+| `MELEE` additive handoff | catalogue's literal non-zero start/end pose values | every authored upper-body channel now begins at zero, crosses rest by a small real overshoot at 0.40 s, then holds zero at both 0.45 and 0.50 s over either `GUARD_STANCE` or `WALK` | Merely matching a non-zero end frame to the same non-zero start still popped when the one-shot stopped. Reaching zero only on the expiry frame also retained 4–6°/tick terminal speed. The held terminal rest is the real runtime transition contract. |
+| `MELEE` lunge ownership | fixed-time `right_leg` −30° / `left_leg` +28° overlay | no `root` or leg channels; the active stance/walk base remains sole lower-body owner | Multi-view rejection measured both feet sliding about 6 model px with no planted support foot or hip compensation. The strengthened gate now computes world-space foot endpoints and allows future root compensation only when one foot honestly stays within 0.75 px. |
 | Off-grid keyframe timestamps (`WALK_HURRIED`, `RUN_PANIC`, `MELEE`, `CELEBRATE`) | as originally transcribed | nudged to the nearest 0.05 s tick | `anim_check.py` §17.4 enforces the tick grid; the nudges are sub-perceptual (≤1 tick) and do not change any pose. |
 | `anim_check.py` checker exemptions: `EAT` added to `LEGS_EXEMPT`; `SHIELD_BLOCK` added to `CLOAK_PIN_ALLOWLIST` | catalogue §17.4's own enumerated allowlists do not name either clip | both exemptions kept | `EAT` is a stationary in-place clip the catalogue never asks to move the legs (§12.3 specifies no leg channel at all — flagging its absence would be a false positive). `SHIELD_BLOCK`'s cloak is deliberately pinned by the raised shield arm per §4.4's own bone list, not left to swing — the pin is the correct read of the spec, not a bug the checker should catch. |
 
@@ -223,7 +224,21 @@ signature clips as clean against the craft standard, and caught two real
 defects while it was being built: `HAMMER_ANVIL`'s torso peaked *on* the
 contact tick instead of before it, and `GATHER_LOG` ended away from its start
 pose, which would have snapped the settler when the one-shot expired. Both are
-fixed. `MELEE` carries a recorded exception rather than a silent pass.
+fixed. `MELEE`'s former recorded exception was removed in the combat recovery
+pass: the clip now passes the same strict pop check as every other impact and
+hands off as a zero-offset additive layer to `GUARD_STANCE`.
+
+The first offline recovery Candidate was still rejected on semantic review:
+both fixed-time leg channels moved their feet roughly six model pixels, the
+last recovery tick retained 4–6°/tick of speed, the early sword silhouette was
+occluded, and the contact sheet contained no physical target. The revised
+Candidate removes lower-body ownership from the overlay, requires a real
+rest-crossing overshoot plus a held terminal rest, places the anticipation
+sword outside the torso, and renders a fixed raider/hitbox whose physical
+blade intersection is asserted at tick 4. `BB_BASE_PHASE` now produces the
+same target-aware evidence over five adversarial `GUARD_STANCE` phases and
+`WALK`. This remains Candidate until independent re-review and native client
+slow-motion; no offline result upgrades it to Approved.
 
 ---
 
@@ -404,3 +419,39 @@ refused with `no_trade`. The refusal was honest; the offer was not. Capacities
 set to 0 until the matching trades exist. The plaque is the surveyor this
 whole design rests on, and a plaque that advertises a post that cannot be
 filled teaches the player its promises are decorative.
+
+## Iteration 12 — specification correction: fatigue slows work; it never forbids it
+
+**2026-08-28.** Per INV-10, the earlier daily-effort hard stop is superseded
+by the owner's explicit rule: a tired settler keeps doing otherwise valid
+work, but does it more slowly. `Effort` may remain deterministic bookkeeping
+for telemetry and balance, but `isEffortSpent()` and fixed low-energy
+thresholds may not reject ordinary work. Day phase, combat/safety, target
+authority, route cooldowns, storage capacity and night-rest rules remain
+unchanged. The two GameTests that formerly certified a hard quota now assert
+the stricter corrected behavior: already-spent farmer and lumberer work still
+progresses instead of silently becoming ineligible.
+
+## Iteration 13 — demo boundary and Work Scepter are explicit owner corrections
+
+**2026-08-30.** Two later owner decisions supersede older release text and
+must be treated as specification changes, never as a quiet weakening of a
+test.
+
+First, the playable demo ends after the first raid's persisted **Aftermath**.
+The demo must still teach the complete path from a first-time player through
+Hearth, buildings, roles, logistics, guards and the first raid, but a fully
+operational post-raid doctrine branch is not a release prerequisite. A
+doctrine view may be shown as a future-facing teaser. Any older gate that
+requires the player to commit to a permanent doctrine after the first raid is
+therefore testing the superseded scope and must be rewritten with the changed
+contract recorded in its test name and evidence.
+
+Second, Work Scepter selection is a deliberate three-step 3D interaction:
+the player block-hits two horizontal corners and then performs a separate,
+clearly previewed height selection. The resulting bounded volume is
+server-authoritative, survives reload and is limited by the worker/building
+level. Older wording or fixtures that infer an unlimited/full-height column
+from only two corners are superseded. Replacement tests must prove both the
+explicit height and the level-dependent capacity; they may not simply remove
+the old assertion.

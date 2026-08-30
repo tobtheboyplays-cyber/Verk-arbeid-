@@ -1,20 +1,13 @@
 {
   "parent": "minecraft:recipes/root",
   "criteria": {
-    "has_paper": {
-      "trigger": "minecraft:inventory_changed",
-      "conditions": {
-        "items": [
-          {
-            "items": "minecraft:paper"
-          }
-        ]
-      }
+    "development_sync_only": {
+      "trigger": "minecraft:impossible"
     }
   },
   "requirements": [
     [
-      "has_paper"
+      "development_sync_only"
     ]
   ],
   "rewards": {

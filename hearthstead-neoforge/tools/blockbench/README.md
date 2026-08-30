@@ -49,6 +49,12 @@ node bb_render.mjs /tmp/bb
 # Render posed frames of one clip at chosen times (seconds):
 node bb_render.mjs /tmp/bb walk 0 0.25 0.5 0.75
 node bb_render.mjs /tmp/bb haul_log 0 1.2 2.4
+
+# Add a one-shot over an exact phase of its continuously-running base:
+BB_BASE_PHASE=2.6 node bb_render.mjs /tmp/bb-melee \
+    --composite GUARD_STANCE MELEE 0 0.1 0.15 0.2 0.25 0.4 0.45 0.5
+BB_BASE_PHASE=0.5 node bb_render.mjs /tmp/bb-walk-melee \
+    --composite WALK MELEE 0 0.1 0.15 0.2 0.25 0.4 0.45 0.5
 ```
 
 The same workflow from PowerShell (paths with spaces are supported):
@@ -66,6 +72,15 @@ $env:BB_CONTEXT = 'archer'
 node .\bb_render.mjs "$env:TEMP\hearthstead-bb-archer-stance" guard_stance 0 2.8
 Remove-Item Env:BB_CONTEXT
 ```
+
+`BB_BASE_PHASE` is accepted only with `--composite`. It offsets the base
+animation's own sampling clock while the overlay remains at the requested
+frame time. Use this for one-shots that can begin at arbitrary loop phases;
+MELEE's required `GUARD_STANCE` review phases are 0.0, 1.8, 2.6, 3.1 and
+3.6 seconds, plus `WALK` interaction. MELEE renders also include a fixed,
+Minecraft-sized physical raider and wireframe hit volume. The runner fails if
+the physical blade intersects early at 0.10/0.15 s or misses at tick 4 / 0.20
+s. These remain offline Candidate images; native slow-motion is mandatory.
 
 Item-bearing work and combat clips automatically receive a K1 held-item proxy
 (`axe`, `hammer`, `pickaxe`, `hoe`, `sword`, `bow`, `shears`, or
@@ -109,6 +124,10 @@ profile's origin, full orientation basis, item-space centre and local scale
 match the pinned transform.
 `BB_VIEW=back34`, `BB_VIEW=left` or `BB_VIEW=right` provides an alternate
 contact check when the torso hides a tool from the default `front34` camera.
+`left` is deliberately a shallow front-left side view (`[-68, 26, -18]`),
+not an exact edge-on projection: the exact -X camera hid the right-hand sword
+behind this block rig at MELEE's 0.10/0.15 s anticipation beats. The offset is
+declared here so evidence never passes by an undisclosed camera trick.
 The visible tool is a
 voxel silhouette, not Mojang's item texture. Its placement/orientation is
 faithful to the selected vanilla profile; pixel art, lighting, state-dependent
@@ -123,14 +142,20 @@ The animation gate repeats the warning. Do not cite that clip as approved
 until either its arm roles are mirrored or the runtime intentionally
 moves/renders the bow in the off hand.
 
-The same honest-boundary rule covers two more runtime/catalogue seams:
+The same honest-boundary rule covers the remaining runtime/catalogue seams:
 
-- `GUARD_STANCE` requires `BB_CONTEXT=guard` or `BB_CONTEXT=archer`. The guard
-  context renders its real right-hand sword correctly, but runtime equips no
-  catalogue-required off-hand shield. The archer context renders its real
-  right-hand bow, but that shared clip is still a sword pose. `GUARD_PATROL`,
-  `MELEE` and `SHIELD_BLOCK` also prove only their real right-hand sword, not a
-  shield. Every complete guard silhouette remains `VISUAL NO-GO`.
+- Guard and Archer no longer share one equipment pose. `GUARD_STANCE`,
+  `GUARD_PATROL`, `GUARD_HIT_REACT` and `MELEE` use the real MAINHAND sword;
+  `ARCHER_STANCE`, `ARCHER_PATROL` and `IDLE_ARCHER` use the real MAINHAND
+  bow. `IDLE_SENTRY` remains honestly contextual because a Guard carries a
+  sword while a Hunter is empty-handed; render it with `BB_CONTEXT=guard` or
+  `BB_CONTEXT=hunter`.
+- `SHIELD_BLOCK` is listed in `conditionalRuntimeOffhandClips`. Runtime selects
+  it and schedules `shield_thud` only when the synced OFFHAND is a real shield
+  (and the MAINHAND is a real sword); otherwise `GUARD_HIT_REACT` plays with a
+  free left hand. The offline runner deliberately refuses to render
+  `SHIELD_BLOCK` rather than fabricate a shield. Its complete item silhouette
+  requires real-client evidence with an actual shield stack.
 - `CLEAVE` is context-dependent rather than a sword clip. Butchers are
   empty-handed at runtime; a herder cull carries the profession's shears.
   The renderer therefore refuses `CLEAVE` without `BB_CONTEXT=butcher` or

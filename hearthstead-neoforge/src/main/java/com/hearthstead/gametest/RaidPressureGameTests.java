@@ -163,7 +163,8 @@ public class RaidPressureGameTests {
 
         Settlement held = settlement(8, 3);
         RaidCaptain heldCaptain = RaidDirector.pickCaptain(held, level.getRandom());
-        held.pendingRaid = new RaidPlan(heldCaptain.id(), RaidObjective.BRANN, 0.0F, 1L);
+        RaidAuthorityFixtures.armTerminal(held,
+            new RaidPlan(heldCaptain.id(), RaidObjective.BRANN, 0.0F, 1L));
         // No arson recorded this raid: the band never actually burned anything.
         helper.assertTrue(RaidDirector.resolveIfOver(level, held),
             "with nobody left the raid resolves");
@@ -173,7 +174,8 @@ public class RaidPressureGameTests {
 
         Settlement lost = settlement(8, 3);
         RaidCaptain lostCaptain = RaidDirector.pickCaptain(lost, level.getRandom());
-        lost.pendingRaid = new RaidPlan(lostCaptain.id(), RaidObjective.BRANN, 0.0F, 2L);
+        RaidAuthorityFixtures.armTerminal(lost,
+            new RaidPlan(lostCaptain.id(), RaidObjective.BRANN, 0.0F, 2L));
         RaidDirector.torchForArson(level, lost.id, new BlockPos(1, 1, 1));
         helper.assertTrue(RaidDirector.resolveIfOver(level, lost),
             "with nobody left the raid resolves");
@@ -199,7 +201,8 @@ public class RaidPressureGameTests {
 
         Settlement held = settlement(8, 3);
         RaidCaptain heldCaptain = RaidDirector.pickCaptain(held, level.getRandom());
-        held.pendingRaid = new RaidPlan(heldCaptain.id(), RaidObjective.BLOD, 0.0F, 1L);
+        RaidAuthorityFixtures.armTerminal(held,
+            new RaidPlan(heldCaptain.id(), RaidObjective.BLOD, 0.0F, 1L));
         // raidSettlersHurtTonight is left at 0: nobody was actually caught.
         helper.assertTrue(RaidDirector.resolveIfOver(level, held),
             "with nobody left the raid resolves");
@@ -209,7 +212,8 @@ public class RaidPressureGameTests {
 
         Settlement lost = settlement(8, 3);
         RaidCaptain lostCaptain = RaidDirector.pickCaptain(lost, level.getRandom());
-        lost.pendingRaid = new RaidPlan(lostCaptain.id(), RaidObjective.BLOD, 0.0F, 2L);
+        RaidAuthorityFixtures.armTerminal(lost,
+            new RaidPlan(lostCaptain.id(), RaidObjective.BLOD, 0.0F, 2L));
         lost.raidSettlersHurtTonight = 1; // a settler was actually caught
         helper.assertTrue(RaidDirector.resolveIfOver(level, lost),
             "with nobody left the raid resolves");

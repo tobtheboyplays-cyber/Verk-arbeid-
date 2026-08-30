@@ -122,12 +122,7 @@ public class CrafterWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (!settler.isBound() || settler.getTarget() != null
-            || settler.getEnergy() <= 15.0F
-            // The daily labor pool (docs/project/PLAN_EFFORT.md): once
-            // spent, no new batch starts, on top of whatever input scarcity
-            // already limits -- effort adds the human limit.
-            || settler.isEffortSpent()) {
+        if (!settler.isBound() || settler.getTarget() != null) {
             return false;
         }
         if (lookCooldown > 0) {
@@ -238,14 +233,10 @@ public class CrafterWorkGoal extends Goal {
             settler.effort().spendResearched(2, researchEffortMultiplier(),
                 settler.attribute(Attribute.STAMINA));
         }
-        // Look for the next piece of work straight away: a crafter with a full
-        // chest of wheat should not pause between loaves -- UNLESS the pool
-        // just ran out. This goal chains batches inside one tick() run
-        // rather than returning to canUse() between them, so the effort
-        // gate at the top of canUse() would never actually stop a crafter
-        // mid-chain without this second check here (PLAN_EFFORT.md §3).
+        // Look for the next piece of work straight away. Fatigue changes the
+        // worker's pace centrally; it does not invalidate a ready recipe.
         Production.Recipe next = Production.ready(level, bench);
-        if (next == null || settler.isEffortSpent()) {
+        if (next == null) {
             recipe = null;
             return;
         }

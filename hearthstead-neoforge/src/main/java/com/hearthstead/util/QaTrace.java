@@ -39,6 +39,33 @@ public final class QaTrace {
         write(line);
     }
 
+    /**
+     * Sparse decision event for a QA-only investigation. Callers should
+     * still guard expensive detail construction with {@link #ENABLED}; this
+     * method itself is a no-op in ordinary worlds.
+     */
+    public static void event(SettlerEntity settler, String event, String detail) {
+        if (!ENABLED) {
+            return;
+        }
+        String line = String.format(java.util.Locale.ROOT,
+            "{\"tick\":%d,\"uuid\":\"%s\",\"name\":\"%s\","
+                + "\"event\":\"%s\",\"activity\":\"%s\","
+                + "\"x\":%.3f,\"y\":%.3f,\"z\":%.3f,\"detail\":\"%s\"}%n",
+            settler.level().getGameTime(), settler.getUUID(),
+            json(settler.getSettlerName()), json(event),
+            settler.getActivity().name(), settler.getX(), settler.getY(),
+            settler.getZ(), json(detail));
+        write(line);
+    }
+
+    private static String json(String value) {
+        return value.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\r", "\\r")
+            .replace("\n", "\\n");
+    }
+
     private static int bagCount(SettlerEntity settler) {
         int n = 0;
         for (int i = 0; i < settler.bag.getContainerSize(); i++) {

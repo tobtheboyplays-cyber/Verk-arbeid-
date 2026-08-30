@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "minecraftVersion": "1.21.1",
   "officialClient": {
     "clientSha1": "30c73b1c5da787909b2f73340419fdf13b9def88",
@@ -41,6 +41,13 @@
       "rotationXYZDegrees": [-80, 260, -40],
       "scale": [0.9, 0.9, 0.9],
       "centerModelPixels": [-8, -8, -8]
+    },
+    "block": {
+      "sourceModel": "minecraft:block/block",
+      "translateModelPixels": [0, 2.5, 0],
+      "rotationXYZDegrees": [75, 45, 0],
+      "scale": [0.375, 0.375, 0.375],
+      "centerModelPixels": [-8, -8, -8]
     }
   },
   "propDisplayProfiles": {
@@ -56,8 +63,20 @@
   "blockbench": {
     "modelToBlockbenchAxisSigns": [-1, -1, 1],
     "rightArmOrigin": [6, 22, 0],
+    "leftArmOrigin": [-6, 22, 0],
     "rightHandCubeCenter": [6, 12, 0],
     "expectedNeutralLayerOrigin": [7, 12, -2],
+    "expectedNeutralLeftLayerOrigin": [-7, 12, -2],
+    "expectedNeutralLeftDisplays": {
+      "block": {
+        "origin": [-7, 12, -4.5],
+        "basisRows": [
+          [-0.707106781186548, 0, -0.707106781186548],
+          [-0.18301270189222, -0.965925826289068, 0.183012701892219],
+          [-0.683012701892219, 0.258819045102521, 0.683012701892219]
+        ]
+      }
+    },
     "expectedNeutralDisplays": {
       "handheld": {
         "origin": [7, 12.5, -6],
@@ -93,6 +112,48 @@
       }
     }
   },
+  "meleeEvidenceTarget": {
+    "role": "primary_forward_attack_bearing",
+    "actorForwardModel": [0, 0, -1],
+    "centerModelPixels": [0, 14.4, -12],
+    "sizeModelPixels": [9.6, 28.8, 9.6],
+    "actorEyeModelPixels": [0, 25.6, 0],
+    "targetEyeModelPixels": [0, 25.6, -12],
+    "bodyYawDegrees": 0,
+    "lookYawLimitDegrees": 30,
+    "lookPitchLimitDegrees": 30,
+    "maxPrimaryBearingErrorDegrees": 0.5,
+    "contactSeconds": 0.2,
+    "impactBandSeconds": [0.2, 0.25],
+    "mustBeClearSeconds": [0, 0.05, 0.1, 0.15],
+    "mustBeSeparatedSeconds": [0.3, 0.35, 0.4, 0.45, 0.5],
+    "minimumCenterlineTravelPixels": 0.75,
+    "maximumImpactLineDriftPixels": 2.0
+  },
+  "craftingEvidenceTarget": {
+    "role": "fixed_world_authority_reconstruction",
+    "actorForwardModel": [0, 0, -1],
+    "tableCenterModelPixels": [0, 8, -12],
+    "tableSizeModelPixels": [16, 16, 16],
+    "gridSpacingModelPixels": 3.6,
+    "recipeId": "minecraft:wooden_axe",
+    "recipeOccupiedSlots": [0, 1, 3, 4, 7],
+    "recipeSlotItems": {
+      "0": "minecraft:oak_planks",
+      "1": "minecraft:oak_planks",
+      "3": "minecraft:oak_planks",
+      "4": "minecraft:stick",
+      "7": "minecraft:stick"
+    },
+    "layoutContactSeconds": [0.2, 0.4, 0.6, 0.8, 0.9],
+    "transformContactSeconds": 1.5,
+    "pickupContactSeconds": 2.15,
+    "tableBeatDurationSeconds": 2.4,
+    "storageContactSeconds": 0.7,
+    "storageBeatDurationSeconds": 1.2,
+    "outputItem": "minecraft:wooden_axe",
+    "worldPropsMustNotInheritActorTransform": true
+  },
   "clips": {
     "FARM_PLANT": "hoe",
     "FARM_HARVEST": "hoe",
@@ -100,42 +161,83 @@
     "LIMB_BRANCHES": "axe",
     "GATHER_LOG": "axe",
     "HAUL_LOG": "axe",
+    "HAUL_LOG_HEAVY": "axe",
     "HAMMER_ANVIL": "hammer",
     "MINE_PICK": "pickaxe",
     "MASON_CHISEL": "pickaxe",
     "FARM_TILL": "hoe",
     "FARM_WATER": "hoe",
+    "FARMER_CARRY": "hoe",
     "MELEE": "sword",
     "LEAP_STRIKE": "sword",
+    "GUARD_STANCE": "sword",
     "GUARD_PATROL": "sword",
+    "GUARD_HIT_REACT": "sword",
+    "ARCHER_STANCE": "bow",
+    "ARCHER_PATROL": "bow",
+    "IDLE_ARCHER": "bow",
     "SHIELD_BLOCK": "sword",
     "HERDER_SHEAR": "shears",
     "FISHER_CAST": "fishing_rod",
     "HUNTER_LOOSE": "bow"
   },
   "contextualClips": {
+    "IDLE_LUMBERER": {
+      "lumberer": "axe"
+    },
+    "WALK": {
+      "lumberer": "axe"
+    },
+    "WALK_LADEN": {
+      "lumberer": "axe"
+    },
+    "WALK_CARRY_ITEM": {
+      "lumberer": "axe"
+    },
+    "WORK_CONTAINER_DOWN": {
+      "lumberer": "axe"
+    },
+    "GROUND_ITEM_PICKUP": {
+      "lumberer": "axe"
+    },
+    "WORK_CONTAINER_STOW": {
+      "lumberer": "axe"
+    },
+    "WORK_CONTAINER_UP": {
+      "lumberer": "axe"
+    },
+    "PICKUP_STOW": {
+      "lumberer": "axe"
+    },
+    "IDLE_SENTRY": {
+      "guard": "sword",
+      "hunter": "none"
+    },
     "CLEAVE": {
       "butcher": "none",
       "herder_cull": "shears"
     },
-    "GUARD_STANCE": {
-      "guard": "sword",
-      "archer": "bow"
+    "LUMBER_CRAFT": {
+      "missing": "none",
+      "worn_existing_axe": "axe"
+    },
+    "CRAFT_OUTPUT_STORE": {
+      "escrow_output": "none"
     }
   },
   "fixedRuntimeMainHandClips": [
-    "FARM_PLANT", "FARM_HARVEST", "FARM_TILL", "FARM_WATER",
-    "CHOP", "LIMB_BRANCHES", "GATHER_LOG", "HAUL_LOG", "MINE_PICK",
-    "MELEE", "LEAP_STRIKE", "GUARD_PATROL",
-    "SHIELD_BLOCK", "HERDER_SHEAR", "FISHER_CAST", "HUNTER_LOOSE"
+    "FARM_PLANT", "FARM_HARVEST", "FARM_TILL", "FARM_WATER", "FARMER_CARRY",
+    "CHOP", "LIMB_BRANCHES", "GATHER_LOG", "HAUL_LOG", "HAUL_LOG_HEAVY", "MINE_PICK",
+    "MELEE", "LEAP_STRIKE", "GUARD_STANCE", "GUARD_PATROL", "GUARD_HIT_REACT",
+    "ARCHER_STANCE", "ARCHER_PATROL", "IDLE_ARCHER", "SHIELD_BLOCK",
+    "HERDER_SHEAR", "FISHER_CAST", "HUNTER_LOOSE"
   ],
+  "conditionalRuntimeOffhandClips": {
+    "SHIELD_BLOCK": "shield"
+  },
   "conceptualProxyClips": ["HAMMER_ANVIL", "MASON_CHISEL"],
   "knownVisualNoGoClips": {
     "CLEAVE": "The clip has no truthful universal prop: BUTCHER runtime is empty-handed despite the catalogue cleaver, while HERDER cull carries shears; BB_CONTEXT is mandatory.",
-    "GUARD_STANCE": "The shared clip is context-dependent: GUARD has a right-hand sword but no catalogue-required OFFHAND shield, while ARCHER has a right-hand bow in a sword pose; BB_CONTEXT is mandatory.",
-    "GUARD_PATROL": "K1 right-hand sword placement matches runtime, but the catalogue also requires a left-hand shield and guard runtime equips no OFFHAND shield.",
-    "MELEE": "K1 right-hand sword placement matches runtime, but the catalogue also requires a left-hand shield and guard runtime equips no OFFHAND shield.",
-    "SHIELD_BLOCK": "K1 right-hand sword placement matches runtime, but the defining left-hand shield is absent because guard runtime equips no OFFHAND shield.",
     "HUNTER_LOOSE": "Runtime BOW is MAINHAND/right_arm, but this clip authors left_arm as the bow arm; runtime also never enters the vanilla pulling item state."
   }
 }

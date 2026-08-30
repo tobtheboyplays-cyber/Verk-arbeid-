@@ -5,21 +5,31 @@ import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.client.model.SettlerModel;
 import com.hearthstead.client.ui.HsUiTokens;
+import com.hearthstead.entity.CraftPresentation;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.logistics.StopReason;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.entity.layers.ItemInHandLayer;
+import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
@@ -68,6 +78,9 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     private static final float DOT_GAP = 3.0F;
     private static final float LINE2_Y = HsUiTokens.LINE_GAP; // 11
     private static final float LINE3_Y = LINE2_Y + HsUiTokens.LINE_GAP;
+    private static final double REQUEST_BUBBLE_RANGE_SQ = 24.0D * 24.0D;
+    private static final int REQUEST_BUBBLE_RIM = 0xFFD6A447;
+    private static final int REQUEST_BUBBLE_FILL = 0xEE1A1A1A;
 
     public SettlerRenderer(EntityRendererProvider.Context context) {
         super(context, new SettlerModel(context.bakeLayer(SettlerModel.LAYER)), 0.5F);
@@ -159,10 +172,14 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
         // actionable third line. Fifty settlers therefore cost no fifty-line
         // overlay and no per-frame world scan.
         StopReason stop = entity.logisticsStopReason();
-        boolean inspectStop = targeted && profession == Profession.COURIER
-            && stop != StopReason.NONE
+        boolean workZoneStop = (profession == Profession.LUMBERER
+                || profession == Profession.FARMER)
+            && (stop == StopReason.NO_WORK_ZONE
+                || stop == StopReason.NO_VALID_TARGET);
+        boolean inspectStop = targeted && stop != StopReason.NONE
             && Minecraft.getInstance().player != null
-            && Minecraft.getInstance().player.isShiftKeyDown();
+            && (workZoneStop || profession == Profession.COURIER
+                && Minecraft.getInstance().player.isShiftKeyDown());
         Component stopLine = null;
         if (inspectStop) {
             Component targetName = logisticsTargetName(entity);
@@ -228,6 +245,189 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
                 matrix, buffers, Font.DisplayMode.NORMAL, 0, packedLight);
         }
         pose.popPose();
+    }
+
+    @Override
+    public void render(SettlerEntity entity, float entityYaw, float partialTick,
+                       PoseStack pose, MultiBufferSource buffers,
+                       int packedLight) {
+        super.render(entity, entityYaw, partialTick, pose, buffers, packedLight);
+        renderCraftPresentation(entity, partialTick, pose, buffers,
+            packedLight);
+        renderEquipmentRequestBubble(entity, partialTick, pose, buffers,
+            packedLight);
+    }
+
+    /**
+     * Renders only server-authored crafting truth. Table props are fixed to
+     * the exact crafting-table block and storage props to the exact selected
+     * container; neither inherits settler sway, root compression, yaw, or
+     * locomotion. The projection is action-scoped and disappears as soon as
+     * the server invalidates that reservation/escrow.
+     */
+    private void renderCraftPresentation(SettlerEntity entity,
+                                         float partialTick,
+                                         PoseStack pose,
+                                         MultiBufferSource buffers,
+                                         int packedLight) {
+        CraftPresentation craft = entity.craftPresentation();
+        BlockPos anchor = craft.anchorPos();
+        if (!craft.active() || anchor == null) {
+            return;
+        }
+        Vec3 entityPosition = entity.getPosition(partialTick);
+        Direction forward = craft.facing();
+        Direction right = forward.getClockWise();
+        float facingYaw = -forward.toYRot();
+
+        if (craft.phase() == CraftPresentation.Phase.LAY_OUT
+            || craft.phase() == CraftPresentation.Phase.WIND_UP) {
+            for (int slot = 0; slot < CraftPresentation.GRID_SIZE; slot++) {
+                if (!craft.slotVisible(slot)) {
+                    continue;
+                }
+                int row = slot / 3;
+                int column = slot % 3;
+                double lateral = (column - 1) * 0.225D;
+                double depth = (1 - row) * 0.225D;
+                double x = anchor.getX() + 0.5D
+                    + right.getStepX() * lateral
+                    + forward.getStepX() * depth;
+                double z = anchor.getZ() + 0.5D
+                    + right.getStepZ() * lateral
+                    + forward.getStepZ() * depth;
+                renderFixedCraftItem(entity, craft.recipeSlot(slot), pose,
+                    buffers, packedLight, entityPosition, x,
+                    anchor.getY() + 1.035D, z, facingYaw, 0.38F,
+                    31 * slot);
+            }
+            return;
+        }
+
+        if (craft.phase() == CraftPresentation.Phase.RESULT_READ
+            || craft.phase() == CraftPresentation.Phase.PICK_UP) {
+            renderFixedCraftItem(entity, craft.output(), pose, buffers,
+                packedLight, entityPosition, anchor.getX() + 0.5D,
+                anchor.getY() + 1.045D, anchor.getZ() + 0.5D,
+                facingYaw, 0.58F, 313);
+            return;
+        }
+
+        if (craft.phase() == CraftPresentation.Phase.DEPOSIT) {
+            // The chest-side copy remains fixed just outside the selected
+            // container until the exact deposit contact clears the escrow.
+            // CARRIED intentionally renders nothing: escrow is protected in
+            // the worker's bag, not masquerading as a MAINHAND item.
+            double x = anchor.getX() + 0.5D
+                - forward.getStepX() * 0.34D;
+            double z = anchor.getZ() + 0.5D
+                - forward.getStepZ() * 0.34D;
+            renderFixedCraftItem(entity, craft.output(), pose, buffers,
+                packedLight, entityPosition, x, anchor.getY() + 0.94D, z,
+                facingYaw, 0.55F, 719);
+        }
+    }
+
+    private static void renderFixedCraftItem(SettlerEntity entity,
+                                             ItemStack stack,
+                                             PoseStack pose,
+                                             MultiBufferSource buffers,
+                                             int packedLight,
+                                             Vec3 entityPosition,
+                                             double worldX,
+                                             double worldY,
+                                             double worldZ,
+                                             float yaw,
+                                             float scale,
+                                             int salt) {
+        if (stack.isEmpty()) {
+            return;
+        }
+        pose.pushPose();
+        pose.translate(worldX - entityPosition.x, worldY - entityPosition.y,
+            worldZ - entityPosition.z);
+        pose.mulPose(Axis.YP.rotationDegrees(yaw));
+        pose.scale(scale, scale, scale);
+        Minecraft.getInstance().getItemRenderer().renderStatic(stack,
+            ItemDisplayContext.GROUND, packedLight, OverlayTexture.NO_OVERLAY,
+            pose, buffers, entity.level(), entity.getId() * 37 + salt);
+        pose.popPose();
+    }
+
+    /**
+     * One quiet, billboarded item bubble for an active need. It is independent
+     * of name-tag visibility: hiding names must not hide gameplay information.
+     * The icon is the real preferred request item projected by the server,
+     * never a renderer-side guess from profession.
+     */
+    private void renderEquipmentRequestBubble(SettlerEntity entity,
+                                              float partialTick,
+                                              PoseStack pose,
+                                              MultiBufferSource buffers,
+                                              int packedLight) {
+        ItemStack requested = entity.requestedEquipmentIcon();
+        double distanceSqr = entityRenderDispatcher.distanceToSqr(entity);
+        if (requested.isEmpty() || distanceSqr > REQUEST_BUBBLE_RANGE_SQ) {
+            return;
+        }
+        float fade = Mth.clamp((float) ((24.0D - Math.sqrt(distanceSqr)) / 4.0D),
+            0.0F, 1.0F);
+        float bob = Mth.sin((entity.tickCount + partialTick) * 0.10F) * 0.035F;
+
+        pose.pushPose();
+        pose.translate(0.0D, entity.getBbHeight() + 1.02D + bob, 0.0D);
+        pose.mulPose(entityRenderDispatcher.cameraOrientation());
+        pose.scale(0.42F, 0.42F, 0.42F);
+
+        VertexConsumer plate = buffers.getBuffer(
+            RenderType.textBackgroundSeeThrough());
+        fillQuad(plate, pose, -0.74F, 0.74F, -0.74F, 0.74F,
+            -0.06F, withAlpha(REQUEST_BUBBLE_RIM,
+                fadeAlpha(0xFF, fade)), packedLight);
+        fillQuad(plate, pose, -0.64F, 0.64F, -0.64F, 0.64F,
+            -0.05F, withAlpha(REQUEST_BUBBLE_FILL,
+                fadeAlpha(0xEE, fade)), packedLight);
+
+        pose.pushPose();
+        pose.translate(0.0F, 0.0F, 0.04F);
+        Minecraft.getInstance().getItemRenderer().renderStatic(requested,
+            ItemDisplayContext.GUI, packedLight, OverlayTexture.NO_OVERLAY,
+            pose, buffers, entity.level(), entity.getId());
+        pose.popPose();
+        pose.popPose();
+    }
+
+    @Override
+    public boolean shouldRender(SettlerEntity entity, Frustum frustum,
+                                double cameraX, double cameraY, double cameraZ) {
+        if (super.shouldRender(entity, frustum, cameraX, cameraY, cameraZ)) {
+            return true;
+        }
+        CraftPresentation craft = entity.craftPresentation();
+        if (craft.active() && craft.anchorPos() != null
+            && anchorVisible(entity, frustum, craft.anchorPos(), cameraX,
+                cameraY, cameraZ)) {
+            return true;
+        }
+        var placed = entity.placedWorkContainerPos();
+        if (placed == null) {
+            return false;
+        }
+        return anchorVisible(entity, frustum, placed, cameraX, cameraY,
+            cameraZ);
+    }
+
+    private static boolean anchorVisible(SettlerEntity entity,
+                                         Frustum frustum,
+                                         BlockPos anchor,
+                                         double cameraX,
+                                         double cameraY,
+                                         double cameraZ) {
+        double dx = anchor.getX() + 0.5 - cameraX;
+        double dy = anchor.getY() + 0.5 - cameraY;
+        double dz = anchor.getZ() + 0.5 - cameraZ;
+        return entity.shouldRenderAtSqrDistance(dx * dx + dy * dy + dz * dz)
+            && frustum.isVisible(new AABB(anchor).inflate(0.5));
     }
 
     private static Component logisticsTargetName(SettlerEntity entity) {
@@ -297,15 +497,20 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
 
     private static void fillQuad(VertexConsumer buffer, PoseStack pose, float x0, float x1,
                                  float y0, float y1, int argb, int light) {
+        fillQuad(buffer, pose, x0, x1, y0, y1, 0.0F, argb, light);
+    }
+
+    private static void fillQuad(VertexConsumer buffer, PoseStack pose, float x0, float x1,
+                                 float y0, float y1, float z, int argb, int light) {
         int a = argb >>> 24;
         int r = argb >> 16 & 0xFF;
         int g = argb >> 8 & 0xFF;
         int b = argb & 0xFF;
         PoseStack.Pose last = pose.last();
-        buffer.addVertex(last, x0, y0, 0.0F).setColor(r, g, b, a).setLight(light);
-        buffer.addVertex(last, x1, y0, 0.0F).setColor(r, g, b, a).setLight(light);
-        buffer.addVertex(last, x1, y1, 0.0F).setColor(r, g, b, a).setLight(light);
-        buffer.addVertex(last, x0, y1, 0.0F).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x0, y0, z).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x1, y0, z).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x1, y1, z).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x0, y1, z).setColor(r, g, b, a).setLight(light);
     }
 
     private static int fadeAlpha(int base0to255, float fade) {

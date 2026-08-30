@@ -1,20 +1,44 @@
 package com.hearthstead.settlement;
 
 import com.hearthstead.entity.Profession;
+import com.hearthstead.settlement.equipment.EquipmentRequestQueue;
+import com.hearthstead.settlement.journey.JourneyEvent;
+import com.hearthstead.settlement.journey.JourneyEvidence;
+import com.hearthstead.settlement.journey.JourneyIds;
+import com.hearthstead.settlement.journey.JourneyMigration;
+import com.hearthstead.settlement.journey.JourneyOutcome;
+import com.hearthstead.settlement.journey.JourneySource;
+import com.hearthstead.settlement.journey.JourneyState;
+import com.hearthstead.settlement.journey.JourneyTransactionIds;
+import com.hearthstead.settlement.state.BlessingId;
 import com.hearthstead.settlement.state.BlessingState;
+import com.hearthstead.settlement.state.FirstRaidState;
+import com.hearthstead.settlement.state.FoundingJourney;
 import com.hearthstead.settlement.state.GuardOrder;
+import com.hearthstead.settlement.state.GuardOrderBook;
+import com.hearthstead.settlement.state.RecurringRaidRun;
 import com.hearthstead.settlement.state.RaidLifecycle;
 import com.hearthstead.settlement.state.RaidProfile;
+import com.hearthstead.settlement.state.TargetBlessingState;
+import com.hearthstead.settlement.raid.FirstRaidReadiness;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 /**
  * One founded settlement. Lives in {@link SettlementSavedData}; the member
@@ -30,8 +54,41 @@ public class Settlement {
     public BlockPos center;
     public int radius = DEFAULT_RADIUS;
     public final List<SettlerRecord> settlers = new ArrayList<>();
-    /** Automatically detected buildings (homes first; more types later). */
-    public final List<Building> buildings = new ArrayList<>();
+    /** Persisted manual delivery order shared by Courier AI and its queue UI. */
+    public EquipmentRequestQueue equipmentRequestQueue =
+        new EquipmentRequestQueue();
+    /**
+     * Automatically detected buildings (homes first; more types later).
+     * Structural changes invalidate the transient Blessing spatial index at
+     * the collection boundary, so every add/remove path (including plaque
+     * loss in BuildingManager and NBT load) is covered without relying on a
+     * caller remembering a second bookkeeping call.
+     */
+    public final List<Building> buildings = new BlessingTrackedBuildingList();
+
+    /** Quarantines persisted Work Zones that belong to another dimension. */
+    public boolean quarantineWorkZonesForDimension(ResourceLocation dimension) {
+        boolean changed = false;
+        // A malformed legacy/save-test row must never crash level loading.
+        // Remove nulls at this persistence boundary, then quarantine every
+        // remaining real building normally.
+        for (int index = buildings.size() - 1; index >= 0; index--) {
+            Building building = buildings.get(index);
+            if (building == null) {
+                buildings.remove(index);
+                changed = true;
+                continue;
+            }
+            changed |= building.quarantineWorkZoneDimension(dimension);
+        }
+        return changed;
+    }
+
+    /** Runtime-only, lazily rebuilt; never written into settlement NBT. */
+    private final BuildingBlessingIndex buildingBlessingIndex =
+        new BuildingBlessingIndex();
+    /** Monotonic change token used by throttled raider zone checks. */
+    private long buildingBlessingRevision;
 
     /** Eligible seconds accumulated toward this settlement's locked target. */
     public int recruitProgress;
@@ -41,6 +98,12 @@ public class Settlement {
     public int recruitTarget;
     /** Successful traveler-spawn generation used to derive the next target. */
     public int recruitCycle;
+    /**
+     * Strict v7 recruitment authority. The four scalar fields above and the
+     * two traveler mirrors below remain only for old callers/GameTests; every
+     * runtime mutation must go through {@link #applyRecruitment}.
+     */
+    public RecruitmentTransaction recruitment;
     public long alertUntilGameTime;
     public BlockPos alertPos;
     /** A traveler currently walking toward the hearth, if any. */
@@ -65,8 +128,26 @@ public class Settlement {
      */
     public RaidProfile raidProfile = RaidProfile.PEACEFUL;
     public RaidLifecycle raidLifecycle = new RaidLifecycle();
+    /** Strict v3 authority for every recurring raid after the first. */
+    public RecurringRaidRun recurringRaidRun = new RecurringRaidRun();
     public BlessingState blessingState = new BlessingState();
+    /** Current per-Guard authority. Every runtime query is keyed by Guard UUID. */
+    public GuardOrderBook guardOrders = GuardOrderBook.fresh();
+    /**
+     * V0-v7 migration carrier only. Runtime networking, AI and readiness must
+     * never read this settlement-global value.
+     */
+    @Deprecated(forRemoval = false)
     public GuardOrder guardOrder = new GuardOrder();
+    /** Premium first-session onboarding; fixtures/legacy worlds default skipped. */
+    public FoundingJourney foundingJourney = FoundingJourney.skipped();
+    /** Schema-3/definition-2 authoritative 45-milestone evidence ledger. */
+    public JourneyState journeyState;
+    /** Durable proof plus live gate for the authored first raid. */
+    public FirstRaidReadiness firstRaidReadiness = FirstRaidReadiness.quarantined();
+    /** Exact current charged-emblem authority; Journey remains immutable history. */
+    public EmploymentAuthorizationLedger employmentAuthorizations =
+        EmploymentAuthorizationLedger.fresh();
 
     /**
      * Enemies this settlement has met, and the raid it is currently
@@ -146,6 +227,8 @@ public class Settlement {
         this.name = name;
         this.center = center;
         this.recruitTarget = RecruitmentPolicy.targetFor(id, 0);
+        this.recruitment = RecruitmentTransaction.fresh(id);
+        this.journeyState = JourneyState.skipped(id);
     }
 
     /** Three founders shelter at the hearth; growth beyond that needs beds. */
@@ -195,6 +278,112 @@ public class Settlement {
         return pos.distSqr(center) <= (double) radius * radius;
     }
 
+    /**
+     * Returns whether every corner of an inclusive axis-aligned box belongs
+     * to this settlement's spherical claim.
+     *
+     * <p>Checking only {@code min} and {@code max} is insufficient for a
+     * sphere: those two opposite corners may be inside while a mixed X/Z/Y
+     * corner is outside. Work Zones use this exact all-eight-corner test both
+     * before commit and again when persisted state is loaded.
+     */
+    public boolean insideBox(BlockPos min, BlockPos max) {
+        if (min == null || max == null
+            || min.getX() > max.getX()
+            || min.getY() > max.getY()
+            || min.getZ() > max.getZ()) {
+            return false;
+        }
+        int[] xs = {min.getX(), max.getX()};
+        int[] ys = {min.getY(), max.getY()};
+        int[] zs = {min.getZ(), max.getZ()};
+        for (int x : xs) {
+            for (int y : ys) {
+                for (int z : zs) {
+                    if (!inside(new BlockPos(x, y, z))) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // ------------------------------------------------ building Blessings ---
+
+    /**
+     * Invalidates building-zone Blessings after a plaque changes a building's
+     * bounds, validity, identity or ranks. The next lookup rebuilds once on
+     * the server thread; unchanged hot lookups never scan {@link #buildings}.
+     */
+    public void invalidateBuildingBlessingIndex() {
+        buildingBlessingIndex.invalidate();
+        buildingBlessingRevision++;
+    }
+
+    /** Primitive revision read; lets raiders notice edits without a scan. */
+    public long buildingBlessingRevision() {
+        return buildingBlessingRevision;
+    }
+
+    /**
+     * Strongest valid building rank covering one block coordinate. The hot
+     * path is allocation-free and examines only the fixed-cap candidate
+     * bucket for this X/Z chunk. Overlapping buildings use max, never sum.
+     */
+    public int strongestBuildingBlessingAt(int x, int y, int z,
+                                           BlessingId blessing) {
+        return buildingBlessingIndex.strongestAt(buildings, x, y, z, blessing);
+    }
+
+    /** Diagnostics pinned by GameTests; never used to drive gameplay. */
+    public int lastBuildingBlessingCandidateChecks() {
+        return buildingBlessingIndex.lastCandidateChecks;
+    }
+
+    /** Diagnostics pinned by GameTests; unchanged hot reads must not rebuild. */
+    public long buildingBlessingIndexRebuilds() {
+        return buildingBlessingIndex.rebuilds;
+    }
+
+    /** Diagnostics pinned by GameTests; proves per-raider lookup throttling. */
+    public long buildingBlessingIndexLookups() {
+        return buildingBlessingIndex.lookups;
+    }
+
+    /** Last rebuild's fail-closed per-Blessing bucket overflows. */
+    public int buildingBlessingOverflowedBuckets() {
+        return buildingBlessingIndex.overflowedBuckets;
+    }
+
+    /** Last rebuild's explicitly rejected giant/corrupt building bounds. */
+    public int buildingBlessingRejectedOversizedBuildings() {
+        return buildingBlessingIndex.rejectedOversizedBuildings;
+    }
+
+    /** True when whole-index bounds failed and all building effects fail closed. */
+    public boolean buildingBlessingIndexGloballyDisabled() {
+        return buildingBlessingIndex.globallyDisabled;
+    }
+
+    /** Hard bound for one hot chunk lookup, exposed for QA assertions. */
+    public static int maxBuildingBlessingCandidatesPerChunk() {
+        return BuildingBlessingIndex.MAX_CANDIDATES_PER_CHUNK;
+    }
+
+    /** Whole-settlement record bound, exposed for adversarial QA fixtures. */
+    public static int maxBuildingsInBlessingIndex() {
+        return BuildingBlessingIndex.MAX_BUILDING_RECORDS;
+    }
+
+    public static int maxChunksPerBlessedBuilding() {
+        return BuildingBlessingIndex.MAX_INDEXED_CHUNKS_PER_BUILDING;
+    }
+
+    public static int maxChunkBucketsInBlessingIndex() {
+        return BuildingBlessingIndex.MAX_CHUNK_BUCKETS;
+    }
+
     public SettlerRecord record(UUID entityId) {
         for (SettlerRecord r : settlers) {
             if (r.entityId.equals(entityId)) {
@@ -216,7 +405,28 @@ public class Settlement {
     }
 
     public boolean removeRecord(UUID entityId) {
-        return settlers.removeIf(r -> r.entityId.equals(entityId));
+        boolean removed = settlers.removeIf(r -> r.entityId.equals(entityId));
+        if (removed) {
+            employmentAuthorizations.clear(entityId);
+        }
+        return removed;
+    }
+
+    /** Replaces the immutable recruitment authority and refreshes legacy UI/test mirrors. */
+    public void applyRecruitment(RecruitmentTransaction next) {
+        if (next == null || !id.equals(next.settlementId())) {
+            next = RecruitmentTransaction.quarantined(id, 0, 0, null,
+                RecruitmentTransaction.TerminalReason.MALFORMED_SAVE);
+        }
+        recruitment = next;
+        recruitProgress = next.progress();
+        recruitQualifiedSeconds = next.qualifiedSeconds();
+        recruitTarget = next.lockedTarget();
+        recruitCycle = next.cycle();
+        travelerId = next.travelerId();
+        travelerSinceGameTime = next.status()
+            == RecruitmentTransaction.Status.WAITING_ADMISSION
+                ? next.arrivedTick() : next.spawnedTick();
     }
 
     public CompoundTag writeNbt() {
@@ -234,13 +444,10 @@ public class Settlement {
         tag.putInt("RecruitQualifiedSeconds", recruitQualifiedSeconds);
         tag.putInt("RecruitTarget", recruitTarget);
         tag.putInt("RecruitCycle", recruitCycle);
+        tag.put("RecruitmentTransaction", recruitment.writeNbt());
         tag.putLong("AlertUntil", alertUntilGameTime);
         if (alertPos != null) {
             tag.put("AlertPos", NbtUtils.writeBlockPos(alertPos));
-        }
-        if (travelerId != null) {
-            tag.putUUID("TravelerId", travelerId);
-            tag.putLong("TravelerSince", travelerSinceGameTime);
         }
         ListTag list = new ListTag();
         for (SettlerRecord r : settlers) {
@@ -251,6 +458,7 @@ public class Settlement {
             list.add(rt);
         }
         tag.put("Settlers", list);
+        tag.put("EquipmentRequestQueue", equipmentRequestQueue.writeNbt());
         ListTag buildingList = new ListTag();
         for (Building b : buildings) {
             buildingList.add(b.writeNbt());
@@ -259,8 +467,14 @@ public class Settlement {
         tag.putInt("RaidProfileWireId", raidProfile.wireId());
         tag.putString("RaidProfile", raidProfile.id());
         tag.put("RaidLifecycle", raidLifecycle.writeNbt());
+        tag.put("RecurringRaidRun", recurringRaidRun.writeNbt());
         tag.put("BlessingState", blessingState.writeNbt());
-        tag.put("GuardOrder", guardOrder.writeNbt());
+        tag.put("GuardOrders", guardOrders.writeNbt());
+        tag.put("FoundingJourney", foundingJourney.writeNbt());
+        tag.put("JourneyV3", journeyState.writeNbt());
+        tag.put("FirstRaidReadiness", firstRaidReadiness.writeNbt());
+        tag.put("EmploymentAuthorizations",
+            employmentAuthorizations.writeNbt());
         tag.put("RaidPressure", raidPressure.writeNbt());
         ListTag captainList = new ListTag();
         for (com.hearthstead.settlement.raid.RaidCaptain c : raidCaptains) {
@@ -314,20 +528,30 @@ public class Settlement {
         s.mayorId = tag.hasUUID("MayorId") ? tag.getUUID("MayorId") : null;
         s.mayorSince = tag.getLong("MayorSince");
         s.mourningUntil = tag.getLong("MourningUntil");
-        readRecruitment(tag, sourceVersion, s);
+        if (sourceVersion >= 7) {
+            Tag rawRecruitment = tag.get("RecruitmentTransaction");
+            s.applyRecruitment(rawRecruitment instanceof CompoundTag recruitmentTag
+                ? RecruitmentTransaction.readOrQuarantine(recruitmentTag, s.id)
+                : RecruitmentTransaction.quarantined(s.id, 0, 0, null,
+                    RecruitmentTransaction.TerminalReason.MALFORMED_SAVE));
+        } else {
+            readRecruitment(tag, sourceVersion, s);
+            UUID legacyTraveler = tag.hasUUID("TravelerId")
+                ? tag.getUUID("TravelerId") : null;
+            // V0-v6 never persisted an exact tavern identity or an explicit
+            // arrival commit. Keeping its loose TravelerId would let a legacy
+            // entity join for free, while preserving partial clocks would
+            // silently lock them to whichever tavern happens to load first.
+            // Both migrate fail-closed: no free recruit and no fabricated lock.
+            s.applyRecruitment(legacyTraveler == null
+                ? RecruitmentTransaction.fresh(s.id, s.recruitCycle, 0)
+                : RecruitmentTransaction.quarantined(s.id, s.recruitCycle, 0,
+                    legacyTraveler,
+                    RecruitmentTransaction.TerminalReason.LEGACY_UNVERIFIABLE));
+        }
         s.alertUntilGameTime = tag.getLong("AlertUntil");
         if (tag.contains("AlertPos")) {
             s.alertPos = NbtUtils.readBlockPos(tag, "AlertPos").orElse(null);
-        }
-        if (tag.hasUUID("TravelerId")) {
-            s.travelerId = tag.getUUID("TravelerId");
-            s.travelerSinceGameTime = tag.getLong("TravelerSince");
-            // A real traveler spawn clears both attraction clocks before the
-            // save can be written. Non-zero clocks beside a waiting guest are
-            // therefore malformed hidden progress; quarantine only the
-            // counters while preserving the already-locked next target.
-            s.recruitProgress = 0;
-            s.recruitQualifiedSeconds = 0;
         }
         ListTag list = tag.getList("Settlers", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
@@ -335,9 +559,39 @@ public class Settlement {
             s.settlers.add(new SettlerRecord(rt.getUUID("EntityId"), rt.getString("Name"),
                 Profession.byId(rt.getByte("Profession"))));
         }
-        ListTag buildingList = tag.getList("Buildings", Tag.TAG_COMPOUND);
+        if (tag.get("EquipmentRequestQueue") instanceof CompoundTag queueTag) {
+            s.equipmentRequestQueue = EquipmentRequestQueue.readNbt(queueTag);
+        }
+        Tag rawBuildings = tag.get("Buildings");
+        ListTag buildingList;
+        if (sourceVersion >= Building.TARGET_BLESSINGS_SCHEMA_VERSION) {
+            if (!(rawBuildings instanceof ListTag currentBuildings)) {
+                throw new SettlementSavedData.DataVersionException(
+                    "Current Hearthstead settlement is missing a valid Buildings list");
+            }
+            for (Tag rawBuilding : currentBuildings) {
+                if (!(rawBuilding instanceof CompoundTag)) {
+                    throw new SettlementSavedData.DataVersionException(
+                        "Current Hearthstead Buildings must contain compounds");
+                }
+            }
+            buildingList = currentBuildings;
+        } else {
+            // v0-v2 predate permanent building-target ledgers. Their historic
+            // missing/wrong-type behaviour remains an empty migration only.
+            buildingList = tag.getList("Buildings", Tag.TAG_COMPOUND);
+        }
+        Set<UUID> buildingIds = new HashSet<>();
         for (int i = 0; i < buildingList.size(); i++) {
-            s.buildings.add(Building.readNbt(buildingList.getCompound(i)));
+            Building building = Building.readNbt(buildingList.getCompound(i),
+                sourceVersion);
+            if (!buildingIds.add(building.id)) {
+                throw new SettlementSavedData.DataVersionException(
+                    "Hearthstead settlement " + s.id
+                        + " contains duplicate building id " + building.id);
+            }
+            building.validateWorkZoneOwner(s);
+            s.buildings.add(building);
         }
         if (tag.contains("RaidPressure")) {
             s.raidPressure.copyFrom(com.hearthstead.settlement.raid.RaidPressure
@@ -393,8 +647,15 @@ public class Settlement {
             s.raidProfile = RaidProfile.PEACEFUL;
             s.raidLifecycle = RaidLifecycle.migrateV0(s.pendingRaid,
                 hasLegacyRaidResult(s), malformedPendingRaid);
+            // V0's one pending plan is already owned by RaidLifecycle's
+            // explicit first-raid bridge. It must not also become a recurring
+            // bridge and be resolved/logged twice.
+            s.recurringRaidRun = new RecurringRaidRun();
             s.blessingState = new BlessingState();
             s.guardOrder = new GuardOrder();
+            s.guardOrders = GuardOrderBook.fresh();
+            s.foundingJourney = FoundingJourney.skipped();
+            s.firstRaidReadiness = FirstRaidReadiness.fresh();
         } else {
             s.raidProfile = readRaidProfile(tag).orElse(RaidProfile.PEACEFUL);
             if (tag.contains("RaidLifecycle", Tag.TAG_COMPOUND)) {
@@ -407,19 +668,233 @@ public class Settlement {
                 // a later runtime bootstrap cannot mint a repeat reward.
                 s.raidLifecycle = RaidLifecycle.readNbt(new CompoundTag());
             }
-            if (tag.contains("BlessingState", Tag.TAG_COMPOUND)) {
-                s.blessingState = BlessingState.readNbt(tag.getCompound("BlessingState"));
+            Tag rawBlessingState = tag.get("BlessingState");
+            if (rawBlessingState == null) {
+                // Every versioned settlement schema already owned an
+                // authoritative reward ledger. Only the explicit v0 branch
+                // above predates it; missing data here is corruption and must
+                // never reset issuance history or mint replacement offers.
+                s.blessingState = BlessingState.quarantinedEmpty();
+            } else if (rawBlessingState instanceof CompoundTag blessingTag) {
+                s.blessingState = BlessingState.readNbt(blessingTag,
+                    sourceVersion);
             } else {
+                // A present but wrongly typed ledger is corruption, not an
+                // invitation to mint replacement offers.
                 s.blessingState = BlessingState.quarantinedEmpty();
             }
-            if (tag.contains("GuardOrder", Tag.TAG_COMPOUND)) {
-                s.guardOrder = GuardOrder.readNbt(tag.getCompound("GuardOrder"));
+            if (sourceVersion < 8) {
+                Tag rawLegacyGuardOrder = tag.get("GuardOrder");
+                GuardOrder legacy = rawLegacyGuardOrder
+                        instanceof CompoundTag legacyTag
+                    ? GuardOrder.tryReadLegacyNbt(legacyTag) : null;
+                if (legacy == null) {
+                    // Every v1-v7 writer persisted this field, including an
+                    // empty order. Missing, wrongly typed or malformed state
+                    // is integrity loss and may never be treated as fresh.
+                    s.guardOrder = new GuardOrder();
+                    s.guardOrders = GuardOrderBook.quarantined(
+                        "malformed_legacy_guard_order");
+                } else {
+                    s.guardOrder = legacy;
+                    s.guardOrders = GuardOrderBook.pendingLegacy(legacy);
+                }
+            } else if (tag.get("GuardOrders") instanceof CompoundTag ordersTag) {
+                s.guardOrders = GuardOrderBook.readNbt(ordersTag);
+            } else {
+                s.guardOrders = GuardOrderBook.quarantined(
+                    "missing_current_guard_orders");
             }
-            if (malformedPendingRaid) {
-                s.raidLifecycle.markIntegrityLost();
+            readRecurringRaidState(tag, sourceVersion, s, malformedPendingRaid);
+            if (sourceVersion < 4) {
+                // Established worlds with a completed/active/no first raid do
+                // not replay onboarding. A legacy SCHEDULED raid is different:
+                // the new readiness gate would otherwise strand its original
+                // rolled dates forever, so it receives the explicit, honest
+                // qualification path and must complete it before that plan can
+                // be authored. No milestone or evidence is grandfathered.
+                s.foundingJourney = s.raidLifecycle.firstState()
+                    == FirstRaidState.SCHEDULED
+                    ? FoundingJourney.fresh() : FoundingJourney.skipped();
+            } else if (tag.get("FoundingJourney") instanceof CompoundTag journeyTag) {
+                s.foundingJourney = FoundingJourney.readNbt(journeyTag);
+            } else {
+                // Missing or wrongly typed current authority never resets to
+                // a fresh journey that could replay onboarding transitions.
+                s.foundingJourney = FoundingJourney.quarantined();
+            }
+            if (sourceVersion < 4) {
+                // Legacy settlements have no evidence, so they are not ready.
+                // Keep an empty, valid ledger rather than labelling legitimate
+                // old data corrupt; SKIPPED Journey remains an independent
+                // hard gate unless a still-scheduled legacy first raid was
+                // given the explicit fresh qualification path just above.
+                s.firstRaidReadiness = FirstRaidReadiness.fresh();
+            } else if (tag.get("FirstRaidReadiness")
+                    instanceof CompoundTag readinessTag) {
+                s.firstRaidReadiness = FirstRaidReadiness.readNbt(readinessTag);
+            } else {
+                // Current-schema absence/wrong type is corruption and may not
+                // reset to a ledger capable of recording replacement proof.
+                s.firstRaidReadiness = FirstRaidReadiness.quarantined();
             }
         }
+        s.journeyState = readJourneyState(tag, sourceVersion, s.id);
+        Tag rawEmploymentAuthorizations = tag.get("EmploymentAuthorizations");
+        if (rawEmploymentAuthorizations == null) {
+            s.employmentAuthorizations = EmploymentAuthorizationLedger
+                .migrateLegacy(s);
+        } else if (rawEmploymentAuthorizations
+                instanceof CompoundTag authorizationTag) {
+            s.employmentAuthorizations = EmploymentAuthorizationLedger
+                .readNbt(authorizationTag, s.id);
+        } else {
+            s.employmentAuthorizations = EmploymentAuthorizationLedger
+                .quarantined();
+        }
         return s;
+    }
+
+    private static JourneyState readJourneyState(CompoundTag settlementTag,
+                                                 int sourceVersion,
+                                                 UUID settlementId) {
+        if (sourceVersion >= 6) {
+            return settlementTag.get("JourneyV3") instanceof CompoundTag journeyTag
+                ? JourneyState.readNbt(journeyTag, settlementId)
+                : JourneyState.quarantined(settlementId,
+                    "missing_current_journey_v3");
+        }
+        // Worlds predating the shipped onboarding are established worlds.
+        // Never wake them into a 45-step tutorial or infer transactions.
+        if (sourceVersion < 4) {
+            return JourneyState.skipped(settlementId);
+        }
+        if (!(settlementTag.get("FoundingJourney") instanceof CompoundTag legacy)) {
+            return JourneyState.quarantined(settlementId,
+                "missing_legacy_founding_journey");
+        }
+        JourneyEvidence founded = new JourneyEvidence(
+            JourneyIds.FJ_010_FOUND_HEARTH,
+            JourneyEvent.SETTLEMENT_FOUNDED_COMMITTED,
+            JourneyTransactionIds.forRevision("legacy_founding", settlementId,
+                settlementId, 0L),
+            0L, settlementId,
+            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+            Optional.empty(), JourneySource.MIGRATION, JourneyOutcome.NONE);
+        return JourneyMigration.migrateLegacy(legacy, settlementId, false,
+            List.of(founded)).state();
+    }
+
+    /**
+     * DataVersion 3 adds an auditable recurring-raid ledger. V1/v2 had only
+     * PendingRaid and a loaded-AABB completion path, so an in-flight recurring
+     * plan may continue once through an explicit no-reward bridge; it may
+     * never be upgraded into a sealed participant capture after the fact.
+     */
+    private static void readRecurringRaidState(CompoundTag tag, int sourceVersion,
+                                               Settlement settlement,
+                                               boolean malformedPendingRaid) {
+        if (sourceVersion < 3) {
+            migratePreV3RecurringRaid(settlement, malformedPendingRaid);
+            return;
+        }
+
+        if (tag.contains("RecurringRaidRun", Tag.TAG_COMPOUND)) {
+            settlement.recurringRaidRun = RecurringRaidRun.readNbt(
+                tag.getCompound("RecurringRaidRun"));
+        } else {
+            // A v3 ledger may not disappear into a pristine serial counter:
+            // that could replay an already-processed recurring reward.
+            settlement.recurringRaidRun = RecurringRaidRun.blocked();
+        }
+
+        boolean firstOwnsPending = settlement.raidLifecycle.isAuthoredFirstRaidActive()
+            || settlement.raidLifecycle.isLegacyBridgeActive();
+        if (firstOwnsPending) {
+            if (!settlement.recurringRaidRun.isEmpty()) {
+                settlement.recurringRaidRun.block();
+            }
+            if (malformedPendingRaid) {
+                settlement.raidLifecycle.markIntegrityLost();
+            }
+            return;
+        }
+
+        if (settlement.raidLifecycle.firstState() != FirstRaidState.COMPLETED) {
+            if (!settlement.recurringRaidRun.isEmpty() || settlement.pendingRaid != null
+                || malformedPendingRaid) {
+                settlement.recurringRaidRun.block();
+            }
+            return;
+        }
+
+        if (settlement.recurringRaidRun.isBlocked()) {
+            return;
+        }
+        RaidPlanRelation relation = relationToRecurringPlan(settlement);
+        if (malformedPendingRaid) {
+            if (settlement.recurringRaidRun.isActive()) {
+                // The sealed ledger remains completion authority, but a
+                // damaged compatibility mirror permanently disarms reward.
+                settlement.recurringRaidRun.markIntegrityLost();
+            } else {
+                settlement.recurringRaidRun.block();
+            }
+        } else if (relation == RaidPlanRelation.MISMATCH) {
+            if (settlement.recurringRaidRun.isActive()) {
+                settlement.recurringRaidRun.markIntegrityLost();
+            } else {
+                settlement.recurringRaidRun.block();
+            }
+        } else if (relation == RaidPlanRelation.UNEXPECTED_PENDING) {
+            settlement.recurringRaidRun.block();
+        }
+    }
+
+    private static void migratePreV3RecurringRaid(Settlement settlement,
+                                                   boolean malformedPendingRaid) {
+        if (settlement.raidLifecycle.firstState() == FirstRaidState.COMPLETED) {
+            if (malformedPendingRaid) {
+                settlement.recurringRaidRun = RecurringRaidRun.blocked();
+            } else if (settlement.pendingRaid != null) {
+                settlement.recurringRaidRun =
+                    RecurringRaidRun.migrateLegacy(settlement.pendingRaid);
+            } else {
+                settlement.recurringRaidRun = new RecurringRaidRun();
+            }
+            return;
+        }
+        // An authored/v0 ACTIVE first raid owns PendingRaid as its mirror.
+        // Any other pre-v3 pending shape is unauditable and must not AABB-close.
+        boolean firstOwnsPending = settlement.raidLifecycle.isAuthoredFirstRaidActive()
+            || settlement.raidLifecycle.isLegacyBridgeActive();
+        settlement.recurringRaidRun = firstOwnsPending
+            ? new RecurringRaidRun()
+            : (settlement.pendingRaid != null || malformedPendingRaid
+                ? RecurringRaidRun.blocked() : new RecurringRaidRun());
+        if (malformedPendingRaid && firstOwnsPending) {
+            settlement.raidLifecycle.markIntegrityLost();
+        }
+    }
+
+    private enum RaidPlanRelation {
+        MATCH,
+        MISMATCH,
+        UNEXPECTED_PENDING
+    }
+
+    private static RaidPlanRelation relationToRecurringPlan(Settlement settlement) {
+        if (settlement.recurringRaidRun.isActive()
+            || settlement.recurringRaidRun.isLegacyBridgeActive()) {
+            if (settlement.pendingRaid == null) {
+                // Missing mirror is recoverable from the authoritative run.
+                return RaidPlanRelation.MATCH;
+            }
+            return settlement.recurringRaidRun.plan().filter(settlement.pendingRaid::equals)
+                .isPresent() ? RaidPlanRelation.MATCH : RaidPlanRelation.MISMATCH;
+        }
+        return settlement.pendingRaid == null
+            ? RaidPlanRelation.MATCH : RaidPlanRelation.UNEXPECTED_PENDING;
     }
 
     /**
@@ -529,6 +1004,322 @@ public class Settlement {
             }
         }
         return false;
+    }
+
+    /**
+     * ArrayList with one extra invariant: every structural mutation dirties
+     * the runtime building-Blessing index. Existing code may keep using the
+     * public List API, while removals from plaque dissolution and additions
+     * during NBT load cannot leave a stale combat zone behind.
+     */
+    private final class BlessingTrackedBuildingList extends ArrayList<Building> {
+        @Override
+        public boolean add(Building building) {
+            boolean changed = super.add(building);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public void add(int index, Building element) {
+            super.add(index, element);
+            invalidateBuildingBlessingIndex();
+        }
+
+        @Override
+        public boolean addAll(Collection<? extends Building> additions) {
+            boolean changed = super.addAll(additions);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public boolean addAll(int index, Collection<? extends Building> additions) {
+            boolean changed = super.addAll(index, additions);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public Building set(int index, Building element) {
+            Building previous = super.set(index, element);
+            invalidateBuildingBlessingIndex();
+            return previous;
+        }
+
+        @Override
+        public void replaceAll(UnaryOperator<Building> operator) {
+            if (isEmpty()) {
+                super.replaceAll(operator);
+                return;
+            }
+            // ArrayList.replaceAll mutates its backing array directly rather
+            // than routing through set(). A finally block also covers an
+            // operator that throws after partially replacing the list.
+            try {
+                super.replaceAll(operator);
+            } finally {
+                invalidateBuildingBlessingIndex();
+            }
+        }
+
+        @Override
+        public List<Building> subList(int fromIndex, int toIndex) {
+            // ArrayList.SubList can mutate the root backing array without
+            // dispatching through every override above. No Hearthstead caller
+            // needs a mutable slice, so expose a live read-only view and keep
+            // structural writes on the tracked root List API.
+            return Collections.unmodifiableList(
+                super.subList(fromIndex, toIndex));
+        }
+
+        @Override
+        public Building remove(int index) {
+            Building removed = super.remove(index);
+            invalidateBuildingBlessingIndex();
+            return removed;
+        }
+
+        @Override
+        public boolean remove(Object candidate) {
+            boolean changed = super.remove(candidate);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public boolean removeAll(Collection<?> candidates) {
+            boolean changed = super.removeAll(candidates);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public boolean retainAll(Collection<?> retained) {
+            boolean changed = super.retainAll(retained);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public boolean removeIf(Predicate<? super Building> filter) {
+            boolean changed = super.removeIf(filter);
+            if (changed) {
+                invalidateBuildingBlessingIndex();
+            }
+            return changed;
+        }
+
+        @Override
+        public void clear() {
+            if (isEmpty()) {
+                return;
+            }
+            super.clear();
+            invalidateBuildingBlessingIndex();
+        }
+
+        @Override
+        protected void removeRange(int fromIndex, int toIndex) {
+            if (fromIndex == toIndex) {
+                return;
+            }
+            super.removeRange(fromIndex, toIndex);
+            invalidateBuildingBlessingIndex();
+        }
+    }
+
+    /**
+     * Lazy X/Z-chunk index for permanent building Blessings.
+     *
+     * <p>Rebuilds are cold-path work caused only by load/survey/bind/dissolve.
+     * The live combat path performs one primitive-long map lookup and at most
+     * {@value #MAX_CANDIDATES_PER_CHUNK} direct bounding-box/rank reads. A
+     * malformed giant bound and pathological overlap are skipped/capped at
+     * rebuild time, so corrupted NBT cannot turn a raider tick into an
+     * unbounded scan or an unbounded allocation burst. A per-Blessing bucket
+     * overflow disables that Blessing for the affected chunk instead of
+     * choosing a partial, order-dependent winner; diagnostics expose both
+     * overflow and oversized-bound rejection to QA. More than 512 building
+     * records or 2048 generated chunk buckets disables the complete index,
+     * again fail-closed, so total cold-path memory is bounded as well.
+     */
+    private static final class BuildingBlessingIndex {
+        private static final int MAX_INDEXED_CHUNKS_PER_BUILDING = 64;
+        private static final int MAX_CANDIDATES_PER_CHUNK = 32;
+        private static final int MAX_BUILDING_RECORDS = 512;
+        private static final int MAX_CHUNK_BUCKETS = 2048;
+        private static final BlessingId[] BLESSINGS = BlessingId.values();
+
+        private final Long2ObjectOpenHashMap<Bucket> byChunk =
+            new Long2ObjectOpenHashMap<>();
+        private boolean dirty = true;
+        private long rebuilds;
+        private long lookups;
+        private int lastCandidateChecks;
+        private int overflowedBuckets;
+        private int rejectedOversizedBuildings;
+        private boolean globallyDisabled;
+
+        private void invalidate() {
+            dirty = true;
+        }
+
+        private int strongestAt(List<Building> buildings, int x, int y, int z,
+                                BlessingId blessing) {
+            lookups++;
+            if (blessing == null) {
+                lastCandidateChecks = 0;
+                return 0;
+            }
+            if (dirty) {
+                rebuild(buildings);
+            }
+            if (globallyDisabled) {
+                lastCandidateChecks = 0;
+                return 0;
+            }
+            Bucket bucket = byChunk.get(chunkKey(x >> 4, z >> 4));
+            if (bucket == null) {
+                lastCandidateChecks = 0;
+                return 0;
+            }
+
+            int strongest = 0;
+            int checked = 0;
+            int blessingIndex = blessing.ordinal();
+            if (bucket.overflowed[blessingIndex]) {
+                // Partial candidate sets would make the winning building
+                // depend on list order. Disable this pathological chunk for
+                // this Blessing instead: deterministic and fail-closed.
+                lastCandidateChecks = 0;
+                return 0;
+            }
+            for (int i = 0; i < bucket.sizes[blessingIndex]; i++) {
+                Building building = bucket.buildings[blessingIndex][i];
+                checked++;
+                if (!building.valid || building.bounds == null
+                    || x < building.bounds.minX() || x > building.bounds.maxX()
+                    || y < building.bounds.minY() || y > building.bounds.maxY()
+                    || z < building.bounds.minZ() || z > building.bounds.maxZ()) {
+                    continue;
+                }
+                strongest = Math.max(strongest,
+                    building.blessingRank(blessing));
+                if (strongest >= TargetBlessingState.MAX_RANK) {
+                    break;
+                }
+            }
+            lastCandidateChecks = checked;
+            return Math.min(TargetBlessingState.MAX_RANK, strongest);
+        }
+
+        private void rebuild(List<Building> buildings) {
+            byChunk.clear();
+            overflowedBuckets = 0;
+            rejectedOversizedBuildings = 0;
+            globallyDisabled = buildings.size() > MAX_BUILDING_RECORDS;
+            if (globallyDisabled) {
+                dirty = false;
+                rebuilds++;
+                return;
+            }
+            rebuild:
+            for (Building building : buildings) {
+                if (building == null || !building.valid || building.bounds == null
+                    || !hasAnyBlessing(building)) {
+                    continue;
+                }
+                int minChunkX = building.bounds.minX() >> 4;
+                int maxChunkX = building.bounds.maxX() >> 4;
+                int minChunkZ = building.bounds.minZ() >> 4;
+                int maxChunkZ = building.bounds.maxZ() >> 4;
+                long width = (long) maxChunkX - minChunkX + 1L;
+                long depth = (long) maxChunkZ - minChunkZ + 1L;
+                if (width <= 0L || depth <= 0L
+                    || width > MAX_INDEXED_CHUNKS_PER_BUILDING
+                    || depth > MAX_INDEXED_CHUNKS_PER_BUILDING
+                    || width * depth > MAX_INDEXED_CHUNKS_PER_BUILDING) {
+                    rejectedOversizedBuildings++;
+                    continue;
+                }
+                for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
+                    for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
+                        long key = chunkKey(chunkX, chunkZ);
+                        Bucket bucket = byChunk.get(key);
+                        if (bucket == null) {
+                            if (byChunk.size() >= MAX_CHUNK_BUCKETS) {
+                                globallyDisabled = true;
+                                break rebuild;
+                            }
+                            bucket = new Bucket();
+                            byChunk.put(key, bucket);
+                        }
+                        for (BlessingId blessing : BLESSINGS) {
+                            if (building.blessingRank(blessing) > 0) {
+                                if (bucket.add(building, blessing)) {
+                                    overflowedBuckets++;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (globallyDisabled) {
+                // Never retain a partial, insertion-order-dependent index.
+                byChunk.clear();
+                overflowedBuckets = 0;
+            }
+            dirty = false;
+            rebuilds++;
+        }
+
+        private static boolean hasAnyBlessing(Building building) {
+            for (BlessingId blessing : BLESSINGS) {
+                if (building.blessingRank(blessing) > 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static long chunkKey(int chunkX, int chunkZ) {
+            return (chunkX & 0xffffffffL) | ((chunkZ & 0xffffffffL) << 32);
+        }
+
+        private static final class Bucket {
+            private final Building[][] buildings = new Building
+                [BLESSINGS.length][MAX_CANDIDATES_PER_CHUNK];
+            private final int[] sizes = new int[BLESSINGS.length];
+            private final boolean[] overflowed =
+                new boolean[BLESSINGS.length];
+
+            /** @return true only for the first overflow of this Blessing row. */
+            private boolean add(Building building, BlessingId blessing) {
+                int blessingIndex = blessing.ordinal();
+                if (overflowed[blessingIndex]) {
+                    return false;
+                }
+                if (sizes[blessingIndex] < MAX_CANDIDATES_PER_CHUNK) {
+                    buildings[blessingIndex][sizes[blessingIndex]++] = building;
+                    return false;
+                }
+                overflowed[blessingIndex] = true;
+                return true;
+            }
+        }
     }
 
     public static class SettlerRecord {

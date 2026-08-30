@@ -5,7 +5,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
 
 /**
- * A settler's five numbers: how they are rolled, and how they grow.
+ * A settler's eight numbers: how they are rolled, and how they grow.
  *
  * <h2>Nobody starts good, and nobody ever finishes</h2>
  *
@@ -44,6 +44,9 @@ import net.minecraft.util.RandomSource;
  */
 public final class SettlerAttributes {
 
+    /** Current persisted shape: eight values plus eight exact progress bits. */
+    public static final int DATA_VERSION = 2;
+
     /** The best a settler can arrive at. Above this must be trained. */
     public static final int START_CAP = 15;
     /** The hard clamp. Growth is asymptotic long before here. */
@@ -67,7 +70,7 @@ public final class SettlerAttributes {
      */
     public static SettlerAttributes roll(RandomSource random) {
         SettlerAttributes a = new SettlerAttributes();
-        a.knack = Attribute.byOrdinal(random.nextInt(Attribute.COUNT));
+        a.knack = Attribute.ALL[random.nextInt(Attribute.COUNT)];
         for (Attribute attribute : Attribute.ALL) {
             float u = random.nextFloat();
             // The exponent IS the design: 2.2 crushes the distribution towards
@@ -124,7 +127,20 @@ public final class SettlerAttributes {
         return get(attribute) / 100.0F;
     }
 
-    /** 0..5 pips, the way the hire screen shows a value. */
+    /**
+     * Exact sub-point training accumulated toward this attribute's next
+     * visible value.  Exposing the domain value keeps diagnostics and UI
+     * independent of the versioned NBT representation used by {@link #save()}.
+     */
+    public float trainingProgress(Attribute attribute) {
+        return progress[attribute.ordinal()];
+    }
+
+    /**
+     * Legacy five-pip projection. New UI must display the exact {@code n / 100}
+     * value so small, real gains remain visible.
+     */
+    @Deprecated(forRemoval = false)
     public int pips(Attribute attribute) {
         return Mth.clamp(Math.round(get(attribute) / 20.0F), 0, 5);
     }
@@ -173,32 +189,106 @@ public final class SettlerAttributes {
 
     public CompoundTag save() {
         CompoundTag tag = new CompoundTag();
+        tag.putInt("Schema", DATA_VERSION);
         int[] values = new int[Attribute.COUNT];
+        int[] progressBits = new int[Attribute.COUNT];
         System.arraycopy(value, 0, values, 0, Attribute.COUNT);
         tag.putIntArray("Values", values);
         tag.putByte("Knack", (byte) knack.ordinal());
         for (Attribute attribute : Attribute.ALL) {
             float partial = progress[attribute.ordinal()];
-            if (partial > 0.0F) {
-                tag.putFloat("P" + attribute.ordinal(), partial);
-            }
+            progressBits[attribute.ordinal()] = Float.floatToRawIntBits(partial);
         }
+        tag.putIntArray("ProgressBits", progressBits);
         return tag;
     }
 
+    /**
+     * Compatibility entry point for the current entity loader.
+     *
+     * <p>The entity UUID is not present in the nested legacy attribute tag, so
+     * this derives a stable seed from the old values, progress and knack. It is
+     * deterministic across repeated loads and becomes permanent on the next
+     * save. The overload accepting {@code migrationSeed} should be preferred by
+     * any caller that owns a stable settler identity.
+     */
     public static SettlerAttributes load(CompoundTag tag, RandomSource fallback) {
         // A settler saved before attributes existed has none; rolling gives
-        // them a life rather than five zeroes.
+        // them a life rather than eight zeroes.
+        if (!tag.contains("Values")) {
+            return roll(fallback);
+        }
+        return load(tag, fallback, stableLegacySeed(tag));
+    }
+
+    /**
+     * Loads attributes using a stable, caller-supplied migration identity.
+     * Old five-value saves retain all five values and partial progress exactly;
+     * Perception, Focus and Presence are filled once in the newcomer range.
+     */
+    public static SettlerAttributes load(CompoundTag tag, RandomSource fallback,
+                                         long migrationSeed) {
         if (!tag.contains("Values")) {
             return roll(fallback);
         }
         SettlerAttributes a = new SettlerAttributes();
         int[] values = tag.getIntArray("Values");
-        for (int i = 0; i < Attribute.COUNT && i < values.length; i++) {
+        int existing = Math.min(Attribute.COUNT, values.length);
+        int[] progressBits = tag.getIntArray("ProgressBits");
+        for (int i = 0; i < existing; i++) {
             a.value[i] = Mth.clamp(values[i], 0, CEILING);
-            a.progress[i] = tag.getFloat("P" + i);
+            float partial = progressBits.length == Attribute.COUNT
+                ? Float.intBitsToFloat(progressBits[i])
+                : tag.getFloat("P" + i);
+            a.progress[i] = safeProgress(partial);
         }
-        a.knack = Attribute.byOrdinal(tag.getByte("Knack"));
+        for (int i = existing; i < Attribute.COUNT; i++) {
+            a.value[i] = migratedStartingValue(migrationSeed, i);
+            a.progress[i] = 0.0F;
+        }
+        a.knack = Attribute.byOrdinal(tag.getByte("Knack"))
+            .orElseGet(() -> repairedKnack(migrationSeed));
         return a;
+    }
+
+    private static float safeProgress(float partial) {
+        if (!Float.isFinite(partial) || partial < 0.0F) {
+            return 0.0F;
+        }
+        return Math.min(partial, Math.nextDown(1.0F));
+    }
+
+    private static int migratedStartingValue(long migrationSeed, int index) {
+        long mixed = mix64(migrationSeed
+            + 0x9E3779B97F4A7C15L * (index + 1L));
+        return 1 + (int) Math.floorMod(mixed, START_CAP);
+    }
+
+    private static Attribute repairedKnack(long migrationSeed) {
+        long mixed = mix64(migrationSeed ^ 0xD1B54A32D192ED03L);
+        return Attribute.ALL[(int) Math.floorMod(mixed, Attribute.COUNT)];
+    }
+
+    /** Stable content seed used only while the entity loader lacks an ID. */
+    private static long stableLegacySeed(CompoundTag tag) {
+        long hash = 0xCBF29CE484222325L;
+        for (int value : tag.getIntArray("Values")) {
+            hash ^= value;
+            hash *= 0x100000001B3L;
+        }
+        hash ^= tag.getByte("Knack");
+        hash *= 0x100000001B3L;
+        for (int i = 0; i < Attribute.COUNT; i++) {
+            hash ^= Float.floatToRawIntBits(tag.getFloat("P" + i));
+            hash *= 0x100000001B3L;
+        }
+        return mix64(hash);
+    }
+
+    private static long mix64(long value) {
+        long mixed = value;
+        mixed = (mixed ^ (mixed >>> 30)) * 0xBF58476D1CE4E5B9L;
+        mixed = (mixed ^ (mixed >>> 27)) * 0x94D049BB133111EBL;
+        return mixed ^ (mixed >>> 31);
     }
 }

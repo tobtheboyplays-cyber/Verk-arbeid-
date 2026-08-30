@@ -36,7 +36,12 @@ public class SettlerPanicGoal extends Goal {
             return true;
         }
         Settlement s = settler.settlement();
-        return s != null && s.alertActive(settler.level().getGameTime());
+        // The sealed pending raid is the authoritative danger signal from
+        // arrival until terminal resolution. Civilians must not wait for the
+        // first casualty, and using this direct signal avoids raising the
+        // tactical alert that would pull a Tower Archer off their post.
+        return s != null && (s.pendingRaid != null
+            || s.alertActive(settler.level().getGameTime()));
     }
 
     @Override

@@ -63,9 +63,6 @@ import java.util.Map;
  *       hunter that could walk into the paddock it is supposed to leave
  *       alone would make {@code HerderWorkGoal}'s whole breeding-floor
  *       promise a lie.
- *   <li><b>The daily labor pool.</b> {@code isEffortSpent()} caps how many
- *       kills one hunter can even attempt in a day, the same cap every
- *       other trade already obeys.
  * </ol>
  *
  * <h2>Foraging (PLAN_CIRCULATION.md: "occasional mushrooms — the forage
@@ -122,9 +119,7 @@ public class HunterWorkGoal extends Goal {
     private boolean workConditions() {
         return settler.getProfession() == Profession.HUNTER
             && settler.isBound()
-            && settler.dayPhase().work()
-            && settler.getEnergy() > 15
-            && !settler.isEffortSpent();
+            && settler.dayPhase().work();
     }
 
     private int bagCount() {

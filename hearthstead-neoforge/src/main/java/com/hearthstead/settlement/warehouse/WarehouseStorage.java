@@ -158,6 +158,29 @@ public final class WarehouseStorage {
         return remaining;
     }
 
+    /**
+     * Inserts only into the named physical container, and only when that
+     * container is still indexed as part of the building. Courier legs use
+     * this after reaching the exact block so cargo cannot jump to a second
+     * chest on the far side of the room.
+     */
+    public ItemStack insertAt(ServerLevel level, Building building,
+                              BlockPos pos, ItemStack stack) {
+        if (stack.isEmpty()) {
+            return ItemStack.EMPTY;
+        }
+        if (pos == null || !WarehouseIndex.containers(level, building).contains(pos)) {
+            return stack.copy();
+        }
+        Container container = containerAt(level, pos);
+        if (container == null) {
+            return stack.copy();
+        }
+        ItemStack remaining = insertInto(container, stack.copy());
+        refresh(level, building);
+        return remaining;
+    }
+
     /** Merges into matching stacks first, then fills empty slots. */
     private static ItemStack insertInto(Container container, ItemStack stack) {
         ItemStack remaining = stack;

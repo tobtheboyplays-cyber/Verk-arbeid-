@@ -40,16 +40,16 @@ import static net.minecraft.client.animation.AnimationChannel.Targets.ROTATION;
  * <ul>
  *   <li>BREACH_SLAM: no accent-second keyframe check (the trigger fires the
  *       instant {@code RaiderBreachGoal} actually breaks the block, so the
- *       scar and the sound land together -- exactly {@code MELEE}'s own
- *       precedent, where the damage tick and the clip's own visual impact
- *       keyframe are not literally the same tick either). {@code
+ *       scar and the sound land together). This remains reaction-first and
+ *       does not claim the guard's newer ticketed {@code MELEE} contact.
+ *       {@code
  *       RaiderBreachGoal}'s {@code SWING_CONTACT}/{@code SWING_PERIOD}
  *       constants are still cross-checked so they cannot silently drift.</li>
  *   <li>LOOT_SNATCH: same shape, tied to {@code RaiderLootGoal}'s {@code
  *       GRAB_PERIOD} -- the trigger fires the instant a stack actually
  *       leaves the chest.</li>
- *   <li>RAIDER_STRIKE has no contract row, matching {@code MELEE}'s own
- *       precedent: {@code RaiderEntity#doHurtTarget} broadcasts the event
+ *   <li>RAIDER_STRIKE has no contract row: {@code RaiderEntity#doHurtTarget}
+ *       broadcasts the event
  *       and (if it exists) plays any hit sound synchronously in the same
  *       tick, so there is no delay constant to verify.</li>
  * </ul>
@@ -113,11 +113,11 @@ public final class RaiderAnimations {
                 new Keyframe(0.60F, KeyframeAnimations.degreeVec(4, 6, 8), CATMULLROM),
                 new Keyframe(0.80F, KeyframeAnimations.degreeVec(-14, 6, -10), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(26, 4, 3), CATMULLROM),
-                new Keyframe(0.20F, KeyframeAnimations.degreeVec(24, -2, -2), CATMULLROM),
-                new Keyframe(0.40F, KeyframeAnimations.degreeVec(28, -4, 3), CATMULLROM),
-                new Keyframe(0.60F, KeyframeAnimations.degreeVec(24, 2, -2), CATMULLROM),
-                new Keyframe(0.80F, KeyframeAnimations.degreeVec(26, 4, 3), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-26, 4, 3), CATMULLROM),
+                new Keyframe(0.20F, KeyframeAnimations.degreeVec(-24, -2, -2), CATMULLROM),
+                new Keyframe(0.40F, KeyframeAnimations.degreeVec(-28, -4, 3), CATMULLROM),
+                new Keyframe(0.60F, KeyframeAnimations.degreeVec(-24, 2, -2), CATMULLROM),
+                new Keyframe(0.80F, KeyframeAnimations.degreeVec(-26, 4, 3), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
                 new Keyframe(0.20F, KeyframeAnimations.posVec(0, -0.5F, 0), CATMULLROM),
@@ -125,9 +125,9 @@ public final class RaiderAnimations {
                 new Keyframe(0.60F, KeyframeAnimations.posVec(0, -0.55F, 0), CATMULLROM),
                 new Keyframe(0.80F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-10, -14, 0), CATMULLROM),
-                new Keyframe(0.40F, KeyframeAnimations.degreeVec(-8, 10, 0), CATMULLROM),
-                new Keyframe(0.80F, KeyframeAnimations.degreeVec(-10, -14, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(10, -14, 0), CATMULLROM),
+                new Keyframe(0.40F, KeyframeAnimations.degreeVec(8, 10, 0), CATMULLROM),
+                new Keyframe(0.80F, KeyframeAnimations.degreeVec(10, -14, 0), CATMULLROM)))
             .addAnimation("root", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, -1.2F, 0), CATMULLROM),
                 new Keyframe(0.80F, KeyframeAnimations.posVec(0, -1.2F, 0), CATMULLROM)))
@@ -173,11 +173,11 @@ public final class RaiderAnimations {
                 new Keyframe(0.90F, KeyframeAnimations.degreeVec(2, 0, -4), CATMULLROM),
                 new Keyframe(1.20F, KeyframeAnimations.degreeVec(-30, -4, -8), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(32, 12, 4), CATMULLROM),
-                new Keyframe(0.30F, KeyframeAnimations.degreeVec(30, -2, -1), CATMULLROM),
-                new Keyframe(0.60F, KeyframeAnimations.degreeVec(28, -12, -4), CATMULLROM),
-                new Keyframe(0.90F, KeyframeAnimations.degreeVec(30, 2, 1), CATMULLROM),
-                new Keyframe(1.20F, KeyframeAnimations.degreeVec(32, 12, 4), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-32, 12, 4), CATMULLROM),
+                new Keyframe(0.30F, KeyframeAnimations.degreeVec(-30, -2, -1), CATMULLROM),
+                new Keyframe(0.60F, KeyframeAnimations.degreeVec(-28, -12, -4), CATMULLROM),
+                new Keyframe(0.90F, KeyframeAnimations.degreeVec(-30, 2, 1), CATMULLROM),
+                new Keyframe(1.20F, KeyframeAnimations.degreeVec(-32, 12, 4), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
                 new Keyframe(0.30F, KeyframeAnimations.posVec(0, -1.0F, 0), CATMULLROM),
@@ -185,9 +185,9 @@ public final class RaiderAnimations {
                 new Keyframe(0.90F, KeyframeAnimations.posVec(0, -1.1F, 0), CATMULLROM),
                 new Keyframe(1.20F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-6, -8, 0), CATMULLROM),
-                new Keyframe(0.60F, KeyframeAnimations.degreeVec(-4, 8, 0), CATMULLROM),
-                new Keyframe(1.20F, KeyframeAnimations.degreeVec(-6, -8, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(6, -8, 0), CATMULLROM),
+                new Keyframe(0.60F, KeyframeAnimations.degreeVec(4, 8, 0), CATMULLROM),
+                new Keyframe(1.20F, KeyframeAnimations.degreeVec(6, -8, 0), CATMULLROM)))
             .addAnimation("root", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, -2.0F, 0), CATMULLROM),
                 new Keyframe(1.20F, KeyframeAnimations.posVec(0, -2.0F, 0), CATMULLROM)))
@@ -232,9 +232,9 @@ public final class RaiderAnimations {
                 new Keyframe(0.45F, KeyframeAnimations.degreeVec(-8, 4, -8), CATMULLROM),
                 new Keyframe(0.60F, KeyframeAnimations.degreeVec(-44, 8, -14), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(34, 14, 5), CATMULLROM),
-                new Keyframe(0.30F, KeyframeAnimations.degreeVec(32, -14, -5), CATMULLROM),
-                new Keyframe(0.60F, KeyframeAnimations.degreeVec(34, 14, 5), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-34, 14, 5), CATMULLROM),
+                new Keyframe(0.30F, KeyframeAnimations.degreeVec(-32, -14, -5), CATMULLROM),
+                new Keyframe(0.60F, KeyframeAnimations.degreeVec(-34, 14, 5), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
                 new Keyframe(0.15F, KeyframeAnimations.posVec(0, -0.9F, 0), CATMULLROM),
@@ -242,9 +242,9 @@ public final class RaiderAnimations {
                 new Keyframe(0.45F, KeyframeAnimations.posVec(0, -0.95F, 0), CATMULLROM),
                 new Keyframe(0.60F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-18, -4, 0), CATMULLROM),
-                new Keyframe(0.30F, KeyframeAnimations.degreeVec(-16, 4, 0), CATMULLROM),
-                new Keyframe(0.60F, KeyframeAnimations.degreeVec(-18, -4, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(18, -4, 0), CATMULLROM),
+                new Keyframe(0.30F, KeyframeAnimations.degreeVec(16, 4, 0), CATMULLROM),
+                new Keyframe(0.60F, KeyframeAnimations.degreeVec(18, -4, 0), CATMULLROM)))
             .addAnimation("root", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, -1.5F, 0), CATMULLROM),
                 new Keyframe(0.60F, KeyframeAnimations.posVec(0, -1.5F, 0), CATMULLROM)))
@@ -264,8 +264,8 @@ public final class RaiderAnimations {
      * Triggered from {@code RaiderBreachGoal} the instant the target
      * actually gives way, so the scar and this clip start the same tick
      * (the clip's own internal impact keyframe lands a few ticks into its
-     * own playback, same as {@code MELEE}'s precedent -- see this file's
-     * header). One-shot, 1.50 s.
+     * own playback; see this file's reaction-first contract above). One-shot,
+     * 1.50 s.
      */
     private static AnimationDefinition buildBreachSlam() {
         AnimationDefinition BREACH_SLAM = AnimationDefinition.Builder
@@ -288,24 +288,24 @@ public final class RaiderAnimations {
                 new Keyframe(1.05F, KeyframeAnimations.degreeVec(-15, -4, 8), CATMULLROM),
                 new Keyframe(1.50F, KeyframeAnimations.degreeVec(10, 0, 6), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(20, 0, 2), LINEAR),
-                new Keyframe(0.10F, KeyframeAnimations.degreeVec(10, 8, 3), CATMULLROM),
-                new Keyframe(0.40F, KeyframeAnimations.degreeVec(-15, -20, -8), CATMULLROM),
-                new Keyframe(0.45F, KeyframeAnimations.degreeVec(-12, -18, -7), LINEAR),
-                new Keyframe(0.55F, KeyframeAnimations.degreeVec(48, 22, 10), LINEAR),
-                new Keyframe(0.70F, KeyframeAnimations.degreeVec(46, 20, 9), LINEAR),
-                new Keyframe(1.05F, KeyframeAnimations.degreeVec(58, 26, 13), CATMULLROM),
-                new Keyframe(1.25F, KeyframeAnimations.degreeVec(14, -6, -3), CATMULLROM),
-                new Keyframe(1.50F, KeyframeAnimations.degreeVec(20, 0, 2), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-20, 0, 2), LINEAR),
+                new Keyframe(0.10F, KeyframeAnimations.degreeVec(-10, 8, 3), CATMULLROM),
+                new Keyframe(0.40F, KeyframeAnimations.degreeVec(15, -20, -8), CATMULLROM),
+                new Keyframe(0.45F, KeyframeAnimations.degreeVec(12, -18, -7), LINEAR),
+                new Keyframe(0.55F, KeyframeAnimations.degreeVec(-48, 22, 10), LINEAR),
+                new Keyframe(0.70F, KeyframeAnimations.degreeVec(-46, 20, 9), LINEAR),
+                new Keyframe(1.05F, KeyframeAnimations.degreeVec(-58, 26, 13), CATMULLROM),
+                new Keyframe(1.25F, KeyframeAnimations.degreeVec(-14, -6, -3), CATMULLROM),
+                new Keyframe(1.50F, KeyframeAnimations.degreeVec(-20, 0, 2), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-10, -8, 0), LINEAR),
-                new Keyframe(0.10F, KeyframeAnimations.degreeVec(-14, -4, 0), CATMULLROM),
-                new Keyframe(0.40F, KeyframeAnimations.degreeVec(-20, 10, 0), CATMULLROM),
-                new Keyframe(0.55F, KeyframeAnimations.degreeVec(-4, -6, 0), LINEAR),
-                new Keyframe(0.70F, KeyframeAnimations.degreeVec(-6, -5, 0), LINEAR),
-                new Keyframe(1.05F, KeyframeAnimations.degreeVec(-16, 4, 0), CATMULLROM),
-                new Keyframe(1.25F, KeyframeAnimations.degreeVec(-8, -10, 0), CATMULLROM),
-                new Keyframe(1.50F, KeyframeAnimations.degreeVec(-10, -8, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(10, -8, 0), LINEAR),
+                new Keyframe(0.10F, KeyframeAnimations.degreeVec(14, -4, 0), CATMULLROM),
+                new Keyframe(0.40F, KeyframeAnimations.degreeVec(20, 10, 0), CATMULLROM),
+                new Keyframe(0.55F, KeyframeAnimations.degreeVec(4, -6, 0), LINEAR),
+                new Keyframe(0.70F, KeyframeAnimations.degreeVec(6, -5, 0), LINEAR),
+                new Keyframe(1.05F, KeyframeAnimations.degreeVec(16, 4, 0), CATMULLROM),
+                new Keyframe(1.25F, KeyframeAnimations.degreeVec(8, -10, 0), CATMULLROM),
+                new Keyframe(1.50F, KeyframeAnimations.degreeVec(10, -8, 0), CATMULLROM)))
             .addAnimation("root", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, -2.0F, 0), LINEAR),
                 new Keyframe(0.10F, KeyframeAnimations.posVec(0, -1.6F, 0), CATMULLROM),
@@ -369,13 +369,13 @@ public final class RaiderAnimations {
                 new Keyframe(0.40F, KeyframeAnimations.degreeVec(-36, -14, 20), CATMULLROM),
                 new Keyframe(0.55F, KeyframeAnimations.degreeVec(-15, -4, 8), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(2, 24, -4), CATMULLROM),
-                new Keyframe(0.05F, KeyframeAnimations.degreeVec(10, -10, 8), CATMULLROM),
-                new Keyframe(0.15F, KeyframeAnimations.degreeVec(14, -34, 14), LINEAR),
-                new Keyframe(0.25F, KeyframeAnimations.degreeVec(8, -30, 10), LINEAR),
-                new Keyframe(0.30F, KeyframeAnimations.degreeVec(7, -27, 9), LINEAR),
-                new Keyframe(0.40F, KeyframeAnimations.degreeVec(-4, 36, -18), CATMULLROM),
-                new Keyframe(0.55F, KeyframeAnimations.degreeVec(2, 24, -4), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-2, 24, -4), CATMULLROM),
+                new Keyframe(0.05F, KeyframeAnimations.degreeVec(-10, -10, 8), CATMULLROM),
+                new Keyframe(0.15F, KeyframeAnimations.degreeVec(-14, -34, 14), LINEAR),
+                new Keyframe(0.25F, KeyframeAnimations.degreeVec(-8, -30, 10), LINEAR),
+                new Keyframe(0.30F, KeyframeAnimations.degreeVec(-7, -27, 9), LINEAR),
+                new Keyframe(0.40F, KeyframeAnimations.degreeVec(4, 36, -18), CATMULLROM),
+                new Keyframe(0.55F, KeyframeAnimations.degreeVec(-2, 24, -4), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
                 new Keyframe(0.25F, KeyframeAnimations.posVec(0, -0.9F, 1.3F), LINEAR),
@@ -384,10 +384,10 @@ public final class RaiderAnimations {
                 new Keyframe(0.55F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(0, 16, 0), CATMULLROM),
-                new Keyframe(0.05F, KeyframeAnimations.degreeVec(3, 4, 0), CATMULLROM),
-                new Keyframe(0.15F, KeyframeAnimations.degreeVec(6, -16, 0), LINEAR),
-                new Keyframe(0.25F, KeyframeAnimations.degreeVec(8, -14, 0), LINEAR),
-                new Keyframe(0.40F, KeyframeAnimations.degreeVec(-2, 22, 0), CATMULLROM),
+                new Keyframe(0.05F, KeyframeAnimations.degreeVec(-3, 4, 0), CATMULLROM),
+                new Keyframe(0.15F, KeyframeAnimations.degreeVec(-6, -16, 0), LINEAR),
+                new Keyframe(0.25F, KeyframeAnimations.degreeVec(-8, -14, 0), LINEAR),
+                new Keyframe(0.40F, KeyframeAnimations.degreeVec(2, 22, 0), CATMULLROM),
                 new Keyframe(0.55F, KeyframeAnimations.degreeVec(0, 16, 0), CATMULLROM)))
             .addAnimation("right_leg", new AnimationChannel(ROTATION,
                 new Keyframe(0.00F, KeyframeAnimations.degreeVec(-6, 0, -6), CATMULLROM),
@@ -429,20 +429,20 @@ public final class RaiderAnimations {
                 new Keyframe(0.45F, KeyframeAnimations.degreeVec(-14, 5, 2), CATMULLROM),
                 new Keyframe(0.70F, KeyframeAnimations.degreeVec(-8, 4, 0), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM),
-                new Keyframe(0.05F, KeyframeAnimations.degreeVec(10, -6, 0), CATMULLROM),
-                new Keyframe(0.20F, KeyframeAnimations.degreeVec(18, 10, 4), LINEAR),
-                new Keyframe(0.30F, KeyframeAnimations.degreeVec(16, 9, 4), LINEAR),
-                new Keyframe(0.45F, KeyframeAnimations.degreeVec(4, -28, -10), CATMULLROM),
-                new Keyframe(0.55F, KeyframeAnimations.degreeVec(4, -30, -11), CATMULLROM),
-                new Keyframe(0.70F, KeyframeAnimations.degreeVec(6, 0, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM),
+                new Keyframe(0.05F, KeyframeAnimations.degreeVec(-10, -6, 0), CATMULLROM),
+                new Keyframe(0.20F, KeyframeAnimations.degreeVec(-18, 10, 4), LINEAR),
+                new Keyframe(0.30F, KeyframeAnimations.degreeVec(-16, 9, 4), LINEAR),
+                new Keyframe(0.45F, KeyframeAnimations.degreeVec(-4, -28, -10), CATMULLROM),
+                new Keyframe(0.55F, KeyframeAnimations.degreeVec(-4, -30, -11), CATMULLROM),
+                new Keyframe(0.70F, KeyframeAnimations.degreeVec(-6, 0, 0), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(8, 0, 0), CATMULLROM),
-                new Keyframe(0.20F, KeyframeAnimations.degreeVec(18, 4, 0), LINEAR),
-                new Keyframe(0.30F, KeyframeAnimations.degreeVec(16, 4, 0), LINEAR),
-                new Keyframe(0.45F, KeyframeAnimations.degreeVec(2, -48, 0), CATMULLROM),
-                new Keyframe(0.60F, KeyframeAnimations.degreeVec(2, -50, 0), CATMULLROM),
-                new Keyframe(0.70F, KeyframeAnimations.degreeVec(8, 0, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-8, 0, 0), CATMULLROM),
+                new Keyframe(0.20F, KeyframeAnimations.degreeVec(-18, 4, 0), LINEAR),
+                new Keyframe(0.30F, KeyframeAnimations.degreeVec(-16, 4, 0), LINEAR),
+                new Keyframe(0.45F, KeyframeAnimations.degreeVec(-2, -48, 0), CATMULLROM),
+                new Keyframe(0.60F, KeyframeAnimations.degreeVec(-2, -50, 0), CATMULLROM),
+                new Keyframe(0.70F, KeyframeAnimations.degreeVec(-8, 0, 0), CATMULLROM)))
             .addAnimation("root", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, 0, 0), CATMULLROM),
                 new Keyframe(0.20F, KeyframeAnimations.posVec(0, -0.6F, 0), LINEAR),
@@ -492,23 +492,23 @@ public final class RaiderAnimations {
                 new Keyframe(3.70F, KeyframeAnimations.degreeVec(-9, 5, -7), CATMULLROM),
                 new Keyframe(4.20F, KeyframeAnimations.degreeVec(-5, 3, -3), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(18, 0, 3), CATMULLROM),
-                new Keyframe(1.40F, KeyframeAnimations.degreeVec(16, -6, -2), CATMULLROM),
-                new Keyframe(2.80F, KeyframeAnimations.degreeVec(20, 5, 4), CATMULLROM),
-                new Keyframe(4.20F, KeyframeAnimations.degreeVec(18, 0, 3), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-18, 0, 3), CATMULLROM),
+                new Keyframe(1.40F, KeyframeAnimations.degreeVec(-16, -6, -2), CATMULLROM),
+                new Keyframe(2.80F, KeyframeAnimations.degreeVec(-20, 5, 4), CATMULLROM),
+                new Keyframe(4.20F, KeyframeAnimations.degreeVec(-18, 0, 3), CATMULLROM)))
             .addAnimation("torso", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM),
                 new Keyframe(1.90F, KeyframeAnimations.posVec(0, -0.7F, 0), CATMULLROM),
                 new Keyframe(2.30F, KeyframeAnimations.posVec(0, -0.35F, 0), CATMULLROM),
                 new Keyframe(4.20F, KeyframeAnimations.posVec(0, -0.4F, 0), CATMULLROM)))
             .addAnimation("head", new AnimationChannel(ROTATION,
-                new Keyframe(0.00F, KeyframeAnimations.degreeVec(-8, -22, 0), CATMULLROM),
-                new Keyframe(0.75F, KeyframeAnimations.degreeVec(-10, -4, 0), CATMULLROM),
-                new Keyframe(1.60F, KeyframeAnimations.degreeVec(-6, 18, 0), CATMULLROM),
-                new Keyframe(2.10F, KeyframeAnimations.degreeVec(-9, 20, 0), CATMULLROM),
-                new Keyframe(3.00F, KeyframeAnimations.degreeVec(-7, -6, 0), CATMULLROM),
-                new Keyframe(3.70F, KeyframeAnimations.degreeVec(-9, -20, 0), CATMULLROM),
-                new Keyframe(4.20F, KeyframeAnimations.degreeVec(-8, -22, 0), CATMULLROM)))
+                new Keyframe(0.00F, KeyframeAnimations.degreeVec(8, -22, 0), CATMULLROM),
+                new Keyframe(0.75F, KeyframeAnimations.degreeVec(10, -4, 0), CATMULLROM),
+                new Keyframe(1.60F, KeyframeAnimations.degreeVec(6, 18, 0), CATMULLROM),
+                new Keyframe(2.10F, KeyframeAnimations.degreeVec(9, 20, 0), CATMULLROM),
+                new Keyframe(3.00F, KeyframeAnimations.degreeVec(7, -6, 0), CATMULLROM),
+                new Keyframe(3.70F, KeyframeAnimations.degreeVec(9, -20, 0), CATMULLROM),
+                new Keyframe(4.20F, KeyframeAnimations.degreeVec(8, -22, 0), CATMULLROM)))
             .addAnimation("root", new AnimationChannel(POSITION,
                 new Keyframe(0.00F, KeyframeAnimations.posVec(0, -1.2F, 0), CATMULLROM),
                 new Keyframe(4.20F, KeyframeAnimations.posVec(0, -1.2F, 0), CATMULLROM)))

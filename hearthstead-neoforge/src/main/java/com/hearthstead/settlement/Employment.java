@@ -5,14 +5,25 @@ import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.entity.ai.ArcherAttackGoal;
+import com.hearthstead.item.JobEmblemItem;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
+import com.hearthstead.settlement.journey.JourneyEmblemProvenance;
+import com.hearthstead.settlement.journey.JourneyServerHooks;
+import com.hearthstead.util.AuthorityTelemetry;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -28,9 +39,10 @@ import java.util.UUID;
  *
  * <p>So {@link Building#workers} is the <b>only</b> record of employment, and a
  * settler's profession is <b>derived</b> from whichever building lists them.
- * The settler's synced profession is a projection kept for the client (outfit,
- * tool in hand, animation set), the way the plaque's occupancy is: recomputed
- * on the server, never a second source of truth. Two places to write one fact
+ * The settler's synced profession is a projection kept for the client (outfit
+ * and animation set), the way the plaque's occupancy is: recomputed
+ * on the server, never a second source of truth. Physical tools are separate
+ * inventory and must be requested and delivered. Two places to write one fact
  * is what the plaque invariant exists to forbid.
  *
  * <p>The other consequences fall out of that: twenty-eight buildings need no
@@ -79,6 +91,28 @@ public final class Employment {
     public record Hired(boolean ok, Cost cost, @Nullable Component refusal) {
         public static Hired refused(String key) {
             return new Hired(false, Cost.FREE, Component.translatable(key));
+        }
+
+        public static Hired refused(Component reason) {
+            return new Hired(false, Cost.FREE, reason);
+        }
+    }
+
+    /**
+     * Result of giving an emblem directly to a settler.
+     *
+     * <p>The selected workplace is returned with the normal hire result so the
+     * item can tell the player exactly where the settler now works. A refusal
+     * never carries a workplace and, critically, never consumes the emblem.
+     */
+    public record AutoHired(boolean ok, @Nullable Building workplace, Cost cost,
+                            @Nullable Component refusal) {
+        private static AutoHired refused(Hired hired) {
+            return new AutoHired(false, null, Cost.FREE, hired.refusal());
+        }
+
+        private static AutoHired refused(Component reason) {
+            return new AutoHired(false, null, Cost.FREE, reason);
         }
     }
 
@@ -472,12 +506,28 @@ public final class Employment {
     /** The building that employs this settler, or null. The one lookup. */
     @Nullable
     public static Building employerOf(Settlement settlement, UUID settler) {
+        if (settlement == null || settler == null) {
+            return null;
+        }
+        Building employer = null;
         for (Building building : settlement.buildings) {
             if (building.workers.contains(settler)) {
-                return building;
+                if (employer != null) {
+                    return null; // one worker cannot have two authorities
+                }
+                employer = building;
             }
         }
-        return null;
+        if (employer == null) {
+            return null;
+        }
+        int identityMatches = 0;
+        for (Building building : settlement.buildings) {
+            if (employer.id.equals(building.id) && ++identityMatches > 1) {
+                return null; // duplicate persisted identity: fail closed
+            }
+        }
+        return employer;
     }
 
     /** The profession this settler should have, derived from their employer. */
@@ -494,6 +544,22 @@ public final class Employment {
      * already agrees keeps this cheap enough to call freely.
      */
     public static void refresh(Settlement settlement, SettlerEntity settler) {
+        Building current = employerOf(settlement, settler.getUUID());
+        Profession currentProfession = current == null ? Profession.NONE
+            : tradeOf(current.type);
+        if (settlement.employmentAuthorizations.receipt(settler.getUUID())
+                != null
+            && (current == null || !settlement.employmentAuthorizations.matches(
+                settlement.id, settler.getUUID(), current.id,
+                currentProfession))) {
+            settlement.employmentAuthorizations.clear(settler.getUUID());
+        }
+        if (settler.level() instanceof ServerLevel level
+            && settler.archerQuiverCount() > 0
+            && (current == null
+                || !settler.archerQuiverOwnedBy(current.id))) {
+            ArcherAttackGoal.releaseBorrowedArrows(level, settlement, settler);
+        }
         Profession should = professionOf(settlement, settler.getUUID());
         if (settler.getProfession() != should) {
             settler.setProfessionProjection(should);
@@ -514,7 +580,13 @@ public final class Employment {
     }
 
     /**
-     * Hires a settler into a building.
+     * Administrative and GameTest hiring seam.
+     *
+     * <p>This deliberately does not charge an emblem: the permission-level-2
+     * {@code /hearthstead hire} QA command and deterministic fixtures need a
+     * way to construct employment state. Ordinary player code must call
+     * {@link #hireWithHeldEmblem} instead. Keeping that distinction explicit
+     * prevents a test convenience from quietly becoming a free player path.
      *
      * <p>Atomic in the way that matters: they leave their old post in the same
      * operation that gives them the new one, so there is no instant in which a
@@ -522,6 +594,203 @@ public final class Employment {
      */
     public static Hired hire(ServerLevel level, Settlement settlement,
                              Building building, SettlerEntity settler) {
+        Hired refusal = validateCoreHire(building, settler);
+        return refusal == null
+            ? commitHire(level, settlement, building, settler, true)
+            : refusal;
+    }
+
+    /**
+     * Player-facing hire/reassignment using the physical emblem visibly held
+     * in the player's selected main hand.
+     *
+     * <p>Every live-world, membership, roster, capacity and emblem check runs
+     * before the first mutation. The server thread then commits the move once
+     * and shrinks that exact live hand stack once. A wrong/missing emblem, a
+     * full or invalid workplace, a corrupt roster, or a replay against the now
+     * occupied destination returns before either side changes. We intentionally
+     * do not search the wider inventory: the player can see exactly which
+     * physical authorization they are spending, and a refusal can never eat a
+     * surprising item from another slot.
+     */
+    public static Hired hireWithHeldEmblem(ServerLevel level,
+                                           Settlement settlement,
+                                           Building building,
+                                           SettlerEntity settler,
+                                           ServerPlayer player) {
+        Hired liveRefusal = validateLivePlayerHire(level, settlement, building,
+            settler, player);
+        if (liveRefusal != null) {
+            return liveRefusal;
+        }
+        Hired coreRefusal = validateCoreHire(building, settler);
+        if (coreRefusal != null) {
+            return coreRefusal;
+        }
+
+        Profession expected = tradeOf(building.type);
+        ItemStack expectedStack = JobEmblemItem.stackFor(expected);
+        if (expectedStack.isEmpty()) {
+            return Hired.refused(Component.translatable(
+                "hearthstead.employ.refused.emblem_unavailable",
+                expected.displayName()));
+        }
+
+        ItemStack held = player.getMainHandItem();
+        Profession heldProfession = JobEmblemItem.professionOf(held);
+        if (heldProfession == null) {
+            return Hired.refused(Component.translatable(
+                "hearthstead.employ.refused.emblem_missing",
+                expectedStack.getHoverName()));
+        }
+        if (heldProfession != expected) {
+            return Hired.refused(Component.translatable(
+                "hearthstead.employ.refused.emblem_wrong",
+                expectedStack.getHoverName(), held.getHoverName()));
+        }
+
+        var journeyProvenance = JourneyEmblemProvenance.read(held)
+            .filter(provenance -> provenance.settlementId().equals(settlement.id)
+                && provenance.profession() == expected);
+        if (journeyProvenance.isPresent()
+            && !settlement.employmentAuthorizations.canAuthorize(settlement.id,
+                settler.getUUID(), building.id, expected,
+                journeyProvenance.orElseThrow().transactionId())) {
+            return Hired.refused(
+                "hearthstead.employ.refused.authorization_ledger");
+        }
+
+        Hired hired = commitHire(level, settlement, building, settler,
+            journeyProvenance.isEmpty());
+        if (!hired.ok()) {
+            return hired;
+        }
+        // No other task can touch a player's inventory midway through one
+        // server-thread action. This is therefore the same stack validated
+        // above, after the one successful roster commit and before returning
+        // control to the event loop.
+        if (!JobEmblemItem.consumeOneIfMatches(held, expected)) {
+            throw new IllegalStateException("Validated job emblem changed during hire commit");
+        }
+        if (journeyProvenance.isPresent()
+            && !settlement.employmentAuthorizations.authorize(settlement.id,
+                settler.getUUID(), building.id, expected,
+                journeyProvenance.orElseThrow().transactionId())) {
+            throw new IllegalStateException(
+                "Validated employment authorization changed during hire commit");
+        }
+        // Only the charged, ordinary-player path may advance onboarding. The
+        // raw permission-level-2/GameTest seam deliberately stops at roster
+        // construction and can never impersonate a consumed job emblem.
+        FoundingJourneyProgress.noteLumbererHired(level, settlement, building,
+            settler);
+        journeyProvenance.ifPresent(provenance ->
+            JourneyServerHooks.noteChargedJobBinding(player, settlement,
+                building, settler, provenance.transactionId()));
+        // This is deliberately after the exact held stack shrank. The raw
+        // admin/GameTest seam reaches commitHire but can never author this
+        // first-raid proof, and a rejected/replayed packet never reaches it.
+        settlement.firstRaidReadiness.noteConsumedLumbererEmblemHire(
+            level, settlement, building, settler);
+        return hired;
+    }
+
+    /**
+     * Canonical ordinary-player job flow: give the physical emblem to the
+     * person, then let Hearthstead choose their nearest valid compatible post.
+     *
+     * <p>This deliberately performs no partial fallback. A missing, invalid or
+     * full compatible workplace leaves both the roster and the exact held item
+     * untouched. If several posts are available, distance to the settler wins;
+     * plaque coordinates and UUID provide deterministic tie-breakers so a
+     * reload cannot silently choose a different workplace.
+     */
+    public static AutoHired autoHireWithHeldEmblem(ServerLevel level,
+                                                   Settlement settlement,
+                                                   SettlerEntity settler,
+                                                   ServerPlayer player) {
+        Hired liveRefusal = validateLivePlayerContext(level, settlement, settler, player);
+        if (liveRefusal != null) {
+            return AutoHired.refused(liveRefusal);
+        }
+
+        ItemStack held = player.getMainHandItem();
+        Profession intended = JobEmblemItem.professionOf(held);
+        if (intended == null) {
+            return AutoHired.refused(Component.translatable(
+                "hearthstead.employ.refused.emblem_missing_any"));
+        }
+        ItemStack expectedStack = JobEmblemItem.stackFor(intended);
+        if (expectedStack.isEmpty()) {
+            return AutoHired.refused(Component.translatable(
+                "hearthstead.employ.refused.emblem_unavailable",
+                intended.displayName()));
+        }
+
+        Building current = employerOf(settlement, settler.getUUID());
+        if (current != null && tradeOf(current.type) == intended) {
+            return AutoHired.refused(Component.translatable(
+                "hearthstead.employ.refused.already_at",
+                settler.getDisplayName(), current.type.displayName()));
+        }
+
+        List<Building> matching = new ArrayList<>();
+        List<Building> ready = new ArrayList<>();
+        for (Building building : settlement.buildings) {
+            if (tradeOf(building.type) != intended) {
+                continue;
+            }
+            matching.add(building);
+            if (building.valid
+                && building.workers.size() < building.type.workerCapacity()) {
+                ready.add(building);
+            }
+        }
+
+        if (ready.isEmpty()) {
+            if (matching.isEmpty()) {
+                return AutoHired.refused(Component.translatable(
+                    "hearthstead.employ.refused.no_compatible_workplace",
+                    intended.displayName()));
+            }
+            boolean anyValid = matching.stream().anyMatch(building -> building.valid);
+            return AutoHired.refused(Component.translatable(anyValid
+                    ? "hearthstead.employ.refused.compatible_full"
+                    : "hearthstead.employ.refused.compatible_not_ready",
+                intended.displayName()));
+        }
+
+        ready.sort(Comparator
+            .comparingDouble((Building building) ->
+                settler.blockPosition().distSqr(building.plaquePos))
+            .thenComparingInt(building -> building.plaquePos.getX())
+            .thenComparingInt(building -> building.plaquePos.getY())
+            .thenComparingInt(building -> building.plaquePos.getZ())
+            .thenComparing(building -> building.id));
+        Building selected = ready.getFirst();
+
+        ItemStack emblemBefore = held.copy();
+        int workersBefore = selected.workers.size();
+        Hired hired = hireWithHeldEmblem(level, settlement, selected, settler, player);
+        if (!hired.ok()) {
+            return AutoHired.refused(hired);
+        }
+        AuthorityTelemetry.emit(level,
+            AuthorityTelemetry.Event.EMPLOYMENT_AUTO_HIRED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.items(settlement.id,
+                "building:" + selected.id, 0, 0, workersBefore,
+                selected.workers.size(),
+                BuiltInRegistries.ITEM.getKey(emblemBefore.getItem()).toString(),
+                emblemBefore.getCount(), player.getMainHandItem().getCount(),
+                -1, "settler:" + settler.getUUID()));
+        return new AutoHired(true, selected, hired.cost(), null);
+    }
+
+    /** Pure validation shared by the free admin seam and charged player path. */
+    @Nullable
+    private static Hired validateCoreHire(Building building,
+                                          SettlerEntity settler) {
         if (!building.valid) {
             return Hired.refused("hearthstead.employ.refused.invalid");
         }
@@ -534,13 +803,83 @@ public final class Employment {
         if (building.workers.size() >= building.type.workerCapacity()) {
             return Hired.refused("hearthstead.employ.refused.full");
         }
+        return null;
+    }
+
+    /**
+     * Extra authority checks required only for an ordinary player mutation.
+     * Synthetic GameTests and the level-2 QA command retain the raw seam above.
+     */
+    @Nullable
+    private static Hired validateLivePlayerHire(ServerLevel level,
+                                                Settlement settlement,
+                                                Building building,
+                                                SettlerEntity settler,
+                                                ServerPlayer player) {
+        Hired contextRefusal = validateLivePlayerContext(level, settlement, settler, player);
+        if (contextRefusal != null) {
+            return contextRefusal;
+        }
+        if (building == null || !settlement.buildings.contains(building)) {
+            return Hired.refused("hearthstead.employ.refused.changed");
+        }
+        return null;
+    }
+
+    /** Shared live-member and roster authority for direct and plaque paths. */
+    @Nullable
+    private static Hired validateLivePlayerContext(ServerLevel level,
+                                                   Settlement settlement,
+                                                   SettlerEntity settler,
+                                                   ServerPlayer player) {
+        if (level == null || settlement == null || settler == null || player == null
+            || player.serverLevel() != level
+            || SettlementManager.byId(level, settlement.id) != settlement) {
+            return Hired.refused("hearthstead.employ.refused.changed");
+        }
+        if (!settler.isAlive() || settler.level() != level
+            || level.getEntity(settler.getId()) != settler
+            || settlement.record(settler.getUUID()) == null
+            || !Objects.equals(settler.getSettlementId(), settlement.id)
+            || settler.isTraveler()) {
+            return Hired.refused("hearthstead.employ.refused.not_member");
+        }
+
+        int rosterEntries = 0;
+        for (Building candidate : settlement.buildings) {
+            for (UUID worker : candidate.workers) {
+                if (worker.equals(settler.getUUID())) {
+                    rosterEntries++;
+                }
+            }
+        }
+        if (rosterEntries > 1) {
+            return Hired.refused("hearthstead.employ.refused.roster");
+        }
+        return null;
+    }
+
+    /** Applies one already-validated roster move and its existing side effects. */
+    private static Hired commitHire(ServerLevel level, Settlement settlement,
+                                    Building building, SettlerEntity settler,
+                                    boolean clearAuthorization) {
         Cost cost = costOfHiring(settlement, settler);
+        if (settler.archerQuiverCount() > 0
+            && !ArcherAttackGoal.releaseBorrowedArrows(level, settlement,
+                settler)) {
+            return Hired.refused("hearthstead.employ.refused.quiver_return");
+        }
+        if (clearAuthorization) {
+            settlement.employmentAuthorizations.clear(settler.getUUID());
+        }
         if (cost.loses() != null) {
+            EquipmentRequests.cancelFor(level, cost.loses(), settler.getUUID());
             cost.loses().workers.remove(settler.getUUID());
         }
         building.workers.add(settler.getUUID());
         settler.setProfessionProjection(tradeOf(building.type));
         settler.onHired(level, building);
+        EquipmentRequests.refreshFor(level, settlement, building, settler);
         SettlementManager.data(level).setDirty();
         return new Hired(true, cost, null);
     }
@@ -561,6 +900,13 @@ public final class Employment {
         if (employer == null) {
             return null;
         }
+        if (settler.archerQuiverCount() > 0
+            && !ArcherAttackGoal.releaseBorrowedArrows(level, settlement,
+                settler)) {
+            return null;
+        }
+        EquipmentRequests.cancelFor(level, employer, settler.getUUID());
+        settlement.employmentAuthorizations.clear(settler.getUUID());
         employer.workers.remove(settler.getUUID());
         settler.setProfessionProjection(Profession.NONE);
         settler.onDismissed(level, employer);
@@ -575,18 +921,66 @@ public final class Employment {
      * class of bug KF-013 and KF-014 both were. It is cheaper to make it
      * impossible than to find it twice.
      */
-    public static void freeWorkers(ServerLevel level, Settlement settlement,
-                                   Building building) {
+    public static boolean freeWorkers(ServerLevel level, Settlement settlement,
+                                      Building building) {
         if (building.workers.isEmpty()) {
-            return;
+            return true;
         }
         List<UUID> leaving = List.copyOf(building.workers);
+        List<SettlerEntity> loaded = SettlementManager.loadedMembers(level,
+            settlement);
+        Map<UUID, SettlerEntity> loadedById = new java.util.HashMap<>();
+        for (SettlerEntity settler : loaded) {
+            loadedById.put(settler.getUUID(), settler);
+        }
+        // Destruction is a two-phase transaction. An unloaded worker may own
+        // a persisted quiver sourced from this building; without its entity
+        // NBT we cannot materialize that stock. Retain authority and let the
+        // plaque/sweep retry when every leaving member is loaded.
+        for (UUID worker : leaving) {
+            SettlerEntity settler = loadedById.get(worker);
+            if (settler == null || (settler.archerQuiverCount() > 0
+                && !ArcherAttackGoal.releaseBorrowedArrows(level, settlement,
+                    settler))) {
+                return false;
+            }
+        }
+        for (UUID worker : leaving) {
+            EquipmentRequests.cancelFor(level, building, worker);
+            settlement.employmentAuthorizations.clear(worker);
+        }
         building.workers.clear();
-        for (SettlerEntity settler : SettlementManager.loadedMembers(level, settlement)) {
+        for (SettlerEntity settler : loaded) {
             if (leaving.contains(settler.getUUID())) {
                 settler.setProfessionProjection(Profession.NONE);
             }
         }
+        return true;
+    }
+
+    /**
+     * Death-only employment cleanup. No dismissal morale or ceremony is
+     * emitted: the entity's real terminal path already owns those effects.
+     * Removing every roster occurrence, request, order and live authorization
+     * in one pass makes the vacated post immediately available to a paid
+     * replacement after Guard/Archer death.
+     */
+    public static void terminateMember(ServerLevel level, Settlement settlement,
+                                       SettlerEntity settler) {
+        if (level == null || settlement == null || settler == null) {
+            return;
+        }
+        UUID workerId = settler.getUUID();
+        for (Building building : settlement.buildings) {
+            boolean employedHere = building.workers.contains(workerId);
+            if (!employedHere) {
+                continue;
+            }
+            EquipmentRequests.cancelFor(level, building, workerId);
+            building.workers.removeIf(workerId::equals);
+        }
+        settlement.employmentAuthorizations.clear(workerId);
+        settlement.guardOrders.clear(workerId);
     }
 
     // -------------------------------------------------------- the roster ---

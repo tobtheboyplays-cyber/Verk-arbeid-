@@ -16,6 +16,7 @@ import com.hearthstead.settlement.raid.RaidPlan;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.Blocks;
@@ -148,7 +149,8 @@ public class SagaGameTests {
 
         RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 2));
         raider.assign(fallen.id(), s.id, RaidObjective.BLOD, 1.0F, true);
-        s.pendingRaid = new RaidPlan(fallen.id(), RaidObjective.BLOD, 0.0F, 1L);
+        RaidPlan plan = new RaidPlan(fallen.id(), RaidObjective.BLOD, 0.0F, 1L);
+        RaidAuthorityFixtures.armActive(s, plan, List.of(raider.getUUID()));
 
         // A real kill through the normal damage pipeline (Entity#kill,
         // the same call `/kill` uses), not a bare call into die() directly
@@ -218,8 +220,10 @@ public class SagaGameTests {
         Captain saga = CaptainRoster.find(s, captain.id());
         helper.assertTrue(saga != null && !saga.hasEpithet(),
             "setup: a fresh captain must not already have an epithet");
+        String committedRaidName = saga.displayName();
 
-        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.BRANN, 0.0F, 1L);
+        RaidAuthorityFixtures.armTerminal(s,
+            new RaidPlan(captain.id(), RaidObjective.BRANN, 0.0F, 1L));
         // The band actually burned something -- BRANN's own real signal
         // (RaidDirector#objectiveSucceeded), not a KORN-shaped flag no
         // BRANN raid ever sets. A real floor block (buildArena's y=0), not
@@ -236,6 +240,12 @@ public class SagaGameTests {
         helper.assertTrue("the Torch".equals(saga.epithet()),
             "the epithet must come from what this raid actually did (BRANN), got "
                 + saga.epithet());
+        RaidLogEntry aftermath = s.raidLog.get(s.raidLog.size() - 1);
+        helper.assertTrue(committedRaidName.equals(aftermath.captainName()),
+            "a newly earned epithet is announced and persisted for the next raid, "
+                + "but must not retroactively rename this raid's warning/field/"
+                + "Aftermath identity: got " + aftermath.captainName()
+                + " vs " + committedRaidName);
 
         // The buff that growth buys is entirely readable on the entity.
         RaiderEntity plain = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 2));
@@ -243,6 +253,14 @@ public class SagaGameTests {
         RaiderEntity named = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(5, 1, 2));
         named.assign(captain.id(), s.id, RaidObjective.BRANN, 1.0F, true);
         named.markSagaCaptain(saga.displayName(), captain.victories(), saga.hasEpithet());
+
+        int earnedHearts = Math.min(captain.victories(),
+            RaiderEntity.SAGA_VICTORY_HEART_CAP);
+        double expectedHealth = plain.getAttribute(Attributes.MAX_HEALTH)
+            .getBaseValue() + RaiderEntity.SAGA_CAPTAIN_HEALTH_BONUS
+            + earnedHearts * 2.0D;
+        double expectedSpeed = plain.getAttribute(Attributes.MOVEMENT_SPEED)
+            .getBaseValue() * (1.0D + RaiderEntity.SAGA_CAPTAIN_SPEED_BONUS);
 
         helper.assertTrue(named.getMaxHealth() > plain.getMaxHealth(),
             "a named, grown captain must be readably tougher than a plain one, got "
@@ -258,6 +276,46 @@ public class SagaGameTests {
                 ? null : named.getCustomName().getString()),
             "and the name itself must be visible on the entity, got "
                 + named.getCustomName());
+        helper.assertTrue(Math.abs(named.getAttribute(Attributes.MAX_HEALTH)
+                    .getBaseValue() - expectedHealth) < 0.000001D
+                && Math.abs(named.getAttribute(Attributes.MOVEMENT_SPEED)
+                    .getBaseValue() - expectedSpeed) < 0.000001D,
+            "Saga bonuses must be additive exactly once, got health/speed "
+                + named.getAttribute(Attributes.MAX_HEALTH).getBaseValue() + "/"
+                + named.getAttribute(Attributes.MOVEMENT_SPEED).getBaseValue()
+                + " expected " + expectedHealth + "/" + expectedSpeed);
+
+        double savedHealth = named.getAttribute(Attributes.MAX_HEALTH)
+            .getBaseValue();
+        double savedSpeed = named.getAttribute(Attributes.MOVEMENT_SPEED)
+            .getBaseValue();
+        CompoundTag saved = named.saveWithoutId(new CompoundTag());
+        RaiderEntity restarted = ModEntities.RAIDER.get().create(level);
+        helper.assertTrue(restarted != null, "the Saga captain must be reloadable");
+        restarted.load(saved);
+        helper.assertTrue(restarted.isCaptain() && restarted.isSagaMarked()
+                && restarted.isCustomNameVisible()
+                && restarted.getCustomName() != null
+                && saga.displayName().equals(restarted.getCustomName().getString()),
+            "captain role, earned mark and exact visible Saga name must survive restart");
+        helper.assertTrue(Math.abs(restarted.getAttribute(Attributes.MAX_HEALTH)
+                    .getBaseValue() - savedHealth) < 0.000001D
+                && Math.abs(restarted.getAttribute(Attributes.MOVEMENT_SPEED)
+                    .getBaseValue() - savedSpeed) < 0.000001D,
+            "restart must restore Saga stats without applying the bonus twice");
+
+        CompoundTag malformed = saved.copy();
+        malformed.remove("CustomName");
+        RaiderEntity quarantined = ModEntities.RAIDER.get().create(level);
+        helper.assertTrue(quarantined != null,
+            "the malformed captain fixture must still create an entity shell");
+        quarantined.load(malformed);
+        helper.assertTrue(!quarantined.isCaptain()
+                && !quarantined.isSagaMarked()
+                && quarantined.getCustomName() == null
+                && !quarantined.isCustomNameVisible(),
+            "missing persisted captain identity must fail closed, never load as an "
+                + "anonymous or spoofed raid leader");
         helper.succeed();
     }
 
@@ -296,6 +354,18 @@ public class SagaGameTests {
                 + " vs " + saga.displayName());
         helper.assertTrue(leader.isCustomNameVisible(),
             "the nameplate must actually render");
+        String fieldName = leader.getCustomName().getString();
+        RaidAuthorityFixtures.armActive(s, plan,
+            band.stream().map(RaiderEntity::getUUID).toList());
+        for (RaiderEntity raider : band) {
+            raider.discard();
+        }
+        helper.assertTrue(RaidDirector.resolveIfOver(level, s),
+            "the sealed named band must resolve after every member is terminal");
+        RaidLogEntry aftermath = s.raidLog.get(s.raidLog.size() - 1);
+        helper.assertTrue(fieldName.equals(aftermath.captainName()),
+            "the field identity and persisted Aftermath identity must be byte-for-byte "
+                + "the same, got " + fieldName + " vs " + aftermath.captainName());
         helper.succeed();
     }
 }

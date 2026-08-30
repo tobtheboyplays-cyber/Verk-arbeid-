@@ -1,0 +1,78 @@
+{
+  "name": "Hearth Command Center — Living Settlement Road",
+  "width": 512,
+  "height": 274,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 512, "h": 274},
+    {"t": "title", "x": 16, "y": 10, "text": "Oakmere Hearth", "box": 220, "id": "settlement_identity"},
+    {"t": "label", "x": 16, "y": 24, "text": "COMMAND CENTER • DAY 12", "tone": "accent", "box": 220, "id": "screen_context"},
+    {"t": "label", "x": 16, "y": 36, "text": "8 settlers • status stable", "tone": "text_muted", "box": 220, "id": "settlement_state"},
+
+    {"t": "frame", "x": 344, "y": 8, "w": 160, "h": 36, "surface": "window", "tone": "accent", "inner_alpha": 52},
+    {"t": "medallion", "x": 362, "y": 26, "radius": 13, "tone": "accent", "asset": "item/hearthward_seal.png", "icon_size": 14},
+    {"t": "label", "x": 384, "y": 11, "text": "Alda Farwatch", "tone": "text_strong", "box": 112, "id": "mayor_identity"},
+    {"t": "badge", "x": 384, "y": 25, "w": 52, "h": 15, "text": "MAYOR", "tone": "accent", "id": "mayor_badge"},
+    {"t": "label", "x": 496, "y": 28, "text": "Loading...", "align": "right", "tone": "accent", "box": 52, "id": "mayor_loading"},
+    {"t": "divider", "x": 8, "y": 44, "w": 496},
+
+    {"t": "tab", "x": 12, "y": 48, "w": 96, "h": 20, "text": "Settlement", "selected": true},
+    {"t": "tab", "x": 112, "y": 48, "w": 60, "h": 20, "text": "Mayor", "selected": false},
+    {"t": "tab", "x": 176, "y": 48, "w": 80, "h": 20, "text": "Journey 7", "selected": false},
+    {"t": "tab", "x": 260, "y": 48, "w": 92, "h": 20, "text": "Requests 3", "selected": false},
+    {"t": "tab", "x": 356, "y": 48, "w": 144, "h": 20, "text": "Development", "selected": false},
+
+    {"t": "frame", "x": 8, "y": 76, "w": 336, "h": 160, "surface": "inset", "tone": "good", "inner_alpha": 38},
+    {"t": "ellipse", "x": 18, "y": 94, "w": 142, "h": 134, "tone": "good", "alpha": 10},
+    {"t": "ellipse", "x": 168, "y": 92, "w": 166, "h": 136, "tone": "accent", "alpha": 9},
+    {"t": "polygon", "points": [[20, 226], [118, 192], [154, 228]], "tone": "good", "alpha": 12},
+    {"t": "section", "x": 20, "y": 84, "w": 258, "text": "HEARTH PULSE • SETTLEMENT STABLE", "tone": "accent", "id": "pulse_heading"},
+    {"t": "badge", "x": 288, "y": 82, "w": 44, "h": 16, "text": "LIVE", "tone": "good", "id": "live_state"},
+
+    {"t": "road", "points": [[58, 120], [58, 164], [124, 164], [144, 144]], "tone": "good", "width": 3},
+    {"t": "road", "points": [[58, 208], [58, 180], [124, 180], [144, 144]], "tone": "good", "width": 3},
+    {"t": "road", "points": [[192, 144], [212, 158], [286, 158], [286, 120]], "tone": "accent", "width": 3},
+    {"t": "road", "points": [[192, 144], [212, 180], [286, 180], [286, 208]], "tone": "bad", "width": 3},
+
+    {"t": "medallion", "x": 40, "y": 120, "radius": 18, "tone": "good", "asset": "item/courier_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 68, "y": 104, "text": "SUPPLY", "tone": "good", "box": 92},
+    {"t": "label", "x": 68, "y": 120, "text": "Ready meals 34", "tone": "text_strong", "box": 92, "id": "ready_meals"},
+    {"t": "label", "x": 68, "y": 134, "text": "Stock 72/100", "tone": "good", "box": 92, "id": "supply_reserve"},
+
+    {"t": "medallion", "x": 40, "y": 208, "radius": 18, "tone": "good", "asset": "item/lumberer_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 68, "y": 190, "text": "WORKFORCE", "tone": "good", "box": 92},
+    {"t": "label", "x": 68, "y": 206, "text": "Workers 6/8", "tone": "text_strong", "box": 92, "id": "worker_count"},
+    {"t": "label", "x": 68, "y": 220, "text": "Idle 1 • Beds 2", "tone": "accent", "box": 92, "id": "growth_capacity"},
+
+    {"t": "ring", "x": 137, "y": 113, "diameter": 62, "value": 0.8, "tone": "good", "track": "road_edge", "stroke": 3},
+    {"t": "medallion", "x": 168, "y": 144, "radius": 24, "tone": "accent", "asset": "block/hearth_top.png", "icon_size": 26},
+    {"t": "badge", "x": 148, "y": 104, "w": 40, "h": 16, "text": "8 / 10", "tone": "good", "id": "population_value"},
+    {"t": "label", "x": 168, "y": 172, "text": "HEARTH", "align": "center", "tone": "text_strong", "box": 72},
+    {"t": "label", "x": 168, "y": 186, "text": "Morale 80/100", "align": "center", "tone": "good", "box": 84, "id": "morale_value"},
+
+    {"t": "medallion", "x": 304, "y": 120, "radius": 18, "tone": "accent", "asset": "item/build_plan.png", "icon_size": 20},
+    {"t": "label", "x": 276, "y": 104, "text": "FOUNDING ROAD", "align": "right", "tone": "accent", "box": 92},
+    {"t": "label", "x": 276, "y": 120, "text": "Journey 7/12", "align": "right", "tone": "text_strong", "box": 92, "id": "journey_progress"},
+    {"t": "label", "x": 276, "y": 134, "text": "Dev. 5/18", "align": "right", "tone": "accent", "box": 92, "id": "development_progress"},
+
+    {"t": "medallion", "x": 304, "y": 208, "radius": 18, "tone": "bad", "asset": "item/guard_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 276, "y": 190, "text": "FIRST RAID", "align": "right", "tone": "text_strong", "box": 92},
+    {"t": "badge", "x": 212, "y": 204, "w": 56, "h": 16, "text": "BLOCKED", "tone": "bad", "id": "raid_blocked"},
+    {"t": "label", "x": 276, "y": 222, "text": "2 needs", "align": "right", "tone": "bad", "box": 64},
+
+    {"t": "frame", "x": 348, "y": 76, "w": 156, "h": 160, "surface": "window", "tone": "warn", "inner_alpha": 52},
+    {"t": "section", "x": 360, "y": 84, "w": 72, "text": "NEXT ACTION", "tone": "warn", "id": "next_action_heading"},
+    {"t": "badge", "x": 436, "y": 82, "w": 60, "h": 18, "text": "1 BLOCKED", "tone": "bad", "id": "requests_blocked"},
+    {"t": "soft_panel", "x": 356, "y": 106, "w": 140, "h": 76, "tone": "warn", "alpha": 22, "stroke_alpha": 190},
+    {"t": "medallion", "x": 380, "y": 134, "radius": 18, "tone": "warn", "asset": "item/lumberer_emblem.png", "icon_size": 20},
+    {"t": "label", "x": 408, "y": 110, "text": "Iron Axe ×1", "tone": "text_strong", "box": 80, "id": "blocked_request_item"},
+    {"t": "label", "x": 408, "y": 126, "text": "Runa • Lumberer", "tone": "text_muted", "box": 84, "id": "blocked_request_owner"},
+    {"t": "badge", "x": 408, "y": 144, "w": 72, "h": 16, "text": "BLOCKED", "tone": "warn"},
+    {"t": "paragraph", "x": 364, "y": 164, "w": 124, "h": 18, "box": 124, "lines": 2, "line_gap": 10, "text": "Destination is full. Free one slot.", "tone": "text", "id": "blocked_request_reason"},
+    {"t": "button", "x": 356, "y": 188, "w": 140, "h": 24, "text": "Open Request Ledger", "state": "hover"},
+    {"t": "badge", "x": 356, "y": 218, "w": 140, "h": 14, "text": "ALERTS 0 • ALL CLEAR", "tone": "good", "id": "alerts_empty"},
+
+    {"t": "divider", "x": 8, "y": 240, "w": 496},
+    {"t": "label", "x": 12, "y": 252, "text": "Server verified • updated 2s ago", "tone": "text_muted", "box": 416, "id": "sync_footer"},
+    {"t": "button", "x": 448, "y": 248, "w": 56, "h": 20, "text": "Close"}
+  ]
+}

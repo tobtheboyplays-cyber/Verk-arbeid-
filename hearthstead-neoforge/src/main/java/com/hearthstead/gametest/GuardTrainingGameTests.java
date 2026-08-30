@@ -13,12 +13,17 @@ import com.hearthstead.settlement.DayPhase;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Schedule;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.raid.RaidObjective;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Pig;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -106,6 +111,7 @@ public class GuardTrainingGameTests {
         Settlement s = settlement(helper);
         SettlerEntity guard = settler(helper, s, "Rekrutt", 4, 6);
         guard.assignProfession(Profession.GUARD);
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         int before = guard.attribute(Attribute.STRENGTH);
 
         RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(4, 1, 4));
@@ -146,6 +152,7 @@ public class GuardTrainingGameTests {
         Settlement s = settlement(helper);
         SettlerEntity guard = settler(helper, s, "Veteran", 4, 5);
         guard.assignProfession(Profession.GUARD);
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         trainStrengthTo(guard, GuardRank.VETERAN.threshold());
         helper.assertTrue(GuardRank.of(guard).atLeast(GuardRank.VETERAN),
             "fixture sanity: cleave needs a Veteran, Strength="
@@ -254,6 +261,10 @@ public class GuardTrainingGameTests {
         floor(helper, 16);
         Settlement s = settlement(helper);
         Building barracks = building(helper, s, BuildingType.BARRACKS, 2, 2);
+        helper.setBlock(new BlockPos(3, 1, 3), Blocks.CHEST);
+        Container weaponRack = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(new BlockPos(3, 1, 3)));
+        weaponRack.setItem(0, new ItemStack(Items.IRON_SWORD));
         SettlerEntity guard = settler(helper, s, "Vakt", 4, 4);
 
         Employment.Hired hired = Employment.hire(helper.getLevel(), s, barracks, guard);
@@ -262,6 +273,12 @@ public class GuardTrainingGameTests {
                 + hired.refusal());
         helper.assertTrue(guard.getProfession() == Profession.GUARD,
             "hired into the barracks, they take up the trade");
+        helper.assertTrue(EquipmentRequests.equipFromWorkplace(
+                helper.getLevel(), s, guard),
+            "the hired guard must take one physical sword from barracks storage");
+        helper.assertTrue(weaponRack.getItem(0).isEmpty()
+                && guard.getMainHandItem().is(Items.IRON_SWORD),
+            "the sword must move rack -> guard exactly once before combat");
         helper.assertTrue(guard.getTarget() == null,
             "fixture sanity: nothing may hand the guard a target");
 

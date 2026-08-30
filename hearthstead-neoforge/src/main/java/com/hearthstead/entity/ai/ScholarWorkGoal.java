@@ -63,10 +63,7 @@ public class ScholarWorkGoal extends Goal {
     @Override
     public boolean canUse() {
         if (settler.getProfession() != Profession.SCHOLAR || !settler.isBound()
-            || settler.getTarget() != null || settler.getEnergy() <= 15.0F
-            // The daily labor pool (PLAN_EFFORT.md): once spent, no new
-            // session starts, exactly CrafterWorkGoal's own guard.
-            || settler.isEffortSpent()) {
+            || settler.getTarget() != null) {
             return false;
         }
         if (lookCooldown > 0) {
@@ -154,11 +151,9 @@ public class ScholarWorkGoal extends Goal {
             settler.spendEffort(EFFORT_PER_SESSION);
         }
 
-        // Chain straight into the next session, the way a crafter chains
-        // batches -- UNLESS the project just finished or the effort pool
-        // just ran dry.
-        if (settlement == null || !Research.hasActiveProject(level, settlement.id)
-            || settler.isEffortSpent()) {
+        // Chain straight into the next session while the project remains active.
+        // Fatigue changes pace centrally; it does not invalidate valid work.
+        if (settlement == null || !Research.hasActiveProject(level, settlement.id)) {
             working = false;
             return;
         }

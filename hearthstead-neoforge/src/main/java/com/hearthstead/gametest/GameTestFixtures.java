@@ -5,6 +5,7 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.workzone.WorkZone;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.block.Blocks;
@@ -72,6 +73,7 @@ public final class GameTestFixtures {
             BoundingBox.fromCorners(anchor, anchor.offset(SIZE_XZ, SIZE_Y, SIZE_XZ)));
         building.valid = true;
         s.buildings.add(building);
+        attachFixtureWorkZone(helper, s, building);
         return building;
     }
 
@@ -89,7 +91,32 @@ public final class GameTestFixtures {
             helper.absolutePos(plaqueRel), helper.absolutePos(anchorRel), bounds);
         building.valid = true;
         s.buildings.add(building);
+        attachFixtureWorkZone(helper, s, building);
         return building;
+    }
+
+    /**
+     * Production workers now require an exact confirmed 3D Work Zone. Legacy
+     * behaviour GameTests are not player-progression tests, so their one
+     * central synthetic-building seam attaches a bounded arena zone directly.
+     * The dedicated WorkZone suite separately proves that ordinary runtime
+     * selection cannot bypass Development, validation, or compare-and-commit.
+     */
+    private static void attachFixtureWorkZone(GameTestHelper helper,
+                                              Settlement settlement,
+                                              Building building) {
+        WorkZone.Type type = WorkZone.Type.fromBuilding(building.type);
+        if (type == null) {
+            return;
+        }
+        WorkZone zone = WorkZone.between(settlement.id, building.id, type,
+            helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(0, 0, 0)),
+            helper.absolutePos(new BlockPos(15, 15, 15)), 1);
+        if (!building.commitWorkZone(0, zone)) {
+            throw new IllegalStateException("fixture Work Zone did not commit for "
+                + building.type.id());
+        }
     }
 
     /**

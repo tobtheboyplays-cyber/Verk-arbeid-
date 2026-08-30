@@ -108,9 +108,12 @@ public class SettlerSheetGameTests {
     private static SettlerSnapshotPayload snapshotOf(ServerPlayer player, SettlerEntity settler) {
         try {
             Method m = com.hearthstead.network.SettlerNetwork.class.getDeclaredMethod(
-                "snapshot", ServerPlayer.class, SettlerEntity.class, Optional.class);
+                "snapshot", ServerPlayer.class, SettlerEntity.class, UUID.class,
+                Optional.class, SettlerSnapshotPayload.Delivery.class);
             m.setAccessible(true);
-            return (SettlerSnapshotPayload) m.invoke(null, player, settler, Optional.empty());
+            return (SettlerSnapshotPayload) m.invoke(null, player, settler,
+                UUID.randomUUID(), Optional.empty(),
+                SettlerSnapshotPayload.Delivery.UPDATE);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("SettlerNetwork#snapshot is not callable: " + e, e);
         }
@@ -448,6 +451,14 @@ public class SettlerSheetGameTests {
         keys.add("hearthstead.settler.attribute_knack");
         keys.add("hearthstead.settler.bag");
         keys.add("hearthstead.settler.loading");
+        keys.add("hearthstead.blessing.status");
+        keys.add("hearthstead.blessing.status.none");
+        keys.add("hearthstead.blessing.warden_oath.name");
+        keys.add("hearthstead.blessing.warden_oath.short");
+        keys.add("hearthstead.blessing.hearthward.name");
+        keys.add("hearthstead.blessing.hearthward.short");
+        keys.add("hearthstead.blessing.thorned_roads.name");
+        keys.add("hearthstead.blessing.thorned_roads.short");
         keys.add("hearthstead.settler.mayor_badge");
         keys.add("hearthstead.settler.mayor_settling");
         keys.add("hearthstead.settler.employed_at");
@@ -527,11 +538,14 @@ public class SettlerSheetGameTests {
         // The banner. Composed exactly the way SettlerNetwork does, and put
         // through the same optional-component codec.
         SettlerSnapshotPayload withRefusal = new SettlerSnapshotPayload(
-            after.entityId(), after.revision(), after.canManage(), after.attributeValues(),
+            after.entityId(), after.settlerId(), after.sessionId(),
+            after.revision(), after.canManage(), after.attributeValues(),
             after.knackOrdinal(), after.traitOrdinals(), after.bagItemIds(), after.bagCounts(),
             after.employerBuildingId(),
             after.guardWatchNight(), after.isMayor(), after.mayorSettling(), after.mourning(),
             after.boonKey(),
+            after.wardenOathBlessingRank(), after.hearthwardBlessingRank(),
+            after.thornedRoadsBlessingRank(),
             Optional.of(net.minecraft.network.chat.Component.translatable(
                 "hearthstead.settler.stale")));
         SettlerSnapshotPayload wire = throughTheWire(helper, withRefusal);

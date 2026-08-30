@@ -1,5 +1,7 @@
 package com.hearthstead.settlement.state;
 
+import com.hearthstead.settlement.journey.JourneyOutcome;
+import com.hearthstead.settlement.raid.RaidLogEntry;
 import com.hearthstead.settlement.raid.RaidPlan;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -30,6 +32,12 @@ public final class RaidLifecycle {
     public static final int MAX_PARTICIPANTS = 9;
 
     private long foundedNight = UNSET_NIGHT;
+    /** One founding-only inclusive +4..+7 roll; never rerolled at readiness. */
+    private long rolledNotBeforeNight = UNSET_NIGHT;
+    /** Persisted one- or two-night warning lead selected by the raid profile. */
+    private int warningLead;
+    /** The exact night on which the player committed the readiness checklist. */
+    private long readinessNight = UNSET_NIGHT;
     private long firstAttackNight = UNSET_NIGHT;
     private long firstWarningNight = UNSET_NIGHT;
     private FirstRaidState firstState = FirstRaidState.UNINITIALIZED;
@@ -52,6 +60,14 @@ public final class RaidLifecycle {
     private boolean rewardEligible;
     private boolean integrityLost;
     /**
+     * Exact terminal truth captured by the authored resolution transaction.
+     * It deliberately duplicates the immutable plan and Aftermath row: a
+     * restart may repair FJ-610 only when all three persisted authorities
+     * still agree byte-for-byte, never by re-reading today's population.
+     */
+    @Nullable
+    private FirstRaidTerminal firstRaidTerminal;
+    /**
      * Provenance for the one deliberately unauditable v0 ACTIVE bridge.
      *
      * <p>This must never be inferred merely from damaged authored dates:
@@ -71,6 +87,18 @@ public final class RaidLifecycle {
         return firstAttackNight;
     }
 
+    public long rolledNotBeforeNight() {
+        return rolledNotBeforeNight;
+    }
+
+    public int warningLead() {
+        return warningLead;
+    }
+
+    public long readinessNight() {
+        return readinessNight;
+    }
+
     public long firstWarningNight() {
         return firstWarningNight;
     }
@@ -85,6 +113,11 @@ public final class RaidLifecycle {
 
     public Optional<RaidPlan> activePlan() {
         return Optional.ofNullable(activePlan);
+    }
+
+    /** Allocation-free hot-path check for the compatibility plan mirror. */
+    public boolean activePlanMatches(@Nullable RaidPlan expected) {
+        return planValid(activePlan) && activePlan.equals(expected);
     }
 
     public Set<UUID> participants() {
@@ -147,12 +180,88 @@ public final class RaidLifecycle {
 
     /** A completed, intact first raid may issue exactly one offer in Slice B. */
     public boolean mayGrantReward() {
-        return firstState == FirstRaidState.COMPLETED && rewardEligible;
+        return firstState == FirstRaidState.COMPLETED && rewardEligible
+            && firstRaidTerminal != null
+            && firstRaidTerminal.outcome() == JourneyOutcome.HELD;
+    }
+
+    public Optional<FirstRaidTerminal> firstRaidTerminal() {
+        return Optional.ofNullable(firstRaidTerminal);
     }
 
     /**
-     * Rolls and persists the first attack once. Repeated calls, including a
-     * hearth rebinding after reload, are no-ops.
+     * Persists the one founding roll without arming the attack calendar.
+     * Readiness later applies {@code max(rolledNotBefore, ready + lead)}, so a
+     * fast player keeps the original night 4..7 while a slow player always
+     * receives the full warning lead.
+     */
+    public boolean prepareAtFounding(long foundingNight, RandomSource random,
+                                     RaidProfile profile) {
+        if (random == null || profile == null || foundingNight < 0L
+            || integrityLost || firstState != FirstRaidState.UNINITIALIZED
+            || foundedNight != UNSET_NIGHT
+            || rolledNotBeforeNight != UNSET_NIGHT || warningLead != 0
+            || readinessNight != UNSET_NIGHT
+            || firstAttackNight != UNSET_NIGHT
+            || firstWarningNight != UNSET_NIGHT) {
+            return false;
+        }
+        int attackOffset = FIRST_ATTACK_MIN_OFFSET
+            + random.nextInt(FIRST_ATTACK_MAX_OFFSET - FIRST_ATTACK_MIN_OFFSET + 1);
+        int selectedWarningLead = profile == RaidProfile.IRON_WINTER ? 1 : 2;
+        return prepareAtFounding(foundingNight, attackOffset, selectedWarningLead);
+    }
+
+    /** Deterministic overload used by save-contract and calendar tests. */
+    public boolean prepareAtFounding(long foundingNight, int attackOffset,
+                                     int selectedWarningLead) {
+        if (foundingNight < 0L || integrityLost
+            || attackOffset < FIRST_ATTACK_MIN_OFFSET
+            || attackOffset > FIRST_ATTACK_MAX_OFFSET
+            || selectedWarningLead < 1 || selectedWarningLead > 2
+            || foundingNight > Long.MAX_VALUE - attackOffset
+            || firstState != FirstRaidState.UNINITIALIZED
+            || foundedNight != UNSET_NIGHT
+            || rolledNotBeforeNight != UNSET_NIGHT || warningLead != 0
+            || readinessNight != UNSET_NIGHT
+            || firstAttackNight != UNSET_NIGHT
+            || firstWarningNight != UNSET_NIGHT) {
+            return false;
+        }
+        this.foundedNight = foundingNight;
+        this.rolledNotBeforeNight = foundingNight + attackOffset;
+        this.warningLead = selectedWarningLead;
+        this.firstState = FirstRaidState.PREPARING;
+        return true;
+    }
+
+    /**
+     * Arms the exact calendar once after a server-authoritative readiness
+     * transaction. It contains no random draw and is idempotently one-shot.
+     */
+    public boolean scheduleAfterReadiness(long committedReadinessNight) {
+        if (firstState != FirstRaidState.PREPARING || integrityLost
+            || !preparingFieldsValid()
+            || committedReadinessNight < foundedNight
+            || committedReadinessNight > Long.MAX_VALUE - warningLead) {
+            return false;
+        }
+        long readyFloor = committedReadinessNight + warningLead;
+        long attack = Math.max(rolledNotBeforeNight, readyFloor);
+        long warning = attack - warningLead;
+        if (warning < committedReadinessNight || warning < foundedNight) {
+            return false;
+        }
+        readinessNight = committedReadinessNight;
+        firstAttackNight = attack;
+        firstWarningNight = warning;
+        firstState = FirstRaidState.SCHEDULED;
+        return true;
+    }
+
+    /**
+     * Legacy/deterministic scheduled constructor retained for existing save
+     * fixtures. Production founding uses {@link #prepareAtFounding}.
      */
     public boolean initializeAtFounding(long foundingNight, RandomSource random,
                                         RaidProfile profile) {
@@ -187,6 +296,11 @@ public final class RaidLifecycle {
             return false;
         }
         this.foundedNight = foundingNight;
+        this.rolledNotBeforeNight = foundingNight + attackOffset;
+        this.warningLead = warningLead;
+        // A directly constructed SCHEDULED fixture is equivalent to readiness
+        // having committed on the warning night.
+        this.readinessNight = foundingNight + attackOffset - warningLead;
         this.firstAttackNight = foundingNight + attackOffset;
         this.firstWarningNight = firstAttackNight - warningLead;
         this.firstState = FirstRaidState.SCHEDULED;
@@ -213,7 +327,8 @@ public final class RaidLifecycle {
      */
     public boolean beginFirstRaid(RaidPlan plan) {
         if (!planValid(plan) || firstState != FirstRaidState.SCHEDULED
-            || !datesValid() || plan.night() != firstAttackNight
+            || integrityLost || !datesValid()
+            || plan.night() != firstAttackNight
             || queuedPlan == null || !queuedPlan.equals(plan)) {
             return false;
         }
@@ -283,17 +398,46 @@ public final class RaidLifecycle {
         return true;
     }
 
-    /** Closes the first raid; only a held, intact defense remains eligible. */
-    public boolean completeFirstRaid(boolean held) {
+    /**
+     * Closes the authored first raid under one exact persisted terminal fact.
+     * Only HELD is reward-eligible; HIT and SETTLEMENT_LOST remain distinct so
+     * restart recovery never infers either one from a later population.
+     */
+    public boolean completeFirstRaid(JourneyOutcome outcome,
+                                     RaidLogEntry aftermath) {
         if (firstState != FirstRaidState.ACTIVE || activePlan == null
             || !allParticipantsTerminal()) {
             return false;
         }
+        FirstRaidTerminal terminal = FirstRaidTerminal.create(outcome,
+            activePlan, aftermath).orElse(null);
+        if (terminal == null) {
+            return false;
+        }
         firstState = FirstRaidState.COMPLETED;
-        rewardEligible = held && participantsTracked && !participants.isEmpty()
+        firstRaidTerminal = terminal;
+        rewardEligible = outcome == JourneyOutcome.HELD
+            && participantsTracked && !participants.isEmpty()
             && participants.size() <= MAX_PARTICIPANTS && !integrityLost;
         normalize();
         return true;
+    }
+
+    /**
+     * Compatibility fixture seam. Production must provide the exact
+     * Aftermath row through {@link #completeFirstRaid(JourneyOutcome,
+     * RaidLogEntry)}; this deterministic row keeps older lifecycle-only tests
+     * source-compatible but cannot match a real settlement log for recovery.
+     */
+    public boolean completeFirstRaid(boolean held) {
+        if (activePlan == null) {
+            return false;
+        }
+        JourneyOutcome outcome = held ? JourneyOutcome.HELD : JourneyOutcome.HIT;
+        RaidLogEntry fixture = new RaidLogEntry(activePlan.night(),
+            "Fixture Captain", activePlan.objective().id(), held, 0, 0,
+            "rolig");
+        return completeFirstRaid(outcome, fixture);
     }
 
     /**
@@ -310,6 +454,7 @@ public final class RaidLifecycle {
         firstState = FirstRaidState.COMPLETED;
         legacyBridge = false;
         rewardEligible = false;
+        firstRaidTerminal = null;
         normalize();
         return true;
     }
@@ -328,6 +473,9 @@ public final class RaidLifecycle {
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putLong("FoundedNight", foundedNight);
+        tag.putLong("RolledNotBeforeNight", rolledNotBeforeNight);
+        tag.putInt("WarningLead", warningLead);
+        tag.putLong("ReadinessNight", readinessNight);
         tag.putLong("FirstAttackNight", firstAttackNight);
         tag.putLong("FirstWarningNight", firstWarningNight);
         tag.putInt("FirstStateWireId", firstState.wireId());
@@ -337,6 +485,9 @@ public final class RaidLifecycle {
         }
         if (activePlan != null) {
             tag.put("ActivePlan", activePlan.writeNbt());
+        }
+        if (firstRaidTerminal != null) {
+            tag.put("FirstRaidTerminal", firstRaidTerminal.writeNbt());
         }
         ListTag participantList = new ListTag();
         for (UUID participant : participants) {
@@ -377,12 +528,52 @@ public final class RaidLifecycle {
             lifecycle.integrityLost = true;
         }
 
+        boolean anyReadinessCalendar = tag.contains("RolledNotBeforeNight")
+            || tag.contains("WarningLead") || tag.contains("ReadinessNight");
+        boolean hasReadinessCalendar = tag.contains("RolledNotBeforeNight", Tag.TAG_LONG)
+            && tag.contains("WarningLead", Tag.TAG_INT)
+            && tag.contains("ReadinessNight", Tag.TAG_LONG);
+        if (hasReadinessCalendar) {
+            lifecycle.rolledNotBeforeNight = readNight(tag, "RolledNotBeforeNight");
+            lifecycle.warningLead = tag.getInt("WarningLead");
+            lifecycle.readinessNight = readNight(tag, "ReadinessNight");
+        } else if (anyReadinessCalendar) {
+            // Partial or wrong-typed calendar fields are corruption. Never
+            // reinterpret them as an older save merely because one key is
+            // absent or has a different NBT type.
+            lifecycle.integrityLost = true;
+        } else if (lifecycle.firstState == FirstRaidState.SCHEDULED
+            || lifecycle.firstState == FirstRaidState.ACTIVE
+            || lifecycle.firstState == FirstRaidState.COMPLETED) {
+            // Save migration: preserve the exact existing attack/warning dates
+            // and plan. The derived metadata makes the new formula true without
+            // moving an already-authored raid by even one night.
+            long derivedLead = lifecycle.firstAttackNight - lifecycle.firstWarningNight;
+            if (derivedLead >= 1L && derivedLead <= 2L) {
+                lifecycle.warningLead = (int) derivedLead;
+                lifecycle.rolledNotBeforeNight = lifecycle.firstAttackNight;
+                lifecycle.readinessNight = lifecycle.firstWarningNight;
+            } else {
+                lifecycle.integrityLost = true;
+            }
+        } else if (lifecycle.firstState == FirstRaidState.PREPARING) {
+            // PREPARING never existed before these fields; missing authority
+            // cannot be reconstructed from a scheduled date.
+            lifecycle.integrityLost = true;
+        }
+
         boolean hadQueuedPlan = tag.contains("QueuedPlan");
         boolean hadActivePlan = tag.contains("ActivePlan");
         lifecycle.queuedPlan = readPlan(tag, "QueuedPlan");
         lifecycle.activePlan = readPlan(tag, "ActivePlan");
         if ((hadQueuedPlan && lifecycle.queuedPlan == null)
             || (hadActivePlan && lifecycle.activePlan == null)) {
+            lifecycle.integrityLost = true;
+        }
+        boolean hadFirstRaidTerminal = tag.contains("FirstRaidTerminal");
+        lifecycle.firstRaidTerminal = FirstRaidTerminal.tryReadNbt(
+            tag.get("FirstRaidTerminal")).orElse(null);
+        if (hadFirstRaidTerminal && lifecycle.firstRaidTerminal == null) {
             lifecycle.integrityLost = true;
         }
         if (!tag.contains("ParticipantsTracked", Tag.TAG_BYTE)
@@ -483,6 +674,7 @@ public final class RaidLifecycle {
         // post-upgrade Blessing.
         lifecycle.participantsTracked = false;
         lifecycle.rewardEligible = false;
+        lifecycle.firstRaidTerminal = null;
         lifecycle.integrityLost |= malformedLegacyPending;
         lifecycle.normalize();
         return lifecycle;
@@ -516,15 +708,21 @@ public final class RaidLifecycle {
 
         if (firstState == FirstRaidState.UNINITIALIZED) {
             boolean carriedState = foundedNight != UNSET_NIGHT
+                || rolledNotBeforeNight != UNSET_NIGHT || warningLead != 0
+                || readinessNight != UNSET_NIGHT
                 || firstAttackNight != UNSET_NIGHT
                 || firstWarningNight != UNSET_NIGHT
                 || queuedPlan != null || activePlan != null
                 || !participants.isEmpty() || !terminalParticipants.isEmpty()
-                || participantsTracked || rewardEligible;
+                || participantsTracked || rewardEligible
+                || firstRaidTerminal != null;
             if (carriedState) {
                 integrityLost = true;
             }
             foundedNight = UNSET_NIGHT;
+            rolledNotBeforeNight = UNSET_NIGHT;
+            warningLead = 0;
+            readinessNight = UNSET_NIGHT;
             firstAttackNight = UNSET_NIGHT;
             firstWarningNight = UNSET_NIGHT;
             queuedPlan = null;
@@ -533,6 +731,28 @@ public final class RaidLifecycle {
             terminalParticipants.clear();
             participantsTracked = false;
             rewardEligible = false;
+            firstRaidTerminal = null;
+            legacyBridge = false;
+            return;
+        }
+
+        if (firstState == FirstRaidState.PREPARING) {
+            if (!preparingFieldsValid() || queuedPlan != null || activePlan != null
+                || !participants.isEmpty() || !terminalParticipants.isEmpty()
+                || participantsTracked || rewardEligible
+                || firstRaidTerminal != null || legacyBridge) {
+                integrityLost = true;
+            }
+            firstAttackNight = UNSET_NIGHT;
+            firstWarningNight = UNSET_NIGHT;
+            readinessNight = UNSET_NIGHT;
+            queuedPlan = null;
+            activePlan = null;
+            participants.clear();
+            terminalParticipants.clear();
+            participantsTracked = false;
+            rewardEligible = false;
+            firstRaidTerminal = null;
             legacyBridge = false;
             return;
         }
@@ -563,6 +783,10 @@ public final class RaidLifecycle {
             terminalParticipants.clear();
             participantsTracked = false;
             rewardEligible = false;
+            if (firstRaidTerminal != null) {
+                firstRaidTerminal = null;
+                integrityLost = true;
+            }
         } else {
             if (queuedPlan != null) {
                 queuedPlan = null;
@@ -578,6 +802,7 @@ public final class RaidLifecycle {
                 terminalParticipants.clear();
                 participantsTracked = false;
                 rewardEligible = false;
+                firstRaidTerminal = null;
                 integrityLost = true;
                 return;
             }
@@ -614,6 +839,23 @@ public final class RaidLifecycle {
         }
         if (firstState != FirstRaidState.COMPLETED) {
             rewardEligible = false;
+            if (firstRaidTerminal != null) {
+                firstRaidTerminal = null;
+                integrityLost = true;
+            }
+        } else if (activePlan != null && !legacyBridge) {
+            if (firstRaidTerminal == null
+                || !firstRaidTerminal.matches(activePlan)) {
+                integrityLost = true;
+                rewardEligible = false;
+            } else if (rewardEligible
+                && firstRaidTerminal.outcome() != JourneyOutcome.HELD) {
+                integrityLost = true;
+                rewardEligible = false;
+            }
+        } else if (firstRaidTerminal != null) {
+            integrityLost = true;
+            rewardEligible = false;
         }
         if (activePlan == null || integrityLost) {
             rewardEligible = false;
@@ -634,6 +876,9 @@ public final class RaidLifecycle {
         return firstState == FirstRaidState.ACTIVE
             && activePlan != null
             && foundedNight == UNSET_NIGHT
+            && rolledNotBeforeNight == UNSET_NIGHT
+            && warningLead == 0
+            && readinessNight == UNSET_NIGHT
             && firstAttackNight == UNSET_NIGHT
             && firstWarningNight == UNSET_NIGHT
             && queuedPlan == null
@@ -646,14 +891,35 @@ public final class RaidLifecycle {
 
     private boolean datesValid() {
         if (foundedNight < 0L || firstAttackNight < foundedNight
-            || firstWarningNight < foundedNight) {
+            || firstWarningNight < foundedNight
+            || rolledNotBeforeNight < foundedNight
+            || readinessNight < foundedNight
+            || warningLead < 1 || warningLead > 2) {
             return false;
         }
-        long offset = firstAttackNight - foundedNight;
-        long warningLead = firstAttackNight - firstWarningNight;
+        long rolledOffset = rolledNotBeforeNight - foundedNight;
+        if (rolledOffset < FIRST_ATTACK_MIN_OFFSET
+            || rolledOffset > FIRST_ATTACK_MAX_OFFSET
+            || readinessNight > Long.MAX_VALUE - warningLead) {
+            return false;
+        }
+        long expectedAttack = Math.max(rolledNotBeforeNight,
+            readinessNight + warningLead);
+        return firstAttackNight == expectedAttack
+            && firstWarningNight == expectedAttack - warningLead;
+    }
+
+    private boolean preparingFieldsValid() {
+        if (foundedNight < 0L || rolledNotBeforeNight < foundedNight
+            || warningLead < 1 || warningLead > 2
+            || readinessNight != UNSET_NIGHT
+            || firstWarningNight != UNSET_NIGHT
+            || firstAttackNight != UNSET_NIGHT) {
+            return false;
+        }
+        long offset = rolledNotBeforeNight - foundedNight;
         return offset >= FIRST_ATTACK_MIN_OFFSET
-            && offset <= FIRST_ATTACK_MAX_OFFSET
-            && warningLead >= 1L && warningLead <= 2L;
+            && offset <= FIRST_ATTACK_MAX_OFFSET;
     }
 
     private static long readNight(CompoundTag tag, String key) {
@@ -679,5 +945,78 @@ public final class RaidLifecycle {
             return wire;
         }
         return FirstRaidState.tryFromId(tag.getString("FirstState"));
+    }
+
+    /** Immutable, bounded restart evidence for one authored first raid. */
+    public record FirstRaidTerminal(JourneyOutcome outcome, RaidPlan plan,
+                                    RaidLogEntry aftermath) {
+        private static Optional<FirstRaidTerminal> create(
+                JourneyOutcome outcome, RaidPlan plan, RaidLogEntry aftermath) {
+            FirstRaidTerminal terminal = new FirstRaidTerminal(outcome, plan,
+                aftermath);
+            return terminal.valid() ? Optional.of(terminal) : Optional.empty();
+        }
+
+        public boolean matches(RaidPlan expectedPlan) {
+            return valid() && plan.equals(expectedPlan);
+        }
+
+        public boolean matches(RaidPlan expectedPlan,
+                               RaidLogEntry expectedAftermath) {
+            return matches(expectedPlan) && aftermath.equals(expectedAftermath);
+        }
+
+        private boolean valid() {
+            if (outcome == null || !outcome.terminal()
+                || !RaidPlan.isValid(plan) || !RaidLogEntry.isValid(aftermath)
+                || plan.captainId().getMostSignificantBits() == 0L
+                    && plan.captainId().getLeastSignificantBits() == 0L
+                || aftermath.night() != plan.night()
+                || !aftermath.objectiveId().equals(plan.objective().id())) {
+                return false;
+            }
+            return aftermath.held() == (outcome == JourneyOutcome.HELD);
+        }
+
+        private CompoundTag writeNbt() {
+            CompoundTag tag = new CompoundTag();
+            tag.putInt("OutcomeWireId", outcome.wireId());
+            tag.putString("Outcome", outcome.id());
+            tag.put("Plan", plan.writeNbt());
+            tag.put("Aftermath", aftermath.writeNbt());
+            return tag;
+        }
+
+        private static Optional<FirstRaidTerminal> tryReadNbt(Tag raw) {
+            if (!(raw instanceof CompoundTag tag)
+                || !tag.contains("OutcomeWireId", Tag.TAG_INT)
+                || !tag.contains("Outcome", Tag.TAG_STRING)
+                || !tag.contains("Plan", Tag.TAG_COMPOUND)
+                || !exactAftermathTag(tag.get("Aftermath"))) {
+                return Optional.empty();
+            }
+            Optional<JourneyOutcome> byWire = JourneyOutcome.tryFromWireId(
+                tag.getInt("OutcomeWireId"));
+            Optional<JourneyOutcome> byName = JourneyOutcome.tryFromId(
+                tag.getString("Outcome"));
+            Optional<RaidPlan> plan = RaidPlan.tryReadNbt(tag.get("Plan"));
+            if (byWire.isEmpty() || byName.isEmpty()
+                || byWire.get() != byName.get() || plan.isEmpty()) {
+                return Optional.empty();
+            }
+            return create(byWire.get(), plan.get(), RaidLogEntry.readNbt(
+                tag.getCompound("Aftermath")));
+        }
+
+        private static boolean exactAftermathTag(Tag raw) {
+            return raw instanceof CompoundTag tag
+                && tag.contains("Night", Tag.TAG_LONG)
+                && tag.contains("Captain", Tag.TAG_STRING)
+                && tag.contains("Objective", Tag.TAG_STRING)
+                && tag.contains("Held", Tag.TAG_BYTE)
+                && tag.contains("ItemsStolen", Tag.TAG_INT)
+                && tag.contains("SettlersHurt", Tag.TAG_INT)
+                && tag.contains("StageAfter", Tag.TAG_STRING);
+        }
     }
 }

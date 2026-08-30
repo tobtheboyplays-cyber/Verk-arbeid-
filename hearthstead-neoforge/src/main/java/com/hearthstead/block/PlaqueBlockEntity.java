@@ -7,10 +7,16 @@ import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.logistics.StopReason;
 import com.hearthstead.registry.ModBlockEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
+import com.hearthstead.settlement.BlessingPresentation;
+import com.hearthstead.settlement.FoundingJourneyProgress;
 import com.hearthstead.settlement.RoomScanner;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.state.BlessingId;
+import com.hearthstead.settlement.state.TargetBlessingState;
+import com.hearthstead.util.AuthorityTelemetry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
@@ -32,6 +38,7 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +65,8 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     /** How often a hung plaque re-checks its room, in ticks (10 s). */
     private static final int SURVEY_INTERVAL = 200;
+    /** Runtime-only sentinel: the first tick assigns this plaque its position phase. */
+    private static final long SURVEY_UNSCHEDULED = Long.MIN_VALUE;
 
     private BuildingType type = BuildingType.HOUSE;
     private PlaqueState state = PlaqueState.EMPTY;
@@ -71,7 +80,7 @@ public class PlaqueBlockEntity extends BlockEntity {
      * quietly acting on outdated information.
      */
     private int revision;
-    private long nextSurveyTick;
+    private long nextSurveyTick = SURVEY_UNSCHEDULED;
     private List<Requirement.Status> lastSurvey = List.of();
     /**
      * Why the LAST outright scan failure happened — {@code null} whenever
@@ -106,12 +115,34 @@ public class PlaqueBlockEntity extends BlockEntity {
     private StopReason logisticsStopReason = StopReason.NONE;
     /** One transient heartbeat per courier; never persisted. */
     private final Map<UUID, LogisticsReport> logisticsReports = new HashMap<>();
-    private long nextLogisticsPruneTick;
+    private long nextLogisticsPruneTick = Long.MAX_VALUE;
+    private long lastLogisticsMaintenanceTick = Long.MIN_VALUE;
+    private boolean logisticsAggregateDirty;
     private static final int LOGISTICS_REPORT_TTL = 100;
-    private static final int LOGISTICS_PRUNE_INTERVAL = 20;
+    /** Structural telemetry: bounded maintenance, never gameplay state. */
+    private int logisticsPrunePasses;
+    private int logisticsAggregatePasses;
 
     /** How many times a real room scan has been attempted — test telemetry for W3. */
     private int scanAttempts;
+    /** Runtime-only structural telemetry: changed surveys committed to the BE. */
+    private int surveyCommits;
+    /** Runtime-only evidence counter; never persisted or consulted by gameplay. */
+    private int buildingLinkTelemetryEmissions;
+    /** Runtime-only structural telemetry: BE update packets authored by surveys. */
+    private int surveyUpdatePackets;
+    /** Runtime-only structural telemetry: real bed-assignment passes requested by links. */
+    private int bedAssignmentAttempts;
+    /**
+     * Disk saves omit derived survey/occupancy/logistics projection. The first
+     * server tick cheaply hydrates the renderer-facing occupancy and repairs
+     * the lamp, while the expensive room scan keeps its position phase.
+     */
+    private boolean loadProjectionHydrationPending;
+    /** Runtime-only structural telemetry for the one-shot load contract. */
+    private int loadProjectionHydrations;
+    private int loadProjectionBlockStatePublishes;
+    private int loadProjectionExplicitPublishes;
 
     /**
      * How many CONSECUTIVE failed surveys a standing building forgives
@@ -137,6 +168,10 @@ public class PlaqueBlockEntity extends BlockEntity {
     private int failedSurveys;
     /** How many times this plaque's screen has been opened — test telemetry for W4. */
     private int screenOpens;
+    static final int BLESSING_RUNE_CONTACT_DELAY_TICKS = 4;
+    /** Rare, runtime-only rune beats; at most nine APPLIED ranks can queue. */
+    @Nullable
+    private ArrayDeque<ScheduledBlessingCue> pendingBlessingCues;
 
     public PlaqueBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PLAQUE.get(), pos, state);
@@ -191,15 +226,31 @@ public class PlaqueBlockEntity extends BlockEntity {
         StopReason next = java.util.Objects.requireNonNull(reason);
         java.util.Objects.requireNonNull(courierId);
         long now = level.getGameTime();
-        logisticsReports.entrySet().removeIf(entry ->
-            entry.getValue().expiresAtTick() <= now);
+        long expiresAt = now + LOGISTICS_REPORT_TTL;
+        LogisticsReport report = logisticsReports.get(courierId);
         if (next == StopReason.NONE) {
-            logisticsReports.remove(courierId);
-        } else {
-            logisticsReports.put(courierId, new LogisticsReport(next,
-                now + LOGISTICS_REPORT_TTL));
+            if (report != null) {
+                logisticsReports.remove(courierId);
+                logisticsAggregateDirty = true;
+            }
+            if (logisticsReports.isEmpty()) {
+                nextLogisticsPruneTick = Long.MAX_VALUE;
+            }
+            return;
         }
-        refreshLogisticsAggregate(level);
+        if (report == null) {
+            logisticsReports.put(courierId, new LogisticsReport(next, expiresAt));
+            logisticsAggregateDirty = true;
+        } else {
+            if (report.reason() != next) {
+                report.setReason(next);
+                logisticsAggregateDirty = true;
+            }
+            // The once-per-second steady heartbeat mutates this scalar in
+            // place: no record allocation and no aggregate scan per courier.
+            report.setExpiresAtTick(expiresAt);
+        }
+        nextLogisticsPruneTick = Math.min(nextLogisticsPruneTick, expiresAt);
     }
 
     @Nullable
@@ -211,12 +262,151 @@ public class PlaqueBlockEntity extends BlockEntity {
         return insertedPlan.copy();
     }
 
+    // --------------------------------------------------------- Blessings ---
+
+    /**
+     * Binds one permanent Blessing rank to the building declared by this
+     * physical plaque.
+     *
+     * <p>The saved {@link Building} is the sole authority. The block entity
+     * stores no duplicate ledger, and resolution happens only for this player
+     * action -- never from a tick or global block-entity scan. Only APPLIED
+     * dirties the settlement save; MAXED and INVALID are observational and
+     * therefore safe for the seal item to treat as "do not consume".
+     */
+    public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing) {
+        if (!(level instanceof ServerLevel serverLevel) || isRemoved()
+            || buildingId == null) {
+            return TargetBlessingState.ApplyResult.INVALID;
+        }
+        Settlement owner = settlementFor(serverLevel);
+        Building target = blessingTarget(owner);
+        if (target == null) {
+            return TargetBlessingState.ApplyResult.INVALID;
+        }
+        TargetBlessingState.ApplyResult result = target.applyBlessing(blessing);
+        if (result == TargetBlessingState.ApplyResult.APPLIED) {
+            owner.invalidateBuildingBlessingIndex();
+            SettlementSavedData.get(serverLevel).setDirty();
+            float yaw = getBlockState().getValue(PlaqueBlock.FACING).toYRot();
+            presentBlessingOnset(serverLevel, blessing, yaw);
+            if (pendingBlessingCues == null) {
+                pendingBlessingCues = new ArrayDeque<>();
+            }
+            pendingBlessingCues.addLast(new ScheduledBlessingCue(blessing,
+                serverLevel.getGameTime() + BLESSING_RUNE_CONTACT_DELAY_TICKS));
+            // Only APPLIED reaches this point, after the sole building ledger
+            // and SavedData dirty flag agree. Existing exact viewers receive
+            // an UPDATE; no broadcast can open a screen.
+            com.hearthstead.network.InspectionViewers.refreshPlaque(
+                serverLevel, this);
+        }
+        return result;
+    }
+
+    /** Rank on this plaque's current valid building; zero for any invalid link. */
+    public int blessingRank(BlessingId blessing) {
+        if (!(level instanceof ServerLevel serverLevel) || isRemoved()
+            || buildingId == null) {
+            return 0;
+        }
+        Building target = blessingTarget(settlementFor(serverLevel));
+        return target == null ? 0 : target.blessingRank(blessing);
+    }
+
+    /**
+     * Non-mutating resolver for seal use. In particular, unlike the regular
+     * survey resolver, a failed lookup must not orphan/rewrite the plaque:
+     * INVALID and MAXED are strict no-mutation results.
+    */
+    @Nullable
+    private Building blessingTarget(@Nullable Settlement settlement) {
+        if (settlement == null || buildingId == null) {
+            return null;
+        }
+        Building found = null;
+        for (Building building : settlement.buildings) {
+            if (building == null || building.id == null) {
+                return null;
+            }
+            if (building.id.equals(buildingId)) {
+                if (found != null) {
+                    return null;
+                }
+                found = building;
+            }
+        }
+        return found != null && found.valid
+            && worldPosition.equals(found.plaquePos) ? found : null;
+    }
+
     public int scanAttempts() {
         return scanAttempts;
     }
 
     public int screenOpenCount() {
         return screenOpens;
+    }
+
+    int surveyCommitCountForTest() {
+        return surveyCommits;
+    }
+
+    int buildingLinkTelemetryCountForTest() {
+        return buildingLinkTelemetryEmissions;
+    }
+
+    int surveyUpdatePacketCountForTest() {
+        return surveyUpdatePackets;
+    }
+
+    int bedAssignmentAttemptCountForTest() {
+        return bedAssignmentAttempts;
+    }
+
+    boolean loadProjectionHydrationPendingForTest() {
+        return loadProjectionHydrationPending;
+    }
+
+    int loadProjectionHydrationCountForTest() {
+        return loadProjectionHydrations;
+    }
+
+    int loadProjectionBlockStatePublishCountForTest() {
+        return loadProjectionBlockStatePublishes;
+    }
+
+    int loadProjectionExplicitPublishCountForTest() {
+        return loadProjectionExplicitPublishes;
+    }
+
+    int loadProjectionPublishCountForTest() {
+        return loadProjectionBlockStatePublishes
+            + loadProjectionExplicitPublishes;
+    }
+
+    int logisticsPrunePassCountForTest() {
+        return logisticsPrunePasses;
+    }
+
+    int logisticsAggregatePassCountForTest() {
+        return logisticsAggregatePasses;
+    }
+
+    int logisticsReportCountForTest() {
+        return logisticsReports.size();
+    }
+
+    void tickLogisticsForTest(ServerLevel level, long now) {
+        tickLogisticsMaintenance(level, now);
+    }
+
+    long nextSurveyTickForTest() {
+        return nextSurveyTick;
+    }
+
+    static int surveyIntervalForTest() {
+        return SURVEY_INTERVAL;
     }
 
     /**
@@ -275,12 +465,13 @@ public class PlaqueBlockEntity extends BlockEntity {
             return ItemStack.EMPTY;
         }
         ItemStack out = insertedPlan.copy();
-        dissolveBuilding(level, remover);
+        if (!dissolveBuilding(level, remover)) {
+            return ItemStack.EMPTY;
+        }
         insertedPlan = ItemStack.EMPTY;
         lastSurvey = List.of();
         lastScanReason = null;
-        logisticsReports.clear();
-        logisticsStopReason = StopReason.NONE;
+        clearLogisticsRuntime();
         occupants = 0;
         capacity = 0;
         state = PlaqueState.EMPTY;
@@ -296,17 +487,158 @@ public class PlaqueBlockEntity extends BlockEntity {
                                   BlockState state, PlaqueBlockEntity plaque) {
         if (level instanceof ServerLevel serverLevel) {
             long now = serverLevel.getGameTime();
-            if (now >= plaque.nextLogisticsPruneTick) {
-                plaque.nextLogisticsPruneTick = now + LOGISTICS_PRUNE_INTERVAL;
-                plaque.logisticsReports.entrySet().removeIf(entry ->
-                    entry.getValue().expiresAtTick() <= now);
-                plaque.refreshLogisticsAggregate(serverLevel);
+            plaque.tickBlessingContactCues(serverLevel, now);
+            plaque.tickLogisticsMaintenance(serverLevel, now);
+            if (plaque.loadProjectionHydrationPending) {
+                plaque.hydrateLoadedProjection(serverLevel);
+            }
+            if (plaque.nextSurveyTick == SURVEY_UNSCHEDULED) {
+                plaque.nextSurveyTick = firstSurveyTick(now, pos);
             }
             if (now >= plaque.nextSurveyTick) {
                 plaque.nextSurveyTick = now + SURVEY_INTERVAL;
                 plaque.survey(serverLevel);
             }
         }
+    }
+
+    /**
+     * Spreads newly loaded plaques across the whole ten-second cadence.
+     *
+     * <p>The old zero default made every plaque loaded together scan on the
+     * same server tick and then remain locked together forever. The offset is
+     * stable for one world position, requires no registry/cache, and keeps the
+     * existing one-scan-per-{@value #SURVEY_INTERVAL}-ticks contract after the
+     * first phased scan.
+     */
+    private static long firstSurveyTick(long now, BlockPos pos) {
+        long positionHash = pos.getX() * 31L + pos.getY() * 17L + pos.getZ() * 13L;
+        long offset = Math.floorMod(positionHash, (long) SURVEY_INTERVAL);
+        return now + 1L + offset;
+    }
+
+    /**
+     * Rebuilds only the cheap, already-authoritative projection omitted from
+     * disk NBT. This deliberately performs no {@link RoomScanner} scan: one
+     * hundred plaques loaded together therefore do one bounded lookup each,
+     * not one hundred same-tick flood fills. The real survey is scheduled by
+     * {@link #firstSurveyTick}; incomplete/unlinked plaques truthfully render
+     * their state until that phased measurement arrives.
+     */
+    private void hydrateLoadedProjection(ServerLevel level) {
+        loadProjectionHydrationPending = false;
+        loadProjectionHydrations++;
+        int previousOccupants = occupants;
+        int previousCapacity = capacity;
+        boolean exactLinkLoaded = countLoadedOccupancy(level);
+        boolean projectionChanged = occupants != previousOccupants
+            || capacity != previousCapacity;
+        boolean blockStatePublished = reconcileLoadedBlockState(level,
+            exactLinkLoaded);
+        if (blockStatePublished) {
+            loadProjectionBlockStatePublishes++;
+        }
+        if (projectionChanged && !blockStatePublished) {
+            // Derived projection is never persisted and therefore must not
+            // bump revision, dirty the chunk or dirty SettlementSavedData.
+            // It does need one BE packet if the client-facing values changed.
+            loadProjectionExplicitPublishes++;
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
+                Block.UPDATE_CLIENTS);
+        }
+    }
+
+    /**
+     * Rebuilds the disk-omitted occupancy projection without changing link
+     * identity. A missing saved building is a material survey transition,
+     * not a cheap hydration fact: {@link #building(ServerLevel)} deliberately
+     * orphans that stale id, so calling it here would publish a new identity
+     * without the survey revision/dirty commit which owns that transition.
+     */
+    private boolean countLoadedOccupancy(ServerLevel level) {
+        occupants = 0;
+        capacity = 0;
+        if (state != PlaqueState.LINKED_VALID) {
+            return false;
+        }
+        Settlement settlement = settlementFor(level);
+        Building building = exactBuilding(settlement);
+        if (building == null || !building.valid
+            || !worldPosition.equals(building.plaquePos)
+            || building.type != type) {
+            return false;
+        }
+        capacity = com.hearthstead.settlement.BuildingManager.capacityOf(type, building);
+        occupants = com.hearthstead.settlement.BuildingManager
+            .occupantsOf(level, settlement, building);
+        return true;
+    }
+
+    /**
+     * Reconciles only state that can be reconstructed without RoomScanner.
+     *
+     * <p>For a valid building every red/amber lamp is transient courier
+     * diagnosis, so clearing the runtime reports makes GREEN authoritative.
+     * For an incomplete/unlinked building, however, amber may be the last
+     * persisted requirement-progress truth. Keep that colour until the phased
+     * scan and repair only an impossible REGISTERED flag. A flags=3 state
+     * update is sufficient for both block state and this BE's update packet:
+     * vanilla {@code ChunkHolder#broadcastChanges} follows its block packet
+     * with {@code getUpdatePacket()} for blocks which have a block entity.
+     */
+    private boolean reconcileLoadedBlockState(ServerLevel level,
+                                              boolean exactLinkLoaded) {
+        if (state == PlaqueState.LINKED_VALID) {
+            // A persisted valid state is not enough to reinterpret a red or
+            // amber lamp as transient courier truth. If its exact settlement
+            // building disappeared, preserve the complete physical state
+            // until the phased survey owns the orphan/relink transition.
+            return exactLinkLoaded && updateGlow(level);
+        }
+        BlockState current = getBlockState();
+        if (current.getValue(PlaqueBlock.REGISTERED)) {
+            return level.setBlock(worldPosition,
+                current.setValue(PlaqueBlock.REGISTERED, false), 3);
+        }
+        return false;
+    }
+
+    void tickBlessingContactCues(ServerLevel level, long now) {
+        if (pendingBlessingCues == null) {
+            return;
+        }
+        float yaw = getBlockState().getValue(PlaqueBlock.FACING).toYRot();
+        while (!pendingBlessingCues.isEmpty()
+            && pendingBlessingCues.peekFirst().dueTick() <= now) {
+            ScheduledBlessingCue cue = pendingBlessingCues.removeFirst();
+            presentBlessingContact(level, cue.blessing(), yaw);
+        }
+        if (pendingBlessingCues.isEmpty()) {
+            pendingBlessingCues = null;
+        }
+    }
+
+    /** Instance-bound emission seam for exact, allocation-free GameTest observation. */
+    protected void presentBlessingOnset(ServerLevel level, BlessingId blessing,
+                                        float yaw) {
+        BlessingPresentation.plaqueRuneOnset(level, blessing,
+            worldPosition.getX() + 0.5D, worldPosition.getY() + 0.55D,
+            worldPosition.getZ() + 0.5D, yaw);
+    }
+
+    /** Instance-bound emission seam for exact authored-contact tick observation. */
+    protected void presentBlessingContact(ServerLevel level, BlessingId blessing,
+                                          float yaw) {
+        BlessingPresentation.bindingContact(level, blessing,
+            worldPosition.getX() + 0.5D, worldPosition.getY() + 0.55D,
+            worldPosition.getZ() + 0.5D, yaw, SoundSource.BLOCKS);
+    }
+
+    int pendingBlessingCueCount() {
+        return pendingBlessingCues == null ? 0 : pendingBlessingCues.size();
+    }
+
+    private record ScheduledBlessingCue(BlessingId blessing, long dueTick) {
     }
 
     /**
@@ -322,6 +654,15 @@ public class PlaqueBlockEntity extends BlockEntity {
         scanAttempts++;
         RoomScanner.Result result = surveyRoom(level);
         PlaqueState previous = state;
+        List<Requirement.Status> previousSurvey = lastSurvey;
+        Component previousScanReason = lastScanReason;
+        UUID previousBuildingId = buildingId;
+        StopReason previousLogisticsStopReason = logisticsStopReason;
+        int previousOccupants = occupants;
+        int previousCapacity = capacity;
+        int previousFailedSurveys = failedSurveys;
+        boolean settlementChanged = false;
+        BuildingLinkCommit buildingLinkCommit = null;
 
         if (result == null || !result.enclosed() || result.skyLeak()
             || result.volume() > RoomScanner.MAX_HOME_VOLUME) {
@@ -342,7 +683,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             lastScanReason = reason;
             if (!graceHolds(level, PlaqueState.PLAN_INSERTED_UNLINKED)) {
                 lastSurvey = List.of();
-                unlink(level, PlaqueState.PLAN_INSERTED_UNLINKED);
+                settlementChanged = unlink(level,
+                    PlaqueState.PLAN_INSERTED_UNLINKED);
             }
         } else {
             lastScanReason = null;
@@ -356,9 +698,11 @@ public class PlaqueBlockEntity extends BlockEntity {
             lastSurvey = List.copyOf(statuses);
             if (allMet) {
                 failedSurveys = 0;
-                link(level, result);
+                LinkResult linkResult = link(level, result);
+                settlementChanged = linkResult.changed();
+                buildingLinkCommit = linkResult.commit();
             } else if (!graceHolds(level, PlaqueState.LINKED_INCOMPLETE)) {
-                unlink(level, PlaqueState.LINKED_INCOMPLETE);
+                settlementChanged = unlink(level, PlaqueState.LINKED_INCOMPLETE);
             }
         }
 
@@ -367,12 +711,35 @@ public class PlaqueBlockEntity extends BlockEntity {
         if (state != previous) {
             announce(level, previous);
         }
+        boolean changed = settlementChanged
+            || state != previous
+            || !lastSurvey.equals(previousSurvey)
+            || !java.util.Objects.equals(lastScanReason, previousScanReason)
+            || !java.util.Objects.equals(buildingId, previousBuildingId)
+            || logisticsStopReason != previousLogisticsStopReason
+            || occupants != previousOccupants
+            || capacity != previousCapacity
+            || failedSurveys != previousFailedSurveys;
+        if (changed) {
+            int revisionBefore = revision;
+            commitSurveyChange(level);
+            if (buildingLinkCommit != null) {
+                emitBuildingLinkCommitted(level, buildingLinkCommit,
+                    revisionBefore);
+            }
+        }
+    }
+
+    /** Persists and publishes one materially changed survey, never a heartbeat. */
+    private void commitSurveyChange(ServerLevel level) {
         revision++;
+        surveyCommits++;
         setChanged();
         // setChanged() alone marks the chunk dirty for SAVING; it does not
         // resend the block. Without this the sheet would only refresh when
         // the chunk reloaded, so a bed placed in front of the player would
         // not tick its line over until they walked away and back.
+        surveyUpdatePackets++;
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
             Block.UPDATE_CLIENTS);
     }
@@ -465,13 +832,31 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     // -------------------------------------------------------------- link ---
 
-    private void link(ServerLevel level, RoomScanner.Result result) {
+    private LinkResult link(ServerLevel level, RoomScanner.Result result) {
         Settlement settlement = settlementFor(level);
         if (settlement == null) {
             state = PlaqueState.PLAN_INSERTED_UNLINKED;
-            return;
+            return LinkResult.UNCHANGED;
+        }
+        // Duplicate/corrupt authority must fail closed. A missing row is a
+        // different case: the plaque's complete physical survey is exactly
+        // the authority that may replace a building lost during disk repair.
+        // Clearing that stale id here makes the new identity one explicit,
+        // revisioned link transaction rather than an eager load-time rewrite.
+        if (buildingId != null) {
+            int matches = buildingIdMatches(settlement, buildingId);
+            if (matches < 0 || matches > 1) {
+                state = PlaqueState.ORPHANED;
+                return LinkResult.UNCHANGED;
+            }
+            if (matches == 0) {
+                buildingId = null;
+                state = PlaqueState.ORPHANED;
+            }
         }
         SettlementSavedData data = SettlementSavedData.get(level);
+        int buildingCountBefore = settlement.buildings.size();
+        boolean plaqueWasLinkedValid = state == PlaqueState.LINKED_VALID;
         Building building = building(level);
         boolean isNew = building == null;
         if (isNew) {
@@ -481,24 +866,123 @@ public class PlaqueBlockEntity extends BlockEntity {
             settlement.buildings.add(building);
             buildingId = building.id;
         }
-        building.type = type;
-        building.plaquePos = worldPosition;
-        building.anchor = result.beds().isEmpty() ? worldPosition : result.beds().get(0);
-        building.bounds = result.bounds();
-        building.interiorVolume = result.volume();
-        building.beds.clear();
-        building.beds.addAll(result.beds());
-        building.doorCount = result.doors();
-        building.lightSources = result.lights();
-        building.furnishingScore = result.furnishingScore();
-        building.valid = true;
+        boolean wasValid = building.valid;
+        BlockPos nextAnchor = result.beds().isEmpty()
+            ? worldPosition : result.beds().get(0);
+        boolean typeChanged = building.type != type;
+        boolean bedsChanged = !building.beds.equals(result.beds());
+        boolean materialChanged = isNew || typeChanged
+            || !java.util.Objects.equals(building.plaquePos, worldPosition)
+            || !java.util.Objects.equals(building.anchor, nextAnchor)
+            || !sameBounds(building.bounds, result.bounds())
+            || building.interiorVolume != result.volume()
+            || bedsChanged
+            || building.doorCount != result.doors()
+            || building.lightSources != result.lights()
+            || building.furnishingScore != result.furnishingScore()
+            || !building.valid;
+        boolean blessingSpatialChanged = !isNew
+            && (!building.valid || !worldPosition.equals(building.plaquePos)
+                || !sameBounds(building.bounds, result.bounds()));
+        if (materialChanged) {
+            building.type = type;
+            building.plaquePos = worldPosition;
+            building.anchor = nextAnchor;
+            building.bounds = result.bounds();
+            building.interiorVolume = result.volume();
+            building.beds.clear();
+            building.beds.addAll(result.beds());
+            building.doorCount = result.doors();
+            building.lightSources = result.lights();
+            building.furnishingScore = result.furnishingScore();
+            building.valid = true;
+        }
         building.lastValidatedGameTime = level.getGameTime();
+        // A new building was invalidated by the tracked list add. Existing
+        // healthy plaques survey every ten seconds, so invalidate those only
+        // when the zone geometry/validity actually changed; identical surveys
+        // must not force periodic index rebuilds during a raid.
+        if (blessingSpatialChanged) {
+            settlement.invalidateBuildingBlessingIndex();
+        }
         state = PlaqueState.LINKED_VALID;
-        data.setDirty();
+        if (shouldNotifyJourneyOfBuildingUpdate(type, isNew, wasValid,
+                typeChanged, bedsChanged)) {
+            FoundingJourneyProgress.noteLumberCampLinked(level, settlement, building);
+        }
+        if (materialChanged) {
+            data.setDirty();
+        }
 
-        if (type.housesResidents()) {
+        if (type.housesResidents()
+            && (isNew || !wasValid || bedsChanged || typeChanged)) {
+            bedAssignmentAttempts++;
             data.buildingManager.assignFreeBeds(level, settlement, building);
         }
+        // A grace-held building remains valid in the settlement ledger while
+        // its Plaque truthfully shows LINKED_INCOMPLETE. Returning to a valid
+        // physical room is still a persisted Plaque revalidation, even when
+        // the building geometry itself did not change.
+        BuildingLinkCommit commit = materialChanged || !plaqueWasLinkedValid
+            ? new BuildingLinkCommit(settlement.id, building.id, type.id(),
+                buildingCountBefore, settlement.buildings.size())
+            : null;
+        return new LinkResult(materialChanged, commit);
+    }
+
+    /**
+     * A healthy home's capacity change is Journey evidence even though its
+     * plaque never became invalid. This keeps the physical fifth-bed step on
+     * the normal periodic survey path instead of requiring a destructive
+     * unlink/relink cycle.
+     */
+    static boolean shouldNotifyJourneyOfBuildingUpdate(BuildingType type,
+                                                        boolean isNew,
+                                                        boolean wasValid,
+                                                        boolean typeChanged,
+                                                        boolean bedsChanged) {
+        return isNew || !wasValid || typeChanged
+            || (type != null && type.housesResidents() && bedsChanged);
+    }
+
+    /**
+     * Emits only after both halves of the link transaction are durable: the
+     * settlement ledger was dirtied in {@link #link} and the plaque revision
+     * was incremented/dirtied by {@link #commitSurveyChange}. Identical
+     * periodic surveys never produce a {@link BuildingLinkCommit}.
+     */
+    private void emitBuildingLinkCommitted(ServerLevel level,
+                                           BuildingLinkCommit commit,
+                                           int revisionBefore) {
+        if (AuthorityTelemetry.emit(level,
+            AuthorityTelemetry.Event.BUILDING_LINK_COMMITTED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.state(commit.settlementId(),
+                "building:" + commit.buildingId(), revisionBefore, revision,
+                commit.buildingCountBefore(), commit.buildingCountAfter(),
+                "type:" + commit.buildingTypeId()))) {
+            buildingLinkTelemetryEmissions++;
+        }
+    }
+
+    private record LinkResult(boolean changed,
+                              @Nullable BuildingLinkCommit commit) {
+        private static final LinkResult UNCHANGED = new LinkResult(false, null);
+    }
+
+    private record BuildingLinkCommit(UUID settlementId, UUID buildingId,
+                                      String buildingTypeId,
+                                      int buildingCountBefore,
+                                      int buildingCountAfter) {
+    }
+
+    private static boolean sameBounds(@Nullable
+                                      net.minecraft.world.level.levelgen.structure.BoundingBox left,
+                                      net.minecraft.world.level.levelgen.structure.BoundingBox right) {
+        return left != null
+            && left.minX() == right.minX() && left.minY() == right.minY()
+            && left.minZ() == right.minZ() && left.maxX() == right.maxX()
+            && left.maxY() == right.maxY() && left.maxZ() == right.maxZ();
     }
 
     /** Drops the link without destroying the building's memory of its people. */
@@ -527,36 +1011,54 @@ public class PlaqueBlockEntity extends BlockEntity {
         return true;
     }
 
-    private void unlink(ServerLevel level, PlaqueState newState) {
+    private boolean unlink(ServerLevel level, PlaqueState newState) {
         Building building = building(level);
+        boolean settlementChanged = false;
         if (building != null && building.valid) {
+            Settlement owner = settlementFor(level);
+            if (owner != null
+                && !Employment.freeWorkers(level, owner, building)) {
+                return false;
+            }
             building.valid = false;
             releaseResidents(level, building);
+            if (owner != null) {
+                owner.invalidateBuildingBlessingIndex();
+            }
             SettlementSavedData.get(level).setDirty();
+            settlementChanged = true;
         }
-        logisticsReports.clear();
-        logisticsStopReason = StopReason.NONE;
+        clearLogisticsRuntime();
         state = newState;
+        return settlementChanged;
     }
 
     /** Breaking the plaque, or extracting its plan, dissolves the building outright. */
-    public void dissolveBuilding(ServerLevel level, @Nullable Player breaker) {
+    public boolean dissolveBuilding(ServerLevel level,
+                                    @Nullable Player breaker) {
         Settlement settlement = settlementFor(level);
         Building building = building(level);
         if (settlement == null || building == null) {
-            return;
+            return true;
+        }
+        // Employment teardown owns request cancellation, current emblem
+        // authorization and quiver conservation. It is deliberately before
+        // bed/link/plan mutation so an unloaded worker or failed visible drop
+        // leaves the entire plaque authority intact for a later retry.
+        if (!Employment.freeWorkers(level, settlement, building)) {
+            return false;
         }
         releaseResidents(level, building);
         settlement.buildings.remove(building);
         buildingId = null;
-        logisticsReports.clear();
-        logisticsStopReason = StopReason.NONE;
+        clearLogisticsRuntime();
         state = PlaqueState.PLAN_INSERTED_UNLINKED;
         SettlementSavedData.get(level).setDirty();
         if (breaker != null) {
             breaker.displayClientMessage(Component.translatable(
                 "hearthstead.plaque.dissolved", type.displayName()), false);
         }
+        return true;
     }
 
     /** Everyone housed here loses their bed, and feels it. */
@@ -572,7 +1074,6 @@ public class PlaqueBlockEntity extends BlockEntity {
                 settler.addMorale(-6.0F);
             }
         }
-        building.workers.clear();
     }
 
     @Nullable
@@ -584,14 +1085,49 @@ public class PlaqueBlockEntity extends BlockEntity {
         if (settlement == null) {
             return null;
         }
-        for (Building building : settlement.buildings) {
-            if (building.id.equals(buildingId)) {
-                return building;
-            }
+        Building building = exactBuilding(settlement);
+        if (building != null) {
+            return building;
         }
         buildingId = null;
         state = PlaqueState.ORPHANED;
         return null;
+    }
+
+    /** Exact saved-id lookup with no orphaning, revision or persistence side effect. */
+    @Nullable
+    private Building exactBuilding(@Nullable Settlement settlement) {
+        if (settlement == null || buildingId == null) {
+            return null;
+        }
+        Building found = null;
+        for (Building building : settlement.buildings) {
+            if (building == null || building.id == null) {
+                return null;
+            }
+            if (building.id.equals(buildingId)) {
+                if (found != null) {
+                    return null;
+                }
+                found = building;
+            }
+        }
+        return found;
+    }
+
+    /** Returns -1 for malformed/ambiguous rows, otherwise the exact id count. */
+    private static int buildingIdMatches(Settlement settlement,
+                                         UUID expectedId) {
+        int matches = 0;
+        for (Building building : settlement.buildings) {
+            if (building == null || building.id == null) {
+                return -1;
+            }
+            if (building.id.equals(expectedId) && ++matches > 1) {
+                return matches;
+            }
+        }
+        return matches;
     }
 
     @Nullable
@@ -613,7 +1149,7 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     // ------------------------------------------------------ presentation ---
 
-    private void updateGlow(ServerLevel level) {
+    private boolean updateGlow(ServerLevel level) {
         boolean anyProgress = false;
         for (Requirement.Status status : lastSurvey) {
             anyProgress |= status.met() || status.partial();
@@ -631,10 +1167,11 @@ public class PlaqueBlockEntity extends BlockEntity {
         boolean registered = state == PlaqueState.LINKED_VALID;
         if (current.getValue(PlaqueBlock.GLOW) != glow
             || current.getValue(PlaqueBlock.REGISTERED) != registered) {
-            level.setBlock(worldPosition, current
+            return level.setBlock(worldPosition, current
                 .setValue(PlaqueBlock.GLOW, glow)
                 .setValue(PlaqueBlock.REGISTERED, registered), 3);
         }
+        return false;
     }
 
     /** Red outranks amber; equal-severity ties use stable wire-id order. */
@@ -660,6 +1197,55 @@ public class PlaqueBlockEntity extends BlockEntity {
         // must still carry the changed text reason to the client.
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(),
             Block.UPDATE_CLIENTS);
+    }
+
+    /**
+     * Coalesces every courier heartbeat into at most one prune and one full
+     * aggregate per plaque per server tick. Empty/unchanged plaques return
+     * before creating an iterator; report changes reach the lamp next tick at
+     * the latest, while each courier keeps its own independent TTL.
+     */
+    private void tickLogisticsMaintenance(ServerLevel level, long now) {
+        boolean expiryDue = !logisticsReports.isEmpty()
+            && now >= nextLogisticsPruneTick;
+        if ((!logisticsAggregateDirty && !expiryDue)
+            || lastLogisticsMaintenanceTick == now) {
+            return;
+        }
+        lastLogisticsMaintenanceTick = now;
+        boolean expired = false;
+        if (expiryDue) {
+            logisticsPrunePasses++;
+            nextLogisticsPruneTick = Long.MAX_VALUE;
+            java.util.Iterator<Map.Entry<UUID, LogisticsReport>> iterator =
+                logisticsReports.entrySet().iterator();
+            while (iterator.hasNext()) {
+                LogisticsReport report = iterator.next().getValue();
+                if (report.expiresAtTick() <= now) {
+                    iterator.remove();
+                    expired = true;
+                } else {
+                    nextLogisticsPruneTick = Math.min(nextLogisticsPruneTick,
+                        report.expiresAtTick());
+                }
+            }
+        }
+        if (logisticsReports.isEmpty()) {
+            nextLogisticsPruneTick = Long.MAX_VALUE;
+        }
+        if (logisticsAggregateDirty || expired) {
+            logisticsAggregatePasses++;
+            refreshLogisticsAggregate(level);
+            logisticsAggregateDirty = false;
+        }
+    }
+
+    private void clearLogisticsRuntime() {
+        logisticsReports.clear();
+        logisticsStopReason = StopReason.NONE;
+        logisticsAggregateDirty = false;
+        nextLogisticsPruneTick = Long.MAX_VALUE;
+        lastLogisticsMaintenanceTick = Long.MIN_VALUE;
     }
 
     private void announce(ServerLevel level, PlaqueState previous) {
@@ -724,16 +1310,33 @@ public class PlaqueBlockEntity extends BlockEntity {
     @Override
     protected void loadAdditional(CompoundTag tag, HolderLookup.Provider provider) {
         super.loadAdditional(tag, provider);
+        // Wire projection is all-or-nothing. A legacy/malformed tag carrying
+        // only one of these keys must fail closed into server hydration, not
+        // masquerade as a complete 0/0 client snapshot.
+        boolean hasWireProjection = tag.contains(SURVEY_KEY, Tag.TAG_LIST)
+            && tag.contains(OCCUPANTS_KEY, Tag.TAG_INT)
+            && tag.contains(CAPACITY_KEY, Tag.TAG_INT)
+            && tag.contains(LOGISTICS_STOP_KEY, Tag.TAG_BYTE);
+        // Contact VFX are transient feedback, not world state. A chunk reload
+        // must never replay a seal that was already bound.
+        pendingBlessingCues = null;
         type = BuildingType.byId(tag.getString("Type"));
         buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
         state = PlaqueState.byId(tag.getString("State"), buildingId != null);
         revision = tag.getInt("Revision");
         failedSurveys = tag.getInt("FailedSurveys");
-        logisticsReports.clear();
-        logisticsStopReason = tag.contains(LOGISTICS_STOP_KEY, Tag.TAG_BYTE)
+        clearLogisticsRuntime();
+        logisticsStopReason = hasWireProjection
             ? StopReason.fromWireId(tag.getByte(LOGISTICS_STOP_KEY))
             : StopReason.NONE;
-        if (tag.contains(SURVEY_KEY)) {
+        // Always clear the old instance projection first. Disk tags omit all
+        // of it by design; retaining the pre-reload Java fields would be just
+        // as stale as persisting a second authority in NBT.
+        lastSurvey = List.of();
+        lastScanReason = null;
+        occupants = 0;
+        capacity = 0;
+        if (hasWireProjection) {
             List<Requirement.Status> restored = new ArrayList<>();
             ListTag list = tag.getList(SURVEY_KEY, Tag.TAG_COMPOUND);
             for (int i = 0; i < list.size(); i++) {
@@ -745,9 +1348,9 @@ public class PlaqueBlockEntity extends BlockEntity {
                 }
             }
             lastSurvey = List.copyOf(restored);
+            occupants = tag.getInt(OCCUPANTS_KEY);
+            capacity = tag.getInt(CAPACITY_KEY);
         }
-        occupants = tag.getInt(OCCUPANTS_KEY);
-        capacity = tag.getInt(CAPACITY_KEY);
         insertedPlan = tag.contains("Plan")
             ? ItemStack.parseOptional(provider, tag.getCompound("Plan"))
             : ItemStack.EMPTY;
@@ -756,6 +1359,10 @@ public class PlaqueBlockEntity extends BlockEntity {
         // so resolve toward LINKED_VALID and let the next survey correct it.
         if (state == PlaqueState.EMPTY && buildingId != null) {
             state = PlaqueState.LINKED_VALID;
+        }
+        loadProjectionHydrationPending = !hasWireProjection;
+        if (loadProjectionHydrationPending) {
+            nextSurveyTick = SURVEY_UNSCHEDULED;
         }
     }
 
@@ -803,6 +1410,29 @@ public class PlaqueBlockEntity extends BlockEntity {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
-    private record LogisticsReport(StopReason reason, long expiresAtTick) {
+    private static final class LogisticsReport {
+        private StopReason reason;
+        private long expiresAtTick;
+
+        private LogisticsReport(StopReason reason, long expiresAtTick) {
+            this.reason = reason;
+            this.expiresAtTick = expiresAtTick;
+        }
+
+        private StopReason reason() {
+            return reason;
+        }
+
+        private void setReason(StopReason reason) {
+            this.reason = reason;
+        }
+
+        private long expiresAtTick() {
+            return expiresAtTick;
+        }
+
+        private void setExpiresAtTick(long expiresAtTick) {
+            this.expiresAtTick = expiresAtTick;
+        }
     }
 }

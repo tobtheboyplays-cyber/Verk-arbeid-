@@ -1,23 +1,37 @@
 package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.block.PlaqueItemData;
 import com.hearthstead.building.PlaqueState;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.registry.ModBlocks;
+import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModItems;
+import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Mayor;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.development.Development;
+import com.hearthstead.settlement.development.DevelopmentNode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
 
 /**
  * The PLAYER'S path into a plaque, not the API's.
@@ -48,13 +62,96 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 public class PlaqueUseGameTests {
 
     private static BlockPos hangPlaque(GameTestHelper helper, BlockPos rel) {
-        for (int x = 0; x < 6; x++) {
-            for (int z = 0; z < 6; z++) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE_BRICKS);
             }
         }
         GameTestFixtures.placePlaque(helper, rel);
         return rel;
+    }
+
+    /**
+     * A real settlement/Hearth authority around the clicked plaque. It starts
+     * with Charter knowledge only; callers explicitly buy the nodes their
+     * assertion needs. That keeps these player-path tests honest now that a
+     * globally craftable plan is not authority to declare a building.
+     */
+    private static KnowledgeFixture settlementAround(GameTestHelper helper,
+                                                      BlockPos plaqueRel) {
+        hangPlaque(helper, plaqueRel);
+        BlockPos hearthRel = new BlockPos(5, 1, 5);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
+            .getBlockEntity(hearthAbs);
+        Settlement settlement = new Settlement(UUID.randomUUID(), "Planholm", hearthAbs);
+        settlement.radius = 8;
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        data.settlements.put(settlement.id, settlement);
+        data.setDirty();
+        hearth.bindSettlement(settlement.id);
+        // Initialize before any test building can exist, so legacy
+        // grandfathering cannot accidentally turn this into an allow test.
+        Development.of(helper.getLevel(), settlement);
+        Building house = GameTestFixtures.register(helper, settlement,
+            BuildingType.HOUSE, 8, 8);
+        BlockPos firstBed = new BlockPos(8, 1, 9);
+        BlockPos secondBed = new BlockPos(9, 1, 9);
+        helper.setBlock(firstBed, Blocks.RED_BED);
+        helper.setBlock(secondBed, Blocks.BLUE_BED);
+        house.beds.add(helper.absolutePos(firstBed));
+        house.beds.add(helper.absolutePos(secondBed));
+        SettlerEntity mayor = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(7, 1, 7));
+        mayor.setSettlerName("Plan Mayor");
+        mayor.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(mayor.getUUID(), mayor.getSettlerName(), Profession.NONE);
+        SettlerEntity resident = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(6, 1, 7));
+        resident.setSettlerName("Plan Resident");
+        resident.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(resident.getUUID(), resident.getSettlerName(), Profession.NONE);
+        SettlerEntity thirdFounder = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(5, 1, 7));
+        thirdFounder.setSettlerName("Plan Founder");
+        thirdFounder.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(thirdFounder.getUUID(), thirdFounder.getSettlerName(),
+            Profession.NONE);
+        helper.assertTrue(Mayor.appoint(helper.getLevel(), settlement, mayor) == null,
+            "fixture needs one living appointed Mayor for the Shelter quest");
+        return new KnowledgeFixture(plaqueRel, settlement, hearth);
+    }
+
+    private static void learnLumberCamp(GameTestHelper helper,
+                                        KnowledgeFixture fixture) {
+        payAndLearn(helper, fixture, DevelopmentNode.SHELTER);
+        payAndLearn(helper, fixture, DevelopmentNode.TIMBER_RIGHTS);
+    }
+
+    private static void payAndLearn(GameTestHelper helper, KnowledgeFixture fixture,
+                                    DevelopmentNode node) {
+        if (Development.of(helper.getLevel(), fixture.settlement).unlocked(node)) {
+            return;
+        }
+        for (DevelopmentNode.Cost cost : node.costs()) {
+            put(fixture.hearth, cost.item(), cost.count());
+        }
+        Development.Result result = Development.purchaseNode(helper.getLevel(),
+            fixture.settlement, fixture.hearth, node,
+            Development.revisionOf(helper.getLevel(), fixture.settlement));
+        helper.assertTrue(result == Development.Result.APPLIED,
+            "fixture could not learn " + node.id() + ": " + result);
+    }
+
+    private static void put(HearthBlockEntity hearth, Item item, int count) {
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            if (hearth.getInventory().getStackInSlot(slot).isEmpty()) {
+                hearth.getInventory().setStackInSlot(slot, new ItemStack(item, count));
+                return;
+            }
+        }
+        throw new IllegalStateException("fixture Hearth inventory is full");
     }
 
     /** A right-click on the plaque's own face, as the player's crosshair would land. */
@@ -104,7 +201,9 @@ public class PlaqueUseGameTests {
      */
     @GameTest(template = "empty16", timeoutTicks = 200, batch = "plaque_use_right_clicking_a_blank_plaque_with_a_plan_fits_it")
     public void rightClickingABlankPlaqueWithAPlanFitsIt(GameTestHelper helper) {
-        BlockPos rel = hangPlaque(helper, new BlockPos(2, 2, 2));
+        KnowledgeFixture fixture = settlementAround(helper, new BlockPos(2, 2, 2));
+        learnLumberCamp(helper, fixture);
+        BlockPos rel = fixture.plaqueRel;
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
 
         helper.assertTrue(
@@ -134,7 +233,9 @@ public class PlaqueUseGameTests {
      */
     @GameTest(template = "empty16", timeoutTicks = 200, batch = "plaque_use_fitting_a_plan_consumes_it_from_the_players_hand")
     public void fittingAPlanConsumesItFromThePlayersHand(GameTestHelper helper) {
-        BlockPos rel = hangPlaque(helper, new BlockPos(2, 2, 2));
+        KnowledgeFixture fixture = settlementAround(helper, new BlockPos(2, 2, 2));
+        learnLumberCamp(helper, fixture);
+        BlockPos rel = fixture.plaqueRel;
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         // Survival abilities, explicitly. A mock player comes up with
         // instabuild set, and PlaqueBlock#useItemOn deliberately skips the
@@ -154,6 +255,43 @@ public class PlaqueUseGameTests {
             "fitting a Build Plan must consume it -- otherwise one sheet of paper founds "
                 + "every building in the settlement; hand still holds "
                 + player.getItemInHand(InteractionHand.MAIN_HAND));
+        helper.succeed();
+    }
+
+    /**
+     * The entitlement itself: owning a globally assembled/stamped plan does
+     * not bypass settlement knowledge. A refusal preserves both the blank
+     * plaque and the physical plan; buying the connected knowledge then
+     * authorizes the exact same server interaction.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "plaque_use_knowledge_denied_before_and_allowed_after")
+    public void planUseIsDeniedBeforeAndAllowedAfterSettlementKnowledge(
+            GameTestHelper helper) {
+        KnowledgeFixture fixture = settlementAround(helper, new BlockPos(2, 2, 2));
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.getAbilities().instabuild = false;
+        player.onUpdateAbilities();
+        player.setItemInHand(InteractionHand.MAIN_HAND, PlaqueItemData.stamped(
+            new ItemStack(ModItems.BUILD_PLAN.get()), BuildingType.LUMBER_CAMP));
+
+        rightClick(helper, player, fixture.plaqueRel);
+        helper.assertTrue(
+            helper.getLevel().getBlockEntity(helper.absolutePos(fixture.plaqueRel))
+                instanceof PlaqueBlockEntity plaque && plaque.state() == PlaqueState.EMPTY,
+            "Lumber Camp plan use before Timber Rights must leave the plaque blank");
+        helper.assertTrue(player.getMainHandItem().is(ModItems.BUILD_PLAN.get())
+                && player.getMainHandItem().getCount() == 1,
+            "a knowledge refusal must preserve the physical plan");
+
+        learnLumberCamp(helper, fixture);
+        rightClick(helper, player, fixture.plaqueRel);
+        helper.assertTrue(
+            helper.getLevel().getBlockEntity(helper.absolutePos(fixture.plaqueRel))
+                instanceof PlaqueBlockEntity plaque && plaque.state() != PlaqueState.EMPTY,
+            "the same plan must fit after this settlement learns Timber Rights");
+        helper.assertTrue(player.getMainHandItem().isEmpty(),
+            "successful post-knowledge plan use must consume exactly one plan");
         helper.succeed();
     }
 
@@ -178,5 +316,9 @@ public class PlaqueUseGameTests {
         helper.assertTrue(player.getItemInHand(InteractionHand.MAIN_HAND).getCount() == 4,
             "and it must not eat the item it refused");
         helper.succeed();
+    }
+
+    private record KnowledgeFixture(BlockPos plaqueRel, Settlement settlement,
+                                    HearthBlockEntity hearth) {
     }
 }

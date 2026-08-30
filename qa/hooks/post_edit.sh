@@ -12,7 +12,7 @@ except Exception:
 [ -z "$FILE" ] && exit 0
 
 case "$FILE" in
-    */hearthstead-neoforge/src/*|*/hearthstead-neoforge/tools/*|*/hearthstead-neoforge/build.gradle|*/hearthstead-neoforge/gradle.properties|*/hearthstead-neoforge/settings.gradle|*/qa/PROTOCOL.md|*/qa/scripts/*|*/tools/hearthstead-qa)
+    */hearthstead-neoforge/src/*|*/hearthstead-neoforge/tools/*|*/hearthstead-neoforge/gradle/wrapper/*|*/hearthstead-neoforge/gradlew|*/hearthstead-neoforge/gradlew.bat|*/hearthstead-neoforge/build.gradle|*/hearthstead-neoforge/gradle.properties|*/hearthstead-neoforge/settings.gradle|*/hearthstead-neoforge/docs/ANIMATION_CATALOGUE.md|*/qa/PROTOCOL.md|*/qa/hooks/*|*/qa/scripts/*|*/tools/hearthstead-qa|*/.gitattributes)
         REPO="${CLAUDE_PROJECT_DIR:-$(pwd)}"
         mkdir -p "$REPO/qa/reports"
         touch "$REPO/qa/reports/.stale"

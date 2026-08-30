@@ -20,22 +20,39 @@ It is not a replacement for looking at the running game -- see the QA protocol
     python3 tools/ui_preview.py --all           # every screen in tools/ui/screens
 """
 import argparse
+import functools
+import io
 import json
 import glob
 import os
 import sys
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from PIL import Image  # noqa: E402
+from PIL import Image, ImageDraw  # noqa: E402
 import mcfont  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SPRITES = os.path.join(HERE, "..",
                        "src/main/resources/assets/hearthstead/textures/gui/sprites")
+TEXTURES = os.path.abspath(os.path.join(
+    HERE, "..", "src/main/resources/assets/hearthstead/textures"))
 SCREENS = os.path.join(HERE, "ui", "screens")
 TOKENS = json.load(open(os.path.join(HERE, "ui", "tokens.json")))
 
 WARNINGS = []
+_VANILLA_ICON_CACHE = {}
+
+
+@functools.lru_cache(maxsize=1)
+def vanilla_client_jar():
+    """Locate the current NeoForge-generated client asset jar for previews."""
+    root = os.path.join(os.path.expanduser("~"), ".gradle", "caches",
+                        "neoformruntime", "artifacts")
+    candidates = sorted(glob.glob(os.path.join(root, "minecraft_*_client.jar")))
+    if not candidates:
+        raise SystemExit(f"no NeoForge Minecraft client jar found below {root}")
+    return max(candidates, key=os.path.getmtime)
 
 
 def argb(value):
@@ -49,6 +66,12 @@ def colour(name):
     if isinstance(name, str) and name.startswith("#"):
         return argb(int(name[1:], 16))
     return argb(TOKENS["colour"][name])
+
+
+def rgba(name, alpha):
+    """Return a semantic colour with an explicit preview alpha."""
+    red, green, blue, _ = colour(name)
+    return red, green, blue, max(0, min(255, int(alpha)))
 
 
 # ------------------------------------------------------------- sprite kit ---
@@ -158,6 +181,104 @@ class Canvas:
             return
         self.img.alpha_composite(Image.new("RGBA", (w, h), col), (x, y))
 
+    def stroke(self, x, y, w, h, col, width=1):
+        for offset in range(max(1, width)):
+            self.rect(x + offset, y + offset, w - 2 * offset, 1, col)
+            self.rect(x + offset, y + h - 1 - offset,
+                      w - 2 * offset, 1, col)
+            self.rect(x + offset, y + offset, 1, h - 2 * offset, col)
+            self.rect(x + w - 1 - offset, y + offset,
+                      1, h - 2 * offset, col)
+
+    def _draw_overlay(self, callback):
+        overlay = Image.new("RGBA", self.img.size, (0, 0, 0, 0))
+        callback(ImageDraw.Draw(overlay))
+        self.img.alpha_composite(overlay)
+
+    def ellipse(self, x, y, w, h, fill, outline=None, width=1):
+        if w <= 0 or h <= 0:
+            return
+        self._draw_overlay(lambda draw: draw.ellipse(
+            (x, y, x + w - 1, y + h - 1), fill=fill,
+            outline=outline, width=max(1, width)))
+
+    def line(self, points, fill, width=1):
+        if len(points) < 2:
+            return
+        self._draw_overlay(lambda draw: draw.line(
+            points, fill=fill, width=max(1, width), joint="curve"))
+
+    def polygon(self, points, fill, outline=None):
+        if len(points) < 3:
+            return
+        self._draw_overlay(lambda draw: draw.polygon(
+            points, fill=fill, outline=outline))
+
+    def arc(self, x, y, w, h, start, end, fill, width=1):
+        if w <= 0 or h <= 0:
+            return
+        self._draw_overlay(lambda draw: draw.arc(
+            (x, y, x + w - 1, y + h - 1), start=start, end=end,
+            fill=fill, width=max(1, width)))
+
+    def icon(self, asset, x, y, size, anchor="top_left"):
+        relative = os.path.normpath(asset).replace("\\", "/")
+        source = os.path.abspath(os.path.join(TEXTURES, relative))
+        if os.path.commonpath((TEXTURES, source)) != TEXTURES:
+            raise SystemExit(f"icon escapes Hearthstead textures: {asset!r}")
+        if not os.path.isfile(source):
+            raise SystemExit(f"no such Hearthstead texture: {asset!r} ({source})")
+        icon = Image.open(source).convert("RGBA")
+        icon.thumbnail((size, size), Image.Resampling.NEAREST)
+        if anchor == "center":
+            x -= icon.width // 2
+            y -= icon.height // 2
+        self.img.alpha_composite(icon, (x, y))
+
+    def texture_crop(self, asset, crop, x, y, w, h, anchor="top_left"):
+        """Nearest-neighbour crop for readable faces/details from local textures."""
+        relative = os.path.normpath(asset).replace("\\", "/")
+        source = os.path.abspath(os.path.join(TEXTURES, relative))
+        if os.path.commonpath((TEXTURES, source)) != TEXTURES:
+            raise SystemExit(f"texture crop escapes Hearthstead textures: {asset!r}")
+        if not os.path.isfile(source):
+            raise SystemExit(f"no such Hearthstead texture: {asset!r}")
+        if len(crop) != 4 or crop[2] <= crop[0] or crop[3] <= crop[1]:
+            raise SystemExit(f"invalid texture crop for {asset!r}: {crop!r}")
+        with Image.open(source).convert("RGBA") as texture:
+            if crop[0] < 0 or crop[1] < 0 or crop[2] > texture.width \
+                    or crop[3] > texture.height:
+                raise SystemExit(
+                    f"texture crop outside {texture.width}x{texture.height}: {crop!r}")
+            detail = texture.crop(tuple(crop)).resize(
+                (w, h), Image.Resampling.NEAREST)
+        if anchor == "center":
+            x -= detail.width // 2
+            y -= detail.height // 2
+        self.img.alpha_composite(detail, (x, y))
+
+    def vanilla_icon(self, resource, x, y, size, anchor="top_left"):
+        normalized = resource.replace("\\", "/").lstrip("/")
+        if normalized.startswith("../") or "/../" in normalized:
+            raise SystemExit(f"vanilla icon escapes asset root: {resource!r}")
+        archive_path = "assets/minecraft/" + normalized
+        cache_key = (vanilla_client_jar(), archive_path)
+        icon = _VANILLA_ICON_CACHE.get(cache_key)
+        if icon is None:
+            try:
+                with zipfile.ZipFile(cache_key[0]) as archive:
+                    icon = Image.open(io.BytesIO(archive.read(archive_path))).convert("RGBA")
+            except (KeyError, OSError, zipfile.BadZipFile) as exc:
+                raise SystemExit(
+                    f"no such vanilla texture: {resource!r} in {cache_key[0]}") from exc
+            _VANILLA_ICON_CACHE[cache_key] = icon
+        rendered = icon.copy()
+        rendered.thumbnail((size, size), Image.Resampling.NEAREST)
+        if anchor == "center":
+            x -= rendered.width // 2
+            y -= rendered.height // 2
+        self.img.alpha_composite(rendered, (x, y))
+
     def text(self, x, y, s, col, shadow=True, align="left", box=None,
              label=""):
         width = self.font.width(s)
@@ -172,6 +293,30 @@ class Canvas:
             x -= width
         self.font.draw(self.img, x, y, s, col, shadow=shadow)
         return width
+
+    def paragraph(self, x, y, text, box, max_lines, col, line_gap=11,
+                  label="paragraph"):
+        words = text.split()
+        lines = []
+        current = ""
+        for word in words:
+            candidate = word if not current else current + " " + word
+            if self.font.width(candidate) <= box:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        if len(lines) > max_lines:
+            WARNINGS.append(
+                f'{label}: "{text}" needs {len(lines)} lines, has {max_lines}')
+            lines = lines[:max_lines]
+        for index, line in enumerate(lines):
+            self.text(x, y + index * line_gap, line, col, box=box,
+                      label=f"{label} line {index + 1}")
+        return len(lines)
 
 
 def render(spec, scale=1, guides=False):
@@ -218,8 +363,131 @@ def draw_element(c, el):
 
     if kind in ("window", "inset", "card", "card_hover"):
         c.sprites.draw(c.img, "panel/" + kind, x, y, w, h)
+    elif kind == "frame":
+        c.sprites.draw(c.img, "panel/" + el.get("surface", "window"),
+                       x, y, w, h)
+        tone = el.get("tone", "accent")
+        c.stroke(x, y, w, h, colour(tone), el.get("stroke", 1))
+        if el.get("inner", True) and w > 6 and h > 6:
+            c.stroke(x + 3, y + 3, w - 6, h - 6,
+                     rgba(tone, el.get("inner_alpha", 72)))
+    elif kind == "soft_panel":
+        tone = el.get("tone", "accent")
+        c.rect(x, y, w, h, rgba(tone, el.get("alpha", 18)))
+        c.stroke(x, y, w, h, rgba(tone, el.get("stroke_alpha", 145)),
+                 el.get("stroke", 1))
+    elif kind == "ellipse":
+        tone = el.get("tone", "good")
+        outline = colour(el["outline"]) if el.get("outline") else None
+        c.ellipse(x, y, w, h, rgba(tone, el.get("alpha", 16)), outline,
+                  el.get("stroke", 1))
+    elif kind in ("line", "road"):
+        points = [(point[0], point[1]) for point in el.get("points", [])]
+        tone = el.get("tone", "accent")
+        if kind == "road":
+            c.line(points, colour(el.get("edge", "road_edge")),
+                   el.get("width", 5) + 2)
+        c.line(points, rgba(tone, el.get("alpha", 255)),
+               el.get("width", 2))
+    elif kind == "polygon":
+        points = [(point[0], point[1]) for point in el.get("points", [])]
+        tone = el.get("tone", "accent")
+        outline = colour(el["outline"]) if el.get("outline") else None
+        c.polygon(points, rgba(tone, el.get("alpha", 64)), outline)
+    elif kind == "icon":
+        c.icon(el["asset"], x, y, el.get("size", min(w or 16, h or 16)),
+               el.get("anchor", "top_left"))
+    elif kind == "texture_crop":
+        c.texture_crop(el["asset"], el["crop"], x, y,
+                       w or el.get("size", 16), h or el.get("size", 16),
+                       el.get("anchor", "top_left"))
+    elif kind == "vanilla_icon":
+        c.vanilla_icon(el["resource"], x, y,
+                       el.get("size", min(w or 16, h or 16)),
+                       el.get("anchor", "top_left"))
+    elif kind == "medallion":
+        radius = el.get("radius", min(w or 36, h or 36) // 2)
+        tone = el.get("tone", "accent")
+        c.ellipse(x - radius, y - radius, radius * 2, radius * 2,
+                  rgba(tone, el.get("alpha", 25)), colour(tone), 2)
+        if radius >= 12:
+            c.ellipse(x - radius + 4, y - radius + 4,
+                      radius * 2 - 8, radius * 2 - 8,
+                      (0, 0, 0, 0), rgba(tone, 105), 1)
+        if el.get("asset"):
+            c.icon(el["asset"], x, y, el.get("icon_size", radius), "center")
+        if el.get("text"):
+            c.text(x, y - 3, el["text"], colour(el.get("text_tone", "text")),
+                   align="center", box=radius * 2 - 8,
+                   label=el.get("id", "medallion"))
+    elif kind == "ring":
+        diameter = el.get("diameter", min(w or 36, h or 36))
+        tone = el.get("tone", "good")
+        track = el.get("track", "field")
+        c.arc(x, y, diameter, diameter, -90, 269, colour(track),
+              el.get("stroke", 3))
+        pct = max(0.0, min(1.0, el.get("value", 0.0)))
+        if pct > 0:
+            c.arc(x, y, diameter, diameter, -90, -90 + round(359 * pct),
+                  colour(tone), el.get("stroke", 3))
+    elif kind in ("badge", "ribbon"):
+        tone = el.get("tone", "accent")
+        c.rect(x, y, w, h, rgba(tone, el.get("alpha", 28)))
+        c.stroke(x, y, w, h, colour(tone))
+        text = el.get("text", "")
+        c.text(x + w // 2, y + (h - m["text_h"]) // 2 + 1, text,
+               colour(el.get("text_tone", tone)), align="center", box=w - 8,
+               label=el.get("id", kind))
+    elif kind == "section":
+        tone = el.get("tone", "accent")
+        text = el.get("text", "")
+        width = c.text(x, y, text, colour(tone), box=w,
+                       label=el.get("id", "section"))
+        line_x = x + min(max(0, w - 4), width + 8)
+        c.rect(line_x, y + 4, max(0, x + w - line_x), 1,
+               rgba(tone, el.get("alpha", 110)))
+    elif kind == "paragraph":
+        c.paragraph(x, y, el.get("text", ""), el.get("box", w),
+                    el.get("lines", max(1, h // el.get("line_gap", 11))),
+                    colour(el.get("tone", "text")),
+                    el.get("line_gap", 11), el.get("id", "paragraph"))
     elif kind == "slot":
         c.sprites.draw(c.img, "widget/slot", x, y, m["slot"], m["slot"])
+    elif kind in ("item_slot", "inventory_grid"):
+        columns = el.get("columns", 1) if kind == "inventory_grid" else 1
+        rows = el.get("rows", 1) if kind == "inventory_grid" else 1
+        slot = el.get("slot", m["slot"])
+        gap = el.get("gap", 0)
+        for row in range(rows):
+            for column in range(columns):
+                sx = x + column * (slot + gap)
+                sy = y + row * (slot + gap)
+                c.sprites.draw(c.img, "widget/slot", sx, sy, slot, slot)
+        for item in el.get("items", []):
+            index = item.get("index", 0)
+            row, column = divmod(index, columns)
+            if row < 0 or row >= rows:
+                WARNINGS.append(
+                    f"inventory item index {index} outside {columns}x{rows} grid")
+                continue
+            sx = x + column * (slot + gap)
+            sy = y + row * (slot + gap)
+            tone = item.get("state")
+            if tone:
+                c.stroke(sx, sy, slot, slot, colour(tone), 2)
+            icon_size = max(1, slot - 4)
+            if item.get("resource"):
+                c.vanilla_icon(item["resource"], sx + slot // 2,
+                               sy + slot // 2, icon_size, "center")
+            elif item.get("asset"):
+                c.icon(item["asset"], sx + slot // 2, sy + slot // 2,
+                       icon_size, "center")
+            count = item.get("count")
+            if count not in (None, 1):
+                value = str(count)
+                c.text(sx + slot - 2, sy + slot - 8, value, colour("text"),
+                       align="right", box=max(1, slot - 3),
+                       label=f"inventory count {index}")
     elif kind == "divider":
         c.sprites.draw(c.img, "widget/divider", x, y, w, m["divider_h"])
     elif kind == "button":
@@ -293,7 +561,10 @@ def main():
     failed = False
     for path in specs:
         WARNINGS.clear()
-        spec = json.load(open(path))
+        # Windows' locale default is commonly cp1252. Explicit UTF-8 keeps
+        # canonical UI glyphs (•, ×, — and Norwegian letters) from turning
+        # into mojibake in the very preview used to approve them.
+        spec = json.load(open(path, encoding="utf-8"))
         try:
             img = render(spec, scale=args.scale, guides=args.guides)
         except mcfont.FontUnavailable as exc:

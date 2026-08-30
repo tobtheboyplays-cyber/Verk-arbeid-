@@ -39,6 +39,9 @@ public final class ResearchNetwork {
     }
 
     public static void handle(ServerPlayer player, ResearchActionPayload action) {
+        if (action == null || action.kind() == ResearchActionPayload.Kind.UNKNOWN) {
+            return;
+        }
         ServerLevel level = player.serverLevel();
         Settlement settlement = SettlementManager.at(level, action.pos());
         if (settlement == null) {
@@ -78,7 +81,7 @@ public final class ResearchNetwork {
                 }
             }
             case CANCEL -> Research.cancel(level, settlement, study);
-            case REFRESH -> {
+            case REFRESH, UNKNOWN -> {
             }
         }
         send(player, snapshot(player, settlement, study, action.pos(), refusal));

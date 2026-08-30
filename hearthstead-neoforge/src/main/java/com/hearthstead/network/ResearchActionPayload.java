@@ -2,7 +2,6 @@ package com.hearthstead.network;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -24,25 +23,58 @@ public record ResearchActionPayload(BlockPos pos, Kind kind, int projectOrdinal,
 
     public enum Kind {
         /** Pay {@code projectOrdinal}'s costs and begin it. */
-        START,
+        START(0),
         /** Give up the active project, refunding half its domain sample. */
-        CANCEL,
+        CANCEL(1),
         /** Re-send the snapshot with no staleness check, the same meaning
          *  {@code PlaqueAction.Kind.REFRESH} has. */
-        REFRESH
+        REFRESH(2),
+        /** Unknown future/corrupt wire value. Always inert. */
+        UNKNOWN(-1);
+
+        private final int wireId;
+
+        Kind(int wireId) {
+            this.wireId = wireId;
+        }
+
+        public int wireId() {
+            return wireId;
+        }
+
+        public static Kind fromWireId(int wireId) {
+            return switch (wireId) {
+                case 0 -> START;
+                case 1 -> CANCEL;
+                case 2 -> REFRESH;
+                default -> UNKNOWN;
+            };
+        }
     }
 
     public static final Type<ResearchActionPayload> TYPE = new Type<>(
         ResourceLocation.fromNamespaceAndPath("hearthstead", "research_action"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, ResearchActionPayload> CODEC =
-        StreamCodec.composite(
-            BlockPos.STREAM_CODEC, ResearchActionPayload::pos,
-            ByteBufCodecs.VAR_INT.map(i -> Kind.values()[Math.floorMod(i, Kind.values().length)],
-                kind -> kind.ordinal()), ResearchActionPayload::kind,
-            ByteBufCodecs.VAR_INT, ResearchActionPayload::projectOrdinal,
-            ByteBufCodecs.VAR_INT, ResearchActionPayload::revision,
-            ResearchActionPayload::new);
+        StreamCodec.of(ResearchActionPayload::write, ResearchActionPayload::read);
+
+    public ResearchActionPayload {
+        pos = pos == null ? BlockPos.ZERO : pos.immutable();
+        kind = kind == null ? Kind.UNKNOWN : kind;
+    }
+
+    private static void write(RegistryFriendlyByteBuf buf,
+                              ResearchActionPayload action) {
+        BlockPos.STREAM_CODEC.encode(buf, action.pos);
+        buf.writeVarInt(action.kind.wireId());
+        buf.writeVarInt(action.projectOrdinal);
+        buf.writeVarInt(action.revision);
+    }
+
+    private static ResearchActionPayload read(RegistryFriendlyByteBuf buf) {
+        return new ResearchActionPayload(BlockPos.STREAM_CODEC.decode(buf),
+            Kind.fromWireId(buf.readVarInt()), buf.readVarInt(), buf.readVarInt());
+    }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

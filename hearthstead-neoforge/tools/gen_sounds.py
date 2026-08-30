@@ -555,6 +555,22 @@ def render_guard_alert(rng, dur):
     return schroeder_reverb(mix, wet=0.12, tail=0.3)
 
 
+def render_guard_experience(rng, dur):
+    """Compact two-note earned-XP cue: a muted bronze tick followed by a
+    brighter fifth. It is intentionally shorter and drier than the settlement
+    fanfares, so one kill reads clearly without masking combat or becoming a
+    copied vanilla/TekTopia orb sound."""
+    partials = ((1.0, 1.0, 1.0), (2.03, 0.32, 0.55), (3.91, 0.14, 0.32))
+    mix = []
+    for t, f, gain in ((0.010, 622.25, 0.82), (0.105, 932.33, 1.0)):
+        tone = bell_tone(0.22, f, rng, tau=0.075, partials=partials)
+        mix_at(mix, tone, t, gain)
+        tick = biquad_bp(white_noise(rng, 0.010), 2800.0, 1.8)
+        te = env_exp(len(tick), attack=0.0005, tau=0.003)
+        mix_at(mix, [tick[i] * te[i] for i in range(len(tick))], t, 0.12)
+    return schroeder_reverb(one_pole_lp(mix, 6200.0), wet=0.08, tail=0.06)
+
+
 HM_VARIANTS = (
     {"f0": 176.0, "dur": 0.70, "glide": 0.15},
     {"f0": 191.0, "dur": 0.66, "glide": 0.13},
@@ -1318,6 +1334,7 @@ SOUND_SPECS = [
     ("chop2",               0.4, render_chop, {"variant": 1}, 0.70),
     ("chop3",               0.4, render_chop, {"variant": 2}, 0.70),
     ("guard_alert",         2.0, render_guard_alert,        {}, 0.70),
+    ("guard_experience",    0.32, render_guard_experience,   {}, 0.55),
     # CHAINS-1 / job standard point 6: a distinct sound per work motion.
     ("leap_slam",           0.55, render_leap_slam,          {}, 0.85),
     ("armour_clink",        0.25, render_armour_clink, {"variant": 0}, 0.45),
@@ -1411,6 +1428,10 @@ SOUNDS_JSON_DATA = {
     "guard_alert": {
         "sounds": [{"name": "hearthstead:guard_alert", "volume": 0.95}],
         "subtitle": "subtitles.hearthstead.guard_alert",
+    },
+    "guard_experience": {
+        "sounds": [{"name": "hearthstead:guard_experience", "volume": 0.72}],
+        "subtitle": "subtitles.hearthstead.guard_experience",
     },
     "leap_slam": {
         "sounds": [{"name": "hearthstead:leap_slam", "volume": 1.0}],

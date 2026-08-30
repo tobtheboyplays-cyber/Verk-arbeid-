@@ -3,13 +3,18 @@ package com.hearthstead.event;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.command.HearthsteadCommand;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.entity.ai.GroundCollectionSession;
+import com.hearthstead.network.BlessingNetwork;
+import com.hearthstead.network.InspectionViewers;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.GoalSelector;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.DeferredItemMaterializationSavedData;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
@@ -20,9 +25,12 @@ import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 import java.lang.reflect.Field;
 
@@ -35,11 +43,38 @@ public final class CommonEvents {
         HearthsteadCommand.register(event.getDispatcher());
     }
 
+    /** Eagerly releases the player's bounded Blessing screen proof. */
+    @SubscribeEvent
+    public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
+            BlessingNetwork.forget(player);
+            InspectionViewers.forget(player);
+            com.hearthstead.settlement.workzone.WorkZoneService.forget(player);
+        }
+    }
+
+    /** Integrated and dedicated server lifecycles must leave no static session map. */
+    @SubscribeEvent
+    public static void onServerStopped(ServerStoppedEvent event) {
+        BlessingNetwork.clear(event.getServer());
+        InspectionViewers.clear(event.getServer());
+        com.hearthstead.settlement.workzone.WorkZoneService.clear(event.getServer());
+        CombatTerminalEvents.clear(event.getServer());
+    }
+
     /** Settlers never trample the farmland they tend. */
     @SubscribeEvent
     public static void onFarmlandTrample(BlockEvent.FarmlandTrampleEvent event) {
         if (event.getEntity() instanceof SettlerEntity) {
             event.setCanceled(true);
+        }
+    }
+
+    /** Clears an abandoned field-drop lease independently of its worker. */
+    @SubscribeEvent
+    public static void onGroundCollectionItemTick(EntityTickEvent.Post event) {
+        if (event.getEntity() instanceof ItemEntity item) {
+            GroundCollectionSession.expireOwnershipLease(item);
         }
     }
 
@@ -60,6 +95,10 @@ public final class CommonEvents {
     @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
+            // Conservation retries are independent of settlement scanning and
+            // run first so an unrelated building-manager failure cannot leave
+            // accepted physical-item transfers permanently unserviced.
+            DeferredItemMaterializationSavedData.retryLoaded(serverLevel);
             SettlementSavedData data = SettlementSavedData.get(serverLevel);
             data.buildingManager.tick(serverLevel, data);
         }

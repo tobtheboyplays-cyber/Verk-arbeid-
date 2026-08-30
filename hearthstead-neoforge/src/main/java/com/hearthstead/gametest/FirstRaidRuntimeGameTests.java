@@ -133,9 +133,9 @@ public class FirstRaidRuntimeGameTests {
         }
     }
 
-    @GameTest(template = "empty16", timeoutTicks = 300,
-        batch = "first_raid_warning_queues_once_and_spawns_exact_plan")
-    public void warningQueuesOnceAndArrivalUsesExactPlan(GameTestHelper helper) {
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "first_raid_unready_schedule_cannot_queue")
+    public void scheduleCannotBypassJourneyReadiness(GameTestHelper helper) {
         buildArena(helper, 16);
         Settlement settlement = registeredSettlement(helper, "Varselvik",
             new BlockPos(8, 1, 8));
@@ -145,53 +145,23 @@ public class FirstRaidRuntimeGameTests {
         helper.assertTrue(!RaidDirector.queueFirstWarningIfDue(
                 helper.getLevel(), settlement, 11L),
             "night 11 is before the persisted warning night");
-        helper.assertTrue(RaidDirector.queueFirstWarningIfDue(
-                helper.getLevel(), settlement, 12L),
-            "night 12 should create the one warning plan");
-        RaidPlan warned = settlement.raidLifecycle.queuedPlan().orElseThrow();
-        helper.assertTrue(warned.night() == 14L,
-            "the warning must name the already-rolled attack night");
         helper.assertTrue(!RaidDirector.queueFirstWarningIfDue(
-                helper.getLevel(), settlement, 13L)
-                && settlement.raidLifecycle.queuedPlan().orElseThrow().equals(warned),
-            "later ticks must not replace or reroll the warned plan");
-
-        List<RaiderEntity> early = RaidDirector.startQueuedFirstRaid(
-            helper.getLevel(), settlement, 13L);
-        helper.assertTrue(early.isEmpty()
+                helper.getLevel(), settlement, 12L)
                 && settlement.raidLifecycle.firstState() == FirstRaidState.SCHEDULED
-                && settlement.raidLifecycle.queuedPlan().orElseThrow().equals(warned)
+                && settlement.raidLifecycle.queuedPlan().isEmpty()
                 && settlement.raidLifecycle.participants().isEmpty(),
-            "night 13 must not start the band planned for night 14");
-
-        List<RaiderEntity> band = RaidDirector.startQueuedFirstRaid(
-            helper.getLevel(), settlement, 14L);
-        helper.assertTrue(!band.isEmpty(), "the warned band should actually arrive");
-        helper.assertTrue(settlement.raidLifecycle.firstState() == FirstRaidState.ACTIVE
-                && settlement.raidLifecycle.activePlan().orElseThrow().equals(warned)
-                && settlement.pendingRaid.equals(warned),
-            "activation must use record-equality with the one warned plan");
-        helper.assertTrue(settlement.raidLifecycle.participantsTracked()
-                && settlement.raidLifecycle.participants().size() == band.size(),
-            "the sealed ledger must contain exactly the accepted entity UUIDs");
-        helper.assertTrue(settlement.raidPressure.lastRolledNight() == warned.night()
-                && settlement.raidPressure.nightsSinceRaid() == 0,
-            "authored arrival must block a same-night recurring pressure roll");
-        for (RaiderEntity raider : band) {
-            helper.assertTrue(settlement.raidLifecycle.participants()
-                    .contains(raider.getUUID()),
-                "every accepted raider must be in the sealed capture");
-            raider.discard();
-        }
-        helper.assertTrue(RaidDirector.resolveIfOver(helper.getLevel(), settlement),
-            "cleanup should close after every captured UUID is terminal");
+            "a synthetic settlement with no authoritative Journey must not queue a warning");
+        helper.assertTrue(settlement.raidLifecycle.firstWarningNight() == 12L
+                && settlement.raidLifecycle.firstAttackNight() == 14L,
+            "readiness refusal must preserve the originally rolled dates");
         helper.succeed();
     }
 
     @GameTest(template = "empty16", timeoutTicks = 200,
-        batch = "first_raid_zero_spawn_stays_queued_without_false_arrival")
-    public void zeroSpawnStaysQueuedForSafeRetry(GameTestHelper helper) {
-        // No floor exists within the bounded vertical search at this height.
+        batch = "first_raid_start_gate_keeps_prebuilt_plan_queued")
+    public void startGateKeepsUnreadyPrebuiltPlanQueued(GameTestHelper helper) {
+        // A hostile/admin-authored plan must still pass the independent start
+        // gate; this settlement has no Hearth/Journey/evidence authority.
         Settlement settlement = new Settlement(UUID.randomUUID(), "Skyhold",
             helper.absolutePos(new BlockPos(8, 300, 8)));
         helper.assertTrue(settlement.raidLifecycle.initializeAtFounding(0L, 4, 2),
@@ -204,12 +174,13 @@ public class FirstRaidRuntimeGameTests {
 
         List<RaiderEntity> band = RaidDirector.startQueuedFirstRaid(
             helper.getLevel(), settlement, 4L);
-        helper.assertTrue(band.isEmpty(), "no footing means no actual participants");
+        helper.assertTrue(band.isEmpty(),
+            "missing readiness must prevent every actual participant");
         helper.assertTrue(settlement.raidLifecycle.firstState() == FirstRaidState.SCHEDULED
                 && settlement.raidLifecycle.queuedPlan().orElseThrow().equals(warned)
                 && settlement.raidLifecycle.participants().isEmpty()
                 && settlement.pendingRaid == null,
-            "zero spawns must stay queued and never announce/activate a false raid");
+            "the start gate must retain the exact plan for a safe qualified retry");
         helper.succeed();
     }
 

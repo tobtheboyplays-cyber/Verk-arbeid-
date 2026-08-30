@@ -5,6 +5,7 @@ import com.hearthstead.client.model.SettlerModel;
 import com.hearthstead.client.render.SettlerRenderer;
 import com.hearthstead.client.render.SettlerTextureCache;
 import com.hearthstead.client.screen.HearthScreen;
+import com.hearthstead.client.screen.SettlerInventoryScreen;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModMenus;
 import net.neoforged.api.distmarker.Dist;
@@ -20,6 +21,7 @@ public final class ClientSetup {
     @SubscribeEvent
     public static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(ModMenus.HEARTH.get(), HearthScreen::new);
+        event.register(ModMenus.SETTLER_INVENTORY.get(), SettlerInventoryScreen::new);
     }
 
     @SubscribeEvent

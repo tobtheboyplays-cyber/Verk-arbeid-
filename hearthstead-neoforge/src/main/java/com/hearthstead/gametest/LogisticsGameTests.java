@@ -10,6 +10,7 @@ import com.hearthstead.entity.ai.CourierWorkGoal;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.RecruitmentPolicy;
@@ -88,24 +89,13 @@ public class LogisticsGameTests {
         return s;
     }
 
-    /**
-     * A building registered the way every other courier fixture registers
-     * one: bounds and anchor handed in directly, {@code valid} forced true.
-     * A real plaque block still has to exist at the anchor -- the same
-     * belt-and-braces {@code addWarehouse} in {@link CourierGameTests}
-     * documents, since BuildingManager's sweep dissolves any building whose
-     * plaque position holds no plaque.
-     */
+    /** Register custom bounds through the one supported synthetic seam. */
     private static Building addBuilding(GameTestHelper helper, Settlement s, BuildingType type,
                                         BlockPos minRel, BlockPos maxRel, BlockPos anchorRel) {
-        helper.setBlock(anchorRel, ModBlocks.PLAQUE.get());
         BoundingBox bounds = BoundingBox.fromCorners(
             helper.absolutePos(minRel), helper.absolutePos(maxRel));
-        Building b = new Building(UUID.randomUUID(), type,
-            helper.absolutePos(anchorRel), helper.absolutePos(anchorRel), bounds);
-        b.valid = true;
-        s.buildings.add(b);
-        return b;
+        return GameTestFixtures.registerWithBounds(helper, s, type, anchorRel,
+            anchorRel, bounds);
     }
 
     /** A closed wooden door, both halves -- copied from {@link CourierGameTests}. */
@@ -157,7 +147,19 @@ public class LogisticsGameTests {
         settler.setSettlerName("Bud");
         settler.bindTo(s.id, s.center);
         s.putRecord(settler.getUUID(), settler.getSettlerName(), Profession.NONE);
-        settler.assignProfession(Profession.COURIER);
+        Building warehouse = s.buildings.stream()
+            .filter(b -> b.valid && b.type == BuildingType.WAREHOUSE
+                && b.workers.size() < b.type.workerCapacity())
+            .findFirst().orElse(null);
+        if (warehouse != null) {
+            helper.assertTrue(Employment.hire(helper.getLevel(), s, warehouse,
+                    settler).ok(),
+                "courier fixture must acquire real Warehouse employment authority");
+        } else {
+            // A small set of negative tests intentionally has no warehouse;
+            // direct projection lets those exercise NO_WAREHOUSE behavior.
+            settler.assignProfession(Profession.COURIER);
+        }
         return settler;
     }
 
@@ -367,15 +369,9 @@ public class LogisticsGameTests {
         helper.setBlock(new BlockPos(3, 1, 6), Blocks.CHEST);
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
-        // Really EMPLOYED at the warehouse, not just wearing the profession.
-        // The courier() fixture uses assignProfession -- a shortcut whose own
-        // comment says production code must go through Employment.hire -- so
-        // employerOf found nobody, the schedule correctly fell through to the
-        // idle gathering branch, and the route recorded 'post:idle'. The
-        // schedule was right; the arena had never hired anyone.
-        helper.assertTrue(com.hearthstead.settlement.Employment
-            .hire(helper.getLevel(), s, warehouse, bud).ok(),
-            "the warehouse must be able to take the courier");
+        helper.assertTrue(Employment.employerOf(s, bud.getUUID()) == warehouse
+                && bud.getProfession() == Profession.COURIER,
+            "courier fixture must retain its exact Warehouse employment");
 
         helper.succeedWhen(() -> {
             Container smithyChest = containerAt(helper, new BlockPos(3, 1, 6));
@@ -448,9 +444,9 @@ public class LogisticsGameTests {
         helper.setBlock(smithyChestRel, Blocks.CHEST);
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
-        helper.assertTrue(com.hearthstead.settlement.Employment
-            .hire(helper.getLevel(), s, warehouse, bud).ok(),
-            "the warehouse must be able to take the courier");
+        helper.assertTrue(Employment.employerOf(s, bud.getUUID()) == warehouse
+                && bud.getProfession() == Profession.COURIER,
+            "courier fixture must retain its exact Warehouse employment");
 
         helper.succeedWhen(() -> {
             Container smithyChest = containerAt(helper, smithyChestRel);
@@ -598,9 +594,9 @@ public class LogisticsGameTests {
         helper.setBlock(new BlockPos(3, 1, 6), Blocks.CHEST);
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
-        helper.assertTrue(com.hearthstead.settlement.Employment
-            .hire(helper.getLevel(), s, warehouse, bud).ok(),
-            "the warehouse must be able to take the courier");
+        helper.assertTrue(Employment.employerOf(s, bud.getUUID()) == warehouse
+                && bud.getProfession() == Profession.COURIER,
+            "courier fixture must retain its exact Warehouse employment");
 
         final boolean[] dissolved = {false};
 
@@ -687,9 +683,9 @@ public class LogisticsGameTests {
         helper.setBlock(smithyChestRel, Blocks.CHEST);
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 7));
-        helper.assertTrue(com.hearthstead.settlement.Employment
-            .hire(helper.getLevel(), s, warehouse, bud).ok(),
-            "the warehouse must be able to take the courier");
+        helper.assertTrue(Employment.employerOf(s, bud.getUUID()) == warehouse
+                && bud.getProfession() == Profession.COURIER,
+            "courier fixture must retain its exact Warehouse employment");
         int threshold = RecruitmentPolicy.assess(helper.getLevel(), s,
             RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
 

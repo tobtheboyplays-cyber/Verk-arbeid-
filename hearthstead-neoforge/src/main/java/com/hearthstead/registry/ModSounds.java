@@ -17,12 +17,27 @@ public final class ModSounds {
         register("profession_assigned");
     public static final DeferredHolder<SoundEvent, SoundEvent> SETTLER_RECRUITED =
         register("settler_recruited");
+
+    // Physical, low-volume interface grammar. These are intentionally
+    // separate from the vanilla button click: screens play OPEN/CLOSE only on
+    // a real transition and CONFIRM/ERROR only after an authoritative result.
+    public static final DeferredHolder<SoundEvent, SoundEvent> UI_OPEN =
+        register("ui_open");
+    public static final DeferredHolder<SoundEvent, SoundEvent> UI_CLOSE =
+        register("ui_close");
+    public static final DeferredHolder<SoundEvent, SoundEvent> UI_CONFIRM =
+        register("ui_confirm");
+    public static final DeferredHolder<SoundEvent, SoundEvent> UI_ERROR =
+        register("ui_error");
     public static final DeferredHolder<SoundEvent, SoundEvent> FARMER_WORK =
         register("farmer_work");
     public static final DeferredHolder<SoundEvent, SoundEvent> CHOP =
         register("chop");
     public static final DeferredHolder<SoundEvent, SoundEvent> GUARD_ALERT =
         register("guard_alert");
+    /** Short, original two-note confirmation for one valid defender kill. */
+    public static final DeferredHolder<SoundEvent, SoundEvent> GUARD_EXPERIENCE =
+        register("guard_experience");
 
     // Job standard, point 6: one distinct sound per work motion.
     public static final DeferredHolder<SoundEvent, SoundEvent> LEAP_SLAM =
@@ -69,6 +84,11 @@ public final class ModSounds {
         register("crop_pull");
     public static final DeferredHolder<SoundEvent, SoundEvent> BAG_STOW =
         register("bag_stow");
+    /** Contact accents for the Lumberer's persistent, world-locked work sack. */
+    public static final DeferredHolder<SoundEvent, SoundEvent> BAG_DOWN =
+        register("bag_down");
+    public static final DeferredHolder<SoundEvent, SoundEvent> BAG_UP =
+        register("bag_up");
     public static final DeferredHolder<SoundEvent, SoundEvent> WATER_POUR =
         register("water_pour");
     public static final DeferredHolder<SoundEvent, SoundEvent> BLADE_HIT =

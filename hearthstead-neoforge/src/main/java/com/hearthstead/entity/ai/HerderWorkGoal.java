@@ -119,9 +119,7 @@ public class HerderWorkGoal extends Goal {
     private boolean workConditions() {
         return settler.getProfession() == Profession.HERDER
             && settler.isBound()
-            && settler.dayPhase().work()
-            && settler.getEnergy() > 15
-            && !settler.isEffortSpent();
+            && settler.dayPhase().work();
     }
 
     @Override

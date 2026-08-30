@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+echo "FAIL: legacy live.sh is disabled; use tools/hearthstead-qa playtest" >&2
+exit 2
 # A PERSISTENT playable session, so the game can be looked at while it runs
 # rather than only through a finished screenshot run (AC-6).
 #
@@ -309,10 +311,7 @@ start)
     # survive a terminal disconnect) — proven: it survived `live stop`
     # unkilled and collided with the next `start`'s own Xvfb on the same
     # display. So it needs an explicit SIGKILL, not just the session kill.
-    tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
-    pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
-    pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true
+    tmux_up && { echo "FAIL: refusing legacy broad cleanup" >&2; return 1; }
     sleep 1
 
     ev_init "$ROLE"
@@ -612,10 +611,7 @@ stop)
         mkdir -p "$EV_DIR/logs"
         cp "$INST/logs/latest.log" "$EV_DIR/logs/live-server-latest.log" 2>/dev/null
     fi
-    pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
-    tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
-    pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true   # Xvfb ignores SIGHUP
+    tmux_up && { echo "FAIL: refusing legacy broad cleanup" >&2; return 1; }
     sleep 1
     # Finding 4: `stop` must RECORD the stop, not DISCARD `start`'s checks.
     # finish_result aggregates from $EV_DIR/.checks.jsonl, which start's

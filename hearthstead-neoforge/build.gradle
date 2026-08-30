@@ -6,6 +6,13 @@ plugins {
 group = 'com.hearthstead'
 version = mod_version
 
+// Parallel QA lanes must never contend for or erase another lane's reports.
+// Pass -PhearthsteadBuildDir=<folder> to give a lane its own disposable
+// build tree; ordinary developer builds keep Gradle's default `build/`.
+if (project.hasProperty('hearthsteadBuildDir')) {
+    layout.buildDirectory = file(project.property('hearthsteadBuildDir'))
+}
+
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 neoForge {
@@ -21,7 +28,16 @@ neoForge {
         }
         gameTestServer {
             type = 'gameTestServer'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            def requestedNamespace = System.getenv('HSQA_GAMETEST_NAMESPACE')
+            def enabledNamespace = requestedNamespace ?: project.mod_id
+            def allowedNamespaces = [project.mod_id.toString(),
+                                     'hearthstead_active_perf']
+            if (!allowedNamespaces.contains(enabledNamespace.toString())) {
+                throw new GradleException('HSQA_GAMETEST_NAMESPACE must be exactly '
+                    + allowedNamespaces.join(' or ') + ', got '
+                    + enabledNamespace)
+            }
+            systemProperty 'neoforge.enabledGameTestNamespaces', enabledNamespace
             // Decision tracing for the QA behaviour suite. The game runs in a
             // forked JVM, so a -D on the Gradle command line never reaches it;
             // it has to be declared on the run itself. Off unless the QA
@@ -43,17 +59,18 @@ neoForge {
                 programArgument '--quickPlayMultiplayer'
                 programArgument System.getenv('HSQA_JOIN')
             }
-            // The QA harness's fixed resolution (qa/PROTOCOL.md) is 1280x720
-            // so screenshots are comparable run to run. options.txt's
+            // The QA harness defaults to 1280x720 and may explicitly request
+            // its validated 1920x1080 profile for a real effective GUI scale
+            // 4 capture. options.txt's
             // overrideWidth/overrideHeight do NOT control the initial GLFW
             // window size on this launch path — the window still opened at
             // vanilla's hardcoded 854x480 default even with those options
             // set, which is what --width/--height (read directly by
             // Main.java) actually control.
             programArgument '--width'
-            programArgument '1280'
+            programArgument(System.getenv('HSQA_DISPLAY_WIDTH') ?: '1280')
             programArgument '--height'
-            programArgument '720'
+            programArgument(System.getenv('HSQA_DISPLAY_HEIGHT') ?: '720')
         }
     }
 
@@ -62,10 +79,25 @@ neoForge {
             sourceSet sourceSets.main
         }
     }
+
+    unitTest {
+        enable()
+        testedMod = mods.hearthstead
+    }
+}
+
+dependencies {
+    testImplementation(enforcedPlatform('org.junit:junit-bom:5.10.3'))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 jar {

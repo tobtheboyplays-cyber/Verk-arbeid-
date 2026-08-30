@@ -1,5 +1,7 @@
 package com.hearthstead.client.screen;
 
+import com.hearthstead.client.QaClientObserver;
+import com.hearthstead.client.QaUiInspectable;
 import com.hearthstead.client.ui.HsButton;
 import com.hearthstead.client.ui.HsUi;
 import com.hearthstead.client.ui.HsUiTokens;
@@ -9,6 +11,10 @@ import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
+import org.lwjgl.glfw.GLFW;
+
+import java.util.List;
 
 /**
  * The settler's handbook: the onboarding artifact for everything the mod does
@@ -62,7 +68,7 @@ import net.minecraft.network.chat.Component;
  * scrolls itself into view, so prev/next across a chapter boundary never
  * leaves the index pointing at nothing on screen.
  */
-public class HandbookScreen extends Screen {
+public class HandbookScreen extends Screen implements QaUiInspectable {
 
     /** One chapter of the book: a lang id and how many pages it runs. */
     private record Chapter(String id, int pages) {
@@ -124,6 +130,7 @@ public class HandbookScreen extends Screen {
     // chapter column on the left and the reading column on the right --
     private static final int PANEL_W = 320;
     private static final int PANEL_H = 264;
+    private static final int OUTER_MARGIN = 4;
     private static final int PAD = HsUiTokens.PAD;
     // 78 clipped the Norwegian sidebar entry "Grunnleggelse" (72px against
     // the 70px labelIn box, SIDE_W - 8) by 2px. 84 clears it; the 6px taken
@@ -161,51 +168,121 @@ public class HandbookScreen extends Screen {
     // than English for the same sentence and its æøå draw from a taller
     // glyph sheet (see the minecraft-ui skill), so the safe margin is for
     // the translation, not just the source text this was measured against.
-    private static final int DIVIDER3_Y = 200;
-    private static final int PAGELIST_Y = 206;
+    private static final int DIVIDER3_FROM_BOTTOM = 64;
+    private static final int PAGELIST_FROM_BOTTOM = 58;
     private static final int PAGELIST_H = 14;
     private static final int PAGELIST_DOT_W = 16;
-    private static final int COUNTER_Y = 224;
-    private static final int NAV_Y = 236;
+    private static final int COUNTER_FROM_BOTTOM = 40;
+    private static final int NAV_FROM_BOTTOM = 28;
     private static final int ARROW_W = 40;
     private static final int CLOSE_W = 90;
+    private static final int BODY_LINE_H = 9;
+    private static final int BODY_SCROLL_GAP = 2;
+    private static final Component BOOK_TITLE = Component.translatable(
+        "hearthstead.guide.title");
 
     private int page;
     private int left;
     private int top;
+    private int panelHeight = PANEL_H;
+    private int divider3Y = PANEL_H - DIVIDER3_FROM_BOTTOM;
+    private int pageListY = PANEL_H - PAGELIST_FROM_BOTTOM;
+    private int counterY = PANEL_H - COUNTER_FROM_BOTTOM;
+    private int navY = PANEL_H - NAV_FROM_BOTTOM;
+    private int visibleSidebarRows = SIDEBAR_ROWS;
+    private int visibleBodyRows = 1;
+    private int bodyScroll;
+    private int maxBodyScroll;
+    private List<FormattedCharSequence> bodyLines = List.of();
+    private Component currentChapterTitle = Component.empty();
+    private Component currentPageSub = Component.empty();
+    private Component currentCounter = Component.empty();
+    private boolean uiSoundActive;
     /** Index of the first chapter shown in the sidebar's {@link #SIDEBAR_ROWS}
      *  window. Clamped, and kept pointed at the current chapter, in {@link #rebuild()}. */
     private int chapterScroll;
 
     public HandbookScreen() {
-        super(Component.translatable("hearthstead.guide.title"));
+        super(BOOK_TITLE);
     }
 
     @Override
     protected void init() {
         left = (width - PANEL_W) / 2;
-        top = (height - PANEL_H) / 2;
+        HandbookLayout layout = layoutFor(height);
+        panelHeight = layout.panelHeight();
+        divider3Y = layout.divider3Y();
+        pageListY = layout.pageListY();
+        counterY = layout.counterY();
+        navY = layout.navY();
+        visibleSidebarRows = layout.sidebarRows();
+        visibleBodyRows = layout.bodyRows();
+        top = (height - panelHeight) / 2;
         rebuild();
+        if (!uiSoundActive) {
+            uiSoundActive = true;
+            HsUi.playOpenSound();
+        }
+    }
+
+    @Override
+    public void removed() {
+        if (uiSoundActive) {
+            uiSoundActive = false;
+            HsUi.playCloseSound();
+        }
+        super.removed();
+    }
+
+    /** Pure target-profile geometry shared with the deterministic preflight. */
+    static HandbookLayout layoutFor(int viewportHeight) {
+        int panelHeight = Math.min(PANEL_H,
+            Math.max(1, viewportHeight - OUTER_MARGIN * 2));
+        int divider3Y = panelHeight - DIVIDER3_FROM_BOTTOM;
+        int sidebarRows = Math.max(1, Math.min(SIDEBAR_ROWS,
+            (divider3Y - 4 - SIDEBAR_Y0 - SIDEBAR_ROW_H)
+                / SIDEBAR_STEP + 1));
+        int bodyRows = Math.max(1,
+            (divider3Y - BODY_Y - 2) / BODY_LINE_H);
+        return new HandbookLayout(panelHeight, divider3Y,
+            panelHeight - PAGELIST_FROM_BOTTOM,
+            panelHeight - COUNTER_FROM_BOTTOM,
+            panelHeight - NAV_FROM_BOTTOM, sidebarRows, bodyRows);
+    }
+
+    record HandbookLayout(int panelHeight, int divider3Y, int pageListY,
+                          int counterY, int navY, int sidebarRows,
+                          int bodyRows) {
     }
 
     /** Rebuilds every widget for the current page. Cheap: at most thirteen buttons. */
     private void rebuild() {
+        rebuild(true);
+    }
+
+    private void rebuild(boolean revealCurrentChapter) {
         clearWidgets();
 
         int currentChapter = CHAPTER_OF_PAGE[page];
+        currentChapterTitle = chapterTitle(currentChapter);
+        Chapter chapter = CHAPTERS[currentChapter];
+        currentPageSub = chapter.pages() > 1
+            ? Component.literal((PAGE_IN_CHAPTER[page] + 1) + "/"
+                + chapter.pages())
+            : Component.empty();
+        currentCounter = Component.literal((page + 1) + " / " + TOTAL_PAGES);
+        bodyLines = List.copyOf(font.split(bodyFor(page), bodyTextWidth()));
+        maxBodyScroll = Math.max(0, bodyLines.size() - visibleBodyRows);
+        bodyScroll = Math.max(0, Math.min(bodyScroll, maxBodyScroll));
 
         // Keep the scroll window valid, then keep it pointed at wherever the
         // player actually is: prev/next stepping across a chapter boundary
         // (or a direct jump from the page list) must never leave the active
         // chapter's own tab scrolled out of the visible window.
-        chapterScroll = Math.max(0, Math.min(chapterScroll, Math.max(0, CHAPTERS.length - SIDEBAR_ROWS)));
-        if (currentChapter < chapterScroll) {
-            chapterScroll = currentChapter;
-        } else if (currentChapter >= chapterScroll + SIDEBAR_ROWS) {
-            chapterScroll = currentChapter - SIDEBAR_ROWS + 1;
-        }
+        chapterScroll = chapterScrollFor(currentChapter, chapterScroll,
+            visibleSidebarRows, revealCurrentChapter);
 
-        for (int row = 0; row < SIDEBAR_ROWS; row++) {
+        for (int row = 0; row < visibleSidebarRows; row++) {
             int c = row + chapterScroll;
             if (c >= CHAPTERS.length) {
                 break;
@@ -219,7 +296,6 @@ public class HandbookScreen extends Screen {
         // The page list: only a chapter with something to list gets one, so
         // a single-page chapter draws no row here at all rather than one
         // dot that can never do anything (D-014).
-        Chapter chapter = CHAPTERS[currentChapter];
         if (chapter.pages() > 1) {
             int first = CHAPTER_FIRST_PAGE[currentChapter];
             int listW = chapter.pages() * PAGELIST_DOT_W + (chapter.pages() - 1) * 2;
@@ -227,24 +303,46 @@ public class HandbookScreen extends Screen {
             for (int p = 0; p < chapter.pages(); p++) {
                 int target = first + p;
                 addRenderableWidget(new NavButton(
-                    startX + p * (PAGELIST_DOT_W + 2), top + PAGELIST_Y,
+                    startX + p * (PAGELIST_DOT_W + 2), top + pageListY,
                     PAGELIST_DOT_W, PAGELIST_H,
                     Component.literal(Integer.toString(p + 1)), target == page,
                     () -> turnTo(target)));
             }
         }
 
-        HsButton prevButton = HsButton.normal(left + PAD, top + NAV_Y, ARROW_W,
+        HsButton prevButton = HsButton.normal(left + PAD, top + navY, ARROW_W,
             HsUiTokens.BUTTON_H, Component.literal("<"), () -> turnTo(page - 1));
-        HsButton nextButton = HsButton.normal(left + PANEL_W - PAD - ARROW_W, top + NAV_Y,
+        HsButton nextButton = HsButton.normal(left + PANEL_W - PAD - ARROW_W,
+            top + navY,
             ARROW_W, HsUiTokens.BUTTON_H, Component.literal(">"), () -> turnTo(page + 1));
         prevButton.active = page > 0;
         nextButton.active = page < TOTAL_PAGES - 1;
         addRenderableWidget(prevButton);
         addRenderableWidget(nextButton);
-        addRenderableWidget(HsButton.normal(left + (PANEL_W - CLOSE_W) / 2, top + NAV_Y,
+        addRenderableWidget(HsButton.normal(left + (PANEL_W - CLOSE_W) / 2,
+            top + navY,
             CLOSE_W, HsUiTokens.BUTTON_H,
             Component.translatable("hearthstead.plaque.close"), this::onClose));
+    }
+
+    private static int bodyTextWidth() {
+        return CONTENT_W - HsUiTokens.SCROLL_W - BODY_SCROLL_GAP;
+    }
+
+    static int chapterScrollFor(int currentChapter, int requestedScroll,
+                                int visibleRows, boolean revealCurrent) {
+        int clamped = Math.max(0, Math.min(requestedScroll,
+            Math.max(0, CHAPTERS.length - visibleRows)));
+        if (!revealCurrent) {
+            return clamped;
+        }
+        if (currentChapter < clamped) {
+            return currentChapter;
+        }
+        if (currentChapter >= clamped + visibleRows) {
+            return currentChapter - visibleRows + 1;
+        }
+        return clamped;
     }
 
     private void turnTo(int target) {
@@ -252,6 +350,8 @@ public class HandbookScreen extends Screen {
             return;
         }
         page = target;
+        bodyScroll = 0;
+        QaClientObserver.markUiTransition("handbook_page");
         rebuild();
     }
 
@@ -261,16 +361,60 @@ public class HandbookScreen extends Screen {
      *  that cannot move is just a decoration). */
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
-        if (CHAPTERS.length > SIDEBAR_ROWS) {
+        boolean overBody = mouseX >= left + CONTENT_X
+            && mouseX < left + CONTENT_X + CONTENT_W
+            && mouseY >= top + BODY_Y && mouseY < top + divider3Y;
+        if (overBody && maxBodyScroll > 0) {
+            int before = bodyScroll;
+            bodyScroll = Math.max(0, Math.min(maxBodyScroll,
+                bodyScroll - (int) Math.signum(dy)));
+            if (before != bodyScroll) {
+                QaClientObserver.markUiTransition("handbook_body_scroll");
+                return true;
+            }
+        }
+
+        boolean overSidebar = mouseX >= left + PAD
+            && mouseX < left + PAD + SIDE_W + HsUiTokens.SCROLL_W
+            && mouseY >= top + SIDEBAR_Y0
+            && mouseY < top + SIDEBAR_Y0
+                + visibleSidebarRows * SIDEBAR_STEP;
+        if (overSidebar && CHAPTERS.length > visibleSidebarRows) {
             int before = chapterScroll;
-            chapterScroll = Math.max(0, Math.min(CHAPTERS.length - SIDEBAR_ROWS,
-                chapterScroll - (int) Math.signum(dy)));
+            chapterScroll = Math.max(0,
+                Math.min(CHAPTERS.length - visibleSidebarRows,
+                    chapterScroll - (int) Math.signum(dy)));
             if (before != chapterScroll) {
-                rebuild();
+                QaClientObserver.markUiTransition("handbook_chapter_scroll");
+                // Manual index scrolling is allowed to move the selected
+                // chapter off-window; otherwise chapter 9+ can never be
+                // reached while reading chapter 1. Page turns still call the
+                // regular rebuild(), which reveals the new active chapter.
+                rebuild(false);
                 return true;
             }
         }
         return super.mouseScrolled(mouseX, mouseY, dx, dy);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        int target = switch (keyCode) {
+            case GLFW.GLFW_KEY_PAGE_UP -> bodyScroll - visibleBodyRows;
+            case GLFW.GLFW_KEY_PAGE_DOWN -> bodyScroll + visibleBodyRows;
+            case GLFW.GLFW_KEY_HOME -> 0;
+            case GLFW.GLFW_KEY_END -> maxBodyScroll;
+            default -> Integer.MIN_VALUE;
+        };
+        if (target != Integer.MIN_VALUE && maxBodyScroll > 0) {
+            int next = Math.max(0, Math.min(maxBodyScroll, target));
+            if (next != bodyScroll) {
+                bodyScroll = next;
+                QaClientObserver.markUiTransition("handbook_body_scroll_key");
+            }
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private static Component chapterTitle(int chapterIndex) {
@@ -289,36 +433,48 @@ public class HandbookScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
 
-        HsUi.window(graphics, left, top, PANEL_W, PANEL_H);
-        HsUi.centred(graphics, font, Component.translatable("hearthstead.guide.title"),
+        HsUi.window(graphics, left, top, PANEL_W, panelHeight);
+        HsUi.centred(graphics, font, BOOK_TITLE,
             left + PANEL_W / 2, top + TITLE_Y, HsUiTokens.TEXT_STRONG);
         HsUi.divider(graphics, left + PAD, top + DIVIDER1_Y, PANEL_W - 2 * PAD);
         // Sits exactly in GAP, the gutter that always separated the tab
         // column from the content column — a functional reuse of space that
         // was blank before, not a squeeze on either column (see SIDEBAR_ROWS).
-        HsUi.scrollbar(graphics, left + PAD + SIDE_W, top + SIDEBAR_Y0, SIDEBAR_ROWS * SIDEBAR_STEP - 2,
-            Math.min(1.0F, (float) SIDEBAR_ROWS / CHAPTERS.length),
-            CHAPTERS.length <= SIDEBAR_ROWS ? 0.0F
-                : (float) chapterScroll / (CHAPTERS.length - SIDEBAR_ROWS),
+        HsUi.scrollbar(graphics, left + PAD + SIDE_W, top + SIDEBAR_Y0,
+            visibleSidebarRows * SIDEBAR_STEP - 2,
+            Math.min(1.0F, (float) visibleSidebarRows / CHAPTERS.length),
+            CHAPTERS.length <= visibleSidebarRows ? 0.0F
+                : (float) chapterScroll
+                    / (CHAPTERS.length - visibleSidebarRows),
             false);
 
         int chapterIndex = CHAPTER_OF_PAGE[page];
         Chapter chapter = CHAPTERS[chapterIndex];
-        HsUi.label(graphics, font, chapterTitle(chapterIndex),
+        HsUi.label(graphics, font, currentChapterTitle,
             left + CONTENT_X, top + CONTENT_TITLE_Y, HsUiTokens.TEXT_STRONG);
         if (chapter.pages() > 1) {
-            String sub = (PAGE_IN_CHAPTER[page] + 1) + "/" + chapter.pages();
-            HsUi.right(graphics, font, Component.literal(sub),
+            HsUi.right(graphics, font, currentPageSub,
                 left + CONTENT_X + CONTENT_W, top + CONTENT_TITLE_Y, HsUiTokens.TEXT_MUTED);
         }
         HsUi.divider(graphics, left + CONTENT_X, top + CONTENT_DIVIDER_Y, CONTENT_W);
-        graphics.drawWordWrap(font, bodyFor(page), left + CONTENT_X, top + BODY_Y,
-            CONTENT_W, HsUiTokens.TEXT);
+        int lastLine = Math.min(bodyLines.size(), bodyScroll + visibleBodyRows);
+        for (int line = bodyScroll; line < lastLine; line++) {
+            graphics.drawString(font, bodyLines.get(line), left + CONTENT_X,
+                top + BODY_Y + (line - bodyScroll) * BODY_LINE_H,
+                HsUiTokens.TEXT, false);
+        }
+        if (maxBodyScroll > 0) {
+            HsUi.scrollbar(graphics,
+                left + CONTENT_X + CONTENT_W - HsUiTokens.SCROLL_W,
+                top + BODY_Y, divider3Y - BODY_Y - 3,
+                Math.min(1.0F, (float) visibleBodyRows / bodyLines.size()),
+                (float) bodyScroll / maxBodyScroll, false);
+        }
 
-        HsUi.divider(graphics, left + PAD, top + DIVIDER3_Y, PANEL_W - 2 * PAD);
-        String counter = (page + 1) + " / " + TOTAL_PAGES;
-        HsUi.centred(graphics, font, Component.literal(counter),
-            left + PANEL_W / 2, top + COUNTER_Y, HsUiTokens.TEXT_MUTED);
+        HsUi.divider(graphics, left + PAD, top + divider3Y,
+            PANEL_W - 2 * PAD);
+        HsUi.centred(graphics, font, currentCounter,
+            left + PANEL_W / 2, top + counterY, HsUiTokens.TEXT_MUTED);
 
         HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
     }
@@ -326,6 +482,19 @@ public class HandbookScreen extends Screen {
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    @Override
+    public String qaUiState() {
+        return "page=" + (page + 1) + "/" + TOTAL_PAGES
+            + ",chapter=" + CHAPTER_OF_PAGE[page]
+            + ",chapterScroll=" + chapterScroll + "/"
+            + Math.max(0, CHAPTERS.length - visibleSidebarRows)
+            + ",bodyScroll=" + bodyScroll + "/" + maxBodyScroll
+            + ",bodyRows=" + visibleBodyRows
+            + ",sidebarRows=" + visibleSidebarRows
+            + ",panel=" + left + ":" + top + ":" + PANEL_W + ":"
+            + panelHeight;
     }
 
     /**

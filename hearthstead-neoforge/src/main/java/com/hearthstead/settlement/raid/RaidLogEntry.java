@@ -22,6 +22,29 @@ public record RaidLogEntry(long night, String captainName, String objectiveId,
                            boolean held, int itemsStolen, int settlersHurt,
                            String stageAfterId) {
 
+    /**
+     * Hard bounds for the player-facing projection. Persisted v0 history was
+     * permissive, so the Hearth must validate an entry before it sends that
+     * entry to a client. A malformed newest entry is not a reason to fall
+     * back to an older, more convenient story.
+     */
+    public static final int MAX_CAPTAIN_NAME = 96;
+    public static final int MAX_REPORTED_COUNT = 1_000_000;
+    public static final long MAX_REPORTED_NIGHT = 10_000_000L;
+
+    public static boolean isValid(RaidLogEntry entry) {
+        return entry != null && entry.night >= 0L
+            && entry.night <= MAX_REPORTED_NIGHT
+            && boundedText(entry.captainName, MAX_CAPTAIN_NAME)
+            && !"?".equals(entry.captainName)
+            && knownObjective(entry.objectiveId)
+            && entry.itemsStolen >= 0
+            && entry.itemsStolen <= MAX_REPORTED_COUNT
+            && entry.settlersHurt >= 0
+            && entry.settlersHurt <= MAX_REPORTED_COUNT
+            && knownStage(entry.stageAfterId);
+    }
+
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putLong("Night", night);
@@ -39,5 +62,43 @@ public record RaidLogEntry(long night, String captainName, String objectiveId,
             tag.getString("Objective"), tag.getBoolean("Held"),
             tag.getInt("ItemsStolen"), tag.getInt("SettlersHurt"),
             tag.getString("StageAfter"));
+    }
+
+    private static boolean knownObjective(String id) {
+        if (id == null) {
+            return false;
+        }
+        for (RaidObjective objective : RaidObjective.values()) {
+            if (objective.id().equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean knownStage(String id) {
+        if (id == null) {
+            return false;
+        }
+        for (RaidPressure.Stage stage : RaidPressure.Stage.values()) {
+            if (stage.id().equals(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean boundedText(String value, int max) {
+        if (value == null || value.isBlank() || value.length() > max) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '\n' || c == '\r' || c == '\0'
+                || Character.isISOControl(c)) {
+                return false;
+            }
+        }
+        return true;
     }
 }

@@ -83,19 +83,22 @@ Established precedent — `CHOP` strikes at t=0.55 s of a 1.0 s loop and
 `LumbererWorkGoal` plays the thock at tick 11 of a 20-tick cycle.
 
 The accent frame is also where the **client-side animation state must be
-running for the sound to be believable**. For one-shots the server broadcasts
-an entity event (`EV_MELEE` pattern) and the sound is played in the same tick.
+running for the sound to be believable**. A reaction-first one-shot may
+broadcast and sound on the same tick. An anticipated action such as `MELEE`
+instead broadcasts at wind-up, stores one server contact ticket, then emits
+sound and authoritative damage together on that clip's exact accent tick.
 
 ### 0.5 Carried-item handling
 
 Hearthstead's logistics are item-accurate: what a settler carries physically
-exists. Animation therefore has to sell weight. Four carry grammars, used
+exists. Animation therefore has to sell weight. Five carry grammars, used
 consistently across the catalogue:
 
 | grammar | arms | torso | stride | used by |
 |---|---|---|---|---|
 | **CRATE** (two-handed, chest height) | both arms locked forward-up, `x ≈ −78°`, elbows implied by inward `z`; no swing at all | leans **back** 10–14° to counterweight, and the whole clip rides 1 px lower on `root` | 0.85× length, 1.15× cadence | courier crate, cook's cauldron, healer's basket |
-| **SHOULDER** (one-handed, over-shoulder) | right arm up and back gripping the load (`x ≈ −140°`, `z ≈ −18°`), left arm swings **more** than normal to compensate | leans forward 8° and **tilts 6° away** from the loaded side; hips counter-rotate | 0.9× length | lumberer log, miner ore sack |
+| **BACK SACK** (bag or pack on the back) | arms stay below shoulder height; a tool hand rests low by the hip or both hands touch the straps with no overhead reach | leans forward 4–13° as fill rises; the sack's scale, sag and lag carry the weight | speed-coupled short steps | lumberer log sack, courier backpack |
+| **SHOULDER** (one-handed, over-shoulder) | right arm up and back gripping a load that is actually rendered there (`x ≈ −140°`, `z ≈ −18°`), left arm compensates | leans forward 8° and **tilts 6° away** from the loaded side; hips counter-rotate | 0.9× length | future long rigid props only; never a hidden bag item |
 | **CARRIED BODY** (a downed settler) | both arms cradled, `x ≈ −70°`, wide `z` spread | leans back 16°, visible strain wobble at 0.5 Hz | 0.75× length, wide stance | rescue carry |
 | **VESSEL** (small, held level) | one arm bent to 90°, held rock-steady; the *other* arm and the torso do all the moving | upright, minimal bob | 0.95× length | tankard, water bucket, bandage kit |
 
@@ -153,7 +156,7 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 
 ### 0.8 The catalogue at a glance
 
-65 primary clips and 5 sub-variants. `L` = looping, `1` = one-shot,
+72 primary clips and 5 sub-variants. `L` = looping, `1` = one-shot,
 `+` = additive/layer.
 
 | § | clip | s | kind | phase |
@@ -169,12 +172,18 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 2.2 | `FARM_PLANT` | 2.00 | L | A1 |
 | 2.3 | `FARM_HARVEST` | 1.80 | L | A1 |
 | 2.4 | `FARM_WATER` | 2.40 | L | A1 |
+| 2.5 | `FARMER_CARRY` | 1.80 | L+ | A1 |
 | 3.1 | `CHOP` | 1.00 | L | A1 |
 | 3.2 | `LIMB_BRANCHES` | 1.30 | L | A1 |
 | 3.3 | `HAUL_LOG` | 2.40 | L+ | A1 |
-| 4.1 | `GUARD_STANCE` | 3.00 | L | A1 |
+| 3.4 | `LUMBER_CRAFT` | 2.40 | 1 | A1 |
+| 3.5 | `CRAFT_OUTPUT_STORE` | 1.20 | 1 | A1 |
+| 4.1 | `GUARD_STANCE` | 4.00 | L | A1 |
 | 4.2 | `GUARD_PATROL` | 4.00 | L+ | A1 |
+| 4.2a | `ARCHER_STANCE` | 3.20 | L | A1 |
+| 4.2b | `ARCHER_PATROL` | 3.60 | L+ | A1 |
 | 4.3 | `MELEE` | 0.50 | 1 | A1 |
+| 4.3a | `GUARD_HIT_REACT` | 0.30 | 1 | A1 |
 | 4.4 | `SHIELD_BLOCK` | 1.60 | L | A1 |
 | 4.5 | `HORN_CALL` | 2.60 | 1 | A3 |
 | 4.6 | `RALLY` | 1.80 | 1 | A3 |
@@ -232,7 +241,7 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 14.2 | `REACT_SHIVER` | 0.80 | L+ | B1 |
 | 14.3 | `REACT_EXHAUSTED` | 3.40 | L | A2 |
 | 14.4 | `REACT_HUNGRY` | 1.40 | 1+ | A2 |
-| 14.5 | `REACT_BLESSED` | 2.80 | 1+ | A3 |
+| 14.5 | `BLESSING_RECEIVE` | 1.60 | 1 | A3 |
 
 Per phase: **A1 23, A2 16, A3 14, B1 8, B2 4 = 65.**
 
@@ -524,37 +533,38 @@ long-range silhouette cue we have and the farmer uses all of it.
   pass" wording predated FarmerWorkGoal's split)*.
 - **Activity:** `WORK_PLANT`.
 - **Length:** 2.00 s, **looping**.
-- **Silhouette:** a deep squat with one hand pressing into the ground and the
-  other cupped at the belt — the lowest working pose in the mod, so at range you
-  see "someone kneeling in the field".
-- **Bones** *(punch-up pass 2026-08-25: a deeper reach, a real dip on the
-  press, and secondary motion on head/cloak that used to be dead-static)*:
-  - `root` POS: (0, −6, 0) @0.00 → (0, −6.5, 0) @0.55 → **(0, −9, 0) @0.70** →
-    (0, −6, 0) @2.00 — the press has real downward weight behind it now, not
-    just a held squat.
-  - `right_leg` ROT: hold (−62, 0, −8) — folded under.
-  - `left_leg` ROT: hold (−34, 0, 10) — knee up, foot planted. Asymmetric legs
-    are what makes a squat read as a squat rather than a sit.
-  - `torso` ROT: (30, −8, 0) @0.00 → (46, −12, 0) @0.70 → (38, −4, 0) @1.20 →
-    (30, −8, 0) @2.00.
-  - `right_arm` ROT: (−40, 14, 0) @0.00 → (5, 20, 0) @0.55 →
-    **(18, 24, 0) @0.70 LINEAR** → (−18, 17, 0) @1.10 → (−40, 14, 0) @2.00 —
-    reaches well past vertical to press the seed in, a genuinely deeper dig
-    than before, then withdraws.
-  - `left_arm` ROT: hold (−58, −22, 6) ±3° — the seed bag hand, cupped at the
-    hip, feeding the right hand. Small inward roll at 1.40 s (grabbing the next
-    seed): (−66, −30, 6) @1.40.
-  - `head` ROT: (22, 6, 0) @0.00 → (26, 3, 0) @0.55 → (29, 1, 0) @0.70 →
-    (24, 5, 0) @1.10 → (22, 6, 0) @2.00 — tracks the press instead of holding
-    a fixed stare.
-  - `cloak` ROT: (−4, 0, 0) @0.00 → (−10, 0, 0) @0.70 → (2, 0, 0) @1.30 →
-    (−4, 0, 0) @2.00 — no longer a static hold; the cape settles and lifts
-    with the crouch.
+- **Silhouette:** a forward kneel entered from standing: hips lower between a
+  planted split stance, the chest stays over the work, and the free left hand
+  presses the soil. It is still the farmer's lowest working pose, but no part
+  of the descent may read as folding backwards over the pack.
+- **Bones** *(Candidate anatomy correction 2026-08-28)*:
+  - `root` POS: neutral @0.00 → (0, −3.8, −0.45) @0.55 →
+    **(0, −4.5, −0.55) @0.70 LINEAR** → neutral @2.00. The old held −6/−9 px
+    root combined with two backward-folded legs and visibly broke the spine.
+  - `right_leg` / `left_leg` ROT: enter from (−3, 0, −2)/(3, 0, 2), reach a
+    planted (16, 0, −6)/(−14, 0, 6) split at 0.70, then recover to the exact
+    starting pose. This is a supported kneel, not an airborne sit.
+  - `torso` ROT: (−2, 0, 0) @0.00 → (−38, −8, 0) @0.55 →
+    **(−42, −10, 0) @0.70 LINEAR** → (−18, −4, 0) @1.20 → neutral @2.00.
+    The trunk leads the hand by three ticks and stays over the planted feet.
+  - `right_arm` ROT: the physical MAINHAND hoe remains low and clear,
+    (−12, −8, −3) @0.00 → (−35, −13, −6) @0.70 → neutral @2.00.
+  - `left_arm` ROT: the free press hand reaches from (-8, 8, 4) @0.00 through
+    (42, 18, 10) @0.55 to **(50, 22, 12) @0.70 LINEAR**, then withdraws to
+    neutral. On this rig the former 88-degree pitch parked the palm beside the
+    face; this lower reach keeps it at the soil. This channel, not the hoe hand,
+    owns visible seed contact.
+  - `head` counter-rotates from (−3, 0, 0) to (12, −4, 0) at contact so the
+    eyes follow the soil without the neck folding into the chest.
+  - `cloak` follows the descent from (2, 0, 0) to (22, 0, 4) at contact and
+    settles to its exact initial pose by 2.00.
 - **Accent:** **t = 0.70 s** → `hearthstead:seed_press` (new: a soft soil pat,
   no metal), tick 14 of a 40-tick cycle.
-- **Carry:** seeds are in the left hand and should render as a small item at the
-  belt; the placement particle must fire on the accent frame, not on the goal's
-  block-set tick, or the two will be visibly out of step.
+- **Carry:** the real MAINHAND hoe remains visible and the provenance-tagged
+  seed remains physically conserved in the farmer bag until the contact tick;
+  the renderer must not fabricate an offhand seed that gameplay does not own.
+  The block mutation, `seed_press`, free-hand contact and any placement particle
+  all share tick 14.
 
 ### 2.3 `FARM_HARVEST` — pulling the crop
 
@@ -608,16 +618,21 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Bones** *(punch-up pass 2026-08-25: the can tip is now unmistakable at
   range — the `z` roll runs to −85° instead of −34° — and root/cloak/head
   carry a gentle weight shift instead of standing dead still)*:
-  - `torso` ROT: (12, −10, 0) @0.00 → (22, −20, 0) @1.00 → (17, −5, 0) @1.80 →
-    (12, −10, 0) @2.40 — still mostly still; the stillness is still the
-    point, just less rigid.
-  - `right_arm` ROT: (−58, −18, 0) @0.00 → **(−18, −28, −65) @0.80** →
-    (−8, −28, −85) @1.60 → (−43, −23, −35) @2.10 → (−58, −18, 0) @2.40. The
-    `z` roll now runs 0° to −85° — the can visibly upends.
-  - `left_arm` ROT: (−22, 10, 8) @0.00 → (−38, 18, 12) @1.20 →
-    (−22, 10, 8) @2.40 — hanging, balancing.
-  - `head` ROT: (20, −8, 0) @0.00 → (24, −11, 0) @0.80 → (26, −11, 0) @1.60 →
-    (20, −8, 0) @2.40 — follows the pour instead of holding a fixed stare.
+  - `torso` ROT: (−12, −10, 0) @0.00 → (−22, −20, 0) @1.00 →
+    (−17, −5, 0) @1.80 → (−12, −10, 0) @2.40 — a restrained forward hinge
+    over the field. Negative X is the visually verified forward direction;
+    the rejected positive version arched toward the back sack.
+  - `right_arm` ROT: (−14, −5, −4) @0.00 → **(−22, −8, −6) @0.80** →
+    (−18, −7, −5) @1.60 → (−15, −6, −4) @2.10 →
+    (−14, −5, −4) @2.40. The real MAINHAND hoe remains low and clear.
+  - `left_arm` ROT: (28, 18, 0) @0.00 → (42, 24, 42) @0.55 →
+    **(50, 28, 65) @0.80** → (46, 28, 85) @1.60 →
+    (34, 23, 35) @2.10 → (28, 18, 0) @2.40. Positive X is the verified
+    ground-facing reach; the physical hand-parented can follows this free arm;
+    its `z` roll runs 0° to 85° and visibly upends the spout toward the soil.
+  - `head` ROT: (8, −8, 0) @0.00 → (12, −11, 0) @0.80 →
+    (14, −11, 0) @1.60 → (8, −8, 0) @2.40 — counters only part of the
+    forward trunk so the eyes stay on the pour without bending the neck back.
   - `right_leg` ROT: hold (−6, 0, −3); `left_leg` ROT: hold (4, 0, 3).
   - `cloak` ROT: (2, 0, 3) @0.00 → (−4, 0, 8) @0.80 → (13, 0, 10) @1.60 →
     (2, 0, 3) @2.40.
@@ -627,8 +642,32 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Accent:** **t = 0.80 s** → `hearthstead:water_pour` (a 1.2 s trickle, so it
   runs across the tipped section), tick 16 of a 48-tick cycle. Water particles
   spawn from t = 0.90 s to t = 1.90 s.
-- **Carry:** grammar VESSEL. Watering can rendered in the right hand; its `z`
-  roll is the animation.
+- **Carry:** grammar VESSEL. A real model-part watering can is parented to the
+  free left hand only while the server-synced activity is `WORK_WATER`; the
+  physical MAINHAND hoe remains visible on the right. Moisture, pour audio and
+  the first unmistakable spout-down frame share tick 16 / 0.80 s.
+
+### 2.5 `FARMER_CARRY` — produce sack and low hoe
+
+- **Trigger:** a FARMER in `CARRYING` while returning a non-empty harvest bag
+  to the Farmhouse.
+- **Activity:** `CARRYING`, selected by profession from the shared
+  `carryState`.
+- **Length:** 1.80 s, **looping additive arm layer** over `WALK_LADEN`.
+- **Silhouette:** the real fill-scaled canvas produce sack sits directly on
+  the back. The body counters forward into that weight; the real MAINHAND hoe
+  stays below the right shoulder and the free left hand closes across the
+  chest on the front strap. This must never borrow a lumber frame, axe pose or
+  courier two-hand clamp.
+- **Bones:** `right_arm` holds (−19, −8, −4), settling by at most 2° around
+  the loop; `left_arm` holds a forward strap grip from (46, 13, 9) to
+  (50, 10, 8) and back. The clip authors exactly these two arms.
+  `WALK_LADEN` owns distance-sampled legs, torso, root, head and cloak;
+  `SettlerModel.applyWorkContainer` owns the physical sack and fill-driven
+  forward counter-lean.
+- **Carry:** real MAINHAND hoe plus a server-authored bag projection. The K1
+  offline contract binds this clip to the vanilla hoe transform; native film
+  still has to prove the textured tool, sack fill, blocked stop and unload.
 
 ---
 
@@ -724,44 +763,133 @@ long-range silhouette cue we have and the farmer uses all of it.
 - **Carry:** axe in the right hand, held short (choked up on the haft) — if the
   renderer supports a grip offset, shift the item 2 px toward the wrist here.
 
-### 3.3 `HAUL_LOG` — the log on the shoulder
+### 3.3 `HAUL_LOG` (+`HAUL_LOG_HEAVY`) — loaded sack, axe held low
 
 - **Trigger:** lumberer moving logs from the felling site to the warehouse.
 - **Activity:** `HAULING_LOG` (arms layer, over `WALK_LADEN` legs).
-- **Length:** 2.40 s, **looping** (a slow strain cycle that deliberately does
-  *not* divide evenly into the 1.20 s `WALK_LADEN` loop — the resulting drift
-  between gait and strain is what makes long hauls stop looking mechanical).
-- **Silhouette:** a horizontal bar across the shoulders with a figure tilted
-  under it — the whole silhouette becomes a lopsided T. Reads at 50 blocks.
-- **Bones** *(punch-up pass 2026-08-25: the arms stay locked — carry-layer
-  clips are capped at 6° of travel per axis and `right_arm`/`left_arm` are
-  already at that cap, so the weight now reads through torso, head, cloak,
-  root, and this clip's own self-authored legs instead)*:
-  - `right_arm` ROT: hold (−142, −6, −20), with the same slow 3° strain
-    wobble as before — this channel is already at the carry-layer's 6° cap
-    and cannot travel further without breaking the "locked" read.
-  - `left_arm` ROT: (−28, 4, −12) @0.00 → (−34, 6, −16) @1.20 →
-    (−28, 4, −12) @2.40 — unchanged, also at the 6° cap.
-  - `torso` ROT: (9, 0, 8) @0.00 → (14, 0, 16) @1.20 → (9, 0, 8) @2.40 —
-    forward and **tilted away from the load side**, the tilt now roughly
-    doubled.
-  - `head` ROT: (4, −14, 0) @0.00 → (7, −16, 0) @1.20 → (4, −14, 0) @2.40 —
-    turned away from the log with a real strain nod through the cycle.
-  - `right_leg` / `left_leg` ROT (this clip's own short-stepping legs, A1
-    simplification): the short-step swing roughly doubled, from ±10° to
-    (−10, 0, −7) → (6, 0, −7) @0.60 → (22, 0, −7) @1.20 → (6, 0, −7) @1.80
-    → (−10, 0, −7) @2.40 (mirrored on the left), and the brace `z` widened
-    from ±4° to ±7° throughout.
-  - `cloak` ROT: (5, 0, −6) @0.00 → (13, 0, −14) @1.20 → (5, 0, −6) @2.40 —
-    pushed off to the unloaded side, roughly doubled.
-  - `root` POS: (0, −1, 0) @0.00 → (0, −1.6, 0) @1.20 → (0, −1, 0) @2.40 — a
-    strain bob instead of a static hold. Legs are self-authored for this A1
-    slice; see the class-level comment on why.
+- **Length:** 2.40 s, **looping** arm-settle over the 1.20 s, distance-sampled
+  `WALK_LADEN`. Foot phase comes only from actual distance travelled; this
+  layer is forbidden from authoring legs, root, torso, head or cloak.
+- **Silhouette:** the loaded sack is visibly on the back. The spine pitches
+  into it, the axe stays below the shoulder line, and neither hand crosses the
+  head. No invisible shoulder log and no lopsided T-pose.
+- **Bones** *(runtime rejection fixed 2026-08-27)*:
+  - `right_arm` ROT: (−18, −4, −5) @0.00 → (−20, −3, −6) @1.20 LINEAR →
+    (−18, −4, −5) @2.40 — the axe hand remains low beside the hip.
+  - `left_arm` ROT: (−10, 4, 6) @0.00 → (−13, 5, 7) @1.20 LINEAR →
+    (−10, 4, 6) @2.40 — a small balance/strap settle, never an overhead grip.
+  - `WALK_LADEN` owns legs, torso, head, cloak and root. The model checker
+    enforces this exact two-bone overlay so a fixed-timer crawl cannot return.
+  - At **65% fill**, use `HAUL_LOG_HEAVY` on the same state and cadence:
+    `right_arm` stays low at x −20…−22°, while `left_arm` moves to the shoulder
+    strap at x −48…−52°, y 10…12°, z −10…−13°. It still owns exactly the two
+    arms. A five-client-tick smoothstep blends ordinary arms → latched light
+    or heavy hold and back. The 65% choice is captured once when hauling
+    begins, so synchronous bag-emptying at deposit cannot cause a heavy →
+    light → idle double-snap. The state remains active while standing and
+    through the release ease, so neither arm snaps at movement or activity
+    boundaries. Visible bag fill deflates over eight client ticks instead of
+    disappearing on the inventory-transfer frame.
 - **Accent:** **t = 1.20 s** → `hearthstead:haul_strain` (a low exhale), tick 24
   of a 48-tick cycle, volume 0.35, throttled to at most one per 3 s per settler.
-- **Carry:** grammar SHOULDER. The log renders from the `torso` transform at
-  `(0, −16, −1)` with a 90° `z` rotation — pinned to the shoulders, **not** to
-  `right_arm`, or the strain wobble will make a 3-block log wag.
+- **Carry:** grammar BACK SACK. Logs are the real contents of the settler bag;
+  `applySack` makes fill visible through scale, sag and secondary motion.
+  Static QA bounds both overlay variants to x −60…+30° on either arm and
+  tightens the axe hand to x −35…+15°; a low-travel overhead pose therefore
+  cannot pass the gate again.
+
+### 3.4 `LUMBER_CRAFT` — lay out, strike, transform, retrieve
+
+- **Actor / trigger:** an employed Lumberer whose open, physical axe request
+  has no serviceable local or Courier-carried axe, at the exact live crafting
+  table reserved inside their Lumber Camp. The activity is `WORK_CRAFT`.
+- **Length / ownership:** 2.40 s = exactly 48 server ticks,
+  **non-looping full-body one-shot**. The server activity transition starts
+  the client clock with no per-entity phase offset. Navigation is stopped;
+  the goal owns target facing toward the exact table for the whole beat.
+- **Signature chain:** **LAY OUT** (ticks 0–18) → **SETTLE / WIND-UP**
+  (19–27) → **STRIKE / TRANSFORM** (28–30) → **RESULT READ** (31–36) →
+  **REACH / GRIP / TAKE** (37–43) → **BAG / TRAVEL-READY** (44–48).
+  This is an original Hearthstead work ritual based on a legible physical
+  cause-and-effect chain, not a copy of another game's or film's shot,
+  camera, assets or exact motion.
+- **Recipe props / authority:** the generic `CraftPresentation` contains the
+  exact nine-slot RecipeManager grid and exact output copy for one `actionId`.
+  Wooden-axe occupied slots are 0/1/3 = the three actually reserved plank
+  identities and 4/7 = the two actually reserved sticks. The five props
+  appear only at layout contacts **t = 0.20 / 0.40 / 0.60 / 0.80 / 0.90 s**.
+  They are fixed to the real table top in world space and never inherit actor
+  root motion, sway, yaw or bob. Before contact they are read-only projections
+  of the exact reserved source slots, not a second inventory owner; changing
+  any source identity/count, table, request or action clears the projection
+  before another frame and no inventory mutation occurs.
+- **Contact / transformation:** the right-hand press accelerates from the
+  1.40 s pre-contact key to a LINEAR table contact at **t = 1.50 s / tick 30**.
+  The torso reaches the same LINEAR mass key. On that exact server tick—and
+  never before—the service atomically consumes 3 real planks + 2 real sticks
+  and creates one real wooden axe in durable worker escrow. The five table
+  props disappear and the exact output appears on the same frame. Replaying
+  the action is refused.
+- **Pickup:** result remains fixed at table centre through the readable hold.
+  `PICK_UP` begins at t = 1.85 s; the left hand reaches the output at
+  **t = 2.15 s / tick 43**. On that contact the visible table output clears
+  into the already-authoritative escrow/bag. It is never projected or equipped
+  in MAINHAND; a worn pre-existing physical axe may remain in MAINHAND and
+  follows only the real item layer. The later existing equipment-acquisition
+  contact remains the only operation that can equip and close the request.
+- **Body:** five alternating low hand placements; a short right-hand gather;
+  an unmistakable downward press; left-hand result pickup and inward bag
+  recovery. Torso X keys are all neutral or forward, peaking at +28°; there
+  is no backward fold toward the backpack. Root authors vertical compression
+  only. Both legs hold exact zero for all 48 ticks, so neither foot slides.
+  Both arm X channels remain in −90…+5°, below the crown budget. Every owned
+  channel returns to exact zero and holds rest at the seam—no idle gap or
+  expiry snap.
+- **Sound contacts:** the real table block hit plus vanilla crafter contact at
+  tick 30; `item_pickup` at tick 43. Audio is emitted by the server action,
+  never on an independent renderer timer.
+- **Minimum evidence:** fresh `.bbmodel`; full multi-frame front34 sheet for
+  empty table, all five placements, wind-up, tick-30 transform, result hold,
+  tick-43 take and recovery; exact contact-adjacent frames from front34,
+  left, right and back34. Reject on backward torso bend, either hand above the
+  head, hand/table separation at contact, feet/root slide, prop following the
+  actor, ingredient/output overlap, or a non-zero seam.
+- **Known vertical-slice limit:** current P0 reserves ingredients in linked
+  camp storage and presents their exact identities at the table, but does not
+  yet show a separate walk-to-chest and physical ingredient retrieval chain.
+  That retrieval is a later truth-chain improvement, not permission to invent
+  generic planks or duplicate inventory now.
+
+### 3.5 `CRAFT_OUTPUT_STORE` — escrow to real chest
+
+- **Actor / trigger:** the same worker after table pickup, once navigation has
+  reached the currently selected, real linked camp container. The activity is
+  `STORE_CRAFT_OUTPUT`; target orientation remains server-authored toward that
+  exact block.
+- **Length / ownership:** 1.20 s = exactly 24 ticks, **non-looping full-body
+  one-shot**. Travel owns locomotion until contact range; this clip begins
+  only after navigation stops and therefore never moves feet under a chest
+  interaction.
+- **Props / authority:** `CraftOutputEscrow` is the sole physical owner during
+  travel. At the chest, `CraftPresentation.DEPOSIT` shows the exact escrow
+  output at a fixed world-space point just outside the selected container;
+  it is not inserted into either vanilla hand. If the target becomes full,
+  missing or unavailable, the clip aborts back to a visible blocker/retry and
+  escrow retains the one output—never drop, duplicate, snap back or silently
+  choose an unlinked chest.
+- **Beat / contact:** open and lean from 0.00–0.50 s → both hands extend with
+  left hand leading at 0.65 s → **LINEAR deposit contact at 0.70 s / tick 14**
+  → short placement hold to 0.80 s → withdraw and settle by 1.15–1.20 s.
+  Tick 14 atomically inserts the exact escrow stack in the exact current
+  container and compare-clears escrow. `chest_stow` shares that contact.
+- **Body:** forward torso only (0…+24°), vertical root compression only,
+  exact-zero planted legs and arms bounded below the crown. All owned channels
+  return to and hold exact zero, so later navigation/equipment pickup has a
+  clean seam without clipping or an idle gap.
+- **Minimum evidence:** front34, left, right and back34 at approach, 0.65 s,
+  contact 0.70 s, hold 0.80 s and recovery; verify both hands reach the real
+  chest-side output, prop remains world-fixed, chest/output do not intersect
+  falsely, feet stay planted and the terminal handoff is exact.
 
 ---
 
@@ -779,7 +907,7 @@ raised. Never two guard clips with the same arm shape.
 - **Length:** 4.00 s, **looping** — the loop IS the breath cycle.
 - **Silhouette:** the low guard (Pflug-derived, animation-quality §2.2):
   blade forward-and-down 30–45° below horizontal continuing the forearm
-  line, hilt in front of the hip, off-hand across the body, feet staggered,
+  line, hilt in front of the hip, free hand across the body, feet staggered,
   weight ~60/40 on the front foot, torso forward and ready. Confident and
   controlled — the owner's direct demand (*"han skal virke selvsikker og
   kontrolert"*): the confident-vs-nervous difference is the CLOCK, not the
@@ -791,7 +919,7 @@ raised. Never two guard clips with the same arm shape.
     (−30, −11.5, 6.5) @2.80 — x sets the blade angle (30–45° below
     horizontal), y draws the hilt in front of the hip, z tucks the upper
     arm to the ribs. Never flared outward, never hanging straight down.
-  - **`left_arm` ROT (off-hand/shield):** across the body at the hip,
+  - **`left_arm` ROT (free balance hand):** across the body at the hip,
     (−20, 14, 4) → (−22, 15.5, 5) @2.80 → back.
   - **`right_leg` / `left_leg` ROT:** staggered stance — left foot leads
     (x −10), sword-side foot back (x +12), toes out (y −6/+5, z ∓3),
@@ -809,17 +937,19 @@ raised. Never two guard clips with the same arm shape.
   - **Loop seam:** every channel keys t=0 mid-motion (v0 = trough + Δ/3),
     so value AND velocity are continuous across the wrap (§3 check 6).
 - **Accent:** none.
-- **Carry:** sword right, shield left.
+- **Carry:** the real MAINHAND sword follows `right_arm`. The left arm is a
+  free balance hand when OFFHAND is empty; ItemInHandLayer may show a shield
+  there only if a physical shield stack actually exists.
 
 ### 4.2 `GUARD_PATROL` — the walking watch
 
-- **Trigger:** `GuardPatrolGoal` while moving. Layers **over** `WALK`, replacing
-  its arm and head channels.
-- **Activity:** `PATROLLING` while moving.
+- **Trigger:** a guard's moving martial state. Layers **over** `WALK`, replacing
+  its arm, head and torso channels in both `PATROLLING` and `COMBAT`.
+- **Activity:** `PATROLLING` or `COMBAT` while moving.
 - **Length:** 4.00 s, **looping** — deliberately co-prime-ish with the 1.00 s
   `WALK` so the scan never syncs to the footfalls.
 - **Silhouette:** a walk in which the arms do *not* swing — one hand rests on
-  the sword pommel, the other holds the shield edge — plus a head that turns
+  the sword pommel, the other is braced across the belt — plus a head that turns
   independently of the stride. Instantly separable from a civilian walking.
 - **Bones** *(rework 2026-08-25 — same Pflug carry as §4.1; the old carry
   flared the sword arm outward, z −12, which is what read as "holder
@@ -829,46 +959,129 @@ raised. Never two guard clips with the same arm shape.
     arm tucked to the ribs. **This overriding of the walk swing is the
     entire read.**
   - `left_arm` ROT: (−20, 15, 6) → (−21, 15.6, 6.6) @2.80 → back — the
-    off-hand/shield carried across the body at the hip.
+    free hand carried across the body at the hip.
+  - `torso` ROT: the restrained §4.1 forward-ready trunk, (6.5, 0.5, 0)
+    with only ~1.5° breath/scan drift. `SettlerModel` clears `WALK`'s torso
+    first, so a footfall phase can never steer the physical sword contact.
   - `head` ROT: ONE slow deliberate scan per 4 s loop, to the OPPOSITE
     side of §4.1's — float near center, gather @1.80, out to (−1, −18, 0)
     @2.60, hold to @3.10, controlled return. A guard alternating post and
     patrol appears to cover both flanks.
-  - `torso`, `cloak`, legs, `torso` POS: **inherited from `WALK`; do not
-    author** (this clip stays a 2-bone-class arm+head layer,
-    `BONE_COUNT_EXEMPT` in `anim_check.py`).
+  - `root`, `cloak`, legs: **inherited from distance-sampled `WALK`; do not
+    author**. Torso/arms/head are the stable martial upper-body base
+    (`BONE_COUNT_EXEMPT` in `anim_check.py`).
   - **Loop seam:** every channel keys t=0 mid-motion (velocity-continuous
     wrap, §3 check 6).
 - **Accent:** none.
-- **Carry:** sword right, shield left.
+- **Carry:** real MAINHAND sword right; OFFHAND is empty in the ordinary
+  first-demo equipment flow and is never filled by the renderer.
+
+### 4.2a `ARCHER_STANCE` — bow-ready at the post
+
+- **Trigger:** an ARCHER in `PATROLLING`, `COMBAT`, or `OUT_OF_AMMO` while
+  stationary. It is selected from the existing `stanceState` by profession.
+- **Length:** 3.20 s, **looping**.
+- **Silhouette:** the real MAINHAND bow is owned by `right_arm` and held
+  upright in front of the chest; the free hand crosses to the string/grip at
+  sternum height. This is a truthful low-ready pose on a straight-arm block
+  rig, not a fabricated elbow/cheek draw and not a renamed Pflug/sword pose.
+- **Bones:** full-body planted stance: right arm approximately (+69, −20,
+  −10), left arm approximately (+73, +15, +35), torso turned 8–10° into the
+  shot, staggered legs, one shallow breath and no arm fidget. Positive X is
+  the visually verified forward reach on this rig; negative X put both hands
+  and the bow behind the head and is a hard rejection.
+- **Carry:** physical MAINHAND bow right, OFFHAND empty. The offline proxy
+  checks the neutral vanilla bow transform; vanilla pulling textures and the
+  live item layer remain an in-game gate.
+
+### 4.2b `ARCHER_PATROL` — bow-safe movement overlay
+
+- **Trigger:** the shared presentation-only `patrolState` while an ARCHER is
+  moving in `PATROLLING`, `COMBAT`, or `OUT_OF_AMMO`.
+- **Length:** 3.60 s, **looping additive layer**.
+- **Silhouette:** bow low outside the right knee, free hand near the lower
+  grip, one independent field scan. It never inherits the guard's
+  sword-pommel shape.
+- **Bones:** `right_arm`, `left_arm`, `head` only. `WALK` owns locomotion,
+  including distance-sampled feet, torso, root and cloak; do not author a
+  second fixed-time gait here.
+- **Carry:** physical MAINHAND bow right, OFFHAND empty.
 
 ### 4.3 `MELEE` — the sword stroke *(exists; retune)*
 
-- **Trigger:** `GuardMeleeGoal` / `doHurtTarget`, broadcast as `EV_MELEE`.
+- **Trigger:** `GuardMeleeGoal` issues one server contact ticket and broadcasts
+  `EV_MELEE` only after a live settlement-hostile target, physical MAINHAND
+  sword, melee range and line of sight all pass. `EV_MELEE` is the sole
+  presentation owner: the goal deliberately emits no independent vanilla
+  hand-swing packet that could layer a second attack timeline over the clip.
 - **Activity:** **event** one-shot (expires at 500 ms in `setupAnimationStates`).
-- **Length:** 0.50 s, **one-shot**.
-- **Silhouette:** a diagonal slash driven from the hips — the shoulder line
-  rotates 38° across the swing, so the whole body turns, not just the arm.
-- **Bones:** as authored, plus:
-  - **Add `right_leg` / `left_leg`:** (−4, 0, −4) → (−22, 0, −6) @0.22 LINEAR →
-    (−8, 0, −4) @0.50 for the right (the lunging leg), and
-    (6, 0, 4) → (18, 0, 6) @0.22 LINEAR → (8, 0, 4) @0.50 for the left. The
-    current clip moves the torso forward on `posVec` but leaves the legs behind,
-    which is the one genuinely broken thing in the existing library.
-  - **Add `cloak` ROT:** (2, 0, 0) @0.00 → (−10, 0, −8) @0.08 (thrown back on
-    the wind-up) → (12, 0, 10) @0.26 (whipped through) → (2, 0, 0) @0.50.
-  - **Add `head` ROT:** (0, 14, 0) @0.00 → (4, −12, 0) @0.22 LINEAR →
-    (0, 0, 0) @0.50 — the head leads the twist by one frame.
-- **Accent:** **t = 0.22 s** (contact) → weapon swish + the damage tick. Play
-  `hearthstead:blade_hit` in the same tick the server applies damage — 4 ticks
-  after the event broadcast. If damage lands on the event tick instead, delay
-  the sound, not the animation.
-- **Carry:** sword right, shield left.
+- **Length:** 0.50 s, **one-shot additive upper-body layer over either
+  `GUARD_STANCE` or distance-sampled `WALK`**.
+- **Transition contract:** every authored channel is exactly zero at 0.00 s,
+  crosses rest by a small genuine inertial overshoot at 0.40 s, and holds an
+  identical zero pose at both 0.45 and 0.50 s. The duplicate terminal rest is
+  intentional: merely reaching zero on the last frame left 4–6°/tick of
+  residual velocity for the base layer to catch. The continuously-running
+  base remains the visible start and handoff pose at every tested phase.
+- **Silhouette:** a diagonal slash driven from the hips. The torso loads to
+  +18° yaw by 0.10 s, crosses through −20° at blade contact, then recovers in
+  authored one-tick steps. The old −18° @0.30 → +27° @0.40 reversal moved
+  roughly 22.5° per tick and was a visible pop; no exception is permitted.
+- **Authored beats:** base pose / zero overlay @0.00 → shoulder and rear hip
+  load @0.05 → full anticipation @0.10 → torso-led acceleration @0.15 → exact
+  blade contact @0.20 → impact hold @0.25 → follow-through @0.30 → eased
+  recovery @0.35 → real rest-crossing overshoot @0.40 → zero-velocity hold
+  @0.45 / 0.50.
+- **Bones:** `right_arm`, `left_arm`, `torso` rotation and position, `head`,
+  `cloak` only. The sword arm moves from a −30° additive wind-up to +28° at
+  contact while its positive anticipation roll keeps the sword silhouette
+  outside the body in `front34` and `left` views. The free arm counterbalances;
+  the head counters the torso yaw to keep the eyes on the target. Cloak lag
+  peaks one tick after contact and never drives the primary action.
+- **Lower-body ownership / foot plant:** `MELEE` deliberately authors neither
+  `root` nor either leg. `GUARD_STANCE` therefore retains its planted support
+  foot and moving guards retain `WALK`'s distance-sampled gait; a second
+  fixed-time lunge cannot slide both feet or corrupt an arbitrary walk phase.
+  The deterministic joint-space gate permits future root/hip compensation,
+  but computes both world-space foot endpoints through 0.00–0.30 s and fails
+  unless one consistent support foot stays within 0.75 model px. Current
+  MELEE-induced displacement is 0.00 px for both feet.
+- **Contact gate:** the wind-up event is tick 0 and the visible blade reaches
+  the target at t = 0.20 s / tick 4. That exact server tick consumes the same
+  one-use ticket, revalidates target identity, alive state, range, LOS,
+  physical sword and settlement hostility, then performs one vanilla damage
+  pass and `blade_hit` together. Interruption, target death/removal, target
+  switch, reload, or any failed revalidation consumes/cancels the ticket
+  without damage, training or sound.
+  The target-aware Blockbench contract uses a fixed 0.6 × 1.8 × 0.6 block
+  raider hit volume: the physical blade must remain clear at 0.10/0.15 s and
+  intersect it at 0.20 s. Evidence is rendered over `GUARD_STANCE` phases
+  0.0, 1.8, 2.6, 3.1 and 3.6 s plus `WALK` interaction phases. This is only an
+  offline **Candidate** contract, never Approved until continuous in-game film
+  proves blade contact, audio and health change align at real runtime phases.
+- **Carry:** physical MAINHAND sword right; the left arm counterbalances the
+  stroke and never implies a shield.
+
+### 4.3a `GUARD_HIT_REACT` — sword-only impact
+
+- **Trigger:** the same authoritative incoming-hit event as §4.4 when the
+  synced OFFHAND does **not** contain a shield.
+- **Length:** 0.30 s, **one-shot**.
+- **Beats:** authoritative impact/recoil @0.00 (root driven back, free left
+  forearm protects the face, sword drawn back) → controlled settle @0.10 →
+  low-guard handoff @0.30. Because this is a reaction to damage already
+  accepted by the server, it deliberately invents no pre-impact anticipation.
+  No item transfer occurs.
+- **Sound:** ordinary vanilla hurt audio only. `shield_thud` is not scheduled
+  without the physical shield.
+- **Carry:** physical MAINHAND sword right; OFFHAND empty.
 
 ### 4.4 `SHIELD_BLOCK` — bracing behind the shield
 
 - **Trigger:** guard in melee with an incoming attack telegraphed, or on
   "hold" from the command wheel; also the reflexive block after taking a hit.
+  **Hard runtime condition:** the synced OFFHAND must contain a real shield;
+  otherwise §4.3a plays from the same event.
 - **Activity:** `COMBAT` sub-state; entered as a looping brace, exited on the
   next swing. Also usable as a 0.30 s **event** impact hit-react.
 - **Length:** 1.60 s, **looping** (brace); the impact variant is the first
@@ -890,12 +1103,15 @@ raised. Never two guard clips with the same arm shape.
   - `left_leg` ROT: hold (−14, 0, 8) — front leg bent under.
   - `root` POS: hold (0, −2, 0) — sunk into the brace.
   - `cloak` ROT: hold (6, 0, −5).
-  - **Impact variant (one-shot, 0.30 s):** same pose but with
-    `root` POS 0 → (0, −1, 1.6) @0.10 LINEAR → (0, −2, 0) @0.30 — knocked back
-    16 mm and recovering, and `left_arm` `x` spiking to −108 @0.10 LINEAR.
-- **Accent:** impact variant **t = 0.10 s** → `hearthstead:shield_thud`, played
-  on the tick the block is registered (2 ticks after the event).
-- **Carry:** shield left, sword right.
+  - **Event playback:** the first 0.30 s of this already-braced loop are used
+    for the incoming-hit event. It is a defensive silhouette, not a claim that
+    the damage system performed a gameplay block.
+- **Accent:** **t = 0.10 s** → `hearthstead:shield_thud`, delayed two ticks so
+  it lands after the shield pose is visible. Both scheduling and playback
+  re-check the real OFFHAND shield; sword-only hits keep ordinary hurt audio.
+- **Carry:** physical OFFHAND shield left and physical MAINHAND sword right.
+  Rendering or sounding this state without both authoritative stacks is a
+  hard rejection.
 
 ### 4.5 `HORN_CALL` — sounding the alarm
 
@@ -965,7 +1181,8 @@ raised. Never two guard clips with the same arm shape.
   mumble shout, two variants, following the mumble-voice rule: no words), tick 6
   of the one-shot. Nearby guards should start their own `GUARD_STANCE` with a
   reset phase at tick 8 so the line visibly stiffens together.
-- **Carry:** sword right; shield stays on the left arm through the sweep.
+- **Carry:** physical MAINHAND sword right. A real OFFHAND item remains on the
+  left arm through the sweep, but this clip does not fabricate a shield.
 
 ---
 
@@ -981,8 +1198,8 @@ sort** — and the four clips are authored as a single sequence with matching
 in/out poses so they cut together with no pop. The **handoff pose** is:
 
 ```
-right_arm (−78,  16, −14)   left_arm (−78, −16, 14)
-torso     (−11,  0,   0)    root     (0, −1, 0)
+right_arm (−64,  28, −32)   left_arm (−64, −28, 32)
+torso     ( −9,  2,   0)    root     (0, −0.4, 0)
 ```
 
 Every courier clip starts and ends here except `COURIER_LIFT`, which *arrives*
@@ -999,63 +1216,62 @@ at it, and `COURIER_SET_DOWN`, which *departs* from it.
   travel of the whole body is the read.
 - **Bones:**
   - `root` POS: 0 @0.00 → **(0, −7, 0) @0.35** → (0, −7, 0) @0.60 →
-    (0, −2, 0) @0.95 → (0, −1, 0) @1.40. Down, *hold* (the grip beat — without
+    (0, −2, 0) @0.95 → (0, −0.4, 0) @1.40. Down, *hold* (the grip beat — without
     this pause the lift has no weight), up, settle.
   - `right_leg` ROT: 0 @0.00 → (−54, 0, −10) @0.35 → (−54, 0, −10) @0.60 →
     (−14, 0, −4) @0.95 → (−4, 0, −3) @1.40.
   - `left_leg` ROT: mirrored (`z` positive).
-  - `torso` ROT: 0 @0.00 → (34, 0, 0) @0.35 → (32, 0, 0) @0.60 →
-    (−16, 0, 0) @1.00 → (−11, 0, 0) @1.40. Folds forward over the crate, then
-    **overshoots past vertical to −16°** before settling at −11° — that
-    overshoot is the counterweight snapping in, and it is the frame that sells
-    the crate as heavy.
+  - `torso` ROT: 0 @0.00 → (−34, 0, 0) @0.35 → (−32, 0, 0) @0.60 →
+    (−16, 0, 0) @1.00 → (−9, 2, 0) @1.40. Negative X is the verified forward
+    direction on this rig: the worker folds over the physical load and rises
+    without ever crossing into a backward spine.
   - `right_arm` ROT: (−6, 4, −2) @0.00 → (−34, 20, −18) @0.35 →
-    **(−40, 22, −20) @0.60 LINEAR** (the grip) → (−84, 18, −16) @1.00 →
-    (−78, 16, −14) @1.40.
+    **(−40, 22, −20) @0.60 LINEAR** (the grip) → (−58, 22, −24) @1.00 →
+    (−64, 28, −32) @1.40.
   - `left_arm` ROT: mirrored (`y`, `z` negated).
   - `head` ROT: 0 @0.00 → (28, 0, 0) @0.35 → (24, 0, 0) @0.60 →
-    (−4, 0, 0) @1.00 → 0 @1.40 — looks at the crate, then up and away.
-  - `cloak` ROT: 0 @0.00 → (−9, 0, 0) @0.35 → (6, 0, 0) @1.00 → (3, 0, 0) @1.40.
+    (−4, 0, 0) @1.00 → (−6, 0, 0) @1.40 — looks at the load, then ahead.
+  - `cloak` ROT: 0 @0.00 → (−9, 0, 0) @0.35 → (6, 0, 0) @1.00 → (−5, 0, 0) @1.40.
 - **Accent:** **t = 0.60 s** → `hearthstead:crate_grip` (a wooden scrape, dry,
   0.25 s), tick 12; and **t = 0.95 s** → `hearthstead:haul_strain` exhale,
   tick 19. Two accents, 7 ticks apart — grip then effort.
-- **Carry:** the crate model becomes visible at t = 0.60 s, parented to `torso`
-  at `(0, −6, −5)`. It must appear *on the grip frame*, not at clip start.
+- **Carry:** the real source transaction and attached back-sack/load handoff
+  share t = 0.60 s. The sack stays a direct torso child; it must not float in
+  front, lag, spring or change shape at the carry edge.
 
-### 5.2 `COURIER_CARRY` — the crate walk *(the flagship clip)*
+### 5.2 `COURIER_CARRY` — the back-sack walk *(the flagship clip)*
 
 - **Trigger:** courier in transit with goods. Arms layer over `WALK_LADEN`.
 - **Activity:** `CARRYING`.
 - **Length:** 2.00 s, **looping** (against `WALK_LADEN`'s 1.20 s, so the strain
   cycle and the stride drift apart and back over 6 seconds — the haul never
   looks looped).
-- **Silhouette:** a boxy figure leaning back with both forearms locked out
-  front at chest height and no arm swing whatsoever, taking short steps. From
-  30 blocks you see a moving rectangle carried by a wedge — nothing else in the
-  village looks like it. *This is the clip the mod is judged on.*
+- **Silhouette:** the sack stays on the back, both hands grip the shoulder
+  straps at the chest, and the trunk counters forward into the weight. There
+  is no arm swing and no front-floating crate. *This is the clip the mod is
+  judged on.*
 - **Bones:**
-  - `right_arm` ROT: (−78, 16, −14) @0.00 → (−76, 16, −15) @0.70 →
-    (−79, 17, −14) @1.40 → (−78, 16, −14) @2.00. **Total travel: 3°.** The arms
-    are a clamp. Resist every instinct to animate them.
-  - `left_arm` ROT: mirrored, same 3° budget.
-  - `torso` ROT: (−11, 2, 0) @0.00 → (−13, 0, 1.5) @0.50 → (−11, −2, 0) @1.00 →
-    (−13, 0, −1.5) @1.50 → (−11, 2, 0) @2.00 — the lean deepens twice per loop
+  - `right_arm` ROT: (−64, 28, −32) @0.00 → (−63.5, 27.5, −32.5) @0.70 →
+    (−64.5, 28.5, −31.5) @1.40 → (−64, 28, −32) @2.00. **Total travel: 1°.**
+    The hands are a strap clamp, never a carry swing.
+  - `left_arm` ROT: mirrored, same 1° budget.
+  - `torso` ROT: (−9, 2, 0) @0.00 → (−11, 0, 2.5) @0.50 → (−9, −2, 0) @1.00 →
+    (−11, 0, −2.5) @1.50 → (−9, 2, 0) @2.00 — the lean deepens twice per loop
     as the load settles, with a tiny `z` roll. **This is where the life is.**
-  - `torso` SCALE: 1.0 @0.00 → (1.012, 1.008, 1.012) @0.55 → 1.0 @1.10 →
-    (1.010, 1.006, 1.010) @1.65 → 1.0 @2.00 — two working breaths per loop.
-  - `head` ROT: (5, 0, 0) @0.00 → (7, 8, 0) @0.60 → (4, 0, 0) @1.10 →
-    (7, −6, 0) @1.60 → (5, 0, 0) @2.00 — the courier is looking around the load
+  - `torso` SCALE: 1.0 @0.00 → (1.012, 0.992, 1.012) @0.55 → 1.0 @1.10 →
+    (1.010, 0.994, 1.010) @1.65 → 1.0 @2.00 — two working breaths per loop.
+  - `head` ROT: (6, 0, 0) @0.00 → (4, 6, 0) @0.60 → (7, 0, 0) @1.10 →
+    (4, −5, 0) @1.60 → (6, 0, 0) @2.00 — the courier is looking around the load
     to see where he is going. Head tracking layers over this at full strength;
     it is the courier's only expressive channel and it should stay lively.
-  - `cloak` ROT: hold (7, 0, 0) ±1 — pinned between the back and the load.
-  - `root` POS: hold (0, −1, 0) — carried by the layer, reasserted here so the
+  - `cloak` ROT: −5 → −7 → −5 — pinned between the back and the load.
+  - `root` POS: (0, −0.4, 0) → (0, −0.1, 0) → (0, −0.4, 0) — reasserted so the
     clip is correct if played standing still (a courier waiting at a chest).
   - Legs and the walk bob: **inherited from `WALK_LADEN`; do not author.**
 - **Accent:** **t = 1.40 s** → `hearthstead:crate_creak` (soft wood stress,
   volume 0.3), tick 28 of a 40-tick cycle, throttled to one per 4 s.
-- **Carry:** grammar CRATE. Crate parented to `torso` at `(0, −6, −5)`, **not**
-  to an arm. Crate contents drive the model variant (grain sack, ore crate,
-  bread tray) — three meshes, one animation.
+- **Carry:** grammar SACK. The physical sack is parented directly to `torso`,
+  never to an arm and never through secondary spring/lag motion.
 - **Standing-still variant:** when a carrying courier is stopped (queued at a
   chest, waiting for a door), play this clip with `WALK_LADEN` suppressed and
   add a weight-shift: `root` POS (0, −1, 0) → (0, −1.4, 0) @1.00 →
@@ -1072,23 +1288,24 @@ at it, and `COURIER_SET_DOWN`, which *departs* from it.
 - **Silhouette:** the reverse of the lift, but *faster and looser* — the body
   drops, the crate lands, the shoulders come up and roll back in relief.
 - **Bones:**
-  - `root` POS: (0, −1, 0) @0.00 → (0, −6.5, 0) @0.45 → (0, −6.5, 0) @0.60 →
+  - `root` POS: (0, −0.4, 0) @0.00 → (0, −6.5, 0) @0.45 → (0, −6.5, 0) @0.60 →
     (0, −0.5, 0) @0.95 → 0 @1.20.
-  - `torso` ROT: (−11, 0, 0) @0.00 → (30, 0, 0) @0.45 → (28, 0, 0) @0.60 →
-    (−4, 0, 0) @0.95 → 0 @1.20.
-  - `right_arm` ROT: (−78, 16, −14) @0.00 → (−36, 22, −20) @0.45 →
+  - `torso` ROT: (−9, 2, 0) @0.00 → (−30, 0, 0) @0.45 → (−28, 0, 0) @0.60 →
+    (−4, 0, 0) @0.95 → (−5, 0, 0) @1.05 → (−18, 8, 0) @1.20.
+  - `right_arm` ROT: (−64, 28, −32) @0.00 → (−36, 22, −20) @0.45 →
     **(−30, 22, −20) @0.60 LINEAR** (release) → (−12, 8, −6) @0.95 →
-    (−4, 2, −2) @1.20.
-  - `left_arm` ROT: mirrored.
+    (−22, 12, −6) @1.20.
+  - `left_arm` ROT: (−64, −28, 32) → mirrored release →
+    (−58, −14, 8) @1.20, the exact `COURIER_SORT` lid-hand handoff.
   - `right_leg` / `left_leg`: mirror of `COURIER_LIFT`, but reaching only −48°
     (the set-down squat is shallower than the lift squat — you drop the last
     inch).
-  - `head` ROT: 0 @0.00 → (26, 0, 0) @0.45 → (10, 0, 0) @0.95 → 0 @1.20.
-  - `cloak` ROT: (7, 0, 0) @0.00 → (−8, 0, 0) @0.45 → (5, 0, 0) @0.95 →
+  - `head` ROT: (6, 0, 0) @0.00 → (26, 0, 0) @0.45 → (10, 0, 0) @0.95 →
+    (22, 10, 0) @1.20, matching `COURIER_SORT`.
+  - `cloak` ROT: (−5, 0, 0) @0.00 → (−8, 0, 0) @0.45 → (5, 0, 0) @0.95 →
     0 @1.20 — released, it swings forward and settles.
-  - **Relief beat:** `torso` ROT gets a final flourish — (0, 0, 0) @1.20 is
-    reached via (−5, 0, 0) @1.05, a small backward stretch. Two frames of
-    "that's better".
+  - **Handoff beat:** the final forward sort pose is deliberate; there is no
+    backward relief stretch and no pop into `COURIER_SORT`.
 - **Accent:** **t = 0.60 s** → `hearthstead:crate_down` (a solid wooden knock
   with a short room tail), tick 12. Dust particle at the same tick.
 - **Carry:** crate visibility ends at t = 0.60 s; the world-placed crate or the
@@ -2434,40 +2651,47 @@ possible and always return exactly to zero.
 - **Carry:** if carrying, suppress the `left_arm` channel and let the torso
   curl carry the read alone.
 
-### 14.5 `REACT_BLESSED` — after a blessing
+### 14.5 `BLESSING_RECEIVE` — binding a physical Blessing Seal
 
-- **Trigger:** a person-blessing applied to this settler at the hearth
-  card-reveal. The blessing loop is the roguelike payoff and the settler must
-  visibly *receive* something.
-- **Activity:** **event** one-shot.
-- **Length:** 2.80 s, **one-shot**.
-- **Silhouette:** the body straightens up out of whatever slump it was in,
-  arms open slightly at the sides, palms turned out, head tipped back toward
-  the light. It is `WAKE_STRETCH`'s vocabulary with the tiredness removed and
-  the timing reversed — **fast up, slow release** instead of slow up, fast drop.
-- **Bones:**
-  - `root` POS: 0 @0.00 → **(0, 1.6, 0) @0.45** → (0, 1.2, 0) @1.40 →
-    (0, 0.3, 0) @2.30 → 0 @2.80 — lifted, then gently set down. The rise is
-    the blessing.
-  - `torso` ROT: 0 @0.00 → (−14, 0, 0) @0.45 → (−12, 0, 0) @1.40 →
-    (−3, 0, 0) @2.30 → 0 @2.80.
-  - `torso` SCALE: 1.0 @0.00 → (1.022, 1.026, 1.022) @0.55 → (1.01, 1.012,
-    1.01) @1.60 → 1.0 @2.80 — a filling breath.
-  - `right_arm` ROT: 0 @0.00 → (−24, −20, −38) @0.50 → (−22, −18, −36) @1.50 →
-    (−8, −6, −14) @2.35 → 0 @2.80 — open at the side, palm out (the `z`).
-  - `left_arm` ROT: mirrored.
-  - `head` ROT: 0 @0.00 → (−26, 0, 0) @0.50 → (−24, 0, 0) @1.50 →
-    (−8, 0, 0) @2.35 → 0 @2.80 — tipped back and up.
-  - `right_leg` / `left_leg`: hold (0, 0, −2) / (0, 0, 2) with `root` doing
-    the lift; a small toe-rise reads through the `root` offset.
-  - `cloak` ROT: 0 @0.00 → (−12, 0, 0) @0.50 → (−8, 0, 0) @1.50 → 0 @2.80 —
-    lifted behind, as if by a draught.
-- **Accent:** **t = 0.50 s** → `hearthstead:blessing_receive` (a `bell_tone`
-  chord with a long tail, ~2.0 s), tick 10 of the 56-tick one-shot. Blessing
-  particles rise from tick 10 to tick 46 — **rising**, matched to the body's
-  lift and its slow settle. A settler may follow this with `CELEBRATE`, but
-  only after a 10-tick gap; back-to-back reads as a stutter.
-- **Carry:** none; loads are set down for the hearth ceremony.
+- **Trigger:** `SettlerEntity.applyBlessing` returns `APPLIED` after the player
+  Shift-right-clicks the settler with a physical seal. It broadcasts stable
+  entity event 73; `MAXED` and `INVALID` never trigger it.
+- **Activity:** **event** one-shot. It never writes or borrows an AI activity:
+  a lumberer remains `WORK_CHOP`, a guard remains `COMBAT`, and the real loop is
+  merely hidden for the 1.60 s presentation.
+- **Length:** 1.60 s, **one-shot**.
+- **Silhouette:** anticipation settles the weight down, both hands gather to
+  the heart, the contact is held long enough to read from distance, then the
+  chest accepts the weight in a small upward overshoot. Recovery drops past
+  neutral before a final decelerating settle. This is gratitude and resolve,
+  not `CELEBRATE`'s jump or `WAKE_STRETCH`'s fatigue.
+- **Beats:**
+  - **0.00–0.15 s — anticipation:** `root` sinks 0.8 px, torso folds +8°,
+    knees soften and both hands counter-move slightly away.
+  - **0.15–0.50 s — acceptance contact:** right hand crosses to
+    (−96, −32, 28), left cradles it at (−68, 28, −20); head looks down toward
+    the contact while the root rises through neutral.
+  - **0.50–0.75 s — readable hold:** hands, torso, head, root and cloak drift
+    by at most 1° / 0.05 px. The viewer gets five full ticks to read the heart
+    contact rather than a hand passing through the chest.
+  - **0.85–0.95 s — acceptance overshoot:** hands tighten by 5–7°, chest opens
+    to −9°, head tips up −13°, root lifts to +1.1 px and cloak lags −12°.
+  - **0.95–1.60 s — weighted recovery:** the root drops past neutral to
+    −0.45 px at 1.15 s, limbs counter-settle past rest at 1.40 s, and every
+    channel returns exactly to its opening value at 1.60 s.
+- **Bones:** `right_arm`, `left_arm`, `torso`, `head`, `right_leg`, `left_leg`,
+  `root`, and `cloak` all participate. `SettlerModel` resets those eight parts
+  after every lower-priority locomotion/work/idle/one-shot contribution and
+  applies this clip last, so additive animation cannot corrupt the pose.
+- **Accent:** the authoritative `APPLIED` tick starts the visible reaction,
+  while the type-specific 7/8/9-particle silhouette and its sole positional
+  sound land together at the authored **0.50 s contact** (tick 10). Warden is
+  a sword/crossguard, Hearthward a shield, and Thorned Roads a branching path;
+  the shapes remain distinguishable without colour. A plaque uses the same
+  language as a short two-spark onset plus a four-tick rune contact, capped at
+  9/10/11 total particles and one sound.
+- **Carry:** the physical sack may remain visible, but the usual procedural
+  carry lean is reset for these 1.60 seconds; the acceptance silhouette wins.
 
 ---
 
@@ -2505,7 +2729,7 @@ modular visuals. 23 clips.
 | `HAUL_LOG` | new | the goal already carries logs home with no carry pose |
 | `GUARD_STANCE` | retune | live |
 | `GUARD_PATROL` | new | `GuardPatrolGoal` live and currently walks like a civilian |
-| `MELEE` | retune (legs — current version is genuinely broken) | live |
+| `MELEE` | retuned upper-body overlay; lower body delegated to base; offline Candidate, native slow-motion pending | live |
 | `SHIELD_BLOCK` | new | guards already take hits |
 | `EAT` | retune (cloak, root) | live |
 | `REST` (§12.12) | keep + uneven breath; defines the **SEATED base** (§16.1) | live |
@@ -2539,7 +2763,7 @@ downed/rescue, healer, repair dugnad and Blessings v1. 14 clips.
 `EMERGENCY_COWER` (+ `COWER_FLINCH`), `EMERGENCY_REPAIR`,
 `EMERGENCY_CARRY_DOWNED` (+ `DOWNED`), `HEAL_BANDAGE`, `HEAL_REVIVE`
 (+ `REVIVE_SUCCESS` / `REVIVE_FAIL`), `HEAL_TEND_HERBS`, `MOURN`
-(+ `MOURN_SOB`), `REACT_STARTLE`, `REACT_BLESSED`, `GIFT_ACCEPT`.
+(+ `MOURN_SOB`), `REACT_STARTLE`, `BLESSING_RECEIVE`, `GIFT_ACCEPT`.
 
 `HORN_CALL` and `RUN_PANIC` must be verified **together** — the two-tick
 causal gap between the horn and the village panic (§4.5) is the single most
@@ -2593,7 +2817,7 @@ kneeling healer and a kneeling farmer should kneel the same way).
 | **SEATED** | `root` (0, −7, 0); `right_leg` (−84, 0, −5); `left_leg` (−84, 0, 5) | `REST`, `EAT_AT_TABLE`, `SCRIBE_WRITE`, (`CAPTIVE` at −8) | arms, head, breath rate — all completely different |
 | **KNEELING** | `root` (0, −6, 0); one leg folded ~−60°, one at ~−32° with opposite `z` | `FARM_PLANT`, `HEAL_BANDAGE`, `HEAL_REVIVE` beat 1 | arm motion is bespoke in each; the fold is just anatomy |
 | **BRACED WORK STANCE** | `right_leg` (−6..−16, 0, −4..−6); `left_leg` mirrored | `FARM_TILL`, `CHOP`, `LIMB_BRANCHES`, `MINE_PICK`, `SMITH_HAMMER`, `EMERGENCY_REPAIR` | every one of these is a *different swing* on the same feet |
-| **CARRY GRAMMARS** | the four arm-lock poses in §0.5 | all hauling clips | the load and the gait are what differ, and they differ a lot |
+| **CARRY GRAMMARS** | the five load poses in §0.5 | all hauling clips | the load and the gait are what differ, and they differ a lot |
 
 ### 16.2 Layered clips — legitimate
 
@@ -2604,12 +2828,12 @@ once and correctly.
 | layer | provides | rides on |
 |---|---|---|
 | `WALK_LADEN` | legs, torso lean, root drop, cloak pin | `COURIER_CARRY`, `HAUL_LOG`, `MINE_HAUL_ORE`, `EMERGENCY_CARRY_DOWNED` (arms only, each) |
-| `WALK` | legs, bob, cloak swing | `GUARD_PATROL` (arms + head only) |
+| `WALK` | distance-sampled root/legs and cloak swing | `GUARD_PATROL` (stable torso + arms + head) |
 | `REACT_*` | small additive offsets | any base clip |
 
 **Hard rule:** a layer clip may not be shown to the player on its own. If
-`WALK_LADEN` ever plays with no arm layer over it, the settler will walk around
-leaning backward holding nothing, and that is a bug — assert it (§17).
+`WALK_LADEN` ever plays with no matching load silhouette/arm layer over it, the
+settler will walk under invisible weight, and that is a bug — assert it (§17).
 
 ### 16.3 Deliberate reuse — approved, with reasons
 
@@ -2879,13 +3103,69 @@ clips read heavy — a village where every trade swings from the shoulder has no
 scale to it. Two passes per loop so the hands look busy rather than metronomic,
 the second pass a touch deeper than the first so it never reads as a metronome.
 
-### 18.7 `GATHER_LOG` — the lumberjack stoops *(1.10 s, one-shot)*
+### 18.7 `GATHER_LOG` — legacy direct-to-back pickup *(retired from runtime)*
 
-Felling was only ever half the job. The half that makes it read as *work* is
-what happens after the tree comes down: the knees bend, the back takes the
-weight, and the settler comes up **slower than they went down** — 0.35 s to
-drop, 0.55 s to rise. That asymmetry is the whole clip, because standing up
-under a log is not the reverse of bending over. Root drops 2.4 px.
+Felling was only ever half the job. After the tree comes down, the free left
+hand reaches to the log while the right MAINHAND keeps the axe low at the hip.
+The torso hinges to 40 degrees while the root drops 1.7 px and the legs split
+into a planted crouch. The neck counter-rotates so the face watches the log
+without folding into the chest: a deliberate pickup, never a crawl or a
+hand-over-head silhouette.
+The log remains a physical world item until the 0.50 s contact frame, when the
+server moves it into the bag; interruption leaves that item in the world. The
+settler rises more slowly than they went down, finishing the 1.10 s one-shot
+before chopping, limbing, or hauling resumes. Owner review rejected the story:
+even with safer joint values it read as bending backwards into a sack that was
+still on the spine. The clip remains catalogue evidence for the rejection but
+has no live lumber-goal caller.
+
+#### Portable field-container collection — reusable mechanic
+
+This is not a lumberer exception. A field job may place a
+`WorkContainerKind`, collect physical world items into it, then lift it for
+transport. Lumber is the first complete caller; farmer baskets, mining crates,
+and hunting packs must reuse the same ownership/transfer/recovery grammar
+rather than copy it.
+
+### 18.71 `WORK_CONTAINER_DOWN` — detach and place *(1.40 s, one-shot)*
+
+Reach to the back, guide the container around the body, lower it with a 3.4 px
+hip drop and a compact planted stance, hold hand and body for the release beat,
+then stand. The prop stays on the shoulder for the first 0.20 s, travels with
+the guiding hand from 0.20–1.00 s, and remains at its persisted,
+server-authored world anchor while the worker rises. The worker then walks to
+a real dropped item; nothing has entered an invisible inventory.
+
+### 18.72 `GROUND_ITEM_PICKUP` — world item to hand *(1.00 s, one-shot)*
+
+Knees and root lower before the left hand reaches. At contact 0.60 s / tick 12,
+exactly one item moves atomically from its `ItemEntity` into OFFHAND. The ending
+pose is the beginning of the carry gait, so the visible item never pops between
+hands.
+
+### 18.73 `WALK_CARRY_ITEM` — hand-carry back *(1.00 s, speed-sampled loop)*
+
+Return to the fixed container. MAINHAND keeps the job tool low; OFFHAND clamps
+the physical item against the ribs rather than swinging it through the knees.
+Foot timing comes from distance travelled, never a wall clock.
+
+### 18.74 `WORK_CONTAINER_STOW` — hand to container *(1.10 s, one-shot)*
+
+Lower OFFHAND into the container and, at contact 0.60 s / tick 12, atomically
+transfer it to the persistent bag. Rise to neutral and repeat the pickup/carry/
+stow loop until the owned drops are gone or capacity is reached.
+
+### 18.75 `WORK_CONTAINER_UP` — lift and shoulder *(1.60 s, one-shot)*
+
+Squat, grip the same fixed prop, keep it grounded through contact at 0.60 s,
+lift it with the hands from 0.60–1.45 s, shoulder the visible filled container,
+and finish in the haul handoff pose.
+
+The placed container is saved and synced. While placed, its real contents
+still determine visible fill but apply no carried-weight penalty. Interruption
+returns any OFFHAND item to a real `ItemEntity`; reload recovery walks back to
+the persisted container before transport. These are gameplay invariants, not
+animation conveniences.
 
 ### 18.8 `OVEN_TEND` — the baker's peel *(1.60 s, loop)*
 
@@ -3045,10 +3325,10 @@ Owner request, 2026-08-25: *"vil også ha idle animations som matcher
 jobben"* — idle animations that match the job. Standing order from the same
 owner: *"bare premium er standaren"* (premium is the only standard). Before
 this section every settler who was not actively working played the same
-generic `IDLE` — a blacksmith idled exactly like a scholar. These fourteen
+generic `IDLE` — a blacksmith idled exactly like a scholar. These sixteen
 clips fix that: every employed profession now reads as its trade at a
 glance, from across a plaza, with no nameplate. `NONE` keeps the generic
-`IDLE` above; the other 21 employed professions map onto the fourteen clips
+`IDLE` above; the employed professions map onto the sixteen clips
 below.
 
 Each clip **fully replaces** `IDLE` rather than layering on it —
@@ -3065,20 +3345,20 @@ per job title where the job titles happen to be adjacent:
 
 | clip | trades | why they share it |
 |---|---|---|
-| `IDLE_SENTRY` | guard, archer | a lowered weapon and a hand at the belt reads the same whether the tool is a blade or a bow |
+| `IDLE_SENTRY` | guard, hunter | the guard lowers a sword; an empty-handed hunter shares the same alert field scan without inventing a prop |
+| `IDLE_ARCHER` | archer | the real MAINHAND bow hangs outside the knee while the free hand checks string/fletching at waist height |
 | `IDLE_FORGE` | smith, smelter | hands worked raw by forge heat, regardless of whether the tool was a hammer or the bellows |
 | `IDLE_BAKER` | baker, miller | the miller grinds the same flour the baker knocks off their hands |
 | `IDLE_COOK` | cook, brewer | tasting the batch mid-shift — a spoon at the pot, a ladle at the vat, the same beat |
 | `IDLE_SIGHT_EDGE` | mason, carpenter, sawyer | sighting down a straight edge with one eye shut does not care whether the edge is stone or a plank |
 | `IDLE_BLADE_BENCH` | butcher, tanner | both work a bench with a blade and empty hands otherwise; the read is testing the edge, not the cut |
 
-The other eight professions (farmer, lumberer, courier, fletcher, miner,
-scholar, innkeeper, weaver) get a clip of their own — nothing else in the
-roster shares their gesture without forcing it.
+The remaining professions use the corresponding trade-specific clip below;
+nothing else shares those gestures without forcing it.
 
 **Variation over time.** `SettlerModel` offsets each clip's sampled
 `ageInTicks` by a distinct `id % N` — the same scheme `IDLE` and the §18
-craft loops already use, valid here because every one of these fourteen is
+craft loops already use, valid here because every one of these sixteen is
 a **looping** clip (a one-shot offset this way can skip past its own length
 on the first evaluated frame — see §17.4 and the file-level note in
 `SettlerAnimations.java`). Because each loop runs several breath cycles
@@ -3099,11 +3379,14 @@ before settling back to −0.3, leaning into the shaft again.
 
 ### 22.2 `IDLE_LUMBERER` — thumbing the edge *(5.00 s, loop)*
 
-The axe stays shouldered the whole loop, elbow locked at (−150°, −20°,
-30°) — a held pose, not a swing. The left hand climbs from the side up to
-the blade (−99° on `x`) across 2.20–2.60 s, holds there testing the edge
-with a thumb to 3.10 s, then eases back down over 1.2 s while the head
-tilts to watch it.
+The axe stays low at the right hip because this rig has no elbow: the former
+−150° «shouldered» arm placed the straight hand and axe above the head. The
+right arm now remains between −10° and −22° on `x`; the left hand reaches
+only toward the low haft (−30…−32°), holds the check from 2.10–2.70 s, then
+settles. Torso and head dip to inspect without exceeding 15°. Static QA caps
+the axe arm at −25° and the free arm at −35°, so this overhead failure cannot
+return. If the lumberer has not yet received a real axe, the neutral
+empty-handed `IDLE` plays instead of pantomiming an imaginary tool.
 
 ### 22.3 `IDLE_SENTRY` — at ease *(5.50 s, loop)*
 
@@ -3114,6 +3397,16 @@ held 3.20–3.80 s) rather than staying locked across the body. One slow
 deliberate head scan to −16° at 3.00 s runs opposite phase to
 `GUARD_PATROL`'s +17° scan, so a guard passing between post and patrol
 never repeats the same beat.
+
+### 22.3a `IDLE_ARCHER` — checking the string *(5.20 s, loop)*
+
+The physical MAINHAND bow follows `right_arm` and hangs vertically outside
+the right knee (arm x −13…−22°, y −9…−13°, z −5…−8°). The empty left hand
+reaches only to waist height to inspect string/fletching (x bottoms at −34°),
+while the eyes follow that hand for one held beat before returning to the
+field. This clip exists because a bow and a sword do **not** share a truthful
+at-ease silhouette on this rig. OFFHAND stays empty; no quiver arrow or shield
+is fabricated by the renderer.
 
 ### 22.4 `IDLE_COURIER` — the tally *(4.50 s, loop)*
 
@@ -3286,11 +3579,10 @@ both legs lurch the wrong way at 1.25 s) finally settles by 1.50 s. `torso`
 leads the arm by three ticks (peak at 0.40 s, ~30% of the arm's own range)
 and `root` drops a full 2 px extra at the strike (−1.1 to −3.2). Triggered
 from `RaiderBreachGoal` the instant the target actually gives way, so the
-scar and this clip's playback start the same tick — the clip's own
-internal impact keyframe lands a few ticks into that playback rather than
-on tick zero, the same shape as `MELEE`'s own precedent (§17.3) where the
-damage tick and the clip's visual accent are not literally identical
-either.
+scar and this clip's playback start the same tick. The clip's own internal
+impact keyframe still lands a few ticks into that playback rather than on
+tick zero; this remains a reaction-first presentation and must not borrow
+the guard's newer ticketed-contact claim.
 
 ### 23.5 `RAIDER_STRIKE` — the wild swing *(0.55 s, one-shot)*
 

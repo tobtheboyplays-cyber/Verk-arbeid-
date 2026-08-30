@@ -1,0 +1,12 @@
+# Cross-platform QA entrypoints are executed by Bash/Python from Windows and
+# WSL. Pin their working-tree newlines so a core.autocrlf checkout cannot turn
+# a sourced shell library or shebang into an unparsable CRLF file.
+qa/**/*.sh text eol=lf
+qa/**/*.py text eol=lf
+hearthstead-neoforge/tools/**/*.py text eol=lf
+hearthstead-neoforge/gradlew text eol=lf
+tools/hearthstead-qa text eol=lf
+
+# Native Windows launchers retain their platform convention.
+*.bat text eol=crlf
+*.cmd text eol=crlf

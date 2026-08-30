@@ -1,0 +1,729 @@
+status`tcategory`tpath`treason
+A 	tooling	.gitattributes	build, generation, validation, or repository control
+M 	tooling	.gitignore	build, generation, validation, or repository control
+A 	test-qa	demo/2026-08-27-2300/PLAYTEST_2026-08-27.md	test, harness, scenario, or QA contract
+A 	documentation	docs/project/BLESSING_REFERENCE_BENCHMARK.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/CRAFTING_ANIMATION_CONTRACT_2026-08-28.md	project decision, handover, plan, or technical documentation
+M 	documentation	docs/project/CURRENT_STATE.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/EQUIPMENT_REQUEST_VERTICAL_2026-08-27.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/GROUND_COLLECTION_CONTRACT_2026-08-27.md	project decision, handover, plan, or technical documentation
+M 	documentation	docs/project/HANDOVER_CHATGPT.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/HEARTHSTEAD_DEMO_MASTER_PLAN/G0_WORKTREE_MANIFEST.tsv	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/HEARTHSTEAD_DEMO_MASTER_PLAN/GATE_INDEX.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/HEARTHSTEAD_DEMO_MASTER_PLAN/MASTER_PLAN.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/HEARTHSTEAD_DEMO_MASTER_PLAN/README.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/HEARTHSTEAD_DEMO_MASTER_PLAN/THREE_PASS_REVIEW.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/JOURNEY_TO_FIRST_RAID_SPEC_2026-08-27.md	project decision, handover, plan, or technical documentation
+M 	documentation	docs/project/KNOWN_FAILURES.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/MASTERPLAN_PREMIUM_RELEASE_2026-08-27.md	project decision, handover, plan, or technical documentation
+M 	documentation	docs/project/NEXT_ACTION.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/OWNER_DIRECTIVE_2026-08-27_SETTLER_CONTROL_LOGISTICS.md	project decision, handover, plan, or technical documentation
+A 	documentation	docs/project/OWNER_DIRECTIVE_2026-08-27_TECH_TREE_EMBLEMS.md	project decision, handover, plan, or technical documentation
+A 	test-qa	docs/project/PLAYTEST_BACKLOG_2026-08-28.md	test, harness, scenario, or QA contract
+A 	test-qa	docs/project/PLAYTEST_REVIEW_2026-08-27_1945.md	test, harness, scenario, or QA contract
+A 	test-qa	docs/project/PLAYTEST_REVIEW_2026-08-27_1956.md	test, harness, scenario, or QA contract
+A 	test-qa	docs/project/PLAYTEST_REVIEW_2026-08-27_2011.md	test, harness, scenario, or QA contract
+A 	documentation	docs/project/UI_REFERENCE_RESEARCH_2026-08-28.md	project decision, handover, plan, or technical documentation
+M 	tooling	hearthstead-neoforge/.gitignore	build, generation, validation, or repository control
+A 	asset	hearthstead-neoforge/art/hearth_request_ledger_candidate.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/art/source/doctrine_job_emblem_concept_atlas.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/art/source/job_emblem_concept_atlas.png	runtime resource or authored visual/audio asset
+M 	tooling	hearthstead-neoforge/build.gradle	build, generation, validation, or repository control
+M 	documentation	hearthstead-neoforge/docs/ANIMATION_CATALOGUE.md	project decision, handover, plan, or technical documentation
+A 	documentation	hearthstead-neoforge/docs/GUARD_EXPERIENCE.md	project decision, handover, plan, or technical documentation
+M 	documentation	hearthstead-neoforge/docs/HEARTHSTEAD_QUALITY_LEDGER.md	project decision, handover, plan, or technical documentation
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/HearthBlessingIdleGameTests.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/HearthBlock.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/HearthBlockEntity.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/PlaqueAuthorityTelemetryGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/PlaqueBlessingCueGameTests.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/PlaqueBlock.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/PlaqueBlockEntity.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/PlaqueSealDispatchGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/block/PlaqueSurveyPerformanceGameTests.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/building/PlaqueSheet.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/ClientHooks.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/ClientSetup.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/QaClientObserver.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/QaUiInspectable.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/model/RaiderAnimations.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/model/RaiderModel.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/model/SettlerAnimations.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/model/SettlerModel.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/render/PlaqueRenderer.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/render/PlaqueSheetCache.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/render/SettlerRenderer.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/BlessingScreen.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/DevelopmentScreen.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/EmblemShopScreen.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/EquipmentRequestListScreen.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/GuardOrderScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/HandbookScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/HearthScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/PlaqueScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/ResearchScreen.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/SettlerInventoryScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/SettlerScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/StorageScreen.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/screen/WorkZoneConfirmScreen.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/ui/HsUi.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/client/workzone/WorkZoneClient.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/command/HearthsteadCommand.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ArcherRank.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/Attribute.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/BlessingCueGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/CraftOutputEscrow.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/CraftPresentation.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/GuardCombatLedger.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/GuardExperience.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/GuardRank.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/JobAttributeProfile.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/JobEffects.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/MeleeContactLedger.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/OwnedProjectileLedger.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/Profession.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/RaiderEntity.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/SettlerActivity.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/SettlerAttributes.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/SettlerEntity.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/WorkContainerKind.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/AcquireRequestedEquipmentGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/ArcherAttackGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/CrafterWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/FisherWorkGoal.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GroundCollectionSession.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GuardLeapGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GuardMeleeGoal.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GuardOrderGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GuardPatrolGoal.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GuardRaidEscortGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/GuardRespondToAlertGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/HerderWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/HunterWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/InnkeeperWorkGoal.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/LumbererSelfCraftGoal.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/LumbererSelfCraftingService.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/MinerWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/RepairWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/ScholarWorkGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/SettlerDefenseTargetGoal.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/SettlerDoorGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/SettlerPanicGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/TidyWarehouseGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/TravelerJoinGoal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/WorkScanner.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/BlessingEvents.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/CombatTerminalEvents.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/CommonEvents.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/GuardExperienceEvents.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/MayorEmblemShopEvents.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/ModBusEvents.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/event/PendingPlayerDeliveryEvents.java	runtime Java source
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/ActiveBlessingPerformanceGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/AnimationReachabilityGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/ArcherGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/AuthorityTelemetryGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/BlessingEffectGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/BlessingInspectionGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/BlessingNetworkGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/BlessingSealItemGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/BuildingBlessingGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/CombatTerminalTelemetryGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/CostsGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/CourierFoodRouteGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/CourierStopReasonGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/CourierWorkshopRouteGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/CrossSettlementBlessingGiftGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/DevelopmentGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/EffortGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/EmploymentEmblemGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/EquipmentRequestGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FarmerBootstrapGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FarmerCaneGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FarmerContactAuthorityGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FirstRaidReadinessGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FirstRaidReadinessServiceGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FirstRaidRuntimeGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/FirstRaidUxGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GameTestFixtures.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GroundCollectionSessionGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GuardControlGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GuardDefenseGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GuardExperienceGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GuardMeleeContactGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/GuardTrainingGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/HearthsteadGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/LogisticsGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/LumbererGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/LumbererSelfCraftGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/MonsterDefenseGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/PathGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/PlaqueUseGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RaidAuthorityFixtures.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RaidPressureGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RaiderArsonGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RaiderGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RecruitGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RecruitmentPolicyGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/RecurringRaidGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/SagaGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/SettlementStateGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/SettlerHelpLoopGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/SettlerSheetGameTests.java	test, harness, scenario, or QA contract
+M 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/SummonsGameTests.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/main/java/com/hearthstead/gametest/TargetBlessingStateGameTests.java	test, harness, scenario, or QA contract
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/item/BlessingSealItem.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/item/BuildPlanItem.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/item/JobEmblemItem.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/item/WorkScepterItem.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/logistics/StopReason.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/menu/HearthMenu.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/menu/SettlerInventoryAuthorityGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/menu/SettlerInventoryMenu.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/BlessingActionPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/BlessingDeliveryGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/BlessingNetwork.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/BlessingSnapshotPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/DevelopmentActionPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/DevelopmentNetwork.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/DevelopmentSnapshotPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/EquipmentRequestListNetwork.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/EquipmentRequestListPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/EquipmentRequestListRequestPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/EquipmentRequestMovePayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/GuardOrderActionPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/GuardOrderNetwork.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/GuardOrderNetworkGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/GuardOrderSnapshotPayload.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/HearthMayorAction.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/HearthMayorSnapshot.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/HearthNetwork.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/InspectionRefreshGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/InspectionViewers.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/MayorInspectionGameTests.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/PlaqueAction.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/PlaqueAssignmentGameTests.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/PlaqueNetwork.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/PlaqueSnapshot.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/ResearchActionPayload.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/ResearchNetwork.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/SettlerActionPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/SettlerLocateSignal.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/SettlerNetwork.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/SettlerSnapshotPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/WorkZoneActionPayload.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/network/WorkZoneSnapshotPayload.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/registry/ModCreativeTabs.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/registry/ModItems.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/registry/ModMenus.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/registry/ModSounds.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/BlessingEffects.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/BlessingPresentation.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/BlessingPresentationGameTests.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/Building.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/BuildingManager.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/DeferredItemMaterializationSavedData.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/Employment.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/EmploymentAuthorizationLedger.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/FoundingJourneyGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/FoundingJourneyProgress.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/Mayor.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/PendingPlayerDeliveryLedger.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/RecruitmentPolicy.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/RecruitmentTransaction.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/Settlement.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/SettlementManager.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/SettlementSavedData.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/BuildingDescription.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/Development.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/DevelopmentNode.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/DevelopmentObjective.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/DevelopmentQuests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/DevelopmentRecipeBook.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/DevelopmentState.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/development/JobEmblemCatalog.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/equipment/EquipmentRequest.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/equipment/EquipmentRequestQueue.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/equipment/EquipmentRequests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/equipment/EquipmentRequirement.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/equipment/WorkplaceStorage.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/guard/GuardAssignmentService.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyApplyResult.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyDefinition.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyEmblemProvenance.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyEvent.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyEvidence.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyIds.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyMigration.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyOutcome.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyPresentationMode.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyProgressService.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyReadinessGate.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyServerHooks.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneySnapshot.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneySource.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyState.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyStep.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyTransactionIds.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/journey/JourneyV3GameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/raid/FirstRaidReadiness.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/raid/FirstRaidReadinessService.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/raid/RaidDirector.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/raid/RaidLogEntry.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/raid/RaidPresentation.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestBlocker.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestItemFingerprint.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedger.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedgerGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedgerSavedData.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedgerService.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedgerSnapshot.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestPriority.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestRecord.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestState.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestTransition.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestType.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/BlessingId.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/BlessingState.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/FirstRaidState.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/FoundingJourney.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/GuardOrder.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/GuardOrderBook.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/RaidLifecycle.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/RecurringRaidRun.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/state/TargetBlessingState.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/warehouse/WarehouseStorage.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceSavedData.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/work/WorkerStackProvenance.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/work/WorkerStorageAuthority.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/workzone/WorkZone.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/workzone/WorkZoneGameTests.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/settlement/workzone/WorkZoneService.java	runtime Java source
+A 	source	hearthstead-neoforge/src/main/java/com/hearthstead/util/AuthorityTelemetry.java	runtime Java source
+M 	source	hearthstead-neoforge/src/main/java/com/hearthstead/util/QaTrace.java	runtime Java source
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/lang/en_us.json	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/lang/nb_no.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/archer_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/courier_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/farmer_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/guard_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/hearthward_seal.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/innkeeper_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/lumberer_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/sawyer_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/scholar_emblem.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/thorned_roads_seal.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/warden_oath_seal.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/models/item/work_scepter.json	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds.json	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/armour_clink.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/armour_clink2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/bag_down.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/bag_stow.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/bag_up.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/blade_hit.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/blade_hit2.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/chest_stow.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/chop.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/chop2.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/chop3.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/crate_creak.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/crate_down.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/crate_grip.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/crop_pull.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/farmer_work.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/farmer_work2.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/farmer_work3.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/guard_alert.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/guard_experience.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/haul_step.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/haul_step2.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/haul_step3.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/haul_strain.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/hearth_founded.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/item_pickup.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/leap_slam.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/profession_assigned.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/seed_press.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/settler_recruited.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/shield_thud.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/shield_thud2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/ui_close.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/ui_confirm.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/ui_error.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/sounds/ui_open.ogg	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/block/hearth_bowl.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/block/hearth_ember.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/block/hearth_stone.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/block/hearth_top.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/base_skin.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/base_skin_deep.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/base_skin_pale.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/base_skin_tan.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/clothing_0.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/clothing_1.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/clothing_2.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/clothing_3.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/face_0.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/face_1.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/face_2.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_0_hair_blk.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_0_hair_blnd.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_0_hair_brn.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_0_hair_red.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_1_hair_blk.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_1_hair_blnd.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_1_hair_brn.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_1_hair_red.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_2_hair_blk.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_2_hair_blnd.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_2_hair_brn.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_2_hair_red.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_3_hair_blk.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_3_hair_blnd.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_3_hair_brn.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/hair_3_hair_red.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_archer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_armourer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_baker.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_brewer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_butcher.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_carpenter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_cook.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_courier.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_farmer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_fisher.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_fletcher.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_guard.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_herder.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_hunter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_innkeeper.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_lumberer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_mason.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_miller.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_miner.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_none.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_sawyer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_scholar.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_smelter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_smith.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_tanner.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/layers/outfit_weaver.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_archer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_armourer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_baker.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_brewer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_butcher.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_carpenter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_cook.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_courier.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_farmer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_fisher.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_fletcher.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_guard.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_herder.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_hunter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_innkeeper.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_lumberer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_mason.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_miller.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_miner.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_none.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_sawyer.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_scholar.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_smelter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_smith.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_tanner.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/entity/settler/settler_weaver.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/ale.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/archer_emblem.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/courier_emblem.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/cured_hide.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/farmer_emblem.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/flour.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/guard_emblem.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/handbook.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/hearthward_seal.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/innkeeper_emblem.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/iron_bloom.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/lumberer_emblem.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/malt.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/sawyer_emblem.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/scholar_emblem.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/thorned_roads_seal.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/timber_beam.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/warden_oath_seal.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/wool_bolt.png	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/assets/hearthstead/textures/item/work_scepter.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/data/hearthstead/advancement/recipes/build_plans.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/data/hearthstead/recipe/work_scepter.json	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/src/main/resources/data/hearthstead_active_perf/structure/empty16.nbt	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/hearthstead_logo.png	runtime resource or authored visual/audio asset
+M 	asset	hearthstead-neoforge/src/main/resources/pack.mcmeta	runtime resource or authored visual/audio asset
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/block/PlaqueJourneyHookContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/render/PlaqueSheetCacheTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/BlessingScreenTransitionContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/DevelopmentScreenTopologyTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/DevelopmentScreenZoomTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/HearthAftermathLayoutTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/HearthRenderCacheContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/ResponsiveScreenLayoutTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/screen/WorkZoneConfirmScreenLayoutTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/ui/HsUiToneTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/client/workzone/WorkZoneClientContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/GuardCombatLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/GuardExperienceTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/GuardVisualContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/JobAttributeProfileTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/JobEffectsTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/MeleeContactLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/OwnedProjectileLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/SettlerAttributesTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/ai/AnimationRuntimePhaseContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/ai/CourierEquipmentRecoveryContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/ai/LumbererAttributeWiringTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/ai/MartialCounterTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/entity/ai/WorkScannerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/event/ModBusEventsDistributionTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/event/WeakTickEventLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/network/GuardOrderWireContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/network/HearthAftermathViewTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/network/HearthReadinessViewTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/network/HearthRequestViewTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/network/SettlerActionWireContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/network/SettlerSnapshotPayloadBoundsTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/DeferredItemMaterializationSavedDataTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/EmploymentAuthorizationLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/MayorBoonTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/PendingPlayerDeliveryLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/RecruitmentTransactionTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/development/DevelopmentStateTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/equipment/EquipmentRequestQueueTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/equipment/EquipmentRequestTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/guard/GuardAssignmentServiceTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/HandbookLanguageContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyDefinitionTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyEmblemProvenanceTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyLanguageContractTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyMigrationTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyRecruitmentSlotTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyServerHooksRaidAuthorityTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/journey/JourneyStateTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/raid/FirstRaidReadinessServiceTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/raid/RaidWarningPresentationTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/request/RequestLedgerSnapshotOwnershipTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/request/RequestLedgerTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/state/BlessingStateTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/state/GuardOrderBookTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/state/GuardOrderTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/state/RaidLifecycleReadinessCalendarTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/work/WorkerProvenanceSavedDataTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/work/WorkerStackProvenanceTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/work/WorkerStorageAuthorityTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/workzone/FarmerWorkZoneProgressionTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/settlement/workzone/WorkZoneTest.java	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/src/test/java/com/hearthstead/util/AuthorityTelemetryTest.java	test, harness, scenario, or QA contract
+M 	tooling	hearthstead-neoforge/tools/anim_check.py	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/anim_preview.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/audio_requirements.txt	build, generation, validation, or repository control
+A 	documentation	hearthstead-neoforge/tools/audio_sources/CANDIDATE_REPORT.md	project decision, handover, plan, or technical documentation
+A 	documentation	hearthstead-neoforge/tools/audio_sources/README.md	project decision, handover, plan, or technical documentation
+A 	tooling	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/LICENSE_KENNEY_IMPACT_CC0.txt	build, generation, validation, or repository control
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_grass_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_grass_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_grass_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_grass_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_grass_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_wood_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_wood_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_wood_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_wood_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/footstep_wood_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactBell_heavy_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactBell_heavy_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactBell_heavy_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactBell_heavy_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactBell_heavy_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_heavy_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_heavy_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_heavy_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_heavy_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_heavy_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_light_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_light_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_light_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_light_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_light_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_medium_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_medium_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_medium_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_medium_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactMetal_medium_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactPlank_medium_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactPlank_medium_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactPlank_medium_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactPlank_medium_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactPlank_medium_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_heavy_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_heavy_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_heavy_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_heavy_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_heavy_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_medium_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_medium_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_medium_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_medium_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactSoft_medium_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_heavy_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_heavy_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_heavy_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_heavy_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_heavy_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_light_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_light_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_light_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_light_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_light_004.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_medium_000.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_medium_001.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_medium_002.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_medium_003.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_impact/impactWood_medium_004.ogg	runtime resource or authored visual/audio asset
+A 	tooling	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/LICENSE_KENNEY_RPG_CC0.txt	build, generation, validation, or repository control
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/bookClose.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/bookOpen.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/bookPlace1.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/bookPlace2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/chop.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/cloth1.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/cloth2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/cloth3.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/cloth4.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/clothBelt.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/clothBelt2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/creak1.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/creak2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/creak3.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/doorClose_1.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/doorClose_2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/doorOpen_1.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/doorOpen_2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/dropLeather.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/handleCoins.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/handleCoins2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/handleSmallLeather.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/handleSmallLeather2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/knifeSlice.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/knifeSlice2.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/metalClick.ogg	runtime resource or authored visual/audio asset
+A 	asset	hearthstead-neoforge/tools/audio_sources/cc0_raw/kenney_rpg/metalLatch.ogg	runtime resource or authored visual/audio asset
+A 	tooling	hearthstead-neoforge/tools/audio_sources/manifest.json	build, generation, validation, or repository control
+M 	documentation	hearthstead-neoforge/tools/blockbench/README.md	project decision, handover, plan, or technical documentation
+M 	tooling	hearthstead-neoforge/tools/blockbench/bb_render.mjs	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/blockbench/export_bbmodel.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/blockbench/export_raider_bbmodel.py	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/blockbench/prop_contract.json	build, generation, validation, or repository control
+A 	asset	hearthstead-neoforge/tools/blockbench/raider.bbmodel	runtime resource or authored visual/audio asset
+A 	tooling	hearthstead-neoforge/tools/blockbench/render_lumberer_matrix.mjs	build, generation, validation, or repository control
+M 	asset	hearthstead-neoforge/tools/blockbench/settler.bbmodel	runtime resource or authored visual/audio asset
+A 	tooling	hearthstead-neoforge/tools/build_bend_contact_sheet.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/build_demo_audio.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/extract_doctrine_emblems.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/extract_job_emblems.py	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/gen_blocks_items.py	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/gen_settler.py	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/gen_sounds.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/gen_work_scepter.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/render_development_concepts.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/render_development_living_tree_alt.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/render_development_previews.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/render_melee_v4_evidence.py	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/render_ui_overhaul.py	build, generation, validation, or repository control
+A 	test-qa	hearthstead-neoforge/tools/test_anim_activity_reachability.py	test, harness, scenario, or QA contract
+A 	test-qa	hearthstead-neoforge/tools/test_anim_melee_contract.py	test, harness, scenario, or QA contract
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/00_design_system_en.json	build, generation, validation, or repository control
+A 	documentation	hearthstead-neoforge/tools/ui/overhaul/README.md	project decision, handover, plan, or technical documentation
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/emblem_shop_living_selected_en.json	build, generation, validation, or repository control
+A 	documentation	hearthstead-neoforge/tools/ui/overhaul/hearth_command_center_contract.md	project decision, handover, plan, or technical documentation
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/hearth_command_center_desktop_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/hearth_command_center_narrow_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/hearth_request_ledger_desktop_en.json	build, generation, validation, or repository control
+A 	documentation	hearthstead-neoforge/tools/ui/overhaul/job_attribute_fit_contract.md	project decision, handover, plan, or technical documentation
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/job_attribute_fit_matrix_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/plaque_housing_move_in_narrow_worstcase_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/plaque_housing_residents_en.json	build, generation, validation, or repository control
+A 	documentation	hearthstead-neoforge/tools/ui/overhaul/plaque_job_fit_contract.md	project decision, handover, plan, or technical documentation
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/plaque_lumberer_job_fit_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/plaque_workplace_requirements_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/plaque_workplace_staff_worstcase_en.json	build, generation, validation, or repository control
+A 	documentation	hearthstead-neoforge/tools/ui/overhaul/settler_attribute_contract.md	project decision, handover, plan, or technical documentation
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/settler_attribute_hover_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/settler_guard_narrow_worstcase_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/settler_guard_overview_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/settler_inventory_living_request_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/settler_lumberer_overview_living_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/overhaul/work_scepter_zone_confirm_living_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/equipment_request_list_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/equipment_request_list_en_narrow.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/first_raid_warning_aftermath_candidate_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/hearth_journey_panel_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/hearth_journey_panel_nb.json	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/ui/specs/hearth_mayor_panel_en.json	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/ui/specs/hearth_mayor_panel_nb.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/hearth_raid_readiness_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/hearth_request_ledger_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/recruitment_candidate_compact_en.json	build, generation, validation, or repository control
+A 	tooling	hearthstead-neoforge/tools/ui/specs/recruitment_candidate_compact_nb.json	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/ui/tokens.json	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/ui_preview.py	build, generation, validation, or repository control
+M 	tooling	hearthstead-neoforge/tools/validate_assets.py	build, generation, validation, or repository control
+M 	test-qa	qa/PROTOCOL.md	test, harness, scenario, or QA contract
+A 	test-qa	qa/RELEASE_CLIENT_GATE.md	test, harness, scenario, or QA contract
+M 	test-qa	qa/hooks/post_edit.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/release_client_matrix.json	test, harness, scenario, or QA contract
+D 	generated-output	qa/reports/BLOCKED	stale QA gate marker
+A 	test-qa	qa/scenarios/blessing_visual.txt	test, harness, scenario, or QA contract
+M 	test-qa	qa/scenarios/default.txt	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/blessing_restart_inspect.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/blessing_restart_probe.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/capture_windows_loopback.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/check_client_frame_stats.py	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/client_boot.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/client_install.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/controller_lock_bootstrap.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/dedicated_e2e.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/lib_harness.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/lib_safe_paths.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/lib_tmux_harness.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/live.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/live2.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/native_evidence_contract.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/native_release_session.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/parse_active_blessing_perf.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/parse_perf_matrix.py	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/perf_probe.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/playtest.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/reap.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/server_install.sh	test, harness, scenario, or QA contract
+M 	test-qa	qa/scripts/server_instance.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/source_fingerprint.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_client_frame_stats.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_full_attempt_interrupt.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_harness_artifacts.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_native_release_session.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_perf_probe_safety.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_plaque_render_cache_contract.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_release_client_evidence.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_safe_paths.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_tmux_tracked.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/test_windows_native_input.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/tracked_exec_entry.sh	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/validate_full_manifest.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/validate_release_client_evidence.py	test, harness, scenario, or QA contract
+A 	test-qa	qa/scripts/windows_native_input.py	test, harness, scenario, or QA contract
+M 	tooling	tools/hearthstead-qa	build, generation, validation, or repository control

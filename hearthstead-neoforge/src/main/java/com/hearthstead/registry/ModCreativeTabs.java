@@ -29,7 +29,19 @@ public final class ModCreativeTabs {
                 output.accept(ModItems.PLAQUE.get());
                 output.accept(ModItems.BUILD_PLAN.get());
                 output.accept(ModItems.HANDBOOK.get());
+                output.accept(ModItems.WORK_SCEPTER.get());
                 output.accept(ModItems.SETTLER_SPAWN_EGG.get());
+                output.accept(ModItems.LUMBERER_EMBLEM.get());
+                output.accept(ModItems.FARMER_EMBLEM.get());
+                output.accept(ModItems.COURIER_EMBLEM.get());
+                output.accept(ModItems.INNKEEPER_EMBLEM.get());
+                output.accept(ModItems.GUARD_EMBLEM.get());
+                output.accept(ModItems.ARCHER_EMBLEM.get());
+                output.accept(ModItems.SAWYER_EMBLEM.get());
+                output.accept(ModItems.SCHOLAR_EMBLEM.get());
+                output.accept(ModItems.WARDEN_OATH_SEAL.get());
+                output.accept(ModItems.HEARTHWARD_SEAL.get());
+                output.accept(ModItems.THORNED_ROADS_SEAL.get());
                 // The chain goods, in FLOWS order.
                 output.accept(ModItems.FLOUR.get());
                 output.accept(ModItems.MALT.get());

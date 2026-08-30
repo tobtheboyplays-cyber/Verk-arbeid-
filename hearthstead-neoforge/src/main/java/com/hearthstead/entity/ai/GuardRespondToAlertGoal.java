@@ -4,6 +4,8 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.goal.Goal;
 
 import java.util.EnumSet;
@@ -22,7 +24,11 @@ public class GuardRespondToAlertGoal extends Goal {
         // Martial, not just GUARD: an archer who ignores the alarm is a
         // decoration on a tower. They run to the trouble the same way, then
         // their own attack goal decides what to do when they arrive.
-        if (!settler.getProfession().martial() || settler.getTarget() != null) {
+        Profession profession = settler.getProfession();
+        if (!profession.martial() || settler.getTarget() != null
+            || !(settler.level() instanceof ServerLevel level)
+            || !EquipmentRequests.readyForProfession(level, settler,
+                profession)) {
             return false;
         }
         Settlement s = settler.settlement();

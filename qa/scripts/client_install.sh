@@ -33,14 +33,37 @@
 set -eu
 MOD="$1"
 FORCE="${2:-}"
-INSTALL_DIR="${HSQA_CLIENT_INSTALL_DIR:-/tmp/claude-0/hsqa-client-install}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib_safe_paths.sh"
+MOD=$(realpath -m -- "$MOD")
+[ -d "$MOD" ] || { echo "FAIL: missing mod directory $MOD" >&2; exit 1; }
+[ -z "$FORCE" ] || [ "$FORCE" = "--force" ] \
+    || { echo "FAIL: unsupported client_install option '$FORCE'" >&2; exit 1; }
+INSTALL_DIR=$(hsqa_safe_target \
+    "${HSQA_CLIENT_INSTALL_DIR:-/tmp/claude-0/hsqa-client-install-v2}" \
+    "client install") || exit 1
 NEO_VERSION=$(grep -oP 'neoforge_version=\K.*' "$MOD/gradle.properties")
 GRADLE_CACHE="${HSQA_GRADLE_CACHE:-/root/.gradle/caches}"
 NFRT="$GRADLE_CACHE/neoformruntime"
 MODULES="$GRADLE_CACHE/modules-2/files-2.1"
 
+if [ ! -e "$INSTALL_DIR" ]; then
+    hsqa_claim_empty_directory \
+        "$INSTALL_DIR" .hsqa-client-install-owned hsqa-client-install-v1 \
+        || exit 1
+elif [ ! -e "$INSTALL_DIR/.hsqa-client-install-owned" ]; then
+    hsqa_claim_empty_directory \
+        "$INSTALL_DIR" .hsqa-client-install-owned hsqa-client-install-v1 \
+        || exit 1
+fi
+hsqa_require_owned_directory \
+    "$INSTALL_DIR" .hsqa-client-install-owned hsqa-client-install-v1 || exit 1
+
 if [ "$FORCE" = "--force" ]; then
-    rm -rf "$INSTALL_DIR"
+    rm -rf -- "$INSTALL_DIR"
+    hsqa_claim_empty_directory \
+        "$INSTALL_DIR" .hsqa-client-install-owned hsqa-client-install-v1 \
+        || exit 1
 fi
 
 if [ -f "$INSTALL_DIR/installed-$NEO_VERSION" ] && [ -d "$INSTALL_DIR/libraries" ] \

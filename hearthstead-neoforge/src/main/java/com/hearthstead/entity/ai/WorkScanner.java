@@ -4,7 +4,10 @@ import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
@@ -25,6 +28,17 @@ public class WorkScanner {
 
     private int cursor;
     private int columnCursor;
+    private int boxColumnCursor;
+    private int boxCursor;
+    private int nearestBoxCursor;
+    private BlockPos lastBoxColumnMin;
+    private BlockPos lastBoxColumnMax;
+    private BlockPos lastBoxMin;
+    private BlockPos lastBoxMax;
+    private BlockPos lastNearestBoxMin;
+    private BlockPos lastNearestBoxMax;
+    private BlockPos lastNearestBoxOrigin;
+    private long[] nearestBoxOrder = new long[0];
 
     private static synchronized int[] offsetTable() {
         if (offsets == null) {
@@ -135,7 +149,13 @@ public class WorkScanner {
                                       Function<BlockPos, BlockPos> finder) {
         int[] table = columnTable();
         int radiusSqr = radius * radius;
-        List<BlockPos> results = new ArrayList<>();
+        // One physical tree can be returned by more than one surveyed column
+        // (wide trunks and custom trees are the common case). Counting those
+        // duplicates against maxResults made a second lumberer spend an
+        // entire batch rediscovering the first worker's already-claimed tree.
+        // Preserve discovery order while charging the result cap only for a
+        // distinct work position.
+        Set<BlockPos> results = new LinkedHashSet<>();
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int examined = 0; examined < budget && results.size() < maxResults; examined++) {
             if (columnCursor >= table.length
@@ -150,10 +170,178 @@ public class WorkScanner {
                 center.getZ() + columnZ(packed));
             BlockPos found = finder.apply(pos);
             if (found != null) {
-                results.add(found);
+                results.add(found.immutable());
             }
         }
-        return results;
+        return List.copyOf(results);
+    }
+
+    /**
+     * Resumable exact rectangular column scan. It never reads outside the
+     * supplied inclusive X/Z bounds and does not acquire chunks; the finder
+     * remains responsible for a cheap loaded check before any height lookup.
+     */
+    public List<BlockPos> scanBoxColumns(BlockPos min, BlockPos max, int y,
+                                         int budget, int maxResults,
+                                         Function<BlockPos, BlockPos> finder) {
+        if (min == null || max == null || min.getX() > max.getX()
+            || min.getZ() > max.getZ() || budget <= 0 || maxResults <= 0) {
+            return List.of();
+        }
+        BlockPos normalizedMin = new BlockPos(min.getX(), y, min.getZ());
+        BlockPos normalizedMax = new BlockPos(max.getX(), y, max.getZ());
+        if (!normalizedMin.equals(lastBoxColumnMin)
+            || !normalizedMax.equals(lastBoxColumnMax)) {
+            boxColumnCursor = 0;
+            lastBoxColumnMin = normalizedMin;
+            lastBoxColumnMax = normalizedMax;
+        }
+        int sizeX = max.getX() - min.getX() + 1;
+        int sizeZ = max.getZ() - min.getZ() + 1;
+        int total = sizeX * sizeZ;
+        Set<BlockPos> results = new LinkedHashSet<>();
+        for (int examined = 0; examined < Math.min(budget, total)
+                && results.size() < maxResults; examined++) {
+            if (boxColumnCursor >= total) {
+                boxColumnCursor = 0;
+                if (examined > 0) {
+                    break;
+                }
+            }
+            int index = boxColumnCursor++;
+            int x = min.getX() + index / sizeZ;
+            int z = min.getZ() + index % sizeZ;
+            BlockPos found = finder.apply(new BlockPos(x, y, z));
+            if (found != null) {
+                results.add(found.immutable());
+            }
+        }
+        return List.copyOf(results);
+    }
+
+    /**
+     * Resumable exact inclusive 3D scan for a confirmed Work Zone. At most
+     * {@code budget} positions are offered per call, even for the maximum
+     * legal zone, and no position outside the bounds is constructed.
+     */
+    public List<BlockPos> scanBox(BlockPos min, BlockPos max, int budget,
+                                  int maxResults,
+                                  Predicate<BlockPos> predicate) {
+        if (min == null || max == null || min.getX() > max.getX()
+            || min.getY() > max.getY() || min.getZ() > max.getZ()
+            || budget <= 0 || maxResults <= 0) {
+            return List.of();
+        }
+        if (!min.equals(lastBoxMin) || !max.equals(lastBoxMax)) {
+            boxCursor = 0;
+            lastBoxMin = min.immutable();
+            lastBoxMax = max.immutable();
+        }
+        int sizeY = max.getY() - min.getY() + 1;
+        int sizeZ = max.getZ() - min.getZ() + 1;
+        long totalLong = (long) (max.getX() - min.getX() + 1)
+            * sizeY * sizeZ;
+        if (totalLong <= 0L || totalLong > Integer.MAX_VALUE) {
+            return List.of();
+        }
+        int total = (int) totalLong;
+        List<BlockPos> results = new ArrayList<>();
+        for (int examined = 0; examined < Math.min(budget, total)
+                && results.size() < maxResults; examined++) {
+            if (boxCursor >= total) {
+                boxCursor = 0;
+                if (examined > 0) {
+                    break;
+                }
+            }
+            int index = boxCursor++;
+            int yz = sizeY * sizeZ;
+            int x = min.getX() + index / yz;
+            int remainder = index % yz;
+            int y = min.getY() + remainder / sizeZ;
+            int z = min.getZ() + remainder % sizeZ;
+            BlockPos candidate = new BlockPos(x, y, z);
+            if (predicate.test(candidate)) {
+                results.add(candidate);
+            }
+        }
+        return List.copyOf(results);
+    }
+
+    /**
+     * Visits an exact inclusive 3D box in deterministic nearest-first order.
+     *
+     * <p>The order is built only when the bounds or stable origin change,
+     * then resumed across calls. Unlike a result-capped predicate scan, the
+     * visitor always receives the full bounded batch. That lets callers keep
+     * small priority-specific queues without a dense low-priority block type
+     * hiding a rarer high-priority target later in the same batch.
+     *
+     * <p>The origin is clamped into the box before ordering. No position
+     * outside the supplied bounds is constructed or visited.
+     */
+    public void visitBoxNearest(BlockPos min, BlockPos max, BlockPos origin,
+                                int budget, Consumer<BlockPos> visitor) {
+        if (min == null || max == null || origin == null || visitor == null
+            || min.getX() > max.getX() || min.getY() > max.getY()
+            || min.getZ() > max.getZ() || budget <= 0) {
+            return;
+        }
+        BlockPos boundedOrigin = new BlockPos(
+            Math.max(min.getX(), Math.min(max.getX(), origin.getX())),
+            Math.max(min.getY(), Math.min(max.getY(), origin.getY())),
+            Math.max(min.getZ(), Math.min(max.getZ(), origin.getZ())));
+        int sizeY = max.getY() - min.getY() + 1;
+        int sizeZ = max.getZ() - min.getZ() + 1;
+        long totalLong = (long) (max.getX() - min.getX() + 1)
+            * sizeY * sizeZ;
+        if (totalLong <= 0L || totalLong > Integer.MAX_VALUE) {
+            return;
+        }
+        int total = (int) totalLong;
+        if (!min.equals(lastNearestBoxMin) || !max.equals(lastNearestBoxMax)
+            || !boundedOrigin.equals(lastNearestBoxOrigin)) {
+            nearestBoxCursor = 0;
+            lastNearestBoxMin = min.immutable();
+            lastNearestBoxMax = max.immutable();
+            lastNearestBoxOrigin = boundedOrigin;
+            nearestBoxOrder = nearestBoxOrder(min, sizeY, sizeZ, total,
+                boundedOrigin);
+        }
+        for (int examined = 0; examined < Math.min(budget, total); examined++) {
+            if (nearestBoxCursor >= total) {
+                nearestBoxCursor = 0;
+                if (examined > 0) {
+                    break;
+                }
+            }
+            int index = (int) nearestBoxOrder[nearestBoxCursor++];
+            int yz = sizeY * sizeZ;
+            int x = min.getX() + index / yz;
+            int remainder = index % yz;
+            int y = min.getY() + remainder / sizeZ;
+            int z = min.getZ() + remainder % sizeZ;
+            visitor.accept(new BlockPos(x, y, z));
+        }
+    }
+
+    private static long[] nearestBoxOrder(BlockPos min, int sizeY, int sizeZ,
+                                          int total, BlockPos origin) {
+        long[] order = new long[total];
+        int yz = sizeY * sizeZ;
+        for (int index = 0; index < total; index++) {
+            int x = min.getX() + index / yz;
+            int remainder = index % yz;
+            int y = min.getY() + remainder / sizeZ;
+            int z = min.getZ() + remainder % sizeZ;
+            long dx = x - (long) origin.getX();
+            long dy = y - (long) origin.getY();
+            long dz = z - (long) origin.getZ();
+            long distance = dx * dx + dy * dy + dz * dz;
+            order[index] = (distance << 32) | (index & 0xffffffffL);
+        }
+        Arrays.sort(order);
+        return order;
     }
 
     private static synchronized int[] columnTable() {

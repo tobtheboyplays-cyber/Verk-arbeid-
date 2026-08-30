@@ -8,7 +8,9 @@ UV table (must mirror SettlerModel.createBodyLayer):
   right_arm (0,32) / left_arm (16,32) 4x12x4
   right_leg (32,32) / left_leg (48,32) 4x12x4
   cloak (64,32) 11x4x6   hat_brim (64,44) 12x1x12
-  sack (0,17) 7x8x6
+  sack_body (0,17) 7x6x6  sack_neck (28,17) 5x3x4
+  lumber_rail (0,49) 1x10x1  lumber_crossbar (7,49) 8x1x1
+  lumber_shelf (26,49) 8x1x4  lumber_log (50,49) 2x8x2
 
 Five independent axes -- skin tone, hair (style x color), face (eye color),
 clothing, and profession outfit -- each a standalone 128x64 sheet, mostly
@@ -48,10 +50,16 @@ UV = {
     "left_leg":  (48, 32, 4, 12, 4),
     "cloak":     (64, 32, 11, 4, 6),
     "hat_brim":  (64, 44, 12, 1, 12),
-    # A2b: the carried sack. Only drawn when the settler has a load, so it
-    # is painted on the clothing layer like any other garment but reads as
-    # rough sackcloth rather than the tailored coat.
-    "sack":      (0, 17, 7, 8, 6),
+    # A2b: two overlapping cuboids make a visibly cinched cloth sack rather
+    # than a wooden-looking rectangular crate.
+    "sack_body": (0, 17, 7, 6, 6),
+    "sack_neck": (28, 17, 5, 3, 4),
+    # Original Hearthstead timber frame. These four islands occupy the free
+    # lower-left atlas band and are shared by the attached/root-owned meshes.
+    "lumber_rail":     (0, 49, 1, 10, 1),
+    "lumber_crossbar": (7, 49, 8, 1, 1),
+    "lumber_shelf":    (26, 49, 8, 1, 4),
+    "lumber_log":      (50, 49, 2, 8, 2),
 }
 
 # -- modular axes (cardinalities mirror SettlerAppearance in Java) ----------
@@ -90,11 +98,17 @@ CLOTHING_PALETTES = [
 # identity colour 0x3E5C8A exactly.
 INK_BLUE = ["#2c3552", "#2f426e", "#3e5c8a", "#5a7da3", "#80a2bd"]
 
+# Desaturated woven jute. The old wheat ramp was bright yellow enough that a
+# square sack read as a buckled wooden chest in motion previews.
+SACK_CLOTH = ["#49372a", "#66503c", "#80684d", "#a38862", "#c4a77b"]
+
 
 def ramp_of(name):
     """ramp() plus this file's pending-hoist local ramps (see INK_BLUE)."""
     if name == "ink_blue":
         return [hx(c) for c in INK_BLUE]
+    if name == "sack_cloth":
+        return [hx(c) for c in SACK_CLOTH]
     return ramp(name)
 
 
@@ -103,7 +117,7 @@ def ramp_of(name):
 PROFESSION_OUTFITS = {
     "none":     dict(headgear="hood", hood_wool="leather"),
     "farmer":   dict(headgear="straw_hat", apron=True),
-    "lumberer": dict(headgear="bare", bracers=True),
+    "lumberer": dict(headgear="bare", bracers=True, log_frame=True),
     "guard":    dict(headgear="helm", gambeson=True, gauntlets=True),
     # A2a: a courier reads by the carrying rig, not headgear -- hands and
     # head stay free so the carry animations own the silhouette.
@@ -555,47 +569,47 @@ def build_clothing(variant_idx):
     put(img, x + fw // 2 - 1, y + 1, lit(buckle[3], "front"))
     put(img, x + fw // 2, y + 1, lit(buckle[2], "front"))
 
-    # sack (A2b) -- rough sackcloth, deliberately coarser and darker than
-    # the tailored tunic so a laden settler reads as carrying CARGO, not
-    # wearing more clothes. Hidden by the model unless there is a real load.
-    # First pass was too pale and flat and read as a crate; this one is
-    # built around contrast: dark creases, a lit crown, a heavy base.
-    sack_cloth = ramp("wheat")
-    u, v, w, h, d = UV["sack"]
+    # Sack body (A2b): rounded shading, vertical cloth folds and a dark heavy
+    # base. The body overlaps the smaller neck by one pixel in geometry.
+    sack_cloth = ramp_of("sack_cloth")
+    u, v, w, h, d = UV["sack_body"]
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
-        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=1)
+        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=2)
         if face in ("front", "back", "right", "left"):
-            # Drawstring: leather cord cinching the neck, then the gathered
-            # cloth just below it.
-            for i in range(fw):
-                put(img, x + i, y, lit(leather[0], face))
-                put(img, x + i, y + 1, lit(leather[3], face))
-                put(img, x + i, y + 2, lit(sack_cloth[3], face))
-            # A stuffed sack is lit across its crown and falls into vertical
-            # creases; the weight gathers into a dark base.
-            for j in range(3, fh - 2):
-                t = (j - 3) / max(1, fh - 6)
+            for j in range(0, fh - 2):
+                t = j / max(1, fh - 3)
                 for i in range(fw):
-                    # Distance from the middle drives the shading, so the
-                    # cube reads as round rather than as a flat panel.
                     edge = abs(i - (fw - 1) / 2.0) / max(0.5, (fw - 1) / 2.0)
                     if edge > 0.72:
-                        idx = 0
-                    elif i % 3 == 1 and j % 2 == 0:
+                        idx = 1
+                    elif i in (1, fw - 2) and (j + i) % 3 == 0:
                         idx = 1
                     elif edge < 0.28 and t < 0.55:
                         idx = 4
                     else:
-                        idx = 2 if t > 0.6 else 3
+                        idx = 2 if t > 0.65 else 3
                     put(img, x + i, y + j, lit(sack_cloth[idx], face))
             for i in range(fw):
                 put(img, x + i, y + fh - 2, lit(sack_cloth[1], face))
                 put(img, x + i, y + fh - 1, lit(sack_cloth[0], face))
+
+    # Narrow gathered neck and drawstring. Keeping this in its own UV island
+    # lets the silhouette taper instead of relying on painted fake corners.
+    u, v, w, h, d = UV["sack_neck"]
+    neck_faces = box_faces(u, v, w, h, d)
+    for face, (x, y, fw, fh) in neck_faces.items():
+        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=2)
+        if face in ("front", "back", "right", "left"):
+            for i in range(fw):
+                put(img, x + i, y, lit(leather[1], face))
+                if fh > 1:
+                    put(img, x + i, y + 1, lit(sack_cloth[4], face))
     # Knot on the back face, where the cord is tied off.
+    faces = neck_faces
     x, y, fw, fh = faces["back"]
     put(img, x + fw // 2 - 1, y, lit(leather[4], "back"))
-    put(img, x + fw // 2, y + 1, lit(leather[4], "back"))
+    put(img, x + fw // 2, y + min(1, fh - 1), lit(leather[4], "back"))
     put(img, x + fw // 2 + 1, y, lit(leather[2], "back"))
 
     return img
@@ -714,6 +728,52 @@ def _paint_apron(img, palette="leather"):
         put(img, x + i, y + 8, lit(leather[1], "front"))
 
 
+def _paint_log_frame(img):
+    """Lumberer: oak carrying rails plus upright bark-covered logs.
+
+    The mesh, not painted perspective, owns the silhouette. Texture work only
+    separates wood grain, iron pegs and pale cut rings, so the prop stays
+    readable from both rear three-quarter and profile views.
+    """
+    oak = ramp("oak")
+    iron = ramp("iron")
+    rings = ramp("wheat")
+
+    for key in ("lumber_rail", "lumber_crossbar", "lumber_shelf"):
+        u, v, w, h, d = UV[key]
+        faces = box_faces(u, v, w, h, d)
+        for face, (x, y, fw, fh) in faces.items():
+            for j in range(fh):
+                for i in range(fw):
+                    # Sparse dark grain follows the part's long axis without
+                    # turning the one-pixel rails into noisy checkerboard.
+                    along = j if h >= w else i
+                    idx = 2 if (along + i * 3 + j * 5) % 5 == 0 else 3
+                    put(img, x + i, y + j, lit(oak[idx], face))
+            if face in ("front", "back") and fw >= 4:
+                put(img, x + 1, y + fh // 2, lit(iron[2], face))
+                put(img, x + fw - 2, y + fh // 2, lit(iron[3], face))
+
+    u, v, w, h, d = UV["lumber_log"]
+    faces = box_faces(u, v, w, h, d)
+    for face, (x, y, fw, fh) in faces.items():
+        if face in ("top", "bottom"):
+            for j in range(fh):
+                for i in range(fw):
+                    edge = i in (0, fw - 1) or j in (0, fh - 1)
+                    put(img, x + i, y + j,
+                        lit(oak[2] if edge else rings[3], face))
+            if fw > 1 and fh > 1:
+                put(img, x + fw // 2, y + fh // 2, lit(rings[1], face))
+            continue
+        for j in range(fh):
+            for i in range(fw):
+                idx = 1 if (j + i * 2) % 5 == 0 else 2
+                put(img, x + i, y + j, lit(oak[idx], face))
+        if fh >= 4:
+            put(img, x, y + fh // 2, lit(oak[0], face))
+
+
 def _paint_satchel_rig(img):
     """Courier: a cross-body strap over the torso plus a shoulder pad, so
     the load-bearing read is on the body rather than in the hands."""
@@ -747,27 +807,32 @@ def _paint_satchel_rig(img):
     for i in range(1, tw - 1):
         put(img, tx + i, ty + th // 2, lit(leather[3], "top"))
 
-    # The load sack itself: a courier is read by what they are carrying, so
-    # the pack gets canvas over the default leather, lashing cord and a
-    # buckled flap. Capacity is a real mechanic (D-A2a-6) -- this is its
-    # silhouette.
-    u2, v2, w2, h2, d2 = UV["backpack"]
-    pack = box_faces(u2, v2, w2, h2, d2)
+    # The actual runtime courier parcel uses the sack islands (the decorative
+    # generic backpack is hidden for couriers). Repaint both cuboids as a
+    # reinforced canvas bundle with leather lashing, keeping it unmistakably
+    # different from the lumberer's open wooden frame and visible logs.
     canvas = ramp("parchment")
-    for face, (px, py, pw, ph) in pack.items():
-        for j in range(ph):
-            for i in range(pw):
-                idx = 3 if (i * 7 + j * 3) % 5 else 2
-                put(img, px + i, py + j, lit(canvas[idx], face))
+    for key in ("sack_body", "sack_neck"):
+        u2, v2, w2, h2, d2 = UV[key]
+        pack = box_faces(u2, v2, w2, h2, d2)
+        for face, (px, py, pw, ph) in pack.items():
+            for j in range(ph):
+                for i in range(pw):
+                    idx = 3 if (i * 7 + j * 3) % 5 else 2
+                    put(img, px + i, py + j, lit(canvas[idx], face))
+            if face in ("front", "back", "right", "left") and ph > 1:
+                for i in range(pw):
+                    put(img, px + i, py + ph - 1, lit(leather[1], face))
+
+    body = box_faces(*UV["sack_body"])
     for face in ("back", "front"):
-        px, py, pw, ph = pack[face]
-        for i in range(pw):  # flap edge across the top
-            put(img, px + i, py + 1, lit(leather[2], face))
-            put(img, px + i, py + 2, lit(leather[3], face))
-        for j in range(3, ph):  # vertical lashing cords
+        px, py, pw, ph = body[face]
+        for i in range(pw):
+            put(img, px + i, py, lit(leather[2], face))
+        for j in range(ph):
             put(img, px + 1, py + j, lit(leather[1], face))
             put(img, px + pw - 2, py + j, lit(leather[1], face))
-        put(img, px + pw // 2, py + 2, lit(iron[4], face))  # flap buckle
+        put(img, px + pw // 2, py + 1, lit(iron[4], face))
 
 
 def _paint_gambeson(img):
@@ -957,6 +1022,8 @@ def build_outfit(prof_key):
         _paint_gambeson(img)
     if o.get("bracers"):
         _paint_bracers(img, o.get("bracer_wool", "leather"))
+    if o.get("log_frame"):
+        _paint_log_frame(img)
     if o.get("gauntlets"):
         _paint_gauntlets(img)
     if o.get("satchel_rig"):

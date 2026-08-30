@@ -22,6 +22,7 @@ file, and already check every clip from every source against one merged
 `defs` map, so a new file's clips need only a new table row, not a new
 table."""
 import json
+import math
 import os
 import re
 import sys
@@ -36,6 +37,18 @@ PROP_CONTRACT = os.path.join(os.path.dirname(__file__), "blockbench",
                              "prop_contract.json")
 BB_RENDER = os.path.join(os.path.dirname(__file__), "blockbench",
                          "bb_render.mjs")
+SETTLER_ENTITY_SOURCE = os.path.join(
+    ROOT, "src/main/java/com/hearthstead/entity/SettlerEntity.java")
+SETTLER_ACTIVITY_SOURCE = os.path.join(
+    ROOT, "src/main/java/com/hearthstead/entity/SettlerActivity.java")
+SETTLER_MODEL_SOURCE = os.path.join(
+    ROOT, "src/main/java/com/hearthstead/client/model/SettlerModel.java")
+LUMBER_CRAFT_GOAL_SOURCE = os.path.join(
+    AI_DIR, "LumbererSelfCraftGoal.java")
+LUMBER_CRAFT_SERVICE_SOURCE = os.path.join(
+    AI_DIR, "LumbererSelfCraftingService.java")
+SETTLER_RENDERER_SOURCE = os.path.join(
+    ROOT, "src/main/java/com/hearthstead/client/render/SettlerRenderer.java")
 
 SETTLER_BONES = {"root", "torso", "head", "right_arm", "left_arm",
                  "right_leg", "left_leg", "cloak"}
@@ -58,7 +71,10 @@ ANIMATION_SOURCES = [
         "has_cloak": True,
         # Clips exempt from "every clip touches >= 3 bones": genuinely 1-2
         # bone additive layers by design.
-        "bone_count_exempt": {"GUARD_PATROL"},  # arms + head only (§4.2)
+        "bone_count_exempt": {
+            "GUARD_PATROL", "ARCHER_PATROL", "HAUL_LOG", "HAUL_LOG_HEAVY",
+            "FARMER_CARRY"
+        },
         # Clips exempt from "cloak motion on loops >= 1s": the load pins the
         # cloak still, per §0.5.
         "cloak_pin_allowlist": {"SLEEP_IN_BED", "SHIELD_BLOCK"},
@@ -68,20 +84,142 @@ ANIMATION_SOURCES = [
         # given). COURIER_CARRY is the same shape as GUARD_PATROL: catalogue
         # §5.2 says its legs are "inherited from WALK_LADEN; do not author"
         # -- an arm+torso+head+cloak+root overlay by design.
-        "legs_exempt": {"IDLE", "GUARD_PATROL", "EAT", "COURIER_CARRY"},
+        "legs_exempt": {"IDLE", "GUARD_PATROL", "ARCHER_PATROL", "EAT", "HAUL_LOG",
+                        "HAUL_LOG_HEAVY", "FARMER_CARRY",
+                        "COURIER_CARRY", "MELEE"},
         # One-shots allowed to end away from their start pose. COURIER_LIFT
         # arrives at the carry handoff pose (catalogue §5, ~line 862) and
         # COURIER_SET_DOWN departs from it -- by design, per §5.1/§5.3.
-        "ends_in_pose_allowlist": {"COURIER_LIFT", "COURIER_SET_DOWN"},
+        "ends_in_pose_allowlist": {
+            "COURIER_LIFT", "COURIER_SET_DOWN",
+            # Reaction-first by design: authoritative damage is already
+            # accepted at t=0, and the final frame hands back to low guard.
+            "GUARD_HIT_REACT",
+            "GROUND_ITEM_PICKUP", "WORK_CONTAINER_STOW",
+            "WORK_CONTAINER_UP",
+        },
         # Clips declared as carry/arm layers (§16.2) -- must lock arm
-        # rotation to <= 6 degrees of travel. HAUL_LOG is a real §0.5
-        # SHOULDER-grammar carry clip: its arms must read as "locked", not
-        # swinging with the walk cycle underneath (RELEASE_GATE HIGH-1).
+        # rotation to <= 6 degrees of travel. HAUL_LOG is an arms-only tool
+        # hold over speed-coupled WALK_LADEN: the visible sack and spine own
+        # the load, while the axe must stay below the shoulder line.
         # COURIER_CARRY is the CRATE-grammar carry clip: its own text says
         # "Total travel: 3 degrees. The arms are a clamp." -- tighter than
         # the checker's 6-degree limit, so this only confirms the clamp
         # holds.
-        "carry_layer_clips": {"HAUL_LOG", "COURIER_CARRY"},
+        "carry_layer_clips": {
+            "HAUL_LOG", "HAUL_LOG_HEAVY", "FARMER_CARRY", "COURIER_CARRY"
+        },
+        # Exact-bone contracts for deliberately tiny overlays. This is
+        # stronger than merely exempting them from the generic bone/leg rule:
+        # adding fixed-timer legs or torso back into HAUL_LOG must fail.
+        "exact_overlay_bones": {
+            "GUARD_PATROL": {"right_arm", "left_arm", "head", "torso"},
+            "ARCHER_PATROL": {"right_arm", "left_arm", "head"},
+            "HAUL_LOG": {"right_arm", "left_arm"},
+            "HAUL_LOG_HEAVY": {"right_arm", "left_arm"},
+            "FARMER_CARRY": {"right_arm", "left_arm"},
+        },
+        # Absolute posture bounds complement the travel limit below. The old
+        # HAUL_LOG arm sat at -142deg but moved only a few degrees, so a span-
+        # only gate incorrectly accepted the hand-over-head silhouette.
+        "arm_posture_bounds": {
+            "IDLE_LUMBERER": {
+                "right_arm": (-25.0, 15.0),
+                "left_arm": (-35.0, 20.0),
+            },
+            "HAUL_LOG": {
+                "right_arm": (-35.0, 15.0),
+                "left_arm": (-60.0, 30.0),
+            },
+            "HAUL_LOG_HEAVY": {
+                "right_arm": (-35.0, 15.0),
+                "left_arm": (-60.0, 30.0),
+            },
+            "FARMER_CARRY": {
+                # The real MAINHAND hoe remains below the shoulder; the free
+                # hand reaches forward to the front strap, never backwards
+                # into the produce sack.
+                "right_arm": (-35.0, 5.0),
+                "left_arm": (35.0, 60.0),
+            },
+            "GATHER_LOG": {
+                "right_arm": (-45.0, 5.0),
+                "left_arm": (-85.0, 5.0),
+            },
+            "WORK_CONTAINER_DOWN": {
+                "right_arm": (-45.0, 5.0),
+                # This rig's positive X is the verified ground-facing reach;
+                # the earlier negative values were the backward-bend defect.
+                "left_arm": (-40.0, 90.0),
+            },
+            "GROUND_ITEM_PICKUP": {
+                "right_arm": (-45.0, 5.0),
+                "left_arm": (-60.0, 90.0),
+            },
+            "WORK_CONTAINER_STOW": {
+                "right_arm": (-45.0, 5.0),
+                "left_arm": (-60.0, 90.0),
+            },
+            "WORK_CONTAINER_UP": {
+                "right_arm": (-45.0, 5.0),
+                "left_arm": (-40.0, 85.0),
+            },
+            "WALK_CARRY_ITEM": {
+                "right_arm": (-30.0, 5.0),
+                # Side-view evidence proved this rig's negative X lifts the
+                # offhand behind the spine. A visible item cradled in front
+                # of the ribs uses the same positive-X reach direction as
+                # pickup and stow, just shallower than ground contact.
+                "left_arm": (40.0, 60.0),
+            },
+            # Combat arms are bounded by their truthful equipment roles.
+            # These caps turn hand-over-crown regressions and a bow falling
+            # back into the sword pose into deterministic failures.
+            "GUARD_STANCE": {
+                "right_arm": (-40.0, -20.0),
+                "left_arm": (-35.0, -10.0),
+            },
+            "GUARD_PATROL": {
+                "right_arm": (-40.0, -20.0),
+                "left_arm": (-35.0, -10.0),
+            },
+            "MELEE": {
+                "right_arm": (-95.0, 50.0),
+                "left_arm": (-35.0, 25.0),
+            },
+            "GUARD_HIT_REACT": {
+                "right_arm": (-55.0, -20.0),
+                "left_arm": (-75.0, -10.0),
+            },
+            "SHIELD_BLOCK": {
+                "right_arm": (-60.0, -35.0),
+                "left_arm": (-115.0, -85.0),
+            },
+            "ARCHER_STANCE": {
+                "right_arm": (60.0, 90.0),
+                "left_arm": (60.0, 90.0),
+            },
+            "ARCHER_PATROL": {
+                "right_arm": (-30.0, 0.0),
+                "left_arm": (-40.0, 0.0),
+            },
+            "IDLE_ARCHER": {
+                "right_arm": (-30.0, 0.0),
+                "left_arm": (-40.0, 10.0),
+            },
+            # Transaction one-shots: a table/chest reach may approach
+            # horizontal. Side-view contact evidence proves positive X is the
+            # forward/table direction on this rig; the one negative table arm
+            # interval is the authored pre-strike wind-up.
+            "LUMBER_CRAFT": {
+                "right_arm": (-40.0, 100.0),
+                "left_arm": (0.0, 100.0),
+            },
+            "CRAFT_OUTPUT_STORE": {
+                "right_arm": (0.0, 90.0),
+                "left_arm": (0.0, 90.0),
+            },
+        },
     },
     {
         "label": "raider",
@@ -93,6 +231,8 @@ ANIMATION_SOURCES = [
         "legs_exempt": set(),
         "ends_in_pose_allowlist": set(),
         "carry_layer_clips": set(),
+        "exact_overlay_bones": {},
+        "arm_posture_bounds": {},
     },
 ]
 
@@ -112,13 +252,47 @@ DAMPING_TABLE = {
 # (§17.4 check 25).
 PER_ENTITY_VARIATION_CLIPS = {"CELEBRATE", "SLEEP_IN_BED", "WAKE_STRETCH", "IDLE"}
 
+# Every WORK_* activity is required to own a reachable client state and clip.
+# This list is intentionally checked against the enum, so appending a new
+# work activity without extending this mapping fails the fast gate. That is
+# the exact regression shape that originally left WORK_CRAFT invisible.
+ACTIVITY_ANIMATION_REACHABILITY = {
+    "WORK_FARM": ("farmState", "FARM_TILL"),
+    "WORK_CHOP": ("chopState", "CHOP"),
+    "WORK_PLANT": ("plantState", "FARM_PLANT"),
+    "WORK_HARVEST": ("harvestState", "FARM_HARVEST"),
+    "WORK_WATER": ("waterState", "FARM_WATER"),
+    "WORK_LIMB": ("limbState", "LIMB_BRANCHES"),
+    "WORK_KNEAD": ("kneadState", "KNEAD"),
+    "WORK_CLEAVE": ("cleaveState", "CLEAVE"),
+    "WORK_STOKE": ("stokeState", "STOKE"),
+    "WORK_HAMMER": ("hammerState", "HAMMER_ANVIL"),
+    "WORK_SAW": ("sawState", "SAW"),
+    "WORK_WEAVE": ("fineWorkState", "FINE_WORK"),
+    "WORK_OVEN": ("ovenState", "OVEN_TEND"),
+    "WORK_SOW": ("sowState", "SOW_BROADCAST"),
+    "WORK_MINE": ("mineState", "MINE_PICK"),
+    "WORK_STIR": ("stirState", "COOK_STIR"),
+    "WORK_PLANE": ("planeState", "CARPENTER_PLANE"),
+    "WORK_CHISEL": ("chiselState", "MASON_CHISEL"),
+    "WORK_FLETCH": ("fletchState", "FLETCHER_FLETCH"),
+    "WORK_SCRAPE": ("scrapeState", "TANNER_SCRAPE"),
+    "WORK_SHEAR": ("shearState", "HERDER_SHEAR"),
+    "WORK_FISH": ("fishState", "FISHER_CAST"),
+    "WORK_HUNT": ("huntState", "HUNTER_LOOSE"),
+    "WORK_CRAFT": ("craftState", "LUMBER_CRAFT"),
+}
+EXPLICIT_ACTIVITY_ANIMATION_REACHABILITY = {
+    "STORE_CRAFT_OUTPUT": ("craftStoreState", "CRAFT_OUTPUT_STORE"),
+}
+
 # Sound-sync contract table (§17.3 check 13): one row per accent frame.
 # (clip, bone, target, accent_seconds, sound_field, tick, period)
 # sound_field is the ModSounds constant name; tick/period are the goal-side
 # workTicks%period==tick this accent must match exactly.
 SOUND_CONTRACTS = [
     ("FARM_TILL", "right_arm", "ROTATION", 0.60, "FARMER_WORK", 12, 30),
-    ("FARM_PLANT", "right_arm", "ROTATION", 0.70, "SEED_PRESS", 14, 40),
+    ("FARM_PLANT", "left_arm", "ROTATION", 0.70, "SEED_PRESS", 14, 40),
     ("FARM_HARVEST", "right_arm", "ROTATION", 0.45, "CROP_PULL", 9, 36),
     ("FARM_WATER", "right_arm", "ROTATION", 0.80, "WATER_POUR", 16, 48),
     ("CHOP", "right_arm", "ROTATION", 0.55, "CHOP", 11, 20),
@@ -164,6 +338,10 @@ ENTITY_SOUND_CONTRACTS = [
      [("LIMP_GRUNT_TICK", 8)]),
     ("RUN_PANIC", [0.15], "SETTLER_PANIC", "entity/ai/SettlerPanicGoal.java",
      [("PANIC_YELP_TICK", 3)]),
+    # PHASE-LOCKED ONE-SHOT: EV_MELEE starts the wind-up at tick zero; the
+    # same one-use server ticket authorizes blade audio and damage at t=0.20.
+    ("MELEE", [0.20], "BLADE_HIT", "entity/ai/GuardMeleeGoal.java",
+     [("MELEE_CONTACT_TICK", 4)]),
     ("SHIELD_BLOCK", [], "SHIELD_THUD", "entity/SettlerEntity.java",
      [("SHIELD_THUD_DELAY", 2)]),
     ("CELEBRATE", [0.45, 1.10], "CHEER", "entity/SettlerEntity.java",
@@ -186,9 +364,9 @@ ENTITY_SOUND_CONTRACTS = [
     ("WALK_LADEN", [], "HAUL_STRAIN", "entity/ai/CourierWorkGoal.java",
      [("HAUL_STRAIN_PERIOD", 96)]),
     ("COURIER_LIFT", [], "CRATE_GRIP", "entity/ai/CourierWorkGoal.java",
-     [("LIFT_GRIP_TICK", 8)]),
+     [("LIFT_GRIP_TICK", 12)]),
     ("COURIER_SET_DOWN", [], "CRATE_DOWN", "entity/ai/CourierWorkGoal.java",
-     [("SET_DOWN_TICK", 6)]),
+     [("SET_DOWN_TICK", 12)]),
     # PHASE-LOCKED: workTicks and sortState's own clock both reset in the
     # same tick when Mode.SORTING starts at the warehouse, so tick 16 of a
     # 32-tick cycle really does land on this clip's own t=0.80s "place in
@@ -205,8 +383,8 @@ ENTITY_SOUND_CONTRACTS = [
     # broadcastEntityEvent the instant the real game event happens (a block
     # actually breaks; a stack actually leaves the chest), not by a fixed
     # delay from some earlier tick, so there is no accent-second keyframe to
-    # phase-lock against -- see RaiderAnimations.java's own header for why
-    # that is the same shape as the settler's MELEE, not a gap. The tick
+    # phase-lock against. Unlike ticketed guard MELEE, these are
+    # reaction-first presentations of an already accepted world change. The tick
     # constants are still real: RaiderBreachGoal/RaiderLootGoal's own swing
     # and grab cadence, cross-checked here so they cannot silently drift out
     # from under the trigger-site comments in those files.
@@ -223,9 +401,394 @@ def strip_comments(text):
     return text
 
 
+def _wrap_degrees(value):
+    return (value + 180.0) % 360.0 - 180.0
+
+
+def runtime_target_look(target, errors=None):
+    """Compose the same body-yaw-relative look intent used by melee AI.
+
+    ``MeleeAttackGoal`` makes the body face the target and its look control
+    supplies ``netHeadYaw`` plus ``headPitch`` to ``SettlerModel``. The
+    offline evidence must therefore derive those values from the physical
+    target bearing; a convenient literal zero would silently accept the old
+    side-on target and away-facing head.
+    """
+    sink = errors if errors is not None else []
+    if not isinstance(target, dict):
+        sink.append("MELEE target-bearing contract: target must be an object")
+        return None
+
+    def finite_vec3(name):
+        value = target.get(name)
+        if not isinstance(value, list) or len(value) != 3 \
+                or any(not isinstance(item, (int, float))
+                       or not math.isfinite(item) for item in value):
+            sink.append(f"MELEE target-bearing contract: {name} must be a finite vec3")
+            return None
+        return [float(item) for item in value]
+
+    forward = finite_vec3("actorForwardModel")
+    center = finite_vec3("centerModelPixels")
+    actor_eye = finite_vec3("actorEyeModelPixels")
+    target_eye = finite_vec3("targetEyeModelPixels")
+    body_yaw = target.get("bodyYawDegrees")
+    yaw_limit = target.get("lookYawLimitDegrees")
+    pitch_limit = target.get("lookPitchLimitDegrees")
+    numeric = (body_yaw, yaw_limit, pitch_limit)
+    if any(not isinstance(value, (int, float)) or not math.isfinite(value)
+           for value in numeric):
+        sink.append("MELEE target-bearing contract: body yaw and look limits "
+                    "must be finite numbers")
+        return None
+    if not all((forward, center, actor_eye, target_eye)):
+        return None
+    if yaw_limit <= 0 or pitch_limit <= 0 or yaw_limit > 60 or pitch_limit > 60:
+        sink.append("MELEE target-bearing contract: look limits must be in (0, 60]")
+        return None
+
+    forward_length = math.hypot(forward[0], forward[2])
+    target_horizontal = math.hypot(center[0], center[2])
+    if forward_length <= 1e-6 or target_horizontal <= 1e-6:
+        sink.append("MELEE target-bearing contract: forward and target bearing "
+                    "must be non-zero")
+        return None
+
+    forward_bearing = math.degrees(math.atan2(forward[0], -forward[2]))
+    target_bearing = math.degrees(math.atan2(center[0], -center[2]))
+    bearing_error = abs(_wrap_degrees(target_bearing - forward_bearing))
+    body_error = abs(_wrap_degrees(float(body_yaw) - forward_bearing))
+    relative_yaw = _wrap_degrees(target_bearing - float(body_yaw))
+    net_head_yaw = max(-float(yaw_limit),
+                       min(float(yaw_limit), relative_yaw))
+
+    eye_dx = target_eye[0] - actor_eye[0]
+    eye_dy = target_eye[1] - actor_eye[1]
+    eye_dz = target_eye[2] - actor_eye[2]
+    eye_horizontal = math.hypot(eye_dx, eye_dz)
+    raw_pitch = -math.degrees(math.atan2(eye_dy, eye_horizontal))
+    pitch = max(-float(pitch_limit), min(float(pitch_limit), raw_pitch))
+    return {
+        "forwardBearingDegrees": forward_bearing,
+        "targetBearingDegrees": target_bearing,
+        "bearingErrorDegrees": bearing_error,
+        "bodyErrorDegrees": body_error,
+        "bodyYawDegrees": float(body_yaw),
+        "relativeTargetYawDegrees": relative_yaw,
+        "netHeadYawDegrees": net_head_yaw,
+        "rawPitchDegrees": raw_pitch,
+        "headPitchDegrees": pitch,
+    }
+
+
+def check_melee_evidence_target_contract(target, errors):
+    """Reject a cosmetic or off-bearing target before any screenshots exist."""
+    if not isinstance(target, dict):
+        errors.append("MELEE target-bearing contract: missing meleeEvidenceTarget")
+        return None
+    if target.get("role") != "primary_forward_attack_bearing":
+        errors.append("MELEE target-bearing contract: primary target must be "
+                      "labelled primary_forward_attack_bearing; lateral targets "
+                      "are adversarial evidence only")
+
+    look = runtime_target_look(target, errors)
+    if look is None:
+        return None
+    maximum_error = target.get("maxPrimaryBearingErrorDegrees")
+    if not isinstance(maximum_error, (int, float)) \
+            or not math.isfinite(maximum_error) or maximum_error < 0 \
+            or maximum_error > 0.5:
+        errors.append("MELEE target-bearing contract: primary bearing tolerance "
+                      "must be finite and no wider than 0.5deg")
+        maximum_error = 0.5
+    if look["bearingErrorDegrees"] > maximum_error + 1e-6:
+        errors.append("MELEE target-bearing contract: physical target is "
+                      f"{look['bearingErrorDegrees']:.2f}deg off primary attack "
+                      "bearing; lateral targets are adversarial evidence only")
+    if look["bodyErrorDegrees"] > maximum_error + 1e-6:
+        errors.append("MELEE target-bearing contract: emulated body yaw is "
+                      f"{look['bodyErrorDegrees']:.2f}deg off actor forward")
+    if abs(look["relativeTargetYawDegrees"] - look["netHeadYawDegrees"]) > 1e-6:
+        errors.append("MELEE target-bearing contract: target exceeds the real "
+                      "MeleeAttackGoal netHeadYaw limit")
+    if abs(look["rawPitchDegrees"] - look["headPitchDegrees"]) > 1e-6:
+        errors.append("MELEE target-bearing contract: target exceeds the real "
+                      "MeleeAttackGoal headPitch limit")
+
+    size = target.get("sizeModelPixels")
+    center = target.get("centerModelPixels")
+    if size != [9.6, 28.8, 9.6]:
+        errors.append("MELEE target-bearing contract: evidence target must retain "
+                      "the Minecraft raider 9.6x28.8x9.6px body")
+    elif isinstance(center, list) and len(center) == 3 \
+            and abs(float(center[1]) - size[1] / 2.0) > 1e-6:
+        errors.append("MELEE target-bearing contract: raider target must stand on "
+                      "the same ground plane as the guard")
+
+    exact_timing = {
+        "contactSeconds": 0.20,
+        "impactBandSeconds": [0.20, 0.25],
+        "mustBeClearSeconds": [0.00, 0.05, 0.10, 0.15],
+        "mustBeSeparatedSeconds": [0.30, 0.35, 0.40, 0.45, 0.50],
+    }
+    for name, expected in exact_timing.items():
+        if target.get(name) != expected:
+            errors.append(f"MELEE target-bearing contract: {name} must remain "
+                          f"{expected} for exact T+4/t=.20 authority")
+    minimum_travel = target.get("minimumCenterlineTravelPixels")
+    if not isinstance(minimum_travel, (int, float)) \
+            or not math.isfinite(minimum_travel) or minimum_travel < 0.75:
+        errors.append("MELEE contact contract: oriented blade centreline must "
+                      "travel at least 0.75px through the target")
+    maximum_drift = target.get("maximumImpactLineDriftPixels")
+    if not isinstance(maximum_drift, (int, float)) \
+            or not math.isfinite(maximum_drift) or maximum_drift > 2.0 \
+            or maximum_drift < 0:
+        errors.append("MELEE contact contract: cross-phase impact midpoint drift "
+                      "must stay within 2.0px")
+    return look
+
+
+def check_crafting_evidence_target_contract(target, errors):
+    """Reject a cosmetic tabletop reconstruction before screenshots exist."""
+    expected = {
+        "role": "fixed_world_authority_reconstruction",
+        "actorForwardModel": [0, 0, -1],
+        "tableCenterModelPixels": [0, 8, -12],
+        "tableSizeModelPixels": [16, 16, 16],
+        "gridSpacingModelPixels": 3.6,
+        "recipeId": "minecraft:wooden_axe",
+        "recipeOccupiedSlots": [0, 1, 3, 4, 7],
+        "recipeSlotItems": {
+            "0": "minecraft:oak_planks",
+            "1": "minecraft:oak_planks",
+            "3": "minecraft:oak_planks",
+            "4": "minecraft:stick",
+            "7": "minecraft:stick",
+        },
+        "layoutContactSeconds": [0.2, 0.4, 0.6, 0.8, 0.9],
+        "transformContactSeconds": 1.5,
+        "pickupContactSeconds": 2.15,
+        "tableBeatDurationSeconds": 2.4,
+        "storageContactSeconds": 0.7,
+        "storageBeatDurationSeconds": 1.2,
+        "outputItem": "minecraft:wooden_axe",
+        "worldPropsMustNotInheritActorTransform": True,
+    }
+    if target != expected:
+        errors.append("CRAFT evidence contract: exact fixed-world 3x3 wooden-axe "
+                      "layout/timing/output contract drifted")
+
+
+def activity_animation_reachability_errors(activity_text, entity_text,
+                                           model_text, defs,
+                                           work_mapping=None,
+                                           explicit_mapping=None):
+    """Return source-level activity -> state -> clip reachability failures.
+
+    Kept pure so its mutation test can prove that deleting WORK_CRAFT from
+    the mapping is caught without booting Minecraft.
+    """
+    failures = []
+    clean_activity = strip_comments(activity_text)
+    enum_match = re.search(
+        r'public\s+enum\s+SettlerActivity\s*\{(.*?)\n\s*public\s+static',
+        clean_activity, re.S)
+    if enum_match is None:
+        return ["activity reachability: SettlerActivity enum body not found"]
+    activities = set(re.findall(
+        r'^\s*([A-Z][A-Z0-9_]*)\s*\(', enum_match.group(1), re.M))
+    work_activities = {name for name in activities if name.startswith("WORK_")}
+    work_mapping = (ACTIVITY_ANIMATION_REACHABILITY
+                    if work_mapping is None else work_mapping)
+    explicit_mapping = (EXPLICIT_ACTIVITY_ANIMATION_REACHABILITY
+                        if explicit_mapping is None else explicit_mapping)
+
+    missing_mapping = sorted(work_activities - set(work_mapping))
+    stale_mapping = sorted(set(work_mapping) - work_activities)
+    if missing_mapping:
+        failures.append("activity reachability: WORK_* enum value(s) have no "
+                        "state/clip contract: " + ", ".join(missing_mapping))
+    if stale_mapping:
+        failures.append("activity reachability: mapping names absent WORK_* "
+                        "enum value(s): " + ", ".join(stale_mapping))
+    for activity in explicit_mapping:
+        if activity not in activities:
+            failures.append(f"activity reachability: explicit activity {activity} "
+                            "is absent from SettlerActivity")
+
+    clean_entity = strip_comments(entity_text)
+    clean_model = strip_comments(model_text)
+    all_mapping = {**work_mapping, **explicit_mapping}
+    for activity, (state, clip) in sorted(all_mapping.items()):
+        if not re.search(rf'AnimationState\s+{re.escape(state)}\s*=\s*'
+                         r'new\s+AnimationState\s*\(\s*\)', clean_entity):
+            failures.append(f"activity reachability: {activity} declares no "
+                            f"AnimationState {state}")
+        state_gate = re.search(
+            rf'{re.escape(state)}\.animateWhen\(\s*'
+            rf'activity\s*==\s*SettlerActivity\.{re.escape(activity)}\b'
+            r'.{0,160}?tickCount\s*\)\s*;', clean_entity, re.S)
+        if state_gate is None:
+            failures.append(f"activity reachability: {activity} never starts "
+                            f"{state} from its live activity")
+        model_call = re.search(
+            rf'animate\(\s*entity\.{re.escape(state)}\s*,\s*'
+            rf'SettlerAnimations\.{re.escape(clip)}\s*,\s*'
+            r'ageInTicks(?:\s*\+\s*\(id\s*%\s*\d+\))?\s*\)\s*;',
+            clean_model, re.S)
+        if model_call is None:
+            failures.append(f"activity reachability: {state} is not mapped "
+                            f"to {clip} through an accepted animation clock")
+        if activity in {"WORK_CRAFT", "STORE_CRAFT_OUTPUT"} and re.search(
+                rf'animate\(\s*entity\.{re.escape(state)}\s*,\s*'
+                rf'SettlerAnimations\.{re.escape(clip)}\s*,\s*'
+                r'ageInTicks\s*\)\s*;', clean_model, re.S) is None:
+            failures.append(f"activity reachability: {state} contact clip "
+                            f"{clip} must not use a phase offset")
+        if clip not in defs:
+            failures.append(f"activity reachability: {activity} maps to "
+                            f"unimplemented clip {clip}")
+    return failures
+
+
+def check_activity_animation_reachability(defs, errors):
+    paths = (SETTLER_ACTIVITY_SOURCE, SETTLER_ENTITY_SOURCE,
+             SETTLER_MODEL_SOURCE)
+    if any(not os.path.isfile(path) for path in paths):
+        errors.append("activity reachability: one or more runtime source files "
+                      "are missing")
+        return
+    with open(SETTLER_ACTIVITY_SOURCE, encoding="utf-8") as source_file:
+        activity_text = source_file.read()
+    with open(SETTLER_ENTITY_SOURCE, encoding="utf-8") as source_file:
+        entity_text = source_file.read()
+    with open(SETTLER_MODEL_SOURCE, encoding="utf-8") as source_file:
+        model_text = source_file.read()
+    errors.extend(activity_animation_reachability_errors(
+        activity_text, entity_text, model_text, defs))
+
+
+def _channel(definition, bone, target):
+    return next((channel for channel in definition.get("channels", [])
+                 if channel[0] == bone and channel[1] == target), None)
+
+
+def _frame_at(definition, bone, target, seconds):
+    channel = _channel(definition, bone, target)
+    return None if channel is None else next(
+        (frame for frame in channel[2]
+         if abs(frame[0] - seconds) <= 1e-6), None)
+
+
+def check_crafting_truth_contract(defs, errors):
+    """Static timing/authority seam for ANIM-TRUTH-0A."""
+    table = defs.get("LUMBER_CRAFT")
+    storage = defs.get("CRAFT_OUTPUT_STORE")
+    if table is None or storage is None:
+        errors.append("CRAFT truth: both LUMBER_CRAFT and "
+                      "CRAFT_OUTPUT_STORE must be implemented")
+        return
+    if abs(table["length"] - 2.4) > 1e-6 or table["looping"]:
+        errors.append("CRAFT truth: LUMBER_CRAFT must be non-looping 2.40s/48t")
+    if abs(storage["length"] - 1.2) > 1e-6 or storage["looping"]:
+        errors.append("CRAFT truth: CRAFT_OUTPUT_STORE must be non-looping "
+                      "1.20s/24t")
+    required_frames = (
+        (table, "right_arm", "ROTATION", 1.50, "table transform"),
+        (table, "torso", "ROTATION", 1.50, "table mass"),
+        (table, "left_arm", "ROTATION", 2.15, "escrow pickup"),
+        (storage, "left_arm", "ROTATION", 0.70, "storage deposit"),
+    )
+    for definition, bone, target, seconds, label in required_frames:
+        frame = _frame_at(definition, bone, target, seconds)
+        if frame is None:
+            errors.append(f"CRAFT truth: {label} needs {bone}.{target} key at "
+                          f"{seconds:.2f}s")
+        elif frame[3] != "LINEAR":
+            errors.append(f"CRAFT truth: {label}@{seconds:.2f}s must be LINEAR")
+    for definition, clip in ((table, "LUMBER_CRAFT"),
+                             (storage, "CRAFT_OUTPUT_STORE")):
+        torso = _channel(definition, "torso", "ROTATION")
+        # SettlerModel/Blockbench multi-angle evidence pins negative X as the
+        # forward waist hinge. Positive X bends into the backpack and is a
+        # hard transaction reject.
+        if torso is None or any(frame[2][0] > 1e-6 for frame in torso[2]):
+            errors.append(f"CRAFT truth: {clip} contains a backward torso key")
+        root = _channel(definition, "root", "POSITION")
+        if root is None or any(abs(frame[2][0]) > 1e-6
+                               or abs(frame[2][2]) > 1e-6 for frame in root[2]):
+            errors.append(f"CRAFT truth: {clip} root may compress vertically "
+                          "but may not slide")
+        for leg in ("right_leg", "left_leg"):
+            channel = _channel(definition, leg, "ROTATION")
+            if channel is None or any(any(abs(value) > 1e-6
+                                          for value in frame[2])
+                                      for frame in channel[2]):
+                errors.append(f"CRAFT truth: {clip} must keep {leg} planted")
+
+    source_paths = (LUMBER_CRAFT_GOAL_SOURCE,
+                    LUMBER_CRAFT_SERVICE_SOURCE,
+                    SETTLER_RENDERER_SOURCE)
+    if any(not os.path.isfile(path) for path in source_paths):
+        errors.append("CRAFT truth: goal/service/renderer source missing")
+        return
+    with open(LUMBER_CRAFT_GOAL_SOURCE, encoding="utf-8") as source_file:
+        goal = strip_comments(source_file.read())
+    with open(LUMBER_CRAFT_SERVICE_SOURCE, encoding="utf-8") as source_file:
+        service = strip_comments(source_file.read())
+    with open(SETTLER_RENDERER_SOURCE, encoding="utf-8") as source_file:
+        renderer = strip_comments(source_file.read())
+    constants = {
+        "CRAFT_DURATION_TICKS": 48,
+        "CRAFT_CONTACT_TICK": 30,
+        "PICKUP_CONTACT_TICK": 43,
+        "DEPOSIT_DURATION_TICKS": 24,
+        "DEPOSIT_CONTACT_TICK": 14,
+    }
+    for name, value in constants.items():
+        if re.search(rf'\b{name}\s*=\s*{value}\s*;', goal) is None:
+            errors.append(f"CRAFT truth: goal constant {name} must remain {value}")
+    goal_needles = (
+        "CraftPresentation.Phase.LAY_OUT",
+        "CraftPresentation.Phase.WIND_UP",
+        "CraftPresentation.Phase.RESULT_READ",
+        "CraftPresentation.Phase.PICK_UP",
+        "CraftPresentation.Phase.CARRIED",
+        "CraftPresentation.Phase.DEPOSIT",
+        "SettlerActivity.WORK_CRAFT",
+        "SettlerActivity.STORE_CRAFT_OUTPUT",
+        "LumbererSelfCraftingService.depositEscrow",
+    )
+    for needle in goal_needles:
+        if needle not in goal:
+            errors.append(f"CRAFT truth: goal phase/authority seam missing {needle}")
+    service_needles = (
+        "worker.beginCraftOutputEscrow",
+        "worker.clearCraftOutputEscrow",
+        "reservationStillExact",
+        "recipeGrid",
+        "plan.actionId()",
+    )
+    for needle in service_needles:
+        if needle not in service:
+            errors.append(f"CRAFT truth: service authority seam missing {needle}")
+    renderer_needles = (
+        "entity.craftPresentation()",
+        "worldX - entityPosition.x",
+        "worldY - entityPosition.y",
+        "worldZ - entityPosition.z",
+        "CraftPresentation.Phase.RESULT_READ",
+        "CraftPresentation.Phase.DEPOSIT",
+    )
+    for needle in renderer_needles:
+        if needle not in renderer:
+            errors.append(f"CRAFT truth: fixed-world renderer seam missing {needle}")
+
+
 def check_offline_prop_contract(defs, errors, warns):
     """K1 gate: item-bearing clips must be reviewable through Minecraft's
-    complete right-hand transform chain, not merely near the hand cube.
+    complete hand transform chains, not merely near either hand cube.
 
     This is intentionally a source gate, not a claim that an offline proxy is
     final visual evidence. The Blockbench runner also asserts its neutral
@@ -246,8 +809,8 @@ def check_offline_prop_contract(defs, errors, warns):
         errors.append(f"K1: invalid prop_contract.json: {exc}")
         return
 
-    if contract.get("schema") != 3:
-        errors.append("K1: prop contract schema must be 3")
+    if contract.get("schema") != 4:
+        errors.append("K1: prop contract schema must be 4")
     if contract.get("minecraftVersion") != "1.21.1":
         errors.append("K1: prop transform must be pinned to Minecraft 1.21.1")
     official = contract.get("officialClient", {})
@@ -257,6 +820,11 @@ def check_offline_prop_contract(defs, errors, warns):
         errors.append("K1: official 1.21.1 client evidence hashes drifted")
     if contract.get("hand") != "right":
         errors.append("K1: settler tools must attach to the right hand")
+
+    check_melee_evidence_target_contract(
+        contract.get("meleeEvidenceTarget"), errors)
+    check_crafting_evidence_target_contract(
+        contract.get("craftingEvidenceTarget"), errors)
 
     layer = contract.get("itemInHandLayer", {})
     expected_rotations = [
@@ -297,6 +865,13 @@ def check_offline_prop_contract(defs, errors, warns):
             "scale": [0.9, 0.9, 0.9],
             "centerModelPixels": [-8, -8, -8],
         },
+        "block": {
+            "sourceModel": "minecraft:block/block",
+            "translateModelPixels": [0, 2.5, 0],
+            "rotationXYZDegrees": [75, 45, 0],
+            "scale": [0.375, 0.375, 0.375],
+            "centerModelPixels": [-8, -8, -8],
+        },
     }
     display_profiles = contract.get("displayProfiles")
     if display_profiles != expected_display_profiles:
@@ -315,6 +890,8 @@ def check_offline_prop_contract(defs, errors, warns):
         errors.append("K1: Java-to-Blockbench axes must be [-1,-1,1]")
     if bb.get("rightArmOrigin") != [6, 22, 0]:
         errors.append("K1: Blockbench right-arm origin drifted from [6,22,0]")
+    if bb.get("leftArmOrigin") != [-6, 22, 0]:
+        errors.append("K1: Blockbench left-arm origin drifted from [-6,22,0]")
     if bb.get("rightHandCubeCenter") != [6, 12, 0]:
         errors.append("K1: informational hand-cube centre drifted from [6,12,0]")
 
@@ -361,12 +938,16 @@ def check_offline_prop_contract(defs, errors, warns):
         errors.append("K1: derived neutral ItemInHandLayer origin must be [7,12,-2]")
     if same_vector(layer_origin, bb.get("rightHandCubeCenter")):
         errors.append("K1: layer origin must not collapse to the hand-cube centre")
+    right_display_profiles = {
+        name: profile for name, profile in expected_display_profiles.items()
+        if name != "block"
+    }
     expected_displays = bb.get("expectedNeutralDisplays")
     if not isinstance(expected_displays, dict) \
-            or set(expected_displays) != set(expected_display_profiles):
+            or set(expected_displays) != set(right_display_profiles):
         errors.append("K1: neutral display assertions must cover all four profiles")
         expected_displays = {}
-    for profile_name, display in expected_display_profiles.items():
+    for profile_name, display in right_display_profiles.items():
         mapped_display_translation = [
             value * signs[index]
             for index, value in enumerate(display["translateModelPixels"])
@@ -390,17 +971,70 @@ def check_offline_prop_contract(defs, errors, warns):
                        for index, row in enumerate(display_orientation)):
             errors.append(f"K1: derived {profile_name} display basis drifted")
 
+    # The portable-container preview also renders the real OFFHAND oak-log
+    # block. ItemInHandLayer mirrors the layer's X translation, and
+    # ItemTransform#apply mirrors the block profile's Y/Z rotations for a
+    # left-hand display. Derive that separately so a convenient forearm cube
+    # can never masquerade as runtime evidence again.
+    left_arm_origin = [-6, 22, 0]
+    left_layer_translation = [-1, 2, -10]
+    mapped_left_layer = [value * signs[index]
+                         for index, value in enumerate(left_layer_translation)]
+    left_layer_origin = [
+        left_arm_origin[index] + value
+        for index, value in enumerate(
+            matrix_vector(orientation, mapped_left_layer))
+    ]
+    if not same_vector(left_layer_origin,
+                       bb.get("expectedNeutralLeftLayerOrigin")):
+        errors.append("K1: derived left ItemInHandLayer origin must be [-7,12,-2]")
+    block = expected_display_profiles["block"]
+    left_block_translation = list(block["translateModelPixels"])
+    left_block_translation[0] *= -1
+    mapped_left_block = [value * signs[index]
+                         for index, value in enumerate(left_block_translation)]
+    left_block_origin = [
+        left_layer_origin[index] + value
+        for index, value in enumerate(
+            matrix_vector(orientation, mapped_left_block))
+    ]
+    left_block_orientation = orientation
+    for axis_index, original_degrees in enumerate(block["rotationXYZDegrees"]):
+        degrees = original_degrees
+        if axis_index in (1, 2):
+            degrees *= -1
+        left_block_orientation = matrix_multiply(
+            left_block_orientation,
+            rotation_matrix("xyz"[axis_index], degrees * signs[axis_index]))
+    expected_left_displays = bb.get("expectedNeutralLeftDisplays")
+    if not isinstance(expected_left_displays, dict) \
+            or set(expected_left_displays) != {"block"}:
+        errors.append("K1: neutral left display assertions must cover block")
+        expected_left_displays = {}
+    expected_left_block = expected_left_displays.get("block", {})
+    if not same_vector(left_block_origin, expected_left_block.get("origin")):
+        errors.append("K1: derived left block display origin drifted")
+    expected_left_basis = expected_left_block.get("basisRows")
+    if not isinstance(expected_left_basis, list) or len(expected_left_basis) != 3 \
+            or any(not same_vector(row, expected_left_basis[index])
+                   for index, row in enumerate(left_block_orientation)):
+        errors.append("K1: derived left block display basis drifted")
+
     clips = contract.get("clips")
     if not isinstance(clips, dict):
         errors.append("K1: prop contract needs a clips object")
         return
     runtime_required = {
         "FARM_PLANT": "hoe", "FARM_HARVEST": "hoe",
-        "FARM_TILL": "hoe", "FARM_WATER": "hoe",
+        "FARM_TILL": "hoe", "FARM_WATER": "hoe", "FARMER_CARRY": "hoe",
         "CHOP": "axe", "LIMB_BRANCHES": "axe", "GATHER_LOG": "axe",
-        "HAUL_LOG": "axe", "MINE_PICK": "pickaxe", "MELEE": "sword",
+        "HAUL_LOG": "axe", "HAUL_LOG_HEAVY": "axe",
+        "MINE_PICK": "pickaxe", "MELEE": "sword",
         "LEAP_STRIKE": "sword",
-        "GUARD_PATROL": "sword",
+        "GUARD_STANCE": "sword", "GUARD_PATROL": "sword",
+        "GUARD_HIT_REACT": "sword",
+        "ARCHER_STANCE": "bow", "ARCHER_PATROL": "bow",
+        "IDLE_ARCHER": "bow",
         "SHIELD_BLOCK": "sword", "HERDER_SHEAR": "shears",
         "FISHER_CAST": "fishing_rod", "HUNTER_LOOSE": "bow",
     }
@@ -422,8 +1056,19 @@ def check_offline_prop_contract(defs, errors, warns):
         errors.append("K1: prop contract names unimplemented clip(s): "
                       + ", ".join(unknown_clips))
     expected_contextual = {
+        "IDLE_LUMBERER": {"lumberer": "axe"},
+        "WALK": {"lumberer": "axe"},
+        "WALK_LADEN": {"lumberer": "axe"},
+        "WALK_CARRY_ITEM": {"lumberer": "axe"},
+        "WORK_CONTAINER_DOWN": {"lumberer": "axe"},
+        "GROUND_ITEM_PICKUP": {"lumberer": "axe"},
+        "WORK_CONTAINER_STOW": {"lumberer": "axe"},
+        "WORK_CONTAINER_UP": {"lumberer": "axe"},
+        "PICKUP_STOW": {"lumberer": "axe"},
+        "IDLE_SENTRY": {"guard": "sword", "hunter": "none"},
         "CLEAVE": {"butcher": "none", "herder_cull": "shears"},
-        "GUARD_STANCE": {"guard": "sword", "archer": "bow"},
+        "LUMBER_CRAFT": {"missing": "none", "worn_existing_axe": "axe"},
+        "CRAFT_OUTPUT_STORE": {"escrow_output": "none"},
     }
     expected_conceptual = {
         "HAMMER_ANVIL": "hammer", "MASON_CHISEL": "pickaxe",
@@ -434,8 +1079,8 @@ def check_offline_prop_contract(defs, errors, warns):
                       "conceptual proxies must stay explicitly separated")
     contextual = contract.get("contextualClips")
     if contextual != expected_contextual:
-        errors.append("K1: contextual clips must pin the exact runtime role-to-prop "
-                      "mapping for CLEAVE and GUARD_STANCE")
+        errors.append("K1: contextual clips must pin every exact runtime "
+                      "role-to-prop mapping")
     contextual_unknown = sorted(set(contextual or {}) - set(defs)) \
         if isinstance(contextual, dict) else []
     if contextual_unknown:
@@ -458,6 +1103,10 @@ def check_offline_prop_contract(defs, errors, warns):
             or set(runtime_declared) != set(runtime_required):
         errors.append("K1: fixedRuntimeMainHandClips must exactly cover clips "
                       "with one real, context-independent MAINHAND item")
+    conditional_offhand = contract.get("conditionalRuntimeOffhandClips")
+    if conditional_offhand != {"SHIELD_BLOCK": "shield"}:
+        errors.append("K1: SHIELD_BLOCK must declare a physical conditional "
+                      "OFFHAND shield instead of a renderer-only proxy")
     conceptual = contract.get("conceptualProxyClips")
     if not isinstance(conceptual, list) \
             or set(conceptual) != set(expected_conceptual):
@@ -465,17 +1114,11 @@ def check_offline_prop_contract(defs, errors, warns):
     elif set(conceptual) & set(runtime_required):
         errors.append("K1: conceptual and runtime-held clips must be disjoint")
     known_no_go = contract.get("knownVisualNoGoClips")
-    guard_no_go = {"GUARD_STANCE", "GUARD_PATROL", "MELEE", "SHIELD_BLOCK"}
-    required_no_go = {"CLEAVE", "HUNTER_LOOSE"} | guard_no_go
+    required_no_go = {"CLEAVE", "HUNTER_LOOSE"}
     if not isinstance(known_no_go, dict) \
             or set(known_no_go) != required_no_go \
             or not all(token in str(known_no_go.get("HUNTER_LOOSE", ""))
                        for token in ("MAINHAND", "right_arm", "left_arm", "pulling")) \
-            or not all(all(token in str(known_no_go.get(clip, ""))
-                           for token in ("OFFHAND", "shield"))
-                       for clip in guard_no_go) \
-            or not all(token in str(known_no_go.get("GUARD_STANCE", ""))
-                       for token in ("ARCHER", "bow", "BB_CONTEXT")) \
             or not all(token in str(known_no_go.get("CLEAVE", ""))
                        for token in ("BUTCHER", "HERDER", "BB_CONTEXT")):
         errors.append("K1: runtime/catalogue hand mismatches must remain explicit "
@@ -484,28 +1127,64 @@ def check_offline_prop_contract(defs, errors, warns):
         warns.append("K1 VISUAL NO-GO HUNTER_LOOSE: runtime MAINHAND bow follows "
                      "right_arm, but the clip authors left_arm as the bow arm; "
                      "do not approve its item render")
-        warns.append("K1 VISUAL NO-GO guard set: right-hand sword placement passes, "
-                     "but catalogue-required OFFHAND shields do not exist at runtime; "
-                     "ARCHER also reuses GUARD_STANCE with a bow in its sword pose")
         warns.append("K1 contextual clips: CLEAVE requires BB_CONTEXT=butcher "
-                     "(empty hand) or herder_cull (shears); GUARD_STANCE requires "
-                     "BB_CONTEXT=guard (sword) or archer (bow). Neither clip has one "
-                     "truthful universal prop")
+                     "(empty hand) or herder_cull (shears); IDLE_SENTRY requires "
+                     "BB_CONTEXT=guard (sword) or hunter (empty hand). Neither clip "
+                     "has one truthful universal prop")
+
+    entity_path = os.path.join(ROOT,
+        "src/main/java/com/hearthstead/entity/SettlerEntity.java")
+    model_path = os.path.join(ROOT,
+        "src/main/java/com/hearthstead/client/model/SettlerModel.java")
+    try:
+        with open(entity_path, encoding="utf-8") as source_file:
+            entity_source = source_file.read()
+        with open(model_path, encoding="utf-8") as source_file:
+            model_source = source_file.read()
+    except OSError as exc:
+        errors.append(f"K1: cannot read runtime equipment-pose source: {exc}")
+    else:
+        entity_needles = (
+            "shieldThudDelayFor(getOffhandItem())",
+            "hasPhysicalOffhandShield()",
+            "hasPhysicalMainhandSword()",
+            "hasPhysicalMainhandBow()",
+        )
+        model_needles = (
+            "physicalShieldLoadout",
+            "SettlerAnimations.GUARD_HIT_REACT",
+            "SettlerAnimations.ARCHER_STANCE",
+            "SettlerAnimations.ARCHER_PATROL",
+            "SettlerAnimations.IDLE_ARCHER",
+        )
+        for needle in entity_needles:
+            if needle not in entity_source:
+                errors.append(f"K1: runtime equipment truth gate missing {needle}")
+        for needle in model_needles:
+            if needle not in model_source:
+                errors.append(f"K1: equipment-specific pose selection missing {needle}")
 
     with open(BB_RENDER, encoding="utf-8") as renderer_file:
         renderer = renderer_file.read()
     for needle in ("prop_contract.json", "k1_vanilla_hand_", "BB_CHROMIUM",
                    "BB_CONTEXT",
                    "k1_layer_translate", "k1_item_display_translate",
+                   "k1_offhand_layer_translate", "hs_preview_offhand_log",
+                   "conditionalRuntimeOffhandClips",
                    "verified neutral origins", "verified neutral display basis",
                    "verified local item scale basis",
-                   "VISUAL NO-GO", "CONTRACT OVERRIDE", "canonicalClipName"):
+                   "VISUAL NO-GO", "CONTRACT OVERRIDE", "canonicalClipName",
+                   "BB_BASE_PHASE", "meleeEvidenceTarget",
+                   "hs_melee_target_hitbox", "TICK 4 CONTACT",
+                   "craftingEvidenceTarget", "hs_craft_table",
+                   "hs_craft_output_wooden_axe"):
         if needle not in renderer:
             errors.append(f"K1: bb_render.mjs no longer consumes required marker {needle!r}")
 
 
 def parse_definitions(path):
-    text = strip_comments(open(path, encoding="utf-8").read())
+    with open(path, encoding="utf-8") as source_file:
+        text = strip_comments(source_file.read())
     defs = {}
     for m in re.finditer(
             r'AnimationDefinition (\w+) = AnimationDefinition\.Builder\s*'
@@ -537,12 +1216,12 @@ def parse_catalogue_clip_names(path):
         return set()
     text = open(path, encoding="utf-8").read()
     names = set()
-    for m in re.finditer(r'^### \d+\.\d+ `([A-Z_]+)`(?:\s*\(?\+?`([A-Z_]+)`)?', text, re.M):
+    for m in re.finditer(r'^### \d+\.\d+[a-z]? `([A-Z_]+)`(?:\s*\(?\+?`([A-Z_]+)`)?', text, re.M):
         names.add(m.group(1))
         if m.group(2):
             names.add(m.group(2))
     # §12.5 heading form: "`SOCIAL_TALK` and `SOCIAL_LISTEN`"
-    for m in re.finditer(r'^### \d+\.\d+ `([A-Z_]+)` and `([A-Z_]+)`', text, re.M):
+    for m in re.finditer(r'^### \d+\.\d+[a-z]? `([A-Z_]+)` and `([A-Z_]+)`', text, re.M):
         names.add(m.group(1))
         names.add(m.group(2))
     # Sub-variant names in parens, e.g. "HEAL_REVIVE (+REVIVE_SUCCESS/REVIVE_FAIL)"
@@ -554,7 +1233,14 @@ def parse_catalogue_clip_names(path):
 
 
 def parse_goal_tick_contracts(ai_dir):
-    """Every `x % N == K` pattern in the AI goal sources, as {(N, K): [locations]}."""
+    """Every ``x % N == K`` goal contract, including named int constants.
+
+    Contact ticks are production invariants rather than unexplained literals,
+    so both sides may be a same-file constant (for example
+    ``workTicks % WATER_DURATION == WATER_CONTACT_TICK``).  Resolving the
+    constants here keeps the validator tied to the deterministic source of
+    truth without forcing the runtime to duplicate magic numbers.
+    """
     contracts = {}
     if not os.path.isdir(ai_dir):
         return contracts
@@ -563,18 +1249,21 @@ def parse_goal_tick_contracts(ai_dir):
             continue
         path = os.path.join(ai_dir, fn)
         text = strip_comments(open(path, encoding="utf-8").read())
+
+        def resolve_int(token):
+            if token.isdigit():
+                return int(token)
+            declaration = re.search(
+                rf'\b{re.escape(token)}\s*=\s*(\d+)\s*;', text)
+            return int(declaration.group(1)) if declaration else None
+
         for i, line in enumerate(text.splitlines(), 1):
-            m = re.search(r'\w+\s*%\s*(\w+|\d+)\s*==\s*(\d+)', line)
+            m = re.search(
+                r'\w+\s*%\s*(\w+|\d+)\s*==\s*(\w+|\d+)', line)
             if not m:
                 continue
-            period_tok, tick = m.group(1), int(m.group(2))
-            period = int(period_tok) if period_tok.isdigit() else None
-            if period is None:
-                # Resolve a named constant like HARVEST_DURATION from the
-                # same file (private static final int X = N;).
-                cm = re.search(rf'\b{re.escape(period_tok)}\s*=\s*(\d+)\s*;', text)
-                if cm:
-                    period = int(cm.group(1))
+            period = resolve_int(m.group(1))
+            tick = resolve_int(m.group(2))
             contracts.setdefault((period, tick), []).append(f"{fn}:{i}")
     return contracts
 
@@ -782,6 +1471,13 @@ def check_structural(source, defs, errors, warns):
             errors.append(f"{name}: touches only {len(touched_bones)} bone(s) "
                           f"({sorted(touched_bones)}) -- looks like a placeholder")
 
+        expected_overlay_bones = source["exact_overlay_bones"].get(name)
+        if expected_overlay_bones is not None and touched_bones != expected_overlay_bones:
+            errors.append(f"{name}: overlay must touch exactly "
+                          f"{sorted(expected_overlay_bones)}, got "
+                          f"{sorted(touched_bones)} -- locomotion belongs to "
+                          "the speed-coupled base clip")
+
         # 17.4-18: cloak motion on loops >= 1.0s. Only meaningful for a model
         # that has a cloak bone at all (source["has_cloak"]) -- the raider
         # rig has none, so this whole check is skipped for that source
@@ -836,6 +1532,391 @@ def check_structural(source, defs, errors, warns):
                                       f"on axis {axis} (limit 6deg) -- a 'locked' arm that "
                                       f"visibly swings breaks the whole carry read")
 
+        # A small span can still be a catastrophically high static pose.
+        # Pin the authored X rotation itself for carry overlays that have a
+        # silhouette contract, independent of how little they move.
+        posture_bounds = source["arm_posture_bounds"].get(name, {})
+        for bone, (minimum, maximum) in posture_bounds.items():
+            arm_channels = [c for c in d["channels"]
+                            if c[0] == bone and c[1] == "ROTATION"]
+            if not arm_channels:
+                errors.append(f"{name}.{bone}: missing ROTATION channel required by "
+                              "the carry posture bound")
+                continue
+            x_values = [frame[2][0] for channel in arm_channels
+                        for frame in channel[2]]
+            outside = [value for value in x_values
+                       if value < minimum or value > maximum]
+            if outside:
+                errors.append(f"{name}.{bone}: x rotation {outside} outside "
+                              f"[{minimum:.0f}, {maximum:.0f}]deg -- hand may cross "
+                              "the shoulder/crown line")
+
+
+def check_melee_transition_contract(defs, errors, target_contract=None):
+    """Fail closed on MELEE's additive contact, feet and base handoff.
+
+    Generic one-shot closure catches the final pose but is intentionally
+    tolerant and says nothing about the path used to get there. MELEE used to
+    exploit that gap: its torso reversed roughly 45 degrees across two ticks,
+    both overlay legs slid their feet about six model pixels, and the last
+    recovery step still carried visible velocity when the layer expired.
+    This contract measures those physical failure modes instead of banning a
+    particular authored channel set. A future root/hip compensation channel
+    is allowed, but it must honestly keep one support foot planted.
+    """
+    if target_contract is None:
+        try:
+            with open(PROP_CONTRACT, encoding="utf-8") as contract_file:
+                target_contract = json.load(contract_file).get(
+                    "meleeEvidenceTarget")
+        except (OSError, ValueError) as exc:
+            errors.append(f"MELEE gaze contract: cannot load target bearing: {exc}")
+            target_contract = None
+    target_look = check_melee_evidence_target_contract(
+        target_contract, errors) if target_contract is not None else None
+
+    clip = defs.get("MELEE")
+    if clip is None:
+        errors.append("MELEE transition contract: clip not implemented")
+        return
+
+    patrol = defs.get("GUARD_PATROL")
+    if patrol is None:
+        errors.append("MELEE martial-base contract: GUARD_PATROL is missing")
+    else:
+        patrol_channels = {(bone, target) for bone, target, _ in patrol["channels"]}
+        required_patrol = {
+            ("right_arm", "ROTATION"), ("left_arm", "ROTATION"),
+            ("head", "ROTATION"), ("torso", "ROTATION"),
+        }
+        missing_patrol = required_patrol - patrol_channels
+        if missing_patrol:
+            errors.append("MELEE martial-base contract: GUARD_PATROL lacks stable "
+                          f"upper-body channel(s) {sorted(missing_patrol)}")
+        forbidden_patrol = {("root", "ROTATION"), ("root", "POSITION"),
+                            ("right_leg", "ROTATION"),
+                            ("right_leg", "POSITION"),
+                            ("left_leg", "ROTATION"),
+                            ("left_leg", "POSITION")} & patrol_channels
+        if forbidden_patrol:
+            errors.append("MELEE locomotion ownership: GUARD_PATROL must leave "
+                          f"distance-sampled root/legs untouched: {sorted(forbidden_patrol)}")
+    if clip["looping"] or abs(clip["length"] - 0.50) > 1e-6:
+        errors.append("MELEE transition contract: must remain a 0.50s one-shot")
+
+    channels = {(bone, target): frames
+                for bone, target, frames in clip["channels"]}
+    required_channels = {
+        ("right_arm", "ROTATION"),
+        ("left_arm", "ROTATION"),
+        ("torso", "ROTATION"),
+        ("torso", "POSITION"),
+        ("head", "ROTATION"),
+        ("cloak", "ROTATION"),
+    }
+    missing_channels = required_channels - set(channels)
+    if missing_channels:
+        errors.append("MELEE transition contract: missing required channel(s) "
+                      f"{sorted(missing_channels)}")
+        return
+
+    recovery_ticks = {0.25, 0.30, 0.35, 0.40, 0.45, 0.50}
+    primary_contact = required_channels - {("cloak", "ROTATION")}
+    for channel, frames in channels.items():
+        label = f"MELEE.{channel[0]}.{channel[1]}"
+        by_time = {round(frame[0], 2): frame for frame in frames}
+        if 0.00 not in by_time or 0.50 not in by_time:
+            errors.append(f"{label}: additive layer needs keys at 0.00 and 0.50s")
+            continue
+        for edge in (0.00, 0.50):
+            vec = by_time[edge][2]
+            if any(abs(value) > 0.01 for value in vec):
+                errors.append(f"{label}@{edge:.2f}: must be zero-offset for the "
+                              f"GUARD_STANCE handoff, got {vec}")
+        missing_recovery = sorted(recovery_ticks - set(by_time))
+        if missing_recovery:
+            errors.append(f"{label}: missing authored recovery tick(s) "
+                          f"{missing_recovery}")
+            continue
+
+        # The first tick after the narrow 0.20-0.25 contact band may carry a
+        # controlled follow-through: that is the visible inertia the previous
+        # epsilon-only recovery lacked. From 0.30 onward every axis must shrink
+        # toward rest (with one intentional zero crossing), so follow-through
+        # cannot become a second uncontrolled strike.
+        recovery = [by_time[t] for t in sorted(recovery_ticks)]
+        for pair_index, (previous, current) in enumerate(zip(recovery, recovery[1:])):
+            for axis, (before, after) in enumerate(zip(previous[2], current[2])):
+                if pair_index > 0 and abs(after) > abs(before) + 0.01:
+                    errors.append(f"{label}: recovery axis {axis} moves away from "
+                                  f"zero at {previous[0]:.2f}->{current[0]:.2f}s "
+                                  f"({before}->{after})")
+            if channel[1] == "ROTATION":
+                rate = max(abs(a - b) for a, b in zip(previous[2], current[2]))
+                ticks = (current[0] - previous[0]) / 0.05
+                # The torso/head pair carries a deliberate one-tick yaw
+                # follow-through after contact. Seventeen degrees is visibly
+                # inertial but still bounded; every later tick remains under
+                # the tighter twelve-degree recovery cap.
+                rate_limit = 17.0 if pair_index == 0 else 12.0
+                if rate / ticks > rate_limit + 1e-6:
+                    errors.append(f"{label}: recovery moves {rate / ticks:.1f} "
+                                  f"deg/tick ({rate_limit:.0f} deg/tick maximum)")
+
+        # A zero pose at the final key is not enough. With a non-zero 0.45 s
+        # key, Catmull-Rom still reaches expiry with residual velocity and the
+        # base layer appears to catch it. Two identical rest keys make the
+        # final tick a real settled hold.
+        terminal = by_time[0.45][2]
+        final = by_time[0.50][2]
+        terminal_tolerance = 0.01
+        if any(abs(value) > terminal_tolerance for value in terminal) \
+                or any(abs(value) > terminal_tolerance for value in final):
+            unit = "px" if channel[1] == "POSITION" else "deg"
+            residual = max(abs(a - b) for a, b in zip(terminal, final))
+            errors.append(f"{label}: terminal hold must be at rest for both "
+                          f"0.45 and 0.50s; got {terminal} -> {final} "
+                          f"({residual:.2f}{unit}/tick residual)")
+
+        if channel in primary_contact:
+            contact = by_time.get(0.20)
+            after = by_time.get(0.25)
+            if contact is None or contact[3] != "LINEAR":
+                errors.append(f"{label}: exact tick-4 contact needs a LINEAR "
+                              "0.20s key")
+            if contact is not None and after is not None:
+                limit = 0.10 if channel[1] == "POSITION" else 3.0
+                drift = max(abs(a - b) for a, b in zip(contact[2], after[2]))
+                if drift > limit + 1e-6:
+                    unit = "px" if channel[1] == "POSITION" else "deg"
+                    errors.append(f"{label}: contact hold drifts {drift:.2f}{unit} "
+                                  f"from 0.20 to 0.25s (limit {limit:.2f})")
+
+    # Real overshoot means crossing the zero-offset rest pose, not merely
+    # reaching another large after-contact extreme. Pin it on independent
+    # sword, torso and mass channels so a decorative cape twitch cannot make
+    # a mechanically dead recovery pass.
+    overshoot_contracts = [
+        (("right_arm", "ROTATION"), 0, 0.25, 0.40, 0.25),
+        (("torso", "ROTATION"), 0, 0.25, 0.40, 0.25),
+        (("torso", "POSITION"), 2, 0.25, 0.40, 0.02),
+    ]
+    for channel, axis, anchor_time, overshoot_time, minimum in overshoot_contracts:
+        by_time = {round(frame[0], 2): frame for frame in channels[channel]}
+        anchor = by_time.get(anchor_time)
+        overshoot = by_time.get(overshoot_time)
+        label = f"MELEE.{channel[0]}.{channel[1]}.axis{axis}"
+        if anchor is None or overshoot is None:
+            errors.append(f"{label}: missing authored overshoot beats at "
+                          f"{anchor_time:.2f}/{overshoot_time:.2f}s")
+            continue
+        anchor_value = anchor[2][axis]
+        overshoot_value = overshoot[2][axis]
+        if abs(anchor_value) < minimum or abs(overshoot_value) < minimum \
+                or anchor_value * overshoot_value >= 0:
+            errors.append(f"{label}: recovery must cross rest with at least "
+                          f"{minimum:.2f} authored overshoot; got "
+                          f"{anchor_value:.2f} -> {overshoot_value:.2f}")
+
+    def sample(channel, at):
+        """Linearly sample a source channel for deterministic joint QA.
+
+        All current MELEE plant beats are authored on the 20 Hz tick grid, so
+        exact samples dominate. Linear interpolation intentionally provides a
+        conservative fallback if optional root/leg compensation is later
+        authored at a lower cadence.
+        """
+        if not channel:
+            return (0.0, 0.0, 0.0)
+        ordered = sorted(channel, key=lambda frame: frame[0])
+        for frame in ordered:
+            if abs(frame[0] - at) <= 1e-6:
+                return tuple(frame[2])
+        if at <= ordered[0][0]:
+            return tuple(ordered[0][2])
+        if at >= ordered[-1][0]:
+            return tuple(ordered[-1][2])
+        before, after = next(
+            (a, b) for a, b in zip(ordered, ordered[1:])
+            if a[0] < at < b[0]
+        )
+        mix = (at - before[0]) / (after[0] - before[0])
+        return tuple(a + (b - a) * mix
+                     for a, b in zip(before[2], after[2]))
+
+    def rotate_xyz(vector, degrees):
+        """Minecraft model-space XYZ Euler rotation for a point vector."""
+        x, y, z = vector
+        rx, ry, rz = (math.radians(value) for value in degrees)
+        cos_x, sin_x = math.cos(rx), math.sin(rx)
+        y, z = y * cos_x - z * sin_x, y * sin_x + z * cos_x
+        cos_y, sin_y = math.cos(ry), math.sin(ry)
+        x, z = x * cos_y + z * sin_y, -x * sin_y + z * cos_y
+        cos_z, sin_z = math.cos(rz), math.sin(rz)
+        x, y = x * cos_z - y * sin_z, x * sin_z + y * cos_z
+        return (x, y, z)
+
+    def add(*vectors):
+        return tuple(sum(vector[axis] for vector in vectors)
+                     for axis in range(3))
+
+    def foot_position(side, at):
+        # SettlerModel pivots in model pixels; the foot endpoint is twelve
+        # pixels below the hip. Measuring the final joint-space point catches
+        # the old +/-30-degree leg lunge as ~6.2 px of physical foot slide.
+        pivot_x = -2.6 if side == "right" else 2.6
+        pivot = (pivot_x, -12.0, 0.0)
+        foot_from_hip = (0.0, 12.0, 0.0)
+        leg_rotation = sample(channels.get((f"{side}_leg", "ROTATION")), at)
+        raw_leg_position = sample(channels.get((f"{side}_leg", "POSITION")), at)
+        # KeyframeAnimations.posVec stores -Y internally before ModelPart's
+        # offset target consumes it. Mirror that production transform here.
+        leg_position = (raw_leg_position[0], -raw_leg_position[1],
+                        raw_leg_position[2])
+        root_rotation = sample(channels.get(("root", "ROTATION")), at)
+        raw_root_position = sample(channels.get(("root", "POSITION")), at)
+        root_position = (raw_root_position[0], -raw_root_position[1],
+                         raw_root_position[2])
+        articulated = add(pivot, leg_position,
+                          rotate_xyz(foot_from_hip, leg_rotation))
+        return add(root_position, rotate_xyz(articulated, root_rotation))
+
+    plant_ticks = [round(tick * 0.05, 2) for tick in range(7)]
+    max_displacements = {}
+    for side in ("right", "left"):
+        origin = foot_position(side, 0.0)
+        max_displacements[side] = max(
+            math.dist(origin, foot_position(side, at))
+            for at in plant_ticks
+        )
+    plant_limit = 0.75
+    if min(max_displacements.values()) > plant_limit + 1e-6:
+        errors.append("MELEE foot-plant contract: no consistent support foot "
+                      f"stays within {plant_limit:.2f}px through 0.00–0.30s; "
+                      f"right={max_displacements['right']:.2f}px, "
+                      f"left={max_displacements['left']:.2f}px. Leave lower "
+                      "body to the base or author real root/hip compensation.")
+
+    # Compose authored torso/head rotations with the real MeleeAttackGoal
+    # target-bearing body yaw, netHeadYaw and pitch. Their hierarchy means a
+    # locally attractive pose can still turn the actual eyes away in game.
+    torso = channels.get(("torso", "ROTATION"), [])
+    head = channels.get(("head", "ROTATION"), [])
+    torso_at = {round(frame[0], 2): frame[2] for frame in torso}
+    head_at = {round(frame[0], 2): frame[2] for frame in head}
+    if target_look is not None:
+        for beat in (0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40):
+            if beat not in torso_at or beat not in head_at:
+                errors.append("MELEE target-bearing gaze contract: missing "
+                              f"torso/head key at {beat:.2f}s")
+                continue
+            world_yaw = (target_look["bodyYawDegrees"]
+                         + torso_at[beat][1] + head_at[beat][1]
+                         + target_look["netHeadYawDegrees"])
+            yaw_error = abs(_wrap_degrees(
+                world_yaw - target_look["targetBearingDegrees"]))
+            if yaw_error > 8.0:
+                errors.append("MELEE target-bearing gaze contract"
+                              f"@{beat:.2f}: composed eyes are {yaw_error:.1f}deg "
+                              "off the physical target")
+            world_pitch = (torso_at[beat][0] + head_at[beat][0]
+                           + target_look["headPitchDegrees"])
+            if abs(world_pitch - target_look["rawPitchDegrees"]) > 12.0:
+                errors.append("MELEE target-bearing gaze contract"
+                              f"@{beat:.2f}: composed pitch is {world_pitch:.1f}deg "
+                              "away from the physical target")
+
+
+def check_melee_runtime_composition_source(entity_text, model_text, errors):
+    """Pin locomotion/martial ownership at the real runtime composition site.
+
+    WALK owns root, cloak and both legs, but its phase-dependent arm, head and
+    torso channels must be discarded before the stable martial base is
+    applied. This gate intentionally parses the composition code rather than
+    trusting a visually favourable WALK phase in offline evidence.
+    """
+    entity = strip_comments(entity_text)
+    model = strip_comments(model_text)
+
+    patrol = re.search(
+        r"patrolState\s*\.\s*animateWhen\s*\((.*?)\s*,\s*tickCount\s*\)\s*;",
+        entity, flags=re.S)
+    if patrol is None:
+        errors.append("MELEE runtime composition: patrolState.animateWhen source "
+                      "was not found")
+    else:
+        expression = patrol.group(1)
+        if not re.search(r"\bmoving\b", expression):
+            errors.append("MELEE runtime composition: martial base must be owned "
+                          "only while locomotion is moving")
+        guard = re.search(
+            r"profession\s*==\s*Profession\.GUARD(?P<body>.*?)"
+            r"\|\|\s*\(\s*profession\s*==\s*Profession\.ARCHER",
+            expression, flags=re.S)
+        guard_body = guard.group("body") if guard else ""
+        if guard is None \
+                or "activity == SettlerActivity.PATROLLING" not in guard_body \
+                or "activity == SettlerActivity.COMBAT" not in guard_body:
+            errors.append("MELEE runtime composition: moving GUARD must own its "
+                          "stable martial base in both PATROLLING and COMBAT")
+
+    martial_start = model.find("else if (entity.patrolState.isStarted()")
+    martial_end = model.find("else if (entity.carryState.isStarted()",
+                             martial_start + 1)
+    if martial_start < 0 or martial_end < 0:
+        errors.append("MELEE runtime composition: moving martial branch was not "
+                      "found in SettlerModel")
+        martial = ""
+    else:
+        martial = model[martial_start:martial_end]
+
+    patrol_apply = martial.find("SettlerAnimations.GUARD_PATROL")
+    for bone in ("rightArm", "leftArm", "head", "torso"):
+        reset = martial.find(f"{bone}.resetPose()")
+        if reset < 0 or patrol_apply < 0 or reset > patrol_apply:
+            errors.append("MELEE gait-arm contamination: moving martial branch "
+                          f"must reset {bone} before GUARD_PATROL")
+    for locomotion_part in ("root", "rightLeg", "leftLeg"):
+        if f"{locomotion_part}.resetPose()" in martial:
+            errors.append("MELEE locomotion ownership: moving martial branch must "
+                          f"not reset WALK-owned {locomotion_part}")
+    if 'torso.getChild("cloak").resetPose()' in martial:
+        errors.append("MELEE locomotion ownership: moving martial branch must not "
+                      "reset WALK-owned cloak")
+
+    melee_calls = list(re.finditer(
+        r"animate\s*\(\s*entity\.meleeState\s*,\s*"
+        r"SettlerAnimations\.MELEE\s*,", model, flags=re.S))
+    if len(melee_calls) != 1:
+        errors.append("MELEE runtime composition: exactly one EV_MELEE animation "
+                      f"application is required, found {len(melee_calls)}")
+        return
+    melee_position = melee_calls[0].start()
+    stance_position = model.find("SettlerAnimations.GUARD_STANCE")
+    if martial_start < 0 or melee_position < martial_end \
+            or stance_position < 0 or melee_position < stance_position:
+        errors.append("MELEE runtime composition: zero-offset strike must be "
+                      "applied after the moving or stationary martial base")
+    condition_window = model[max(0, melee_position - 260):melee_position]
+    for requirement in ("entity.meleeState.isStarted()",
+                        "profession == Profession.GUARD", "physicalSword"):
+        if requirement not in condition_window:
+            errors.append("MELEE runtime composition: strike application must be "
+                          f"guarded by {requirement}")
+
+
+def check_melee_runtime_composition_files(errors):
+    try:
+        with open(SETTLER_ENTITY_SOURCE, encoding="utf-8") as source_file:
+            entity_text = source_file.read()
+        with open(SETTLER_MODEL_SOURCE, encoding="utf-8") as source_file:
+            model_text = source_file.read()
+    except OSError as exc:
+        errors.append(f"MELEE runtime composition: cannot read source: {exc}")
+        return
+    check_melee_runtime_composition_source(entity_text, model_text, errors)
+
 
 def main():
     errors = []
@@ -855,6 +1936,11 @@ def main():
                           f"{sorted(dupes)}")
         defs.update(source_defs)
         check_structural(source, source_defs, errors, warns)
+
+    check_melee_transition_contract(defs, errors)
+    check_melee_runtime_composition_files(errors)
+    check_activity_animation_reachability(defs, errors)
+    check_crafting_truth_contract(defs, errors)
 
     # 17.2-12: catalogue coverage.
     catalogued = parse_catalogue_clip_names(CATALOGUE)
@@ -923,6 +2009,23 @@ def main():
 
     # 17.3 (crafter trades, audit F8): the Employment-table contract.
     check_crafter_sound_contracts(defs, errors, warns)
+
+    # HAUL_LOG is deliberately an arms-only persistent hold. It must stay
+    # active while the worker pauses at storage; adding `&& moving` here
+    # makes both arms snap to bind pose at the walk-speed threshold even
+    # though the animation definitions themselves are correct.
+    entity_path = os.path.join(ROOT,
+        "src/main/java/com/hearthstead/entity/SettlerEntity.java")
+    if not os.path.isfile(entity_path):
+        errors.append("HAUL_LOG state gate: SettlerEntity.java not found")
+    else:
+        entity_text = strip_comments(open(entity_path, encoding="utf-8").read())
+        persistent_haul_gate = re.search(
+            r'haulState\.animateWhen\(\s*haulPoseBlend\s*>\s*0\.0F\s*,'
+            r'\s*tickCount\s*\)\s*;', entity_text)
+        if persistent_haul_gate is None:
+            errors.append("HAUL_LOG state gate must remain alive for haulPoseBlend -- "
+                          "a moving/activity-edge gate snaps the arms at start or stop")
 
     # 17.4-24: head-damping table cross-check. Structural, not a bare
     # substring search: scoped to the actual `damp = ...F;` assignment

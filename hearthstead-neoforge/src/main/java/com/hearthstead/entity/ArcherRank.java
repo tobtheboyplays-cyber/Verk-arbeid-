@@ -11,7 +11,9 @@ import net.minecraft.network.chat.Component;
  * power shot og triple shot osv over tid" — an archer whose abilities arrive
  * over time. So this mirrors {@link GuardRank} exactly: rank reads straight
  * off {@link Attribute#DEXTERITY} — the attribute an archer's own work
- * trains — and there is nothing to allocate. A sharpshooter on the tower is
+ * trains — and there is nothing to allocate. Valid hostile kills also grant
+ * persistent {@link GuardExperience} and one extra Dexterity training event.
+ * A sharpshooter on the tower is
  * evidence of watches stood and arrows loosed, the only currency this mod
  * has that cannot be farmed quickly.
  *
@@ -54,11 +56,12 @@ import net.minecraft.network.chat.Component;
  * <h2>No equipment ladder</h2>
  *
  * <p>{@link GuardRank#applyEquipment} exists because guard rank is readable
- * as armor across a square. The archer's kit is the bow the profession
- * already puts in their hand ({@link Profession#ARCHER}); rank reads in the
- * cadence — the long-drawn pause before a Power Shot, the fan of a Triple
- * Shot — not in what they wear. If archer armor is ever wanted, it belongs
- * here, gated the same way the guard's is: earned, never bought.
+ * as armor across a square. The archer's bow is real equipment requested and
+ * delivered after hiring ({@link Profession#ARCHER}), never placed in their
+ * hand by the profession switch. Rank reads in the cadence — the long-drawn
+ * pause before a Power Shot, the fan of a Triple Shot — not in what they
+ * wear. If archer armor is ever wanted, it belongs here, gated the same way
+ * the guard's is: earned, never conjured.
  */
 public enum ArcherRank {
     // "recruit" deliberately shares GuardRank.RECRUIT's lang key: it is the
@@ -136,8 +139,10 @@ public enum ArcherRank {
 
     /**
      * DEXTERITY per arrow that actually <i>struck</i> a living target
-     * (trained from the arrow's own post-hurt hook, so it counts the hit
-     * and never the loose). Twice {@link #TRAIN_SHOT}, not the guard's 5× —
+     * (trained from the immutable successful-damage terminal after the
+     * projectile's persistent ownership/contact receipt commits, so it counts
+     * the hit across reloads and never the loose). Twice {@link #TRAIN_SHOT},
+     * not the guard's 5× —
      * a guard's drill is peacetime walking and combat is rare, but every
      * archer volley is already combat and hits are the common case, so a
      * bigger multiple would silently halve the 3–4 day arithmetic above.

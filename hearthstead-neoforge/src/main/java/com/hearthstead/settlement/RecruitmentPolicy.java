@@ -19,6 +19,9 @@ public final class RecruitmentPolicy {
     public static final int MINECRAFT_DAY_SECONDS = 1_200;
     public static final int MIN_QUALIFIED_SECONDS = 2 * MINECRAFT_DAY_SECONDS;
     public static final int MAX_TARGET_SECONDS = 4 * MINECRAFT_DAY_SECONDS;
+    /** The one Journey-gated Call to Arms window for the Watch recruit. */
+    public static final int CALL_TO_ARMS_MIN_SECONDS = 4 * 60;
+    public static final int CALL_TO_ARMS_MAX_SECONDS = 8 * 60;
     public static final int MEALS_PER_PERSON_PER_DAY = 4;
     public static final int RESERVE_DAYS = 2;
     public static final int MEALS_PER_NEXT_RESIDENT =
@@ -28,7 +31,9 @@ public final class RecruitmentPolicy {
     public enum Stage {
         ATTRACTION(0),
         WAITING_ADMISSION(1),
-        INVALID(2);
+        INVALID(2),
+        QUALIFYING(3),
+        TRAVELING(4);
 
         private final int wireId;
 
@@ -44,6 +49,8 @@ public final class RecruitmentPolicy {
             return switch (wireId) {
                 case 0 -> ATTRACTION;
                 case 1 -> WAITING_ADMISSION;
+                case 3 -> QUALIFYING;
+                case 4 -> TRAVELING;
                 default -> INVALID;
             };
         }
@@ -114,7 +121,16 @@ public final class RecruitmentPolicy {
     }
 
     public static Stage stageFor(Settlement settlement) {
-        return settlement.travelerId == null ? Stage.ATTRACTION : Stage.WAITING_ADMISSION;
+        if (settlement == null || settlement.recruitment == null) {
+            return Stage.INVALID;
+        }
+        return switch (settlement.recruitment.status()) {
+            case ATTRACTING, ADMITTED, LEFT -> Stage.ATTRACTION;
+            case QUALIFYING, READY_TO_SPAWN -> Stage.QUALIFYING;
+            case TRAVELING -> Stage.TRAVELING;
+            case WAITING_ADMISSION -> Stage.WAITING_ADMISSION;
+            case QUARANTINED, UNKNOWN -> Stage.INVALID;
+        };
     }
 
     /**
@@ -147,12 +163,11 @@ public final class RecruitmentPolicy {
         Blocker blocker;
         if (stage == Stage.INVALID) {
             blocker = Blocker.INVALID_STATE;
-        } else if (stage == Stage.ATTRACTION
-            && !SettlementManager.hasValidTavern(settlement)) {
+        } else if (!SettlementManager.hasValidTavern(settlement)) {
             blocker = Blocker.NO_TAVERN;
         } else if (settlement.population() >= settlement.capacity()) {
             blocker = Blocker.NO_BED;
-        } else if (stage == Stage.ATTRACTION && settlement.moraleCache < 60) {
+        } else if (settlement.moraleCache < 60) {
             blocker = Blocker.LOW_MORALE;
         } else if (!canPay) {
             blocker = Blocker.CANNOT_PAY;
@@ -246,16 +261,61 @@ public final class RecruitmentPolicy {
         return sum > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) sum;
     }
 
-    /** Stable settlement/cycle-specific duration in the inclusive 2–4 day range. */
+    /** Ordinary recurring recruitment always retains the two-day minimum. */
+    public static int minimumFor(int cycle) {
+        return MIN_QUALIFIED_SECONDS;
+    }
+
+    /**
+     * Required minimum for one persisted lock. The disjoint target ranges
+     * encode whether the authoritative Journey gate selected Call to Arms;
+     * the raw attempt/cycle number never grants the acceleration.
+     */
+    public static int minimumFor(UUID settlementId, int cycle,
+                                 int lockedTarget) {
+        int safeCycle = Math.max(0, cycle);
+        if (lockedTarget == ordinaryTargetFor(settlementId, safeCycle)) {
+            return MIN_QUALIFIED_SECONDS;
+        }
+        return lockedTarget == callToArmsTargetFor(settlementId, safeCycle)
+            ? CALL_TO_ARMS_MIN_SECONDS : -1;
+    }
+
+    public static boolean validLockedTarget(UUID settlementId, int cycle,
+                                            int lockedTarget) {
+        return minimumFor(settlementId, cycle, lockedTarget) > 0;
+    }
+
+    /**
+     * Stable ordinary settlement/cycle duration. Call to Arms is selected
+     * explicitly by the post-FJ-552 Journey gate, never by this raw counter.
+     */
     public static int targetFor(UUID settlementId, int cycle) {
+        return ordinaryTargetFor(settlementId, cycle);
+    }
+
+    /** Deterministic four-to-eight-minute lock for the active Watch slot. */
+    public static int callToArmsTargetFor(UUID settlementId, int cycle) {
+        long z = targetHash(settlementId, Math.max(0, cycle));
+        int span = CALL_TO_ARMS_MAX_SECONDS - CALL_TO_ARMS_MIN_SECONDS + 1;
+        return CALL_TO_ARMS_MIN_SECONDS
+            + (int) Long.remainderUnsigned(z, span);
+    }
+
+    private static int ordinaryTargetFor(UUID settlementId, int cycle) {
+        long z = targetHash(settlementId, Math.max(0, cycle));
+        int span = MAX_TARGET_SECONDS - MIN_QUALIFIED_SECONDS + 1;
+        return MIN_QUALIFIED_SECONDS + (int) Long.remainderUnsigned(z, span);
+    }
+
+    private static long targetHash(UUID settlementId, int safeCycle) {
         long z = settlementId.getMostSignificantBits()
             ^ Long.rotateLeft(settlementId.getLeastSignificantBits(), 29)
-            ^ (0x9E3779B97F4A7C15L * (Math.max(0, cycle) + 1L));
+            ^ (0x9E3779B97F4A7C15L * (safeCycle + 1L));
         z = (z ^ (z >>> 30)) * 0xBF58476D1CE4E5B9L;
         z = (z ^ (z >>> 27)) * 0x94D049BB133111EBL;
         z ^= z >>> 31;
-        int span = MAX_TARGET_SECONDS - MIN_QUALIFIED_SECONDS + 1;
-        return MIN_QUALIFIED_SECONDS + (int) Long.remainderUnsigned(z, span);
+        return z;
     }
 
     @Nullable

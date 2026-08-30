@@ -10,6 +10,7 @@ import com.hearthstead.entity.ai.CourierWorkGoal;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.RecruitmentPolicy;
@@ -186,7 +187,13 @@ public class CourierFoodRouteGameTests {
         settler.setSettlerName("Bud");
         settler.bindTo(s.id, s.center);
         s.putRecord(settler.getUUID(), settler.getSettlerName(), Profession.NONE);
-        settler.assignProfession(Profession.COURIER);
+        Building warehouse = s.buildings.stream()
+            .filter(b -> b.valid && b.type == BuildingType.WAREHOUSE
+                && b.workers.size() < b.type.workerCapacity())
+            .findFirst().orElse(null);
+        helper.assertTrue(warehouse != null
+                && Employment.hire(helper.getLevel(), s, warehouse, settler).ok(),
+            "courier route fixture needs one real Warehouse employment authority");
         settler.setHunger(100.0F);
         return settler;
     }

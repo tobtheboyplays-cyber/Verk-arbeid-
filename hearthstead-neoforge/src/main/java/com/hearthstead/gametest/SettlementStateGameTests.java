@@ -10,10 +10,12 @@ import com.hearthstead.settlement.raid.RaidPlan;
 import com.hearthstead.settlement.state.BlessingId;
 import com.hearthstead.settlement.state.BlessingState;
 import com.hearthstead.settlement.state.FirstRaidState;
+import com.hearthstead.settlement.state.FoundingJourney;
 import com.hearthstead.settlement.state.GuardOrder;
 import com.hearthstead.settlement.state.RaidLifecycle;
 import com.hearthstead.settlement.state.RaidProfile;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -64,8 +66,16 @@ public class SettlementStateGameTests {
             "first Blessing should commit");
 
         BlockPos orderPos = new BlockPos(9, 70, -4);
-        helper.assertTrue(original.guardOrder.issue(GuardOrder.Mode.DEFEND_HEARTH,
-            orderPos, 12_345L), "guard order should be accepted");
+        UUID guardId = UUID.randomUUID();
+        UUID buildingId = UUID.randomUUID();
+        GuardOrder authored = original.guardOrders.orderForMutation(original.id,
+            guardId, helper.getLevel().dimension().location()).orElseThrow();
+        helper.assertTrue(authored.issueStand(orderPos, Direction.NORTH,
+            GuardOrder.DEFAULT_LEASH_RADIUS, UUID.randomUUID(), buildingId,
+            123L), "per-Guard order should be accepted");
+        original.foundingJourney = FoundingJourney.fresh();
+        helper.assertTrue(original.foundingJourney.noteLumberCampLinked(),
+            "round-trip fixture should advance through one real journey phase");
 
         SettlementSavedData output = new SettlementSavedData();
         output.settlements.put(original.id, original);
@@ -100,12 +110,17 @@ public class SettlementStateGameTests {
             "intact held first raid should remain reward-eligible");
         helper.assertTrue(loaded.blessingState.earned() == 2
                 && loaded.blessingState.spent() == 1
-                && loaded.blessingState.rank(BlessingId.WARDEN_OATH) == 1,
-            "Blessing counters and ranks should round-trip");
-        helper.assertTrue(loaded.guardOrder.mode() == GuardOrder.Mode.DEFEND_HEARTH
-                && loaded.guardOrder.pos().orElseThrow().equals(orderPos)
-                && loaded.guardOrder.untilGameTime() == 12_345L,
-            "guard order should round-trip");
+                && loaded.blessingState.issuedCount(BlessingId.WARDEN_OATH) == 1,
+            "Blessing offer and issued-seal counters should round-trip");
+        GuardOrder loadedOrder = loaded.guardOrders.order(guardId).orElseThrow();
+        helper.assertTrue(loadedOrder.mode() == GuardOrder.Mode.STAND_POST
+                && loadedOrder.pos().orElseThrow().equals(orderPos)
+                && loadedOrder.linkedBuildingId().orElseThrow().equals(buildingId),
+            "exact per-Guard order should round-trip");
+        helper.assertTrue(loaded.foundingJourney.phase()
+                == FoundingJourney.Phase.HIRE_LUMBERER
+                && loaded.foundingJourney.revision() == 1,
+            "active Founding Journey phase and revision should round-trip");
         helper.succeed();
     }
 
@@ -158,8 +173,9 @@ public class SettlementStateGameTests {
         helper.assertTrue(active.raidLifecycle.integrityLost(),
             "legacy participant integrity should be explicitly unavailable");
         helper.assertTrue(active.blessingState.earned() == 0
-                && active.guardOrder.mode() == GuardOrder.Mode.NONE,
-            "missing v0 Blessing/Guard compounds must load empty");
+                && active.guardOrders.size() == 0
+                && active.foundingJourney.phase() == FoundingJourney.Phase.SKIPPED,
+            "missing v0 Blessing/Guard state must load empty and onboarding skipped");
 
         Settlement completed = loaded.settlements.get(history.id);
         helper.assertTrue(completed.raidLifecycle.firstState()
@@ -204,7 +220,8 @@ public class SettlementStateGameTests {
         helper.assertTrue(FirstRaidState.UNINITIALIZED.wireId() == 0
                 && FirstRaidState.SCHEDULED.wireId() == 1
                 && FirstRaidState.ACTIVE.wireId() == 2
-                && FirstRaidState.COMPLETED.wireId() == 3,
+                && FirstRaidState.COMPLETED.wireId() == 3
+                && FirstRaidState.PREPARING.wireId() == 4,
             "first raid state wire ids are a frozen contract");
         helper.assertTrue(BlessingId.WARDEN_OATH.wireId() == 0
                 && BlessingId.HEARTHWARD.wireId() == 1
@@ -216,13 +233,50 @@ public class SettlementStateGameTests {
                 && GuardOrder.Mode.DEFEND_HEARTH.wireId() == 2
                 && "defend_hearth".equals(GuardOrder.Mode.DEFEND_HEARTH.id()),
             "guard order wire/string ids are a frozen contract");
+        helper.assertTrue(FoundingJourney.Phase.BUILD_LUMBER_CAMP.wireId() == 0
+                && FoundingJourney.Phase.HIRE_LUMBERER.wireId() == 1
+                && FoundingJourney.Phase.SET_LUMBER_ZONE.wireId() == 5
+                && FoundingJourney.Phase.DELIVER_FIRST_LOG.wireId() == 2
+                && FoundingJourney.Phase.COMPLETE.wireId() == 3
+                && FoundingJourney.Phase.SKIPPED.wireId() == 4,
+            "Founding Journey phase wire ids are a frozen monotonic contract");
         helper.assertTrue(RaidProfile.tryFromWireId(99).isEmpty()
                 && RaidProfile.tryFromId("future_profile").isEmpty(),
             "unknown profile ids must not decode");
         helper.assertTrue(FirstRaidState.tryFromWireId(-4).isEmpty()
                 && BlessingId.tryFromId("future_blessing").isEmpty()
-                && GuardOrder.Mode.tryFromWireId(44).isEmpty(),
+                && GuardOrder.Mode.tryFromWireId(44).isEmpty()
+                && FoundingJourney.Phase.fromWireId(44) == null,
             "unknown lifecycle, Blessing and order ids must not decode");
+
+        FoundingJourney journey = FoundingJourney.fresh();
+        helper.assertTrue(!journey.noteLumbererHired()
+                && !journey.noteLumberZoneCommitted()
+                && !journey.noteFirstLogDelivered()
+                && journey.revision() == 0,
+            "out-of-order Founding Journey events must be inert");
+        helper.assertTrue(journey.noteLumberCampLinked()
+                && !journey.noteLumberCampLinked()
+                && journey.noteLumbererHired()
+                && !journey.noteLumbererHired()
+                && journey.noteLumberZoneCommitted()
+                && !journey.noteLumberZoneCommitted()
+                && journey.noteFirstLogDelivered()
+                && !journey.noteFirstLogDelivered()
+                && !journey.skip()
+                && journey.phase() == FoundingJourney.Phase.COMPLETE
+                && journey.revision() == 4,
+            "Founding Journey must advance exactly once per real ordered event");
+        FoundingJourney skippedJourney = FoundingJourney.fresh();
+        helper.assertTrue(skippedJourney.skip() && !skippedJourney.skip()
+                && !skippedJourney.noteLumberCampLinked()
+                && skippedJourney.phase() == FoundingJourney.Phase.SKIPPED,
+            "skip must be terminal and idempotent");
+        CompoundTag impossibleJourney = FoundingJourney.fresh().writeNbt();
+        impossibleJourney.putInt("Revision", 2);
+        helper.assertTrue(FoundingJourney.readNbt(impossibleJourney)
+                .quarantinedState(),
+            "a phase/revision pair unreachable through real journey events must quarantine");
 
         Settlement original = settlement("Unknownholm", BlockPos.ZERO);
         CompoundTag tag = original.writeNbt();
@@ -241,6 +295,11 @@ public class SettlementStateGameTests {
         guard.put("Pos", net.minecraft.nbt.NbtUtils.writeBlockPos(new BlockPos(4, 4, 4)));
         guard.putLong("Until", 999L);
         tag.put("GuardOrder", guard);
+        tag.put("GuardOrders", new CompoundTag());
+
+        CompoundTag journeyTag = FoundingJourney.fresh().writeNbt();
+        journeyTag.putString("Phase", FoundingJourney.Phase.HIRE_LUMBERER.id());
+        tag.put("FoundingJourney", journeyTag);
 
         CompoundTag blessing = new CompoundTag();
         blessing.putInt("Earned", 1);
@@ -262,12 +321,17 @@ public class SettlementStateGameTests {
                 && loaded.raidLifecycle.integrityLost()
                 && !loaded.raidLifecycle.rewardEligible(),
             "unknown lifecycle state must reset safely and disarm reward");
-        helper.assertTrue(loaded.guardOrder.mode() == GuardOrder.Mode.NONE,
-            "unknown guard mode must load as no order");
-        helper.assertTrue(loaded.blessingState.rank(BlessingId.HEARTHWARD) == 0
-                && loaded.blessingState.spent() == 1
-                && loaded.blessingState.offerSerial() == 0,
-            "unknown Blessing rank must grant no power or resurrect a free offer");
+        helper.assertTrue(loaded.guardOrders.quarantined()
+                && loaded.guardOrders.size() == 0,
+            "unknown or malformed current guard authority must quarantine");
+        helper.assertTrue(loaded.foundingJourney.quarantinedState()
+                && !loaded.foundingJourney.noteLumberCampLinked(),
+            "mismatched Founding Journey wire/string ids must quarantine forever");
+        helper.assertTrue(loaded.blessingState.quarantined()
+                && loaded.blessingState.issuedCount(BlessingId.HEARTHWARD) == 0
+                && loaded.blessingState.offerSerial() == 0
+                && !loaded.blessingState.grantOffer(),
+            "unknown Blessing entry must issue nothing and never resurrect a free offer");
         helper.succeed();
     }
 
@@ -310,6 +374,42 @@ public class SettlementStateGameTests {
         missingIdEntries.add(new CompoundTag());
         missingIdRoot.put("Settlements", missingIdEntries);
         assertVersionRejected(helper, missingIdRoot, "missing settlement id");
+
+        Settlement buildingsOwner = settlement("Building Owner", BlockPos.ZERO);
+        CompoundTag missingBuildings = buildingsOwner.writeNbt();
+        missingBuildings.remove("Buildings");
+        assertVersionRejected(helper, rootWithSettlement(
+            SettlementSavedData.CURRENT_DATA_VERSION, missingBuildings),
+            "current settlement missing owned Buildings list");
+
+        CompoundTag wrongBuildings = buildingsOwner.writeNbt();
+        wrongBuildings.putString("Buildings", "not_a_list");
+        assertVersionRejected(helper, rootWithSettlement(
+            SettlementSavedData.CURRENT_DATA_VERSION, wrongBuildings),
+            "current settlement with wrong Buildings tag type");
+
+        CompoundTag legacyMissingBuildings = buildingsOwner.writeNbt();
+        legacyMissingBuildings.remove("Buildings");
+        helper.assertTrue(Settlement.readNbt(legacyMissingBuildings, 2)
+                .buildings.isEmpty(),
+            "v2 predates permanent building-target ledgers and may migrate an "
+                + "absent Buildings list as empty");
+
+        CompoundTag missingJourney = buildingsOwner.writeNbt();
+        missingJourney.remove("FoundingJourney");
+        helper.assertTrue(Settlement.readNbt(missingJourney,
+                SettlementSavedData.CURRENT_DATA_VERSION)
+                .foundingJourney.quarantinedState(),
+            "current root missing Founding Journey authority must quarantine");
+        CompoundTag wrongJourneyType = buildingsOwner.writeNbt();
+        wrongJourneyType.putString("FoundingJourney", "not_a_compound");
+        helper.assertTrue(Settlement.readNbt(wrongJourneyType,
+                SettlementSavedData.CURRENT_DATA_VERSION)
+                .foundingJourney.quarantinedState(),
+            "current root with wrong Founding Journey tag type must quarantine");
+        helper.assertTrue(Settlement.readNbt(missingJourney, 3)
+                .foundingJourney.phase() == FoundingJourney.Phase.SKIPPED,
+            "v3 predates Founding Journey and must migrate to terminal SKIPPED");
 
         Settlement duplicate = settlement("Duplicate", BlockPos.ZERO);
         CompoundTag duplicateRoot = new CompoundTag();
@@ -594,9 +694,9 @@ public class SettlementStateGameTests {
         BlessingState bounded = BlessingState.readNbt(blessingTag);
         helper.assertTrue(bounded.earned() == 2 && bounded.spent() == 2,
             "corrupt counters must conservatively account every earned token");
-        helper.assertTrue(bounded.rank(BlessingId.WARDEN_OATH) == 0
-                && bounded.rank(BlessingId.HEARTHWARD) == 0,
-            "a structurally corrupt ledger must grant no permanent effect");
+        helper.assertTrue(bounded.issuedCount(BlessingId.WARDEN_OATH) == 0
+                && bounded.issuedCount(BlessingId.HEARTHWARD) == 0,
+            "a structurally corrupt ledger must report no issued seals");
         helper.assertTrue(bounded.revision() >= 0 && bounded.offerSerial() == 0
                 && !bounded.grantOffer(),
             "corrupt ledger must quarantine future grants and expose no offer");
@@ -613,26 +713,26 @@ public class SettlementStateGameTests {
         assertLedgerFailsClosed(helper, BlessingState.readNbt(wrongSpent),
             "wrong Spent tag type");
 
-        CompoundTag wrongRanks = oneOffer.writeNbt();
-        wrongRanks.putString("Ranks", "not_a_list");
-        assertLedgerFailsClosed(helper, BlessingState.readNbt(wrongRanks),
-            "wrong Ranks tag type");
+        CompoundTag wrongIssued = oneOffer.writeNbt();
+        wrongIssued.putString("Issued", "not_a_list");
+        assertLedgerFailsClosed(helper, BlessingState.readNbt(wrongIssued),
+            "wrong Issued tag type");
 
-        CompoundTag malformedRank = oneOffer.writeNbt();
-        ListTag malformedRankList = new ListTag();
-        CompoundTag malformedRankEntry = new CompoundTag();
-        malformedRankEntry.putString("Id", BlessingId.WARDEN_OATH.id());
-        malformedRankEntry.putString("Rank", "one"); // missing WireId + wrong Rank type
-        malformedRankList.add(malformedRankEntry);
-        malformedRank.put("Ranks", malformedRankList);
-        assertLedgerFailsClosed(helper, BlessingState.readNbt(malformedRank),
-            "missing/wrong WireId or Rank field");
+        CompoundTag malformedIssued = oneOffer.writeNbt();
+        ListTag malformedIssuedList = new ListTag();
+        CompoundTag malformedIssuedEntry = new CompoundTag();
+        malformedIssuedEntry.putString("Id", BlessingId.WARDEN_OATH.id());
+        malformedIssuedEntry.putString("Count", "one");
+        malformedIssuedList.add(malformedIssuedEntry);
+        malformedIssued.put("Issued", malformedIssuedList);
+        assertLedgerFailsClosed(helper, BlessingState.readNbt(malformedIssued),
+            "missing/wrong WireId or Count field");
 
         Settlement missingLedgerSource = settlement("Missing Ledger", BlockPos.ZERO);
         CompoundTag missingLedgerTag = missingLedgerSource.writeNbt();
         missingLedgerTag.remove("BlessingState");
         assertSettlementLedgerQuarantinePersists(helper, missingLedgerTag,
-            "missing BlessingState");
+            "missing BlessingState in a versioned settlement");
 
         CompoundTag wrongLedgerTag = missingLedgerSource.writeNbt();
         wrongLedgerTag.putString("BlessingState", "not_a_compound");
@@ -685,6 +785,39 @@ public class SettlementStateGameTests {
     }
 
     @GameTest(template = "empty5", timeoutTicks = 100,
+        batch = "settlement_state_first_raid_readiness_calendar")
+    public void firstRaidCalendarAnchorsToReadinessWithoutReroll(
+            GameTestHelper helper) {
+        RaidLifecycle fast = new RaidLifecycle();
+        helper.assertTrue(fast.prepareAtFounding(10L, 7, 2),
+            "fresh founding must persist one preparing roll");
+        helper.assertTrue(fast.firstState() == FirstRaidState.PREPARING
+                && fast.rolledNotBeforeNight() == 17L
+                && fast.firstAttackNight() == RaidLifecycle.UNSET_NIGHT,
+            "PREPARING must not expose an armed attack date");
+        helper.assertTrue(fast.scheduleAfterReadiness(12L)
+                && fast.firstWarningNight() == 15L
+                && fast.firstAttackNight() == 17L,
+            "a fast player must retain the founding +4..+7 floor");
+
+        RaidLifecycle slow = new RaidLifecycle();
+        helper.assertTrue(slow.prepareAtFounding(10L, 4, 2)
+                && slow.scheduleAfterReadiness(20L)
+                && slow.firstWarningNight() == 20L
+                && slow.firstAttackNight() == 22L,
+            "a slow player must receive the complete persisted warning lead");
+        CompoundTag saved = slow.writeNbt();
+        RaidLifecycle reloaded = RaidLifecycle.readNbt(saved);
+        helper.assertTrue(!reloaded.integrityLost()
+                && reloaded.readinessNight() == 20L
+                && reloaded.firstWarningNight() == 20L
+                && reloaded.firstAttackNight() == 22L
+                && !reloaded.scheduleAfterReadiness(30L),
+            "restart/reclick must preserve one exact readiness calendar");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty5", timeoutTicks = 100,
         batch = "settlement_state_blessing_atomicity")
     public void staleTwoPlayerClickCannotConsumeSecondToken(GameTestHelper helper) {
         BlessingState state = new BlessingState();
@@ -700,7 +833,7 @@ public class SettlementStateGameTests {
                 BlessingId.THORNED_ROADS) == BlessingState.CommitResult.STALE,
             "player B's same-snapshot click must be stale");
         helper.assertTrue(state.spent() == 1 && state.offerSerial() == 2
-                && state.rank(BlessingId.THORNED_ROADS) == 0,
+                && state.issuedCount(BlessingId.THORNED_ROADS) == 0,
             "stale resend must leave token two untouched");
 
         int refreshedRevision = state.revision();
@@ -711,15 +844,96 @@ public class SettlementStateGameTests {
                 BlessingId.HEARTHWARD) == BlessingState.CommitResult.STALE,
             "resending an accepted click must be stale");
         helper.assertTrue(state.spent() == 2
-                && state.rank(BlessingId.WARDEN_OATH) == 1
-                && state.rank(BlessingId.HEARTHWARD) == 1,
-            "exactly two accepted commits should yield exactly two ranks");
+                && state.issuedCount(BlessingId.WARDEN_OATH) == 1
+                && state.issuedCount(BlessingId.HEARTHWARD) == 1,
+            "exactly two accepted commits should reserve exactly two seals");
         helper.assertTrue(state.compareAndCommit(state.revision(), 3,
                 BlessingId.THORNED_ROADS) == BlessingState.CommitResult.NO_OFFER,
             "correct current revision with no token should report no_offer");
         helper.assertTrue(state.compareAndCommit(state.revision(), 3, null)
                 == BlessingState.CommitResult.INVALID,
             "null/unknown typed choice should be invalid");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty5", timeoutTicks = 100,
+        batch = "settlement_state_blessing_recurring_seals")
+    public void physicalSealLedgerDoesNotStopAtSettlementRankThree(
+            GameTestHelper helper) {
+        BlessingState state = new BlessingState();
+        for (int i = 0; i < 12; i++) {
+            helper.assertTrue(state.grantOffer(),
+                "recurring raid " + i + " should earn a seal offer");
+            helper.assertTrue(state.compareAndCommit(state.revision(),
+                    state.offerSerial(), BlessingId.WARDEN_OATH)
+                    == BlessingState.CommitResult.ACCEPTED,
+                "offer " + i + " should issue a physical seal beyond rank III");
+        }
+        helper.assertTrue(state.issuedCount(BlessingId.WARDEN_OATH) == 12
+                && state.spent() == 12 && state.offerSerial() == 0
+                && state.hasCapacityForOffer(),
+            "settlement ledger should audit twelve seals without acting as target rank");
+
+        BlessingState reloaded = BlessingState.readNbt(state.writeNbt());
+        helper.assertTrue(!reloaded.quarantined()
+                && reloaded.issuedCount(BlessingId.WARDEN_OATH) == 12
+                && reloaded.spent() == 12 && reloaded.hasCapacityForOffer(),
+            "issued counts beyond III must round-trip without saturation");
+
+        // Save compatibility: the pre-seal schema called these audit counters
+        // Ranks/Rank, but it already allowed values through MAX_COUNTER. A
+        // legitimate settlement with more than three same-type victories must
+        // migrate as issuance history rather than being quarantined as though
+        // it contained an impossible target rank.
+        CompoundTag legacy = new CompoundTag();
+        legacy.putInt("Earned", 12);
+        legacy.putInt("Spent", 12);
+        legacy.putInt("Revision", 24);
+        legacy.putBoolean("Quarantined", false);
+        ListTag legacyRanks = new ListTag();
+        legacyRanks.add(rankTag(BlessingId.WARDEN_OATH, 12));
+        legacy.put("Ranks", legacyRanks);
+        BlessingState migrated = BlessingState.readNbt(legacy);
+        helper.assertTrue(!migrated.quarantined()
+                && migrated.issuedCount(BlessingId.WARDEN_OATH) == 12
+                && migrated.spent() == 12 && migrated.offerSerial() == 0,
+            "a valid legacy audit count beyond III must migrate without loss");
+
+        Settlement legacySettlement = settlement("Legacy Ledger", BlockPos.ZERO);
+        CompoundTag legacySettlementTag = legacySettlement.writeNbt();
+        legacySettlementTag.put("BlessingState", legacy.copy());
+        Settlement migratedFromV2 = Settlement.readNbt(legacySettlementTag, 2);
+        helper.assertTrue(!migratedFromV2.blessingState.quarantined()
+                && migratedFromV2.blessingState
+                    .issuedCount(BlessingId.WARDEN_OATH) == 12,
+            "only an actual legacy root may migrate a nested ledger with no DataVersion");
+
+        Settlement currentFromMissingNestedVersion = Settlement.readNbt(
+            legacySettlementTag, SettlementSavedData.CURRENT_DATA_VERSION);
+        helper.assertTrue(currentFromMissingNestedVersion.blessingState.quarantined()
+                && currentFromMissingNestedVersion.blessingState
+                    .issuedCounts().isEmpty()
+                && !currentFromMissingNestedVersion.blessingState.grantOffer(),
+            "a current root with a deleted nested DataVersion must quarantine, not masquerade as legacy");
+        Settlement versionThreeAfterFutureRootBumps = Settlement.readNbt(
+            legacySettlementTag, 3);
+        helper.assertTrue(versionThreeAfterFutureRootBumps.blessingState.quarantined()
+                && !versionThreeAfterFutureRootBumps.blessingState.grantOffer(),
+            "root v3 is historically strict forever; a later root bump must not "
+                + "reclassify its missing nested Blessing DataVersion as legacy");
+        BlessingState rewritten = BlessingState.readNbt(migrated.writeNbt());
+        helper.assertTrue(!rewritten.quarantined()
+                && rewritten.issuedCount(BlessingId.WARDEN_OATH) == 12,
+            "the migrated legacy ledger must survive its first v2 rewrite");
+
+        CompoundTag wrongVersionType = legacy.copy();
+        wrongVersionType.putString("DataVersion", "2");
+        helper.assertTrue(BlessingState.readNbt(wrongVersionType).quarantined(),
+            "a present wrong-type nested DataVersion must not masquerade as legacy");
+        CompoundTag futureVersion = legacy.copy();
+        futureVersion.putInt("DataVersion", BlessingState.DATA_VERSION + 1);
+        helper.assertTrue(BlessingState.readNbt(futureVersion).quarantined(),
+            "an unknown future nested DataVersion must fail closed");
         helper.succeed();
     }
 
@@ -772,6 +986,12 @@ public class SettlementStateGameTests {
         tag.remove("RaidLifecycle");
         tag.remove("BlessingState");
         tag.remove("GuardOrder");
+        tag.remove("GuardOrders");
+        tag.remove("FoundingJourney");
+        tag.remove("JourneyV3");
+        tag.remove("FirstRaidReadiness");
+        tag.remove("RecruitmentTransaction");
+        tag.remove("RecurringRaidRun");
         return tag;
     }
 
@@ -786,6 +1006,16 @@ public class SettlementStateGameTests {
     private static CompoundTag emptyRoot() {
         CompoundTag root = new CompoundTag();
         root.put("Settlements", new ListTag());
+        return root;
+    }
+
+    private static CompoundTag rootWithSettlement(int version,
+                                                  CompoundTag settlement) {
+        CompoundTag root = new CompoundTag();
+        root.putInt("DataVersion", version);
+        ListTag settlements = new ListTag();
+        settlements.add(settlement);
+        root.put("Settlements", settlements);
         return root;
     }
 
@@ -805,9 +1035,9 @@ public class SettlementStateGameTests {
                                                  BlessingState state,
                                                  String scenario) {
         helper.assertTrue(state.earned() == 1 && state.spent() == 1
-                && state.offerSerial() == 0 && state.ranks().isEmpty()
+                && state.offerSerial() == 0 && state.issuedCounts().isEmpty()
                 && !state.grantOffer(),
-            scenario + " must grant no effect and expose no fresh offer");
+            scenario + " must issue nothing and expose no fresh offer");
     }
 
     private static void assertSettlementLedgerQuarantinePersists(
@@ -815,14 +1045,14 @@ public class SettlementStateGameTests {
         Settlement first = Settlement.readNbt(settlementTag,
             SettlementSavedData.CURRENT_DATA_VERSION);
         helper.assertTrue(first.blessingState.quarantined()
-                && first.blessingState.ranks().isEmpty()
+                && first.blessingState.issuedCounts().isEmpty()
                 && first.blessingState.offerSerial() == 0
                 && !first.blessingState.grantOffer(),
             scenario + " must enter a closed quarantine");
         Settlement second = Settlement.readNbt(first.writeNbt(),
             SettlementSavedData.CURRENT_DATA_VERSION);
         helper.assertTrue(second.blessingState.quarantined()
-                && second.blessingState.ranks().isEmpty()
+                && second.blessingState.issuedCounts().isEmpty()
                 && second.blessingState.offerSerial() == 0
                 && !second.blessingState.grantOffer(),
             scenario + " quarantine must survive a second save/reload");

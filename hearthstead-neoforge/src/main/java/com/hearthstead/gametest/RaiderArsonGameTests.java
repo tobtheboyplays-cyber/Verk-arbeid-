@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -211,10 +212,11 @@ public class RaiderArsonGameTests {
         Building house = GameTestFixtures.register(helper, s, BuildingType.FARMHOUSE, 11, 11);
         ServerLevel level = helper.getLevel();
         RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
-        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.BRANN, 0.0F, 1L);
+        RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BRANN, 0.0F, 1L);
         RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(1, 1, 1));
         raider.assign(captain.id(), s.id, RaidObjective.BRANN, 1.0F, false);
         raider.setObjectivePos(s.center); // the honest default RaidDirector#spawnBand seeds
+        RaidAuthorityFixtures.armActive(s, plan, List.of(raider.getUUID()));
 
         helper.succeedWhen(() -> {
             // Drives the arson gate every tick this test polls -- see the

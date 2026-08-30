@@ -1,8 +1,13 @@
 .gradle/
+.gradle-*/
+.toolchains/
 build/
+build-*/
 run/
 runs/
 out/
+qa/reports/
+--help/
 *.iml
 .idea/
 .vscode/

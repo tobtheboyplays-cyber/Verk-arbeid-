@@ -30,9 +30,10 @@ import java.util.function.Supplier;
  * <p>Owner's ask, 2026-08-25: abilities that unlock as a guard levels, one per
  * twenty points, and TekTopia's leap that hits several enemies at once. So
  * rank reads straight off {@link Attribute#STRENGTH} — the attribute a guard's
- * own work trains — and there is nothing to allocate. A veteran guard is
- * evidence of nights survived, which is the only currency this mod has that
- * cannot be farmed quickly.
+ * own work trains — and there is nothing to allocate. Valid hostile kills
+ * also grant bounded, persistent {@link GuardExperience} and one extra
+ * Strength training event. A veteran guard is evidence of nights survived,
+ * which is the only currency this mod has that cannot be farmed quickly.
  *
  * <p>Every twenty points is deliberately a long way: with growth slowing as it
  * rises, {@link #SERGEANT} is weeks of patrols and fights, and the leap is
@@ -57,9 +58,9 @@ import java.util.function.Supplier;
  * they upgrade — they need experience." A settlement can afford iron the
  * moment it has a smith, but a recruit does not get to wear it just because
  * the chest has it; {@link #applyEquipment} only ever puts a rank's own gear
- * on a guard who has actually reached that rank, and the sword stays
- * untouched — it is the profession's tool ({@link Profession#GUARD}), not a
- * reward, and every rank keeps it.
+ * on a guard who has actually reached that rank. Main-hand weapons are
+ * deliberately outside this armor ladder: hiring never conjures a sword,
+ * and the physical equipment-request/Courier loop owns delivery instead.
  *
  * <p>The ramp is deliberately readable at a glance: bare, then a leather vest,
  * then full leather, then iron creeping in at the core while the cap and
@@ -312,9 +313,8 @@ public enum GuardRank {
      *
      * <p>{@code setDropChance(0)} on every armor slot regardless of whether
      * this call touched it: a settlement's investment in its guards must not
-     * evaporate the first time one loses a fight (mirrors
-     * {@link SettlerEntity}'s own MAINHAND tool, which is dropChance-0 for
-     * the same reason).
+     * evaporate the first time one loses a fight. Main-hand equipment is not
+     * modified here; it belongs to the physical request/delivery loop.
      */
     public static void applyEquipment(SettlerEntity settler) {
         GuardRank rank = of(settler);

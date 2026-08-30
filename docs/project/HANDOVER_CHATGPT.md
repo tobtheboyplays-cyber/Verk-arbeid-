@@ -1,187 +1,350 @@
-# OVERLEVERING — til ChatGPT (eller en hvilken som helst ny assistent)
+# Hearthstead — full, ærlig overlevering til Claude
 
-Skrevet 2026-08-26 ~19:25 av den avtroppende koordinatoren. Denne filen er
-selvstendig: du trenger ikke chat-historikken, bare repoet.
+**Oppdatert:** 28. august 2026. Les hele filen før du endrer noe.
 
----
+> **Sann status:** Et stort nytt systemlag for UI, logistikk, rekruttering,
+> animasjon, guard og første raid er implementert i et svært dirty arbeidstre.
+> Modden er **ikke leveringsklar**. Siste fullførte autoritative GameTest:
+> **552 / 600 bestått, 48 feil**. Feilene ble deretter analysert og patched
+> eller fikk moderniserte fixtures, men dette er **ikke validert** av en ny
+> GameTest. Siste quick bygget kildekoden og passerte asset-/animasjonssjekker,
+> men ble avbrutt før `QUICK: PASS`. Ikke installer eller lever ny JAR ennå.
 
-## 1. Hva dette er
+## 1. Prosjektkart og sikkerhet
 
-**Hearthstead** — en original «levende landsby»-mod for Minecraft, NeoForge
-1.21.1, i `hearthstead-neoforge/`. Eieren (norsk, spiller selv og gir
-tilbakemelding løpende) bygger den mot to ankermoder:
+| Felt | Verdi |
+| --- | --- |
+| Repo-rot | `C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\Verk-arbeid-` |
+| Aktiv modul | `hearthstead-neoforge/` |
+| Plattform | NeoForge 1.21.1 |
+| Gren | `claude/hearthstead-settlement-mod-vbdb9n` |
+| Frosset prototype | `hearthstead/` — ikke utvikle her |
+| Spillerprofil | `C:\\Users\\tobia\\curseforge\\minecraft\\Instances\\SIVILASJON (1)` |
+| Sikker backup | `C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\_backups\\Verk-arbeid-checkpoint-20260827T2025.zip` |
 
-- **TekTopias kropp**: DIN egen arkitektur (ingen ferdighus/schematics),
-  synlig liv, diegetisk styring.
-- **MineColonies' hjerne**: ekte logistikk, tette borgerkort, progresjon.
+Arbeidstreet har omtrent **281 endrede/tilføyde filer** og ca. **38 025
+innsettinger / 4 671 slettinger**. Det er bevisst dirty.
 
-`hearthstead/` er en FROSSET 1.20.1-prototype — utvikle aldri der.
-Andre mapper (`extension/`, `server/`) er et urelatert prosjekt.
+**Aldri:** `git reset --hard`, `git checkout --`, masse-sletting, opprydding av
+ukjente filer, eller arbeid i `hearthstead/`. Ikke rediger mens QA kjører. Ikke
+installer `hearthstead-neoforge/build/libs/hearthstead-0.2.0.jar`; den er bare
+et build-output, ikke en godkjent release.
 
-**Branch:** `claude/hearthstead-settlement-mod-vbdb9n` (draft PR #1).
-Alt arbeid skjer her. Alt er committet og pushet per nå.
+Les først: `AGENTS.md`, denne filen, `qa/QUICKSTART.md`, `qa/PROTOCOL.md` og
+`qa/RELEASE_CLIENT_GATE.md`.
 
----
+## 2. Eiers mål — hva demoen faktisk må gi spilleren
 
-## 2. Les disse først, i denne rekkefølgen
+Tobias vil ha én komplett, tilfredsstillende og forståelig spilløkt til første
+raid, ikke en bred mod med halvferdige systemer:
 
-1. `CLAUDE.md` — repo-lov. QA-reglene der er ABSOLUTTE.
-2. `qa/QUICKSTART.md` — hele testarbeidsflyten på én side.
-3. `docs/project/BYGGHERRENS_VILJE.md` — ALT eieren har sagt, ordrett.
-   Dette er kravspesifikasjonen. Les den før du tar en eneste beslutning.
-4. `docs/project/OVERHAUL_PROGRAM.md` — det bindende programmet du skal
-   fullføre (demokrav D1–D17, arbeidsstrømmer, slices, fileierskap).
-5. `.claude/WORK_STATE.md` — hvor arbeidet står akkurat nå.
-6. `docs/project/ANKER_ANALYSE.md` — doktrinen som styrer prioritering.
+1. Ny spiller får Hearthstead Handbook og forstår Hearth.
+2. Hearth → Development åpner Build Plans i naturlig rekkefølge.
+3. Spilleren researcher, ser oppskrift, lærer en plan og bygger en gyldig fysisk
+   bygning via plaque/rom.
+4. Spilleren gir riktig fysisk Emblem til valgfri settler. Emblem ansetter direkte
+   når riktig bygning er aktiv; ingen ekstra uklar Hire-flyt.
+5. Worker starter uten gratis tools, melder synlig request, mottar fysisk vare.
+6. Lumberer/Farmer jobber til workplace storage; Courier flytter fysiske varer
+   fra source → bag → Warehouse via request/ledger.
+7. Spilleren får Archer + Guard, rustning/piler og forstår readiness.
+8. Første raid er spennende, rettferdig og teknisk komplett.
 
----
+**Invarianter:** Ingen gyldig plan/rom/plaque = ingen bygning. Ingen item-
+teleportering, duplisering eller usynlig tap. Profession skaper aldri magisk
+tool/armor/ammo. Requests er persistent settlement-data. Feiltilstander forklarer
+hva, hvorfor og neste handling. Engelsk er spilltekst. UI hjelper spilleren,
+men verden/figurene er hovedflaten.
 
-## 3. Eierens stående ordrer (brytes aldri)
+## 3. Låste designvalg
 
-- **«bare premium er standaren»** — kvalitet foran hastighet, alltid.
-- **«core gameplay først»** — loopen skal være SANN før den pyntes.
-- **«ikke start på nytt»** — alt skjer i eksisterende kodebase. Ingen
-  omskriving, ingen ny mod, ingen migrering av animasjonssystemet.
-- **Han vil SE ting**, ikke lese påstander: film, skjermbilder, og jar-en
-  i chatten (han dobbeltklikker `hearthstead-oppdater.bat` selv).
-- **Nåværende leveransemodus (viktig!):** «jeg venter til hele overhaulen
-  er good» — han vil IKKE ha delleveranser. Neste kontakt er når helheten
-  står: D1–D17 avkrysset med bevis, `full` grønn to ganger, jar + film.
-  Eneste unntak: de fire balansespørsmålene som krever HANS avgjørelse
-  (sult-konsekvens, matflyt-krav, kull som brensel, øl-servering) — de
-  legges fram som valg med kostnad, ikke som åpne spørsmål.
+### Development, emblem og attributes
 
----
+- Tech tree ligger i **Hearth**, ikke Mayor; én tidlig stamme, senere grener med
+  reelle tradeoffs. Ikke gjør det til en flat liste.
+- Hover på node viser krav, belønning og Build Plan-oppskrift; research gir en
+  faktisk learned plan/flyt, ikke bare tekst.
+- Attributes er tall (`25 / 100`), ikke prikker. Alle ligger på første
+  settlerside, med hover for konkrete bonusser.
+- Hver jobb viser 2–3 relevante attributes med enkelt språk. F.eks. Strength:
+  færre øksehugg + mer bærevekt; Stamina: mindre tempo-tap ved tung last. Ikke
+  fortell hvem spiller skal velge — forklar krav/effekt.
+- Blessing er fysisk item: Shift + høyreklikk på settler eller plaque gir
+  permanent blessing.
 
-## 4. QA-loven (den viktigste tekniske regelen)
+### Bygg, scepter og logistikk
 
-**Eneste godkjente testinngang er `tools/hearthstead-qa`.** Kjør ALDRI
-`gradlew runGameTestServer/runServer/runClient` direkte.
+- Byggblokker må ha mening. Crafting table i Lumber Camp er bare rett dersom
+  Lumberer faktisk kan bruke den, eksempelvis til wooden axe av logs.
+- Work Scepter velger to 3D-hjørner og separat høydeklikk. Farmer-zone trenger
+  level-/kapasitetscap slik at level 1 ikke blir overdrevent sterk.
+- Shift + høyreklikk med tom hånd på settler åpner ekte serverautoritativt
+  inventory.
+- Courier må ha synlig request-kø og fysisk last, ikke usynlig container.
 
-| Når | Kommando | Tid |
-|---|---|---|
-| Etter hver endring | `tools/hearthstead-qa quick` | ~1-2 min |
-| Før du går videre fra en feature | `tools/hearthstead-qa fast` | ~50 s |
-| Ved integrasjon | `tools/hearthstead-qa gametest` | ~5-10 min |
-| Før «ferdig» påstås | `tools/hearthstead-qa full` ×2 + `gate` | ~10 min hver |
+### UI, animasjon og lyd
 
-Harde regler:
-- **Aldri to suiter samtidig.** Aldri suite mens filer redigeres.
-- **En vellykket bygging er ALDRI bevis** for noe som helst.
-- **Svekk aldri dommeren**: ingen sletting/hopping/oppmykning av tester,
-  ingen timeout-inflasjon uten diagnose, ingen redigering av rapporter.
-- **Diagnostiser fra bevis** (`qa/reports/artifacts/`), aldri fra teori.
-  Fasit fra i dag: loggbaserte diagnoser bommet tre ganger; ett
-  skjermbilde løste alle tre.
-- Maskinen har **15 GB RAM**: aldri suite + Minecraft-klient samtidig.
-- **Pillow må være installert** for assets-validatoren
-  (`pip install Pillow`) — reinstalleres i ny container.
+- UI: varmt, ryddig, fargerikt, responsivt; ingen ikonflimmer/glow, overlapper
+  eller 20-FPS-kollaps. Development må zoome langt ut. Mayor er gjenkjennelig.
+  Staff forklarer rollebehov og Emblem-flyt. Receptor/plaque crafting forklares.
+- Lumberer er **golden standard** for alle jobber. Sekk settes ned og blir der;
+  ingen flyting/følging. Alle bøy går framover, ikke bakover.
+- Bag→chest er synlig: sett ned bag, reach, faktisk item synlig, åpne chest med
+  fri arm, legg inn, oppdater inventory deterministisk, gjenta. Ingen skjult
+  stack-flytting eller client/server-dobling.
+- Crafting må vise komponenter på bord, arbeid og synlig resultat.
+- Lyd må være original eller klart lisensiert; aldri hent ut/kopier fra andre
+  mods/spill/videoer. Handlingsnær timing, variasjon og anti-spam kreves.
 
----
+MineColonies/Tektopia er bare clean-room referanser for **prinsipper**. Ikke
+kopier/dekompiler kode, layout, ordlyd, assets, modeller, textures, animasjoner,
+lyd eller data.
 
-## 5. Produktinvarianter (aldri brytes)
+## 4. Endringer som allerede finnes — men fortsatt må bevises
 
-- **Plaketten er landmåleren.** En bygning finnes fordi spilleren hang en
-  plakett og rommet rundt oppfylte kravene. Ingen plakett = ingen bygning.
-  Ingen innsatt Build Plan = ingen plakett-UI.
-- Plaketten er et ACCESS POINT, aldri en andre sannhetskilde.
-- **Chest truth**: hver gjenstand er fysisk ekte; logistikken konserverer
-  items. Aldri teleportering, aldri duplisering, aldri sluk.
-- All verdensskanning er budsjettert. Ingen ubundet per-tick-arbeid.
-- Settlere bygger ALDRI selv (de reparerer og oppgraderer).
-- Hver oppgave har sitt EGET keyframe-klipp — aldri delte generiske løkker.
-- **Aldri stille feil.** Hver blokkering skal kunne leses i verden, med
-  tall og grunn. Dette er ankermodenes dødssynd og vårt viktigste forbud.
-- **Aldri meny-først.** Verden først; menyer er oppslagsverk.
-- **Aldri emeralds** i økonomien (eierordre, håndhevet av vokter-test).
+### Guard, Archer og første raid
 
----
+- `RaiderEntity.java`: SKIRMISHER = 18 HP, speed `.38`, KB resist `0.0`;
+  BRUTE = 30 HP, speed `.26`, KB resist `.40`.
+- Archer gjør `+25 %` mot ordinær SKIRMISHER; Guard/Knight `+25 %` mot ordinær
+  BRUTE. Ingen feilrolle-straff. Captain er counter-nøytral.
+- `RaidDirector.java`: første raid = én navngitt captain + én BRUTE + tre
+  SKIRMISHERS. Mål er KORN/Warehouse når det finnes, med BLOD legacy fallback.
+- `FirstRaidReadinessService`: minst 8 arrows. 7 feiler; 8 passerer. 5 i riktig
+  Watchtower rack + 3 i samme Archer sin persisterte quiver kan passere; feil
+  tower teller ikke.
+- Guard patrol, player-defense, stand-guard og networking har fått omfattende
+  arbeid, men mangler full runtime/multiplayer-godkjenning.
 
-## 6. Hva som er GJORT og GRØNT (denne økten)
+### Lumberer, Farmer og Courier
 
-Alt committet og pushet. `gametest` 278/278 PASS (bevis:
-`qa/reports/artifacts/20260826T190321Z`). `quick`: build PASS,
-assets 878/878 PASS, animation PASS.
+- `LumbererWorkGoal`: aksepterer nå korrekt ettblokk-høydeforskjell ved siste
+  logg etter stump, men krever fortsatt sti, reach og fri ray. Camp-deposit
+  krever faktisk chest contact/LOS, ikke gjennom vegg.
+- Lumberer-fixtures er modernisert til riktig Lumber Camp/LUMBER-zone,
+  `Employment.hire`, fysisk chest og axe. To eldre tests i
+  `HearthsteadGameTests` er også migrert.
+- Farmer-fixtures: ekte Farmhouse/FARM-zone, ansettelse, tool, seeds og storage.
+- Courier-fixtures: registrert/støttet plaque, korrekt radius/kapasitet,
+  fysisk lastbudsjett og ledger-observasjon.
+- **Dette beviser ikke produksjon:** video 28. august ca. `00:02.9–00:07.3`
+  viser moden wheat i bekreftet Farmhouse-zone, mens Farmer sier
+  `NO VALID TARGET — nothing workable in confirmed zone target Farmhouse`.
+  Dette er en bekreftet P0. Reproduser med reell Farmhouse/zone og spor
+  autoritativ target scan, bounds og høyde.
+- Carrier-animasjon fikk positiv tilbakemelding, men dørpassering og fysisk
+  delivery-loop er ikke godkjent.
 
-1. **Romskanner-fikser** (`bbaa8aa`): barriere teller som himmel, aldri
-   tak (GameTest-arenaens skall gjorde takhull usynlige); og en
-   plakett-kandidat vinner kun med et rom som oppfyller planens krav
-   (plakettens egen luftlomme vant tidligere over det ekte rommet under
-   bakken — eierens filmede feil).
-2. **Nybegynner-fikser** (`fbd3125`): `DEMO_README` hadde plakett-
-   oppskriften SPEILVENDT (sa 5 jern + 1 kobber; koden krever 5 kobber +
-   1 jern) — rettet. 7 nye recipe-unlock-advancements (ingen oppskrift
-   dukket opp i oppskriftsboken før). Milepæler toaster og annonserer nå.
-3. **TAVERN-GATE** (`c3ed4d6`): tavernaen er porten for nye settlers.
-   Uten gyldig taverna fylles aldri gaugen; stripen viser blokkeringen
-   FØR den påstår at noen er på vei; `bell.json` gjør bell craftbar så
-   porten aldri soft-locker; vokter-test forbyr emeralds i alle build
-   plans og alle Costs-linjer. Plan: `docs/project/PLAN_TAVERN_GATE.md`.
-4. **CHOP-redesign** (`b1b4e9f`+): ekte anticipation (REST → COCK 0.40 →
-   CONTACT 0.55 → follow-through), rendret som bevis i
-   `hearthstead-neoforge/qa/reports/artifacts/anim-pro/`.
-5. **Baselinen ryddet** (`75a0c91`): KF-001/004/005 var ALLEREDE lukket —
-   feillisten hadde aldri tatt igjen virkeligheten. Yrkes-rosteren frosset
-   på **25** (D8).
-6. **To programdokumenter** skrevet og byggherre-dømt:
-   `OVERHAUL_PROGRAM.md` og `PLAN_LOGISTICS_OVERHAUL.md`.
+### Progression/recruitment/UI/assets
 
----
+- Progression-fixtures følger Stores/Roads → Cultivated og Home → House;
+  Timber Rights krever live Hearth, Mayor og tre founders.
+- Plaque-fixtures bruker learned plans og gyldige rom. Recruitment bruker live
+  Tavern/plaque, persisted attraction/spawn/arrival og faktisk pris/patience.
+- Seals er ikke-stackbare og kan bli sikre fysiske drops ved full inventory;
+  ingen item-tap. Første `beginQualification()`-tick teller `1/1`.
+- Store aktive WIP-endringer finnes i `HearthScreen`, `PlaqueScreen`,
+  `SettlerScreen`, `StorageScreen`, `ResearchScreen`, `HandbookScreen`, `HsUi`
+  og nettverkssnapshots. Ikke kall dette ferdig UI overhaul.
+- Siste assetsjekk: **995/995 PASS**.
+- Siste animasjonskontrakt: **PASS med 3 warnings**:
+  1. 39 katalogførte clips er fortsatt bare planlagt/fasevis.
+  2. `HUNTER_LOOSE`: runtime MAINHAND følger høyre arm, clip authorer venstre
+     som buearm; ikke godkjenn prop-renderen.
+  3. `CLEAVE`/`IDLE_SENTRY` er kontekstuelle og mangler universelt sannferdig
+     prop.
 
-## 7. Hva som GJENSTÅR (din arbeidsliste)
+## 5. Autoritativ QA-status
 
-Fem arbeidere ble stoppet midt i arbeidet. **Deres ufullførte arbeid er
-IKKE i repoet** (bortsett fra animasjonen, som ble sikret). Start disse på
-nytt fra programmet:
+### Siste fullførte GameTest
 
-| Slice | Innhold | Eier disse filene |
-|---|---|---|
-| **B1** | Palett-revolusjonen: `make_ramp()` etter rampe-loven (V-steg 8-11, span ≥32, hue-drift), separer iron/stone/charcoal, material-primitiver, stone()-tiling, ramp-gates i validatoren | `tools/texlib.py`, `tools/validate_assets.py` |
-| **C1** | UI-systemgrep: ~20 ikoner (silhuett-testet), `HsUi.iconRow/portrait/emptyState/titledWindow`, motion-tokens | `client/ui/HsUi.java`, `tools/ui/`, `tools/gen_ui.py` |
-| **S1** | Lesbar logistikk-stans: `StopReason`-enum (ADDITIV!), courier-avlesning i verden, plakett-statuslampe | `CourierWorkGoal`, `SettlerEntity`, ny `logistics/`-pakke |
-| **A2/A5** | Ærlighetsfikser: Brewery-linjen, «under bygging»-merking (D12), KF-025, kaptein-epiteter; + KF-015 «repelled» med levende raidere | `RaidDirector`, `RaidPressure`, `BuildPlanItem` (plan-tooltip), `PlaqueMenu` |
-| **A3** | Balansemålinger + de fire eierpitchene som valg med kostnad | Fuel/Costs-konstanter, e2e-scenarier |
+- **552/600 pass, 48 feil**.
+- Artefakt: `qa/reports/artifacts/20260828T175857.838204119Z-1747.83CyTW/`.
+- Detaljer: `gametest-failures.txt` i samme mappe.
+- Alle fikk senere reparasjon/fixture-migrering, men **ingen ny GameTest har
+  validert dette**.
 
-Deretter: **B2/B3** (skins, blokker — etter B1), **K1** (item synlig i
-offline-render — låser opp riktig anim-verifikasjon), **ANIM-1..4**,
-**C2–C5** (Hearth, HUD, skjermene, look-at), **S2–S4** (jobbvalg med
-score, teater+kjerre, fraktbok+fraktkasse).
+### Siste quick
 
-**Rekkefølge-lov fra programmet:** B1 må lande FØR C1 genererer farger
-(ellers genereres «kjempe stygg» på nytt i pent layout). K1 før
-anim-slicene. S1 før S2.
+- Artefakt: `qa/reports/artifacts/20260828T182940.885484422Z-415.O1yQtj/`.
+- Build produserte `hearthstead-neoforge/build/libs/hearthstead-0.2.0.jar`.
+- Assets PASS 995/995. Animasjonskontrakt PASS med warningene over.
+- Quick ble avbrutt før sluttlinjen `QUICK: PASS`; resultatet er **ikke grønt**.
 
-**SEAM-filer** (kun én eier om gangen — sekvenser dem selv):
-`lang/en_us.json` + `lang/nb_no.json` (full nøkkelparitet håndheves!),
-`HsUi.java`, `tokens.json`, `gen_ui.py`, `SettlerAnimations.java`,
-`SettlementManager.java`, `validate_assets.py`.
+### Eldre compile-funn som trolig er rettet, men ikke bevises ennå
 
----
+`qa/reports/artifacts/20260828T182353.349015308Z-396.ZG14zu/` har tidligere
+compile-feil i `RecruitGameTests.java` fordi `LevelData.setGameTime(long)` ikke
+finnes på interface. Fixture ble endret til `ServerLevelData` etterpå. Første
+rene quick må bevise at dette faktisk kompilerer.
 
-## 8. Fallgruver som har kostet oss tid
+### Absolutt QA-regel
 
-- **Ukommittert arbeid dør.** Containeren har ødelagt arbeid to ganger på
-  én dag. Commit ofte, med ærlig melding om det er halvferdig.
-- **`full` sletter `qa/reports/BLOCKED`** når den starter — by design.
-- Bruk **absolutte stier**; arbeidskatalogen driver.
-- Kjør tunge ting i bakgrunnen; ikke la en suite blokkere deg.
-- **KF-037** (åpen, ufarlig): gulvlaget i takhull-fixturen inneholder 16
-  steinblokker ingen fixture skriver. Grønn i dag, ordensavhengig i
-  morgen. Se `docs/project/KNOWN_FAILURES.md` for neste diagnosesteg.
-- Eieren er norsk og skriver ofte midt i en tur — alt han nevner er
-  arbeidsliste, også når det kommer som en bisetning.
+Kjør bare fra repo-roten, én suite om gangen:
 
----
+```bash
+bash tools/hearthstead-qa quick
+bash tools/hearthstead-qa gametest
+bash tools/hearthstead-qa full
+bash tools/hearthstead-qa gate
+```
 
-## 9. Slik avslutter du jobben
+Ingen rå Gradle, `runGameTestServer` eller `runClient`. Ikke slett
+`BLOCKED`/`.stale` manuelt. Diagnostiser ut fra nyeste artifact. Når en gammel
+fixture ikke følger ekte spillerflyt, migrer fixture — ikke svekk autoritativ
+produksjonslogikk.
 
-Når alle slicene står:
+**Leveringsbevis:** quick grønn → gametest grønn → `full` to ganger på uendret
+source fingerprint → `gate` → ekte Windows-klienttest etter
+`qa/RELEASE_CLIENT_GATE.md`. Først da er en JAR testklar.
 
-1. `tools/hearthstead-qa full` ×2 på samme fingerprint (green_streak ≥ 2),
-   deretter `tools/hearthstead-qa gate`.
-2. Kryss av D1–D17 i `OVERHAUL_PROGRAM.md` med bevislenke per krav.
-3. Lag showcase-film (`tools/hearthstead-qa live film`) — eieren VIL SE
-   det, med lyd på slagene.
-4. Bygg jar og send den i chatten.
+## 6. Alle 48 historiske GameTest-feil — gruppevis
 
-Først da kontaktes eieren.
+**A. Lumberer / fysisk skog:**
+
+`lumbererfellstreecleanly`; `lumbererlimbsthenhaulsafterfelling`;
+`onelumberercompletestwotreeswithoutspinningidle`;
+`lumbererreplantswherethetreestoodwithoutahardquota`;
+`reachablesideofstumpcollectsowneddropwhennearestsideissealed`;
+`sealedcamprouteyieldsthenrecoverswithoutcargoloss`;
+`treeclaimisworldscopedandexpireswithoutheartbeat`;
+`movingphysicaldroprebasesrouteandtransferssameuuid`.
+
+Tidligere symptom: spinner/idle etter første tre, siste logg ikke banket og
+rute-recovery mister/glemmer cargo. Ved ny feil: logg target, claim/reservation,
+route state, reachability, chest contact og activity.
+
+**B. Farmer / crop-konservering:**
+
+`farmeractivityprogressesthroughharvestandplant`; `farmerharvestsanddeposits`;
+`depositholdsbacktheseedreserve`; `harvestcontactsurvivesinterruptionandcannotreplay`.
+
+Overlapper med bekreftet live Farmer P0. Første hypotese må bevises/avkreftes:
+Farmhouse/zone-høyde eller target-query ekskluderer moden wheat.
+
+**C. Courier / warehouse / restock:**
+
+`camptobagtowarehouseconservescountandcomponents`;
+`realcouriercollectionadvancescultivatedobjective`;
+`restockconservesitemsacrossthefullroute`;
+`restockloadreturnstowarehousewhenthecrafterdissolvesmidtrip`;
+`restockdeliverswhentheonlystandablecellisoutsidethecraftersbounds`;
+`restockoutranksahungryhearth`; `mineyieldiscollectedcompletely`;
+`gatheredcodreachesawarehouseandfeedsahungrysettler`.
+
+Dører er P0 for alle settlers, ikke bare Carrier. Få felles navigation/collision
+rotårsak før du maskerer det i én Courier-rute.
+
+**D. Guard / authority / patrol:**
+
+`spectatorsessionisreadonlyandcannotcreateanorder`;
+`nullbuildingcannotbecomeguardauthority`;
+`patrolroutevisitseverypointinthenumberedorder`;
+`unreachablepatrolpointreportsfailurewithoutfakearrival`;
+`prefersaraiderattackingtheplayeroveraneareridleone`;
+`borrowedquiversurvivesreloadwithoutbreakingconservation`;
+`watchschemamigrationpreservesoldproofandcurrentdamagefailsclosed`.
+
+Spectator må aldri opprette authority. Patrol må fysisk besøke punkter i rekkefølge;
+umulig punkt skal gi `no_path`, beholde ordre og ikke late som arrival.
+
+**E. Progression / plaque / Journey:**
+
+`legacyhearthlogcannotforgestoredproduction`;
+`rawadminhireandrealstoragecannotforgereadiness`;
+`realauthoritativejourneyunlocksoneexactfirstraid`;
+`planuseisdeniedbeforeandallowedaftersettlementknowledge`;
+`persistedscheduledcalendarrecoversmissingjourneyreceipt`;
+`fittingaplanconsumesitfromtheplayershand`;
+`rightclickingablankplaquewithaplanfitsit`;
+`emptyplaqueopensnoscreenuntilplaninserted`;
+`mayoractionsrequireexactopenhearthmenu`;
+`spawnedbandsealsandheldrewardisexactlyonce`.
+
+Flere her var legitime `QUEST_REQUIRED`/learned-plan/room-fixturefeil, men det
+må først bekreftes i ny run.
+
+**F. Tavern/recruitment:**
+
+`notavernmeansthegaugeneverfills`; `awaitingguestsurvivestaverninvalidation`;
+`aninnkeeperdiscountdoesnotcompresstherecruitclock`; `apayableguestjoinsandthepriceisexact`;
+`avalidtavernreopensthegate`; `anunpayableguestwalksawayinsteadofjoining`;
+`recruitpricestillacceptsanyplanks`; `nodiscountbuildingsmeansfullpricecharged`;
+`employedinnkeeperappliesthenameddiscount`; `onehundredacceptedoffersmintexactlyonehundredseals`.
+
+**G. Energy:** `settlerwakesatdawnwithrecoveredenergy`.
+Tobias vil at workers heller arbeider tregere enn at et irriterende "daily work
+left"-system styrer dem.
+
+## 7. Viktige runtime-observasjoner
+
+**Positivt:** Lumberer-sekk/pickup-idé og store deler av animasjonen ble godt
+mottatt. Carrier-bæring ble senere vurdert som god. Den nye Tech Tree-retningen
+er eiergodkjent i prinsipp; forbedre sammenheng med andre skjermer, ikke bytt
+den ut tilfeldig.
+
+**Fortsatt reelle feil:** Farmer P0 over. Carrier/dører P0. UI opplevdes rundt
+20 FPS, med overlapper, for tett Development zoom og visuell inkonsistens.
+Lumber bend/carry må være framoverlent; bag blir igjen når satt ned. Lyddesign
+er underkjent. Playtest-evidence ligger i `qa/reports/playtest/`; Farmer-rapport:
+`qa/reports/playtest/2026-08-28_145855_video_inbox/REPORT.md`. Ikke slett eller
+flytt originale NVIDIA-videoer.
+
+## 8. Viktigste kodeområder
+
+**Runtime:** `SettlerEntity.java`, `SettlerActivity.java`, `SettlerAttributes.java`,
+`RaiderEntity.java`, `ai/LumbererWorkGoal.java`, `ai/FarmerWorkGoal.java`,
+`ai/CourierWorkGoal.java`, `ai/WorkScanner.java`, `ai/GuardPatrolGoal.java`,
+`ai/SettlerDefenseTargetGoal.java`, `settlement/Employment.java`,
+`settlement/Settlement.java`, `settlement/SettlementManager.java`,
+`settlement/raid/RaidDirector.java`, `settlement/state/GuardOrder.java`.
+
+**UI/nettverk:** `client/screen/HearthScreen.java`, `PlaqueScreen.java`,
+`SettlerScreen.java`, `StorageScreen.java`, `ResearchScreen.java`,
+`HandbookScreen.java`, `client/ui/HsUi.java`, `network/HearthNetwork.java`,
+`SettlerNetwork.java`, `PlaqueNetwork.java`.
+
+**Visual/audio:** `client/model/SettlerAnimations.java`, `SettlerModel.java`,
+`client/render/SettlerRenderer.java`, `registry/ModSounds.java`,
+`resources/assets/hearthstead/sounds.json`, `docs/ANIMATION_CATALOGUE.md`,
+`tools/anim_check.py`, `tools/anim_preview.py`, `tools/blockbench/`.
+
+**Tests:** `LumbererGameTests`, `FarmerBootstrapGameTests`, `LogisticsGameTests`,
+`CourierFoodRouteGameTests`, `CourierWorkshopRouteGameTests`,
+`GuardControlGameTests`, `GuardDefenseGameTests`, `FirstRaidRuntimeGameTests`,
+`FirstRaidReadinessGameTests`, `RecruitGameTests`, `RecruitmentPolicyGameTests`,
+`network/GuardOrderNetworkGameTests`.
+
+## 9. Presis oppstartsrekkefølge for Claude
+
+1. Les dokumentene, sjekk ingen gammel QA-prosess skriver, noter working-tree.
+2. Kjør `bash tools/hearthstead-qa quick` uendret og vent på sluttlinje.
+3. Hvis ikke PASS: reparer kun første faktiske feil med fersk artifact som bevis.
+4. Ved grønn quick: kjør én `bash tools/hearthstead-qa gametest`.
+5. Sammenlign med alle 48 navn ovenfor. Ikke erklær noe løst fordi suite stoppet
+   før den nådde den gamle feilen.
+6. Prioriter: Farmer target/3D-zone → dører + Courier → Lumberer-to-tree loop →
+   Tavern/recruitment → Archer/Guard/raid → UI-yting/målt UX → animasjon/lyd.
+7. For hver endring: fakta → hypotese → liten løsning → test + in-game QA.
+8. Etter grønn GameTest: `full` to ganger på samme fingerprint, `gate`, deretter
+   Windows-klientspill: onboarding, plaque, emblem, inventory/request/Courier,
+   Lumberer, Farmer, UI/FPS, Guards og første raid. Test save/reload,
+   full inventory/chest, avbrutt rute og relevant multiplayer.
+
+## 10. Klar melding til Claude
+
+> Ta over Hearthstead fra `docs/project/HANDOVER_CHATGPT.md`. Les alt før du
+> jobber. Ikke redesign eller installer JAR nå: etabler ærlig baseline med kun
+> `bash tools/hearthstead-qa quick`, deretter `gametest`. Siste autoritative
+> resultat er 552/600; reparasjonene etterpå er uverifiserte. Prioriter ekte
+> Farmer target-detection, stabile dører/Courier, Lumberer-kontinuitet og legitim
+> rekruttering til Archer/Guard før første raid. Behold fysisk itemflyt og
+> fail-closed-regler. Ikke kall noe ferdig før full QA og faktisk Windows-
+> klientplaythrough til første raid er bevist.
+
+## 11. Ærlig status til Tobias
+
+Mye er bygget. **Ingenting nytt er godkjent for installasjon.** Denne filen
+inneholder nå mål, låste valg, faktisk endret arbeid, runtimefunn, alle 48
+historiske testfeil, QA-bevis, filseams og eksakt fortsettelsesrekkefølge, slik
+at neste agent kan arbeide videre uten å gjette eller late som modden er ferdig.

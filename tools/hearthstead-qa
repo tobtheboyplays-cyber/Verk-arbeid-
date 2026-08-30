@@ -1,21 +1,534 @@
-#!/usr/bin/env bash
+#!/bin/bash -p
 # Hearthstead QA controller — the only approved entry point for testing.
-# See qa/PROTOCOL.md (PROTOCOL_VERSION 1.0.0).
+# See qa/PROTOCOL.md (PROTOCOL_VERSION 1.2.0).
 set -u
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+set -o pipefail
+
+# The controller is a trust boundary: it owns shared ports, recovery records,
+# installation caches and the completion manifest.  Before using PATH or
+# launching another interpreter, discard every ambient shell/Python startup
+# hook and imported function.  The lock-owned child is later rebuilt with
+# `env -i`; this first scrub also keeps the outer dispatcher deterministic.
+HSQA_SYSTEM_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+PATH="$HSQA_SYSTEM_PATH"
+LANG=C.UTF-8
+LC_ALL=C
+TMPDIR=/tmp
+export PATH LANG LC_ALL TMPDIR
+while IFS= read -r HSQA_IMPORTED_FUNCTION; do
+    [ -n "$HSQA_IMPORTED_FUNCTION" ] \
+        && builtin unset -f -- "$HSQA_IMPORTED_FUNCTION" 2>/dev/null || true
+done < <(builtin compgen -A function)
+builtin export -n BASHOPTS SHELLOPTS 2>/dev/null || true
+
+# Capture the only authenticated disposable-fixture inputs before removing
+# all ambient authority/root overrides.  They are validated against the
+# controller copy's canonical /tmp prefix below; arbitrary production callers
+# can never redirect PID, install, artifact or tmux state.
+REQUESTED_REAP_FIXTURE_ROOT="${HSQA_REAP_FIXTURE_ROOT:-}"
+REQUESTED_REAP_FIXTURE_TOKEN="${HSQA_REAP_FIXTURE_TOKEN:-}"
+REQUESTED_PERF_FIXTURE_MODE="${HSQA_PERF_FIXTURE_MODE:-}"
+REQUESTED_PERF_FIXTURE_ROOT="${HSQA_PERF_FIXTURE_ROOT:-}"
+REQUESTED_PERF_FIXTURE_TOKEN="${HSQA_PERF_FIXTURE_TOKEN:-}"
+REQUESTED_FULL_MARK_TEST_PAUSE="${HSQA_FULL_MARK_TEST_PAUSE:-}"
+REQUESTED_SUITE_LOCK_TOKEN="${HSQA_SUITE_LOCK_TOKEN:-}"
+REQUESTED_LOCK_BOOTSTRAPPED="${HSQA_LOCK_BOOTSTRAPPED:-}"
+REQUESTED_FULL_MARKED="${HSQA_FULL_MARKED:-}"
+REQUESTED_ENV_CLEANED="${HSQA_ENV_CLEANED:-}"
+builtin unset BASH_ENV ENV CDPATH GLOBIGNORE PYTHONPATH PYTHONHOME \
+    PYTHONSTARTUP PYTHONINSPECT PYTHONWARNINGS PYTHONUSERBASE \
+    _JAVA_OPTIONS JAVA_TOOL_OPTIONS GRADLE_OPTS TMUX TMUX_PANE \
+    HSQA_ACTIVE HSQA_ARTIFACTS HSQA_CLIENT_INSTALL_DIR HSQA_GRADLE_CACHE \
+    HSQA_INST_ROOT HSQA_INSTALL_DIR HSQA_PIDDIR HSQA_REPO HSQA_REPORTS \
+    HSQA_SAFE_TMP_ROOT HSQA_TMUX_SOCKET HSQA_TMUX_SELFTEST_MODE \
+    HSQA_LIB_READ_ONLY HSQA_PROCESS_IDENTITY HSQA_GAMETEST_NAMESPACE \
+    HSQA_TRACE HSQA_TRACE_FILE HSQA_SUITE_LOCK_TOKEN \
+    HSQA_LOCK_BOOTSTRAPPED HSQA_FULL_MARKED HSQA_REAP_FIXTURE_ROOT \
+    HSQA_REAP_FIXTURE_TOKEN HSQA_PERF_FIXTURE_MODE \
+    HSQA_PERF_FIXTURE_ROOT HSQA_PERF_FIXTURE_TOKEN \
+    HSQA_FULL_MARK_TEST_PAUSE HSQA_ENV_CLEANED 2>/dev/null || true
+
+CONTROLLER_PATH=$(/usr/bin/realpath -e -- "${BASH_SOURCE[0]}") \
+    || { echo "FATAL: controller path cannot be resolved" >&2; exit 2; }
+case "$CONTROLLER_PATH" in
+    */tools/hearthstead-qa) ;;
+    *) echo "FATAL: controller is not at the canonical repository path" >&2; exit 2;;
+esac
+REPO="${CONTROLLER_PATH%/tools/hearthstead-qa}"
+[ -d "$REPO/qa/scripts" ] && [ -d "$REPO/hearthstead-neoforge" ] \
+    || { echo "FATAL: controller repository layout is incomplete" >&2; exit 2; }
 MOD="$REPO/hearthstead-neoforge"
 QA="$REPO/qa"
 REPORTS="$QA/reports"
 ARTIFACTS="$REPORTS/artifacts"
-PROTOCOL_VERSION="1.0.0"
-mkdir -p "$REPORTS" "$ARTIFACTS"
+PROTOCOL_VERSION="1.2.0"
+# Deliberate normal-namespace roster. Active performance tests live in their
+# own namespace and must never satisfy gametest/behavior/full. Update this
+# number only alongside a reviewed normal GameTest addition/removal.
+EXPECTED_REQUIRED_GAMETESTS=600
+EXPECTED_FULL_SUITES=(doctor assets animation build gametest behavior dedicated \
+    blessing_restart performance client playtest visual)
+# Test-only gate barriers are never ambient authority.  Production starts
+# with these globals empty; full_attempt_contract_selftest shadows them with
+# dynamically-scoped locals inside its isolated /tmp fixture.
+GATE_FINAL_FP_SELFTEST_READY=''
+GATE_FINAL_FP_SELFTEST_HOLD=''
+
+hsqa_fixture_authority_valid() { # <root> <48-hex-token>
+    local root="$1" token="$2" suffix token_file uid lexical canonical
+    [[ "$root" =~ ^/tmp/hsqa-reap-fixture\.[A-Za-z0-9]{6,64}$ ]] \
+        && [[ "$token" =~ ^[0-9a-f]{48}$ ]] || return 1
+    suffix="${root#/tmp/hsqa-reap-fixture.}"
+    case "$suffix" in ''|*/*) return 1;; esac
+    lexical=$(/usr/bin/realpath -ms -- "$root") || return 1
+    canonical=$(/usr/bin/realpath -m -- "$root") || return 1
+    [ "$root" = "$lexical" ] && [ "$root" = "$canonical" ] \
+        && [ -d "$root" ] && [ ! -L "$root" ] || return 1
+    uid=$(/usr/bin/id -u) || return 1
+    [ "$(/usr/bin/stat -c %u -- "$root" 2>/dev/null)" = "$uid" ] \
+        && [ "$(/usr/bin/stat -c %a -- "$root" 2>/dev/null)" = 700 ] \
+        || return 1
+    token_file="$root/.hsqa-reap-fixture-token"
+    [ -f "$token_file" ] && [ ! -L "$token_file" ] \
+        && [ "$(/usr/bin/stat -c %u -- "$token_file" 2>/dev/null)" = "$uid" ] \
+        && [ "$(/usr/bin/stat -c %a -- "$token_file" 2>/dev/null)" = 600 ] \
+        && [ "$(/usr/bin/stat -c %h -- "$token_file" 2>/dev/null)" = 1 ] \
+        && [ "$(/usr/bin/stat -c %s -- "$token_file" 2>/dev/null)" = 48 ] \
+        && /usr/bin/cmp -s -- "$token_file" <(builtin printf '%s' "$token")
+}
+
+hsqa_repo_fixture_kind() {
+    local suffix
+    case "$REPO" in
+        /tmp/hsqa-full-dispatch.*)
+            suffix="${REPO#/tmp/hsqa-full-dispatch.}"
+            case "$suffix" in ''|*/*) return 1;; esac
+            printf 'full\n';;
+        /tmp/hsqa-perf-launch-*)
+            suffix="${REPO#/tmp/hsqa-perf-launch-}"
+            case "$suffix" in ''|*/*) return 1;; esac
+            printf 'perf\n';;
+        *) printf 'production\n';;
+    esac
+}
+
+HSQA_FIXTURE_KIND=$(hsqa_repo_fixture_kind) \
+    || { echo "FATAL: malformed disposable controller path" >&2; exit 2; }
+
+# Canonical production authority.  A full-attempt interruption test derives
+# all roots from its authenticated copy rather than trusting its exported
+# overrides.  A performance crash fixture derives only its recovery root
+# after exact token-file authentication.
+HSQA_SAFE_TMP_ROOT=/tmp
+HSQA_PIDDIR=/tmp/claude-0/hsqa-pids-v2
+HSQA_INST_ROOT=/tmp/claude-0/hsqa-inst-v2
+HSQA_INSTALL_DIR=/tmp/claude-0/hsqa-install-v2
+HSQA_CLIENT_INSTALL_DIR=/tmp/claude-0/hsqa-client-install-v2
+HSQA_TMUX_SOCKET=/tmp/claude-0/hearthstead-qa-v2.tmux
+case "$HSQA_FIXTURE_KIND" in
+    full)
+        HSQA_SAFE_TMP_ROOT="$REPO/tmp"
+        HSQA_PIDDIR="$REPO/tmp/pids"
+        HSQA_INST_ROOT="$REPO/tmp/instances"
+        HSQA_INSTALL_DIR="$REPO/tmp/install"
+        HSQA_CLIENT_INSTALL_DIR="$REPO/tmp/client-install"
+        [ -z "$REQUESTED_REAP_FIXTURE_ROOT$REQUESTED_REAP_FIXTURE_TOKEN\
+$REQUESTED_PERF_FIXTURE_MODE$REQUESTED_PERF_FIXTURE_ROOT\
+$REQUESTED_PERF_FIXTURE_TOKEN" ] \
+            || { echo "FATAL: performance fixture authority on full fixture" >&2; exit 2; }
+        if [ -n "$REQUESTED_FULL_MARK_TEST_PAUSE" ]; then
+            [ "$REQUESTED_FULL_MARK_TEST_PAUSE" = 1 ] \
+                || { echo "FATAL: invalid full-marker fixture seam" >&2; exit 2; }
+            HSQA_FULL_MARK_TEST_PAUSE=1
+        fi;;
+    perf)
+        [ -z "$REQUESTED_FULL_MARK_TEST_PAUSE" ] \
+            || { echo "FATAL: full-marker seam on performance fixture" >&2; exit 2; }
+        case "${1:-help}" in performance|gate|reap) ;;
+            *) echo "FATAL: performance fixture command is not authorized" >&2; exit 2;;
+        esac
+        [ "$REQUESTED_PERF_FIXTURE_MODE" = prelaunch-artifact \
+            ] || [ "$REQUESTED_PERF_FIXTURE_MODE" = post-release-crash ] \
+            || { echo "FATAL: invalid performance fixture mode" >&2; exit 2; }
+        [ "$REQUESTED_PERF_FIXTURE_ROOT" = "$REQUESTED_REAP_FIXTURE_ROOT" ] \
+            && [ "$REQUESTED_PERF_FIXTURE_TOKEN" = "$REQUESTED_REAP_FIXTURE_TOKEN" ] \
+            && hsqa_fixture_authority_valid "$REQUESTED_REAP_FIXTURE_ROOT" \
+                "$REQUESTED_REAP_FIXTURE_TOKEN" \
+            || { echo "FATAL: unauthenticated performance/reaper fixture" >&2; exit 2; }
+        HSQA_REAP_FIXTURE_ROOT="$REQUESTED_REAP_FIXTURE_ROOT"
+        HSQA_REAP_FIXTURE_TOKEN="$REQUESTED_REAP_FIXTURE_TOKEN"
+        HSQA_PERF_FIXTURE_MODE="$REQUESTED_PERF_FIXTURE_MODE"
+        HSQA_PERF_FIXTURE_ROOT="$REQUESTED_PERF_FIXTURE_ROOT"
+        HSQA_PERF_FIXTURE_TOKEN="$REQUESTED_PERF_FIXTURE_TOKEN"
+        HSQA_SAFE_TMP_ROOT="$REQUESTED_REAP_FIXTURE_ROOT"
+        HSQA_PIDDIR="$REQUESTED_REAP_FIXTURE_ROOT/pids";;
+    production)
+        [ -z "$REQUESTED_REAP_FIXTURE_ROOT$REQUESTED_REAP_FIXTURE_TOKEN\
+$REQUESTED_PERF_FIXTURE_MODE$REQUESTED_PERF_FIXTURE_ROOT\
+$REQUESTED_PERF_FIXTURE_TOKEN$REQUESTED_FULL_MARK_TEST_PAUSE" ] \
+            || { echo "FATAL: disposable QA seam is forbidden in production" >&2; exit 2; };;
+esac
+export HSQA_SAFE_TMP_ROOT HSQA_PIDDIR HSQA_INST_ROOT HSQA_INSTALL_DIR \
+    HSQA_CLIENT_INSTALL_DIR HSQA_TMUX_SOCKET
+[ -z "${HSQA_REAP_FIXTURE_ROOT:-}" ] || export HSQA_REAP_FIXTURE_ROOT HSQA_REAP_FIXTURE_TOKEN
+[ -z "${HSQA_PERF_FIXTURE_MODE:-}" ] || export HSQA_PERF_FIXTURE_MODE \
+    HSQA_PERF_FIXTURE_ROOT HSQA_PERF_FIXTURE_TOKEN
+[ -z "${HSQA_FULL_MARK_TEST_PAUSE:-}" ] || export HSQA_FULL_MARK_TEST_PAUSE
 export HSQA_ACTIVE=1   # lets the pre-tool hook distinguish controller runs
+
+mark_full_attempt_in_progress() {
+    /usr/bin/python3 -I - "$REPORTS/.stale" "$$" "$(date -u +%Y%m%dT%H%M%S.%NZ)" <<'PYEOF'
+import os, stat, sys, tempfile
+destination, pid, started = sys.argv[1:]
+if os.path.lexists(destination):
+    mode = os.lstat(destination).st_mode
+    if not stat.S_ISREG(mode) or stat.S_ISLNK(mode):
+        raise SystemExit("refusing corrupt/non-regular stale marker")
+parent = os.path.dirname(destination)
+fd, temporary = tempfile.mkstemp(prefix=".stale.tmp.", dir=parent)
+try:
+    with os.fdopen(fd, "w") as handle:
+        handle.write(f"full-attempt-in-progress pid={pid} started={started}\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, destination)
+    result = os.lstat(destination)
+    if not stat.S_ISREG(result.st_mode) or stat.S_ISLNK(result.st_mode):
+        raise RuntimeError("stale marker publication was not a regular file")
+finally:
+    try:
+        os.unlink(temporary)
+    except FileNotFoundError:
+        pass
+PYEOF
+}
+
+clear_full_attempt_marker() {
+    [ -f "$REPORTS/.stale" ] && [ ! -L "$REPORTS/.stale" ] || return 1
+    rm -f -- "$REPORTS/.stale" || return 1
+    [ ! -e "$REPORTS/.stale" ] && [ ! -L "$REPORTS/.stale" ]
+}
+
+ensure_gate_red() {
+    if [ ! -e "$REPORTS/.stale" ] && [ ! -L "$REPORTS/.stale" ]; then
+        mark_full_attempt_in_progress
+        return
+    fi
+    # Any pre-existing non-regular/symlink marker is deliberately left in
+    # place: cmd_gate treats its lexical existence as corrupt and red, while
+    # replacing or touching it could follow an attacker-controlled symlink.
+    return 0
+}
+
+# All state-mutating controller commands are globally single-flight. `flock`
+# owns the lock in a tiny parent process and --close keeps the descriptor out
+# of Minecraft/Gradle descendants, so a detached child cannot hold the suite
+# lock forever. A contender exits 75 before creating a run directory or
+# touching run/world/latest.
+CONTROLLER_COMMAND="${1:-help}"
+CONTROLLER_MUTATES=1
+case "$CONTROLLER_COMMAND" in
+    gate|release-client-gate|status|help|-h|--help|startup-selftest|controller-contract-selftest) CONTROLLER_MUTATES=0 ;;
+esac
+if [ "$CONTROLLER_COMMAND" = reap ]; then
+    case "${2:-check}" in check|dry-run|dryrun) CONTROLLER_MUTATES=0;; esac
+fi
+CONTROLLER_LOCK_REQUIRED=1
+case "$CONTROLLER_COMMAND" in
+    status|help|-h|--help|startup-selftest) CONTROLLER_LOCK_REQUIRED=0 ;;
+esac
+SUITE_LOCK="/tmp/hearthstead-qa-v2.lock"
+LOCK_BOOTSTRAP="$QA/scripts/controller_lock_bootstrap.sh"
+
+HSQA_UID=$(/usr/bin/id -u) \
+    || { echo "FATAL: current uid cannot be resolved" >&2; exit 2; }
+HSQA_CANONICAL_HOME=$(/usr/bin/getent passwd "$HSQA_UID" 2>/dev/null \
+    | /usr/bin/cut -d: -f6)
+case "$HSQA_CANONICAL_HOME" in
+    /*) [ -d "$HSQA_CANONICAL_HOME" ] || HSQA_CANONICAL_HOME=/tmp;;
+    *) HSQA_CANONICAL_HOME=/tmp;;
+esac
+case "$HSQA_CANONICAL_HOME" in *[$'\r\n']*) HSQA_CANONICAL_HOME=/tmp;; esac
+HOME="$HSQA_CANONICAL_HOME"
+SHELL=/bin/bash
+TERM=xterm-256color
+HSQA_GRADLE_CACHE="$HOME/.gradle/caches"
+HSQA_LEVEL_TYPE=flat
+export HOME SHELL TERM HSQA_GRADLE_CACHE HSQA_LEVEL_TYPE
+
+# Only documented, non-authority runtime tuning crosses the `env -i`
+# boundary.  New knobs must be added deliberately; arbitrary HSQA_* values
+# (especially test seams and filesystem roots) are dropped.
+HSQA_OPTIONAL_FORWARD_NAMES=(
+    HSQA_BLESSING_RESTART_DISPLAY HSQA_BLESSING_RESTART_PORT
+    HSQA_CLIENT_FRAME_TIMEOUT HSQA_DEDICATED_PORT HSQA_DISPLAY_HEIGHT
+    HSQA_DISPLAY_WIDTH HSQA_ENSURE_GRAB_ATTEMPTS HSQA_GUI_SCALE
+    HSQA_INPUT_RESPONSE_TIMEOUT HSQA_LANGUAGE HSQA_LIVE_PORT
+    HSQA_PERFORMANCE_PORT HSQA_PERFORMANCE_TIMEOUT_SECONDS
+    HSQA_PERF_SAMPLE_COUNT HSQA_PERF_SAMPLE_INTERVAL_SECONDS
+    HSQA_PERF_START_DELAY_SECONDS HSQA_PERF_WARMUP_SECONDS
+    HSQA_PLAYTEST_PORT HSQA_PLAYTEST_SCENARIO HSQA_ROTATION_QUERY_TIMEOUT
+)
+
+hsqa_build_lock_environment() { # <token>; populates HSQA_LOCK_ENV
+    local token="$1" name value
+    HSQA_LOCK_ENV=(
+        "PATH=$HSQA_SYSTEM_PATH" "HOME=$HOME" "LANG=C.UTF-8" "LC_ALL=C"
+        "SHELL=/bin/bash" "TERM=xterm-256color" "TMPDIR=/tmp"
+        "HSQA_ACTIVE=1" "HSQA_REPO=$REPO" "HSQA_REPORTS=$REPORTS"
+        "HSQA_ARTIFACTS=$ARTIFACTS" "HSQA_SAFE_TMP_ROOT=$HSQA_SAFE_TMP_ROOT"
+        "HSQA_PIDDIR=$HSQA_PIDDIR" "HSQA_INST_ROOT=$HSQA_INST_ROOT"
+        "HSQA_INSTALL_DIR=$HSQA_INSTALL_DIR"
+        "HSQA_CLIENT_INSTALL_DIR=$HSQA_CLIENT_INSTALL_DIR"
+        "HSQA_GRADLE_CACHE=$HSQA_GRADLE_CACHE" "HSQA_LEVEL_TYPE=flat"
+        "HSQA_TMUX_SOCKET=$HSQA_TMUX_SOCKET"
+        "HSQA_SUITE_LOCK_TOKEN=$token"
+    )
+    if [ -n "${HSQA_REAP_FIXTURE_ROOT:-}" ]; then
+        HSQA_LOCK_ENV+=("HSQA_REAP_FIXTURE_ROOT=$HSQA_REAP_FIXTURE_ROOT"
+            "HSQA_REAP_FIXTURE_TOKEN=$HSQA_REAP_FIXTURE_TOKEN"
+            "HSQA_PERF_FIXTURE_MODE=$HSQA_PERF_FIXTURE_MODE"
+            "HSQA_PERF_FIXTURE_ROOT=$HSQA_PERF_FIXTURE_ROOT"
+            "HSQA_PERF_FIXTURE_TOKEN=$HSQA_PERF_FIXTURE_TOKEN")
+    fi
+    [ -z "${HSQA_FULL_MARK_TEST_PAUSE:-}" ] \
+        || HSQA_LOCK_ENV+=("HSQA_FULL_MARK_TEST_PAUSE=1")
+    for name in "${HSQA_OPTIONAL_FORWARD_NAMES[@]}"; do
+        if [[ -v "$name" ]]; then
+            value="${!name}"
+            [ "${#value}" -le 256 ] \
+                && [[ "$value" =~ ^[[:print:]]*$ ]] \
+                && [[ "$value" != *$'\r'* ]] && [[ "$value" != *$'\n'* ]] \
+                || { echo "FATAL: unsafe value for $name" >&2; return 2; }
+            HSQA_LOCK_ENV+=("$name=$value")
+        fi
+    done
+}
+
+hsqa_build_readonly_environment() {
+    HSQA_READONLY_ENV=(
+        "PATH=$HSQA_SYSTEM_PATH" "HOME=$HOME" "LANG=C.UTF-8" "LC_ALL=C"
+        "SHELL=/bin/bash" "TERM=xterm-256color" "TMPDIR=/tmp"
+        "HSQA_ACTIVE=1" "HSQA_SAFE_TMP_ROOT=$HSQA_SAFE_TMP_ROOT"
+        "HSQA_PIDDIR=$HSQA_PIDDIR" "HSQA_INST_ROOT=$HSQA_INST_ROOT"
+        "HSQA_INSTALL_DIR=$HSQA_INSTALL_DIR"
+        "HSQA_CLIENT_INSTALL_DIR=$HSQA_CLIENT_INSTALL_DIR"
+        "HSQA_GRADLE_CACHE=$HSQA_GRADLE_CACHE" "HSQA_LEVEL_TYPE=flat"
+        "HSQA_TMUX_SOCKET=$HSQA_TMUX_SOCKET" "HSQA_ENV_CLEANED=1"
+    )
+    if [ -n "${HSQA_REAP_FIXTURE_ROOT:-}" ]; then
+        HSQA_READONLY_ENV+=("HSQA_REAP_FIXTURE_ROOT=$HSQA_REAP_FIXTURE_ROOT"
+            "HSQA_REAP_FIXTURE_TOKEN=$HSQA_REAP_FIXTURE_TOKEN"
+            "HSQA_PERF_FIXTURE_MODE=$HSQA_PERF_FIXTURE_MODE"
+            "HSQA_PERF_FIXTURE_ROOT=$HSQA_PERF_FIXTURE_ROOT"
+            "HSQA_PERF_FIXTURE_TOKEN=$HSQA_PERF_FIXTURE_TOKEN")
+    fi
+    [ -z "${HSQA_FULL_MARK_TEST_PAUSE:-}" ] \
+        || HSQA_READONLY_ENV+=("HSQA_FULL_MARK_TEST_PAUSE=1")
+}
+
+hsqa_readonly_environment_is_exact() {
+    /usr/bin/python3 -I - "${HSQA_READONLY_ENV[@]}" <<'PYEOF'
+import os, sys
+
+expected = {}
+for assignment in sys.argv[1:]:
+    name, value = assignment.split("=", 1)
+    if name in expected:
+        raise SystemExit(2)
+    expected[name] = value
+actual = dict(os.environ)
+# Bash creates/updates only these bookkeeping entries around an exec.  They
+# carry no hook, path or harness authority and are deliberately not forwarded.
+for name in ("PWD", "SHLVL", "_"):
+    actual.pop(name, None)
+raise SystemExit(0 if actual == expected else 1)
+PYEOF
+}
+
+hsqa_prepare_suite_lock() {
+    if [ ! -e "$SUITE_LOCK" ] && [ ! -L "$SUITE_LOCK" ]; then
+        (umask 077; set -o noclobber; : > "$SUITE_LOCK") 2>/dev/null || true
+    fi
+    [ -f "$SUITE_LOCK" ] && [ ! -L "$SUITE_LOCK" ] \
+        && [ "$(/usr/bin/stat -Lc %u -- "$SUITE_LOCK" 2>/dev/null)" = "$HSQA_UID" ] \
+        && [ "$(/usr/bin/stat -Lc %h -- "$SUITE_LOCK" 2>/dev/null)" = 1 ] \
+        || return 1
+    /usr/bin/chmod 600 -- "$SUITE_LOCK" || return 1
+    [ "$(/usr/bin/stat -Lc %a -- "$SUITE_LOCK" 2>/dev/null)" = 600 ]
+}
+
+hsqa_lock_parent_proven() {
+    local parent="$1" expected_index=0 current arg
+    local -a parent_argv expected_argv
+    shift
+    [ "$(/usr/bin/readlink -f -- "/proc/$parent/exe" 2>/dev/null || true)" \
+        = /usr/bin/flock ] || return 1
+    current=$(/usr/bin/awk '$1 == "SigIgn:" { print $2 }' \
+        "/proc/$parent/status" 2>/dev/null) || return 1
+    /usr/bin/python3 -I - "$current" <<'PYEOF' || return 1
+import re, sys
+value = sys.argv[1]
+if not re.fullmatch(r"[0-9A-Fa-f]+", value):
+    raise SystemExit(1)
+mask = int(value, 16)
+raise SystemExit(0 if mask & 2 and mask & (1 << 14) else 1)
+PYEOF
+    current=0
+    for arg in "/proc/$parent/fd/"*; do
+        [ "$(/usr/bin/readlink -f -- "$arg" 2>/dev/null || true)" \
+            = "$SUITE_LOCK" ] && current=1
+    done
+    [ "$current" -eq 1 ] || return 1
+    current=$(/usr/bin/stat -Lc %i -- "$SUITE_LOCK" 2>/dev/null) || return 1
+    [[ "$current" =~ ^[0-9]+$ ]] \
+        && /usr/bin/awk -v owner="$parent" -v inode="$current" \
+            '$2 == "FLOCK" && $4 == "WRITE" && $5 == owner && $6 ~ (":" inode "$") { found=1 } END { exit !found }' \
+            /proc/locks || return 1
+    mapfile -d '' -t parent_argv < "/proc/$parent/cmdline" || return 1
+    expected_argv=(/usr/bin/flock -n --close --conflict-exit-code 75
+        "$SUITE_LOCK" /usr/bin/env -i "${HSQA_LOCK_ENV[@]}"
+        /bin/bash --noprofile --norc -p "$LOCK_BOOTSTRAP"
+        "$CONTROLLER_PATH" "$@")
+    [ "${#parent_argv[@]}" -eq "${#expected_argv[@]}" ] || return 1
+    for ((expected_index=0; expected_index<${#expected_argv[@]}; expected_index++)); do
+        [ "${parent_argv[$expected_index]}" = "${expected_argv[$expected_index]}" ] \
+            || return 1
+    done
+}
+
+if [ "$CONTROLLER_LOCK_REQUIRED" -eq 1 ] \
+        && [ "$REQUESTED_LOCK_BOOTSTRAPPED" != 1 ]; then
+    [ -x /usr/bin/flock ] && [ -x /usr/bin/env ] && [ -x /bin/bash ] \
+        && [ -x /usr/bin/python3 ] \
+        || { echo "FATAL: absolute QA lock/bootstrap tools are unavailable" >&2; exit 2; }
+    hsqa_prepare_suite_lock \
+        || { echo "FATAL: unsafe host-global suite lock" >&2; exit 2; }
+    # Host-global on purpose: the Windows checkout and isolated /opt or /tmp
+    # clones still share ports and install caches. A repository-local lock on
+    # OneDrive/DrvFS cannot serialize those controllers.
+    SUITE_LOCK_TOKEN=$(/usr/bin/od -An -N24 -tx1 /dev/urandom 2>/dev/null \
+        | /usr/bin/tr -d ' \n')
+    [[ "$SUITE_LOCK_TOKEN" =~ ^[0-9a-f]{48}$ ]] \
+        || { echo "FATAL: could not create suite-lock authentication token" >&2; exit 2; }
+    hsqa_build_lock_environment "$SUITE_LOCK_TOKEN" || exit 2
+    # The lock owner inherits ignored terminal signals, while the actual
+    # controller child explicitly resets them.  Ctrl-C therefore reaches the
+    # child's cleanup trap but cannot release the host-global lock until that
+    # cleanup and the child itself have finished.
+    trap '' INT TERM
+    /usr/bin/flock -n --close --conflict-exit-code 75 "$SUITE_LOCK" \
+        /usr/bin/env -i "${HSQA_LOCK_ENV[@]}" \
+            /bin/bash --noprofile --norc -p "$LOCK_BOOTSTRAP" \
+                "$CONTROLLER_PATH" "$@"
+    LOCKED_STATUS=$?
+    trap - INT TERM
+    if [ "$LOCKED_STATUS" -eq 75 ]; then
+        echo "FATAL: another Hearthstead QA suite owns $SUITE_LOCK" >&2
+    fi
+    exit "$LOCKED_STATUS"
+fi
+if [ "$CONTROLLER_LOCK_REQUIRED" -eq 1 ]; then
+    # Never trust an ambient "already locked" flag. The child must have a
+    # high-entropy token in its actual flock-wrapper parent's argv, and a
+    # second nonblocking acquisition must prove that parent still owns the
+    # host-global lock.
+    HSQA_SUITE_LOCK_TOKEN="$REQUESTED_SUITE_LOCK_TOKEN"
+    HSQA_LOCK_BOOTSTRAPPED="$REQUESTED_LOCK_BOOTSTRAPPED"
+    HSQA_FULL_MARKED="$REQUESTED_FULL_MARKED"
+    export HSQA_SUITE_LOCK_TOKEN HSQA_LOCK_BOOTSTRAPPED HSQA_FULL_MARKED
+    [[ "$HSQA_SUITE_LOCK_TOKEN" =~ ^[0-9a-f]{48}$ ]] \
+        && [ "$HSQA_LOCK_BOOTSTRAPPED" = 1 ] \
+        && [[ "$HSQA_FULL_MARKED" =~ ^[01]$ ]] \
+        || { echo "FATAL: unauthenticated suite-lock child mode" >&2; exit 2; }
+    hsqa_build_lock_environment "$HSQA_SUITE_LOCK_TOKEN" || exit 2
+    hsqa_lock_parent_proven "$PPID" "$@" \
+        || { echo "FATAL: suite-lock parent identity/argv/inode proof failed" >&2; exit 2; }
+    if /usr/bin/flock -n --close "$SUITE_LOCK" /bin/true 2>/dev/null; then
+        echo "FATAL: suite-lock parent does not actually hold $SUITE_LOCK" >&2
+        exit 2
+    fi
+else
+    # Lock-free status/help cannot inherit spoofed child-mode credentials.
+    [ -z "$REQUESTED_SUITE_LOCK_TOKEN$REQUESTED_LOCK_BOOTSTRAPPED\
+$REQUESTED_FULL_MARKED" ] \
+        || { echo "FATAL: lock credentials on a lock-free command" >&2; exit 2; }
+    # `bash -p` suppresses importing an exported shell function into this
+    # first interpreter, but its raw BASH_FUNC_* environment entry remains.
+    # A later ordinary `bash` (for example the fingerprint helper) would import
+    # it unless read-only commands also cross a true env-i boundary.  The
+    # marker alone is never trusted: the complete exported environment must
+    # match the controller-built whitelist byte-for-byte.
+    HSQA_ENV_CLEANED="$REQUESTED_ENV_CLEANED"
+    export HSQA_ENV_CLEANED
+    hsqa_build_readonly_environment
+    if [ "$HSQA_ENV_CLEANED" != 1 ] || ! hsqa_readonly_environment_is_exact; then
+        exec /usr/bin/env -i "${HSQA_READONLY_ENV[@]}" \
+            /bin/bash --noprofile --norc -p "$CONTROLLER_PATH" "$@"
+        exit 2
+    fi
+fi
+
+# No accepted mutating run touches reports before the host-global lock is
+# authenticated.  A full attempt then makes the gate red before any preflight
+# or suite can fail, hang, be interrupted, or be SIGKILLed.  Only a fully
+# published PASS removes this marker in write_manifest().
+if [ "$CONTROLLER_MUTATES" -eq 1 ]; then
+    mkdir -p "$REPORTS" "$ARTIFACTS" || exit 2
+    if [ "$CONTROLLER_COMMAND" = full ]; then
+        [ "${HSQA_LOCK_BOOTSTRAPPED:-0}" = 1 ] \
+            && [ "${HSQA_FULL_MARKED:-0}" = 1 ] \
+            && [ -f "$REPORTS/.stale" ] \
+            && [ ! -L "$REPORTS/.stale" ] \
+            || { echo "FATAL: full QA attempt did not enter through its durable lock-owned prelude" >&2; exit 2; }
+    fi
+fi
+
+qa_eol_preflight() {
+    local file failed=0
+    while IFS= read -r -d '' file; do
+        if LC_ALL=C grep -q $'\r' "$file"; then
+            echo "FATAL: executable QA file has CRLF newlines: $file" >&2
+            failed=1
+        fi
+    done < <(find "$QA/hooks" "$QA/scripts" "$MOD/tools" -type f \
+        \( -name '*.sh' -o -name '*.py' \) -print0 2>/dev/null)
+    for file in "$REPO/tools/hearthstead-qa" "$MOD/gradlew"; do
+        [ -f "$file" ] || continue
+        if LC_ALL=C grep -q $'\r' "$file"; then
+            echo "FATAL: executable QA file has CRLF newlines: $file" >&2
+            failed=1
+        fi
+    done
+    return "$failed"
+}
+qa_eol_preflight || exit 2
 # Finding 5: durable evidence (ev_init/check_pass/finish_result/
 # write_reproduction) for cmd_provision below.
-. "$QA/scripts/lib_harness.sh"
+if [ "$CONTROLLER_MUTATES" -eq 1 ]; then
+    . "$QA/scripts/lib_harness.sh"
+else
+    # gate/status/help must remain read-only even though gate takes the global
+    # lock.  In particular they must not claim pid/cache directories or create
+    # the compatibility artifacts symlink merely by inspecting state.
+    HSQA_LIB_READ_ONLY=1 . "$QA/scripts/lib_harness.sh"
+fi
 
-TS="$(date -u +%Y%m%dT%H%M%SZ)"
-RUN_DIR="$ARTIFACTS/$TS"
+TS="$(date -u +%Y%m%dT%H%M%S.%NZ)"
+if [ "$CONTROLLER_MUTATES" -eq 1 ]; then
+    RUN_DIR=$(mktemp -d "$ARTIFACTS/${TS}-$$.XXXXXX") \
+        || { echo "FATAL: could not reserve a unique controller run directory" >&2; exit 2; }
+else
+    RUN_DIR="$ARTIFACTS/read-only-unused-${TS}-$$"
+fi
+
+fingerprint_from_helper() { # <helper> <repo-root>
+    local helper="$1" repo="$2" value
+    [ -f "$helper" ] || return 1
+    value="$(/bin/bash --noprofile --norc -p "$helper" "$repo")" || return 1
+    [[ "$value" =~ ^[0-9a-f]{64}$ ]] || return 1
+    printf '%s\n' "$value"
+}
 
 fingerprint() {
     # Covers everything that decides either what the mod DOES or what the
@@ -44,31 +557,68 @@ fingerprint() {
     # evidence noticing. Adding it invalidates every fingerprint stored
     # before this date, which is correct: those runs were judged by a
     # different judge.
-    { find "$MOD/src" "$MOD/tools" "$QA/scripts" "$QA/scenarios" \
-           -type f -not -path '*/__pycache__/*' 2>/dev/null \
-        | sort | xargs sha256sum 2>/dev/null
-      sha256sum "$MOD/build.gradle" "$MOD/gradle.properties" "$MOD/settings.gradle" \
-                "$QA/PROTOCOL.md" "$REPO/tools/hearthstead-qa" 2>/dev/null
-    } | sha256sum | cut -d' ' -f1
+    fingerprint_from_helper "$QA/scripts/source_fingerprint.sh" "$REPO"
+}
+
+assert_source_unchanged() { # <phase>; sticky once any phase observes drift
+    local phase="$1" current
+    [ "${SOURCE_DRIFT:-0}" -eq 0 ] || return 1
+    if ! current="$(fingerprint)"; then
+        SOURCE_DRIFT=1
+        SOURCE_DRIFT_NOTE="source fingerprint failed during $phase"
+        return 1
+    fi
+    if [ "$current" != "${START_FINGERPRINT:-}" ]; then
+        SOURCE_DRIFT=1
+        SOURCE_DRIFT_NOTE="source changed during run at $phase: start=${START_FINGERPRINT:-missing} current=$current"
+        return 1
+    fi
+}
+
+fingerprint_contract_selftest() {
+    local empty_helper failed_helper invalid_helper
+    empty_helper=$(mktemp) || return 1
+    failed_helper=$(mktemp) || { rm -f "$empty_helper"; return 1; }
+    invalid_helper=$(mktemp) \
+        || { rm -f "$empty_helper" "$failed_helper"; return 1; }
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$empty_helper"
+    printf '#!/usr/bin/env bash\nexit 7\n' > "$failed_helper"
+    printf '#!/usr/bin/env bash\nprintf "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\n"\n' \
+        > "$invalid_helper"
+    if fingerprint_from_helper "$QA/scripts/does-not-exist" "$REPO" >/dev/null 2>&1 \
+            || fingerprint_from_helper "$empty_helper" "$REPO" >/dev/null 2>&1 \
+            || fingerprint_from_helper "$failed_helper" "$REPO" >/dev/null 2>&1 \
+            || fingerprint_from_helper "$invalid_helper" "$REPO" >/dev/null 2>&1; then
+        rm -f "$empty_helper" "$failed_helper" "$invalid_helper"
+        return 1
+    fi
+    rm -f "$empty_helper" "$failed_helper" "$invalid_helper"
 }
 
 git_state() {
-    git -C "$REPO" rev-parse HEAD 2>/dev/null || echo unknown
+    /usr/bin/git -C "$REPO" rev-parse HEAD 2>/dev/null
 }
 
 dirty_hash() {
-    git -C "$REPO" status --porcelain 2>/dev/null | sha256sum | cut -d' ' -f1
+    /usr/bin/git -C "$REPO" status --porcelain 2>/dev/null \
+        | /usr/bin/sha256sum | /usr/bin/cut -d' ' -f1
 }
 
-json_escape() { python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
+json_escape() { /usr/bin/python3 -I -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
 declare -A SUITE_STATUS
 declare -A SUITE_NOTE
 
 record() { # suite status note
-    SUITE_STATUS["$1"]="$2"
-    SUITE_NOTE["$1"]="${3:-}"
-    echo "[$1] $2 ${3:-}"
+    local suite="$1" status="$2" note="${3:-}" requested="$2"
+    if [ "$status" = PASS ] && ! assert_source_unchanged "suite:$suite:after"; then
+        status=FAIL
+        note="${SOURCE_DRIFT_NOTE:-source changed during run}"
+    fi
+    SUITE_STATUS["$suite"]="$status"
+    SUITE_NOTE["$suite"]="$note"
+    echo "[$suite] $status $note"
+    [ "$requested" = "$status" ]
 }
 
 # Successful real-client suites deliberately leave Minecraft running until
@@ -101,51 +651,932 @@ cmd_note_selftest() {
     echo "PASS: explicit success-note selection ignores trailing teardown noise and rejects a missing marker"
 }
 
+previous_green_streak() { # <latest-manifest> <current-fingerprint>
+    local latest="$1" fp="$2" value
+    value=$(/usr/bin/python3 -I "$QA/scripts/validate_full_manifest.py" \
+        "$latest" "$REPORTS" "$ARTIFACTS" "$fp" "$PROTOCOL_VERSION" 0 \
+        "${EXPECTED_FULL_SUITES[@]}" 2>/dev/null) || value=0
+    [[ "$value" =~ ^(0|[1-9][0-9]{0,6})$ ]] || return 1
+    [ "$value" -le 1000000 ] || return 1
+    printf '%s\n' "$value"
+}
+
+manifest_metadata_value_is_safe() { # value
+    local value="$1"
+    [ -n "$value" ] \
+        && [ "${#value}" -le 256 ] \
+        && [[ "$value" != *$'\r'* ]] \
+        && [[ "$value" != *$'\n'* ]]
+}
+
+read_gradle_property() { # <gradle.properties> <exact-key>
+    # Normalize only a physical CRLF line terminator. Duplicate keys, a bare
+    # or embedded CR, invalid UTF-8 and oversized values are all ambiguous and
+    # therefore fail closed instead of being silently collapsed by grep.
+    /usr/bin/python3 -I - "$1" "$2" <<'PYEOF'
+import pathlib
+import re
+import sys
+
+path, key = sys.argv[1:]
+if not re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", key):
+    raise SystemExit(2)
+data = pathlib.Path(path).read_bytes()
+if len(data) > 1024 * 1024 or b"\0" in data:
+    raise SystemExit(2)
+prefix = key.encode("ascii") + b"="
+matches = []
+physical_lines = data.split(b"\n")
+for index, physical_line in enumerate(physical_lines):
+    # Only a CR immediately followed by the LF delimiter is a CRLF terminator.
+    # A terminal/bare CR remains in the value and is rejected below.
+    if index < len(physical_lines) - 1 and physical_line.endswith(b"\r"):
+        physical_line = physical_line[:-1]
+    if b"\r" in physical_line:
+        raise SystemExit(2)
+    if physical_line.startswith(prefix):
+        matches.append(physical_line[len(prefix):])
+if len(matches) != 1:
+    raise SystemExit(2)
+value = matches[0].decode("utf-8", errors="strict")
+if not value or len(value) > 256 or "\r" in value or "\n" in value:
+    raise SystemExit(2)
+print(value)
+PYEOF
+}
+
 write_manifest() { # overall
     local overall="$1"
-    local fp; fp="$(fingerprint)"
+    local fp="$START_FINGERPRINT" publish_latest=1
+    local manifest_error=''
+    local git_commit_value dirty_hash_value neoforge_value java_value mod_value
+    local suite actual_count
+    local -a manifest_arguments=()
+    if ! assert_source_unchanged manifest; then
+        overall=FAIL
+        publish_latest=0
+        echo "FATAL: ${SOURCE_DRIFT_NOTE:-source changed during run}; latest.json not updated" >&2
+    fi
     local prev_streak=0
     if [ -f "$REPORTS/latest.json" ]; then
-        prev_streak=$(python3 -c "
-import json
-try:
-    m=json.load(open('$REPORTS/latest.json'))
-    print(m.get('green_streak',0) if m.get('fingerprint')=='$fp' and m.get('overall')=='PASS' else 0)
-except Exception: print(0)")
+        prev_streak=$(previous_green_streak "$REPORTS/latest.json" "$fp") \
+            || prev_streak=0
     fi
     local streak=0
     [ "$overall" = "PASS" ] && streak=$((prev_streak + 1))
-    python3 - "$overall" "$fp" "$streak" <<PYEOF
-import json, sys, os, subprocess, time
-overall, fp, streak = sys.argv[1], sys.argv[2], int(sys.argv[3])
+
+    # Resolve every metadata field before entering Python and pass it as an
+    # argv value. The old unquoted heredoc embedded command substitutions in
+    # Python source; under `pipefail`, one metadata pipeline could make Bash
+    # skip/fail the interpreter silently, leaving an old latest PASS in place.
+    # A quoted heredoc plus checked argv has no shell-code expansion seam.
+    if ! git_commit_value=$(git_state) \
+            || ! dirty_hash_value=$(dirty_hash) \
+            || ! neoforge_value=$(read_gradle_property \
+                "$MOD/gradle.properties" neoforge_version) \
+            || ! java_value=$(/usr/bin/java -version 2>&1) \
+            || ! mod_value=$(read_gradle_property \
+                "$MOD/gradle.properties" mod_version); then
+        ensure_gate_red || true
+        echo "FATAL: manifest metadata could not be resolved exactly" >&2
+        return 1
+    fi
+    java_value="${java_value%%$'\n'*}"
+    java_value="${java_value//\"/}"
+    [[ "$git_commit_value" =~ ^[0-9a-f]{40,64}$ ]] \
+        && [[ "$dirty_hash_value" =~ ^[0-9a-f]{64}$ ]] \
+        && manifest_metadata_value_is_safe "$neoforge_value" \
+        && manifest_metadata_value_is_safe "$java_value" \
+        && manifest_metadata_value_is_safe "$mod_value" \
+        || {
+            ensure_gate_red || true
+            echo "FATAL: manifest metadata was malformed" >&2
+            return 1
+        }
+
+    actual_count=${#SUITE_STATUS[@]}
+    manifest_arguments=(
+        "$overall" "$fp" "$streak" "$publish_latest"
+        "$QA/scripts/source_fingerprint.sh" "$REPO" "$PROTOCOL_VERSION"
+        "$git_commit_value" "$dirty_hash_value" "$neoforge_value"
+        "$java_value" "$mod_value" "$TS" "$RUN_DIR" "$REPORTS"
+        "${#EXPECTED_FULL_SUITES[@]}" "${EXPECTED_FULL_SUITES[@]}"
+        "$actual_count"
+    )
+    for suite in "${!SUITE_STATUS[@]}"; do
+        manifest_arguments+=("$suite" "${SUITE_STATUS[$suite]}" \
+            "${SUITE_NOTE[$suite]}")
+    done
+
+    local manifest_status=0
+    manifest_error=$(/usr/bin/mktemp "$RUN_DIR/.manifest-publish.XXXXXX") \
+        || {
+            ensure_gate_red || true
+            echo "FATAL: could not reserve manifest error transcript" >&2
+            return 1
+        }
+    /usr/bin/python3 -I - "${manifest_arguments[@]}" \
+            2> "$manifest_error" <<'PYEOF' \
+        || manifest_status=$?
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+values = sys.argv[1:]
+position = 0
+
+def take():
+    global position
+    if position >= len(values):
+        raise RuntimeError("truncated manifest argv")
+    value = values[position]
+    position += 1
+    return value
+
+overall = take()
+fp = take()
+streak = int(take())
+publish_latest = take() == "1"
+helper = take()
+repo = take()
+protocol = take()
+git_commit = take()
+dirty_hash_value = take()
+neoforge = take()
+java = take()
+mod_version = take()
+started = take()
+run_dir = take()
+reports = take()
+expected_count = int(take())
+expected_order = [take() for _ in range(expected_count)]
+expected_suites = set(expected_order)
+if len(expected_suites) != expected_count:
+    raise RuntimeError("duplicate expected suite")
+actual_count = int(take())
 suites = {}
-$(for s in "${!SUITE_STATUS[@]}"; do
-    printf 'suites["%s"] = {"status": "%s", "note": %s}\n' \
-        "$s" "${SUITE_STATUS[$s]}" "$(printf '%s' "${SUITE_NOTE[$s]}" | json_escape)"
-done)
+for _ in range(actual_count):
+    name, status, note = take(), take(), take()
+    if name in suites:
+        raise RuntimeError(f"duplicate actual suite {name}")
+    suites[name] = {"status": status, "note": note}
+if position != len(values):
+    raise RuntimeError("extra manifest argv")
+
+def current_fingerprint():
+    value = subprocess.check_output(
+        ["/bin/bash", "--noprofile", "--norc", "-p", helper, repo],
+        text=True,
+        env={
+            "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME": "/tmp",
+            "LANG": "C.UTF-8",
+            "LC_ALL": "C",
+            "TMPDIR": "/tmp",
+        },
+    ).strip()
+    if not re.fullmatch(r"[0-9a-f]{64}", value):
+        raise RuntimeError("invalid current fingerprint")
+    return value
+
+if set(suites) != expected_suites:
+    raise RuntimeError(
+        f"full suite roster mismatch missing={sorted(expected_suites-set(suites))} "
+        f"extra={sorted(set(suites)-expected_suites)}"
+    )
+bad = {name: row.get("status") for name, row in suites.items()
+       if (name != "visual" and row.get("status") != "PASS")
+       or (name == "visual" and row.get("status") not in {"PASS", "BLOCKED"})}
+derived = "PASS" if not bad else "FAIL"
+if overall != derived:
+    raise RuntimeError(f"overall {overall} disagrees with suite statuses {bad}")
 manifest = {
-    "protocol_version": "$PROTOCOL_VERSION",
+    "protocol_version": protocol,
     "fingerprint": fp,
-    "git_commit": "$(git_state)",
-    "dirty_hash": "$(dirty_hash)",
+    "git_commit": git_commit,
+    "dirty_hash": dirty_hash_value,
     "minecraft": "1.21.1",
-    "neoforge": "$(grep -oP 'neoforge_version=\K.*' "$MOD/gradle.properties")",
-    "java": "$(java -version 2>&1 | head -1 | tr -d '"')",
-    "mod_version": "$(grep -oP 'mod_version=\K.*' "$MOD/gradle.properties")",
-    "started": "$TS",
+    "neoforge": neoforge,
+    "java": java,
+    "mod_version": mod_version,
+    "started": started,
     "finished": time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()),
     "suites": suites,
     "overall": overall,
     "green_streak": streak,
-    "artifacts": "$RUN_DIR",
+    "artifacts": run_dir,
 }
-os.makedirs("$RUN_DIR", exist_ok=True)
-path = os.path.join("$RUN_DIR", "manifest.json")
-json.dump(manifest, open(path, "w"), indent=2)
-json.dump(manifest, open("$REPORTS/latest.json", "w"), indent=2)
+os.makedirs(run_dir, exist_ok=True)
+path = os.path.join(run_dir, "manifest.json")
+if current_fingerprint() != fp:
+    sys.exit(86)
+temporary_run = path + ".tmp-" + str(os.getpid())
+with open(temporary_run, "w") as handle:
+    json.dump(manifest, handle, indent=2)
+os.replace(temporary_run, path)
+if publish_latest:
+    if current_fingerprint() != fp:
+        manifest["overall"] = "FAIL"
+        manifest["green_streak"] = 0
+        manifest["source_changed_during_run"] = True
+        temporary_run = path + ".tmp-drift-" + str(os.getpid())
+        with open(temporary_run, "w") as handle:
+            json.dump(manifest, handle, indent=2)
+        os.replace(temporary_run, path)
+        sys.exit(86)
+    latest = os.path.join(reports, "latest.json")
+    temporary = latest + ".tmp-" + str(os.getpid())
+    with open(temporary, "w") as handle:
+        json.dump(manifest, handle, indent=2)
+    os.replace(temporary, latest)
 print("manifest:", path, "overall:", overall, "green_streak:", streak)
 PYEOF
-    if [ "$overall" = "PASS" ]; then rm -f "$REPORTS/.stale"; fi
+    if [ "$manifest_status" -ne 0 ]; then
+        [ ! -s "$manifest_error" ] \
+            || /usr/bin/sed 's/^/  manifest: /' "$manifest_error" >&2
+        /usr/bin/rm -f -- "$manifest_error"
+        ensure_gate_red || true
+        if [ "$manifest_status" -eq 86 ]; then
+            SOURCE_DRIFT=1
+            SOURCE_DRIFT_NOTE="source changed inside manifest publish window"
+        fi
+        echo "FATAL: manifest publication failed (status $manifest_status); latest PASS not accepted" >&2
+        return 1
+    fi
+    /usr/bin/rm -f -- "$manifest_error"
+    if [ "$overall" = "PASS" ] && [ "$publish_latest" -eq 1 ]; then
+        clear_full_attempt_marker || {
+            echo "FATAL: PASS manifest published but stale/in-progress marker was corrupt or could not be cleared" >&2
+            quarantine_own_latest
+            return 1
+        }
+    fi
+    [ "$overall" = PASS ]
+}
+
+manifest_contract_selftest() {
+    local test_root REPORTS RUN_DIR START_FINGERPRINT SOURCE_DRIFT SOURCE_DRIFT_NOTE TS
+    local suite oversized property_fixture parsed
+    printf -v oversized '%0257d' 0
+    manifest_metadata_value_is_safe '21.1.196' \
+        && ! manifest_metadata_value_is_safe '' \
+        && ! manifest_metadata_value_is_safe $'21.1.196\n21.1.197' \
+        && ! manifest_metadata_value_is_safe $'1.0\rspoof' \
+        && ! manifest_metadata_value_is_safe "$oversized" \
+        || return 1
+    local -A SUITE_STATUS=() SUITE_NOTE=()
+    for suite in "${EXPECTED_FULL_SUITES[@]}"; do
+        SUITE_STATUS["$suite"]=PASS
+        SUITE_NOTE["$suite"]=selftest
+    done
+    test_root=$(mktemp -d /tmp/hsqa-manifest-contract.XXXXXX) || return 1
+    case "$(realpath -m -- "$test_root")" in
+        /tmp/hsqa-manifest-contract.*) ;;
+        *) return 1 ;;
+    esac
+    property_fixture="$test_root/gradle.properties"
+    printf 'neoforge_version=21.1.248\r\nmod_version=0.2.0\r\n' \
+        > "$property_fixture" || { rm -rf -- "$test_root"; return 1; }
+    parsed=$(read_gradle_property "$property_fixture" neoforge_version) \
+        && [ "$parsed" = 21.1.248 ] \
+        || { rm -rf -- "$test_root"; return 1; }
+    printf 'neoforge_version=21.1.248\r\nneoforge_version=21.1.249\r\n' \
+        > "$property_fixture" || { rm -rf -- "$test_root"; return 1; }
+    if read_gradle_property "$property_fixture" neoforge_version >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    printf 'neoforge_version=21.1.248\r' > "$property_fixture" \
+        || { rm -rf -- "$test_root"; return 1; }
+    if read_gradle_property "$property_fixture" neoforge_version >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    printf 'neoforge_version=21.1.248\rspoof\n' > "$property_fixture" \
+        || { rm -rf -- "$test_root"; return 1; }
+    if read_gradle_property "$property_fixture" neoforge_version >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    REPORTS="$test_root/reports"
+    RUN_DIR="$test_root/run"
+    TS=selftest
+    mkdir -p "$REPORTS" "$RUN_DIR/manifest.json" || return 1
+    printf 'preserve latest\n' > "$REPORTS/latest.json"
+    touch "$REPORTS/.stale"
+    START_FINGERPRINT="$(fingerprint)" || return 1
+    SOURCE_DRIFT=0
+    SOURCE_DRIFT_NOTE=''
+    if write_manifest PASS >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    [ -f "$REPORTS/.stale" ] \
+        && [ "$(cat "$REPORTS/latest.json")" = 'preserve latest' ] \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    rm -rf -- "$RUN_DIR/manifest.json"
+    /usr/bin/python3 -I - "$RUN_DIR/manifest.json" "$RUN_DIR" "$START_FINGERPRINT" <<'PYEOF'
+import json, sys
+path, run_dir, fingerprint = sys.argv[1:]
+json.dump({"overall": "PASS", "green_streak": 2,
+           "fingerprint": fingerprint, "artifacts": run_dir}, open(path, "w"))
+PYEOF
+    /usr/bin/python3 -I - "$REPORTS/latest.json" "$RUN_DIR" "$START_FINGERPRINT" <<'PYEOF'
+import json, sys
+path, run_dir, fingerprint = sys.argv[1:]
+json.dump({"overall": "PASS", "green_streak": 2,
+           "fingerprint": fingerprint, "artifacts": run_dir}, open(path, "w"))
+PYEOF
+    quarantine_own_latest
+    [ ! -e "$REPORTS/latest.json" ] \
+        && [ -f "$RUN_DIR/latest-quarantined-source-drift.json" ] \
+        && /usr/bin/python3 -I -c 'import json,sys; assert json.load(open(sys.argv[1]))["overall"] == "FAIL"' \
+            "$RUN_DIR/manifest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -rf -- "$test_root"
+}
+
+previous_green_streak_selftest() {
+    local test_root manifest valid seed fp mode got run_dir outside
+    local REPORTS ARTIFACTS
+    test_root=$(mktemp -d /tmp/hsqa-prior-streak.XXXXXX) || return 1
+    case "$(realpath -m -- "$test_root")" in
+        /tmp/hsqa-prior-streak.*) ;;
+        *) return 1 ;;
+    esac
+    REPORTS="$test_root/reports"
+    ARTIFACTS="$REPORTS/artifacts"
+    run_dir="$ARTIFACTS/valid-run"
+    manifest="$REPORTS/latest.json"
+    valid="$run_dir/manifest.json"
+    seed="$test_root/valid-seed.json"
+    mkdir -p "$run_dir" || { rm -rf -- "$test_root"; return 1; }
+    fp=$(fingerprint) || { rm -rf -- "$test_root"; return 1; }
+    /usr/bin/python3 -I - "$valid" "$fp" "$PROTOCOL_VERSION" "$run_dir" \
+            "${EXPECTED_FULL_SUITES[@]}" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+path, fingerprint, protocol, artifacts = sys.argv[1:5]
+suites = {name: {"status": "PASS", "note": "selftest"} for name in sys.argv[5:]}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump({"fingerprint": fingerprint, "protocol_version": protocol,
+               "overall": "PASS", "green_streak": 2,
+               "artifacts": artifacts, "suites": suites}, handle)
+PYEOF
+    cp -- "$valid" "$manifest" \
+        && cp -- "$valid" "$seed" \
+        || { rm -rf -- "$test_root"; return 1; }
+    got=$(previous_green_streak "$manifest" "$fp") \
+        || { rm -rf -- "$test_root"; return 1; }
+    [ "$got" = 2 ] || { rm -rf -- "$test_root"; return 1; }
+
+    for mode in malformed string bool negative overflow wrong_protocol \
+            wrong_fingerprint missing_roster extra_roster bad_status \
+            bad_visual missing_artifacts relative_artifacts; do
+        if [ "$mode" = malformed ]; then
+            printf '{"green_streak":' > "$manifest"
+            printf '{"green_streak":' > "$valid"
+        else
+            /usr/bin/python3 -I - "$seed" "$manifest" "$mode" <<'PYEOF' \
+                || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, destination, mode = sys.argv[1:]
+with open(source, encoding="utf-8") as handle:
+    manifest = json.load(handle)
+if mode == "string":
+    manifest["green_streak"] = "2"
+elif mode == "bool":
+    manifest["green_streak"] = True
+elif mode == "negative":
+    manifest["green_streak"] = -1
+elif mode == "overflow":
+    manifest["green_streak"] = 1_000_001
+elif mode == "wrong_protocol":
+    manifest["protocol_version"] = "0.0.0"
+elif mode == "wrong_fingerprint":
+    manifest["fingerprint"] = "0" * 64
+elif mode == "missing_roster":
+    manifest["suites"].pop("doctor")
+elif mode == "extra_roster":
+    manifest["suites"]["rogue"] = {"status": "PASS"}
+elif mode == "bad_status":
+    manifest["suites"]["doctor"]["status"] = "BLOCKED"
+elif mode == "bad_visual":
+    manifest["suites"]["visual"]["status"] = "SKIPPED"
+elif mode == "missing_artifacts":
+    manifest.pop("artifacts")
+elif mode == "relative_artifacts":
+    manifest["artifacts"] = "relative/run"
+with open(destination, "w", encoding="utf-8") as handle:
+    json.dump(manifest, handle)
+PYEOF
+            cp -- "$manifest" "$valid" \
+                || { rm -rf -- "$test_root"; return 1; }
+        fi
+        got=$(previous_green_streak "$manifest" "$fp") \
+            || { rm -rf -- "$test_root"; return 1; }
+        [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+    done
+
+    # A valid-looking latest file must not contribute a streak when its paired
+    # artifact is gone, outside the exact root, symlinked, or semantically
+    # different.  These are the evidence-forgery shapes the gate itself uses.
+    cp -- "$seed" "$manifest" && cp -- "$seed" "$valid" \
+        || { rm -rf -- "$test_root"; return 1; }
+    /usr/bin/python3 -I - "$manifest" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+path = sys.argv[1]
+value = json.load(open(path, encoding="utf-8"))
+value["tampered_latest_only"] = True
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(value, handle)
+PYEOF
+    got=$(previous_green_streak "$manifest" "$fp") || got=bad
+    [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+
+    cp -- "$seed" "$manifest" && cp -- "$seed" "$valid" \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -f -- "$valid"
+    got=$(previous_green_streak "$manifest" "$fp") || got=bad
+    [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+    cp -- "$seed" "$valid" || { rm -rf -- "$test_root"; return 1; }
+
+    outside="$test_root/outside-run"
+    mkdir -p "$outside"
+    /usr/bin/python3 -I - "$seed" "$manifest" "$outside/manifest.json" "$outside" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, latest, run_manifest, run_dir = sys.argv[1:]
+value = json.load(open(source, encoding="utf-8"))
+value["artifacts"] = run_dir
+for path in (latest, run_manifest):
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(value, handle)
+PYEOF
+    got=$(previous_green_streak "$manifest" "$fp") || got=bad
+    [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+
+    rm -rf -- "$run_dir"
+    mkdir -p "$outside/linked-run"
+    ln -s "$outside/linked-run" "$run_dir" \
+        || { rm -rf -- "$test_root"; return 1; }
+    /usr/bin/python3 -I - "$seed" "$manifest" "$outside/linked-run/manifest.json" "$run_dir" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, latest, run_manifest, run_dir = sys.argv[1:]
+value = json.load(open(source, encoding="utf-8"))
+value["artifacts"] = run_dir
+for path in (latest, run_manifest):
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(value, handle)
+PYEOF
+    got=$(previous_green_streak "$manifest" "$fp") || got=bad
+    [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+
+    rm -f -- "$run_dir" "$manifest"
+    ln -s "$seed" "$manifest" || { rm -rf -- "$test_root"; return 1; }
+    got=$(previous_green_streak "$manifest" "$fp") || got=bad
+    [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+    rm -f -- "$manifest" "$run_dir"
+    mkdir -p "$run_dir" && cp -- "$seed" "$manifest" && cp -- "$seed" "$valid" \
+        || { rm -rf -- "$test_root"; return 1; }
+    mv "$ARTIFACTS" "$REPORTS/artifacts-real" \
+        && ln -s "$REPORTS/artifacts-real" "$ARTIFACTS" \
+        || { rm -rf -- "$test_root"; return 1; }
+    got=$(previous_green_streak "$manifest" "$fp") || got=bad
+    [ "$got" = 0 ] || { rm -rf -- "$test_root"; return 1; }
+    rm -rf -- "$test_root"
+}
+
+full_attempt_contract_selftest() {
+    local test_root REPORTS ARTIFACTS RUN_DIR fp HSQA_REPORTS before after
+    local START_FINGERPRINT SOURCE_DRIFT SOURCE_DRIFT_NOTE TS sentinel
+    local suite valid_run_manifest outside symlink_target symlink_run
+    local snapshot_before snapshot_after saved_fingerprint toctou_marker
+    local toctou_expected_fingerprint
+    local GATE_FINAL_FP_SELFTEST_READY='' GATE_FINAL_FP_SELFTEST_HOLD=''
+    local toctou_worker toctou_worker_status gate_status
+    local -A SUITE_STATUS=() SUITE_NOTE=()
+    for suite in "${EXPECTED_FULL_SUITES[@]}"; do
+        SUITE_STATUS["$suite"]=PASS
+        SUITE_NOTE["$suite"]=selftest
+    done
+    test_root=$(mktemp -d /tmp/hsqa-full-attempt.XXXXXX) || return 1
+    case "$(realpath -m -- "$test_root")" in
+        /tmp/hsqa-full-attempt.*) ;;
+        *) return 1;;
+    esac
+    REPORTS="$test_root/reports"
+    ARTIFACTS="$REPORTS/artifacts"
+    mkdir -p "$ARTIFACTS" || { rm -rf -- "$test_root"; return 1; }
+    fp=$(fingerprint) || { rm -rf -- "$test_root"; return 1; }
+    HSQA_REPORTS="$REPORTS"
+    export HSQA_REPORTS
+    if after=$(cmd_gate 2>&1); then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    printf 'command: unavailable-service\nevidence: selftest\nresume: rerun full\n' \
+        > "$REPORTS/BLOCKED"
+    snapshot_before=$(read_only_fixture_snapshot "$test_root") \
+        || { rm -rf -- "$test_root"; return 1; }
+    if after=$(cmd_gate 2>&1); then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    snapshot_after=$(read_only_fixture_snapshot "$test_root") \
+        || { rm -rf -- "$test_root"; return 1; }
+    [ "$snapshot_before" = "$snapshot_after" ] \
+        || { rm -rf -- "$test_root"; return 1; }
+    printf '%s\n' "$after" | grep -q '^GATE: BLOCKED' \
+        && ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -f -- "$REPORTS/BLOCKED"
+    RUN_DIR="$ARTIFACTS/prior-pass"
+    mkdir -p "$RUN_DIR" || { rm -rf -- "$test_root"; return 1; }
+    /usr/bin/python3 -I - "$REPORTS/latest.json" "$RUN_DIR/manifest.json" "$RUN_DIR" \
+            "$fp" "$PROTOCOL_VERSION" \
+            "${EXPECTED_FULL_SUITES[@]}" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+latest, run_manifest, run_dir, fingerprint, protocol = sys.argv[1:6]
+suites = {name: {"status": "PASS", "note": "selftest"} for name in sys.argv[6:]}
+value = {"fingerprint": fingerprint, "protocol_version": protocol,
+         "overall": "PASS", "green_streak": 2, "suites": suites,
+         "artifacts": run_dir}
+for path in (latest, run_manifest):
+    with open(path, "w") as handle:
+        json.dump(value, handle)
+PYEOF
+    snapshot_before=$(read_only_fixture_snapshot "$test_root") \
+        || { rm -rf -- "$test_root"; return 1; }
+    before=$(cmd_gate 2>&1) \
+        || { rm -rf -- "$test_root"; return 1; }
+    snapshot_after=$(read_only_fixture_snapshot "$test_root") \
+        || { rm -rf -- "$test_root"; return 1; }
+    [ "$snapshot_before" = "$snapshot_after" ] \
+        || { rm -rf -- "$test_root"; return 1; }
+    printf '%s\n' "$before" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    cp "$REPORTS/latest.json" "$REPORTS/latest.valid.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+    valid_run_manifest="$RUN_DIR/manifest.valid.json"
+    cp "$RUN_DIR/manifest.json" "$valid_run_manifest" \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    # Mutate the source-fingerprint observation only after the final report
+    # snapshot has completed.  This exact ordering catches a gate whose final
+    # fingerprint still precedes a slow/fallible report snapshot.
+    saved_fingerprint=$(declare -f fingerprint) || return 1
+    toctou_expected_fingerprint="$fp"
+    toctou_marker="$test_root/fingerprint-toctou"
+    GATE_FINAL_FP_SELFTEST_READY="$test_root/final-fingerprint-ready"
+    GATE_FINAL_FP_SELFTEST_HOLD="$test_root/final-fingerprint-hold"
+    : > "$GATE_FINAL_FP_SELFTEST_HOLD" \
+        || { rm -rf -- "$test_root"; return 1; }
+    fingerprint() {
+        if [ -e "$toctou_marker" ]; then
+            printf '%064d\n' 0
+        else
+            printf '%s\n' "$toctou_expected_fingerprint"
+        fi
+    }
+    (
+        local attempt
+        for attempt in $(seq 1 500); do
+            [ -e "$GATE_FINAL_FP_SELFTEST_READY" ] && break
+            sleep 0.01
+        done
+        [ -e "$GATE_FINAL_FP_SELFTEST_READY" ] || exit 99
+        : > "$toctou_marker" || exit 98
+        rm -f -- "$GATE_FINAL_FP_SELFTEST_HOLD" || exit 97
+    ) &
+    toctou_worker=$!
+    after=$(cmd_gate 2>&1); gate_status=$?
+    wait "$toctou_worker"; toctou_worker_status=$?
+    eval "$saved_fingerprint"
+    GATE_FINAL_FP_SELFTEST_READY=''
+    GATE_FINAL_FP_SELFTEST_HOLD=''
+    if [ "$gate_status" -eq 0 ] || [ "$toctou_worker_status" -ne 0 ]; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    [ -e "$toctou_marker" ] \
+        && ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -f -- "$toctou_marker" "$test_root/final-fingerprint-ready"
+
+    mv "$REPORTS/latest.json" "$REPORTS/latest.plain.json" \
+        && ln -s "$REPORTS/latest.plain.json" "$REPORTS/latest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -f -- "$REPORTS/latest.json"
+    mv "$REPORTS/latest.plain.json" "$REPORTS/latest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    rm -f -- "$RUN_DIR/manifest.json"
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    cp "$valid_run_manifest" "$RUN_DIR/manifest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    /usr/bin/python3 -I - "$REPORTS/latest.json" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+path = sys.argv[1]
+value = json.load(open(path, encoding="utf-8"))
+value["latest_only_tamper"] = True
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(value, handle)
+PYEOF
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    cp "$REPORTS/latest.valid.json" "$REPORTS/latest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    outside="$test_root/outside-run"
+    mkdir -p "$outside" || { rm -rf -- "$test_root"; return 1; }
+    /usr/bin/python3 -I - "$REPORTS/latest.valid.json" "$REPORTS/latest.json" \
+            "$outside/manifest.json" "$outside" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, latest, run_manifest, run_dir = sys.argv[1:]
+value = json.load(open(source, encoding="utf-8"))
+value["artifacts"] = run_dir
+for path in (latest, run_manifest):
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(value, handle)
+PYEOF
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    symlink_target="$test_root/symlink-target"
+    symlink_run="$ARTIFACTS/symlink-run"
+    mkdir -p "$symlink_target" \
+        && ln -s "$symlink_target" "$symlink_run" \
+        || { rm -rf -- "$test_root"; return 1; }
+    /usr/bin/python3 -I - "$REPORTS/latest.valid.json" "$REPORTS/latest.json" \
+            "$symlink_target/manifest.json" "$symlink_run" <<'PYEOF' \
+        || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, latest, run_manifest, run_dir = sys.argv[1:]
+value = json.load(open(source, encoding="utf-8"))
+value["artifacts"] = run_dir
+for path in (latest, run_manifest):
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(value, handle)
+PYEOF
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -f -- "$symlink_run"
+    cp "$REPORTS/latest.valid.json" "$REPORTS/latest.json" \
+        && cp "$valid_run_manifest" "$RUN_DIR/manifest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+    local roster_mode
+    for roster_mode in missing extra unknown; do
+        /usr/bin/python3 -I - "$REPORTS/latest.valid.json" \
+                "$REPORTS/latest.json" "$RUN_DIR/manifest.json" "$roster_mode" <<'PYEOF' \
+            || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, latest, run_manifest, mode = sys.argv[1:]
+manifest = json.load(open(source))
+if mode == "missing":
+    manifest["suites"].pop("doctor")
+elif mode == "extra":
+    manifest["suites"]["rogue"] = {"status": "PASS", "note": "spoof"}
+else:
+    manifest["suites"]["doctor"]["status"] = "SKIPPED"
+for destination in (latest, run_manifest):
+    with open(destination, "w") as handle:
+        json.dump(manifest, handle)
+PYEOF
+        if after=$(cmd_gate 2>&1); then
+            rm -rf -- "$test_root"
+            return 1
+        fi
+        ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+            || { rm -rf -- "$test_root"; return 1; }
+    done
+    cp "$REPORTS/latest.valid.json" "$REPORTS/latest.json" \
+        && cp "$valid_run_manifest" "$RUN_DIR/manifest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+    local streak_mode
+    for streak_mode in zero one bool string negative; do
+        /usr/bin/python3 -I - "$REPORTS/latest.valid.json" \
+                "$REPORTS/latest.json" "$RUN_DIR/manifest.json" "$streak_mode" <<'PYEOF' \
+            || { rm -rf -- "$test_root"; return 1; }
+import json, sys
+source, latest, run_manifest, mode = sys.argv[1:]
+manifest = json.load(open(source))
+manifest["green_streak"] = {
+    "zero": 0, "one": 1, "bool": True, "string": "2", "negative": -1
+}[mode]
+for destination in (latest, run_manifest):
+    with open(destination, "w") as handle:
+        json.dump(manifest, handle)
+PYEOF
+        if after=$(cmd_gate 2>&1); then
+            rm -rf -- "$test_root"
+            return 1
+        fi
+        ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+            || { rm -rf -- "$test_root"; return 1; }
+    done
+    cp "$REPORTS/latest.valid.json" "$REPORTS/latest.json" \
+        && cp "$valid_run_manifest" "$RUN_DIR/manifest.json" \
+        || { rm -rf -- "$test_root"; return 1; }
+    mark_full_attempt_in_progress \
+        || { rm -rf -- "$test_root"; return 1; }
+    if after=$(cmd_gate 2>&1); then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    printf '%s\n' "$after" | grep -q '^GATE: FAIL' \
+        && ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        && [ -f "$REPORTS/.stale" ] \
+        && [ -f "$REPORTS/latest.json" ] \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    rm -f -- "$REPORTS/.stale"
+    mkdir "$REPORTS/.stale" || { rm -rf -- "$test_root"; return 1; }
+    if mark_full_attempt_in_progress >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    rmdir "$REPORTS/.stale" || { rm -rf -- "$test_root"; return 1; }
+
+    sentinel="$test_root/external-sentinel"
+    printf 'preserve\n' > "$sentinel"
+    ln -s "$sentinel" "$REPORTS/.stale" \
+        || { rm -rf -- "$test_root"; return 1; }
+    if mark_full_attempt_in_progress >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    RUN_DIR="$test_root/pass-run"
+    mkdir -p "$RUN_DIR"
+    START_FINGERPRINT="$fp"
+    SOURCE_DRIFT=0
+    SOURCE_DRIFT_NOTE=''
+    TS=selftest
+    if write_manifest PASS >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    [ "$(cat "$sentinel")" = preserve ] \
+        && [ -L "$REPORTS/.stale" ] \
+        && ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+
+    rm -f -- "$REPORTS/.stale"
+    RUN_DIR="$test_root/missing-marker-run"
+    mkdir -p "$RUN_DIR"
+    if write_manifest PASS >/dev/null 2>&1; then
+        rm -rf -- "$test_root"
+        return 1
+    fi
+    after=$(cmd_gate 2>&1) && { rm -rf -- "$test_root"; return 1; }
+    [ -f "$REPORTS/.stale" ] \
+        && [ ! -L "$REPORTS/.stale" ] \
+        && [ ! -e "$REPORTS/latest.json" ] \
+        && ! printf '%s\n' "$after" | grep -q '^GATE: PASS' \
+        || { rm -rf -- "$test_root"; return 1; }
+    rm -rf -- "$test_root"
+}
+
+controller_startup_hermeticity_selftest() (
+    local test_root='' sentinel hook output errors status=0 canonical quoted_sentinel
+    cleanup_controller_startup_selftest() {
+        local cleanup_status=$?
+        trap - EXIT INT TERM
+        if [ -n "$test_root" ]; then
+            canonical=$(/usr/bin/realpath -m -- "$test_root") || exit 125
+            case "$canonical" in /tmp/hsqa-controller-env.*) ;;
+                *) exit 125;;
+            esac
+            [ "$canonical" = "$test_root" ] && [ -d "$test_root" ] \
+                && [ ! -L "$test_root" ] || exit 125
+            /usr/bin/rm -rf -- "$test_root" || exit 125
+            [ ! -e "$test_root" ] && [ ! -L "$test_root" ] || exit 125
+        fi
+        exit "$cleanup_status"
+    }
+    trap cleanup_controller_startup_selftest EXIT INT TERM
+    test_root=$(/usr/bin/mktemp -d /tmp/hsqa-controller-env.XXXXXX) || return 1
+    test_root=$(/usr/bin/realpath -e -- "$test_root") || return 1
+    /usr/bin/chmod 700 -- "$test_root" || return 1
+    sentinel="$test_root/pre-controller-executed"
+    hook="$test_root/bash-env"
+    output="$test_root/stdout"
+    errors="$test_root/stderr"
+    /usr/bin/printf '/usr/bin/touch %q\n' "$sentinel" > "$hook" || return 1
+    /usr/bin/mkdir -m 700 -- "$test_root/python" "$test_root/bin" || return 1
+    /usr/bin/printf 'open("%s", "a").write("python-hook\\n")\n' \
+        "$sentinel" > "$test_root/python/sitecustomize.py" || return 1
+    /usr/bin/printf '#!/bin/sh\n/usr/bin/touch %q\nexit 94\n' "$sentinel" \
+        > "$test_root/bin/python3" || return 1
+    /usr/bin/chmod 700 -- "$test_root/bin/python3" || return 1
+
+    # Exported functions are a second pre-script execution channel distinct
+    # from BASH_ENV.  The controller's /bin/bash -p shebang must reject both
+    # before any path, report, lock or process authority is accepted.
+    quoted_sentinel=$(/usr/bin/printf '%q' "$sentinel") || return 1
+    builtin eval "python3() { /usr/bin/touch $quoted_sentinel; return 95; }"
+    builtin eval "realpath() { /usr/bin/touch $quoted_sentinel; return 96; }"
+    builtin eval "bash() { /usr/bin/touch $quoted_sentinel; return 97; }"
+    export -f python3 realpath bash
+    /usr/bin/timeout --foreground --kill-after=2 30 \
+        /usr/bin/env \
+            "PATH=$test_root/bin" "HOME=$test_root/hostile-home" \
+            "BASH_ENV=$hook" "ENV=$hook" "CDPATH=$test_root" \
+            "PYTHONPATH=$test_root/python" \
+            "PYTHONSTARTUP=$test_root/python/sitecustomize.py" \
+            "PYTHONHOME=$test_root/python" PYTHONINSPECT=1 \
+            PYTHONWARNINGS=error "SHELLOPTS=xtrace:braceexpand" \
+            "BASHOPTS=extdebug:sourcepath" "PS4=$(/usr/bin/printf '%q' ': hostile ')" \
+            "GLOBIGNORE=*" HSQA_REPO=/ HSQA_REPORTS=/ \
+            HSQA_ARTIFACTS=/ HSQA_SAFE_TMP_ROOT=/ HSQA_PIDDIR=/ \
+            HSQA_INST_ROOT=/ HSQA_INSTALL_DIR=/ \
+            HSQA_CLIENT_INSTALL_DIR=/ HSQA_TMUX_SOCKET=/ \
+            HSQA_GAMETEST_NAMESPACE=active HSQA_ENV_CLEANED=1 \
+            "$CONTROLLER_PATH" help > "$output" 2> "$errors" \
+        || status=$?
+    if [ "$status" -eq 0 ] && [ ! -e "$sentinel" ] \
+            && [ ! -L "$sentinel" ] && [ ! -s "$errors" ] \
+            && /usr/bin/grep -q '^commands:' "$output"; then
+        return 0
+    fi
+    echo "controller startup hermeticity selftest: FAIL status=$status sentinel=$([ -e "$sentinel" ] && echo present || echo absent)" >&2
+    /usr/bin/sed 's/^/  stdout: /' "$output" >&2 2>/dev/null || true
+    /usr/bin/sed 's/^/  stderr: /' "$errors" >&2 2>/dev/null || true
+    return 1
+)
+
+controller_contract_selftest() { # [all|full-attempt|release-client-gate]
+    # A focused, non-Minecraft entry point for the controller's own fail-closed
+    # contracts. Keep it behind the host-global suite lock: cmd_gate observes
+    # canonical process state even though every fixture artifact below lives in
+    # an authenticated, disposable /tmp directory.
+    local selection="${1:-all}" contract order
+    if [ "$selection" = full-attempt ]; then
+        if ! ( full_attempt_contract_selftest ); then
+            echo "controller contract selftest: FAIL (targeted:full_attempt_contract_selftest)" >&2
+            return 1
+        fi
+        echo "controller contract selftest: PASS (targeted full-attempt)"
+        return 0
+    fi
+    if [ "$selection" = release-client-gate ]; then
+        if ! ( release_client_gate_argument_contract_selftest ); then
+            echo "controller contract selftest: FAIL (targeted:release_client_gate_argument_contract_selftest)" >&2
+            return 1
+        fi
+        echo "controller contract selftest: PASS (targeted release-client-gate)"
+        return 0
+    fi
+    [ "$selection" = all ] || {
+        echo "controller contract selftest: invalid selection" >&2
+        return 2
+    }
+    local -a original_order=(fingerprint_contract_selftest \
+        manifest_contract_selftest previous_green_streak_selftest \
+        full_attempt_contract_selftest normal_gametest_verdict_selftest \
+        release_client_gate_argument_contract_selftest)
+    local -a reversed_order=(normal_gametest_verdict_selftest \
+        release_client_gate_argument_contract_selftest full_attempt_contract_selftest \
+        previous_green_streak_selftest manifest_contract_selftest \
+        fingerprint_contract_selftest)
+    for order in original reversed; do
+        local -n contract_order="${order}_order"
+        for contract in "${contract_order[@]}"; do
+            # Every contract gets a fresh process image. A PASS must never
+            # depend on a prior selftest's globals, exported attributes,
+            # function overrides, traps, umask or working directory.
+            if ! ( "$contract" ); then
+                echo "controller contract selftest: FAIL ($order:$contract)" >&2
+                return 1
+            fi
+        done
+        unset -n contract_order
+    done
+    echo "controller contract selftest: PASS (isolated original+reversed order)"
 }
 
 suite_doctor() {
@@ -153,26 +1584,57 @@ suite_doctor() {
     java -version 2>&1 | grep -q 'version "21' || problems+="java21-missing "
     [ -x "$MOD/gradlew" ] || problems+="gradlew-missing "
     [ -f "$QA/PROTOCOL.md" ] || problems+="protocol-missing "
-    python3 -c "import PIL" 2>/dev/null || problems+="pillow-missing "
+    [ -f "$QA/release_client_matrix.json" ] || problems+="release-client-matrix-missing "
+    /usr/bin/python3 -I -c "import PIL" 2>/dev/null || problems+="pillow-missing "
     command -v Xvfb >/dev/null || problems+="xvfb-missing(client-suite-blocked) "
     command -v tmux >/dev/null || problems+="tmux-missing(live-suite-blocked) "
     command -v lsof >/dev/null || problems+="lsof-missing(port-detection-unreliable) "
     command -v ffmpeg >/dev/null || problems+="ffmpeg-missing(film-blocked) "
-    python3 "$QA/hooks/test_bash_guard.py" >/dev/null 2>&1 || problems+="bash_guard-selftest-failed "
-    bash "$QA/scripts/reap.sh" selftest >/dev/null 2>&1 || problems+="reap-matcher-selftest-failed "
+    /usr/bin/python3 -I "$QA/hooks/test_bash_guard.py" >/dev/null 2>&1 || problems+="bash_guard-selftest-failed "
+    /bin/bash --noprofile --norc -p "$QA/scripts/reap.sh" selftest \
+        >/dev/null 2>&1 || problems+="reap-matcher-selftest-failed "
+    /bin/bash --noprofile --norc -p "$QA/scripts/test_tmux_tracked.sh" \
+        >/dev/null 2>&1 || problems+="tmux-tracked-selftest-failed "
     # KF-021: a GameTest fixture that registers a live settlement and
     # hand-builds a Building but never places a plaque is one edit away from
     # BuildingManager's sweep silently dissolving it. Run the script
     # directly (python3 qa/scripts/check_fixture_plaques.py) for the full,
     # per-file explanation this terse tag doesn't carry.
-    python3 "$QA/scripts/check_fixture_plaques.py" >/dev/null 2>&1 || problems+="fixture-plaque-guard-failed "
+    /usr/bin/python3 -I "$QA/scripts/check_fixture_plaques.py" >/dev/null 2>&1 || problems+="fixture-plaque-guard-failed "
+    qa_eol_preflight >/dev/null 2>&1 || problems+="qa-executable-crlf-drift "
+    normal_gametest_verdict_selftest >/dev/null 2>&1 \
+        || problems+="normal-gametest-verdict-selftest-failed "
+    /usr/bin/python3 -I "$QA/scripts/test_perf_probe_safety.py" >/dev/null 2>&1 \
+        || problems+="perf-probe-safety-selftest-failed "
+    /usr/bin/python3 -I "$QA/scripts/test_client_frame_stats.py" >/dev/null 2>&1 \
+        || problems+="client-frame-stats-selftest-failed "
+    /usr/bin/python3 -I "$QA/scripts/test_release_client_evidence.py" >/dev/null 2>&1 \
+        || problems+="release-client-evidence-selftest-failed "
+    release_client_gate_argument_contract_selftest >/dev/null 2>&1 \
+        || problems+="release-client-gate-argument-selftest-failed "
+    /bin/bash --noprofile --norc -p "$QA/scripts/test_safe_paths.sh" >/dev/null 2>&1 \
+        || problems+="safe-path-selftest-failed "
+    /bin/bash --noprofile --norc -p "$QA/scripts/test_harness_artifacts.sh" >/dev/null 2>&1 \
+        || problems+="harness-artifact-selftest-failed "
+    manifest_contract_selftest >/dev/null 2>&1 \
+        || problems+="manifest-contract-selftest-failed "
+    previous_green_streak_selftest >/dev/null 2>&1 \
+        || problems+="previous-green-streak-selftest-failed "
+    full_attempt_contract_selftest >/dev/null 2>&1 \
+        || problems+="full-attempt-stale-selftest-failed "
+    controller_startup_hermeticity_selftest >/dev/null 2>&1 \
+        || problems+="controller-startup-hermeticity-selftest-failed "
+    /bin/bash --noprofile --norc -p "$QA/scripts/source_fingerprint.sh" --selftest >/dev/null 2>&1 \
+        || problems+="source-fingerprint-selftest-failed "
+    fingerprint_contract_selftest >/dev/null 2>&1 \
+        || problems+="fingerprint-contract-selftest-failed "
     if [ -z "$problems" ]; then record doctor PASS "toolchain ok"
     else record doctor FAIL "$problems"; return 1; fi
 }
 
 suite_assets() {
     mkdir -p "$RUN_DIR"
-    if (cd "$MOD" && python3 tools/validate_assets.py --quiet > "$RUN_DIR/assets.log" 2>&1); then
+    if (cd "$MOD" && /usr/bin/python3 -I tools/validate_assets.py --quiet > "$RUN_DIR/assets.log" 2>&1); then
         record assets PASS "$(tail -1 "$RUN_DIR/assets.log")"
     else
         record assets FAIL "$(tail -3 "$RUN_DIR/assets.log" | tr '\n' ' ')"; return 1
@@ -181,7 +1643,7 @@ suite_assets() {
 
 suite_animation() {
     mkdir -p "$RUN_DIR"
-    if (cd "$MOD/tools" && python3 anim_check.py > "$RUN_DIR/animation.log" 2>&1); then
+    if (cd "$MOD/tools" && /usr/bin/python3 -I anim_check.py > "$RUN_DIR/animation.log" 2>&1); then
         record animation PASS "$(tail -1 "$RUN_DIR/animation.log")"
     else
         record animation FAIL "$(tail -3 "$RUN_DIR/animation.log" | tr '\n' ' ')"; return 1
@@ -190,10 +1652,15 @@ suite_animation() {
 
 suite_build() {
     mkdir -p "$RUN_DIR"
-    if (cd "$MOD" && ./gradlew --quiet clean build > "$RUN_DIR/build.log" 2>&1); then
+    local build_status=0
+    run_controller_tracked_group controller-build controller-build \
+        /bin/bash --noprofile --norc -p -c 'mod=$1; log=$2; cd "$mod" || exit 2; exec timeout --foreground --kill-after=10 900 ./gradlew --no-daemon --quiet clean build > "$log" 2>&1' \
+        hsqa-controller-build "$MOD" "$RUN_DIR/build.log" \
+        || build_status=$?
+    if [ "$build_status" -eq 0 ]; then
         record build PASS "jar: $(ls "$MOD"/build/libs/*.jar 2>/dev/null | head -1)"
     else
-        record build FAIL "$(grep -m3 -E 'error|FAILURE' "$RUN_DIR/build.log" | tr '\n' ' ')"; return 1
+        record build FAIL "exit=$build_status $(grep -m3 -E 'error|FAILURE' "$RUN_DIR/build.log" | tr '\n' ' ')"; return 1
     fi
 }
 
@@ -220,9 +1687,192 @@ suite_build() {
 #
 # Only `world` is removed. mods/, config/ and server.properties are the
 # installation, not the state under test.
+CONTROLLER_CHILD_ROLE=''
+CONTROLLER_CHILD_PID=''
+CONTROLLER_CHILD_PGID=''
+CONTROLLER_CHILD_RECORD=''
+
+controller_child_cleanup() {
+    local cleanup_status=0
+    if [ -n "$CONTROLLER_CHILD_RECORD" ]; then
+        hsqa_stop_tracked "$CONTROLLER_CHILD_ROLE" "$CONTROLLER_CHILD_RECORD" \
+            || cleanup_status=1
+    fi
+    if [ "$cleanup_status" -eq 0 ]; then
+        CONTROLLER_CHILD_ROLE=''
+        CONTROLLER_CHILD_PID=''
+        CONTROLLER_CHILD_PGID=''
+        CONTROLLER_CHILD_RECORD=''
+    fi
+    return "$cleanup_status"
+}
+
+controller_child_signal() { # <130|143>
+    local signal_status="${1:-125}" cleanup_status=0
+    trap - INT TERM
+    controller_child_cleanup || cleanup_status=1
+    if [ "$cleanup_status" -ne 0 ]; then
+        echo "FATAL: controller interrupt could not prove exact child-group absence; recovery record retained" >&2
+        exit 125
+    fi
+    exit "$signal_status"
+}
+
+run_controller_tracked_group() { # <role> <identity> <command> [args...]
+    local role="$1" identity="$2" launch_status child_status cleanup_status=0
+    shift 2
+    if [ -n "$CONTROLLER_CHILD_RECORD" ] \
+            || { [ -n "$CONTROLLER_CHILD_PGID" ] \
+                && kill -0 -- "-$CONTROLLER_CHILD_PGID" 2>/dev/null; }; then
+        echo "FATAL: refusing a second controller child while prior recovery authority remains" >&2
+        return 125
+    fi
+    CONTROLLER_CHILD_ROLE="$role"
+    CONTROLLER_CHILD_PID=''
+    CONTROLLER_CHILD_PGID=''
+    CONTROLLER_CHILD_RECORD=''
+    hsqa_launch_tracked_group "$role" "$identity" controller_child_signal \
+        CONTROLLER_CHILD_PID CONTROLLER_CHILD_PGID CONTROLLER_CHILD_RECORD \
+        CONTROLLER_CHILD_ROLE \
+        "$@"
+    launch_status=$?
+    if [ "$launch_status" -ne 0 ]; then
+        if [ -n "$CONTROLLER_CHILD_RECORD" ]; then
+            controller_child_cleanup || return 125
+        elif [ -z "$CONTROLLER_CHILD_PGID" ] \
+                || ! kill -0 -- "-$CONTROLLER_CHILD_PGID" 2>/dev/null; then
+            CONTROLLER_CHILD_ROLE=''
+            CONTROLLER_CHILD_PID=''
+            CONTROLLER_CHILD_PGID=''
+            CONTROLLER_CHILD_RECORD=''
+        fi
+        return "$launch_status"
+    fi
+    wait "$CONTROLLER_CHILD_PID"
+    child_status=$?
+    controller_child_cleanup || cleanup_status=1
+    [ "$cleanup_status" -eq 0 ] || return 125
+    return "$child_status"
+}
+
+run_normal_gametest_process() { # <identity> <log> [trace-file]
+    local identity="$1" log="$2" trace="${3:-}"
+    if [ -n "$trace" ]; then
+        run_controller_tracked_group controller-gametest "$identity" \
+            /bin/bash --noprofile --norc -p -c 'mod=$1; log=$2; trace=$3; cd "$mod" || exit 2; exec /usr/bin/env -u HSQA_GAMETEST_NAMESPACE HSQA_TRACE=1 HSQA_TRACE_FILE="$trace" ./gradlew --no-daemon runGameTestServer > "$log" 2>&1' \
+            hsqa-controller-gametest "$MOD" "$log" "$trace"
+    else
+        run_controller_tracked_group controller-gametest "$identity" \
+            /bin/bash --noprofile --norc -p -c 'mod=$1; log=$2; cd "$mod" || exit 2; exec /usr/bin/env -u HSQA_GAMETEST_NAMESPACE ./gradlew --no-daemon runGameTestServer > "$log" 2>&1' \
+            hsqa-controller-gametest "$MOD" "$log"
+    fi
+}
+
 run_gametests() { # extra JVM props via $1
-    rm -rf "$MOD/run/world"
-    (cd "$MOD" && ./gradlew runGameTestServer > "$RUN_DIR/gametest.log" 2>&1)
+    if ! hsqa_clear_gametest_world "$MOD"; then
+        printf 'FAIL: refused unsafe GameTest world cleanup\n' \
+            > "$RUN_DIR/gametest.log"
+        return 2
+    fi
+    run_normal_gametest_process normal-gametest "$RUN_DIR/gametest.log"
+}
+
+normal_gametest_verdict() { # <log>
+    local log="$1" exact_count any_count success_tokens failure_tokens
+    exact_count=$(grep -cE \
+        "^[[:space:]]*\[[^]]+\] \[Server thread/INFO\] \[(minecraft/GameTestServer|net\\.minecraft\\.gametest\\.framework\\.GameTestServer/)\]: All $EXPECTED_REQUIRED_GAMETESTS required tests passed :\\)$" \
+        "$log" 2>/dev/null || true)
+    any_count=$(grep -cE \
+        '^[[:space:]]*\[[^]]+\] \[Server thread/INFO\] \[(minecraft/GameTestServer|net\.minecraft\.gametest\.framework\.GameTestServer/)\]: All [0-9]+ required tests passed :\)$' \
+        "$log" 2>/dev/null || true)
+    # The canonical success emitter is deliberately case-exact, but every
+    # success/failure token family is counted case-insensitively. Otherwise a
+    # second malformed trusted summary such as `REQUIRED TESTS PASSED` could
+    # coexist with the canonical line and leave this judge falsely green.
+    success_tokens=$(grep -Eic 'required[[:space:]]+tests[[:space:]]+passed' \
+        "$log" 2>/dev/null || true)
+    failure_tokens=$(grep -Eic 'required[[:space:]]+tests[[:space:]]+failed' \
+        "$log" 2>/dev/null || true)
+    [ "$exact_count" -eq 1 ] && [ "$any_count" -eq 1 ] \
+        && [ "$success_tokens" -eq 1 ] && [ "$failure_tokens" -eq 0 ] \
+        && ! grep -qiE \
+            'hearthstead_active_perf|HSQA_ACTIVE_BLESSING_RESULT|active_blessing_scale_' \
+            "$log" 2>/dev/null
+}
+
+normal_gametest_verdict_selftest() {
+    local log
+    log=$(mktemp)
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        > "$log"
+    normal_gametest_verdict "$log" || { rm -f "$log"; return 1; }
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [co.example.Mod]: embedded [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 4 required tests passed :)' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :) injected' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/ERROR] [minecraft/GameTestServer]: 1 required tests failed :(' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :) injected' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/INFO] [co.example.Mod]: embedded [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        "[00:00:01] [Server thread/INFO] [minecraft/GameTestRunner]: Running test batch 'active_blessing_scale_001:0' (1 tests)..." \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/INFO] [co.example.Mod]: injected 1 required tests failed :(' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/INFO] [minecraft/GameTestServer]: All 600 ReQuIrEd TeStS PaSsEd :)' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/ERROR] [minecraft/GameTestServer]: 1 REQUIRED TESTS FAILED :(' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+
+    printf '%s\n' \
+        '[00:00:00] [Server thread/INFO] [minecraft/GameTestServer]: All 600 required tests passed :)' \
+        '[00:00:01] [Server thread/INFO] [co.example.Mod]: HEARTHSTEAD_ACTIVE_PERF' \
+        > "$log"
+    if normal_gametest_verdict "$log"; then rm -f "$log"; return 1; fi
+    rm -f "$log"
 }
 
 # The complete failure evidence for a GameTest log, written whole.
@@ -301,32 +1951,44 @@ gametest_failcount() { # $1 = log
 
 suite_gametest() {
     mkdir -p "$RUN_DIR"
-    run_gametests ""
-    if grep -q "required tests passed" "$RUN_DIR/gametest.log"; then
-        record gametest PASS "$(grep -o 'All [0-9]* required tests passed' "$RUN_DIR/gametest.log" | tail -1)"
+    local gradle_status=0
+    run_gametests "" || gradle_status=$?
+    if [ "$gradle_status" -eq 0 ] \
+            && normal_gametest_verdict "$RUN_DIR/gametest.log"; then
+        record gametest PASS \
+            "All $EXPECTED_REQUIRED_GAMETESTS required tests passed"
     else
         local fails; fails=$(gametest_failcount "$RUN_DIR/gametest.log")
         gametest_evidence "$RUN_DIR/gametest.log" "$RUN_DIR/gametest-failures.txt"
-        record gametest FAIL "failures=$fails see gametest-failures.txt"; return 1
+        record gametest FAIL \
+            "gradle_exit=$gradle_status expected exactly one All $EXPECTED_REQUIRED_GAMETESTS required tests passed; failures=$fails see gametest-failures.txt"
+        return 1
     fi
 }
 
 suite_behavior() {
     mkdir -p "$RUN_DIR"
     local trace="$RUN_DIR/trace-raw.jsonl"
+    local gradle_status=0
     rm -f "$trace"
-    rm -rf "$MOD/run/world"   # same reason as run_gametests above
-    (cd "$MOD" && HSQA_TRACE=1 HSQA_TRACE_FILE="$trace" ./gradlew runGameTestServer \
-        > "$RUN_DIR/behavior.log" 2>&1)
-    if ! grep -q "required tests passed" "$RUN_DIR/behavior.log"; then
+    if ! hsqa_clear_gametest_world "$MOD"; then
+        record behavior FAIL "refused unsafe GameTest world cleanup"
+        return 1
+    fi
+    run_normal_gametest_process behavior-gametest "$RUN_DIR/behavior.log" "$trace" \
+        || gradle_status=$?
+    if [ "$gradle_status" -ne 0 ] \
+            || ! normal_gametest_verdict "$RUN_DIR/behavior.log"; then
         gametest_evidence "$RUN_DIR/behavior.log" "$RUN_DIR/behavior-failures.txt"
-        record behavior FAIL "gametests failed under trace"; return 1
+        record behavior FAIL \
+            "gradle_exit=$gradle_status expected exactly one All $EXPECTED_REQUIRED_GAMETESTS required tests passed under trace"
+        return 1
     fi
     if [ ! -s "$trace" ]; then
         record behavior FAIL "no decision trace produced"; return 1
     fi
     cp "$trace" "$RUN_DIR/trace.jsonl"
-    if python3 "$QA/scripts/analyze_trace.py" "$RUN_DIR/trace.jsonl" \
+    if /usr/bin/python3 -I "$QA/scripts/analyze_trace.py" "$RUN_DIR/trace.jsonl" \
         > "$RUN_DIR/behavior-analysis.txt" 2>&1; then
         record behavior PASS "$(tail -1 "$RUN_DIR/behavior-analysis.txt")"
     else
@@ -336,16 +1998,40 @@ suite_behavior() {
 
 suite_dedicated() {
     mkdir -p "$RUN_DIR"
-    if bash "$QA/scripts/dedicated_e2e.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/dedicated.log" 2>&1; then
+    if /bin/bash --noprofile --norc -p "$QA/scripts/dedicated_e2e.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/dedicated.log" 2>&1; then
         record dedicated PASS "$(tail -1 "$RUN_DIR/dedicated.log")"
     else
         record dedicated FAIL "$(tail -4 "$RUN_DIR/dedicated.log" | tr '\n' ' ')"; return 1
     fi
 }
 
+suite_blessing_restart() {
+    mkdir -p "$RUN_DIR"
+    if timeout --foreground 900 /bin/bash --noprofile --norc -p \
+        "$QA/scripts/blessing_restart_probe.sh" "$MOD" "$RUN_DIR" \
+        > "$RUN_DIR/blessing-restart.log" 2>&1; then
+        local note
+        if note=$(explicit_success_note "$RUN_DIR/blessing-restart.log" \
+                'blessing restart ok:'); then
+            # This suite boots a real client and server three times.  Keep its
+            # wall time in the manifest note instead of hiding that cost
+            # behind a generic PASS label.
+            record blessing_restart PASS "$note"
+        else
+            record blessing_restart FAIL \
+                "suite exited 0 but explicit success marker is missing - see blessing-restart.log"
+            return 1
+        fi
+    else
+        record blessing_restart FAIL \
+            "$(tail -6 "$RUN_DIR/blessing-restart.log" | tr '\n' ' ')"
+        return 1
+    fi
+}
+
 suite_performance() {
     mkdir -p "$RUN_DIR"
-    if bash "$QA/scripts/perf_probe.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/performance.log" 2>&1; then
+    if /bin/bash --noprofile --norc -p "$QA/scripts/perf_probe.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/performance.log" 2>&1; then
         record performance PASS "$(tail -1 "$RUN_DIR/performance.log")"
     else
         record performance FAIL "$(tail -4 "$RUN_DIR/performance.log" | tr '\n' ' ')"; return 1
@@ -357,7 +2043,7 @@ suite_client() {
     if ! command -v Xvfb >/dev/null; then
         record client BLOCKED "Xvfb unavailable; run 'tools/hearthstead-qa client' on a desktop"; return 0
     fi
-    if bash "$QA/scripts/client_boot.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/client.log" 2>&1; then
+    if /bin/bash --noprofile --norc -p "$QA/scripts/client_boot.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/client.log" 2>&1; then
         local note
         if note=$(explicit_success_note "$RUN_DIR/client.log" 'client boot ok under Xvfb;'); then
             record client PASS "$note"
@@ -385,7 +2071,7 @@ suite_visual() {
 
 cmd_changed() {
     local base="HEAD"
-    [ -f "$REPORTS/latest.json" ] && base=$(python3 -c "import json;print(json.load(open('$REPORTS/latest.json')).get('git_commit','HEAD'))")
+    [ -f "$REPORTS/latest.json" ] && base=$(/usr/bin/python3 -I -c "import json;print(json.load(open('$REPORTS/latest.json')).get('git_commit','HEAD'))")
     { git -C "$REPO" diff --name-only "$base" 2>/dev/null; git -C "$REPO" status --porcelain | awk '{print $2}'; } | sort -u | while read -r f; do
         [ -z "$f" ] && continue
         case "$f" in
@@ -402,8 +2088,112 @@ cmd_changed() {
     done
 }
 
+harness_cleanliness_check() {
+    local -a clean_env
+    clean_env=("PATH=$HSQA_SYSTEM_PATH" "HOME=$HOME" "LANG=C.UTF-8"
+        "LC_ALL=C" "SHELL=/bin/bash" "TERM=xterm-256color" "TMPDIR=/tmp")
+    if [ -n "${HSQA_REAP_FIXTURE_ROOT:-}" ]; then
+        clean_env+=("HSQA_REAP_FIXTURE_ROOT=$HSQA_REAP_FIXTURE_ROOT"
+            "HSQA_REAP_FIXTURE_TOKEN=$HSQA_REAP_FIXTURE_TOKEN")
+    fi
+    /usr/bin/env -i "${clean_env[@]}" \
+        /bin/bash --noprofile --norc -p "$QA/scripts/reap.sh" check
+}
+
+gate_state_snapshot() { # read-only digest of every gate-deciding report entry
+    /usr/bin/python3 -I - "$REPORTS" <<'PYEOF'
+import hashlib, json, os, stat, sys
+
+root = sys.argv[1]
+digest = hashlib.sha256()
+
+def add(value):
+    digest.update(value.encode("utf-8", "surrogateescape"))
+    digest.update(b"\0")
+
+def describe(path, label, hash_bytes=False):
+    add(label)
+    try:
+        value = os.lstat(path)
+    except FileNotFoundError:
+        add("ABSENT")
+        return None
+    except OSError as exc:
+        raise SystemExit(f"snapshot failed for {label}: {exc}")
+    add(f"{value.st_dev}:{value.st_ino}:{value.st_mode}:{value.st_nlink}:"
+        f"{value.st_uid}:{value.st_size}:{value.st_mtime_ns}")
+    if hash_bytes and stat.S_ISREG(value.st_mode):
+        with open(path, "rb") as handle:
+            add(hashlib.sha256(handle.read()).hexdigest())
+    return value
+
+root_stat = describe(root, "reports")
+if root_stat is None or not stat.S_ISDIR(root_stat.st_mode):
+    raise SystemExit("reports directory is absent or not a directory")
+try:
+    entries = sorted(os.listdir(root))
+except OSError as exc:
+    raise SystemExit(f"reports listing failed: {exc}")
+for name in entries:
+    add("entry:" + name)
+    describe(os.path.join(root, name), "root:" + name,
+             name in ("latest.json", "BLOCKED", ".stale"))
+
+latest = os.path.join(root, "latest.json")
+try:
+    with open(latest, encoding="utf-8") as handle:
+        data = json.load(handle)
+    run = data.get("artifacts") if isinstance(data, dict) else None
+except Exception:
+    run = None
+if isinstance(run, str):
+    describe(run, "run-dir")
+    if os.path.isdir(run) and not os.path.islink(run):
+        try:
+            for name in sorted(os.listdir(run)):
+                add("run-entry:" + name)
+                describe(os.path.join(run, name), "run:" + name,
+                         name == "manifest.json")
+        except OSError as exc:
+            raise SystemExit(f"run listing failed: {exc}")
+print(digest.hexdigest())
+PYEOF
+}
+
+read_only_fixture_snapshot() { # <small fixture tree>; selftest metadata+byte proof
+    /usr/bin/python3 -I - "$1" <<'PYEOF'
+import hashlib, os, stat, sys
+root = sys.argv[1]
+digest = hashlib.sha256()
+for current, dirs, files in os.walk(root, topdown=True, followlinks=False):
+    dirs.sort(); files.sort()
+    for name in ["."] + dirs + files:
+        path = current if name == "." else os.path.join(current, name)
+        relative = os.path.relpath(path, root)
+        value = os.lstat(path)
+        digest.update(relative.encode("utf-8", "surrogateescape") + b"\0")
+        digest.update((f"{value.st_dev}:{value.st_ino}:{value.st_mode}:"
+                       f"{value.st_nlink}:{value.st_uid}:{value.st_size}:"
+                       f"{value.st_mtime_ns}").encode() + b"\0")
+        if stat.S_ISREG(value.st_mode):
+            with open(path, "rb") as handle:
+                digest.update(hashlib.sha256(handle.read()).digest())
+        elif stat.S_ISLNK(value.st_mode):
+            digest.update(os.readlink(path).encode("utf-8", "surrogateescape"))
+print(digest.hexdigest())
+PYEOF
+}
+
 cmd_gate() {
-    local fp; fp="$(fingerprint)"
+    local fp final_fp state_before state_after
+    if ! state_before="$(gate_state_snapshot)"; then
+        echo "GATE: FAIL — report state could not be snapshotted safely" >&2
+        return 2
+    fi
+    if ! fp="$(fingerprint)"; then
+        echo "GATE: FAIL — source fingerprint could not be computed" >&2
+        return 2
+    fi
     # Documented-blocker escape: qa/reports/BLOCKED must contain the failing
     # command, error evidence, work completed and the exact resume action.
     # It permits stopping with an honest "NOT READY — BLOCKED" only; it is
@@ -412,57 +2202,212 @@ cmd_gate() {
         echo "GATE: BLOCKED — external blocker documented in qa/reports/BLOCKED."
         echo "Completion status is NOT READY — BLOCKED (never PASS). Contents:"
         sed 's/^/  | /' "$REPORTS/BLOCKED"
-        return 0
+        return 2
     fi
     # AC-12: single-suite commands (doctor, dedicated, ...) never write
     # latest.json or clear .stale — only a full-scope `full` run may. So a
     # red/stale state with no latest.json means literally that: no
     # full-scope run exists yet, regardless of how many single suites ran.
-    if [ -f "$REPORTS/.stale" ] && [ ! -f "$REPORTS/latest.json" ]; then
-        echo "GATE: FAIL — no full-scope run exists yet (QA marked stale, no manifest). Run: tools/hearthstead-qa full"; return 2
-    fi
-    if [ ! -f "$REPORTS/latest.json" ]; then
-        if [ -f "$REPORTS/.stale" ]; then
-            echo "GATE: FAIL — no full-scope run exists yet (stale, no manifest). Run: tools/hearthstead-qa full"; return 2
-        fi
-        echo "GATE: PASS (no Hearthstead QA state and no Hearthstead edits this session)"; return 0
-    fi
-    python3 - "$fp" <<'PYEOF'
-import json, sys, os
-fp = sys.argv[1]
-m = json.load(open(os.path.join(os.environ["HSQA_REPORTS"], "latest.json")))
-problems = []
-if m.get("fingerprint") != fp:
-    problems.append("STALE: source changed since last QA run")
-if m.get("protocol_version") != os.environ["HSQA_PROTO"]:
-    problems.append("protocol version mismatch")
-if m.get("overall") != "PASS":
-    problems.append("last run overall=" + str(m.get("overall")))
-for name, s in m.get("suites", {}).items():
-    if s.get("status") == "FAIL":
-        problems.append(f"suite {name} FAIL: {s.get('note','')[:120]}")
-if problems:
-    print("GATE: FAIL")
-    for p in problems: print(" -", p)
-    print("Next: tools/hearthstead-qa full")
-    sys.exit(2)
-streak = m.get("green_streak", 0)
-print(f"GATE: PASS (green_streak={streak})")
-if streak < 2:
-    print("NOTE: completion claims need green_streak >= 2 "
-          "(run tools/hearthstead-qa full again with no changes)")
-PYEOF
-    local rc=$?
-    if [ -f "$REPORTS/.stale" ] && [ $rc -eq 0 ]; then
-        echo "GATE: FAIL — post-edit hook marked QA stale after the last run. Run: tools/hearthstead-qa full"
+    if [ -e "$REPORTS/.stale" ] || [ -L "$REPORTS/.stale" ]; then
+        echo "GATE: FAIL — QA is stale or a full run is incomplete. Run: tools/hearthstead-qa full"
         return 2
     fi
-    return $rc
+    if [ ! -f "$REPORTS/latest.json" ]; then
+        echo "GATE: FAIL — no current full-scope manifest exists. Run: tools/hearthstead-qa full"
+        return 2
+    fi
+    if ! harness_cleanliness_check; then
+        echo "GATE: FAIL — residual QA process, recovery record, session, display, or port detected."
+        echo "Inspect with: tools/hearthstead-qa reap check"
+        return 2
+    fi
+    local streak
+    if ! streak=$(/usr/bin/python3 -I "$QA/scripts/validate_full_manifest.py" \
+            "$REPORTS/latest.json" "$REPORTS" "$ARTIFACTS" \
+            "$fp" "$PROTOCOL_VERSION" 2 "${EXPECTED_FULL_SUITES[@]}" 2>&1); then
+        echo "GATE: FAIL — published full-run evidence is missing, unsafe, or inconsistent."
+        printf ' - %s\n' "$streak"
+        echo "Next: tools/hearthstead-qa full"
+        return 2
+    fi
+    if [ -e "$REPORTS/.stale" ] || [ -L "$REPORTS/.stale" ] \
+            || [ ! -f "$REPORTS/latest.json" ] \
+            || [ -L "$REPORTS/latest.json" ]; then
+        echo "GATE: FAIL — completion evidence changed during gate validation."
+        return 2
+    fi
+    if ! state_after="$(gate_state_snapshot)" \
+            || [ "$state_after" != "$state_before" ]; then
+        echo "GATE: FAIL — report bytes/identity/entries changed during gate validation."
+        return 2
+    fi
+    # The fingerprint must be the final fallible observation before PASS.
+    # A source edit while the report snapshot is being computed used to land
+    # after the old final fingerprint and could therefore publish stale green.
+    # The dynamically-scoped test barrier is unset in production and exists
+    # only inside full_attempt_contract_selftest's isolated fixture.
+    if [ -n "${GATE_FINAL_FP_SELFTEST_READY:-}${GATE_FINAL_FP_SELFTEST_HOLD:-}" ]; then
+        [ -n "${GATE_FINAL_FP_SELFTEST_READY:-}" ] \
+            && [ -n "${GATE_FINAL_FP_SELFTEST_HOLD:-}" ] \
+            || { echo "GATE: FAIL — malformed final-fingerprint test barrier."; return 2; }
+        case "$GATE_FINAL_FP_SELFTEST_READY:$GATE_FINAL_FP_SELFTEST_HOLD" in
+            /tmp/hsqa-full-attempt.*:/tmp/hsqa-full-attempt.*) ;;
+            *) echo "GATE: FAIL — unsafe final-fingerprint test barrier."; return 2;;
+        esac
+        printf 'ready\n' > "$GATE_FINAL_FP_SELFTEST_READY" \
+            || { echo "GATE: FAIL — final-fingerprint test barrier could not publish."; return 2; }
+        local gate_pause_attempt
+        for gate_pause_attempt in $(seq 1 500); do
+            [ -e "$GATE_FINAL_FP_SELFTEST_HOLD" ] || break
+            sleep 0.01
+        done
+        [ ! -e "$GATE_FINAL_FP_SELFTEST_HOLD" ] \
+            || { echo "GATE: FAIL — final-fingerprint test barrier timed out."; return 2; }
+    fi
+    if ! final_fp="$(fingerprint)" \
+            || ! [[ "$final_fp" =~ ^[0-9a-f]{64}$ ]] \
+            || [ "$final_fp" != "$fp" ]; then
+        echo "GATE: FAIL — source changed or became unreadable during gate validation."
+        return 2
+    fi
+    echo "GATE: PASS (green_streak=$streak)"
+}
+
+release_client_gate_argument_contract() {
+    [ "$#" -eq 15 ] || return 1
+    [ "$2" = --input-seal ] \
+        && [ "$4" = --operator-key-file ] \
+        && [ "$6" = --expected-operator-key-sha256 ] \
+        && [ "$8" = --expected-precommit-session-nonce ] \
+        && [ "${10}" = --expected-precommit-run-directory-token ] \
+        && [ "${12}" = --expected-precommit-jar-sha256 ] \
+        && [ "${14}" = --expected-precommit-world-id ] \
+        || return 1
+    [ -n "$1" ] && [ -n "$3" ] && [ -n "$5" ] || return 1
+    [[ "$7" =~ ^[0-9a-f]{64}$ ]] \
+        && [[ "$9" =~ ^[0-9a-f]{64}$ ]] \
+        && [[ "${11}" =~ ^[0-9a-f]{64}$ ]] \
+        && [[ "${13}" =~ ^[0-9a-f]{64}$ ]] \
+        && [[ "${15}" =~ ^[A-Za-z0-9_.-]{1,80}$ ]]
+}
+
+release_client_gate_argument_contract_selftest() (
+    local hash nonce
+    hash=$(printf 'a%.0s' {1..64})
+    nonce=$(printf 'b%.0s' {1..64})
+    release_client_gate_argument_contract \
+        run --input-seal external-seal.jsonl \
+        --operator-key-file external.key \
+        --expected-operator-key-sha256 "$hash" \
+        --expected-precommit-session-nonce "$nonce" \
+        --expected-precommit-run-directory-token "$hash" \
+        --expected-precommit-jar-sha256 "$hash" \
+        --expected-precommit-world-id fresh-native-world \
+        || return 1
+    ! release_client_gate_argument_contract run >/dev/null 2>&1 \
+        || return 1
+    ! release_client_gate_argument_contract \
+        run --operator-key-file external-seal.jsonl \
+        --input-seal external.key \
+        --expected-operator-key-sha256 "$hash" \
+        --expected-precommit-session-nonce "$nonce" \
+        --expected-precommit-run-directory-token "$hash" \
+        --expected-precommit-jar-sha256 "$hash" \
+        --expected-precommit-world-id fresh-native-world >/dev/null 2>&1 \
+        || return 1
+    ! release_client_gate_argument_contract \
+        run --input-seal external-seal.jsonl \
+        --operator-key-file external.key \
+        --expected-operator-key-sha256 uppercase-is-not-a-hash \
+        --expected-precommit-session-nonce "$nonce" \
+        --expected-precommit-run-directory-token "$hash" \
+        --expected-precommit-jar-sha256 "$hash" \
+        --expected-precommit-world-id fresh-native-world >/dev/null 2>&1 \
+        || return 1
+    ! release_client_gate_argument_contract \
+        run --input-seal external-seal.jsonl \
+        --operator-key-file external.key \
+        --expected-operator-key-sha256 "$hash" \
+        --expected-precommit-session-nonce "$nonce" \
+        --expected-precommit-run-directory-token "$hash" \
+        --expected-precommit-jar-sha256 "$hash" \
+        --expected-precommit-world-id '../wrong' >/dev/null 2>&1
+)
+
+cmd_release_client_gate() { # run + external seal/key/PRECOMMIT values
+    release_client_gate_argument_contract "$@" || {
+        echo "usage: tools/hearthstead-qa release-client-gate <run-directory> --input-seal <external-ledger> --operator-key-file <external-key> --expected-operator-key-sha256 <sha256> --expected-precommit-session-nonce <64-hex> --expected-precommit-run-directory-token <64-hex> --expected-precommit-jar-sha256 <sha256> --expected-precommit-world-id <world-id>" >&2
+        return 2
+    }
+    local release_root requested canonical current_fingerprint final_fingerprint
+    local input_seal operator_key operator_key_sha256 precommit_nonce
+    local precommit_run_directory_token precommit_jar_sha256 precommit_world_id
+    local validator_status
+    requested="$1"
+    input_seal="$3"
+    operator_key="$5"
+    operator_key_sha256="$7"
+    precommit_nonce="$9"
+    precommit_run_directory_token="${11}"
+    precommit_jar_sha256="${13}"
+    precommit_world_id="${15}"
+    release_root=$(/usr/bin/realpath -e -- "$ARTIFACTS/release-client" 2>/dev/null) || {
+        echo "RELEASE CLIENT GATE: FAIL — no release-client evidence root" >&2
+        return 1
+    }
+    [ -d "$release_root" ] && [ ! -L "$release_root" ] || {
+        echo "RELEASE CLIENT GATE: FAIL — unsafe release-client evidence root" >&2
+        return 1
+    }
+    case "$requested" in
+        /*) ;;
+        *[!A-Za-z0-9._-]*|'')
+            echo "RELEASE CLIENT GATE: FAIL — unsafe run-directory name" >&2
+            return 1;;
+        *) requested="$release_root/$requested";;
+    esac
+    canonical=$(/usr/bin/realpath -e -- "$requested" 2>/dev/null) || {
+        echo "RELEASE CLIENT GATE: FAIL — evidence directory is unavailable" >&2
+        return 1
+    }
+    case "$canonical" in
+        "$release_root"/*) ;;
+        *)
+            echo "RELEASE CLIENT GATE: FAIL — evidence directory is outside release-client" >&2
+            return 1;;
+    esac
+    [ -d "$canonical" ] && [ ! -L "$canonical" ] || {
+        echo "RELEASE CLIENT GATE: FAIL — evidence target is not a plain directory" >&2
+        return 1
+    }
+    current_fingerprint=$(fingerprint) || {
+        echo "RELEASE CLIENT GATE: FAIL — current source fingerprint unavailable" >&2
+        return 1
+    }
+    /usr/bin/python3 -I "$QA/scripts/validate_release_client_evidence.py" \
+        "$canonical" --expected-source-fingerprint "$current_fingerprint" \
+        --input-seal "$input_seal" \
+        --operator-key-file "$operator_key" \
+        --expected-operator-key-sha256 "$operator_key_sha256" \
+        --expected-precommit-session-nonce "$precommit_nonce" \
+        --expected-precommit-run-directory-token "$precommit_run_directory_token" \
+        --expected-precommit-jar-sha256 "$precommit_jar_sha256" \
+        --expected-precommit-world-id "$precommit_world_id"
+    validator_status=$?
+    final_fingerprint=$(fingerprint) || {
+        echo "RELEASE CLIENT GATE: FAIL — final source fingerprint unavailable" >&2
+        return 1
+    }
+    if [ "$final_fingerprint" != "$current_fingerprint" ]; then
+        echo "RELEASE CLIENT GATE: FAIL — source changed while native evidence was validated" >&2
+        return 1
+    fi
+    return "$validator_status"
 }
 
 cmd_status() {
     [ -f "$REPORTS/latest.json" ] || { echo "no QA runs recorded"; return 0; }
-    python3 -m json.tool "$REPORTS/latest.json"
+    /usr/bin/python3 -I -m json.tool "$REPORTS/latest.json"
 }
 
 cmd_reproduce() {
@@ -482,7 +2427,7 @@ suite_playtest() {
     if ! command -v Xvfb >/dev/null; then
         record playtest BLOCKED "Xvfb unavailable"; return 0
     fi
-    if bash "$QA/scripts/playtest.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/playtest.log" 2>&1; then
+    if /bin/bash --noprofile --norc -p "$QA/scripts/playtest.sh" "$MOD" "$RUN_DIR" > "$RUN_DIR/playtest.log" 2>&1; then
         local note
         if note=$(explicit_success_note "$RUN_DIR/playtest.log" 'playtest ok:'); then
             record playtest PASS "$note"
@@ -500,15 +2445,62 @@ cmd_provision() { # AC-10: rebuild the shared install from scratch, prove it wit
     # other scenario — this used to be stored nowhere once the invoking
     # process exited.
     ev_init "provision"
-    local install_dir="${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install}"
-    local backup="${install_dir}.bak-$(date -u +%Y%m%dT%H%M%SZ)"
-    if [ -d "$install_dir" ]; then
-        mv "$install_dir" "$backup"
+    local install_dir backup restore_ok=1
+    if ! install_dir=$(hsqa_safe_target \
+            "${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install-v2}" \
+            "provision install"); then
+        check_fail provision "unsafe HSQA_INSTALL_DIR; refusing provision"
+        finish_result FAIL
+        return 1
+    fi
+    if ! backup=$(hsqa_safe_target \
+            "${install_dir}.bak-$(date -u +%Y%m%dT%H%M%SZ)" \
+            "provision backup"); then
+        check_fail provision "unsafe provision backup path"
+        finish_result FAIL
+        return 1
+    fi
+    if [ -e "$backup" ]; then
+        check_fail provision "backup target already exists: $backup"
+        finish_result FAIL
+        return 1
+    fi
+    if [ -e "$install_dir" ]; then
+        hsqa_claim_empty_directory \
+            "$install_dir" .hsqa-install-owned hsqa-install-v1 \
+            || { check_fail provision "refusing unowned install $install_dir"; finish_result FAIL; return 1; }
+        hsqa_require_owned_directory \
+            "$install_dir" .hsqa-install-owned hsqa-install-v1 \
+            || { check_fail provision "invalid install ownership marker"; finish_result FAIL; return 1; }
+        mv -- "$install_dir" "$backup" \
+            || { check_fail provision "could not move owned install to backup"; finish_result FAIL; return 1; }
         echo "provision: moved existing install aside to $backup" | tee -a "$EV_LOGS/provision.log"
     fi
-    if ! bash "$QA/scripts/server_install.sh" "$MOD" --force > "$EV_LOGS/install.log" 2>&1; then
+    if ! /bin/bash --noprofile --norc -p "$QA/scripts/server_install.sh" "$MOD" --force > "$EV_LOGS/install.log" 2>&1; then
         echo "provision: FAIL — reinstall failed" | tee -a "$EV_LOGS/provision.log"
-        [ -d "$backup" ] && { rm -rf "$install_dir"; mv "$backup" "$install_dir"; echo "provision: restored backup (install could not be verified)" | tee -a "$EV_LOGS/provision.log"; }
+        if [ -d "$backup" ]; then
+            hsqa_require_owned_directory \
+                "$backup" .hsqa-install-owned hsqa-install-v1 \
+                || restore_ok=0
+            if [ -e "$install_dir" ]; then
+                hsqa_require_owned_directory \
+                    "$install_dir" .hsqa-install-owned hsqa-install-v1 \
+                    || restore_ok=0
+                if [ "$restore_ok" -eq 1 ]; then
+                    rm -rf -- "$install_dir" || restore_ok=0
+                fi
+            fi
+            if [ "$restore_ok" -eq 1 ]; then
+                mv -- "$backup" "$install_dir" || restore_ok=0
+            fi
+            if [ "$restore_ok" -eq 1 ]; then
+                echo "provision: restored owned backup (install could not be verified)" \
+                    | tee -a "$EV_LOGS/provision.log"
+            else
+                echo "provision: could not safely restore backup; preserved paths for manual inspection" \
+                    | tee -a "$EV_LOGS/provision.log"
+            fi
+        fi
         check_fail provision "reinstall failed — see logs/install.log"
         finish_result FAIL
         write_reproduction "# Reproduce: provision
@@ -520,7 +2512,13 @@ Verdict: FAIL — reinstall failed. See logs/install.log
     check_pass reinstall "shared install rebuilt from scratch — see logs/install.log"
     suite_playtest
     if [ "${SUITE_STATUS[playtest]:-}" = "PASS" ]; then
-        [ -d "$backup" ] && rm -rf "$backup"
+        if [ -d "$backup" ]; then
+            hsqa_require_owned_directory \
+                "$backup" .hsqa-install-owned hsqa-install-v1 \
+                || { check_fail provision "refusing to delete unowned backup $backup"; finish_result FAIL; return 1; }
+            rm -rf -- "$backup" \
+                || { check_fail provision "could not delete verified backup $backup"; finish_result FAIL; return 1; }
+        fi
         echo "provision: PASS — rebuilt install verified by a passing playtest; backup deleted" | tee -a "$EV_LOGS/provision.log"
         check_pass verify_playtest "playtest PASSED against the rebuilt install — see $RUN_DIR/playtest.log"
         finish_result PASS
@@ -543,9 +2541,8 @@ Verdict: FAIL — rebuilt install did not pass playtest. Backup kept at $backup
 
 export HSQA_REPORTS="$REPORTS" HSQA_PROTO="$PROTOCOL_VERSION"
 
-# The fingerprint is computed in two places -- fingerprint() above and
-# hsqa_fingerprint() in qa/scripts/lib_harness.sh -- and PROTOCOL.md says
-# they MUST stay byte-for-byte equivalent, because a manifest's fingerprint
+# The controller and scenario harness both validate the one shared helper's
+# output, and PROTOCOL.md requires exact equality because a manifest fingerprint
 # is only meaningful if it is comparable to latest.json's. Until now nothing
 # CHECKED that, and the requirement was a comment. Adding the controller
 # itself to the fingerprint (2026-08-26, KF-024) changed one of the two and
@@ -554,8 +2551,14 @@ export HSQA_REPORTS="$REPORTS" HSQA_PROTO="$PROTOCOL_VERSION"
 # it refuses to sit rather than guess.
 assert_fingerprint_twins() {
     local a b
-    a="$(fingerprint)"
-    b="$(HSQA_REPO="$REPO" hsqa_fingerprint)"
+    if ! a="$(fingerprint)"; then
+        echo "FATAL: controller source fingerprint failed or was not 64 lowercase hex" >&2
+        exit 2
+    fi
+    if ! b="$(HSQA_REPO="$REPO" hsqa_fingerprint)"; then
+        echo "FATAL: scenario source fingerprint failed or was not 64 lowercase hex" >&2
+        exit 2
+    fi
     if [ "$a" != "$b" ]; then
         echo "FATAL: the two fingerprint implementations disagree." >&2
         echo "  tools/hearthstead-qa   : $a" >&2
@@ -567,6 +2570,64 @@ assert_fingerprint_twins() {
     fi
 }
 assert_fingerprint_twins
+if ! START_FINGERPRINT="$(fingerprint)" \
+        || ! [[ "$START_FINGERPRINT" =~ ^[0-9a-f]{64}$ ]]; then
+    echo "FATAL: could not capture controller start fingerprint" >&2
+    exit 2
+fi
+SOURCE_DRIFT=0
+SOURCE_DRIFT_NOTE=''
+quarantine_own_latest() {
+    /usr/bin/python3 -I - "$REPORTS/latest.json" "$RUN_DIR" <<'PYEOF' || true
+import json, os, sys
+latest, run_dir = sys.argv[1], sys.argv[2]
+run_manifest = os.path.join(run_dir, "manifest.json")
+try:
+    with open(run_manifest) as handle:
+        manifest = json.load(handle)
+    manifest["overall"] = "FAIL"
+    manifest["green_streak"] = 0
+    manifest["source_changed_during_run"] = True
+    temporary = run_manifest + ".tmp-quarantine-" + str(os.getpid())
+    with open(temporary, "w") as handle:
+        json.dump(manifest, handle, indent=2)
+    os.replace(temporary, run_manifest)
+except Exception:
+    pass
+try:
+    with open(latest) as handle:
+        candidate = json.load(handle)
+    if candidate.get("artifacts") == run_dir:
+        destination = os.path.join(run_dir, "latest-quarantined-source-drift.json")
+        os.replace(latest, destination)
+except Exception:
+    pass
+PYEOF
+    ensure_gate_red || true
+}
+controller_exit_guard() {
+    local status=$?
+    local cleanup_status=0
+    trap - EXIT
+    if [ -n "${CONTROLLER_CHILD_RECORD:-}" ]; then
+        controller_child_cleanup || cleanup_status=1
+    elif [ -n "${CONTROLLER_CHILD_PGID:-}" ] \
+            && kill -0 -- "-${CONTROLLER_CHILD_PGID}" 2>/dev/null; then
+        cleanup_status=1
+    fi
+    if [ "$cleanup_status" -ne 0 ]; then
+        echo "FATAL: controller exit could not prove exact child-group absence; recovery record retained" >&2
+        exit 125
+    fi
+    if [ "$CONTROLLER_MUTATES" -eq 1 ] \
+            && ! assert_source_unchanged controller_exit; then
+        quarantine_own_latest
+        echo "FATAL: ${SOURCE_DRIFT_NOTE:-source changed before controller exit}" >&2
+        exit 86
+    fi
+    exit "$status"
+}
+trap controller_exit_guard EXIT
 
 case "${1:-help}" in
     # Every single-suite command must EXIT NON-ZERO on failure: a caller that
@@ -582,14 +2643,24 @@ case "${1:-help}" in
     gametest)    suite_gametest; [ "${SUITE_STATUS[gametest]}" = PASS ];;
     behavior)    suite_behavior; [ "${SUITE_STATUS[behavior]}" = PASS ];;
     dedicated)   suite_dedicated; [ "${SUITE_STATUS[dedicated]}" = PASS ];;
+    blessing-restart) suite_blessing_restart; [ "${SUITE_STATUS[blessing_restart]}" = PASS ];;
     performance) suite_performance; [ "${SUITE_STATUS[performance]}" = PASS ];;
     client)      suite_client; [ "${SUITE_STATUS[client]}" != FAIL ];;
     playtest)    suite_playtest; [ "${SUITE_STATUS[playtest]}" != FAIL ];;
     visual)      suite_visual; [ "${SUITE_STATUS[visual]}" != FAIL ];;
-    live)        shift; bash "$QA/scripts/live.sh" "$@";;
-    reap)        shift; bash "$QA/scripts/reap.sh" "$@";;
-    negative)    shift; bash "$QA/scripts/negative_tests.sh" "$@";;
+    live)
+        echo "FATAL: legacy live.sh is disabled until its tmux/client launchers use the exact tracked-process contract." >&2
+        echo "Use the bounded 'playtest' suite for current QA evidence." >&2
+        exit 2;;
+    reap)        shift; /bin/bash --noprofile --norc -p "$QA/scripts/reap.sh" "$@";;
+    negative)    shift; /bin/bash --noprofile --norc -p "$QA/scripts/negative_tests.sh" "$@";;
     note-selftest) cmd_note_selftest;;
+    startup-selftest)
+        controller_startup_hermeticity_selftest \
+            && echo "controller startup hermeticity selftest: PASS";;
+    controller-contract-selftest)
+        [ "$#" -le 2 ] || exit 2
+        controller_contract_selftest "${2:-all}";;
     provision)   cmd_provision;;
     fast)
         # The iteration gate: every check that does NOT boot a Minecraft
@@ -633,6 +2704,10 @@ case "${1:-help}" in
         [ "$overall" = PASS ];;
     full)
         rm -f "$REPORTS/BLOCKED"   # a full run supersedes any documented blocker
+        if ! harness_cleanliness_check > "$RUN_DIR/cleanliness-preflight.log" 2>&1; then
+            echo "FULL: FAIL — residual QA state exists before the first suite; see $RUN_DIR/cleanliness-preflight.log" >&2
+            exit 1
+        fi
         overall=PASS
         suite_doctor      || overall=FAIL
         suite_assets      || overall=FAIL
@@ -641,15 +2716,23 @@ case "${1:-help}" in
         suite_gametest    || overall=FAIL
         suite_behavior    || overall=FAIL
         suite_dedicated   || overall=FAIL
+        suite_blessing_restart || overall=FAIL
         suite_performance || overall=FAIL
         suite_client      || overall=FAIL
         suite_playtest    || overall=FAIL
         suite_visual      || true   # BLOCKED allowed, FAIL not
         [ "${SUITE_STATUS[visual]}" = FAIL ] && overall=FAIL
-        write_manifest "$overall"
+        if ! harness_cleanliness_check > "$RUN_DIR/cleanliness-final.log" 2>&1; then
+            echo "FULL: FAIL — a suite left residual QA state; see $RUN_DIR/cleanliness-final.log" >&2
+            overall=FAIL
+        fi
+        if [ "$overall" = PASS ]; then
+            write_manifest "$overall" || overall=FAIL
+        fi
         [ "$overall" = PASS ];;
     gate)        cmd_gate;;
+    release-client-gate) shift; cmd_release_client_gate "$@";;
     status)      cmd_status;;
     reproduce)   shift; cmd_reproduce "${1:-}";;
-    *) sed -n '1,3p' "$0"; echo "commands: quick fast doctor changed validate animation gametest behavior dedicated performance client playtest visual live provision reap negative note-selftest full gate status reproduce"; echo "new here? read qa/QUICKSTART.md";;
+    *) sed -n '1,3p' "$0"; echo "commands: quick fast doctor changed validate animation gametest behavior dedicated blessing-restart performance client playtest visual provision reap negative note-selftest startup-selftest controller-contract-selftest full gate release-client-gate status reproduce"; echo "release-client-gate requires an external input seal, separate operator key, and the exact externally posted PRECOMMIT hashes/nonce/world id"; echo "new here? read qa/QUICKSTART.md";;
 esac

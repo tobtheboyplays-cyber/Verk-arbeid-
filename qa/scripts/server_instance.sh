@@ -7,18 +7,43 @@
 # Prints the instance directory path on the last line of stdout.
 set -eu
 ROLE="$1"; PORT="$2"; MOD="$3"
-INSTALL_DIR="${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install}"
-INST_ROOT="${HSQA_INST_ROOT:-/tmp/claude-0/hsqa-inst}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib_safe_paths.sh"
+hsqa_validate_role "$ROLE" \
+    || { echo "FAIL: invalid QA role '$ROLE'" >&2; exit 1; }
+hsqa_validate_port "$PORT" \
+    || { echo "FAIL: invalid server port '$PORT'" >&2; exit 1; }
+LEVEL_TYPE="${HSQA_LEVEL_TYPE:-flat}"
+hsqa_validate_level_type "$LEVEL_TYPE" \
+    || { echo "FAIL: invalid world level type '$LEVEL_TYPE'" >&2; exit 1; }
+MOD=$(realpath -m -- "$MOD")
+[ -d "$MOD" ] || { echo "FAIL: missing mod directory $MOD" >&2; exit 1; }
+INSTALL_DIR=$(hsqa_safe_target \
+    "${HSQA_INSTALL_DIR:-/tmp/claude-0/hsqa-install-v2}" "install") || exit 1
+INST_ROOT=$(hsqa_safe_target \
+    "${HSQA_INST_ROOT:-/tmp/claude-0/hsqa-inst-v2}" "instance root") || exit 1
+hsqa_claim_empty_directory \
+    "$INST_ROOT" .hsqa-instance-root-owned hsqa-instance-root-v1 || exit 1
 INST="$INST_ROOT/$ROLE"
+INST=$(hsqa_safe_target "$INST" "instance") || exit 1
 
+[ -f "$INSTALL_DIR/.hsqa-install-owned" ] \
+    && hsqa_require_owned_directory \
+        "$INSTALL_DIR" .hsqa-install-owned hsqa-install-v1 \
+    || { echo "FAIL: shared install lacks HSQA ownership marker" >&2; exit 1; }
 [ -d "$INSTALL_DIR/libraries" ] && [ -x "$INSTALL_DIR/run.sh" ] \
     || { echo "FAIL: shared install missing at $INSTALL_DIR — run server_install.sh first" >&2; exit 1; }
 
 JAR=$(ls -t "$MOD"/build/libs/hearthstead-*.jar 2>/dev/null | grep -v sources | head -1)
 [ -n "$JAR" ] || { echo "FAIL: no mod jar built in $MOD/build/libs — build first" >&2; exit 1; }
 
-rm -rf "$INST"
+if [ -e "$INST" ]; then
+    hsqa_require_owned_directory \
+        "$INST" .hsqa-instance-owned "hsqa-instance-v1:$ROLE" || exit 1
+    rm -rf -- "$INST"
+fi
 mkdir -p "$INST/mods"
+printf '%s\n' "hsqa-instance-v1:$ROLE" > "$INST/.hsqa-instance-owned"
 ln -s "$INSTALL_DIR/libraries" "$INST/libraries"
 cp "$INSTALL_DIR/run.sh" "$INST/run.sh"; chmod +x "$INST/run.sh"
 [ -f "$INSTALL_DIR/run.bat" ] && cp "$INSTALL_DIR/run.bat" "$INST/run.bat"
@@ -55,7 +80,6 @@ fi
 #
 # So: overridable, defaulting to what the suites need.
 #   HSQA_LEVEL_TYPE=normal  -> a real world, for survival playthroughs
-LEVEL_TYPE="${HSQA_LEVEL_TYPE:-flat}"
 cat > "$INST/server.properties" <<EOF
 server-port=$PORT
 online-mode=false

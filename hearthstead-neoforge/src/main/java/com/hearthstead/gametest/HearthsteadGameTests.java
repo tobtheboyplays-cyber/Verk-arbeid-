@@ -2,23 +2,29 @@ package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.RecruitmentPolicy;
+import com.hearthstead.settlement.RecruitmentTransaction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -26,6 +32,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -135,15 +142,15 @@ public class HearthsteadGameTests {
     }
 
     @GameTest(batch = "hearthstead", template = "empty5", timeoutTicks = 200)
-    public void professionAssignmentEquipsTool(GameTestHelper helper) {
+    public void professionAssignmentDoesNotCreateTool(GameTestHelper helper) {
         Settlement s = makeSettlement(helper, new BlockPos(2, 1, 2), 2);
         SettlerEntity settler = boundSettler(helper, s, new BlockPos(2, 1, 2));
         settler.assignProfession(Profession.FARMER);
         helper.succeedWhen(() -> {
             helper.assertTrue(settler.getProfession() == Profession.FARMER,
                 "profession should be FARMER");
-            helper.assertTrue(settler.getItemBySlot(EquipmentSlot.MAINHAND)
-                .is(Items.IRON_HOE), "farmer should hold an iron hoe");
+            helper.assertTrue(settler.getItemBySlot(EquipmentSlot.MAINHAND).isEmpty(),
+                "profession assignment must not create a free iron hoe");
             Settlement.SettlerRecord record = s.record(settler.getUUID());
             helper.assertTrue(record != null && record.profession == Profession.FARMER,
                 "settlement record should show FARMER");
@@ -164,12 +171,18 @@ public class HearthsteadGameTests {
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
-        // ANIM-1: replanting now consumes an actual withheld seed (chest-
-        // truth conservation -- CLAUDE.md's "logistics must conserve
-        // items"), so it depends on wheat's own drop RNG (0-3 seeds,
-        // uniform -- ~25% chance of 0 per crop). 8 independent crops keeps
-        // P(zero seeds from all of them) astronomically small instead of
-        // the ~1.6% a 3-crop sample left it at.
+        Building farmhouse = GameTestFixtures.register(helper, s,
+            BuildingType.FARMHOUSE, 5, 0);
+        BlockPos storageRel = new BlockPos(6, 1, 1);
+        helper.setBlock(storageRel, Blocks.CHEST);
+        Container storage = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(storageRel));
+        helper.assertTrue(storage != null,
+            "fixture needs exact loaded Farmhouse storage");
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+        storage.setItem(1, new ItemStack(Items.WHEAT_SEEDS, 8));
+        // Multiple crops retain the original harvest/deposit coverage while
+        // the linked Farmhouse now supplies the exact planting inputs.
         BlockPos[] crops = {
             new BlockPos(2, 1, 2), new BlockPos(6, 1, 2), new BlockPos(2, 1, 6),
             new BlockPos(6, 1, 6), new BlockPos(1, 1, 4), new BlockPos(7, 1, 4),
@@ -180,17 +193,14 @@ public class HearthsteadGameTests {
                 Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         }
         SettlerEntity farmer = boundSettler(helper, s, new BlockPos(4, 1, 2));
-        farmer.assignProfession(Profession.FARMER);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, farmhouse,
+                farmer).ok(),
+            "fixture must hire the Farmer through the real Farmhouse");
 
         helper.succeedWhen(() -> {
-            if (!(helper.getLevel().getBlockEntity(hearthAbs)
-                instanceof HearthBlockEntity hearth)) {
-                helper.fail("hearth block entity missing");
-                return;
-            }
             boolean hasWheat = false;
-            for (int i = 0; i < hearth.getInventory().getSlots(); i++) {
-                if (hearth.getInventory().getStackInSlot(i).is(Items.WHEAT)) {
+            for (int i = 0; i < storage.getContainerSize(); i++) {
+                if (storage.getItem(i).is(Items.WHEAT)) {
                     hasWheat = true;
                     break;
                 }
@@ -199,7 +209,8 @@ public class HearthsteadGameTests {
             for (int i = 0; i < farmer.bag.getContainerSize(); i++) {
                 bagged += farmer.bag.getItem(i).getCount();
             }
-            helper.assertTrue(hasWheat, "hearth should have received wheat"
+            helper.assertTrue(hasWheat,
+                "the exact Farmhouse storage should have received wheat"
                 + " [farmer act=" + farmer.getActivity()
                 + " pos=" + farmer.blockPosition()
                 + " bag=" + bagged
@@ -233,10 +244,22 @@ public class HearthsteadGameTests {
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
+        Building farmhouse = GameTestFixtures.register(helper, s,
+            BuildingType.FARMHOUSE, 5, 0);
+        BlockPos storageRel = new BlockPos(6, 1, 1);
+        helper.setBlock(storageRel, Blocks.CHEST);
+        Container storage = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(storageRel));
+        helper.assertTrue(storage != null,
+            "fixture needs exact loaded Farmhouse storage");
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+        storage.setItem(1, new ItemStack(Items.WHEAT_SEEDS, 2));
         helper.setBlock(new BlockPos(2, 1, 2),
             Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         SettlerEntity farmer = boundSettler(helper, s, new BlockPos(4, 1, 2));
-        farmer.assignProfession(Profession.FARMER);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, farmhouse,
+                farmer).ok(),
+            "fixture must hire the Farmer through the real Farmhouse");
 
         final boolean[] sawHarvest = {false};
         final boolean[] sawPlant = {false};
@@ -265,6 +288,15 @@ public class HearthsteadGameTests {
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
+        Building camp = GameTestFixtures.register(helper, s,
+            BuildingType.LUMBER_CAMP, 3, 8);
+        BlockPos campChestRel = new BlockPos(4, 1, 9);
+        helper.setBlock(campChestRel, Blocks.CHEST);
+        Container campChest = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(campChestRel));
+        helper.assertTrue(campChest != null,
+            "fixture needs exact loaded Lumber Camp storage");
+        campChest.setItem(0, new ItemStack(Items.IRON_AXE));
         // Build a small natural oak near the hearth: dirt base, 4 logs, leaf cap.
         BlockPos dirtRel = new BlockPos(10, 1, 10);
         helper.setBlock(dirtRel, Blocks.DIRT);
@@ -278,7 +310,9 @@ public class HearthsteadGameTests {
             helper.setBlock(leaf, Blocks.OAK_LEAVES.defaultBlockState());
         }
         SettlerEntity lumberer = boundSettler(helper, s, new BlockPos(6, 1, 8));
-        lumberer.assignProfession(Profession.LUMBERER);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, camp,
+                lumberer).ok(),
+            "fixture must hire the Lumberer through the real Lumber Camp");
 
         helper.succeedWhen(() -> {
             for (int i = 0; i < 4; i++) {
@@ -290,19 +324,34 @@ public class HearthsteadGameTests {
             }
             helper.assertTrue(helper.getBlockState(baseRel).is(Blocks.OAK_SAPLING),
                 "a sapling should be replanted on the stump");
-            if (!(helper.getLevel().getBlockEntity(hearthAbs)
-                instanceof HearthBlockEntity hearth)) {
-                helper.fail("hearth block entity missing");
-                return;
-            }
             int logs = 0;
-            for (int i = 0; i < hearth.getInventory().getSlots(); i++) {
-                ItemStack stack = hearth.getInventory().getStackInSlot(i);
+            for (int i = 0; i < campChest.getContainerSize(); i++) {
+                ItemStack stack = campChest.getItem(i);
                 if (stack.is(Items.OAK_LOG)) {
                     logs += stack.getCount();
                 }
             }
-            helper.assertTrue(logs >= 4, "hearth should hold >= 4 oak logs, has " + logs);
+            int physicalLogs = 0;
+            StringBuilder physicalPositions = new StringBuilder();
+            for (ItemEntity item : helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                    new AABB(helper.absolutePos(baseRel)).inflate(10.0))) {
+                if (!item.isAlive() || !item.getItem().is(Items.OAK_LOG)) {
+                    continue;
+                }
+                physicalLogs += item.getItem().getCount();
+                if (!physicalPositions.isEmpty()) {
+                    physicalPositions.append(',');
+                }
+                physicalPositions.append(item.getItem().getCount()).append('@')
+                    .append(item.blockPosition());
+            }
+            helper.assertTrue(logs >= 4,
+                "Lumber Camp storage should hold >= 4 oak logs, has " + logs
+                + " [physical=" + physicalLogs + " at=" + physicalPositions
+                + " offhand=" + lumberer.getOffhandItem()
+                + " carry=" + lumberer.getCarryLoad() + '/' + lumberer.getCarryCapacity()
+                + " sack=" + lumberer.placedWorkContainerPos()
+                + " route=" + lumberer.routeFailureNote() + "]");
         });
     }
 
@@ -312,6 +361,7 @@ public class HearthsteadGameTests {
         Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8), 6);
         SettlerEntity guard = boundSettler(helper, s, new BlockPos(6, 1, 8));
         guard.assignProfession(Profession.GUARD);
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
         Zombie zombie = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE,
             new BlockPos(10, 1, 8));
         zombie.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.IRON_HELMET));
@@ -473,10 +523,14 @@ public class HearthsteadGameTests {
             helper.absolutePos(new BlockPos(2, 1, 2)));
         s.radius = 48;
         s.foodCache = 17;
-        s.recruitProgress = 55;
-        s.recruitQualifiedSeconds = 44;
-        s.recruitCycle = 3;
-        s.recruitTarget = RecruitmentPolicy.targetFor(s.id, s.recruitCycle);
+        RecruitmentTransaction recruitment = RecruitmentTransaction
+            .fresh(s.id, 3, 0)
+            .beginQualification(UUID.randomUUID(), 1L, UUID.randomUUID(),
+                s.center, s.center, helper.getLevel().dimension().location());
+        for (int second = 1; second < 44; second++) {
+            recruitment = recruitment.advanceQualification();
+        }
+        s.applyRecruitment(recruitment);
         s.putRecord(UUID.randomUUID(), "Sigrun", Profession.GUARD);
         s.putRecord(UUID.randomUUID(), "Aldric", Profession.NONE);
 
@@ -494,7 +548,7 @@ public class HearthsteadGameTests {
             helper.assertTrue(loaded.center.equals(s.center), "center survives");
             helper.assertTrue(loaded.population() == 2, "records survive");
             helper.assertTrue(loaded.employed() == 1, "professions survive");
-            helper.assertTrue(loaded.recruitProgress == 55, "recruit progress survives");
+            helper.assertTrue(loaded.recruitProgress == 44, "recruit progress survives");
             helper.assertTrue(loaded.recruitQualifiedSeconds == 44,
                 "qualified seconds survive");
             helper.assertTrue(loaded.recruitCycle == 3
@@ -1241,13 +1295,12 @@ public class HearthsteadGameTests {
      *  again -- not still SLEEPING once energy has recovered past dawn. */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "night_wake")
     public void settlerWakesAtDawnWithRecoveredEnergy(GameTestHelper helper) {
-        // Still deep in REST, a few hundred ticks short of RISE at 23000.
-        // The village clock (DayPhase) now opens a waking phase before
-        // dawn instead of running REST straight into working hours, so
-        // "just before waking" moved earlier. The assertion below is
-        // unchanged: drive a full night through dawn and require a
-        // natural wake with recovered energy.
-        helper.getLevel().setDayTime(22600);
+        // Begin early enough in REST for room discovery, bed claiming and
+        // visible sleep to happen before RISE at 23000. Starting at 22600
+        // left only 400 ticks and made this a path/scanner timing race rather
+        // than a sleep-recovery test. The 1500-tick window still crosses dawn
+        // inside this test's 1600-tick timeout.
+        helper.getLevel().setDayTime(21500);
         buildArena(helper, 16, 16);
         BlockPos hearthRel = new BlockPos(2, 1, 2);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
@@ -1302,6 +1355,15 @@ public class HearthsteadGameTests {
         if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
             hearth.bindSettlement(s.id);
         }
+        Building camp = GameTestFixtures.register(helper, s,
+            BuildingType.LUMBER_CAMP, 2, 10);
+        BlockPos campChestRel = new BlockPos(3, 1, 11);
+        helper.setBlock(campChestRel, Blocks.CHEST);
+        Container campChest = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(campChestRel));
+        helper.assertTrue(campChest != null,
+            "fixture needs exact loaded Lumber Camp storage");
+        campChest.setItem(0, new ItemStack(Items.IRON_AXE));
         BlockPos dirtRel = new BlockPos(8, 1, 8);
         helper.setBlock(dirtRel, Blocks.DIRT);
         BlockPos baseRel = dirtRel.above();
@@ -1314,7 +1376,9 @@ public class HearthsteadGameTests {
             }
         }
         SettlerEntity lumberer = boundSettler(helper, s, new BlockPos(4, 1, 4));
-        lumberer.assignProfession(Profession.LUMBERER);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, camp,
+                lumberer).ok(),
+            "fixture must hire the Lumberer through the real Lumber Camp");
 
         final boolean[] sawLimbing = {false};
         final boolean[] sawHauling = {false};
@@ -1326,14 +1390,13 @@ public class HearthsteadGameTests {
                 sawHauling[0] = true;
             }
             int logs = 0;
-            if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
-                for (int i = 0; i < hearth.getInventory().getSlots(); i++) {
-                    if (hearth.getInventory().getStackInSlot(i).is(Items.OAK_LOG)) {
-                        logs += hearth.getInventory().getStackInSlot(i).getCount();
-                    }
+            for (int i = 0; i < campChest.getContainerSize(); i++) {
+                if (campChest.getItem(i).is(Items.OAK_LOG)) {
+                    logs += campChest.getItem(i).getCount();
                 }
             }
-            helper.assertTrue(logs >= 1, "hearth should hold >= 1 oak log by now, has " + logs
+            helper.assertTrue(logs >= 1,
+                "Lumber Camp storage should hold >= 1 oak log by now, has " + logs
                 + " (act=" + lumberer.getActivity() + " limbed=" + sawLimbing[0]
                 + " hauled=" + sawHauling[0] + ")");
             helper.assertTrue(sawLimbing[0], "lumberer should pass through WORK_LIMB "
@@ -1432,7 +1495,15 @@ public class HearthsteadGameTests {
     @GameTest(batch = "hearthstead", template = "empty16", timeoutTicks = 100)
     public void emptyPlaqueOpensNoScreenUntilPlanInserted(GameTestHelper helper) {
         buildArena(helper, 16, 16);
-        makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        Settlement settlement = makeSettlement(helper, new BlockPos(2, 1, 2), 12);
+        // This screen-behaviour test predates the current HOME research
+        // gate. Give its synthetic legacy settlement one already-registered
+        // House before Development initializes, so the normal grandfathering
+        // path (not a raw unlock) authorizes the plan used below.
+        GameTestFixtures.register(helper, settlement,
+            com.hearthstead.building.BuildingType.HOUSE, 1, 11);
+        com.hearthstead.settlement.development.Development.revisionOf(
+            helper.getLevel(), settlement);
         BlockPos hutOrigin = new BlockPos(6, 0, 6);
         buildHut(helper, hutOrigin);
         BlockPos plaqueRel = hutOrigin.offset(1, 2, -1);

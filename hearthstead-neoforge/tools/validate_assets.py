@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import colorsys
 import gzip
+import importlib.util
 import json
 import math
 import os
@@ -81,6 +82,26 @@ TEXTURE_CONFIG = {
     # Basenames exempt from all dimension rules (still must open).
     "any_size_basenames": {"hearthstead_logo.png"},
 }
+
+
+def _load_local_texlib():
+    """Load the sibling texture library by exact path under Python ``-I``.
+
+    The QA controller deliberately launches this validator in isolated mode,
+    where Python does not add the script directory to ``sys.path``.  Importing
+    ``texlib`` by name therefore either failed or could resolve an unrelated
+    ambient module.  Pinning the sibling file keeps the palette audit both
+    hermetic and usable from the supported QA entrypoint.
+    """
+    path = Path(__file__).resolve().with_name("texlib.py")
+    spec = importlib.util.spec_from_file_location(
+        "hearthstead_validate_assets_texlib", path
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"could not load local texture library: {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 # Vanilla recipe types known in 1.20.1.
 KNOWN_RECIPE_TYPES = {
@@ -877,7 +898,7 @@ def palette_foundation_audit() -> "OrderedDict[str, list[str]]":
         "inventory", "determinism", "value", "hue", "chroma", "contrast",
         "materials", "tiling"))
     try:
-        import texlib
+        texlib = _load_local_texlib()
     except Exception as exc:
         failures["inventory"].append(f"texlib import failed: {exc}")
         return failures

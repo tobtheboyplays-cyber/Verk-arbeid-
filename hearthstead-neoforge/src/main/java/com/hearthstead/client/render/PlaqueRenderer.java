@@ -8,6 +8,7 @@ import com.hearthstead.building.PlaqueState;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -22,6 +23,7 @@ import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
 import org.joml.Matrix4f;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -37,10 +39,11 @@ import java.util.Map;
  * ting"</em>. Place the bed and the line flips to a tick on the wall, with no
  * click and no command.
  *
- * <p>Nothing is cached here. The sheet is rebuilt from the block entity's
- * synced type, state and survey every frame, so it cannot drift from the
- * server's answer; the plaque remains an access point, never a second source
- * of truth (D-006).
+ * <p>The derived sheet is cached from the block entity's complete synced input
+ * snapshot. Any type, state, survey, occupancy or capacity change rebuilds it
+ * synchronously; unchanged visible plaques reuse their lines and components
+ * without allocating every frame. The bounded cache is only a rendered view,
+ * never a second source of truth (D-006).
  */
 public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
 
@@ -262,10 +265,12 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
 
     private final Font font;
     private final ItemRenderer items;
+    private final PlaqueSheetCache<PlaqueBlockEntity, SheetGeometry> sheets;
 
     public PlaqueRenderer(BlockEntityRendererProvider.Context context) {
         this.font = context.getFont();
         this.items = context.getItemRenderer();
+        this.sheets = new PlaqueSheetCache<>(this::measureSheet);
     }
 
     @Override
@@ -276,11 +281,17 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
     @Override
     public void render(PlaqueBlockEntity plaque, float partialTick, PoseStack pose,
                        MultiBufferSource buffers, int light, int overlay) {
-        PlaqueSheet sheet = PlaqueSheet.of(plaque.type(), plaque.state(),
-            plaque.lastSurvey(), plaque.occupants(), plaque.capacity());
+        String language = Minecraft.getInstance().getLanguageManager()
+            .getSelected();
+        PlaqueSheetCache.CachedSheet<SheetGeometry> cached =
+            sheets.getOrCreate(plaque, plaque.revision(), language,
+                plaque.type(), plaque.state(), plaque.lastSurvey(),
+                plaque.occupants(), plaque.capacity());
+        PlaqueSheet sheet = cached.sheet();
         if (sheet.isBlank()) {
             return; // no plan fitted: an empty well, and nothing to say
         }
+        SheetGeometry geometry = cached.derived();
 
         // Lamp colour is now multiplexed with live logistics health, so a
         // perfectly valid but blocked building may be amber or red. The
@@ -288,12 +299,9 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
         // actual registration truth, never the operational colour.
         boolean registered = plaque.state() == PlaqueState.LINKED_VALID;
 
-        int titleWidth = font.width(sheet.title());
-        float widest = titleWidth * TITLE_SCALE;
-        for (PlaqueSheet.Line line : sheet.lines()) {
-            widest = Math.max(widest, font.width(line.text()));
-        }
-        float height = LINE * TITLE_SCALE + TITLE_GAP + sheet.lines().size() * LINE;
+        int titleWidth = geometry.titleWidth();
+        float widest = geometry.widest();
+        float height = geometry.height();
         if (widest <= 0.0F || height <= 0.0F) {
             return;
         }
@@ -334,7 +342,7 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
 
         drawTitleRail(pose, buffers, lit, titleWidth, scale, textTop);
         drawRules(pose, buffers, lit, sheet.lines().size(), textTop, widest, scale);
-        drawStamps(pose, buffers, lit, sheet.lines(), textTop, scale);
+        drawStamps(pose, buffers, lit, geometry.stamps(), textTop, scale);
 
         pose.translate(0.0F, (textTop + textBottom) * 0.5F, SHEET_Z + INK_LIFT);
         // Negative Y scale because font coordinates run downward.
@@ -356,6 +364,32 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
             y += LINE;
         }
         pose.popPose();
+    }
+
+    /**
+     * Measures immutable translated sheet content only on a cache miss. Width,
+     * total height and marked row indices are then reused by every frame until
+     * the block-entity revision, scalar state or language changes.
+     */
+    private SheetGeometry measureSheet(PlaqueSheet sheet) {
+        if (sheet.isBlank()) {
+            return new SheetGeometry(0, 0.0F, 0.0F, List.of());
+        }
+        int titleWidth = font.width(sheet.title());
+        float widest = titleWidth * TITLE_SCALE;
+        List<StampGeometry> stamps = new ArrayList<>();
+        int row = 0;
+        for (PlaqueSheet.Line line : sheet.lines()) {
+            widest = Math.max(widest, font.width(line.text()));
+            if (!line.ink().mark().isEmpty()) {
+                stamps.add(new StampGeometry(row, line.ink()));
+            }
+            row++;
+        }
+        float height = LINE * TITLE_SCALE + TITLE_GAP
+            + sheet.lines().size() * LINE;
+        return new SheetGeometry(titleWidth, widest, height,
+            List.copyOf(stamps));
     }
 
     /**
@@ -499,16 +533,9 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
      * two it is.
      */
     private void drawStamps(PoseStack pose, MultiBufferSource buffers, int light,
-                            List<PlaqueSheet.Line> lines, float textTop,
+                            List<StampGeometry> marks, float textTop,
                             float scale) {
-        boolean any = false;
-        for (PlaqueSheet.Line line : lines) {
-            if (!line.ink().mark().isEmpty()) {
-                any = true;
-                break;
-            }
-        }
-        if (!any) {
+        if (marks.isEmpty()) {
             return;
         }
         VertexConsumer stamps = buffers.getBuffer(RenderType.textBackground());
@@ -516,23 +543,30 @@ public class PlaqueRenderer implements BlockEntityRenderer<PlaqueBlockEntity> {
         float listTop = (LINE * TITLE_SCALE + TITLE_GAP) * scale;
         float r = STAMP_RADIUS * scale;
         float z = SHEET_Z + ACCENT_LIFT;
-        int row = 0;
-        for (PlaqueSheet.Line line : lines) {
-            if (!line.ink().mark().isEmpty()) {
-                float y = textTop - listTop - (row + 0.5F) * LINE * scale;
-                boolean met = line.ink() == PlaqueSheet.Ink.MET;
-                int rim = met ? STAMP_RIM_MET : shade(line.ink().colour(), 0.55F);
-                int fill = met ? STAMP_FILL_MET : line.ink().colour();
-                diamond(stamps, pose, x, y, r, rim, light, z);
-                diamond(stamps, pose, x, y, r * 0.6F, fill, light, z);
-                if (met) {
-                    float g = r * 0.30F;
-                    fillQuad(stamps, pose, x - g * 1.6F, x - g * 0.2F, y,
-                        y + g, z + ACCENT_LIFT * 0.2F, STAMP_TICK, light);
-                }
+        for (StampGeometry stamp : marks) {
+            float y = textTop - listTop
+                - (stamp.row() + 0.5F) * LINE * scale;
+            boolean met = stamp.ink() == PlaqueSheet.Ink.MET;
+            int rim = met ? STAMP_RIM_MET : shade(stamp.ink().colour(), 0.55F);
+            int fill = met ? STAMP_FILL_MET : stamp.ink().colour();
+            diamond(stamps, pose, x, y, r, rim, light, z);
+            diamond(stamps, pose, x, y, r * 0.6F, fill, light, z);
+            if (met) {
+                float g = r * 0.30F;
+                fillQuad(stamps, pose, x - g * 1.6F, x - g * 0.2F, y,
+                    y + g, z + ACCENT_LIFT * 0.2F, STAMP_TICK, light);
             }
-            row++;
         }
+    }
+
+    private record SheetGeometry(int titleWidth, float widest, float height,
+                                 List<StampGeometry> stamps) {
+        private SheetGeometry {
+            stamps = List.copyOf(stamps);
+        }
+    }
+
+    private record StampGeometry(int row, PlaqueSheet.Ink ink) {
     }
 
     /**

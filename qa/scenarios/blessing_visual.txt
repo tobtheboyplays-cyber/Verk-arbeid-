@@ -1,0 +1,45 @@
+# Focused Blessing layout proof. Run through the controller with
+# HSQA_GUI_SCALE=2, 3 and 4; each artifact records the exact display profile.
+wait 5
+scmd gamemode creative @a
+scmd time set 1000
+scmd weather clear
+scmd gamerule doDaylightCycle false
+scmd execute as $PLAYER run hearthstead demo
+wait 3
+
+# Place the real Hearth with physical input, then prove the settlement exists.
+key 1
+scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 45
+wait 3
+click right
+wait 2
+scmd hearthstead info
+expect_server population
+
+# Settlers are real moving entities and can legitimately walk through the
+# pick ray between placement and the later Hearth click. Freeze the three
+# demo settlers and park them high above the same loaded chunk so this
+# layout-only scenario always exercises the Hearth, never an incidental
+# SettlerScreen. NoGravity keeps the parked entities out of the ray.
+scmd execute as @e[type=hearthstead:settler] run data merge entity @s {NoAI:1b,NoGravity:1b}
+scmd execute at $PLAYER run tp @e[type=hearthstead:settler] ~ ~100 ~
+
+# Grant a QA-only reward through the real server ledger. An empty hand makes
+# ordinary Hearth use open Blessings; Shift-use remains the storage bypass.
+cmd hearthstead blessing
+expect_server QA Blessing offer 1 granted
+key 9
+wait 1
+shot blessing-scale-world
+open_near_block hearthstead:hearth 6 right blessing-scale-aim
+expect_screen com.hearthstead.client.screen.BlessingScreen
+shot blessing-scale-open
+expect_shot blessing-scale-open
+expect_pixel_change blessing-scale-world blessing-scale-open 5.0 full
+
+# Esc must preserve the unspent offer. The server report is authoritative.
+key Escape
+wait 2
+cmd hearthstead info
+expect_server Blessing Seals: pending 1

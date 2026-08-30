@@ -440,11 +440,12 @@ public class CourierStopReasonGameTests {
             StopReason.NONE, StopReason.WAITING_INPUT, StopReason.CHEST_FULL,
             StopReason.HEARTH_FULL, StopReason.NO_WAREHOUSE_SPACE,
             StopReason.RESERVED_BY_OTHER, StopReason.RESTING_AFTER_FAIL,
-            StopReason.NO_PATH
+            StopReason.NO_PATH, StopReason.NO_WORK_ZONE,
+            StopReason.NO_VALID_TARGET
         };
-        int[] ids = {0, 1, 2, 3, 4, 5, 6, 7};
-        helper.assertTrue(StopReason.values().length == 8,
-            "packed protocol must contain exactly 8 reasons");
+        int[] ids = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        helper.assertTrue(StopReason.values().length == 10,
+            "packed protocol must contain exactly 10 reasons");
         for (int index = 0; index < reasons.length; index++) {
             StopReason reason = reasons[index];
             int expected = ids[index];
@@ -455,7 +456,7 @@ public class CourierStopReasonGameTests {
                 "wire id " + expected + " does not decode to " + reason);
         }
         helper.assertTrue(StopReason.fromWireId(-1) == StopReason.NONE
-                && StopReason.fromWireId(8) == StopReason.NONE,
+                && StopReason.fromWireId(10) == StopReason.NONE,
             "unknown wire ids must fail closed to NONE");
         helper.succeed();
     }
@@ -535,15 +536,15 @@ public class CourierStopReasonGameTests {
         PlaqueFixture fixture = validHousePlaque(helper);
         UUID redCourier = UUID.randomUUID();
         UUID amberCourier = UUID.randomUUID();
+        PlaqueBlockEntity plaque = fixture.plaque();
+        helper.assertTrue(plaque.state() == PlaqueState.LINKED_VALID,
+            "setup: house must be registered before testing operational lamp truth");
+        plaque.setLogisticsStopReason(helper.getLevel(), redCourier,
+            StopReason.NO_WAREHOUSE_SPACE);
+        plaque.setLogisticsStopReason(helper.getLevel(), amberCourier,
+            StopReason.WAITING_INPUT);
 
-        helper.succeedWhen(() -> {
-            PlaqueBlockEntity plaque = fixture.plaque();
-            helper.assertTrue(plaque.state() == PlaqueState.LINKED_VALID,
-                "setup: house must be registered before testing operational lamp truth");
-            plaque.setLogisticsStopReason(helper.getLevel(), redCourier,
-                StopReason.NO_WAREHOUSE_SPACE);
-            plaque.setLogisticsStopReason(helper.getLevel(), amberCourier,
-                StopReason.WAITING_INPUT);
+        helper.runAfterDelay(2, () -> {
             helper.assertTrue(plaque.logisticsStopReason() == StopReason.NO_WAREHOUSE_SPACE
                     && helper.getBlockState(fixture.relativePos())
                         .getValue(PlaqueBlock.REGISTERED)
@@ -557,21 +558,27 @@ public class CourierStopReasonGameTests {
                 "aggregate reason must ride the wire but never persist to disk");
 
             plaque.setLogisticsStopReason(helper.getLevel(), redCourier, StopReason.NONE);
-            helper.assertTrue(plaque.logisticsStopReason() == StopReason.WAITING_INPUT
-                    && helper.getBlockState(fixture.relativePos())
-                        .getValue(PlaqueBlock.REGISTERED)
-                    && helper.getBlockState(fixture.relativePos()).getValue(PlaqueBlock.GLOW)
-                        == PlaqueBlock.Glow.AMBER,
-                "one clear must preserve amber and registered truth");
+            helper.runAfterDelay(2, () -> {
+                helper.assertTrue(plaque.logisticsStopReason() == StopReason.WAITING_INPUT
+                        && helper.getBlockState(fixture.relativePos())
+                            .getValue(PlaqueBlock.REGISTERED)
+                        && helper.getBlockState(fixture.relativePos())
+                            .getValue(PlaqueBlock.GLOW) == PlaqueBlock.Glow.AMBER,
+                    "one clear must preserve amber and registered truth");
 
-            plaque.setLogisticsStopReason(helper.getLevel(), amberCourier, StopReason.NONE);
-            helper.assertTrue(plaque.logisticsStopReason() == StopReason.NONE
-                    && plaque.state() == PlaqueState.LINKED_VALID
-                    && helper.getBlockState(fixture.relativePos())
-                        .getValue(PlaqueBlock.REGISTERED)
-                    && helper.getBlockState(fixture.relativePos()).getValue(PlaqueBlock.GLOW)
-                        == PlaqueBlock.Glow.GREEN,
-                "only the final courier clear may restore green; validity must stay linked");
+                plaque.setLogisticsStopReason(helper.getLevel(), amberCourier,
+                    StopReason.NONE);
+                helper.runAfterDelay(2, () -> {
+                    helper.assertTrue(plaque.logisticsStopReason() == StopReason.NONE
+                            && plaque.state() == PlaqueState.LINKED_VALID
+                            && helper.getBlockState(fixture.relativePos())
+                                .getValue(PlaqueBlock.REGISTERED)
+                            && helper.getBlockState(fixture.relativePos())
+                                .getValue(PlaqueBlock.GLOW) == PlaqueBlock.Glow.GREEN,
+                        "only the final courier clear may restore green; validity must stay linked");
+                    helper.succeed();
+                });
+            });
         });
     }
 

@@ -77,6 +77,7 @@ public class ResearchScreen extends Screen {
     private int scroll;
     private int left;
     private int top;
+    private boolean uiSoundActive;
     private final ItemStack studyEmblem =
         new ItemStack(com.hearthstead.building.BuildingType.ARCHITECTS_STUDY.emblem());
 
@@ -96,6 +97,19 @@ public class ResearchScreen extends Screen {
         left = (width - PANEL_W) / 2;
         top = (height - PANEL_H) / 2;
         rebuild();
+        if (!uiSoundActive) {
+            uiSoundActive = true;
+            HsUi.playOpenSound();
+        }
+    }
+
+    @Override
+    public void removed() {
+        if (uiSoundActive) {
+            uiSoundActive = false;
+            HsUi.playCloseSound();
+        }
+        super.removed();
     }
 
     // ------------------------------------------------------------ widgets ---

@@ -1,9 +1,7 @@
 package com.hearthstead.network;
 
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
@@ -20,28 +18,71 @@ import java.util.UUID;
  * request is refused and the screen refreshed rather than applied to a world
  * that has moved on.
  */
-public record PlaqueAction(BlockPos pos, Kind kind, UUID target, int revision)
+public record PlaqueAction(BlockPos pos, UUID buildingId, UUID sessionId,
+                           Kind kind, UUID target, int revision)
     implements CustomPacketPayload {
 
+    public static final UUID NO_BUILDING = new UUID(0L, 0L);
+
     public enum Kind {
-        ASSIGN,
-        EVICT,
-        REFRESH,
+        ASSIGN(0),
+        EVICT(1),
+        REFRESH(2),
         /** Call one currently-employed worker to the plaque's front. {@code target} is theirs. */
-        SUMMON
+        SUMMON(3),
+        /** Release this exact inspection session; never mutates the building. */
+        CLOSE(4),
+        /** Unknown future/hostile wire values are inert. */
+        UNKNOWN(-1);
+
+        private final int wireId;
+
+        Kind(int wireId) {
+            this.wireId = wireId;
+        }
+
+        int wireId() {
+            return wireId;
+        }
+
+        static Kind fromWireId(int wireId) {
+            return switch (wireId) {
+                case 0 -> ASSIGN;
+                case 1 -> EVICT;
+                case 2 -> REFRESH;
+                case 3 -> SUMMON;
+                case 4 -> CLOSE;
+                default -> UNKNOWN;
+            };
+        }
     }
 
     public static final Type<PlaqueAction> TYPE = new Type<>(
         ResourceLocation.fromNamespaceAndPath("hearthstead", "plaque_action"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PlaqueAction> CODEC =
-        StreamCodec.composite(
-            BlockPos.STREAM_CODEC, PlaqueAction::pos,
-            ByteBufCodecs.VAR_INT.map(i -> Kind.values()[Math.floorMod(i, Kind.values().length)],
-                kind -> kind.ordinal()), PlaqueAction::kind,
-            UUIDUtil.STREAM_CODEC, PlaqueAction::target,
-            ByteBufCodecs.VAR_INT, PlaqueAction::revision,
-            PlaqueAction::new);
+        StreamCodec.of(PlaqueAction::write, PlaqueAction::read);
+
+    public PlaqueAction {
+        buildingId = buildingId == null ? NO_BUILDING : buildingId;
+        sessionId = sessionId == null ? NO_BUILDING : sessionId;
+        kind = kind == null ? Kind.UNKNOWN : kind;
+        target = target == null ? NO_BUILDING : target;
+    }
+
+    private static void write(RegistryFriendlyByteBuf buf, PlaqueAction action) {
+        buf.writeBlockPos(action.pos);
+        buf.writeUUID(action.buildingId);
+        buf.writeUUID(action.sessionId);
+        buf.writeVarInt(action.kind.wireId());
+        buf.writeUUID(action.target);
+        buf.writeVarInt(action.revision);
+    }
+
+    private static PlaqueAction read(RegistryFriendlyByteBuf buf) {
+        return new PlaqueAction(buf.readBlockPos(), buf.readUUID(), buf.readUUID(),
+            Kind.fromWireId(buf.readVarInt()), buf.readUUID(), buf.readVarInt());
+    }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

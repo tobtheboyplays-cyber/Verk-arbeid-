@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+echo "FAIL: legacy live2.sh is disabled; use tools/hearthstead-qa playtest" >&2
+exit 2
 # FAST-BOOT TWIN of live.sh (D-H5): identical in every way except the
 # client window, which launches from a shared, reusable production-style
 # NeoForge client install (client_install.sh) instead of running
@@ -297,10 +299,7 @@ start)
     # survive a terminal disconnect) — proven: it survived `live stop`
     # unkilled and collided with the next `start`'s own Xvfb on the same
     # display. So it needs an explicit SIGKILL, not just the session kill.
-    tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
-    pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
-    pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true
+    tmux_up && { echo "FAIL: refusing legacy broad cleanup" >&2; return 1; }
     sleep 1
 
     ev_init "$ROLE"
@@ -354,7 +353,7 @@ start)
     # cached install is a near-instant no-op), so this costs nothing on the
     # steady-state path and only does real work on the very first boot
     # after a neoforge_version bump.
-    CLIENT_INSTALL_DIR="${HSQA_CLIENT_INSTALL_DIR:-/tmp/claude-0/hsqa-client-install}"
+    CLIENT_INSTALL_DIR="${HSQA_CLIENT_INSTALL_DIR:-/tmp/claude-0/hsqa-client-install-v2}"
     bash "$HERE/client_install.sh" "$MOD" > "$EV_LOGS/client_install.log" 2>&1 \
         || die client_install "shared client install failed — see logs/client_install.log"
     check_pass client_install "shared client install present ($CLIENT_INSTALL_DIR)"
@@ -603,10 +602,7 @@ stop)
         mkdir -p "$EV_DIR/logs"
         cp "$INST/logs/latest.log" "$EV_DIR/logs/live-server-latest.log" 2>/dev/null
     fi
-    pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    pkill -9 -f "hsqa\.instanceDir=.*/$ROLE" 2>/dev/null || true
-    tmux_up && tmux kill-session -t "$TMUX_SESSION" 2>/dev/null
-    pkill -9 -f "Xvfb $DISPLAY_NUM" 2>/dev/null || true   # Xvfb ignores SIGHUP
+    tmux_up && { echo "FAIL: refusing legacy broad cleanup" >&2; return 1; }
     sleep 1
     # Finding 4: `stop` must RECORD the stop, not DISCARD `start`'s checks.
     # finish_result aggregates from $EV_DIR/.checks.jsonl, which start's

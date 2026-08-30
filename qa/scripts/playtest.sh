@@ -16,6 +16,12 @@
 #     cmd <command without slash>         open chat, type /command, submit (as player)
 #     scmd <command>                      run a command on the server console
 #     click [left|right]                  click at screen centre
+#     sneak_click [left|right]            hold Shift and click at screen centre;
+#                                          releases Shift before returning
+#     click_at <x-percent> <y-percent>     left-click inside the game window
+#     open_near_block <id> <radius> <button> <label>
+#                                          find nearest same-Y block server-side,
+#                                          aim at it, then physically click it
 #     insert_plan_at <plaque x y z> <stand x y z> <target x y z>
 #                                          verify selected Build Plan, aim at
 #                                          the target centre, physically
@@ -23,6 +29,9 @@
 #                                          server block state still lacks it
 #     move <dx> <dy>                      move the mouse (look around)
 #     shot <name>                         capture shots/<name>.png
+#     shot_now <name>                     capture immediately, without shot's
+#                                          one-second settle delay; reserved for
+#                                          subsecond animation timing evidence
 #     expect_server <regex>               FAIL unless regex is in the server's
 #                                          OWN Log4j output (logs/latest.log,
 #                                          never the tmux pane transcript,
@@ -30,6 +39,9 @@
 #                                          text before the server ever runs
 #                                          it — see the SRV_LOG note below)
 #     expect_shot <name>                  FAIL unless shots/<name>.png passes AC-3
+#     expect_screen <fully.qualified.ClassName>
+#                                          FAIL unless the client observer sees
+#                                          that exact open screen with mouse released
 #     expect_pixel_change <before> <after> <min-pct> [region]
 #                                          FAIL unless the two named shots differ by
 #                                          more than min-pct in `region` (lower-third|full)
@@ -51,11 +63,35 @@
 # regardless of truth. Query mod-authoritative state instead (e.g.
 # `scmd hearthstead info` / `expect_server`), which is what default.txt does.
 set -u
-MOD="$1"; OUT="$2"; SCENARIO="${3:-}"
+MOD="$1"; OUT="$2"; SCENARIO="${3:-${HSQA_PLAYTEST_SCENARIO:-}}"
 HERE="$(dirname "${BASH_SOURCE[0]}")"
+unset HSQA_TMUX_SELFTEST_MODE HSQA_TMUX_SOCKET
+export HSQA_PIDDIR=/tmp/claude-0/hsqa-pids-v2
 . "$HERE/lib_harness.sh"
+. "$HERE/lib_tmux_harness.sh"
 REPO="$HSQA_REPO"
 [ -n "$SCENARIO" ] || SCENARIO="$REPO/qa/scenarios/default.txt"
+if [ "${SCENARIO#/}" = "$SCENARIO" ]; then
+    SCENARIO="$REPO/$SCENARIO"
+fi
+GUI_SCALE="${HSQA_GUI_SCALE:-3}"
+case "$GUI_SCALE" in
+    2|3|4) ;;
+    *) echo "FAIL: HSQA_GUI_SCALE must be 2, 3 or 4; got: $GUI_SCALE"; exit 1;;
+esac
+CLIENT_LANGUAGE="${HSQA_LANGUAGE:-en_us}"
+case "$CLIENT_LANGUAGE" in
+    en_us|nb_no) ;;
+    *) echo "FAIL: HSQA_LANGUAGE must be en_us or nb_no; got: $CLIENT_LANGUAGE"; exit 1;;
+esac
+DISPLAY_WIDTH="${HSQA_DISPLAY_WIDTH:-1280}"
+DISPLAY_HEIGHT="${HSQA_DISPLAY_HEIGHT:-720}"
+case "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}" in
+    1280x720|1920x1080) ;;
+    *) echo "FAIL: supported display profiles are 1280x720 and 1920x1080; got: ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}"; exit 1;;
+esac
+CENTER_X=$((DISPLAY_WIDTH / 2))
+CENTER_Y=$((DISPLAY_HEIGHT / 2))
 
 ROLE="playtest"
 PORT="${HSQA_PLAYTEST_PORT:-25573}"
@@ -75,27 +111,124 @@ ev_init "$ROLE"
 command -v xdotool >/dev/null || { echo "FAIL: xdotool missing"; exit 1; }
 [ -f "$SCENARIO" ] || { echo "FAIL: scenario not found: $SCENARIO"; exit 1; }
 
+# The runtime sentinel below proves that the selected language was genuinely
+# loaded. This static parity gate complements it by preventing one missing
+# card/button/footer key from falling back to English while the Norwegian
+# title alone still passes.
+if ! LANGUAGE_ASSET_EVIDENCE=$(python3 - \
+        "$MOD/src/main/resources/assets/hearthstead/lang/en_us.json" \
+        "$MOD/src/main/resources/assets/hearthstead/lang/nb_no.json" 2>&1 <<'PYEOF'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    english = json.load(stream)
+with open(sys.argv[2], encoding="utf-8") as stream:
+    norwegian = json.load(stream)
+
+prefix = "hearthstead.blessing."
+english_keys = {key for key in english if key.startswith(prefix)}
+norwegian_keys = {key for key in norwegian if key.startswith(prefix)}
+missing_nb = sorted(english_keys - norwegian_keys)
+extra_nb = sorted(norwegian_keys - english_keys)
+identical = sorted(
+    key for key in english_keys & norwegian_keys
+    if english[key] == norwegian[key]
+)
+if not english_keys or missing_nb or extra_nb or identical:
+    print(
+        "Blessing language parity failed: "
+        f"en={len(english_keys)} nb={len(norwegian_keys)} "
+        f"missing_nb={missing_nb} extra_nb={extra_nb} identical={identical}"
+    )
+    raise SystemExit(1)
+print(
+    f"{len(english_keys)}/{len(english_keys)} Blessing keys present and "
+    "distinct in en_us and nb_no"
+)
+PYEOF
+); then
+    die language_assets "$LANGUAGE_ASSET_EVIDENCE"
+fi
+check_pass language_assets "$LANGUAGE_ASSET_EVIDENCE"
+
 TMUX_PT="hsqa-playtest"
+TMUX_PT_OWNER="playtest-tmux"
+TMUX_PT_ID=""
 TEARDOWN_DONE=0
+TEARDOWN_RUNNING=0
+TEARDOWN_PENDING_SIGNAL=0
+TEARDOWN_STATUS=0
+GRADLE_ROLE="${ROLE}-client"; GRADLE_PID=""; GRADLE_PGID=""; GRADLE_RECORD=""
+XVFB_ROLE="${ROLE}-xvfb"; XVFB_PID=""; XVFB_PGID=""; XVFB_RECORD=""
+SERVER_EFFECTIVE_ROLE="${ROLE}-server"; SERVER_WINDOW_ID=""; SERVER_PANE_ID=""; SERVER_PANE_PID=""; SERVER_PGID=""; SERVER_RECORD=""
+teardown_defer_signal() {
+    [ "$TEARDOWN_PENDING_SIGNAL" -ne 0 ] \
+        || TEARDOWN_PENDING_SIGNAL="$1"
+}
 teardown() {
-    [ "$TEARDOWN_DONE" = 1 ] && return
-    TEARDOWN_DONE=1
+    local cleanup_status=0
+    [ "$TEARDOWN_DONE" = 1 ] && return "$TEARDOWN_STATUS"
+    [ "$TEARDOWN_RUNNING" = 0 ] || return 125
+    TEARDOWN_RUNNING=1
+    trap 'teardown_defer_signal 130' INT
+    trap 'teardown_defer_signal 143' TERM
     # $INST is ephemeral (server_instance.sh rm -rf's it on this role's next
     # run) — preserve the authoritative server log in durable evidence
     # regardless of which exit path got here (pass, die(), or an abort).
     [ -n "${INST:-}" ] && [ -f "$INST/logs/latest.log" ] \
         && cp "$INST/logs/latest.log" "$EV_LOGS/playtest-server-latest.log" 2>/dev/null
-    [ -n "${GRADLE_PID:-}" ] && kill -9 -- "-$GRADLE_PID" 2>/dev/null
-    pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    tmux has-session -t "$TMUX_PT" 2>/dev/null && tmux kill-session -t "$TMUX_PT" 2>/dev/null
-    pkill -9 -f "hsqa.instanceDir=.*/$ROLE" 2>/dev/null || true
-    [ -n "${XVFB_PID:-}" ] && kill -9 "$XVFB_PID" 2>/dev/null
+    if hsqa_stop_tracked "$GRADLE_ROLE" "$GRADLE_RECORD"; then
+        GRADLE_RECORD=''
+    else
+        cleanup_status=1
+    fi
+    if hsqa_stop_tracked "$SERVER_EFFECTIVE_ROLE" "$SERVER_RECORD"; then
+        SERVER_RECORD=''
+    else
+        cleanup_status=1
+    fi
+    [ -z "$TMUX_PT_ID" ] \
+        || hsqa_stop_owned_tmux_session "$TMUX_PT_ID" "$TMUX_PT_OWNER" \
+        || cleanup_status=1
+    hsqa_wait_port_free "$PORT" || cleanup_status=1
+    hsqa_stop_tracked "$XVFB_ROLE" "$XVFB_RECORD" || cleanup_status=1
+    for _ in $(seq 1 20); do
+        DISPLAY="$DISPLAY_NUM" xdotool getmouselocation >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    DISPLAY="$DISPLAY_NUM" xdotool getmouselocation >/dev/null 2>&1 \
+        && cleanup_status=1
     [ -n "${FRAME_REQUEST:-}" ] && rm -f -- "$FRAME_REQUEST"
     [ -n "${FRAME_REQUEST_TMP:-}" ] && rm -f -- "$FRAME_REQUEST_TMP"
-    clear_pidfile "$ROLE"
-    clear_pidfile "${ROLE}-xvfb"
+    TEARDOWN_STATUS="$cleanup_status"
+    TEARDOWN_DONE=1
+    TEARDOWN_RUNNING=0
+    if [ "$TEARDOWN_PENDING_SIGNAL" -eq 0 ]; then
+        trap 'on_signal 130' INT
+        trap 'on_signal 143' TERM
+    fi
+    return "$cleanup_status"
 }
-trap teardown EXIT INT TERM
+on_signal() {
+    local status="$1" cleanup_status=0 final_status
+    trap - EXIT
+    [ "$TEARDOWN_PENDING_SIGNAL" -ne 0 ] \
+        || TEARDOWN_PENDING_SIGNAL="$status"
+    teardown || cleanup_status=1
+    status="$TEARDOWN_PENDING_SIGNAL"
+    hsqa_finish_interrupted "$status" playtest \
+        "tools/hearthstead-qa playtest" "$cleanup_status"
+    final_status=$?
+    exit "$final_status"
+}
+on_exit() {
+    hsqa_exit_after_cleanup "$?" playtest \
+        "tools/hearthstead-qa playtest" teardown TEARDOWN_PENDING_SIGNAL
+}
+trap on_exit EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 # FACT 1: port free.
 if ! MSG=$(preflight_port "$PORT" "$ROLE"); then die port_preflight "$MSG"; fi
@@ -143,9 +276,11 @@ check_pass instance "$INST"
 # log is kept only for build/crash diagnostics and human debugging.
 SRV_LOG="$INST/logs/latest.log"
 
-Xvfb "$DISPLAY_NUM" -screen 0 1280x720x24 > "$EV_LOGS/xvfb.log" 2>&1 &
-XVFB_PID=$!
-register_pid "${ROLE}-xvfb" "$XVFB_PID"
+hsqa_launch_tracked_group "${ROLE}-xvfb" playtest-xvfb on_signal \
+    XVFB_PID XVFB_PGID XVFB_RECORD XVFB_ROLE \
+    Xvfb "$DISPLAY_NUM" -screen 0 "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x24" \
+    > "$EV_LOGS/xvfb.log" 2>&1 \
+    || die xvfb "could not safely launch/register Xvfb"
 sleep 2
 kill -0 "$XVFB_PID" 2>/dev/null || die xvfb "Xvfb failed to start — see logs/xvfb.log"
 check_pass xvfb "Xvfb :98 up (pid $XVFB_PID)"
@@ -154,7 +289,7 @@ check_pass xvfb "Xvfb :98 up (pid $XVFB_PID)"
 # land), NOT run/client — options written anywhere else are silently
 # ignored, which leaves the accessibility onboarding screen up and blocks
 # quickPlay entirely (KF-006). Written deterministically every run so the
-# window is always exactly 1280x720 (regression risk: the client rewrites
+# window is always exactly the requested profile (regression risk: the client rewrites
 # this file on its own exit).
 # rawMouseInput:false matters more than it looks: with it true (the
 # default), GLFW reads camera look from XInput2 raw motion events, which
@@ -164,25 +299,30 @@ check_pass xvfb "Xvfb :98 up (pid $XVFB_PID)"
 # correctly while server-side Rotation stayed exactly [0.0f, 0.0f]). With it
 # false, GLFW falls back to ordinary pointer-motion deltas, which XTest does
 # drive.
-RUN_DIR="$MOD/run"
-mkdir -p "$RUN_DIR"
+RUN_DIR=$(hsqa_require_plain_mod_run "$MOD") \
+    || die run_directory "module run directory is symlinked or unsafe"
+OPTIONS_FILE=$(hsqa_require_plain_mod_run_file "$MOD" options.txt) \
+    || die options_path "module options.txt path is symlinked or unsafe"
 FRAME_REQUEST="$RUN_DIR/hsqa-frame-request"
 FRAME_REQUEST_TMP=""
 rm -f -- "$FRAME_REQUEST"
-cat > "$RUN_DIR/options.txt" <<'OPTS'
+cat > "$OPTIONS_FILE" <<OPTS
 onboardAccessibility:false
 skipMultiplayerWarning:true
 pauseOnLostFocus:false
-guiScale:3
+guiScale:$GUI_SCALE
+lang:$CLIENT_LANGUAGE
 fullscreen:false
-overrideWidth:1280
-overrideHeight:720
+overrideWidth:$DISPLAY_WIDTH
+overrideHeight:$DISPLAY_HEIGHT
 tutorialStep:none
 rawMouseInput:false
 mouseSensitivity:0.5
 renderDistance:6
 simulationDistance:6
 OPTS
+check_pass display_profile_requested \
+    "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT} with requested guiScale $GUI_SCALE in $CLIENT_LANGUAGE"
 
 # Drive the server through a tmux window (same mechanism as live.sh's D-H1
 # design) so scenarios can issue console commands (op, gamemode, summon,
@@ -196,20 +336,34 @@ OPTS
 # the dedicated server would otherwise open its Swing console on the same
 # virtual screen and steal synthetic input meant for the game.
 # Idempotent: in case a previous invocation's session leaked.
-tmux has-session -t "$TMUX_PT" 2>/dev/null && tmux kill-session -t "$TMUX_PT" 2>/dev/null
 # -x/-y: a detached tmux session defaults to a narrow (~80-column) terminal;
 # a Minecraft command longer than the pane width gets corrupted by the
 # console's line-wrap redraw (proven live: a `fill` command arrived with an
 # ANSI cursor-move escape spliced into its middle). A wide pane avoids it.
-tmux new-session -d -s "$TMUX_PT" -n server -x 500 -y 50 \
-    "cd '$INST' && timeout --foreground 900 ./run.sh nogui 2>&1 | tee '$EV_LOGS/playtest-server.log'"
-scmd() { tmux send-keys -l -t "$TMUX_PT:server" "$1"; tmux send-keys -t "$TMUX_PT:server" Enter; sleep 2; }
+hsqa_create_owned_tmux_session "$TMUX_PT" "$TMUX_PT_OWNER" on_signal \
+    TMUX_PT_ID || die server_launch "could not create an exact owned tmux session"
+hsqa_launch_tracked_tmux_window "$TMUX_PT_ID" "$TMUX_PT_OWNER" server \
+    "${ROLE}-server" playtest-server on_signal SERVER_WINDOW_ID \
+    SERVER_PANE_ID SERVER_PANE_PID SERVER_PGID SERVER_RECORD SERVER_EFFECTIVE_ROLE \
+    bash -c 'set -o pipefail; cd "$1" || exit 1; timeout --kill-after=10 --foreground 900 ./run.sh nogui 2>&1 | tee "$2"' \
+    -- "$INST" "$EV_LOGS/playtest-server.log" \
+    || die server_launch "could not safely launch/register exact tmux server group"
+scmd_now() {
+    hsqa_tmux_pane_record_owned "$SERVER_PANE_ID" "$SERVER_PANE_PID" \
+        "$SERVER_RECORD" playtest-server \
+        || die server_console_identity \
+            "server console pane/record identity changed before command"
+    hsqa_tmux send-keys -l -t "$SERVER_PANE_ID" "$1" \
+        && hsqa_tmux send-keys -t "$SERVER_PANE_ID" Enter \
+        || die server_console_send "could not send command to exact server pane"
+}
+scmd() { scmd_now "$1"; sleep 2; }
 
 SERVER_UP=0
 for _ in $(seq 1 90); do
     sleep 2
     grep -q 'Done (' "$SRV_LOG" 2>/dev/null && { SERVER_UP=1; break; }
-    tmux has-session -t "$TMUX_PT" 2>/dev/null || break
+    hsqa_tmux has-session -t "$TMUX_PT_ID" 2>/dev/null || break
 done
 if [ "$SERVER_UP" != 1 ]; then
     REASON=$(grep -m1 -E 'FAILED TO BIND|Address already in use|Exception|Error' "$SRV_LOG" 2>/dev/null || echo "no Done( line — see logs/playtest-server.log")
@@ -217,18 +371,16 @@ if [ "$SERVER_UP" != 1 ]; then
 fi
 check_pass server_started "$(grep -m1 'Done (' "$SRV_LOG")"
 
-cd "$MOD"
 # HSQA_TEST_BAD_JOIN_PORT is a test-only hook (AC-8/N4): points the client at
 # a port nothing is listening on, so the server comes up fine but the client
 # can never join — proving the harness reports THAT, with a diagnostic
 # screenshot, rather than misreporting it as a server or build problem.
 JOIN_PORT="${HSQA_TEST_BAD_JOIN_PORT:-$PORT}"
-set -m
-HSQA_CLIENT_OBSERVER=1 HSQA_JOIN="127.0.0.1:$JOIN_PORT" \
-    timeout --foreground 900 ./gradlew runClient > "$EV_LOGS/playtest-client.log" 2>&1 &
-GRADLE_PID=$!
-set +m
-register_pid "$ROLE" "-$GRADLE_PID"
+hsqa_launch_tracked_group "${ROLE}-client" playtest-client on_signal \
+    GRADLE_PID GRADLE_PGID GRADLE_RECORD GRADLE_ROLE \
+    bash -c 'cd "$1" || exit 1; exec env HSQA_CLIENT_OBSERVER=1 HSQA_JOIN="127.0.0.1:$2" timeout --kill-after=10 --foreground 900 ./gradlew --no-daemon runClient' \
+    -- "$MOD" "$JOIN_PORT" > "$EV_LOGS/playtest-client.log" 2>&1 \
+    || die client_launch "could not safely launch/register client"
 
 # Wait for the player to actually be in the world. The server-side join line
 # is the authoritative signal (AC-1) — but a client BUILD failure (N2) must
@@ -739,10 +891,10 @@ ensure_grab() {
 # reticle/position/input rather than inferred from downstream state.
 OPEN_AT_POS=""
 OPEN_AT_ROT=""
-open_at() { # stand-x stand-y stand-z target-x target-y target-z button label
+open_at() { # stand-x stand-y stand-z target-x target-y target-z button label [expected-block-x,y,z]
     local sx="$1" sy="$2" sz="$3" tx="$4" ty="$5" tz="$6"
     local button="${7:-right}" label="${8:-open-at}"
-    local button_num=3 pose_anchor
+    local expected_hit="${9:-}" button_num=3 pose_anchor
     [ "$button" = "left" ] && button_num=1
 
     focus
@@ -766,10 +918,27 @@ open_at() { # stand-x stand-y stand-z target-x target-y target-z button label
     OPEN_AT_ROT=$(tail -n +"$((pose_anchor + 1))" "$SRV_LOG" 2>/dev/null \
         | grep -F "$PLAYER has the following entity data:" | tail -1)
 
-    focus
+    # A correct server rotation is not enough: a real entity can still stand
+    # in the ray. Sample the client's actual pick result after the aim has
+    # settled and before sending the one physical world click.
+    wait_client_frame null true "open_at aim $label" \
+        || die "${DIR_IDX:-setup}:open_at_aim" \
+            "client did not acknowledge the final $label aim"
+    if [ -n "$expected_hit" ] \
+        && [[ "$FRAME_ACK_LINE" != *" hitType=block hitBlock=$expected_hit "* ]]; then
+        die "${DIR_IDX:-setup}:open_at_hit" \
+            "client pick ray did not hit expected block $expected_hit: $FRAME_ACK_LINE"
+    fi
+
+    focus || die "${DIR_IDX:-setup}:open_at_focus" \
+        "Minecraft window could not be focused before $label click"
     shot "$label"
-    xdotool mousemove 640 360
-    xdotool click "$button_num"
+    xdotool mousemove --sync "$CENTER_X" "$CENTER_Y" \
+        || die "${DIR_IDX:-setup}:open_at_pointer" \
+            "could not position pointer before $label click"
+    xdotool click "$button_num" \
+        || die "${DIR_IDX:-setup}:open_at_click" \
+            "physical $button click was rejected for $label"
     sleep 3
 }
 shot() { # <name>
@@ -787,6 +956,50 @@ shot playtest-00-title
 # the initial grab through the same non-world-mutating auxiliary-button path
 # every later recovery uses; never spend a left click merely to gain focus.
 safe_regrab
+
+# options.txt records only the REQUEST. Minecraft clamps GUI scale when the
+# resulting virtual canvas would be too small (e.g. requested scale 4 at
+# 1280x720 becomes effective scale 3). The client-frame observer reports the
+# actual render values; a visual gate must never label a clamped screenshot as
+# proof of a scale it did not render.
+ACTUAL_GUI_SCALE=$(printf '%s\n' "$FRAME_ACK_LINE" \
+    | sed -n 's/.* guiScale=\([^ ]*\).*/\1/p')
+ACTUAL_GUI_SIZE=$(printf '%s\n' "$FRAME_ACK_LINE" \
+    | sed -n 's/.* gui=\([^ ]*\).*/\1/p')
+ACTUAL_FRAMEBUFFER=$(printf '%s\n' "$FRAME_ACK_LINE" \
+    | sed -n 's/.* framebuffer=\([^ ]*\).*/\1/p')
+ACTUAL_LANGUAGE=$(printf '%s\n' "$FRAME_ACK_LINE" \
+    | sed -n 's/.* language=\([^ ]*\).*/\1/p')
+BLESSING_TITLE_RESOLVED=$(printf '%s\n' "$FRAME_ACK_LINE" \
+    | sed -n 's/.* blessingTitleResolved=\([^ ]*\).*/\1/p')
+BLESSING_TITLE_LANGUAGE_MATCH=$(printf '%s\n' "$FRAME_ACK_LINE" \
+    | sed -n 's/.* blessingTitleLanguageMatch=\([^ ]*\).*/\1/p')
+if [ -z "$ACTUAL_GUI_SCALE" ] || [ -z "$ACTUAL_GUI_SIZE" ] \
+    || [ -z "$ACTUAL_FRAMEBUFFER" ] || [ -z "$ACTUAL_LANGUAGE" ] \
+    || [ -z "$BLESSING_TITLE_RESOLVED" ] \
+    || [ -z "$BLESSING_TITLE_LANGUAGE_MATCH" ]; then
+    die display_profile "client frame ack omitted effective GUI/display/language values: $FRAME_ACK_LINE"
+fi
+if ! awk -v actual="$ACTUAL_GUI_SCALE" -v expected="$GUI_SCALE" \
+        'BEGIN { exit !(actual == expected) }'; then
+    die display_profile \
+        "requested guiScale $GUI_SCALE was clamped to $ACTUAL_GUI_SCALE at ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT} (effective GUI $ACTUAL_GUI_SIZE)"
+fi
+if [ "$ACTUAL_FRAMEBUFFER" != "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}" ]; then
+    die display_profile \
+        "requested framebuffer ${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}, client rendered $ACTUAL_FRAMEBUFFER"
+fi
+if [ "$ACTUAL_LANGUAGE" != "$CLIENT_LANGUAGE" ]; then
+    die display_profile \
+        "requested language $CLIENT_LANGUAGE, client selected $ACTUAL_LANGUAGE"
+fi
+if [ "$BLESSING_TITLE_RESOLVED" != true ] \
+    || [ "$BLESSING_TITLE_LANGUAGE_MATCH" != true ]; then
+    die display_profile \
+        "language $ACTUAL_LANGUAGE did not resolve the expected Hearthstead translation"
+fi
+check_pass display_profile \
+    "effective guiScale $ACTUAL_GUI_SCALE, GUI $ACTUAL_GUI_SIZE, framebuffer $ACTUAL_FRAMEBUFFER, language $ACTUAL_LANGUAGE with translated Blessing title"
 
 # AC-14: every directive gets a recorded outcome, not just expect_* ones —
 # a typo'd or silently-no-op directive must be visible in result.json, not
@@ -820,7 +1033,7 @@ while read -r verb rest; do
     done
     DIR_IDX=$((DIR_IDX + 1))
     case "${verb:-}" in
-        cmd|scmd|click|insert_plan_at|move|key|type) LOG_ANCHOR=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0);;
+        cmd|scmd|click|sneak_click|click_at|open_near_block|insert_plan_at|move|key|type) LOG_ANCHOR=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0);;
     esac
     case "${verb:-}" in
         # '#'* not '#': only a bare '#' matched before, so a comment written
@@ -891,9 +1104,60 @@ while read -r verb rest; do
                safe_regrab
                check_pass "$DIR_IDX:cmd" "ran as player: /$rest";;
         click) focus
-               xdotool mousemove 640 360
+               xdotool mousemove "$CENTER_X" "$CENTER_Y"
                xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2
                check_pass "$DIR_IDX:click" "clicked ${rest:-left}";;
+        sneak_click)
+               focus || die "$DIR_IDX:sneak_click" "Minecraft window could not be focused"
+               safe_regrab
+               xdotool mousemove "$CENTER_X" "$CENTER_Y" \
+                   || die "$DIR_IDX:sneak_click" "could not centre the pointer"
+               _sc_down=0; _sc_click=0; _sc_up=0
+               xdotool keydown Shift_L || _sc_down=$?
+               sleep 0.10
+               xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)" \
+                   || _sc_click=$?
+               sleep 0.20
+               # Always release the modifier, including after a rejected click.
+               xdotool keyup Shift_L || _sc_up=$?
+               if [ "$_sc_down" -ne 0 ] || [ "$_sc_click" -ne 0 ] \
+                   || [ "$_sc_up" -ne 0 ]; then
+                   die "$DIR_IDX:sneak_click" \
+                       "xdotool failed: down=$_sc_down click=$_sc_click up=$_sc_up"
+               fi
+               check_pass "$DIR_IDX:sneak_click" \
+                   "sneak-clicked ${rest:-left} and released Shift";;
+        click_at)
+               set -- $rest
+               [ "$#" -eq 2 ] \
+                   || die "$DIR_IDX:click_at" "expected x-percent y-percent; got: $rest"
+               awk -v x="$1" -v y="$2" \
+                   'BEGIN { exit !(x>0 && x<100 && y>0 && y<100) }' \
+                   || die "$DIR_IDX:click_at" "percentages must be inside 0..100: $rest"
+               focus \
+                   || die "$DIR_IDX:click_at" "Minecraft window could not be focused"
+               _ca_geom=$(xdotool getwindowgeometry --shell "$WIN" 2>/dev/null) \
+                   || die "$DIR_IDX:click_at" "could not read Minecraft window geometry"
+               _ca_x=$(printf '%s\n' "$_ca_geom" | sed -n 's/^X=//p')
+               _ca_y=$(printf '%s\n' "$_ca_geom" | sed -n 's/^Y=//p')
+               _ca_w=$(printf '%s\n' "$_ca_geom" | sed -n 's/^WIDTH=//p')
+               _ca_h=$(printf '%s\n' "$_ca_geom" | sed -n 's/^HEIGHT=//p')
+               awk -v x="$_ca_x" -v y="$_ca_y" -v w="$_ca_w" -v h="$_ca_h" \
+                   'BEGIN { exit !(x ~ /^-?[0-9]+$/ && y ~ /^-?[0-9]+$/ \
+                       && w ~ /^[1-9][0-9]*$/ && h ~ /^[1-9][0-9]*$/) }' \
+                   || die "$DIR_IDX:click_at" \
+                       "invalid Minecraft window geometry: $_ca_geom"
+               _ca_px=$(awk -v x="$_ca_x" -v w="$_ca_w" -v p="$1" \
+                   'BEGIN { printf "%d", x+w*p/100 }')
+               _ca_py=$(awk -v y="$_ca_y" -v h="$_ca_h" -v p="$2" \
+                   'BEGIN { printf "%d", y+h*p/100 }')
+               xdotool mousemove --sync "$_ca_px" "$_ca_py" \
+                   || die "$DIR_IDX:click_at" "could not position pointer at $rest"
+               xdotool click 1 \
+                   || die "$DIR_IDX:click_at" "left click was rejected at $rest"
+               sleep 2
+               check_pass "$DIR_IDX:click_at" \
+                   "left-clicked window position $rest (pixel $_ca_px,$_ca_py)";;
         open)  # The world-interact twin of `click`, for the FIRST click that
                # opens a screen -- a plaque, a chest, a settler's sheet. It
                # regrabs first, the same way `move` does and for the same
@@ -911,9 +1175,99 @@ while read -r verb rest; do
                # there, and never use `click` for the first interact.
                focus
                safe_regrab
-               xdotool mousemove 640 360
+               xdotool mousemove "$CENTER_X" "$CENTER_Y"
                xdotool click "$([ "${rest:-left}" = right ] && echo 3 || echo 1)"; sleep 2
                check_pass "$DIR_IDX:open" "opened (${rest:-left} click, after regrab)";;
+        open_near_block)
+               set -- $rest
+               if [ "$#" -ne 4 ] || [[ ! "$1" =~ ^[a-z0-9_.-]+:[a-z0-9_./-]+$ ]] \
+                   || [[ ! "$2" =~ ^[1-9][0-9]*$ ]] \
+                   || { [ "$3" != right ] && [ "$3" != left ]; } \
+                   || [[ ! "$4" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+                   die "$DIR_IDX:open_near_block" \
+                       "expected <namespaced-block> <positive-radius> <left|right> <label>; got: $rest"
+               fi
+               _onb_block="$1"; _onb_radius="$2"; _onb_button="$3"; _onb_label="$4"
+               if [ "$_onb_radius" -gt 8 ]; then
+                   die "$DIR_IDX:open_near_block" \
+                       "radius $_onb_radius exceeds the hard safety bound of 8"
+               fi
+
+               # Founding spawns three physical settlers that may push the
+               # player sideways. The old cached camera direction could then
+               # miss the Hearth or hit a settler. Find the exact nearby
+               # block through server-authoritative probes; open_at still
+               # performs the one real client click used by the scenario.
+               _onb_pos_anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+               scmd "data get entity $PLAYER Pos"
+               _onb_pos=$(tail -n +"$((_onb_pos_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                   | grep -oP "$PLAYER has the following entity data: \[\K[-0-9.]+d, [-0-9.]+d, [-0-9.]+d" \
+                   | tail -1)
+               _onb_px=$(echo "$_onb_pos" | cut -d',' -f1 | tr -d 'd ')
+               _onb_py=$(echo "$_onb_pos" | cut -d',' -f2 | tr -d 'd ')
+               _onb_pz=$(echo "$_onb_pos" | cut -d',' -f3 | tr -d 'd ')
+               if [ -z "$_onb_px" ] || [ -z "$_onb_py" ] || [ -z "$_onb_pz" ]; then
+                   die "$DIR_IDX:open_near_block" \
+                       "could not read $PLAYER position before finding $_onb_block"
+               fi
+
+               _onb_nonce="${ROLE}_${DIR_IDX}_${RANDOM}"
+               _onb_anchor=$(wc -l < "$SRV_LOG" 2>/dev/null || echo 0)
+               for _onb_dx in $(seq "-${_onb_radius}" "$_onb_radius"); do
+                   for _onb_dz in $(seq "-${_onb_radius}" "$_onb_radius"); do
+                       scmd_now \
+                           "execute at $PLAYER if block ~$_onb_dx ~ ~$_onb_dz $_onb_block run say HSQA_NEAR_BLOCK $_onb_nonce $_onb_dx $_onb_dz"
+                   done
+               done
+               scmd_now "say HSQA_NEAR_BLOCK_DONE $_onb_nonce"
+               _onb_deadline=$((SECONDS + 15))
+               _onb_done=""
+               while [ "$SECONDS" -lt "$_onb_deadline" ]; do
+                   _onb_done=$(tail -n +"$((_onb_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                       | grep -F "HSQA_NEAR_BLOCK_DONE $_onb_nonce" | tail -1)
+                   [ -n "$_onb_done" ] && break
+                   sleep 0.10
+               done
+               if [ -z "$_onb_done" ]; then
+                   die "$DIR_IDX:open_near_block" \
+                       "server did not finish the bounded $_onb_block scan"
+               fi
+               _onb_candidates=$(tail -n +"$((_onb_anchor + 1))" "$SRV_LOG" 2>/dev/null \
+                   | grep -F "HSQA_NEAR_BLOCK $_onb_nonce " \
+                   | sed -n "s/.*HSQA_NEAR_BLOCK $_onb_nonce \(-\{0,1\}[0-9][0-9]*\) \(-\{0,1\}[0-9][0-9]*\).*/\1 \2/p")
+               read -r _onb_dx _onb_dz <<< "$(printf '%s\n' "$_onb_candidates" \
+                   | awk 'NF == 2 {
+                       distance = ($1 * $1) + ($2 * $2)
+                       if (!found || distance < best) {
+                           found = 1; best = distance; best_x = $1; best_z = $2
+                       }
+                   } END { if (found) print best_x, best_z }')"
+               if [ -z "${_onb_dx:-}" ] || [ -z "${_onb_dz:-}" ]; then
+                   die "$DIR_IDX:open_near_block" \
+                       "server found no $_onb_block on player foot-Y within horizontal radius $_onb_radius"
+               fi
+
+               read -r _onb_bx _onb_by _onb_bz <<< "$(python3 - \
+                   "$_onb_px" "$_onb_py" "$_onb_pz" "$_onb_dx" "$_onb_dz" <<'PYEOF'
+import math
+import sys
+x, y, z = map(float, sys.argv[1:4])
+dx, dz = map(int, sys.argv[4:6])
+print(math.floor(x) + dx, math.floor(y), math.floor(z) + dz)
+PYEOF
+)"
+               _onb_sx=$(python3 -c "print($_onb_bx + 0.5)")
+               _onb_sy="$_onb_by"
+               _onb_sz=$(python3 -c "print($_onb_bz - 3.5)")
+               _onb_tx=$(python3 -c "print($_onb_bx + 0.5)")
+               _onb_ty=$(python3 -c "print($_onb_by + 0.55)")
+               _onb_tz=$(python3 -c "print($_onb_bz + 0.5)")
+               open_at "$_onb_sx" "$_onb_sy" "$_onb_sz" \
+                   "$_onb_tx" "$_onb_ty" "$_onb_tz" \
+                   "$_onb_button" "$_onb_label" \
+                   "$_onb_bx,$_onb_by,$_onb_bz"
+               check_pass "$DIR_IDX:open_near_block" \
+                   "found $_onb_block at $_onb_bx $_onb_by $_onb_bz and physically clicked it";;
         insert_plan_at)
                # This directive is intentionally state-aware instead of a
                # chain of blind clicks. Every attempt remains a real client
@@ -960,7 +1314,8 @@ while read -r verb rest; do
 
                    open_at "$_ip_sx" "$_ip_sy" "$_ip_sz" \
                        "$_ip_tx" "$_ip_ty" "$_ip_tz" right \
-                       "plaque-insert-attempt-${_ip_try}-aim"
+                       "plaque-insert-attempt-${_ip_try}-aim" \
+                       "$_ip_px,$_ip_py,$_ip_pz"
                    check_pass "$DIR_IDX:insert_plan_aim_${_ip_try}" \
                        "pos=[$OPEN_AT_POS] rotation=[$OPEN_AT_ROT] shot=plaque-insert-attempt-${_ip_try}-aim.png"
 
@@ -1126,6 +1481,17 @@ while read -r verb rest; do
                fi
                echo "captured $rest.png";;
 
+        shot_now)
+               shot "$rest"
+               if [ -s "$EV_SHOTS/$rest.png" ]; then
+                   check_pass "$DIR_IDX:shot_now" \
+                       "captured immediate shots/$rest.png"
+               else
+                   check_fail "$DIR_IDX:shot_now" \
+                       "shots/$rest.png was not produced"
+               fi
+               echo "captured immediate $rest.png";;
+
         expect_server)
             # See SRV_LOG note above (finding 1): the real Log4j file, never
             # the tmux pane's own echo of what was just typed. Searches only
@@ -1146,12 +1512,36 @@ while read -r verb rest; do
             ;;
 
         expect_shot)
-            RES=$(python3 "$HERE/check_screenshot.py" "$EV_SHOTS/$rest.png" 2>&1)
+            # AC-3 must validate the framebuffer profile this run actually
+            # requested.  Falling back to check_screenshot.py's historical
+            # 1280x720 defaults made legitimate 1920x1080 scale-4 evidence
+            # fail even after the client and Xvfb had rendered it correctly.
+            RES=$(python3 "$HERE/check_screenshot.py" "$EV_SHOTS/$rest.png" \
+                --width "$DISPLAY_WIDTH" --height "$DISPLAY_HEIGHT" 2>&1)
             if echo "$RES" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("pass") else 1)' 2>/dev/null; then
                 check_pass "$DIR_IDX:expect_shot:$rest" "$RES"
             else
                 die "$DIR_IDX:expect_shot:$rest" "shots/$rest.png failed AC-3: $RES"
             fi
+            ;;
+
+        expect_screen)
+            if [[ ! "$rest" =~ ^[A-Za-z_$][A-Za-z0-9_.$]*\.[A-Za-z_$][A-Za-z0-9_$]*$ ]]; then
+                die "$DIR_IDX:expect_screen" \
+                    "expected one fully-qualified screen class name, got: $rest"
+            fi
+            _es_simple="${rest##*.}"
+            if ! wait_client_frame "$_es_simple" false \
+                    "expect_screen $rest"; then
+                die "$DIR_IDX:expect_screen:$rest" \
+                    "client did not render the required screen"
+            fi
+            if [[ "$FRAME_ACK_LINE" != *" screenClass=$rest "* ]]; then
+                die "$DIR_IDX:expect_screen:$rest" \
+                    "client rendered a same-named screen from the wrong class: $FRAME_ACK_LINE"
+            fi
+            check_pass "$DIR_IDX:expect_screen:$rest" \
+                "client rendered screenClass=$rest with mouse released"
             ;;
 
         expect_pixel_change)
@@ -1206,6 +1596,9 @@ COUNT=$(find "$EV_SHOTS" -maxdepth 1 -name '*.png' | wc -l)
 [ "$COUNT" -gt 0 ] || die screenshots_captured "no screenshots captured"
 check_pass screenshots_captured "$COUNT screenshots in shots/"
 
+teardown || die process_cleanup "playtest client/server/Xvfb, tmux, display or port survived exact teardown; recovery record retained"
+[ "$TEARDOWN_PENDING_SIGNAL" -eq 0 ] \
+    || on_signal "$TEARDOWN_PENDING_SIGNAL"
 finish_result PASS
 write_reproduction "# Reproduce: playtest
 tools/hearthstead-qa playtest

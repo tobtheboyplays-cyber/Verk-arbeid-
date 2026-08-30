@@ -157,6 +157,7 @@ public class FarmerCaneGameTests {
         placeCaneSite(helper);
         Container chest = chestAt(helper, 10, 10);
         chest.setItem(0, new ItemStack(Items.SUGAR_CANE, 6));
+        chest.setItem(1, new ItemStack(Items.IRON_HOE));
         SettlerEntity ingrid = farmer(helper, s, house, 8, 8);
 
         helper.succeedWhen(() -> {
@@ -196,6 +197,8 @@ public class FarmerCaneGameTests {
         Settlement s = settlement(helper);
         Building house = farmhouse(helper, s, 8, 8);
         placeCaneSite(helper);
+        Container chest = chestAt(helper, 10, 10);
+        chest.setItem(0, new ItemStack(Items.IRON_HOE));
         // A real, already-standing two-tall stack: base (rel y1) + one
         // grown segment (rel y2) -- only the top one is a legal harvest
         // target (isMatureCane requires cane, not dirt, beneath it).
@@ -217,6 +220,53 @@ public class FarmerCaneGameTests {
                 "the base segment must survive the harvest so it keeps regrowing on "
                     + "its own -- killing it would undo the entire point of cane "
                     + "needing no replant step" + diag);
+        });
+    }
+
+    /**
+     * Two ripe cane tops discovered by one field survey belong to the same
+     * harvest batch. The second target must be revalidated as harvestable
+     * cane, not discarded merely because it is not a CropBlock. A premature
+     * storage trip between the two cuts exposes that queue-loss bug directly.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 220,
+        batch = "farmer_cane_batch")
+    public void farmerFinishesQueuedCaneBeforeDepositing(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        Container chest = chestAt(helper, 10, 10);
+        chest.setItem(0, new ItemStack(Items.IRON_HOE));
+
+        BlockPos westTop = new BlockPos(7, 2, 8);
+        BlockPos eastTop = new BlockPos(9, 2, 8);
+        helper.setBlock(new BlockPos(7, 0, 8), Blocks.DIRT);
+        helper.setBlock(new BlockPos(9, 0, 8), Blocks.DIRT);
+        helper.setBlock(new BlockPos(7, 0, 7), Blocks.WATER);
+        helper.setBlock(new BlockPos(9, 0, 7), Blocks.WATER);
+        helper.setBlock(westTop.below(), Blocks.SUGAR_CANE.defaultBlockState());
+        helper.setBlock(westTop, Blocks.SUGAR_CANE.defaultBlockState());
+        helper.setBlock(eastTop.below(), Blocks.SUGAR_CANE.defaultBlockState());
+        helper.setBlock(eastTop, Blocks.SUGAR_CANE.defaultBlockState());
+        SettlerEntity ingrid = farmer(helper, s, house, 8, 8);
+
+        final boolean[] depositedWithQueuedTopStanding = {false};
+        helper.succeedWhen(() -> {
+            boolean westStanding = helper.getBlockState(westTop).is(Blocks.SUGAR_CANE);
+            boolean eastStanding = helper.getBlockState(eastTop).is(Blocks.SUGAR_CANE);
+            if (countIn(chest, Items.SUGAR_CANE) > 0
+                && (westStanding || eastStanding)) {
+                depositedWithQueuedTopStanding[0] = true;
+            }
+            helper.assertTrue(!westStanding && !eastStanding,
+                "both cane tops from one bounded survey must be cut");
+            helper.assertTrue(!depositedWithQueuedTopStanding[0],
+                "the farmer must not discard the second cane target and visit "
+                    + "storage between two cuts from the same harvest queue");
+            helper.assertTrue(helper.getBlockState(westTop.below()).is(Blocks.SUGAR_CANE)
+                    && helper.getBlockState(eastTop.below()).is(Blocks.SUGAR_CANE),
+                "both regrowing cane bases must remain standing");
         });
     }
 }

@@ -21,15 +21,19 @@ public final class ClientHooks {
     }
 
     /**
-     * A plaque snapshot arrived. If its screen is already open this refreshes
-     * it in place — an assignment should visibly land, not reopen the window
-     * and lose the player's place in the list.
+     * An explicit OPEN may create the plaque screen. UPDATE can only refresh
+     * the exact plaque already visible, so a co-op broadcast never opens a
+     * window, steals another plaque's sheet or loses the player's list place.
      */
     public static void showPlaque(com.hearthstead.network.PlaqueSnapshot snapshot) {
         var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.screen instanceof com.hearthstead.client.screen.PlaqueScreen open) {
+        boolean matching = mc.screen instanceof com.hearthstead.client.screen.PlaqueScreen open
+            && open.acceptsSnapshot(snapshot);
+        if (matching) {
+            var open = (com.hearthstead.client.screen.PlaqueScreen) mc.screen;
             open.update(snapshot);
-        } else {
+        } else if (snapshot.delivery()
+                == com.hearthstead.network.PlaqueSnapshot.Delivery.OPEN) {
             mc.setScreen(new com.hearthstead.client.screen.PlaqueScreen(snapshot));
         }
     }
@@ -50,7 +54,37 @@ public final class ClientHooks {
     /** A settler snapshot arrived; only an already-open sheet consumes it. */
     public static void showSettlerSnapshot(com.hearthstead.network.SettlerSnapshotPayload snapshot) {
         var mc = net.minecraft.client.Minecraft.getInstance();
-        if (mc.screen instanceof com.hearthstead.client.screen.SettlerScreen open) {
+        if (mc.screen instanceof com.hearthstead.client.screen.SettlerScreen open
+            && open.acceptsSnapshot(snapshot)) {
+            open.update(snapshot);
+        } else if (mc.screen
+            instanceof com.hearthstead.client.screen.EquipmentRequestListScreen child
+            && child.acceptsParentSnapshot(snapshot)) {
+            child.updateParentSnapshot(snapshot);
+        } else if (mc.screen
+            instanceof com.hearthstead.client.screen.GuardOrderScreen child
+            && child.acceptsParentSnapshot(snapshot)) {
+            child.updateParentSnapshot(snapshot);
+        }
+    }
+
+    /** A request list can refresh only the exact Courier view already open. */
+    public static void showEquipmentRequestList(
+            com.hearthstead.network.EquipmentRequestListPayload snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen
+            instanceof com.hearthstead.client.screen.EquipmentRequestListScreen open
+            && open.accepts(snapshot)) {
+            open.update(snapshot);
+        }
+    }
+
+    /** Guard-order replies can update only the exact already-open child tab. */
+    public static void showGuardOrder(
+            com.hearthstead.network.GuardOrderSnapshotPayload snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (mc.screen instanceof com.hearthstead.client.screen.GuardOrderScreen open
+            && open.accepts(snapshot)) {
             open.update(snapshot);
         }
     }
@@ -73,6 +107,76 @@ public final class ClientHooks {
         } else {
             mc.setScreen(new com.hearthstead.client.screen.ResearchScreen(snapshot));
         }
+    }
+
+    /** Hearth Development and Mayor Emblems are distinct owner-facing views. */
+    public static void showDevelopmentSnapshot(
+            com.hearthstead.network.DevelopmentSnapshotPayload snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        if (snapshot.view()
+                == com.hearthstead.network.DevelopmentActionPayload.View.TECH) {
+            if (mc.screen instanceof com.hearthstead.client.screen.DevelopmentScreen open
+                && open.accepts(snapshot)) {
+                open.update(snapshot);
+            } else {
+                mc.setScreen(new com.hearthstead.client.screen.DevelopmentScreen(snapshot));
+            }
+            return;
+        }
+        if (snapshot.view()
+                == com.hearthstead.network.DevelopmentActionPayload.View.EMBLEM_SHOP) {
+            if (mc.screen instanceof com.hearthstead.client.screen.EmblemShopScreen open
+                && open.accepts(snapshot)) {
+                open.update(snapshot);
+            } else {
+                mc.setScreen(new com.hearthstead.client.screen.EmblemShopScreen(snapshot));
+            }
+        }
+    }
+
+    /**
+     * Handles the three distinct Blessing delivery modes.
+     *
+     * <p>Only OPEN can create a screen. UPDATE and RESULT are consumed only
+     * while the exact settlement-and-session Blessing screen is still visible.
+     * This makes delayed replies harmless after Escape or reopen and prevents
+     * a co-op update from opening UI for a player on another screen.
+     */
+    public static void showBlessingSnapshot(
+            com.hearthstead.network.BlessingSnapshotPayload snapshot) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        boolean matchingOpenScreen =
+            mc.screen instanceof com.hearthstead.client.screen.BlessingScreen open
+                && open.isInspecting(snapshot.settlementId(), snapshot.sessionId());
+
+        if (snapshot.delivery()
+                == com.hearthstead.network.BlessingSnapshotPayload.Delivery.OPEN) {
+            if (!snapshot.mayOpenScreen()) {
+                return;
+            }
+            if (matchingOpenScreen) {
+                ((com.hearthstead.client.screen.BlessingScreen) mc.screen)
+                    .update(snapshot);
+            } else {
+                mc.setScreen(new com.hearthstead.client.screen.BlessingScreen(snapshot));
+            }
+            return;
+        }
+
+        if (!matchingOpenScreen) {
+            // The player closed or replaced the view. Never resurrect it from
+            // an action reply or another viewer's co-op refresh.
+            return;
+        }
+
+        ((com.hearthstead.client.screen.BlessingScreen) mc.screen)
+            .update(snapshot);
+    }
+
+    /** Routes server-authored Work Scepter state to the world preview/UI. */
+    public static void showWorkZone(
+            com.hearthstead.network.WorkZoneSnapshotPayload snapshot) {
+        com.hearthstead.client.workzone.WorkZoneClient.accept(snapshot);
     }
 
     private ClientHooks() {

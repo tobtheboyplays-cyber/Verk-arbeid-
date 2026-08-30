@@ -104,7 +104,7 @@ public class TidyWarehouseGoal extends Goal {
     @Override
     public boolean canUse() {
         if (settler.getProfession() != Profession.COURIER || !settler.isBound()
-            || settler.getTarget() != null || settler.getEnergy() <= 15.0F) {
+            || settler.getTarget() != null) {
             return false;
         }
         // A load in hand is a delivery in progress; that outranks tidying.

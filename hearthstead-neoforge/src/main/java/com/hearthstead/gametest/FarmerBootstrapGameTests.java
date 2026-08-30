@@ -6,8 +6,8 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
-import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
+import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
@@ -16,6 +16,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -118,6 +119,18 @@ public class FarmerBootstrapGameTests {
         return total;
     }
 
+    private static int bagCount(SettlerEntity settler,
+                                net.minecraft.world.item.Item item) {
+        int total = 0;
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
     // ---------------------------------------------------- the bootstrap ---
 
     /**
@@ -147,6 +160,7 @@ public class FarmerBootstrapGameTests {
         // outside the plot, holding the starter seeds a player would stock.
         Container chest = chestAt(helper, 10, 10);
         chest.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 16));
+        chest.setItem(1, new ItemStack(Items.IRON_HOE));
         SettlerEntity astrid = farmer(helper, s, house, 8, 8);
         // FLAKE-1 (2026-08-26): DEXTERITY is rolled from the entity's own
         // unseeded RandomSource, so it differs every run. This test's "3x3
@@ -200,25 +214,20 @@ public class FarmerBootstrapGameTests {
     // ------------------------------------------------------ the reserve ---
 
     /**
-     * The deposit no longer strips the working stock: after a full
-     * harvest-replant-deposit cycle, the bag still holds seed for the crop
-     * that is growing (the reserve keeps two for wheat, whose drop RNG
-     * rolls zero seeds ~25% of the time). Before the audit fix, the
-     * deposit emptied the ENTIRE bag -- seeds included -- so this exact
-     * cycle ended with zero seeds and a tile that could die permanently.
+     * A full harvest-replant-deposit cycle must leave future seed in the
+     * exact linked Farmhouse storage. Loose, untagged bag seeds are ordinary
+     * output under the strict worker provenance contract; banking them and
+     * withdrawing one exact action-tagged planting input is the authority
+     * boundary this regression now pins.
      */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "farmer_bootstrap_day")
     public void depositHoldsBackTheSeedReserve(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
-        BlockPos hearthRel = new BlockPos(8, 1, 8);
-        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
-        BlockPos hearthAbs = helper.absolutePos(hearthRel);
-        Settlement s = settlement(helper); // center == the hearth position
-        if (helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
-            hearth.bindSettlement(s.id);
-        }
+        Settlement s = settlement(helper);
         Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
         // ONE mature crop inside the plot, on real farmland, so the cycle is
         // deterministic: harvest, replant (one seed spent), then a deposit
         // trip with wheat in the bag. Moisture 7 keeps watering out of it.
@@ -227,36 +236,130 @@ public class FarmerBootstrapGameTests {
             .setValue(FarmBlock.MOISTURE, 7));
         helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         SettlerEntity astrid = farmer(helper, s, house, 7, 7);
-        // Bag stocked as if from an earlier bootstrap withdrawal: 4 seeds
-        // guarantees the replant AND leaves the reserve unambiguous -- at
-        // deposit time there are at least 3 seeds aboard, so anything less
-        // than the kept reserve afterwards is the old dump-everything bug.
+        // Four loose seeds are deliberately ordinary physical stock. The
+        // Farmer must bank them, then withdraw only the exact planting input.
         astrid.bag.addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
 
         helper.succeedWhen(() -> {
-            HearthBlockEntity hearth =
-                helper.getLevel().getBlockEntity(hearthAbs) instanceof HearthBlockEntity be
-                    ? be : null;
-            helper.assertTrue(hearth != null, "hearth block entity missing");
-            boolean hasWheat = false;
-            for (int i = 0; i < hearth.getInventory().getSlots(); i++) {
-                if (hearth.getInventory().getStackInSlot(i).is(Items.WHEAT)) {
-                    hasWheat = true;
-                    break;
-                }
-            }
+            boolean hasWheat = countIn(storage, Items.WHEAT) > 0;
+            int storedSeeds = countIn(storage, Items.WHEAT_SEEDS);
             BlockState replanted = helper.getBlockState(cropRel);
             String diag = " [act=" + astrid.getActivity() + " pos=" + astrid.blockPosition()
-                + " bagSeeds=" + bagSeeds(astrid) + " crop=" + replanted + "]";
+                + " bagSeeds=" + bagSeeds(astrid) + " storedSeeds=" + storedSeeds
+                + " crop=" + replanted + "]";
             helper.assertTrue(hasWheat,
-                "the harvest must reach the hearth (the deposit cycle must complete)"
+                "the harvest must reach the farmhouse storage (the deposit cycle must complete)"
                     + diag);
             helper.assertTrue(replanted.is(Blocks.WHEAT)
                     && replanted.getValue(CropBlock.AGE) < 7,
                 "the harvested tile must be replanted" + diag);
-            helper.assertTrue(bagSeeds(astrid) >= 1,
-                "the deposit must hold back the seed reserve for the growing crop "
-                    + "instead of dumping the whole bag" + diag);
+            helper.assertTrue(storedSeeds >= 1,
+                "the exact Farmhouse must retain a future seed reserve after "
+                    + "banking loose output and consuming one planting input" + diag);
+        });
+    }
+
+    /**
+     * Regression for the old whole-settlement volume scan. The Hearth is in
+     * one corner while the farmhouse and its ripe outer field tile are far
+     * away. A field-scoped survey must notice the crop promptly; the former
+     * 84,681-offset cursor could leave this visible worker idle for tens of
+     * seconds even though the crop stood inside their own tended plot.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "farmer_bootstrap_day")
+    public void remoteFarmhouseCropIsNoticedPromptly(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+
+        BlockPos hearthRel = new BlockPos(1, 1, 1);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        Settlement settlement = new Settlement(UUID.randomUUID(),
+            "Langaker", hearthAbs);
+        settlement.radius = 20;
+        data.settlements.put(settlement.id, settlement);
+        data.setDirty();
+        if (helper.getLevel().getBlockEntity(hearthAbs)
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(settlement.id);
+        }
+
+        Building house = farmhouse(helper, settlement, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+        BlockPos cropRel = new BlockPos(13, 1, 13);
+        helper.setBlock(cropRel.below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        SettlerEntity astrid = farmer(helper, settlement, house, 9, 9);
+        astrid.attributes().pinForTest(
+            com.hearthstead.entity.Attribute.DEXTERITY, 100);
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "a farmer must notice a ripe crop in their remote tended field "
+                    + "within ten seconds (activity=" + astrid.getActivity()
+                    + ", pos=" + astrid.blockPosition()
+                    + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * A full farmhouse may bounce a partial load back into the bag. That load
+     * can be smaller than the normal eight-item departure threshold, but it is
+     * still real produce and must remain a recoverable logistics obligation.
+     * The retry is deliberately delayed: a full chest must not make the goal
+     * rescan and reinsert every server tick.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 320,
+        batch = "farmer_storage_recovery")
+    public void partialProduceRecoversAfterFullStorageClears(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        for (int slot = 0; slot < storage.getContainerSize(); slot++) {
+            storage.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+
+        SettlerEntity astrid = farmer(helper, s, house, 10, 9);
+        astrid.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_HOE));
+        astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
+
+        final String[] firstBlockedTrace = {null};
+        helper.runAtTickTime(20, () -> {
+            firstBlockedTrace[0] = astrid.routeFailureNote();
+            helper.assertTrue(firstBlockedTrace[0].startsWith(
+                    "farmhouse_storage_full@"),
+                "a full farmhouse must publish its exact stop reason, got "
+                    + firstBlockedTrace[0]);
+        });
+        helper.runAtTickTime(80, () -> {
+            helper.assertTrue(firstBlockedTrace[0] != null
+                    && firstBlockedTrace[0].equals(astrid.routeFailureNote()),
+                "the full-storage retry must be bounded instead of rewriting "
+                    + "the same failure every tick (first=" + firstBlockedTrace[0]
+                    + ", now=" + astrid.routeFailureNote() + ")");
+            storage.setItem(0, ItemStack.EMPTY);
+            storage.setChanged();
+        });
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(countIn(storage, Items.WHEAT) == 3
+                    && bagCount(astrid, Items.WHEAT) == 0,
+                "the sub-threshold remainder must retry after capacity returns "
+                    + "without duplication or loss (chest="
+                    + countIn(storage, Items.WHEAT) + ", bag="
+                    + bagCount(astrid, Items.WHEAT) + ", route="
+                    + astrid.routeFailureNote() + ")");
         });
     }
 }

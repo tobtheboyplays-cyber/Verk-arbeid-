@@ -3,6 +3,7 @@ package com.hearthstead.settlement;
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.util.AuthorityTelemetry;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 
@@ -57,7 +58,10 @@ public final class Mayor {
         LONG_DAYS("long_days", Attribute.STAMINA),
         GOOD_COUNSEL("good_counsel", Attribute.WITS),
         CAREFUL_WORK("careful_work", Attribute.DEXTERITY),
-        OPEN_HEARTH("open_hearth", Attribute.SPIRIT);
+        OPEN_HEARTH("open_hearth", Attribute.SPIRIT),
+        CLEAR_SIGHT("clear_sight", Attribute.PERCEPTION),
+        STEADY_PURPOSE("steady_purpose", Attribute.FOCUS),
+        COMMON_VOICE("common_voice", Attribute.PRESENCE);
 
         private final String key;
         private final Attribute from;
@@ -84,12 +88,18 @@ public final class Mayor {
         }
 
         public static Boon of(Attribute attribute) {
-            for (Boon boon : values()) {
-                if (boon.from == attribute) {
-                    return boon;
-                }
-            }
-            return HARD_HANDS;
+            // Exhaustive by design: adding an attribute cannot silently turn
+            // an unrelated mayor into HARD_HANDS.
+            return switch (attribute) {
+                case STRENGTH -> HARD_HANDS;
+                case STAMINA -> LONG_DAYS;
+                case WITS -> GOOD_COUNSEL;
+                case DEXTERITY -> CAREFUL_WORK;
+                case SPIRIT -> OPEN_HEARTH;
+                case PERCEPTION -> CLEAR_SIGHT;
+                case FOCUS -> STEADY_PURPOSE;
+                case PRESENCE -> COMMON_VOICE;
+            };
         }
     }
 
@@ -180,10 +190,25 @@ public final class Mayor {
     @Nullable
     public static Component appoint(ServerLevel level, Settlement settlement,
                                     SettlerEntity settler) {
+        long revisionBefore = settlement.mayorSince;
+        int mayorCountBefore = settlement.mayorId == null ? 0 : 1;
+        String target = "settler:" + settler.getUUID();
         if (mourning(level, settlement)) {
+            AuthorityTelemetry.emit(level,
+                AuthorityTelemetry.Event.AUTHORITY_REJECTED,
+                AuthorityTelemetry.Result.REJECTED,
+                AuthorityTelemetry.Fields.state(settlement.id, target,
+                    revisionBefore, revisionBefore, mayorCountBefore,
+                    mayorCountBefore, "mayor_mourning"));
             return Component.translatable("hearthstead.mayor.refused.mourning");
         }
         if (settlement.mayorId != null && settlement.mayorId.equals(settler.getUUID())) {
+            AuthorityTelemetry.emit(level,
+                AuthorityTelemetry.Event.AUTHORITY_REJECTED,
+                AuthorityTelemetry.Result.REJECTED,
+                AuthorityTelemetry.Fields.state(settlement.id, target,
+                    revisionBefore, revisionBefore, mayorCountBefore,
+                    mayorCountBefore, "mayor_already_appointed"));
             return Component.translatable("hearthstead.mayor.refused.already");
         }
         boolean isSwap = settlement.mayorId != null;
@@ -201,9 +226,21 @@ public final class Mayor {
                 // Distinct from "cannot afford": the hearth genuinely cannot
                 // be reached right now (unloaded, destroyed, mid-placement),
                 // which is not the same claim as "the goods are not there".
+                AuthorityTelemetry.emit(level,
+                    AuthorityTelemetry.Event.AUTHORITY_REJECTED,
+                    AuthorityTelemetry.Result.REJECTED,
+                    AuthorityTelemetry.Fields.state(settlement.id, target,
+                        revisionBefore, revisionBefore, mayorCountBefore,
+                        mayorCountBefore, "mayor_hearth_unavailable"));
                 return Component.translatable("hearthstead.mayor.refused.hearth_unavailable");
             }
             if (!Costs.canPay(h.getInventory(), feastPrice)) {
+                AuthorityTelemetry.emit(level,
+                    AuthorityTelemetry.Event.AUTHORITY_REJECTED,
+                    AuthorityTelemetry.Result.REJECTED,
+                    AuthorityTelemetry.Fields.state(settlement.id, target,
+                        revisionBefore, revisionBefore, mayorCountBefore,
+                        mayorCountBefore, "mayor_feast_unpaid"));
                 return Component.translatable("hearthstead.mayor.refused.cannot_afford_feast");
             }
             hearth = h;
@@ -223,6 +260,12 @@ public final class Mayor {
         settler.addMorale(12.0F);
         settler.celebrate();
         SettlementManager.data(level).setDirty();
+        AuthorityTelemetry.emit(level,
+            AuthorityTelemetry.Event.MAYOR_APPOINTED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.state(settlement.id, target,
+                revisionBefore, settlement.mayorSince, mayorCountBefore, 1,
+                isSwap ? "paid_swap" : "first_appointment"));
         return null;
     }
 

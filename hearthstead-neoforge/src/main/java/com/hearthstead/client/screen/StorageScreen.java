@@ -52,6 +52,7 @@ public class StorageScreen extends Screen {
     private StorageIndexPayload data;
     private int left;
     private int top;
+    private boolean uiSoundActive;
 
     public StorageScreen(StorageIndexPayload data) {
         super(Component.translatable("hearthstead.storage.title"));
@@ -79,6 +80,19 @@ public class StorageScreen extends Screen {
             left + PANEL_W - HsUiTokens.PAD - BUTTON_W, top + BUTTON_Y,
             BUTTON_W, HsUiTokens.BUTTON_H,
             Component.translatable("hearthstead.storage.close"), this::onClose));
+        if (!uiSoundActive) {
+            uiSoundActive = true;
+            HsUi.playOpenSound();
+        }
+    }
+
+    @Override
+    public void removed() {
+        if (uiSoundActive) {
+            uiSoundActive = false;
+            HsUi.playCloseSound();
+        }
+        super.removed();
     }
 
     @Override

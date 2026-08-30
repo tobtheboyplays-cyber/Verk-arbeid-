@@ -16,6 +16,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
@@ -27,10 +31,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 import java.util.UUID;
 
 /**
- * The daily labor pool (docs/project/PLAN_EFFORT.md): every trade's own
- * natural limit, and the pool that makes "spent for the day" a real state
- * instead of a slogan. Each test here is a real judge -- delete the feature
- * it names and the test fails, not just goes quiet.
+ * Effort remains deterministic bookkeeping, while energy-driven fatigue
+ * reduces pace instead of making otherwise valid work ineligible. Each test
+ * here is a real judge -- delete the behavior it names and the test fails.
  */
 @GameTestHolder(Hearthstead.MODID)
 @PrefixGameTestTemplate(false)
@@ -88,6 +91,14 @@ public class EffortGameTests {
         return settler;
     }
 
+    private static void stockFarmerTool(GameTestHelper helper) {
+        BlockPos chestPos = new BlockPos(10, 1, 10);
+        helper.setBlock(chestPos, Blocks.CHEST);
+        Container storage = (Container) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(chestPos));
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+    }
+
     // -------------------------------------------------------- the plot ---
 
     /**
@@ -103,6 +114,7 @@ public class EffortGameTests {
         buildArena(helper, 16);
         Settlement s = settlement(helper);
         Building farmhouse = building(helper, s, BuildingType.FARMHOUSE, 8, 8);
+        stockFarmerTool(helper);
         SettlerEntity farmer = settler(helper, s, "Astrid", 8, 8);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, farmhouse, farmer).ok(),
             "the farmhouse must take its first farmer");
@@ -135,18 +147,16 @@ public class EffortGameTests {
     // ------------------------------------------------------- the limit ---
 
     /**
-     * The pool itself: a settler drained to zero never starts a NEW work
-     * motion, even with work sitting right in front of them. This is the
-     * feature the owner actually asked for -- "I don't want the farmer
-     * farming forever" -- so it has to hold with the farmer given every
-     * reason to work.
+     * A drained legacy effort pool is telemetry, not a hard work quota: valid
+     * work still starts. Energy and stamina make the settler slower instead.
      */
     @GameTest(template = "empty16", timeoutTicks = 700, batch = "effort_day")
-    public void aSpentSettlerNeverStartsANewWorkMotion(GameTestHelper helper) {
+    public void aSpentSettlerStillStartsAValidWorkMotion(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
         Settlement s = settlement(helper);
         Building farmhouse = building(helper, s, BuildingType.FARMHOUSE, 8, 8);
+        stockFarmerTool(helper);
         SettlerEntity farmer = settler(helper, s, "Astrid", 8, 8);
         Employment.hire(helper.getLevel(), s, farmhouse, farmer);
         // Drain the pool entirely before there is any work to react to.
@@ -157,19 +167,11 @@ public class EffortGameTests {
         BlockPos cropRel = new BlockPos(9, 1, 8); // well inside the tended plot
         helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
 
-        boolean[] sawWorkMotion = {false};
-        int[] observedTicks = {0};
         helper.succeedWhen(() -> {
-            observedTicks[0]++;
-            if (farmer.getActivity() == SettlerActivity.WORK_HARVEST) {
-                sawWorkMotion[0] = true;
-            }
-            helper.assertFalse(sawWorkMotion[0],
-                "a spent settler must never start a work motion, activity="
-                    + farmer.getActivity());
-            helper.assertTrue(observedTicks[0] > 300,
-                "let the goal have a real chance to (wrongly) fire before "
-                    + "declaring victory");
+            helper.assertFalse(helper.getBlockState(cropRel).is(Blocks.WHEAT)
+                    && helper.getBlockState(cropRel).getValue(CropBlock.AGE) == 7,
+                "spent effort bookkeeping must not hard-gate valid work [activity="
+                    + farmer.getActivity() + "]");
         });
     }
 
@@ -221,19 +223,22 @@ public class EffortGameTests {
     // ------------------------------------------------- forestry, again ---
 
     /**
-     * The lumberjack's own renewal: a sapling stands where the trunk did.
-     * Paired here with the tree's effort cost (3 to fell, 1 to limb) so this
-     * file also proves the two pieces of PLAN_EFFORT.md's lumberer section
-     * land together, not just that the replant survived untouched.
+     * The lumberjack's own renewal remains eligible even when legacy effort
+     * bookkeeping is already spent; fatigue changes pace, never validity.
      */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "effort_day")
-    public void lumbererReplantsWhereTheTreeStoodAndPaysForIt(GameTestHelper helper) {
+    public void lumbererReplantsWhereTheTreeStoodWithoutAHardQuota(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
         Settlement s = settlement(helper);
+        Building camp = building(helper, s, BuildingType.LUMBER_CAMP, 5, 11);
         SettlerEntity lumberer = settler(helper, s, "Bjorn", 6, 8);
-        lumberer.assignProfession(Profession.LUMBERER);
-        int capacity = lumberer.effortCapacity();
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, camp, lumberer).ok(),
+            "fixture: forestry renewal must run under real camp authority");
+        lumberer.setItemSlot(EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_AXE));
+        lumberer.spendEffort(lumberer.effortCapacity());
+        helper.assertTrue(lumberer.isEffortSpent(), "setup: effort bookkeeping is spent");
 
         BlockPos dirtRel = new BlockPos(10, 1, 10);
         helper.setBlock(dirtRel, Blocks.DIRT);
@@ -252,9 +257,6 @@ public class EffortGameTests {
                 "the lumberer's own forestry: a sapling must stand where the trunk "
                     + "did [act=" + lumberer.getActivity()
                     + " pos=" + lumberer.blockPosition() + "]");
-            helper.assertTrue(lumberer.effortLeft() == capacity - 4,
-                "felling a whole tree (3) plus its limbing stint (1) must come out "
-                    + "of the daily pool: " + capacity + " -> " + lumberer.effortLeft());
         });
     }
 

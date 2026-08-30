@@ -1,17 +1,22 @@
 package com.hearthstead.settlement;
 
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.settlement.equipment.EquipmentRequest;
+import com.hearthstead.settlement.state.BlessingId;
+import com.hearthstead.settlement.state.TargetBlessingState;
+import com.hearthstead.settlement.workzone.WorkZone;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 import java.util.ArrayList;
 import java.util.List;
-import com.hearthstead.building.BuildingType;
-
 import java.util.UUID;
+import java.util.Optional;
 
 /**
  * One building inside a settlement, declared by a plaque.
@@ -25,6 +30,11 @@ import java.util.UUID;
  */
 public class Building {
 
+    /** Root settlement schema that first owns every building target ledger. */
+    static final int TARGET_BLESSINGS_SCHEMA_VERSION = 3;
+    /** Root schema that first owns strict optional Work Zone state. */
+    static final int WORK_ZONE_SCHEMA_VERSION = 5;
+
     public final UUID id;
     public BuildingType type;
     /** Where the declaring plaque hangs. Identity, not decoration. */
@@ -33,6 +43,12 @@ public class Building {
     public int level = 1;
     /** Settlers employed here (work buildings); homes leave this empty. */
     public final List<UUID> workers = new ArrayList<>();
+    /**
+     * Persistent equipment intent for this workplace. Items never live in
+     * this list; its rows only name what a worker still needs and who is
+     * currently carrying it.
+     */
+    public final List<EquipmentRequest> equipmentRequests = new ArrayList<>();
     /** Anchor: the first bed found; scans re-seed from here. */
     public BlockPos anchor;
     public BoundingBox bounds;
@@ -44,6 +60,15 @@ public class Building {
     public int furnishingScore;
     public boolean valid;
     public long lastValidatedGameTime;
+    /**
+     * Permanent Blessings bound to this building's physical plaque identity.
+     * Direct enum lookups only: no world scan, block-entity cache, or tick hook.
+     */
+    private TargetBlessingState targetBlessings = new TargetBlessingState();
+    /** Optional means truthful NO_WORK_ZONE; quarantine means corrupt state. */
+    private WorkZone workZone;
+    private int workZoneRevision;
+    private boolean workZoneQuarantined;
 
     public Building(UUID id, BuildingType type, BlockPos plaquePos,
                     BlockPos anchor, BoundingBox bounds) {
@@ -62,6 +87,75 @@ public class Building {
         return bounds != null && bounds.isInside(pos);
     }
 
+    /** Server-authoritative endpoint used by a physical Blessing Seal. */
+    public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing) {
+        return targetBlessings.apply(blessing);
+    }
+
+    /** Constant-time permanent rank lookup for gameplay and presentation hooks. */
+    public int blessingRank(BlessingId blessing) {
+        return targetBlessings.rank(blessing);
+    }
+
+    /** Whether strict NBT decoding quarantined this building's ledger. */
+    public boolean blessingStateQuarantined() {
+        return targetBlessings.quarantined();
+    }
+
+    public Optional<WorkZone> workZone() {
+        return workZoneQuarantined ? Optional.empty()
+            : Optional.ofNullable(workZone);
+    }
+
+    public int workZoneRevision() {
+        return workZoneRevision;
+    }
+
+    public boolean workZoneQuarantined() {
+        return workZoneQuarantined;
+    }
+
+    /** Parent settlement identity/bounds are available only after decode. */
+    void validateWorkZoneOwner(Settlement settlement) {
+        if (!workZoneQuarantined && workZone != null
+            && (settlement == null
+                || !workZone.settlementId().equals(settlement.id)
+                || !settlement.insideBox(workZone.min(), workZone.max()))) {
+            workZone = null;
+            workZoneQuarantined = true;
+        }
+    }
+
+    /**
+     * Level-aware load gate. A dimension-mismatched zone is corrupt state,
+     * never a portable claim; quarantine is sticky and keeps the last
+     * monotonic revision so a restart cannot silently mint revision zero.
+     */
+    boolean quarantineWorkZoneDimension(ResourceLocation expectedDimension) {
+        if (!workZoneQuarantined && workZone != null
+            && (expectedDimension == null
+                || !expectedDimension.equals(workZone.dimension()))) {
+            workZone = null;
+            workZoneQuarantined = true;
+            return true;
+        }
+        return false;
+    }
+
+    /** Compare-and-commit endpoint. Preview/cancel never call this method. */
+    public boolean commitWorkZone(int expectedRevision, WorkZone next) {
+        if (workZoneQuarantined || next == null
+            || expectedRevision != workZoneRevision
+            || next.revision() != expectedRevision + 1
+            || !id.equals(next.buildingId())
+            || next.type().buildingType() != type) {
+            return false;
+        }
+        workZone = next;
+        workZoneRevision = next.revision();
+        return true;
+    }
+
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("Id", id);
@@ -75,6 +169,11 @@ public class Building {
             workerList.add(w);
         }
         tag.put("Workers", workerList);
+        ListTag requestList = new ListTag();
+        for (EquipmentRequest request : equipmentRequests) {
+            requestList.add(request.writeNbt());
+        }
+        tag.put("EquipmentRequests", requestList);
         tag.put("Anchor", NbtUtils.writeBlockPos(anchor));
         tag.putIntArray("Bounds", new int[]{
             bounds.minX(), bounds.minY(), bounds.minZ(),
@@ -90,10 +189,32 @@ public class Building {
         tag.putInt("Lights", lightSources);
         tag.putInt("Furnishing", furnishingScore);
         tag.putBoolean("Valid", valid);
+        tag.put("TargetBlessings", targetBlessings.writeNbt());
+        tag.putInt("WorkZoneSchema", WorkZone.DATA_VERSION);
+        tag.putInt("WorkZoneRevision", workZoneRevision);
+        tag.putBoolean("WorkZoneQuarantined", workZoneQuarantined);
+        if (workZone != null && !workZoneQuarantined) {
+            tag.put("WorkZone", workZone.writeNbt());
+        }
         return tag;
     }
 
+    /**
+     * Reads a standalone current-schema building. Real world loads must use
+     * {@link #readNbt(CompoundTag, int)} so the root settlement data version
+     * remains the authority for whether an absent target ledger is legacy or
+     * corruption.
+     */
     public static Building readNbt(CompoundTag tag) {
+        return readNbt(tag, SettlementSavedData.CURRENT_DATA_VERSION);
+    }
+
+    public static Building readNbt(CompoundTag tag, int sourceVersion) {
+        if (sourceVersion < 0
+            || sourceVersion > SettlementSavedData.CURRENT_DATA_VERSION) {
+            throw new SettlementSavedData.DataVersionException(
+                "Unsupported building source version " + sourceVersion);
+        }
         int[] b = tag.getIntArray("Bounds");
         BoundingBox bounds = b.length == 6
             ? new BoundingBox(b[0], b[1], b[2], b[3], b[4], b[5])
@@ -107,6 +228,18 @@ public class Building {
         for (int i = 0; i < workerList.size(); i++) {
             building.workers.add(workerList.getCompound(i).getUUID("Id"));
         }
+        ListTag requestList = tag.getList("EquipmentRequests", Tag.TAG_COMPOUND);
+        for (int i = 0; i < requestList.size(); i++) {
+            EquipmentRequest request = EquipmentRequest.readNbt(
+                requestList.getCompound(i));
+            if (request != null
+                && request.destinationBuildingId().equals(building.id)
+                && building.equipmentRequests.stream().noneMatch(existing ->
+                    existing.id().equals(request.id())
+                        || existing.requesterId().equals(request.requesterId()))) {
+                building.equipmentRequests.add(request);
+            }
+        }
         building.interiorVolume = tag.getInt("Volume");
         ListTag bedList = tag.getList("Beds", Tag.TAG_INT_ARRAY);
         for (int i = 0; i < bedList.size(); i++) {
@@ -119,6 +252,65 @@ public class Building {
         building.lightSources = tag.getInt("Lights");
         building.furnishingScore = tag.getInt("Furnishing");
         building.valid = tag.getBoolean("Valid");
+        Tag rawBlessings = tag.get("TargetBlessings");
+        if (rawBlessings == null
+            && sourceVersion < TARGET_BLESSINGS_SCHEMA_VERSION) {
+            // Root schemas v0-v2 predate per-target Blessing ownership, so an
+            // absent ledger is the one legitimate empty migration. Once v3
+            // owns this field, absence cannot silently reset permanent ranks.
+            building.targetBlessings = new TargetBlessingState();
+        } else if (rawBlessings instanceof CompoundTag blessingTag) {
+            building.targetBlessings = TargetBlessingState.readNbt(blessingTag);
+        } else {
+            // Current-schema absence and every present wrong tag type are
+            // corruption, never a fresh ledger that could accept replacement
+            // ranks for free. TargetBlessingState persists this quarantine on
+            // the next write, making the fail-closed decision sticky.
+            building.targetBlessings = TargetBlessingState.quarantinedEmpty();
+        }
+        if (sourceVersion < WORK_ZONE_SCHEMA_VERSION) {
+            // v0-v4 have no Work Zone field. This is the sole legitimate
+            // absent-state migration and becomes an explicit revision-zero
+            // no-zone record on the next save.
+            building.workZone = null;
+            building.workZoneRevision = 0;
+            building.workZoneQuarantined = false;
+        } else {
+            int workZoneSchema = tag.contains("WorkZoneSchema", Tag.TAG_INT)
+                ? tag.getInt("WorkZoneSchema") : -1;
+            boolean headerValid = (workZoneSchema == 1
+                    || workZoneSchema == WorkZone.DATA_VERSION)
+                && tag.contains("WorkZoneRevision", Tag.TAG_INT)
+                && tag.contains("WorkZoneQuarantined", Tag.TAG_BYTE);
+            int revision = headerValid ? tag.getInt("WorkZoneRevision") : -1;
+            boolean quarantined = !headerValid || revision < 0
+                || revision >= Integer.MAX_VALUE
+                || tag.getBoolean("WorkZoneQuarantined");
+            WorkZone decoded = null;
+            Tag rawZone = tag.get("WorkZone");
+            if (!quarantined && rawZone != null) {
+                if (rawZone instanceof CompoundTag zoneTag) {
+                    // Header and nested payload advance together. Accepting a
+                    // mixed pair would turn a torn/corrupt write into a
+                    // legitimate migration.
+                    decoded = zoneTag.contains("DataVersion", Tag.TAG_INT)
+                            && zoneTag.getInt("DataVersion") == workZoneSchema
+                        ? WorkZone.readNbt(zoneTag) : null;
+                }
+                quarantined = decoded == null
+                    || decoded.revision() != revision
+                    || !decoded.buildingId().equals(building.id)
+                    || decoded.type().buildingType() != building.type;
+            }
+            // A nonzero revision with no current zone is unreachable because
+            // this slice has no delete operation. It cannot silently reset.
+            if (!quarantined && rawZone == null && revision != 0) {
+                quarantined = true;
+            }
+            building.workZone = quarantined ? null : decoded;
+            building.workZoneRevision = Math.max(0, revision);
+            building.workZoneQuarantined = quarantined;
+        }
         return building;
     }
 }

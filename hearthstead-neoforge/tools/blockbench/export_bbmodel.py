@@ -16,6 +16,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import sys
 
@@ -62,15 +63,78 @@ BONES = [
     ("hat_brim",  "head",  (0, 0, 0),       [(64, 44, -6, -5, -6, 12, 1, 12, 0.0, False)]),
     ("right_arm", "torso", (-6, -10, 0),    [(0, 32, -2, -2, -2, 4, 12, 4, 0.0, False)]),
     ("left_arm",  "torso", (6, -10, 0),     [(16, 32, -2, -2, -2, 4, 12, 4, 0.0, True)]),
+    # Farmer WORK_WATER vessel, including the rotated spout child. Visibility
+    # remains a runtime fact in SettlerModel and is reconstructed by the
+    # headless renderer only for FARM_WATER+farmer evidence.
+    ("watering_can", "left_arm", (0, 12, -3), [
+        (0, 0, -3.5, -1, -3, 7, 5, 6, 0.0, False),
+        (0, 0, -4, -2, -3.5, 8, 1, 7, 0.0, False),
+        (0, 0, -3.5, -6, -0.75, 1.5, 5, 1.5, 0.0, False),
+        (0, 0, 2, -6, -0.75, 1.5, 5, 1.5, 0.0, False),
+        (0, 0, -2, -6, -0.75, 4, 1.5, 1.5, 0.0, False),
+    ]),
+    ("spout", "watering_can", (-3, 0, 0), [
+        (0, 0, -0.75, -0.75, -9, 1.5, 1.5, 9, 0.0, False),
+        (0, 0, -1.5, -1.5, -11, 3, 3, 2, 0.0, False),
+    ]),
     ("cloak",     "torso", (0, -12, 0),     [(64, 32, -5.5, 0, -3, 11, 4, 6, 0.2, False)]),
     ("backpack",  "torso", (0, 0, 0),       [(96, 0, -3, -9, 2.5, 6, 7, 3, 0.0, False)]),
     ("belt",      "torso", (0, 0, 0),       [(96, 20, -5, -5, -2.5, 10, 2, 5, 0.3, False)]),
-    # A2b carried sack: hidden in game unless loaded, but always exported
-    # so the bridge shows the same rig the renderer uses.
-    ("sack",      "torso", (0, -10.5, 2.5), [(0, 17, -3.5, 0, 0, 7, 8, 6, 0.0, False)]),
+    # A2b carried sack: always visible on field workers, with size driven by
+    # real fill, and always exported so the bridge shows the runtime rig.
+    ("sack",      "torso", (0, -10.5, 2.5), [
+        (28, 17, -2.5, 0, 1, 5, 3, 4, 0.0, False),
+        (0, 17, -3.5, 2, 0, 7, 6, 6, 0.0, False),
+    ]),
+    # Original Hearthstead timber carrying frame. Logs are separate children
+    # so runtime/preview can communicate real fill without scaling the frame.
+    ("lumber_frame", "torso", (0, -10.5, 2.5), [
+        (0, 49, -4.5, 0, 0, 1, 10, 1, 0.0, False),
+        (0, 49, 3.5, 0, 0, 1, 10, 1, 0.0, False),
+        (7, 49, -4, 1, 0, 8, 1, 1, 0.0, False),
+        (7, 49, -4, 8, 0, 8, 1, 1, 0.0, False),
+        (26, 49, -4, 9, 0, 8, 1, 4, 0.0, False),
+    ]),
+    ("log_left", "lumber_frame", (0, 0, 0), [
+        (50, 49, -3.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ]),
+    ("log_center", "lumber_frame", (0, 0, 0), [
+        (50, 49, -1, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ]),
+    ("log_right", "lumber_frame", (0, 0, 0), [
+        (50, 49, 1.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ]),
     ("right_leg", "root",  (-2.6, -12, 0),  [(32, 32, -2, 0, -2, 4, 12, 4, 0.0, False)]),
     ("left_leg",  "root",  (2.6, -12, 0),   [(48, 32, -2, 0, -2, 4, 12, 4, 0.0, True)]),
+    # Root-owned duplicate for a portable SACK placed in the world. Runtime
+    # keeps this hidden until the server publishes a WorkContainer anchor.
+    ("ground_sack", "root", (0, 0, 0),       [
+        (28, 17, -2.5, 0, 1, 5, 3, 4, 0.0, False),
+        (0, 17, -3.5, 2, 0, 7, 6, 6, 0.0, False),
+    ]),
+    ("ground_lumber_frame", "root", (0, 0, 0), [
+        (0, 49, -4.5, 0, 0, 1, 10, 1, 0.0, False),
+        (0, 49, 3.5, 0, 0, 1, 10, 1, 0.0, False),
+        (7, 49, -4, 1, 0, 8, 1, 1, 0.0, False),
+        (7, 49, -4, 8, 0, 8, 1, 1, 0.0, False),
+        (26, 49, -4, 9, 0, 8, 1, 4, 0.0, False),
+    ]),
+    ("ground_log_left", "ground_lumber_frame", (0, 0, 0), [
+        (50, 49, -3.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ]),
+    ("ground_log_center", "ground_lumber_frame", (0, 0, 0), [
+        (50, 49, -1, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ]),
+    ("ground_log_right", "ground_lumber_frame", (0, 0, 0), [
+        (50, 49, 1.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ]),
 ]
+
+# Static PartPose rotations, converted with the same Java -> Blockbench sign
+# mapping as animation channels. All omitted groups use PartPose offset only.
+BASE_ROTATIONS_DEG = {
+    "spout": (-math.degrees(0.75), -math.degrees(0.42), 0.0),
+}
 
 
 def build():
@@ -107,6 +171,8 @@ def build():
             "autouv": 0, "selected": False,
             "children": list(cubes_of[name]),
         }
+        if name in BASE_ROTATIONS_DEG:
+            node["rotation"] = list(BASE_ROTATIONS_DEG[name])
         for child, parent, _o, _c in BONES:
             if parent == name:
                 node["children"].append(outline(child))
@@ -190,14 +256,18 @@ def build():
 
 def main():
     args = sys.argv[1:]
-    if args not in ([], ["--check"]):
-        print("usage: export_bbmodel.py [--check]", file=sys.stderr)
+    check = args == ["--check"]
+    output = OUT
+    if len(args) == 2 and args[0] == "--output":
+        output = os.path.abspath(args[1])
+    elif args not in ([], ["--check"]):
+        print("usage: export_bbmodel.py [--check | --output PATH]", file=sys.stderr)
         return 2
     model = build()
     payload = json.dumps(model)
     n_anim = len(model["animations"])
     n_el = len(model["elements"])
-    if args == ["--check"]:
+    if check:
         try:
             with open(OUT, encoding="utf-8") as current_file:
                 current = current_file.read()
@@ -209,9 +279,10 @@ def main():
             return 1
         print(f"bbmodel check PASS: {n_el} cubes, {n_anim} animations")
         return 0
-    with open(OUT, "w", encoding="utf-8") as out_file:
+    os.makedirs(os.path.dirname(output), exist_ok=True)
+    with open(output, "w", encoding="utf-8") as out_file:
         out_file.write(payload)
-    print(f"wrote {OUT}: {n_el} cubes, {n_anim} animations")
+    print(f"wrote {output}: {n_el} cubes, {n_anim} animations")
     return 0
 
 

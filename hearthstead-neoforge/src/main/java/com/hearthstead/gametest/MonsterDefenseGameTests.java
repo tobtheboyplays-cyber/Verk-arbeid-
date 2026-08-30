@@ -12,6 +12,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.raid.RaidObjective;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
@@ -153,6 +154,7 @@ public class MonsterDefenseGameTests {
         Building tower = GameTestFixtures.register(helper, s, BuildingType.WATCHTOWER, 2, 2);
         Container rack = chestAt(helper, new BlockPos(3, 1, 3));
         rack.setItem(0, new ItemStack(Items.ARROW, 16));
+        rack.setItem(1, new ItemStack(Items.BOW));
 
         SettlerEntity archer = settler(helper, s, "Speider", 4, 4);
         Employment.Hired hired = Employment.hire(helper.getLevel(), s, tower, archer);
@@ -215,6 +217,11 @@ public class MonsterDefenseGameTests {
         Settlement s = settlement(helper, "Wardholm", 8);
         SettlerEntity guard = settler(helper, s, "Ward", 8, 8);
         guard.assignProfession(Profession.GUARD);
+        // Direct-profession fixtures have no workplace to fulfil a request.
+        // The combat authority still requires one real weapon, so this test
+        // supplies the exact physical sword whose presence it depends on.
+        guard.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_SWORD));
         SettlerEntity victim = settler(helper, s, "Civilian", 13, 8);
 
         RaiderEntity idleAndNear = spawnIdleRaider(helper, s, new BlockPos(9, 1, 8));
@@ -250,10 +257,17 @@ public class MonsterDefenseGameTests {
         Settlement s = settlement(helper, "Tomtarn", 6);
         Building tower = GameTestFixtures.register(helper, s, BuildingType.WATCHTOWER, 2, 2);
         Container rack = chestAt(helper, new BlockPos(3, 1, 3));  // present, empty
+        rack.setItem(0, new ItemStack(Items.BOW));
 
         SettlerEntity archer = settler(helper, s, "Sultenskytter", 4, 4);
         Employment.Hired hired = Employment.hire(helper.getLevel(), s, tower, archer);
         helper.assertTrue(hired.ok(), "fixture: the watchtower must hire an archer");
+        helper.assertTrue(EquipmentRequests.equipFromWorkplaceAt(
+                helper.getLevel(), s, archer,
+                helper.absolutePos(new BlockPos(3, 1, 3))),
+            "fixture: the hired archer must physically take the rack's bow");
+        helper.assertTrue(archer.getMainHandItem().is(Items.BOW) && rack.isEmpty(),
+            "fixture: exactly one bow must move rack -> archer before combat");
 
         Zombie zombie = helper.spawn(EntityType.ZOMBIE, new BlockPos(13, 1, 4));
         zombie.setNoAi(true);

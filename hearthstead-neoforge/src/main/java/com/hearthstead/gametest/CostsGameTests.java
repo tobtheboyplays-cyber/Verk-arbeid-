@@ -2,6 +2,7 @@ package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
@@ -11,6 +12,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Mayor;
+import com.hearthstead.settlement.RecruitmentTransaction;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
@@ -19,7 +21,9 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -63,6 +67,9 @@ public class CostsGameTests {
     private static Settlement settlement(GameTestHelper helper, BlockPos centerRel) {
         helper.setBlock(centerRel, ModBlocks.HEARTH.get());
         SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        data.settlements.values().removeIf(old -> helper.getBounds().contains(
+            old.center.getX() + 0.5D, old.center.getY() + 0.5D,
+            old.center.getZ() + 0.5D));
         Settlement s = new Settlement(UUID.randomUUID(), "Prisgranskning",
             helper.absolutePos(centerRel));
         // Small on purpose (EmploymentGameTests' settlement() explains why):
@@ -83,7 +90,22 @@ public class CostsGameTests {
         // Delegates to the one place that places the plaque a building
         // needs to survive BuildingManager's sweep -- see GameTestFixtures
         // (KF-021 / FLAKE-2, 2026-08-26).
-        return GameTestFixtures.register(helper, s, type, x, z);
+        Building building = GameTestFixtures.register(helper, s, type, x, z);
+        if (type == BuildingType.TAVERN) {
+            if (!(helper.getLevel().getBlockEntity(building.plaquePos)
+                instanceof PlaqueBlockEntity plaque)) {
+                throw new IllegalStateException("fixture Tavern plaque missing");
+            }
+            try {
+                var field = PlaqueBlockEntity.class.getDeclaredField("buildingId");
+                field.setAccessible(true);
+                field.set(plaque, building.id);
+            } catch (ReflectiveOperationException failure) {
+                throw new IllegalStateException("cannot bind fixture Tavern plaque",
+                    failure);
+            }
+        }
+        return building;
     }
 
     private static SettlerEntity settler(GameTestHelper helper, Settlement s,
@@ -96,15 +118,27 @@ public class CostsGameTests {
         return settler;
     }
 
-    /** A traveler already on record as waiting, spawned at {@code rel}. */
+    /** Drives the exact persisted attraction -> spawn -> Tavern-arrival path. */
     private static SettlerEntity waitingTraveler(GameTestHelper helper, Settlement s,
-                                                 String name, BlockPos rel) {
-        SettlerEntity settler = helper.spawn(ModEntities.SETTLER.get(), rel);
-        settler.setSettlerName(name);
-        settler.markTraveler(s.id, s.center);
-        s.travelerId = settler.getUUID();
-        s.travelerSinceGameTime = helper.getLevel().getGameTime();
-        return settler;
+                                                 String name) {
+        helper.assertTrue(SettlementManager.primeRecruitment(helper.getLevel(), s),
+            "fixture must prime one eligible persisted recruitment transaction");
+        SettlementManager.tickRecruitment(helper.getLevel(), s);
+        UUID travelerId = s.recruitment.travelerId();
+        Entity entity = travelerId == null ? null
+            : helper.getLevel().getEntity(travelerId);
+        helper.assertTrue(entity instanceof SettlerEntity,
+            "primed recruitment must publish one physical traveler");
+        SettlerEntity traveler = (SettlerEntity) entity;
+        traveler.setSettlerName(name);
+        BlockPos anchor = s.recruitment.tavernAnchor();
+        traveler.moveTo(anchor.getX() + 0.5D, anchor.getY(),
+            anchor.getZ() + 0.5D, 0.0F, 0.0F);
+        SettlementManager.tickRecruitment(helper.getLevel(), s);
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.WAITING_ADMISSION,
+            "only physical arrival at the locked Tavern may open admission");
+        return traveler;
     }
 
     private static int countInHearth(HearthBlockEntity hearth, Item item) {
@@ -134,6 +168,7 @@ public class CostsGameTests {
         ServerLevel level = helper.getLevel();
         BlockPos hearthRel = new BlockPos(6, 1, 6);
         Settlement s = settlement(helper, hearthRel);
+        building(helper, s, BuildingType.TAVERN, 10, 10);
 
         List<Costs.Discount> discounts = SettlementManager.recruitDiscounts(level, s);
         helper.assertTrue(discounts.isEmpty(),
@@ -153,8 +188,12 @@ public class CostsGameTests {
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
         hearth.insertGoods(new ItemStack(Items.IRON_INGOT, 5));
 
-        SettlerEntity guest = waitingTraveler(helper, s, "Gjest", hearthRel.offset(1, 0, 0));
-        SettlementManager.tickRecruitment(level, s);
+        SettlerEntity guest = waitingTraveler(helper, s, "Gjest");
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                guest.getUUID(), s.recruitment.revision())
+                == SettlementManager.AdmissionResult.COMMITTED,
+            "the full price must commit through explicit admission");
 
         helper.assertFalse(guest.isTraveler(), "the full price must be payable and admit them");
         helper.assertTrue(countInHearth(hearth, Items.BREAD) == 8,
@@ -202,8 +241,12 @@ public class CostsGameTests {
         hearth.insertGoods(new ItemStack(Items.BREAD, 19));
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 6));
 
-        SettlerEntity guest = waitingTraveler(helper, s, "Gjest", tavernRel);
-        SettlementManager.tickRecruitment(level, s);
+        SettlerEntity guest = waitingTraveler(helper, s, "Gjest");
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                guest.getUUID(), s.recruitment.revision())
+                == SettlementManager.AdmissionResult.COMMITTED,
+            "the named discounted price must commit through explicit admission");
 
         helper.assertFalse(guest.isTraveler(),
             "the discounted price alone must be enough to admit them");
@@ -299,6 +342,7 @@ public class CostsGameTests {
         ServerLevel level = helper.getLevel();
         BlockPos hearthRel = new BlockPos(6, 1, 6);
         Settlement s = settlement(helper, hearthRel);
+        building(helper, s, BuildingType.TAVERN, 10, 10);
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
@@ -306,8 +350,12 @@ public class CostsGameTests {
         // Birch, not oak -- the exact-item mistake this line must not repeat.
         hearth.insertGoods(new ItemStack(Items.BIRCH_PLANKS, 8));
 
-        SettlerEntity guest = waitingTraveler(helper, s, "Gjest", hearthRel.offset(1, 0, 0));
-        SettlementManager.tickRecruitment(level, s);
+        SettlerEntity guest = waitingTraveler(helper, s, "Gjest");
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                guest.getUUID(), s.recruitment.revision())
+                == SettlementManager.AdmissionResult.COMMITTED,
+            "the tag-aware birch-plank price must commit through explicit admission");
 
         helper.assertFalse(guest.isTraveler(),
             "birch planks must pay the planks line just like oak would");

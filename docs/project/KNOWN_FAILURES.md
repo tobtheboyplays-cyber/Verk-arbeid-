@@ -1,5 +1,15 @@
 # Known failures
 
+> **2026-08-27 CURRENT-STATUS OVERRIDE:** Dette dokumentet inneholder verdifull
+> historikk, men flere eldre statuslinjer er ikke lenger current. Bruk
+> `CURRENT_STATE.md`, `NEXT_ACTION.md`,
+> `MASTERPLAN_PREMIUM_RELEASE_2026-08-27.md` og playtestrapportene 19:45, 19:56
+> og 20:11 som aktiv sannhet. Nye hoved-P1-er er: uklar recruitment/Journey,
+> gratis jobbgear uten requests, manglende ekte settler-inventory/work zones/
+> Guard Commands, underkjent UI/motion/lyd og rapportert FPS-fall ved UI-open.
+> Ingen historisk grønn suite teller for dagens store, skitne checkpoint før ny
+> baseline er knyttet til eksakt source fingerprint.
+
 Every entry is a real, currently-failing thing with evidence. Nothing here is
 a guess. Pre-existing failures must never be attributed to a new slice.
 

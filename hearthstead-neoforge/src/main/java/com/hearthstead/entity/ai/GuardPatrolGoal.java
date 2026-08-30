@@ -14,11 +14,16 @@ import java.util.EnumSet;
 /** Guards walk a ring of waypoints around the hearth, pausing to scan. */
 public class GuardPatrolGoal extends Goal {
     private static final int WAYPOINTS = 8;
+    private static final double WAYPOINT_REACH_SQR = 4.0D;
+    private static final int FAILED_WAYPOINT_RETRY_TICKS = 20;
+    private static final int FAILURE_REPORT_THRESHOLD = 3;
 
     private final SettlerEntity settler;
     private int waypointIndex;
     private int pauseTicks;
     private BlockPos currentWaypoint;
+    private int failedWaypoints;
+    private int retryWaypointIn;
 
     /**
      * Vaktdrill's multiplier on the peacetime drill (RESEARCH-1's handoff).
@@ -43,15 +48,7 @@ public class GuardPatrolGoal extends Goal {
     @Override
     public boolean canUse() {
         if (settler.getProfession() != Profession.GUARD
-            || settler.getTarget() != null
-            || settler.getEnergy() <= 10
-            // The daily labor pool (docs/project/PLAN_EFFORT.md): a spent
-            // guard stops WALKING A ROUND, full stop. This is the only
-            // check in the whole trade -- GuardMeleeGoal and
-            // GuardRespondToAlertGoal never read effort at all, so a
-            // guard who has walked their legs off still fights and still
-            // answers an alarm. Safety beats bookkeeping.
-            || settler.isEffortSpent()) {
+            || settler.getTarget() != null) {
             return false;
         }
         Settlement settlement = settler.settlement();
@@ -64,6 +61,8 @@ public class GuardPatrolGoal extends Goal {
     @Override
     public void start() {
         settler.setActivity(SettlerActivity.PATROLLING);
+        failedWaypoints = 0;
+        retryWaypointIn = 0;
         nextWaypoint();
     }
 
@@ -105,8 +104,13 @@ public class GuardPatrolGoal extends Goal {
         BlockPos surface = settler.level().getHeightmapPos(
             Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, new BlockPos(x, s.center.getY(), z));
         currentWaypoint = surface;
-        settler.getNavigation().moveTo(surface.getX() + 0.5, surface.getY(),
-            surface.getZ() + 0.5, 0.9);
+        boolean moving = settler.getNavigation().moveTo(surface.getX() + 0.5,
+            surface.getY(), surface.getZ() + 0.5, 0.9);
+        if (!moving && settler.blockPosition().distSqr(surface)
+                > WAYPOINT_REACH_SQR) {
+            rejectUnreachedWaypoint();
+            return;
+        }
         pauseTicks = 0;
     }
 
@@ -117,9 +121,24 @@ public class GuardPatrolGoal extends Goal {
 
     @Override
     public void tick() {
+        if (currentWaypoint == null) {
+            if (--retryWaypointIn <= 0) {
+                nextWaypoint();
+            }
+            return;
+        }
         if (settler.getNavigation().isDone()) {
+            // Navigation being done is not proof that the guard arrived. A
+            // failed/partial path used to award drill progression while the
+            // guard stood still, and could do so forever on bad terrain.
+            if (settler.blockPosition().distSqr(currentWaypoint)
+                    > WAYPOINT_REACH_SQR) {
+                rejectUnreachedWaypoint();
+                return;
+            }
             if (pauseTicks == 0) {
                 reachedWaypoint();
+                failedWaypoints = 0;
             }
             pauseTicks++;
             if (pauseTicks % 25 == 0) {
@@ -133,8 +152,20 @@ public class GuardPatrolGoal extends Goal {
                 nextWaypoint();
             }
         } else if (currentWaypoint != null
-            && settler.blockPosition().distSqr(currentWaypoint) < 4) {
+            && settler.blockPosition().distSqr(currentWaypoint)
+                <= WAYPOINT_REACH_SQR) {
             settler.getNavigation().stop();
+        }
+    }
+
+    private void rejectUnreachedWaypoint() {
+        settler.getNavigation().stop();
+        currentWaypoint = null;
+        pauseTicks = 0;
+        retryWaypointIn = FAILED_WAYPOINT_RETRY_TICKS;
+        failedWaypoints++;
+        if (failedWaypoints == FAILURE_REPORT_THRESHOLD) {
+            settler.recordRouteFailure("guard_patrol:no_path");
         }
     }
 

@@ -1,17 +1,28 @@
 package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.entity.ai.ArcherAttackGoal;
+import com.hearthstead.entity.ai.GuardRaidEscortGoal;
 import com.hearthstead.registry.ModEntities;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidObjective;
+import com.hearthstead.settlement.raid.RaidPlan;
+import com.hearthstead.settlement.state.GuardOrder;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -52,11 +63,21 @@ public class GuardDefenseGameTests {
     }
 
     private static SettlerEntity spawnGuard(GameTestHelper helper, Settlement s, BlockPos rel) {
+        return spawnDefender(helper, s, rel, Profession.GUARD);
+    }
+
+    private static SettlerEntity spawnDefender(GameTestHelper helper, Settlement s,
+                                                BlockPos rel, Profession profession) {
         SettlerEntity guard = helper.spawn(ModEntities.SETTLER.get(), rel);
         guard.setSettlerName("Ward");
         guard.bindTo(s.id, s.center);
         s.putRecord(guard.getUUID(), guard.getSettlerName(), Profession.NONE);
-        guard.assignProfession(Profession.GUARD);
+        guard.assignProfession(profession);
+        // This direct-profession fixture has no workplace/courier able to
+        // satisfy an equipment request. Supply the real physical weapon that
+        // production GuardMeleeGoal now requires; never bypass that gate.
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(
+            profession == Profession.ARCHER ? Items.BOW : Items.IRON_SWORD));
         return guard;
     }
 
@@ -70,9 +91,29 @@ public class GuardDefenseGameTests {
     }
 
     private static RaiderEntity spawnIdleRaider(GameTestHelper helper, Settlement s, BlockPos rel) {
+        return spawnIdleRaider(helper, s, rel,
+            RaiderEntity.Variant.SKIRMISHER);
+    }
+
+    private static RaiderEntity spawnIdleRaider(GameTestHelper helper,
+                                                 Settlement s,
+                                                 BlockPos rel,
+                                                 RaiderEntity.Variant variant) {
         RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), rel);
+        // Variant must precede assign(): assign materialises the matching
+        // health, speed and knockback profile as well as the visible build.
+        raider.setVariant(variant);
         raider.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+        // These tests measure assignment, not time-to-kill. Absorption keeps
+        // a valid, attackable target alive long enough for the 10-tick
+        // coordination review without weakening real guard combat.
+        raider.setAbsorptionAmount(100.0F);
         return raider;
+    }
+
+    private static void activateRaid(Settlement settlement) {
+        settlement.pendingRaid = new RaidPlan(UUID.randomUUID(),
+            RaidObjective.BLOD, 0.0F, 1L);
     }
 
     /**
@@ -113,6 +154,11 @@ public class GuardDefenseGameTests {
 
         RaiderEntity idleAndNear = spawnIdleRaider(helper, s, new BlockPos(9, 1, 8));
         RaiderEntity attackingAndFar = spawnIdleRaider(helper, s, new BlockPos(12, 1, 8));
+        // Freeze autonomous retargeting: this fixture asserts the shared
+        // defender selector's player-threat ordering, not RaiderEntity's own
+        // higher-priority search for a nearby settler (the guard itself).
+        idleAndNear.setNoAi(true);
+        attackingAndFar.setNoAi(true);
         attackingAndFar.setTarget(player);
 
         helper.succeedWhen(() -> helper.assertTrue(guard.getTarget() == attackingAndFar,
@@ -136,6 +182,13 @@ public class GuardDefenseGameTests {
 
         RaiderEntity idleAndNear = spawnIdleRaider(helper, s, new BlockPos(9, 1, 8));
         RaiderEntity laterAttacker = spawnIdleRaider(helper, s, new BlockPos(12, 1, 8));
+        // This test measures target reselection, not damage throughput. Keep
+        // both server entities targetable but stop their autonomous combat AI
+        // from killing the guard/civilian before the bounded 10-tick target
+        // review. The threat is still armed below through the production
+        // authority signal: the raider's own live Mob#getTarget().
+        idleAndNear.setNoAi(true);
+        laterAttacker.setNoAi(true);
 
         // Confirm the guard actually engages the near, idle raider FIRST --
         // otherwise a later switch to the far one would prove nothing about
@@ -168,6 +221,209 @@ public class GuardDefenseGameTests {
                 "an already-engaged guard must switch to intercept a raider that starts "
                     + "attacking a settler, even though it is farther away; got "
                     + guard.getTarget());
+        });
+    }
+
+    /**
+     * One exact Stand issuer gets one bodyguard inside the authored leash.
+     * A second Stand guard, a Patrol guard and every Archer remain on their
+     * explicit orders. Moving the issuer outside the leash returns the elected
+     * guard to the unchanged post.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 500, batch = "guard_raid_elects_one_stand_bodyguard_without_overriding_patrol_or_archer")
+    public void electsOneStandBodyguardWithoutOverridingPatrolOrArcher(
+            GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
+        Building barracks = GameTestFixtures.register(helper, s,
+            BuildingType.BARRACKS, 2, 2);
+        ServerPlayer issuer = helper.makeMockServerPlayerInLevel();
+        BlockPos playerAbs = helper.absolutePos(new BlockPos(8, 1, 8));
+        issuer.teleportTo(playerAbs.getX() + 0.5D, playerAbs.getY(),
+            playerAbs.getZ() + 0.5D);
+        ServerPlayer intruder = helper.makeMockServerPlayerInLevel();
+        BlockPos intruderAbs = helper.absolutePos(new BlockPos(7, 1, 8));
+        intruder.teleportTo(intruderAbs.getX() + 0.5D, intruderAbs.getY(),
+            intruderAbs.getZ() + 0.5D);
+
+        SettlerEntity bodyguard = spawnCivilian(helper, s,
+            new BlockPos(7, 1, 8), "Bodyguard");
+        SettlerEntity reserve = spawnCivilian(helper, s,
+            new BlockPos(3, 1, 8), "Reserve");
+        SettlerEntity patrol = spawnCivilian(helper, s,
+            new BlockPos(12, 1, 8), "Patrol");
+        for (SettlerEntity guard : new SettlerEntity[] {
+                bodyguard, reserve, patrol}) {
+            helper.assertTrue(Employment.hire(helper.getLevel(), s,
+                    barracks, guard).ok(),
+                "fixture: Barracks must hire each Guard");
+            guard.setItemSlot(EquipmentSlot.MAINHAND,
+                new ItemStack(Items.IRON_SWORD));
+        }
+
+        BlockPos bodyPost = helper.absolutePos(new BlockPos(7, 1, 8));
+        BlockPos reservePost = helper.absolutePos(new BlockPos(3, 1, 8));
+        GuardOrder bodyOrder = s.guardOrders.orderForMutation(s.id,
+            bodyguard.getUUID(), helper.getLevel().dimension().location())
+            .orElseThrow();
+        GuardOrder reserveOrder = s.guardOrders.orderForMutation(s.id,
+            reserve.getUUID(), helper.getLevel().dimension().location())
+            .orElseThrow();
+        GuardOrder patrolOrder = s.guardOrders.orderForMutation(s.id,
+            patrol.getUUID(), helper.getLevel().dimension().location())
+            .orElseThrow();
+        helper.assertTrue(bodyOrder.issueStand(bodyPost, Direction.NORTH, 4,
+                issuer.getUUID(), barracks.id, helper.getLevel().getGameTime())
+            && reserveOrder.issueStand(reservePost, Direction.NORTH, 8,
+                issuer.getUUID(), barracks.id, helper.getLevel().getGameTime()),
+            "fixture: two valid Stand posts must be authored by the player");
+        UUID issuerId = issuer.getUUID();
+        helper.assertTrue(patrolOrder.appendPatrolPoint(
+                helper.absolutePos(new BlockPos(12, 1, 7)), issuerId,
+                barracks.id, helper.getLevel().getGameTime())
+            && patrolOrder.appendPatrolPoint(
+                helper.absolutePos(new BlockPos(12, 1, 10)), issuerId,
+                barracks.id, helper.getLevel().getGameTime())
+            && patrolOrder.issuePatrol(GuardOrder.Traversal.LOOP, issuerId,
+                barracks.id, helper.getLevel().getGameTime()),
+            "fixture: valid Patrol order");
+
+        // An Archer can never enter this movement goal, even if armed and a
+        // raid is active; their Tower goal remains the sole movement owner.
+        SettlerEntity archer = spawnDefender(helper, s,
+            new BlockPos(14, 1, 14), Profession.ARCHER);
+        activateRaid(s);
+        helper.assertTrue(new GuardRaidEscortGoal(bodyguard).canUse(),
+            "closest valid Stand guard must follow its exact issuer; a closer "
+                + "non-issuer player may not steal it");
+        helper.assertTrue(!new GuardRaidEscortGoal(reserve).canUse(),
+            "a second Stand guard must not become another bodyguard");
+        helper.assertTrue(!new GuardRaidEscortGoal(patrol).canUse(),
+            "Patrol must never be overridden by raid bodyguard movement");
+        helper.assertTrue(!new GuardRaidEscortGoal(archer).canUse(),
+            "Archer Tower movement must never be overridden by bodyguard AI");
+
+        boolean[] rallied = {false};
+        helper.succeedWhen(() -> {
+            if (!rallied[0]) {
+                helper.assertTrue(bodyguard.blockPosition().distSqr(bodyPost)
+                        > 2.25D
+                    && bodyguard.distanceToSqr(issuer) <= 16.0D,
+                    "elected Stand guard must visibly screen its exact issuer");
+                BlockPos outside = helper.absolutePos(new BlockPos(14, 1, 8));
+                issuer.teleportTo(outside.getX() + 0.5D, outside.getY(),
+                    outside.getZ() + 0.5D);
+                rallied[0] = true;
+            }
+            helper.assertTrue(bodyguard.blockPosition().distSqr(bodyPost)
+                    <= 2.25D
+                && reserve.blockPosition().distSqr(reservePost) <= 2.25D
+                && bodyOrder.mode() == GuardOrder.Mode.STAND_POST
+                && reserveOrder.mode() == GuardOrder.Mode.STAND_POST
+                && patrolOrder.mode() == GuardOrder.Mode.PATROL_ROUTE,
+                "outside the leash, the one bodyguard must return while every "
+                    + "explicit order remains unchanged");
+        });
+    }
+
+    /** A neighbouring settlement's raider may not be chased or shot. */
+    @GameTest(template = "empty16", timeoutTicks = 240, batch = "guard_raid_archer_coordinator_rejects_a_foreign_settlement_raider")
+    public void archerCoordinatorRejectsAForeignSettlementRaider(
+            GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement own = makeSettlement(helper, new BlockPos(8, 1, 8));
+        Settlement foreign = makeSettlement(helper, new BlockPos(1, 1, 1));
+        SettlerEntity archer = spawnDefender(helper, own,
+            new BlockPos(8, 1, 8), Profession.ARCHER);
+        RaiderEntity foreignNear = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(9, 1, 8));
+        foreignNear.assign(UUID.randomUUID(), foreign.id, RaidObjective.BLOD,
+            1.0F, false);
+        RaiderEntity ownFar = spawnIdleRaider(helper, own,
+            new BlockPos(12, 1, 8));
+        foreignNear.setNoAi(true);
+        ownFar.setNoAi(true);
+        ArcherAttackGoal fallback = new ArcherAttackGoal(archer);
+        helper.assertTrue(fallback.canUse()
+                && archer.getTarget() == ownFar
+                && archer.getTarget() != foreignNear,
+            "shared Archer coordinator must reject a foreign raid even when "
+                + "it is nearer; got " + archer.getTarget());
+        helper.succeed();
+    }
+
+    /**
+     * Two ordinary enemies and two defenders must produce two engagements,
+     * not a dogpile. The role tie-break also pins the future counter seam:
+     * the sword-bearing guard takes the brute while the archer covers the
+     * skirmisher.  The encounter therefore proves the same readable roles
+     * that the +25% class-counter damage uses in live combat.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 240, batch = "guard_raid_distributes_roles_across_two_ordinary_raiders")
+    public void distributesRolesAcrossTwoOrdinaryRaiders(GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
+        activateRaid(s);
+        SettlerEntity guard = spawnDefender(helper, s,
+            new BlockPos(7, 1, 8), Profession.GUARD);
+        SettlerEntity archer = spawnDefender(helper, s,
+            new BlockPos(9, 1, 8), Profession.ARCHER);
+        RaiderEntity brute = spawnIdleRaider(helper, s,
+            new BlockPos(8, 1, 11), RaiderEntity.Variant.BRUTE);
+        RaiderEntity skirmisher = spawnIdleRaider(helper, s,
+            new BlockPos(8, 1, 5), RaiderEntity.Variant.SKIRMISHER);
+        brute.setNoAi(true);
+        skirmisher.setNoAi(true);
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(guard.getTarget() == brute,
+                "melee guard must screen the brute; got " + guard.getTarget());
+            helper.assertTrue(archer.getTarget() == skirmisher,
+                "archer must cover the skirmisher; got " + archer.getTarget());
+            helper.assertTrue(guard.getTarget() != archer.getTarget(),
+                "two defenders must cover two ordinary raiders instead of dogpiling");
+        });
+    }
+
+    /**
+     * Focus fire remains deliberate: a raider actively on the player earns
+     * two defenders, but the third covers the other raider rather than joining
+     * an unlimited pile. If there were only one enemy, fallback selection
+     * would still send every available defender into the fight.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 240, batch = "guard_raid_focuses_two_on_a_player_threat_then_covers_the_next_enemy")
+    public void focusesTwoOnAPlayerThreatThenCoversTheNextEnemy(
+            GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
+        activateRaid(s);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos playerAbs = helper.absolutePos(new BlockPos(8, 1, 8));
+        player.teleportTo(playerAbs.getX() + 0.5D, playerAbs.getY(),
+            playerAbs.getZ() + 0.5D);
+        SettlerEntity first = spawnGuard(helper, s, new BlockPos(6, 1, 8));
+        SettlerEntity second = spawnGuard(helper, s, new BlockPos(8, 1, 7));
+        SettlerEntity third = spawnGuard(helper, s, new BlockPos(10, 1, 8));
+        RaiderEntity playerThreat = spawnIdleRaider(helper, s,
+            new BlockPos(8, 1, 11));
+        RaiderEntity uncovered = spawnIdleRaider(helper, s,
+            new BlockPos(8, 1, 4));
+        playerThreat.setNoAi(true);
+        uncovered.setNoAi(true);
+        playerThreat.setTarget(player);
+
+        helper.succeedWhen(() -> {
+            int onThreat = (first.getTarget() == playerThreat ? 1 : 0)
+                + (second.getTarget() == playerThreat ? 1 : 0)
+                + (third.getTarget() == playerThreat ? 1 : 0);
+            int onOther = (first.getTarget() == uncovered ? 1 : 0)
+                + (second.getTarget() == uncovered ? 1 : 0)
+                + (third.getTarget() == uncovered ? 1 : 0);
+            helper.assertTrue(onThreat == 2,
+                "the active player threat must draw exactly two defenders; got "
+                    + onThreat);
+            helper.assertTrue(onOther == 1,
+                "the third defender must cover the other enemy; got " + onOther);
         });
     }
 }

@@ -6,6 +6,8 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
@@ -13,15 +15,29 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.MeleeAttackGoal;
+import net.minecraft.world.entity.monster.Enemy;
+
+import java.util.UUID;
 
 public class GuardMeleeGoal extends MeleeAttackGoal {
+
+    /** MELEE's authored sword contact: t=0.20 s on Minecraft's 20 Hz clock. */
+    public static final int MELEE_CONTACT_TICK = 4;
 
     /** The rank edge's transient modifier id; on the guard only for the one
      *  tick of the one blow, never persisted. */
     private static final ResourceLocation RANK_EDGE_ID =
         ResourceLocation.fromNamespaceAndPath("hearthstead", "guard_rank_edge");
+    /** Modest role counter: no wrong-role penalty and no captain bonus. */
+    private static final ResourceLocation BRUTE_COUNTER_ID =
+        ResourceLocation.fromNamespaceAndPath("hearthstead",
+            "guard_brute_counter");
+    public static final double COUNTER_DAMAGE_MULTIPLIER = 1.25D;
 
     private final SettlerEntity settler;
+    private long pendingContactTicket;
+    private long pendingContactTick = Long.MIN_VALUE;
+    private UUID pendingTargetId;
 
     public GuardMeleeGoal(SettlerEntity settler) {
         super(settler, 1.15, true);
@@ -30,7 +46,22 @@ public class GuardMeleeGoal extends MeleeAttackGoal {
 
     @Override
     public boolean canUse() {
-        return settler.getProfession() == Profession.GUARD && super.canUse();
+        return settler.getProfession() == Profession.GUARD
+            && settler.level() instanceof ServerLevel level
+            && EquipmentRequests.readyForProfession(level, settler,
+                Profession.GUARD)
+            && isAuthorizedHostile(settler.getTarget())
+            && super.canUse();
+    }
+
+    @Override
+    public boolean canContinueToUse() {
+        return settler.getProfession() == Profession.GUARD
+            && settler.level() instanceof ServerLevel level
+            && EquipmentRequests.readyForProfession(level, settler,
+                Profession.GUARD)
+            && isAuthorizedHostile(settler.getTarget())
+            && super.canContinueToUse();
     }
 
     @Override
@@ -40,50 +71,156 @@ public class GuardMeleeGoal extends MeleeAttackGoal {
     }
 
     /**
-     * One landed blow, three consequences: the rank's edge rides on it, it
-     * trains Strength (the number {@link GuardRank#of} reads — a guard earns
-     * armor by fighting), and a veteran's swing cleaves into a second raider.
+     * Two-phase server attack. Vanilla's range/LOS/cooldown predicate starts
+     * the visible wind-up and spends the ordinary 20-tick cooldown. Four
+     * ticks later the same target, sword, range, line of sight and settlement
+     * hostility are revalidated before its one-use contact ticket may deal
+     * damage. Losing any condition makes the swing a visible miss.
      */
     @Override
     protected void checkAndPerformAttack(LivingEntity target) {
-        // canPerformAttack is the exact predicate super gates the blow on
-        // (cooldown AND reach AND line of sight). isTimeToAttack alone can be
-        // true a whole chase away from the enemy — training on it would pay
-        // Strength for swings at empty air.
-        if (!canPerformAttack(target)) {
-            super.checkAndPerformAttack(target);
+        if (!(settler.level() instanceof ServerLevel level)) {
+            cancelPendingContact();
             return;
         }
 
-        // Rank damage: experience swings harder — the attribute stays flat,
-        // the goal adds the edge. +0.5 per rank ordinal (RECRUIT +0.0,
-        // CAPTAIN +2.0), applied as a transient ATTACK_DAMAGE modifier that
-        // exists only around this one doHurtTarget, so the bonus rides the
-        // ordinary damage pipeline — one hurt, one knockback, armor applied —
-        // instead of a second hurt() call the target's invulnerability
-        // frames would swallow.
+        long now = level.getGameTime();
+        if (pendingContactTicket != 0L) {
+            // A target switch never transfers a cocked blade to the newcomer.
+            if (pendingTargetId == null
+                || !pendingTargetId.equals(target.getUUID())) {
+                cancelPendingContact();
+                return;
+            }
+            if (now < pendingContactTick) {
+                return;
+            }
+
+            long ticket = pendingContactTicket;
+            long dueTick = pendingContactTick;
+            // Clear this goal's copy before entering vanilla damage hooks.
+            // The entity ledger also consumes before hurt(), giving both
+            // layers the same retry/re-entrancy guarantee.
+            clearPendingFields();
+            if (now != dueTick
+                || !isAuthorizedContact(target)) {
+                settler.cancelMeleeContact(ticket);
+                return;
+            }
+
+            boolean hit = performRankedContact(ticket, target);
+            if (!hit) {
+                return;
+            }
+
+            // Training and cleave are consequences of an actual accepted
+            // damage pass, never of reaching a timer or playing a swing.
+            settler.train(Attribute.STRENGTH, GuardRank.TRAIN_COMBAT);
+            cleave(target);
+            return;
+        }
+
+        // canPerformAttack is vanilla's exact cooldown + reach + LOS gate.
+        // The extra predicate makes the target a settlement-authorized enemy
+        // and reasserts the physical sword before any animation is broadcast.
+        if (!canPerformAttack(target) || !isAuthorizedContact(target)) {
+            return;
+        }
+
+        resetAttackCooldown();
+        long ticket = settler.beginMeleeWindup(target);
+        if (ticket == 0L) {
+            return;
+        }
+        pendingContactTicket = ticket;
+        pendingTargetId = target.getUUID();
+        pendingContactTick = now + MELEE_CONTACT_TICK;
+        // EV_MELEE is the sole presentation owner for this one-shot. A
+        // vanilla swing packet would create a second attack timeline with
+        // independent interpolation; even though SettlerModel currently
+        // ignores EntityModel.attackTime, emitting it would make that safety
+        // accidental and invite a later double-layer/pop regression.
+    }
+
+    /** One vanilla damage pass with the rank edge present for that pass only. */
+    private boolean performRankedContact(long ticket, LivingEntity target) {
         AttributeInstance attack = settler.getAttribute(Attributes.ATTACK_DAMAGE);
         double edge = GuardRank.MELEE_EDGE_PER_RANK * GuardRank.of(settler).ordinal();
         boolean edged = attack != null && edge > 0.0 && !attack.hasModifier(RANK_EDGE_ID);
+        double counter = counterDamageMultiplier(target);
+        boolean countered = attack != null && counter > 1.0D
+            && !attack.hasModifier(BRUTE_COUNTER_ID);
         if (edged) {
             attack.addTransientModifier(new AttributeModifier(RANK_EDGE_ID, edge,
                 AttributeModifier.Operation.ADD_VALUE));
         }
+        if (countered) {
+            attack.addTransientModifier(new AttributeModifier(BRUTE_COUNTER_ID,
+                counter - 1.0D,
+                AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+        }
         try {
-            super.checkAndPerformAttack(target);
+            return settler.commitMeleeContact(ticket, target);
         } finally {
+            if (countered) {
+                attack.removeModifier(BRUTE_COUNTER_ID);
+            }
             if (edged) {
                 attack.removeModifier(RANK_EDGE_ID);
             }
         }
+    }
 
-        // A blow landed is combat training — the fast lane up the rank
-        // ladder (5x the patrol drill per event, GuardRank.TRAIN_COMBAT).
-        // Same idiom as GuardPatrolGoal's STAMINA-per-waypoint: train at the
-        // moment the work completes, never on a timer.
-        settler.train(Attribute.STRENGTH, GuardRank.TRAIN_COMBAT);
+    /** Exact counter seam used both by contact damage and deterministic QA. */
+    public static double counterDamageMultiplier(LivingEntity target) {
+        return target instanceof RaiderEntity raider
+            && !raider.isCaptain()
+            && raider.variant() == RaiderEntity.Variant.BRUTE
+                ? COUNTER_DAMAGE_MULTIPLIER : 1.0D;
+    }
 
-        cleave(target);
+    /** Pure overload: no world/entity fixture needed to pin the design rule. */
+    public static double counterDamageMultiplier(
+            RaiderEntity.Variant variant, boolean captain) {
+        return !captain && variant == RaiderEntity.Variant.BRUTE
+            ? COUNTER_DAMAGE_MULTIPLIER : 1.0D;
+    }
+
+    /** Contact-time validation deliberately excludes the cooldown already
+     * spent at wind-up, while repeating every physical/authority condition. */
+    private boolean isAuthorizedContact(LivingEntity target) {
+        return settler.isAuthorizedMeleeContactTarget(target);
+    }
+
+    /**
+     * The target must still be a live server-side enemy of this settlement.
+     * Ordinary monsters qualify only inside its defended ring; a raid-bound
+     * raider must additionally name this exact settlement, so two nearby
+     * settlements cannot damage each other's raid actors.
+     */
+    private boolean isAuthorizedHostile(LivingEntity target) {
+        if (!(settler.level() instanceof ServerLevel level)
+            || target == null || target.level() != level
+            || !target.isAlive() || target.isRemoved()
+            || !(target instanceof Enemy)
+            || !settler.canAttack(target)) {
+            return false;
+        }
+        Settlement settlement = settler.settlement();
+        if (settlement == null) {
+            return false;
+        }
+        double defendedRadius = settlement.radius + 8.0;
+        if (target.blockPosition().distSqr(settlement.center)
+            > defendedRadius * defendedRadius) {
+            return false;
+        }
+        if (target instanceof RaiderEntity raider
+            && raider.settlementId() != null
+            && !settlement.id.equals(raider.settlementId())) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -110,7 +247,7 @@ public class GuardMeleeGoal extends MeleeAttackGoal {
             // old never-your-own-people rule, plus the canAttack filter.)
             if (other == settler || other == target
                 || !(other instanceof RaiderEntity)
-                || !settler.canAttack(other)) {
+                || !isAuthorizedHostile(other)) {
                 continue;
             }
             other.hurt(level.damageSources().mobAttack(settler), 3.0F * share);
@@ -120,7 +257,22 @@ public class GuardMeleeGoal extends MeleeAttackGoal {
 
     @Override
     public void stop() {
+        cancelPendingContact();
         super.stop();
         settler.setActivity(SettlerActivity.IDLE);
     }
+
+    private void cancelPendingContact() {
+        if (pendingContactTicket != 0L) {
+            settler.cancelMeleeContact(pendingContactTicket);
+        }
+        clearPendingFields();
+    }
+
+    private void clearPendingFields() {
+        pendingContactTicket = 0L;
+        pendingContactTick = Long.MIN_VALUE;
+        pendingTargetId = null;
+    }
+
 }

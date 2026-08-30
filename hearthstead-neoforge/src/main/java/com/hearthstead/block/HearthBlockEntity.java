@@ -174,6 +174,10 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                         RecruitmentPolicy.Blocker.INVALID_STATE.wireId();
                     case HearthMenu.DATA_RECRUIT_STAGE ->
                         RecruitmentPolicy.Stage.INVALID.wireId();
+                    case HearthMenu.DATA_JOURNEY_PHASE -> -1;
+                    case HearthMenu.DATA_JOURNEY_V3_MODE,
+                         HearthMenu.DATA_JOURNEY_V3_CURRENT,
+                         HearthMenu.DATA_JOURNEY_V3_CHAPTER -> -1;
                     default -> 0;
                 };
             }
@@ -187,9 +191,10 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 case HearthMenu.DATA_RADIUS -> s.radius;
                 case HearthMenu.DATA_ALERT -> s.alertActive(serverLevel.getGameTime()) ? 1 : 0;
                 case HearthMenu.DATA_RECRUIT ->
-                    s.recruitTarget > 0
+                    s.recruitment != null && s.recruitment.lockedTarget() > 0
                         ? (int) Math.min(100L,
-                            (long) s.recruitProgress * 100L / s.recruitTarget)
+                            (long) s.recruitment.progress() * 100L
+                                / s.recruitment.lockedTarget())
                         : 0;
                 case HearthMenu.DATA_TAVERN -> SettlementManager.hasValidTavern(s) ? 1 : 0;
                 case HearthMenu.DATA_RECRUIT_BLOCKER -> assessment.blocker().wireId();
@@ -197,6 +202,33 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 case HearthMenu.DATA_REQUIRED_RESERVE -> assessment.requiredReadyFood();
                 case HearthMenu.DATA_MISSING_RESERVE -> assessment.missingReadyFood();
                 case HearthMenu.DATA_RECRUIT_STAGE -> assessment.stage().wireId();
+                case HearthMenu.DATA_JOURNEY_PHASE -> s.foundingJourney.phase().wireId();
+                case HearthMenu.DATA_JOURNEY_REVISION -> s.foundingJourney.revision();
+                case HearthMenu.DATA_JOURNEY_CAN_SKIP -> s.foundingJourney.active() ? 1 : 0;
+                case HearthMenu.DATA_JOURNEY_V3_MODE -> s.journeyState.mode().wireId();
+                case HearthMenu.DATA_JOURNEY_V3_REVISION -> s.journeyState.revision();
+                case HearthMenu.DATA_JOURNEY_V3_CAN_SKIP ->
+                    s.journeyState.mode()
+                        == com.hearthstead.settlement.journey.JourneyPresentationMode.ACTIVE
+                        ? 1 : 0;
+                case HearthMenu.DATA_JOURNEY_V3_CURRENT ->
+                    s.journeyState.currentStep().map(
+                        com.hearthstead.settlement.journey.JourneyStep::ordinal)
+                        .orElse(-1);
+                case HearthMenu.DATA_JOURNEY_V3_COMPLETED ->
+                    s.journeyState.completedCount();
+                case HearthMenu.DATA_JOURNEY_V3_OUTCOME ->
+                    s.journeyState.outcome().wireId();
+                case HearthMenu.DATA_JOURNEY_V3_CHAPTER ->
+                    s.journeyState.currentChapter().map(
+                        com.hearthstead.settlement.journey.JourneyDefinition.V2
+                            .chapters()::indexOf).orElse(-1);
+                case HearthMenu.DATA_RECRUIT_REVISION ->
+                    s.recruitment == null ? -1 : s.recruitment.revision();
+                case HearthMenu.DATA_RECRUIT_TRANSACTION_STATUS ->
+                    s.recruitment == null
+                        ? com.hearthstead.settlement.RecruitmentTransaction.Status.UNKNOWN.wireId()
+                        : s.recruitment.status().wireId();
                 default -> 0;
             };
         }

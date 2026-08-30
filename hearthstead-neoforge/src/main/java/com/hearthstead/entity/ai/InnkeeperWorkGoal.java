@@ -52,7 +52,7 @@ public class InnkeeperWorkGoal extends Goal {
     @Override
     public boolean canUse() {
         if (settler.getProfession() != Profession.INNKEEPER || !settler.isBound()
-            || settler.getTarget() != null || settler.getEnergy() <= 15.0F) {
+            || settler.getTarget() != null) {
             return false;
         }
         if (lookCooldown > 0) {

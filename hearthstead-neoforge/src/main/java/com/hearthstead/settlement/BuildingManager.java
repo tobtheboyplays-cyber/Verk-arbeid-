@@ -129,7 +129,12 @@ public final class BuildingManager {
         // class of bug KF-013 and KF-014 both were. Freeing the workers in the
         // same operation that removes the building makes it impossible rather
         // than findable (D-011).
-        Employment.freeWorkers(level, settlement, building);
+        if (!Employment.freeWorkers(level, settlement, building)) {
+            // A terminal world transition refused the visible fallback drop.
+            // Keep the building/roster authoritative and retry next sweep;
+            // removing it now would strand or erase physical quiver stock.
+            return;
+        }
         settlement.buildings.remove(building);
         buildingsDissolved++;
         data.setDirty();

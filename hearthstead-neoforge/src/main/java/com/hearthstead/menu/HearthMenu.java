@@ -17,7 +17,10 @@ import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
 
+import java.util.UUID;
+
 public class HearthMenu extends AbstractContainerMenu {
+    public static final UUID NO_SETTLEMENT = new UUID(0L, 0L);
     public static final int DATA_POPULATION = 0;
     public static final int DATA_CAPACITY = 1;
     public static final int DATA_EMPLOYED = 2;
@@ -38,7 +41,28 @@ public class HearthMenu extends AbstractContainerMenu {
     public static final int DATA_MISSING_RESERVE = 12;
     /** Stable {@link com.hearthstead.settlement.RecruitmentPolicy.Stage} wire id. */
     public static final int DATA_RECRUIT_STAGE = 13;
-    public static final int DATA_COUNT = 14;
+    /** Stable {@link com.hearthstead.settlement.state.FoundingJourney.Phase} wire id. */
+    public static final int DATA_JOURNEY_PHASE = 14;
+    /** Optimistic-lock revision for the journey's one deliberate skip action. */
+    public static final int DATA_JOURNEY_REVISION = 15;
+    /** Server-authoritative permission bit; the client never infers skip eligibility. */
+    public static final int DATA_JOURNEY_CAN_SKIP = 16;
+    /** Stable Journey schema-3 presentation mode wire id. */
+    public static final int DATA_JOURNEY_V3_MODE = 17;
+    /** Optimistic-lock revision for schema-3 presentation actions. */
+    public static final int DATA_JOURNEY_V3_REVISION = 18;
+    public static final int DATA_JOURNEY_V3_CAN_SKIP = 19;
+    /** Frozen definition-v2 ordinal of the current objective, or -1. */
+    public static final int DATA_JOURNEY_V3_CURRENT = 20;
+    public static final int DATA_JOURNEY_V3_COMPLETED = 21;
+    public static final int DATA_JOURNEY_V3_OUTCOME = 22;
+    /** Index into JourneyDefinition.v2 chapters, or -1. */
+    public static final int DATA_JOURNEY_V3_CHAPTER = 23;
+    /** Exact optimistic-lock revision of the persisted recruitment transaction. */
+    public static final int DATA_RECRUIT_REVISION = 24;
+    /** Stable RecruitmentTransaction.Status wire id. */
+    public static final int DATA_RECRUIT_TRANSACTION_STATUS = 25;
+    public static final int DATA_COUNT = 26;
 
     public static final int COMMUNAL_SLOTS = HearthBlockEntity.INVENTORY_SIZE;
     public static final int COMMUNAL_X = 104;
@@ -49,19 +73,37 @@ public class HearthMenu extends AbstractContainerMenu {
     private final ContainerData data;
     private final ContainerLevelAccess access;
     private final String settlementName;
+    private final BlockPos hearthPos;
+    private final UUID settlementId;
 
-    /** Client constructor: pos + settlement name arrive in the open buffer. */
+    /** Client constructor: exact menu identity arrives in the open buffer. */
     public HearthMenu(int windowId, Inventory playerInventory, FriendlyByteBuf buf) {
+        this(windowId, playerInventory, readOpenData(buf));
+    }
+
+    private HearthMenu(int windowId, Inventory playerInventory, OpenData openData) {
         this(windowId, playerInventory,
-            resolveHearth(playerInventory, buf.readBlockPos()),
-            new SimpleContainerData(DATA_COUNT), buf.readUtf());
+            resolveHearth(playerInventory, openData.hearthPos),
+            new SimpleContainerData(DATA_COUNT), openData.settlementName,
+            openData.hearthPos, openData.settlementId);
     }
 
     public HearthMenu(int windowId, Inventory playerInventory, HearthBlockEntity hearth,
                       ContainerData data, String settlementName) {
+        this(windowId, playerInventory, hearth, data, settlementName,
+            hearth == null ? BlockPos.ZERO : hearth.getBlockPos(),
+            hearth == null || hearth.getSettlementId() == null
+                ? NO_SETTLEMENT : hearth.getSettlementId());
+    }
+
+    private HearthMenu(int windowId, Inventory playerInventory, HearthBlockEntity hearth,
+                       ContainerData data, String settlementName, BlockPos hearthPos,
+                       UUID settlementId) {
         super(ModMenus.HEARTH.get(), windowId);
         this.data = data;
         this.settlementName = settlementName;
+        this.hearthPos = hearthPos == null ? BlockPos.ZERO : hearthPos.immutable();
+        this.settlementId = settlementId == null ? NO_SETTLEMENT : settlementId;
         this.access = hearth != null
             ? ContainerLevelAccess.create(hearth.getLevel(), hearth.getBlockPos())
             : ContainerLevelAccess.NULL;
@@ -92,6 +134,10 @@ public class HearthMenu extends AbstractContainerMenu {
         addDataSlots(data);
     }
 
+    private static OpenData readOpenData(FriendlyByteBuf buf) {
+        return new OpenData(buf.readBlockPos(), buf.readUUID(), buf.readUtf());
+    }
+
     private static HearthBlockEntity resolveHearth(Inventory playerInventory, BlockPos pos) {
         return playerInventory.player.level().getBlockEntity(pos) instanceof HearthBlockEntity hearth
             ? hearth : null;
@@ -99,6 +145,18 @@ public class HearthMenu extends AbstractContainerMenu {
 
     public String getSettlementName() {
         return settlementName;
+    }
+
+    public BlockPos getHearthPos() {
+        return hearthPos;
+    }
+
+    public UUID getSettlementId() {
+        return settlementId;
+    }
+
+    public int getContainerId() {
+        return containerId;
     }
 
     public int get(int index) {
@@ -139,5 +197,9 @@ public class HearthMenu extends AbstractContainerMenu {
     @Override
     public boolean stillValid(Player player) {
         return stillValid(access, player, ModBlocks.HEARTH.get());
+    }
+
+    private record OpenData(BlockPos hearthPos, UUID settlementId,
+                            String settlementName) {
     }
 }

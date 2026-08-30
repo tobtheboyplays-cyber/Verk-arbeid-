@@ -9,8 +9,10 @@ import com.hearthstead.entity.ai.CourierWorkGoal;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
+import com.hearthstead.settlement.request.RequestLedgerService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -80,14 +82,10 @@ public class CourierWorkshopRouteGameTests {
 
     private static Building addBuilding(GameTestHelper helper, Settlement s, BuildingType type,
                                         BlockPos minRel, BlockPos maxRel, BlockPos anchorRel) {
-        helper.setBlock(anchorRel, ModBlocks.PLAQUE.get());
         BoundingBox bounds = BoundingBox.fromCorners(
             helper.absolutePos(minRel), helper.absolutePos(maxRel));
-        Building b = new Building(UUID.randomUUID(), type,
-            helper.absolutePos(anchorRel), helper.absolutePos(anchorRel), bounds);
-        b.valid = true;
-        s.buildings.add(b);
-        return b;
+        return GameTestFixtures.registerWithBounds(helper, s, type, anchorRel,
+            anchorRel, bounds);
     }
 
     private static final BlockPos HEARTH_REL = new BlockPos(2, 1, 2);
@@ -149,7 +147,12 @@ public class CourierWorkshopRouteGameTests {
         settler.setSettlerName("Bud");
         settler.bindTo(s.id, s.center);
         s.putRecord(settler.getUUID(), settler.getSettlerName(), Profession.NONE);
-        settler.assignProfession(Profession.COURIER);
+        Building warehouse = s.buildings.stream()
+            .filter(b -> b.valid && b.type == BuildingType.WAREHOUSE)
+            .findFirst().orElse(null);
+        helper.assertTrue(warehouse != null
+                && Employment.hire(helper.getLevel(), s, warehouse, settler).ok(),
+            "courier route fixture needs one real Warehouse employment authority");
         return settler;
     }
 
@@ -200,7 +203,11 @@ public class CourierWorkshopRouteGameTests {
         final boolean[] sawReleasedAfterHold = {false};
 
         helper.succeedWhen(() -> {
-            boolean held = CourierWorkGoal.restockJobIsHeld(mineB.id, Items.COBBLESTONE);
+            RequestLedgerService.Route route = RequestLedgerService
+                .routeForCourier(helper.getLevel(), s, bud);
+            boolean held = route.request() != null && route.source() != null
+                && route.source().id.equals(mineB.id)
+                && bud.getUUID().equals(route.request().courierId());
             if (held) {
                 sawHeld[0] = true;
             }
@@ -390,6 +397,9 @@ public class CourierWorkshopRouteGameTests {
     @GameTest(template = "empty16", timeoutTicks = 4800, batch = "courier_workshop_route_day")
     public void gatheredCodReachesAWarehouseAndFeedsAHungrySettler(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
+        // Fishery storage and the Courier's authored start both sit beyond
+        // the legacy radius-six opening; make them genuine settlement space.
+        s.radius = 12;
 
         addBuilding(helper, s, BuildingType.WAREHOUSE,
             new BlockPos(4, 1, 2), new BlockPos(6, 3, 4), new BlockPos(4, 1, 2));

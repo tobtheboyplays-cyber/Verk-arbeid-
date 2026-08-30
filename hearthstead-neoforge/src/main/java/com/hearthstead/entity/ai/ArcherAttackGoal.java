@@ -2,10 +2,15 @@ package com.hearthstead.entity.ai;
 
 import com.hearthstead.entity.ArcherRank;
 import com.hearthstead.entity.Attribute;
+import com.hearthstead.entity.OwnedProjectileLedger;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.DeferredItemMaterializationSavedData;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
@@ -18,21 +23,21 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.ai.util.DefaultRandomPos;
-import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.EnumSet;
+import java.util.UUID;
 
 /**
  * The watchtower archer: hold the ring, keep the distance, and make every
@@ -49,7 +54,9 @@ import java.util.EnumSet;
  * empty tower means an archer who cannot shoot — which is precisely the
  * pressure that makes hiring a fletcher matter. Every arrow is conserved
  * exactly: chest → quiver on restock, quiver → world on release, quiver →
- * chest again when the archer stands down with shafts unspent.
+ * chest again when the archer stands down with shafts unspent. Quiver
+ * ownership lives on {@link SettlerEntity} and is persisted, so unloading or
+ * restarting between restock and release cannot erase the borrowed shafts.
  *
  * <p>Fired arrows are spawned with {@code pickup = DISALLOWED}, the way
  * vanilla skeleton arrows are. That is the <b>sanctioned consumption
@@ -74,19 +81,19 @@ import java.util.EnumSet;
  *   <li>Effort is spent (1 per volley-cycle) but <b>never gates combat</b>,
  *       the same rule {@code GuardPatrolGoal} documents: a spent archer
  *       still defends. Safety beats bookkeeping.
- *   <li>Target acquisition uses the same predicate as
- *       {@link SettlerDefenseTargetGoal} — hostiles inside the settlement
- *       ring. It is duplicated here only because that goal's own
- *       {@code canUse} gates on {@link Profession#GUARD} and widening it is
- *       outside this slice's ownership; the two should merge into one
- *       militia targeting goal when it next opens.
+ *   <li>Target acquisition is delegated to the exact same bounded
+ *       {@link SettlerDefenseTargetGoal} coordinator used by guards, including
+ *       urgency, role fit and live defender load. There is no private nearest
+ *       scan that can silently collapse the formation back into a dogpile.
  * </ul>
  */
 public class ArcherAttackGoal extends Goal {
 
+    public static final double COUNTER_DAMAGE_MULTIPLIER = 1.25D;
+
     /** Arrows the archer carries at once. Small on purpose: the quiver is a
      *  handful borrowed from the tower rack, not a second warehouse. */
-    public static final int QUIVER_SIZE = 16;
+    public static final int QUIVER_SIZE = SettlerEntity.ARCHER_QUIVER_CAPACITY;
     /** How far from the tower's room a restock (or return) still counts as
      *  "at the rack". */
     private static final int RESTOCK_REACH = 8;
@@ -119,11 +126,10 @@ public class ArcherAttackGoal extends Goal {
     private static final double ANNOUNCE_RANGE = 12.0;
 
     private final SettlerEntity settler;
+    /** Same selector as the entity target goal; retained only as a fallback
+     * for selector ordering and direct goal tests, never a second policy. */
+    private final SettlerDefenseTargetGoal coordinatedTargeting;
 
-    /** Arrows in hand. Chest-true: every increment came out of a tower
-     *  chest, every decrement is an arrow entity in the world or a shaft
-     *  put back in the rack. */
-    private int quiver;
     private int drawTicks;
     private int recoverTicks;
     private int retargetIn;
@@ -151,6 +157,7 @@ public class ArcherAttackGoal extends Goal {
 
     public ArcherAttackGoal(SettlerEntity settler) {
         this.settler = settler;
+        this.coordinatedTargeting = new SettlerDefenseTargetGoal(settler);
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
 
@@ -166,9 +173,20 @@ public class ArcherAttackGoal extends Goal {
         if (settler.getProfession() != Profession.ARCHER) {
             return false;
         }
+        if (!(settler.level() instanceof ServerLevel level)
+            || !EquipmentRequests.readyForProfession(level, settler,
+                Profession.ARCHER)) {
+            return false;
+        }
         LivingEntity target = settler.getTarget();
-        if (target != null && target.isAlive()) {
+        if (coordinatedTargeting.accepts(target)) {
             return true;
+        }
+        // A target can become foreign, leave the defended ring, or otherwise
+        // lose authority while still alive. Never let that stale reference
+        // bypass the shared coordinator through the Archer's direct goal.
+        if (target != null) {
+            settler.setTarget(null);
         }
         if (--retargetIn > 0) {
             return false;
@@ -185,8 +203,15 @@ public class ArcherAttackGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         LivingEntity target = settler.getTarget();
-        return settler.getProfession() == Profession.ARCHER
-            && target != null && target.isAlive();
+        boolean valid = settler.getProfession() == Profession.ARCHER
+            && settler.level() instanceof ServerLevel level
+            && EquipmentRequests.readyForProfession(level, settler,
+                Profession.ARCHER)
+            && coordinatedTargeting.accepts(target);
+        if (!valid && target != null && settler.getTarget() == target) {
+            settler.setTarget(null);
+        }
+        return valid;
     }
 
     @Override
@@ -206,7 +231,15 @@ public class ArcherAttackGoal extends Goal {
         }
         settler.getLookControl().setLookAt(target, 30.0F, 30.0F);
 
-        if (quiver <= 0 && !restock(level)) {
+        // A persisted quiver is physical ownership, but only its recorded
+        // source Watchtower may authorize use. Reassignment A -> B must not
+        // turn A's borrowed arrows into B's readiness or combat ammunition.
+        if (quiverCount() > 0 && !quiverBelongsToCurrentTower()) {
+            reportOutOfAmmo(level);
+            cancelDraw();
+            return;
+        }
+        if (quiverCount() <= 0 && !restock(level)) {
             // No arrows in hand and none reachable: walk to the tower rack.
             // "No arrows in the tower = no shooting" is the honest outcome —
             // the archer stands their post empty-handed rather than the
@@ -216,7 +249,7 @@ public class ArcherAttackGoal extends Goal {
             // nothing" with no signal why). Say so instead.
             reportOutOfAmmo(level);
             walkTowardsTower(level);
-            drawTicks = 0;
+            cancelDraw();
             return;
         }
         if (outOfAmmoAnnounced) {
@@ -237,12 +270,12 @@ public class ArcherAttackGoal extends Goal {
             if (away != null) {
                 settler.getNavigation().moveTo(away.x, away.y, away.z, 1.15);
             }
-            drawTicks = 0;
+            cancelDraw();
             return;
         }
         if (distance > PREFER_MAX) {
             settler.getNavigation().moveTo(target, 1.05);
-            drawTicks = 0;
+            cancelDraw();
             return;
         }
         settler.getNavigation().stop();
@@ -252,18 +285,26 @@ public class ArcherAttackGoal extends Goal {
             return;
         }
         if (distance > MAX_SHOT_RANGE || !settler.hasLineOfSight(target)) {
-            drawTicks = 0;
+            cancelDraw();
             return;
         }
         // Holding still, target in the ring and in sight: draw. COMBAT +
-        // standing renders GUARD_STANCE, so the long Power Shot draw is a
-        // visible held pose (v1 -- the bespoke aim clip is the polish
-        // worker's; see the clip request in this slice's report).
+        // stationary ARCHER renders the dedicated ARCHER_STANCE; a physical
+        // MAINHAND bow therefore never falls back into the guard's sword
+        // silhouette while this authoritative draw timer advances.
+        if (drawTicks == 0) {
+            // The synced vanilla use-item state is the physical bow draw.
+            // Clients derive the arm/string pull from this server-owned clock;
+            // no client timer is allowed to invent or finish a volley.
+            settler.startUsingItem(InteractionHand.MAIN_HAND);
+        }
         drawTicks++;
         int needed = ORDINARY_DRAW_TICKS
             + (drawingPowerShot ? ArcherRank.POWER_SHOT_DRAW_TICKS : 0);
         if (drawTicks >= needed) {
             loose(level, target);
+            settler.stopUsingItem();
+            settler.triggerArcherLoose();
             drawTicks = 0;
             recoverTicks = VOLLEY_RECOVERY_TICKS;
             planNextVolley();
@@ -274,7 +315,7 @@ public class ArcherAttackGoal extends Goal {
     public void stop() {
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
-        drawTicks = 0;
+        cancelDraw();
         outOfAmmoAnnounced = false;
         LivingEntity target = settler.getTarget();
         if (target != null && !target.isAlive()) {
@@ -287,6 +328,15 @@ public class ArcherAttackGoal extends Goal {
         if (settler.level() instanceof ServerLevel level
             && settler.getTarget() == null && acquire() == null) {
             returnUnspent(level);
+        }
+    }
+
+    /** Cancels a pre-contact draw without emitting a release or spawning an arrow. */
+    private void cancelDraw() {
+        drawTicks = 0;
+        if (settler.isUsingItem()
+            && settler.getUsedItemHand() == InteractionHand.MAIN_HAND) {
+            settler.stopUsingItem();
         }
     }
 
@@ -325,7 +375,10 @@ public class ArcherAttackGoal extends Goal {
     private void loose(ServerLevel level, LivingEntity target) {
         // A thinning quiver fans down honestly: a "triple" with one arrow
         // left is one arrow. Conservation beats spectacle.
-        int arrows = drawingTripleShot ? Math.min(3, quiver) : 1;
+        int requested = drawingTripleShot ? Math.min(3, quiverCount())
+            : Math.min(1, quiverCount());
+        UUID sourceTowerId = settler.archerQuiverSourceBuildingId();
+        int arrows = settler.takeArcherQuiverArrows(requested);
         if (arrows <= 0) {
             return;
         }
@@ -336,12 +389,24 @@ public class ArcherAttackGoal extends Goal {
             : rank.atLeast(ArcherRank.MARKSMAN)
                 ? ArcherRank.MARKSMAN_INACCURACY : ArcherRank.BASE_INACCURACY;
 
+        int spawned = 0;
         for (int i = 0; i < arrows; i++) {
             float yawOffset = arrows == 1 ? 0.0F
                 : (i - (arrows - 1) / 2.0F) * ArcherRank.TRIPLE_SHOT_YAW_DEGREES;
-            spawnArrow(level, target, weapon, power, rank, inaccuracy, yawOffset);
+            if (spawnArrow(level, target, weapon, power, rank, inaccuracy,
+                    yawOffset)) {
+                spawned++;
+            }
         }
-        quiver -= arrows;
+        // addFreshEntity can fail during shutdown or another terminal world
+        // transition. Any shaft that never entered the world remains owned
+        // by the persisted quiver instead of becoming an invisible sink.
+        if (arrows > spawned && sourceTowerId != null) {
+            settler.storeArcherQuiverArrows(sourceTowerId, arrows - spawned);
+        }
+        if (spawned <= 0) {
+            return;
+        }
 
         // The twang. Ordinary volleys are the vanilla arrow loose; the Power
         // Shot is the crossbow's heavier snap pitched far down -- a deeper
@@ -372,30 +437,24 @@ public class ArcherAttackGoal extends Goal {
         settler.spendEffort(1);
     }
 
-    private void spawnArrow(ServerLevel level, LivingEntity target,
-                            @Nullable ItemStack weapon, boolean power,
-                            ArcherRank rank, float inaccuracy, float yawOffsetDeg) {
+    private boolean spawnArrow(ServerLevel level, LivingEntity target,
+                               @Nullable ItemStack weapon, boolean power,
+                               ArcherRank rank, float inaccuracy,
+                               float yawOffsetDeg) {
         SettlerEntity archer = settler;
-        // A real arrow entity from a real item (the shaft this very call
-        // removed from the quiver's chest-true count). The subclass hook is
-        // the per-hit half of training: the arrow itself knows whether it
-        // struck, so the hit is counted where it happens and a miss teaches
-        // only the loose.
-        Arrow arrow = new Arrow(level, archer, new ItemStack(Items.ARROW), weapon) {
-            @Override
-            protected void doPostHurtEffects(LivingEntity struck) {
-                super.doPostHurtEffects(struck);
-                if (archer.isAlive()) {
-                    archer.train(Attribute.DEXTERITY, ArcherRank.TRAIN_HIT);
-                }
-            }
-        };
+        // A real registered vanilla Arrow from a real item (the shaft this
+        // call removed from the quiver's chest-true count). Hit training is
+        // deliberately not an anonymous subclass hook: entity reload restores
+        // the registered Arrow type and would silently lose that Java override.
+        // CombatTerminalEvents trains only after the persisted owned-projectile
+        // contact commits, so unload/restart and live hits share one authority.
+        Arrow arrow = new Arrow(level, archer, new ItemStack(Items.ARROW), weapon);
         // The sanctioned consumption sink (see class doc): spent shafts are
         // used up, exactly like vanilla skeletons' -- retrievable arrows
         // would turn the tower into an arrow fountain.
         arrow.pickup = AbstractArrow.Pickup.DISALLOWED;
 
-        double mult = 1.0;
+        double mult = 1.0D;
         if (rank.atLeast(ArcherRank.MARKSMAN)) {
             mult *= ArcherRank.MARKSMAN_DAMAGE_MULT;
         }
@@ -423,7 +482,11 @@ public class ArcherAttackGoal extends Goal {
         }
         double flat = Math.sqrt(dx * dx + dz * dz);
         arrow.shoot(dx, dy + flat * 0.2, dz, 1.6F, inaccuracy);
-        level.addFreshEntity(arrow);
+        // The physical arrow carries its own bounded ownership/contact ledger.
+        // If this evidence write ever fails, gameplay still fires the shaft;
+        // only terminal telemetry fails closed.
+        OwnedProjectileLedger.issue(arrow, archer);
+        return level.addFreshEntity(arrow);
     }
 
     /**
@@ -456,7 +519,13 @@ public class ArcherAttackGoal extends Goal {
             return null;
         }
         Building employer = Employment.employerOf(settlement, settler.getUUID());
-        return employer != null && employer.valid ? employer : null;
+        return employer != null && employer.valid
+            && employer.type == BuildingType.WATCHTOWER ? employer : null;
+    }
+
+    private boolean quiverBelongsToCurrentTower() {
+        Building employer = tower();
+        return employer != null && settler.archerQuiverOwnedBy(employer.id);
     }
 
     private boolean nearTower(Building tower) {
@@ -533,10 +602,12 @@ public class ArcherAttackGoal extends Goal {
     private boolean restock(ServerLevel level) {
         Building tower = tower();
         if (tower == null || !nearTower(tower)) {
-            return quiver > 0;
+            return tower != null && settler.archerQuiverOwnedBy(tower.id);
         }
-        int need = QUIVER_SIZE - quiver;
-        int taken = 0;
+        if (quiverCount() > 0) {
+            return settler.archerQuiverOwnedBy(tower.id);
+        }
+        int need = QUIVER_SIZE - quiverCount();
         for (BlockPos pos : WarehouseIndex.containers(level, tower)) {
             if (need <= 0) {
                 break;
@@ -550,47 +621,129 @@ public class ArcherAttackGoal extends Goal {
                     continue;
                 }
                 int n = Math.min(need, stack.getCount());
-                stack.shrink(n);
+                int accepted = settler.storeArcherQuiverArrows(tower.id, n);
+                if (accepted <= 0) {
+                    return settler.archerQuiverOwnedBy(tower.id);
+                }
+                stack.shrink(accepted);
                 if (stack.isEmpty()) {
                     chest.setItem(slot, ItemStack.EMPTY);
                 }
                 chest.setChanged();
-                taken += n;
-                need -= n;
+                need -= accepted;
             }
         }
-        quiver += taken;
-        return quiver > 0;
+        return settler.archerQuiverOwnedBy(tower.id);
     }
 
     /** Puts unspent arrows back in the rack -- the reverse of
      *  {@link #restock}, with the same reach rule and the same exactness.
      *  Whatever no chest has room for stays honestly in the quiver. */
     private void returnUnspent(ServerLevel level) {
-        Building tower = tower();
-        if (quiver <= 0 || tower == null || !nearTower(tower)) {
+        Settlement settlement = settler.settlement();
+        Building source = exactSourceTower(settlement,
+            settler.archerQuiverSourceBuildingId());
+        if (quiverCount() <= 0 || source == null || !nearTower(source)) {
             return;
         }
+        returnToRack(level, source, settler);
+    }
+
+    /**
+     * Materializes every borrowed shaft before employment authority changes.
+     * The exact source rack gets first refusal even if the Archer has walked
+     * away. A missing/destroyed/full rack falls back to one visible world
+     * stack at the settler. Before a terminal death can remove the entity, a
+     * rejected world spawn transfers the exact stack into the persistent
+     * death-drop ledger. State is cleared only after the rack, physical entity
+     * or durable retry row owns the corresponding arrows.
+     */
+    public static boolean releaseBorrowedArrows(ServerLevel level,
+                                                Settlement settlement,
+                                                SettlerEntity settler) {
+        if (settler == null || settler.archerQuiverCount() <= 0) {
+            return true;
+        }
+        Building source = exactSourceTower(settlement,
+            settler.archerQuiverSourceBuildingId());
+        if (source != null) {
+            returnToRack(level, source, settler);
+        }
+        int remainder = settler.archerQuiverCount();
+        if (remainder <= 0) {
+            return true;
+        }
+        DeferredItemMaterializationSavedData drops =
+            DeferredItemMaterializationSavedData.get(level);
+        UUID transfer = drops.queue(level, settler.getX(),
+            settler.getY() + 0.3D, settler.getZ(),
+            new ItemStack(Items.ARROW, remainder));
+        if (transfer == null) {
+            // Capacity/quarantine refusal happens before the source changes.
+            // A dying entity's tickDeath override will retry instead of
+            // allowing the corpse (and its still-owned shafts) to disappear.
+            return false;
+        }
+        int removed = settler.takeArcherQuiverArrows(remainder);
+        if (removed != remainder || settler.archerQuiverCount() != 0
+            || settler.archerQuiverSourceBuildingId() != null) {
+            // The durable row was staged while the settler still owned the
+            // shafts. If the exact source clear ever fails, roll it back so
+            // the same arrows never have two authorities.
+            drops.cancel(transfer);
+            return false;
+        }
+        // Rejection is not failure now: the persisted row remains the sole
+        // owner and the level-tick retry will materialize it later.
+        drops.materialize(level, transfer);
+        return true;
+    }
+
+    @Nullable
+    private static Building exactSourceTower(@Nullable Settlement settlement,
+                                             @Nullable UUID sourceId) {
+        if (settlement == null || sourceId == null) {
+            return null;
+        }
+        Building found = null;
+        for (Building candidate : settlement.buildings) {
+            if (!sourceId.equals(candidate.id)) {
+                continue;
+            }
+            if (found != null) {
+                return null;
+            }
+            found = candidate;
+        }
+        return found != null && found.valid
+            && found.type == BuildingType.WATCHTOWER ? found : null;
+    }
+
+    private static void returnToRack(ServerLevel level, Building tower,
+                                     SettlerEntity settler) {
         for (BlockPos pos : WarehouseIndex.containers(level, tower)) {
-            if (quiver <= 0) {
+            if (settler.archerQuiverCount() <= 0) {
                 break;
             }
             if (!(level.getBlockEntity(pos) instanceof Container chest)) {
                 continue;
             }
-            for (int slot = 0; slot < chest.getContainerSize() && quiver > 0; slot++) {
+            for (int slot = 0; slot < chest.getContainerSize()
+                    && settler.archerQuiverCount() > 0; slot++) {
                 ItemStack stack = chest.getItem(slot);
                 if (stack.isEmpty()) {
-                    int n = Math.min(quiver, new ItemStack(Items.ARROW).getMaxStackSize());
+                    int n = Math.min(settler.archerQuiverCount(),
+                        new ItemStack(Items.ARROW).getMaxStackSize());
                     chest.setItem(slot, new ItemStack(Items.ARROW, n));
                     chest.setChanged();
-                    quiver -= n;
+                    settler.takeArcherQuiverArrows(n);
                 } else if (stack.is(Items.ARROW)
                     && stack.getCount() < stack.getMaxStackSize()) {
-                    int n = Math.min(quiver, stack.getMaxStackSize() - stack.getCount());
+                    int n = Math.min(settler.archerQuiverCount(),
+                        stack.getMaxStackSize() - stack.getCount());
                     stack.grow(n);
                     chest.setChanged();
-                    quiver -= n;
+                    settler.takeArcherQuiverArrows(n);
                 }
             }
         }
@@ -599,33 +752,28 @@ public class ArcherAttackGoal extends Goal {
     // ---------------------------------------------------------- targeting ---
 
     /**
-     * The same acquisition {@link SettlerDefenseTargetGoal} gives guards --
-     * the nearest hostile inside the settlement ring -- duplicated only
-     * because that goal's canUse gates on GUARD (see class doc). One bounded
-     * AABB query per {@value #RETARGET_INTERVAL} ticks, budgeted.
+     * The exact same bounded coordinator used by the entity target selector.
+     * This fallback exists for selector ordering and direct tests only; it may
+     * not invent a private nearest-hostile policy.
      */
     @Nullable
     private LivingEntity acquire() {
-        Settlement settlement = settler.settlement();
-        if (settlement == null || !(settler.level() instanceof ServerLevel level)) {
-            return null;
-        }
-        double range = settlement.radius + 8;
-        AABB ring = new AABB(settlement.center).inflate(range);
-        Monster nearest = null;
-        double best = Double.MAX_VALUE;
-        for (Monster monster : level.getEntitiesOfClass(Monster.class, ring)) {
-            if (!monster.isAlive() || !settler.canAttack(monster)
-                || monster.blockPosition().distSqr(settlement.center) > range * range) {
-                continue;
-            }
-            double d = settler.distanceToSqr(monster);
-            if (d < best) {
-                best = d;
-                nearest = monster;
-            }
-        }
-        return nearest;
+        return coordinatedTargeting.acquireNow();
+    }
+
+    /** Exact counter seam used both by projectile construction and unit QA. */
+    public static double counterDamageMultiplier(LivingEntity target) {
+        return target instanceof RaiderEntity raider
+            && !raider.isCaptain()
+            && raider.variant() == RaiderEntity.Variant.SKIRMISHER
+                ? COUNTER_DAMAGE_MULTIPLIER : 1.0D;
+    }
+
+    /** Pure overload: no world/entity fixture needed to pin the design rule. */
+    public static double counterDamageMultiplier(
+            RaiderEntity.Variant variant, boolean captain) {
+        return !captain && variant == RaiderEntity.Variant.SKIRMISHER
+            ? COUNTER_DAMAGE_MULTIPLIER : 1.0D;
     }
 
     // --------------------------------------------------------- test seams ---
@@ -648,7 +796,7 @@ public class ArcherAttackGoal extends Goal {
 
     /** Arrows currently in hand. */
     public int quiverCount() {
-        return quiver;
+        return settler.archerQuiverCount();
     }
 
     /** Whether the current starvation episode (if any) has already sent its

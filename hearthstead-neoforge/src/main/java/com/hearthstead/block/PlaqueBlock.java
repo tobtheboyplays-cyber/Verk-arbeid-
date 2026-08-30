@@ -1,7 +1,11 @@
 package com.hearthstead.block;
 
 import com.hearthstead.building.PlaqueState;
+import com.hearthstead.item.BlessingSealItem;
 import com.hearthstead.item.BuildPlanItem;
+import com.hearthstead.item.WorkScepterItem;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.development.Development;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -18,6 +22,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
@@ -155,14 +160,41 @@ public class PlaqueBlock extends BaseEntityBlock {
     }
 
     /**
-     * Fits a Build Plan when the plaque is blank (D-006, W4). Any other item,
-     * or a plaque that already has a plan, falls through to
-     * {@link #useWithoutItem} unchanged.
+     * Fits a Build Plan when the plaque is blank (D-006, W4). A sneaking
+     * Blessing Seal explicitly skips the plaque's default empty-hand path so
+     * Minecraft continues to {@link BlessingSealItem#useOn}; otherwise the
+     * plaque would open its sheet and consume the click before the physical
+     * seal can bind. Other items fall through to {@link #useWithoutItem}.
      */
     @Override
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level,
                                               BlockPos pos, Player player, InteractionHand hand,
                                               BlockHitResult hit) {
+        // A Work Scepter selects the authoritative registered workplace; it
+        // never opens the ordinary plaque sheet or mutates the fitted plan.
+        if (stack.getItem() instanceof WorkScepterItem) {
+            if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
+                && level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
+                com.hearthstead.settlement.workzone.WorkZoneService.selectPlaque(
+                    serverPlayer, plaque);
+            }
+            return level.isClientSide
+                ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
+        }
+        if (player.isShiftKeyDown()
+            && stack.getItem() instanceof BlessingSealItem) {
+            return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        }
+        if (player.isShiftKeyDown() && hand == InteractionHand.MAIN_HAND
+            && player.getOffhandItem().getItem()
+                instanceof BlessingSealItem offhandSeal) {
+            if (level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
+                offhandSeal.bindToPlaque(player.getOffhandItem(), player, plaque);
+                return level.isClientSide
+                    ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
+            }
+            return ItemInteractionResult.SKIP_DEFAULT_BLOCK_INTERACTION;
+        }
         if (level.isClientSide) {
             return ItemInteractionResult.SUCCESS;
         }
@@ -172,6 +204,20 @@ public class PlaqueBlock extends BaseEntityBlock {
         }
         if (plaque.state() != PlaqueState.EMPTY || !(stack.getItem() instanceof BuildPlanItem)) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+        // Resolve through the plaque's own deterministic nearest-settlement
+        // authority. Using SettlementManager.at here selected the first
+        // overlapping radius by map iteration, while the immediate survey
+        // below selected the nearest settlement; knowledge could therefore
+        // be checked against one settlement and the building linked to
+        // another. One resolver now owns both decisions.
+        Settlement settlement = plaque.settlementFor((ServerLevel) level);
+        com.hearthstead.building.BuildingType planned = PlaqueItemData.buildingType(stack);
+        if (settlement == null
+            || !Development.isBuildingUnlocked((ServerLevel) level, settlement, planned)) {
+            serverPlayer.displayClientMessage(Component.translatable(
+                "hearthstead.development.plan_locked", planned.displayName()), true);
+            return ItemInteractionResult.CONSUME;
         }
         if (!plaque.insertPlan((ServerLevel) level, stack.copyWithCount(1))) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
@@ -186,6 +232,18 @@ public class PlaqueBlock extends BaseEntityBlock {
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
                                                Player player, BlockHitResult hit) {
+        // Empty-main-hand is evaluated before offhand. Do not extract a plan
+        // or open the sheet while a sneaking offhand seal is waiting for its
+        // own item pass.
+        if (player.isShiftKeyDown()
+            && player.getOffhandItem().getItem()
+                instanceof BlessingSealItem offhandSeal) {
+            if (level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
+                return offhandSeal.bindToPlaque(player.getOffhandItem(), player,
+                    plaque);
+            }
+            return InteractionResult.PASS;
+        }
         if (level.isClientSide) {
             return InteractionResult.SUCCESS;
         }
@@ -232,15 +290,28 @@ public class PlaqueBlock extends BaseEntityBlock {
     @Override
     public BlockState playerWillDestroy(Level level, BlockPos pos, BlockState state,
                                         Player player) {
+        return super.playerWillDestroy(level, pos, state, player);
+    }
+
+    @Override
+    public boolean onDestroyedByPlayer(BlockState state, Level level,
+                                       BlockPos pos, Player player,
+                                       boolean willHarvest,
+                                       FluidState fluid) {
+        ItemStack plan = ItemStack.EMPTY;
         if (!level.isClientSide
             && level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
-            ItemStack plan = plaque.insertedPlan();
-            if (!plan.isEmpty()) {
-                Block.popResource(level, pos, plan);
+            plan = plaque.insertedPlan();
+            if (!plaque.dissolveBuilding((ServerLevel) level, player)) {
+                return false;
             }
-            plaque.dissolveBuilding((ServerLevel) level, player);
         }
-        return super.playerWillDestroy(level, pos, state, player);
+        boolean removed = super.onDestroyedByPlayer(state, level, pos, player,
+            willHarvest, fluid);
+        if (removed && !level.isClientSide && !plan.isEmpty()) {
+            Block.popResource(level, pos, plan);
+        }
+        return removed;
     }
 
     @Nullable

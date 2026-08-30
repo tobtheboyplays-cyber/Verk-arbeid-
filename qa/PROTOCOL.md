@@ -1,11 +1,55 @@
 # Hearthstead QA Protocol
 
-PROTOCOL_VERSION: 1.0.0
+PROTOCOL_VERSION: 1.3.0
 
 The canonical QA source of truth for the Hearthstead mod
 (`hearthstead-neoforge/`). Every testing, debugging, verification, or
 completion claim MUST flow through `tools/hearthstead-qa`. A plain green
 Gradle build is never sufficient proof of anything.
+
+## Approval terminology
+
+- **Candidate** is the highest status that compilation, unit tests, asset
+  validation, GameTests, dedicated-server tests, Xvfb playtests, static
+  renders, offline audio inspection, or deterministic geometry checks may
+  award.
+- **Approved** requires the exact candidate JAR to run in the native Minecraft
+  client with ordinary player-equivalent input. The expected visible result,
+  server-authoritative state, native audio, frame-time window, and persistence
+  evidence must all be present where the release matrix requires them. A
+  render-thread acknowledgement must bind the current native QA session to
+  Windows, the exact runtime JAR hash and installed-mod resolution source,
+  the exact expected CurseForge game directory, installed-JAR path, integrated
+  save directory, runtime epoch, display profile and selected language. Raw
+  paths stay in the sealed manifest; the log carries privacy-safe SHA-256 path
+  tokens. Frame-report ACKs must exactly equal the hashed native client-log
+  roster, and selected windows must be the newest matching profile/state
+  across the helper-sealed launch-segment sequence. In integrated singleplayer,
+  client ACKs and genuine Server-thread authority events are ranges in those
+  same immutable `latest.log` segments; a relabelled or fabricated separate
+  dedicated-server log is not evidence. Consumed-marker, ACK, source-log and
+  seal times all bind to the same recent run interval; manifest/report
+  attestations alone are not runtime proof. Manifest schema v3 additionally
+  seals a complete hash-chained `logs/native-input.jsonl` created by the
+  foreground-only Windows `SendInput` helper and a separately hash-chained
+  launch registry. Approval requires exact HWND/PID, kernel process-creation
+  time, full Java executable path, runtime JAR/world/log-segment identity,
+  ordinary movement/look/UI/click/settlement-name action classes, atomic
+  Shift-right-click, and input on distinct one-to-one PIDs across the required
+  client relaunch. Each input batch must prove the same foreground target
+  before and after delivery; generic hotkeys, clipboard/paste and command-like
+  text do not exist. The transcript and launch registry must also match one
+  HMAC-authenticated operator seal outside the run and a separately posted
+  pre-input `HSQA_INPUT_PRECOMMIT_V1` line. HMAC is not OS immutability:
+  approval therefore requires the external key plus exact externally posted
+  key SHA-256, session nonce, installed-JAR SHA-256 and world id. Any missing
+  or mismatched component fails closed.
+- Approval is per matrix row. One missing, unrun, stale, ambiguous, or failed
+  required row keeps the complete demo unapproved.
+- Only a passing `tools/hearthstead-qa release-client-gate <run>` may promote
+  the complete demo from Candidate to Approved. A written claim, screenshot,
+  video without authority proof, or any other green suite cannot substitute
+  for that gate.
 
 ## Permanent behavioral invariants
 
@@ -36,6 +80,10 @@ INV-9  Persistence is loss-free: settlement, buildings, settlers, needs,
 INV-10 Tests are never deleted, skipped, loosened, or timeout-inflated to
        obtain green. Expectation changes require a recorded specification
        correction in the quality ledger.
+INV-11 Lumberers and Farmers work only inside a player-confirmed, persisted,
+       bounded two-corner Work Zone. Preview/Cancel never mutate; invalid,
+       stale, cross-settlement or unloaded requests never force-load or
+       mutate; no-zone fallback is visibly labelled and remains idle.
 
 ## Suites
 
@@ -48,30 +96,170 @@ INV-10 Tests are never deleted, skipped, loosened, or timeout-inflated to
 | gametest    | `tools/hearthstead-qa gametest` | all GameTest arenas headless |
 | behavior    | `tools/hearthstead-qa behavior` | gametests with decision tracing + trace analysis (thrash/stuck/starvation detectors) |
 | dedicated   | `tools/hearthstead-qa dedicated`| real NeoForge server: boot, found settlement via console, restart persistence, no client classloading |
-| performance | `tools/hearthstead-qa performance` | 30 settlers on dedicated server, MSPT budget via /tick query |
+| blessing restart | `tools/hearthstead-qa blessing-restart` | physical settler/plaque Blessing ranks and sticky quarantine survive a real chunk unload plus two clean full-process restarts; the same real viewer reconnects after each restart |
+| performance | `tools/hearthstead-qa performance` | exact 1/25/50/100-settler matrix on an isolated dedicated server; scoreboard population proof, median/average MSPT via `/tick query`, absolute gates |
 | client      | `tools/hearthstead-qa client`   | real client boots under Xvfb (software GL) |
 | playtest    | `tools/hearthstead-qa playtest` | scripted client+server session: join proven server-side, all 4 input classes (cmd/key/click/look), screenshots validated (AC-3), mod content in-world (AC-4) |
 | visual      | `tools/hearthstead-qa visual`   | screenshots captured and inspected |
 | full        | `tools/hearthstead-qa full`     | all of the above + manifest |
 | gate        | `tools/hearthstead-qa gate`     | freshness + completeness check (fast, no MC launch) |
+| release-client-gate | `tools/hearthstead-qa release-client-gate <run>` | fail-closed proof that every native in-game approval row is fresh and matches the frozen source, exact expected profile/JAR/save, consumed marker, immutable integrated-client launch segments, native session and newest cross-restart client windows |
 | live        | `tools/hearthstead-qa live <start\|status\|shot\|key\|hold\|type\|cmd\|scmd\|click\|look\|film\|stop>` | a persistent, drivable session across separate invocations (HARNESS-6) — not part of `full`, driven by hand or by an agent |
 | reap        | `tools/hearthstead-qa reap [check\|dry-run\|selftest\|reap]` | unconditional teardown of anything the harness might have leaked; never touches the Gradle daemon |
 | provision   | `tools/hearthstead-qa provision` | rebuilds the shared NeoForge install from scratch and proves it with a passing `playtest` (AC-10) |
 | negative    | `tools/hearthstead-qa negative [n1\|n2\|n3\|n4\|all]` | drives the four required negative tests (port held, client build broken, server never `Done(`, client up but no join) through the real controller and asserts on the real failure message |
+
+### Native integrated-log restart chain
+
+Use `qa/scripts/native_release_session.py create-marker` for the strict V2
+one-shot marker; its production CLI is pinned to the exact CurseForge profile
+and refuses replacement or environment/marker ambiguity. Before every native
+client stop or relaunch, run its `seal-log` command against the release-client
+run directory. `latest.log` rotates at relaunch, so a segment not sealed first
+is irrecoverable evidence. Each new segment keeps the same native session,
+gets a monotonically numbered immutable filename, and atomically extends
+`logs/native-log-segments.json`. The final manifest seals that index hash.
+The same run must drive the client through
+`qa/scripts/windows_native_input.py`; its output transcript is canonical at
+`logs/native-input.jsonl`. Before first input, publish the exact line produced
+by `native_release_session.py input-precommit`; after every launch, append its
+live PID/process-creation/full-path/runtime/world/log-segment identity with
+`register-launch`; after final input and log sealing, append the external HMAC
+record with `seal-input` using the same published 64-hex session nonce. The
+operator key and append-only seal ledger must remain outside the run. The
+canonical `release-client-gate` invocation requires both paths and repeats the
+externally posted key SHA-256, nonce, installed-JAR SHA-256 and world id as
+explicit arguments. The release validator independently recomputes the input
+and launch full sequence/hash chains and rejects an omitted, shortened,
+hand-edited, non-Minecraft-targeted or single-launch trace, even if mutable
+manifest hashes were recomputed.
+
+The validator independently reparses every segment, consumed-marker epoch,
+ACK identity/timestamp/profile, runtime JAR/save token, and exact integrated
+`Server thread/INFO` Hearthstead authority range. Each authority locator must
+resolve to exactly one fixed-schema `HEARTHSTEAD_AUTHORITY_V1` record with an
+exact event, result, and target; all 15 ordered fields, canonical values, item
+conservation, and no-mutation rejection semantics are checked fail-closed.
+Every sealed segment must be
+referenced as client-log evidence, the restart row must bind distinct pre/post
+client and Server-thread ranges, and a selected frame window must remain the
+newest matching state across all later segments. Do not extract, synthesise,
+rename or maintain a fake separate server log for the integrated-client run.
 
 Single-suite commands (everything except `full`) never write
 `qa/reports/latest.json` or clear `qa/reports/.stale` — only a full-scope
 `full` run may. This is deliberate (see Gate integrity below): running
 `doctor` or `dedicated` alone must never turn a red gate green.
 
+The normal `gametest` and `behavior` verdict is pinned to exactly one
+authoritative `minecraft/GameTestServer` summary for **600 required tests**,
+zero authoritative failure summaries, and Gradle exit status zero. Both
+suites explicitly remove any ambient `HSQA_GAMETEST_NAMESPACE`; the separate
+active-performance namespace can therefore never shrink a normal/full run to
+four tests.
+
 ### Isolation (D-H2)
 
-`dedicated`, `performance`, `playtest`, and `live` each get their own
+`dedicated`, `blessing-restart`, `performance`, `playtest`, and `live` each get their own
 NeoForge server instance and port, materialised fresh per run by
 `qa/scripts/server_instance.sh` from one shared, idempotently-cached install
 (`qa/scripts/server_install.sh`) — so they never contend for a world or a
 port, and a leaked one can't poison the others. Ports: dedicated 25571,
-performance 25572, playtest 25573, live 25574.
+performance 25572, playtest 25573, live 25574, blessing-restart 25576.
+
+### Physical Blessing restart proof
+
+`blessing-restart` creates one named world exactly once and reuses that exact
+directory for an initial setup boot and two subsequent clean restarts. Every
+server stop must finish through the real `stop` command, exit its process and
+release its port before the next boot. A persisted random scoreboard token,
+the settlement UUID, the building UUID, both target-entity UUIDs and the
+offline viewer UUID jointly prove that a replacement world or target cannot
+silently satisfy a later pass.
+
+The initial real client physically inserts the house Build Plan, holds each
+Blessing Seal and sends Shift-right-click to reach Hearthward II on one
+settler and Thorned Roads III on the registered plaque's building. Synthetic
+input counts only when server state changes exactly and the matching physical
+item count falls by one. A second settler is fed one malformed target ledger
+through vanilla's entity data path; its real decoder must expose an empty,
+inert quarantine before any reload.
+
+Before the first process restart, the viewer moves to the Nether, the target
+chunk loses its force-load, and `execute unless loaded` must prove it actually
+unloaded. The chunk is then reloaded and all entity state is checked again.
+After that pass and both full restarts, a real viewer joins, server-authority
+checks require the exact entity ranks/quarantine and plaque identity, and
+`save-all flush` precedes a fresh snapshot of
+`hearthstead_settlements.dat`. The snapshot's mtime must advance on every
+pass. A stdlib NBT reader independent of the mod decoder requires root schema
+v4, stable settlement/building identity, the exact persisted first Founding
+Journey task, and exactly one active Thorned Roads rank III on the building.
+Logs, raw snapshots, normalized JSON, mtime/SHA-256 metadata and a complete
+world archive are preserved; the deterministic world must remain under the
+fixed 64 MiB artifact ceiling. Every wait is bounded, and the suite's wall
+time is carried into the full-run manifest note.
+
+### Performance scale matrix
+
+`performance` measures **1, 25, 50, and 100 real settler entities** in four
+separately delimited windows inside its one fresh, port-isolated server. The
+first is a surviving member of the real three-settler founding flow. Added
+settlers copy that member's settlement binding and make a dimension round-trip
+so the normal entity-join path registers them in the settlement's UUID-keyed
+records before measurement; unbound `/summon` shells are not accepted as the
+population under test.
+
+The three growth batches must emit exact transit and return proofs for
+24, 25, and 50 entities. At every scale, `hearthstead info` must independently
+report a settlement UUID-record population equal to 1/25/50/100 before the
+scoreboard proof and sample window. This prevents a matrix from passing on 100
+tagged entities while the manager still owns only the original record.
+
+Every scale receives a short warm-up, then two scoreboard read-backs prove both
+the total settler population and the bound-member population are **exactly**
+the requested scale. A condition-gated population marker must follow those
+read-backs. Only `/tick query` values between that scale's begin/end markers
+belong to it; the parser requires the configured sample count with no missing
+or borrowed values. `performance-matrix.json` records raw samples, population
+evidence line numbers, median, average, budget, and verdict for every scale.
+The suite first builds the current fingerprinted source, requires the exact
+versioned JAR, and verifies that the isolated instance copy has the same
+SHA-256. A stale pre-existing JAR cannot receive a current-source verdict.
+
+The absolute gates apply to **average MSPT**: 25 settlers preserves the legacy
+45 ms ceiling, 50 settlers must be at or below 45 ms, and 100 settlers must be
+at or below 50 ms. The 1-settler row is a reporting baseline. Median is always
+reported but does not replace the average gate. Scale and budgets are fixed in
+the parser and cannot be weakened through environment variables.
+
+The default profile is deliberately bounded for `full`: 6 seconds of warm-up
+and five samples two seconds apart per scale. A deliberate longer profile can
+set `HSQA_PERF_WARMUP_SECONDS`, `HSQA_PERF_SAMPLE_COUNT`, and
+`HSQA_PERF_SAMPLE_INTERVAL_SECONDS` (plus the wall-clock timeout when needed)
+without changing proof semantics or thresholds. The four stages are cumulative
+within one server, so they share world/JIT history; this short matrix is an
+absolute regression gate, not the separate 15/30-minute baseline-vs-enabled
+soak and profiler evidence required for a final performance study.
+
+After those four dedicated-server windows have been parsed, `performance`
+runs a second, isolated GameTest namespace for **active permanent Blessings**.
+It creates exactly 1, 25, 50, and 100 bound settlers plus the same number of
+UUID-sealed authorized raid participants, split across real 1-9-participant
+raid ledgers (1/3/6/12 settlements). Every row must prove a permanent personal
+rank, exact settlement record population, and a valid blessed-building zone
+backed by one in-arena, survivable physical plaque with a fitted matching plan,
+LINKED_VALID block-entity identity and registered/green blockstate. It also
+proves both damage directions, personal Torneveier snare, stable modifier
+object identity after the first snare pass, exact spatial-index lookup/rebuild
+bounds, one rejected unsealed control, and bounded teardown. The parser
+requires exactly one one-test batch for each named
+`active_blessing_scale_001/025/050/100:0` case and rejects rogue batches.
+`active-blessing-performance-matrix.json` is the fail-closed machine record;
+missing, duplicate, extra or miscounted 1/25/50/100 evidence fails the suite.
+Its nanosecond duration is informational only. The established dedicated
+average-MSPT thresholds and `performance-matrix.json` semantics above are not
+changed or replaced by GameTest fixture timing.
 
 ### Judging motion (D-H6)
 
@@ -240,12 +428,19 @@ that produced it (world seed recorded in the manifest).
 
 ## Freshness
 
-Fingerprint = SHA-256 over the sorted `sha256sum` of every file in:
-`hearthstead-neoforge/{src,tools,build.gradle,gradle.properties,settings.gradle}`,
-`qa/PROTOCOL.md`, **`qa/scripts/**` and `qa/scenarios/**`**. Any change →
-previous manifests STALE.
+Fingerprint = SHA-256 over a NUL-delimited, path-safe sorted `sha256sum` of
+every file in `hearthstead-neoforge/{src,tools,gradle/wrapper}` plus
+`build.gradle`, `gradle.properties`, `settings.gradle`, `gradlew` and
+`gradlew.bat`, plus `docs/ANIMATION_CATALOGUE.md` because the animation checker
+parses it as an assertion contract; `qa/{hooks,scripts,scenarios}`,
+`qa/PROTOCOL.md`, `qa/RELEASE_CLIENT_GATE.md`,
+`qa/release_client_matrix.json`, the controller
+`tools/hearthstead-qa`, and the repository `.gitattributes`. Any change →
+previous manifests STALE. The path-safe implementation is self-tested under a
+directory and filename containing spaces, and any missing input propagates as
+a hard error instead of hashing an incomplete list.
 
-`qa/scripts` and `qa/scenarios` are in it because they decide what every suite
+`qa/hooks`, `qa/scripts` and `qa/scenarios` are in it because they decide what every suite
 ASSERTS, not merely how it runs. Leaving them out meant an assertion could be
 loosened while every stored green went on looking current — INV-10 with the
 lock removed, and the same self-satisfying shape as a check that reads a log
@@ -256,11 +451,14 @@ carried on reporting the same fingerprint.
 `qa/reports/**` is deliberately OUT — every run writes into it, so including it
 would change the fingerprint on every run and it would never settle. So are
 `__pycache__` directories, which a generator rewrites without anything real
-having changed.
+having changed. The Gradle wrapper is in because it builds the supposedly
+fingerprinted JAR; `.gitattributes` is in because its LF policy determines
+whether the cross-platform judge can execute at all.
 
-The computation exists twice — `fingerprint()` in `tools/hearthstead-qa` and
-`hsqa_fingerprint()` in `qa/scripts/lib_harness.sh` — and the two MUST stay
-byte-for-byte equivalent. If they drift, a manifest's fingerprint stops being
-comparable to `latest.json`'s, which is the whole reason manifests record it. The stale
+`fingerprint()` in `tools/hearthstead-qa` and `hsqa_fingerprint()` in
+`qa/scripts/lib_harness.sh` both delegate to the single fail-closed
+`qa/scripts/source_fingerprint.sh`; the controller still asserts equal results
+before every command. If either caller drifts, a manifest's fingerprint stops
+being comparable to `latest.json`'s, which is the whole reason manifests record it. The stale
 marker `qa/reports/.stale` is set by the post-edit hook and cleared only by
 a green `full` run.

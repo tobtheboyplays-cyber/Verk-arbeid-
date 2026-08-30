@@ -165,11 +165,7 @@ public class RepairWorkGoal extends Goal {
         if (!mason && !dugnad) {
             return false;
         }
-        if (!settler.isBound() || settler.getTarget() != null
-            || settler.getEnergy() <= 15.0F
-            // The daily labor pool applies to a dugnad like any work: once
-            // spent, no new scar is started (PLAN_EFFORT.md).
-            || settler.isEffortSpent()) {
+        if (!settler.isBound() || settler.getTarget() != null) {
             return false;
         }
         if (lookCooldown > 0) {

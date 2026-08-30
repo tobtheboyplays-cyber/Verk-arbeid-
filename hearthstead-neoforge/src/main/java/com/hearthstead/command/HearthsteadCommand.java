@@ -1,9 +1,11 @@
 package com.hearthstead.command;
 
 import com.hearthstead.registry.ModItems;
+import com.hearthstead.settlement.BlessingPresentation;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.state.BlessingId;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -21,6 +23,8 @@ public final class HearthsteadCommand {
             .then(Commands.literal("info").executes(ctx -> info(ctx.getSource())))
             .then(Commands.literal("recruit").requires(src -> src.hasPermission(2))
                 .executes(ctx -> recruit(ctx.getSource())))
+            .then(Commands.literal("blessing").requires(src -> src.hasPermission(2))
+                .executes(ctx -> blessing(ctx.getSource())))
             .then(Commands.literal("hire").requires(src -> src.hasPermission(2))
                 .then(Commands.argument("pos",
                         net.minecraft.commands.arguments.coordinates.BlockPosArgument.blockPos())
@@ -128,6 +132,43 @@ public final class HearthsteadCommand {
             String.format(java.util.Locale.ROOT, "%.0f%%",
                 s.raidPressure.chanceTonight() * 100.0),
             s.raidPressure.nightsSinceRaid()), true);
+        source.sendSuccess(() -> Component.translatable(
+            "hearthstead.command.info_blessings",
+            Math.max(0, s.blessingState.earned() - s.blessingState.spent()),
+            s.blessingState.issuedCount(BlessingId.WARDEN_OATH),
+            s.blessingState.issuedCount(BlessingId.HEARTHWARD),
+            s.blessingState.issuedCount(BlessingId.THORNED_ROADS)), true);
+        return 1;
+    }
+
+    /** Permission-two QA/filming hook; survival rewards still come only from raids. */
+    private static int blessing(CommandSourceStack source) {
+        ServerLevel level = source.getLevel();
+        Settlement nearest = null;
+        double bestDist = Double.MAX_VALUE;
+        for (Settlement candidate : SettlementSavedData.get(level).settlements.values()) {
+            double distance = candidate.center.distSqr(
+                net.minecraft.core.BlockPos.containing(source.getPosition()));
+            if (distance < bestDist) {
+                bestDist = distance;
+                nearest = candidate;
+            }
+        }
+        if (nearest == null) {
+            source.sendFailure(Component.translatable("hearthstead.command.no_settlement"));
+            return 0;
+        }
+        if (!nearest.blessingState.grantOffer()) {
+            source.sendFailure(Component.translatable(
+                "hearthstead.command.blessing_refused", nearest.name));
+            return 0;
+        }
+        Settlement settlement = nearest;
+        SettlementSavedData.get(level).setDirty();
+        BlessingPresentation.offerEarned(level, settlement);
+        source.sendSuccess(() -> Component.translatable(
+            "hearthstead.command.blessing_granted",
+            settlement.blessingState.offerSerial(), settlement.name), true);
         return 1;
     }
 
@@ -291,6 +332,10 @@ public final class HearthsteadCommand {
                         com.hearthstead.entity.SettlerActivity activity, String label) {
     }
 
+    /** Persistent only while the permission-two filming pose is held. */
+    private static final String BLESSING_RECEIVE_POSE_TAG =
+        "hearthstead_pose_blessing_receive";
+
     private static final Pose[] POSES = {
         // The trades, each doing the one motion nobody else does (D-016).
         new Pose("chop", com.hearthstead.entity.Profession.LUMBERER,
@@ -358,6 +403,8 @@ public final class HearthsteadCommand {
             com.hearthstead.entity.SettlerActivity.SLEEPING, "Sleeping"),
         new Pose("cheer", com.hearthstead.entity.Profession.NONE,
             com.hearthstead.entity.SettlerActivity.CELEBRATING, "Celebrating"),
+        new Pose("blessing_receive", com.hearthstead.entity.Profession.NONE,
+            com.hearthstead.entity.SettlerActivity.IDLE, "Blessing - receive"),
         new Pose("flee", com.hearthstead.entity.Profession.NONE,
             com.hearthstead.entity.SettlerActivity.FLEEING, "Fleeing"),
         new Pose("idle", com.hearthstead.entity.Profession.NONE,
@@ -417,6 +464,7 @@ public final class HearthsteadCommand {
                     source.getPosition(), 64.0)) {
                 settler.setNoAi(false);
                 settler.setCustomNameVisible(false);
+                settler.removeTag(BLESSING_RECEIVE_POSE_TAG);
                 freed++;
             }
             int n = freed;
@@ -466,6 +514,11 @@ public final class HearthsteadCommand {
             settler.setProfessionProjection(pose.profession());
         }
         settler.setActivity(pose.activity());
+        settler.removeTag(BLESSING_RECEIVE_POSE_TAG);
+        if ("blessing_receive".equals(pose.key())) {
+            settler.addTag(BLESSING_RECEIVE_POSE_TAG);
+            settler.triggerBlessingReceive();
+        }
         if (pose.activity() == com.hearthstead.entity.SettlerActivity.GATHERING_LOG) {
             settler.triggerGatherLog();
         }
@@ -474,9 +527,10 @@ public final class HearthsteadCommand {
     /**
      * Re-fires the one-shot clips on every posed settler.
      *
-     * <p>A gather stoop and a sergeant's leap both end on their own clock, by
-     * design -- they are punctuation, not loops. Holding one open would mean
-     * lying about the clip. So the camera pulses them instead.
+     * <p>A gather stoop, a sergeant's leap, and Blessing acceptance all end
+     * on their own clock, by design -- they are punctuation, not loops.
+     * Holding one open would mean lying about the clip. So the camera pulses
+     * them instead.
      *
      * <p>Deliberately keyed on activity alone (GATHERING_LOG / COMBAT), not
      * on activity-or-IDLE: IDLE_LUMBERER (the "idle_lumberer" pose) is a
@@ -494,7 +548,10 @@ public final class HearthsteadCommand {
         for (com.hearthstead.entity.SettlerEntity settler : posedNear(level,
                 source.getPosition(), 64.0)) {
             com.hearthstead.entity.SettlerActivity activity = settler.getActivity();
-            if (settler.getProfession() == com.hearthstead.entity.Profession.LUMBERER
+            if (settler.getTags().contains(BLESSING_RECEIVE_POSE_TAG)) {
+                settler.triggerBlessingReceive();
+                fired++;
+            } else if (settler.getProfession() == com.hearthstead.entity.Profession.LUMBERER
                 && activity == com.hearthstead.entity.SettlerActivity.GATHERING_LOG) {
                 settler.triggerGatherLog();
                 fired++;

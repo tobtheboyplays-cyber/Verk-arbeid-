@@ -3,6 +3,8 @@ package com.hearthstead.gametest;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
+import com.hearthstead.settlement.state.BlessingId;
+import com.hearthstead.settlement.state.TargetBlessingState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -86,6 +88,44 @@ public class AnimationReachabilityGameTests {
                 + "guard's authored leap shipped dead exactly that way and he played the "
                 + "plain walk cycle through the air instead");
 
+        settler.triggerBlessingReceive();
+        helper.assertTrue(!settler.blessingReceiveState.isStarted(),
+            "triggerBlessingReceive must broadcast EV_BLESSING_RECEIVE, not start the "
+                + "AnimationState on the server copy where no renderer can see it");
+        helper.assertTrue(SettlerEntity.EV_BLESSING_RECEIVE == 73,
+            "EV_BLESSING_RECEIVE is a stable entity-event wire id; changing byte 73 would "
+                + "make old and new clients interpret the same event differently");
+
+        // Emulate the client packet handler directly: the matching stable
+        // event must reach the dedicated state rather than a work/activity
+        // state. This complements the server-copy assertion above.
+        settler.handleEntityEvent(SettlerEntity.EV_BLESSING_RECEIVE);
+        helper.assertTrue(settler.blessingReceiveState.isStarted(),
+            "EV_BLESSING_RECEIVE must start blessingReceiveState in handleEntityEvent");
+        settler.blessingReceiveState.stop();
+
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 100, batch = "anim_reach_blessing_receive_is_applied_only_and_does_not_replace_activity")
+    public void blessingReceiveIsAppliedOnlyAndDoesNotReplaceActivity(GameTestHelper helper) {
+        SettlerEntity settler = spawn(helper);
+        settler.setActivity(com.hearthstead.entity.SettlerActivity.WORK_CHOP);
+
+        TargetBlessingState.ApplyResult result =
+            settler.applyBlessing(BlessingId.WARDEN_OATH);
+
+        helper.assertTrue(result == TargetBlessingState.ApplyResult.APPLIED,
+            "a fresh physical target must accept its first Blessing rank");
+        helper.assertTrue(settler.blessingRank(BlessingId.WARDEN_OATH) == 1,
+            "the acceptance one-shot must accompany a real persisted target rank");
+        helper.assertTrue(settler.getActivity()
+                == com.hearthstead.entity.SettlerActivity.WORK_CHOP,
+            "receiving a Blessing is presentation, not AI state: WORK_CHOP must continue "
+                + "under the one-shot instead of being replaced by a ceremony activity");
+        helper.assertTrue(!settler.blessingReceiveState.isStarted(),
+            "applyBlessing runs on the server: APPLIED must broadcast to clients rather "
+                + "than starting the invisible server-side AnimationState");
         helper.succeed();
     }
 

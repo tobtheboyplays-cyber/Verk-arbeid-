@@ -1,0 +1,76 @@
+{
+  "name": "Work Scepter — 3D Farm Zone confirmation",
+  "width": 768,
+  "height": 500,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 768, "h": 500},
+    {"t": "title", "x": 16, "y": 11, "text": "Confirm Work Zone", "box": 220, "id": "zone_title"},
+    {"t": "label", "x": 16, "y": 27, "text": "Only this highlighted 3D volume will belong to the Farmhouse", "tone": "text_muted", "box": 430, "id": "zone_subtitle"},
+    {"t": "badge", "x": 618, "y": 12, "w": 130, "h": 20, "text": "SERVER VALIDATED", "tone": "good", "id": "validated_badge"},
+    {"t": "divider", "x": 12, "y": 43, "w": 744},
+
+    {"t": "frame", "x": 12, "y": 52, "w": 456, "h": 394, "surface": "inset", "tone": "good", "inner_alpha": 45},
+    {"t": "ellipse", "x": 38, "y": 82, "w": 242, "h": 286, "tone": "good", "alpha": 12},
+    {"t": "ellipse", "x": 218, "y": 126, "w": 222, "h": 250, "tone": "accent", "alpha": 10},
+    {"t": "section", "x": 28, "y": 68, "w": 412, "text": "FARMHOUSE GROWING VOLUME", "tone": "good", "id": "volume_section"},
+
+    {"t": "polygon", "points": [[104, 300], [256, 348], [390, 278], [238, 232]], "tone": "good", "alpha": 42, "outline": "good"},
+    {"t": "polygon", "points": [[104, 190], [256, 238], [390, 168], [238, 122]], "tone": "accent", "alpha": 18, "outline": "accent"},
+    {"t": "line", "points": [[104, 190], [104, 300]], "tone": "accent", "width": 2, "alpha": 210},
+    {"t": "line", "points": [[256, 238], [256, 348]], "tone": "accent", "width": 2, "alpha": 210},
+    {"t": "line", "points": [[390, 168], [390, 278]], "tone": "accent", "width": 2, "alpha": 210},
+    {"t": "line", "points": [[238, 122], [238, 232]], "tone": "accent", "width": 2, "alpha": 210},
+
+    {"t": "road", "points": [[104, 300], [256, 348]], "tone": "good", "width": 4},
+    {"t": "road", "points": [[256, 348], [390, 278]], "tone": "good", "width": 4},
+    {"t": "road", "points": [[390, 278], [238, 232]], "tone": "good", "width": 4},
+    {"t": "road", "points": [[238, 232], [104, 300]], "tone": "good", "width": 4},
+
+    {"t": "medallion", "x": 104, "y": 300, "radius": 18, "tone": "good", "text": "1", "text_tone": "text"},
+    {"t": "medallion", "x": 390, "y": 278, "radius": 18, "tone": "good", "text": "2", "text_tone": "text"},
+    {"t": "medallion", "x": 390, "y": 168, "radius": 18, "tone": "accent", "text": "3", "text_tone": "text"},
+    {"t": "label", "x": 62, "y": 328, "text": "Corner one", "tone": "text", "box": 84, "id": "corner_one"},
+    {"t": "label", "x": 354, "y": 306, "text": "Corner two", "tone": "text", "box": 84, "id": "corner_two"},
+    {"t": "label", "x": 338, "y": 136, "text": "Height click", "tone": "accent", "box": 92, "id": "height_click"},
+
+    {"t": "soft_panel", "x": 36, "y": 366, "w": 408, "h": 64, "tone": "good", "alpha": 17, "stroke_alpha": 150},
+    {"t": "icon", "x": 50, "y": 380, "size": 36, "asset": "item/work_scepter.png"},
+    {"t": "label", "x": 100, "y": 376, "text": "The third click sets height — never inferred from the ground", "tone": "text_strong", "box": 322, "id": "height_truth"},
+    {"t": "label", "x": 100, "y": 398, "text": "Preview and Cancel change nothing until the server confirms.", "tone": "text_muted", "box": 322, "id": "mutation_truth"},
+
+    {"t": "frame", "x": 476, "y": 52, "w": 280, "h": 394, "surface": "window", "tone": "accent", "stroke": 2, "inner_alpha": 82},
+    {"t": "section", "x": 494, "y": 68, "w": 244, "text": "SELECTION STEPS", "tone": "accent", "id": "steps_section"},
+    {"t": "road", "points": [[508, 108], [570, 108], [632, 108], [708, 108]], "tone": "good", "width": 3},
+    {"t": "medallion", "x": 508, "y": 108, "radius": 16, "tone": "good", "text": "1", "text_tone": "text"},
+    {"t": "medallion", "x": 570, "y": 108, "radius": 16, "tone": "good", "text": "2", "text_tone": "text"},
+    {"t": "medallion", "x": 632, "y": 108, "radius": 16, "tone": "good", "text": "3", "text_tone": "text"},
+    {"t": "medallion", "x": 708, "y": 108, "radius": 16, "tone": "accent", "text": "4", "text_tone": "text"},
+    {"t": "label", "x": 494, "y": 134, "text": "Target", "tone": "text_muted", "box": 52, "id": "step_target"},
+    {"t": "label", "x": 548, "y": 134, "text": "Footprint", "tone": "text_muted", "box": 68, "id": "step_footprint"},
+    {"t": "label", "x": 620, "y": 134, "text": "Height", "tone": "text_muted", "box": 52, "id": "step_height"},
+    {"t": "label", "x": 682, "y": 134, "text": "Confirm", "tone": "accent", "box": 60, "id": "step_confirm"},
+
+    {"t": "section", "x": 494, "y": 166, "w": 244, "text": "EXACT BOUNDS", "tone": "good", "id": "bounds_section"},
+    {"t": "label", "x": 494, "y": 186, "text": "Workplace", "tone": "text_muted", "box": 74, "id": "workplace_label"},
+    {"t": "label", "x": 730, "y": 186, "text": "Oakmere Farmhouse", "tone": "text", "align": "right", "box": 144, "id": "workplace_value"},
+    {"t": "label", "x": 494, "y": 206, "text": "Corner 1", "tone": "text_muted", "box": 74, "id": "corner1_label"},
+    {"t": "label", "x": 730, "y": 206, "text": "104, 64, -28", "tone": "text", "align": "right", "box": 108, "id": "corner1_value"},
+    {"t": "label", "x": 494, "y": 226, "text": "Corner 2", "tone": "text_muted", "box": 74, "id": "corner2_label"},
+    {"t": "label", "x": 730, "y": 226, "text": "108, 65, -24", "tone": "text", "align": "right", "box": 108, "id": "corner2_value"},
+    {"t": "label", "x": 494, "y": 246, "text": "Full volume", "tone": "text_muted", "box": 82, "id": "size_label"},
+    {"t": "label", "x": 730, "y": 246, "text": "5 × 2 × 5  •  50 blocks", "tone": "good", "align": "right", "box": 152, "id": "size_value"},
+
+    {"t": "section", "x": 494, "y": 278, "w": 244, "text": "FARMER CAP", "tone": "warn", "id": "cap_section"},
+    {"t": "label", "x": 494, "y": 298, "text": "Level 1 footprint", "tone": "text", "box": 112, "id": "cap_label"},
+    {"t": "label", "x": 730, "y": 298, "text": "5 × 5 maximum", "tone": "good", "align": "right", "box": 108, "id": "cap_value"},
+    {"t": "bar", "x": 494, "y": 322, "w": 236, "h": 7, "value": 1.0, "tone": "good"},
+    {"t": "label", "x": 494, "y": 338, "text": "25 / 25 footprint blocks used", "tone": "text_muted", "box": 188, "id": "cap_used"},
+    {"t": "badge", "x": 668, "y": 334, "w": 62, "h": 20, "text": "VALID", "tone": "good", "id": "cap_valid"},
+
+    {"t": "button", "x": 494, "y": 374, "w": 236, "h": 26, "text": "Confirm Exact 3D Zone", "state": "idle"},
+    {"t": "button", "x": 494, "y": 408, "w": 236, "h": 22, "text": "Cancel — Change Nothing", "state": "danger"},
+
+    {"t": "label", "x": 16, "y": 470, "text": "A larger footprint is blocked until the Farmer is trained; global safety limits still apply.", "tone": "text_muted", "box": 570, "id": "zone_footer"},
+    {"t": "badge", "x": 630, "y": 462, "w": 118, "h": 20, "text": "PREVIEW READY", "tone": "good", "id": "ready_footer"}
+  ]
+}

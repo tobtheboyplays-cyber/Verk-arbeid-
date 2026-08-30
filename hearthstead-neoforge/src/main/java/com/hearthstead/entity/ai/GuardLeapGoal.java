@@ -6,6 +6,7 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.registry.ModSounds;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
@@ -76,6 +77,11 @@ public class GuardLeapGoal extends Goal {
         if (guard.getProfession() != Profession.GUARD || !guard.onGround()) {
             return false;
         }
+        if (!(guard.level() instanceof net.minecraft.server.level.ServerLevel level)
+            || !EquipmentRequests.readyForProfession(level, guard,
+                Profession.GUARD)) {
+            return false;
+        }
         if (!GuardRank.of(guard).atLeast(GuardRank.SERGEANT)) {
             return false;
         }
@@ -94,7 +100,11 @@ public class GuardLeapGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return airborne && airTicks < MAX_AIR_TICKS;
+        return airborne && airTicks < MAX_AIR_TICKS
+            && guard.getProfession() == Profession.GUARD
+            && guard.level() instanceof net.minecraft.server.level.ServerLevel level
+            && EquipmentRequests.readyForProfession(level, guard,
+                Profession.GUARD);
     }
 
     @Override

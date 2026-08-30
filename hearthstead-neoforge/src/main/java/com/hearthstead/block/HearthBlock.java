@@ -1,6 +1,9 @@
 package com.hearthstead.block;
 
+import com.hearthstead.network.BlessingNetwork;
 import com.hearthstead.registry.ModBlockEntities;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -71,9 +74,23 @@ public class HearthBlock extends BaseEntityBlock {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos,
                                                Player player, BlockHitResult hit) {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
+            && level instanceof ServerLevel serverLevel
             && level.getBlockEntity(pos) instanceof HearthBlockEntity hearth) {
+            Settlement settlement = hearth.getSettlementId() == null ? null
+                : SettlementManager.byId(serverLevel, hearth.getSettlementId());
+            // A reward is a deliberate Hearth interaction, never a combat
+            // modal. Sneak-use remains an explicit storage bypass, so an
+            // offer the player wants to consider later cannot lock them out
+            // of communal goods.
+            if (!serverPlayer.isShiftKeyDown()
+                && BlessingNetwork.openFor(serverPlayer, settlement)) {
+                return InteractionResult.SUCCESS;
+            }
             serverPlayer.openMenu(hearth, buf -> {
                 buf.writeBlockPos(pos);
+                buf.writeUUID(hearth.getSettlementId() == null
+                    ? com.hearthstead.menu.HearthMenu.NO_SETTLEMENT
+                    : hearth.getSettlementId());
                 buf.writeUtf(hearth.settlementNameForMenu());
             });
         }

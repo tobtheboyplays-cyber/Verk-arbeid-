@@ -19,17 +19,33 @@ PORT="${HSQA_DEDICATED_PORT:-25571}"
 ev_init "$ROLE"
 
 TEARDOWN_DONE=0
+TEARDOWN_STATUS=0
+SERVER_EFFECTIVE_ROLE="$ROLE"; SERVER_PID=""; SERVER_PGID=""; SERVER_RECORD=""
 teardown() {
-    [ "$TEARDOWN_DONE" = 1 ] && return
+    local cleanup_status=0
+    [ "$TEARDOWN_DONE" = 1 ] && return "$TEARDOWN_STATUS"
     TEARDOWN_DONE=1
-    # Kill the whole process group (server_pid was launched with `set -m`,
-    # so it is its own group leader) — this reaches the java child even
-    # though the wrapper shell's argv never mentions the instance path.
-    [ -n "${SERVER_PID:-}" ] && kill -9 -- "-$SERVER_PID" 2>/dev/null
-    pkill -9 -f "hsqa.instanceDir=.*/$ROLE" 2>/dev/null || true
-    clear_pidfile "$ROLE"
+    hsqa_stop_tracked "$SERVER_EFFECTIVE_ROLE" "$SERVER_RECORD" || cleanup_status=1
+    hsqa_wait_port_free "$PORT" || cleanup_status=1
+    TEARDOWN_STATUS="$cleanup_status"
+    return "$cleanup_status"
 }
-trap teardown EXIT INT TERM
+on_signal() {
+    local status="$1" cleanup_status=0 final_status
+    trap - EXIT INT TERM
+    teardown || cleanup_status=1
+    hsqa_finish_interrupted "$status" dedicated \
+        "tools/hearthstead-qa dedicated" "$cleanup_status"
+    final_status=$?
+    exit "$final_status"
+}
+on_exit() {
+    hsqa_exit_after_cleanup "$?" dedicated \
+        "tools/hearthstead-qa dedicated" teardown
+}
+trap on_exit EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
 # FACT 1: port free before anything launches.
 if ! MSG=$(preflight_port "$PORT" "$ROLE"); then die port_preflight "$MSG"; fi
@@ -53,8 +69,7 @@ boot() { # duration commands-file tag
     # PREVIOUS boot's "Done (" line -- the restart reuses this instance
     # directory, so latest.log survives between boots.
     rm -f "$INST/logs/latest.log"
-    set -m   # so the backgrounded pipeline gets its own process group (PGID == PID)
-    ( # Wait for the condition the commands actually depend on -- the server
+    # Wait for the condition the commands actually depend on -- the server
       # being ready -- instead of guessing a duration. This used to be a flat
       # `sleep 20`, which was tuned for the FIRST boot (~20s: JVM + mod load +
       # world generation) and was wrong for the second, where the world already
@@ -70,23 +85,21 @@ boot() { # duration commands-file tag
       # Nothing is weakened: every assertion downstream is untouched, and the
       # timeout still bounds the wait, so a server that genuinely never starts
       # still fails -- on server_restarted, with its own message.
-      local waited=0
-      while [ "$waited" -lt 120 ]; do
-          grep -q 'Done (' "$INST/logs/latest.log" 2>/dev/null && break
-          sleep 1; waited=$((waited + 1))
-      done
+    SERVER_EFFECTIVE_ROLE="$ROLE"; SERVER_PID=""; SERVER_PGID=""; SERVER_RECORD=""
       # A short settle after Done: the level is up, but entity chunks stream in
       # just behind it, and `@e` must be able to see them.
-      sleep 8
-      [ -f "$cmds" ] && while IFS= read -r line; do
-            case "$line" in SLEEP*) sleep "${line#SLEEP }";; *) echo "$line";; esac
-        done < "$cmds"
-      sleep 5; echo "stop" ) | (cd "$INST" && timeout --foreground "$dur" ./run.sh nogui) > "$EV_LOGS/boot-$tag.out" 2>&1 &
-    SERVER_PID=$!
-    set +m
-    register_pid "$ROLE" "-$SERVER_PID"
-    wait "$SERVER_PID" 2>/dev/null || true
+    hsqa_launch_tracked_group "$ROLE" dedicated-server on_signal \
+        SERVER_PID SERVER_PGID SERVER_RECORD SERVER_EFFECTIVE_ROLE \
+        bash -c 'dur="$1"; cmds="$2"; inst="$3"; set +m; (waited=0; while [ "$waited" -lt 120 ]; do grep -q "Done (" "$inst/logs/latest.log" 2>/dev/null && break; sleep 1; waited=$((waited + 1)); done; sleep 8; if [ -f "$cmds" ]; then while IFS= read -r line; do case "$line" in SLEEP*) sleep "${line#SLEEP }";; *) echo "$line";; esac; done < "$cmds"; fi; sleep 5; echo stop) | (cd "$inst" && exec timeout --kill-after=10 --foreground "$dur" ./run.sh nogui)' \
+        -- "$dur" "$cmds" "$INST" > "$EV_LOGS/boot-$tag.out" 2>&1 \
+        || return 1
+    wait "$SERVER_PID" 2>/dev/null
+    local server_status=$?
+    hsqa_stop_tracked "$SERVER_EFFECTIVE_ROLE" "$SERVER_RECORD" || return 1
+    SERVER_RECORD=""
+    hsqa_wait_port_free "$PORT" || return 1
     cp "$INST/logs/latest.log" "$EV_LOGS/dedicated-$tag.log" 2>/dev/null || true
+    [ "$server_status" -eq 0 ] || return "$server_status"
 }
 
 cat > "$INST/cmds1.txt" <<'EOF'
@@ -108,7 +121,7 @@ SLEEP 20
 hearthstead info
 execute if entity @e[type=hearthstead:settler] run say E2E_SETTLERS_ALIVE
 EOF
-boot 140 "$INST/cmds1.txt" first
+boot 140 "$INST/cmds1.txt" first || die first_boot_cleanup "first server boot/teardown was not bounded"
 
 # FACT 2: the server actually came up. This MUST be checked before anything
 # about settlers, or a dead server reads as "settlers did not spawn" (KF-002).
@@ -135,7 +148,7 @@ SLEEP 8
 hearthstead info
 execute if entity @e[type=hearthstead:settler] run say E2E_SETTLERS_PERSISTED
 EOF
-boot 60 "$INST/cmds2.txt" second
+boot 60 "$INST/cmds2.txt" second || die second_boot_cleanup "second server boot/teardown was not bounded"
 
 if ! grep -q 'Done (' "$EV_LOGS/dedicated-second.log" 2>/dev/null; then
     die server_restarted "server never reached Done( on restart"
@@ -151,6 +164,7 @@ check_pass persistence_info "population 3 after restart"
 [ -f "$INST/world/data/hearthstead_settlements.dat" ] || die saveddata_file "SavedData file missing"
 check_pass saveddata_file "world/data/hearthstead_settlements.dat present"
 
+teardown || die process_cleanup "dedicated process or port survived exact teardown; recovery record retained"
 finish_result PASS
 write_reproduction "# Reproduce: dedicated
 tools/hearthstead-qa dedicated

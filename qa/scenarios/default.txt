@@ -96,6 +96,67 @@ expect_server Recruitment timers advanced for 0 settlement
 scmd execute if entity @e[type=hearthstead:settler] run say HS_SETTLER_PRESENT
 expect_server HS_SETTLER_PRESENT
 
+# --- BLESSING: real Hearth interaction + physical Select/Confirm ----------
+# The permission-two command exists only as a deterministic QA/filming hook;
+# it mints the same persisted ledger offer a resolved raid mints. The choice
+# itself travels through the real client screen and server-authoritative
+# packet handler. Empty slot 9 also proves normal Hearth use opens Blessings;
+# storage remains reachable through Shift-use.
+cmd hearthstead blessing
+expect_server QA Blessing offer 1 granted
+key 9
+wait 1
+shot blessing-01-world
+open right
+wait 3
+expect_screen com.hearthstead.client.screen.BlessingScreen
+shot blessing-02-three-cards
+expect_shot blessing-02-three-cards
+expect_pixel_change blessing-01-world blessing-02-three-cards 5.0 full
+
+# playtest.sh fixes this default profile at 1280x720 / guiScale 3. The first
+# click lands in Hearthward's card-level Select button. Confirm is a separate
+# footer control, so a double-click on the card can never spend the offer.
+click_at 50 80
+shot blessing-03-hearthward-selected
+click_at 74 93
+wait 3
+shot blessing-04-hearthward-accepted
+expect_shot blessing-04-hearthward-accepted
+key Escape
+wait 2
+cmd hearthstead info
+expect_server Blessing Seals: pending 0 .* Hearthward 1
+
+# The accepted choice must now be a REAL item, not a hidden settlement perk.
+# Slot 9 was empty, so delivery order requires the seal to be in the active
+# main hand. Then place one real settler exactly 2.5 blocks in front of the
+# player, use a physical Shift-right-click, and capture the authored receive
+# beat while it is still running.
+scmd execute if items entity $PLAYER weapon.mainhand hearthstead:hearthward_seal run say HS_BLESSING_SEAL_IN_HAND
+expect_server HS_BLESSING_SEAL_IN_HAND
+scmd execute at $PLAYER rotated 0 0 run tp @e[type=hearthstead:settler,sort=nearest,limit=1] ^ ^ ^2.5 180 0
+scmd execute at $PLAYER run tp $PLAYER ~ ~ ~ 0 0
+wait 3
+shot blessing-05-before-bind
+sneak_click right
+# sneak_click releases Shift 0.20 s after the physical click. Waiting another
+# 0.35 s places this immediate frame at about 0.55 s: the authored tick-10
+# hand-to-heart/rune contact, without `shot` adding its old one-second delay.
+wait 0.35
+shot_now blessing-06-bind-contact
+expect_shot blessing-06-bind-contact
+wait 2
+shot blessing-07-bind-recovery
+expect_shot blessing-07-bind-recovery
+
+# Only APPLIED consumes. The authoritative target NBT must carry exact
+# Hearthward rank I and the one-item seal must be gone from the hand.
+scmd execute if data entity @e[type=hearthstead:settler,sort=nearest,limit=1] TargetBlessings.Ranks[{Id:"hearthward",Rank:1}] run say HS_SETTLER_BLESSING_PERSISTED
+expect_server HS_SETTLER_BLESSING_PERSISTED
+scmd execute unless items entity $PLAYER weapon.mainhand hearthstead:hearthward_seal run say HS_BLESSING_SEAL_CONSUMED
+expect_server HS_BLESSING_SEAL_CONSUMED
+
 # --- INPUT CLASS 4/4: look. Server-side Rotation must change by more than
 # 30 degrees of yaw (AC-2) — never trust the client's own idea of where it's
 # facing. 500 is a proven-reliable delta (see the 400 note above).
@@ -139,6 +200,7 @@ wait 1
 # stops a dead grab from reproducing the same cascade.
 open right
 wait 4
+expect_screen com.hearthstead.client.screen.HandbookScreen
 shot playtest-08-handbook-ui
 key Escape
 wait 2

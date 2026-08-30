@@ -15,20 +15,45 @@ export GALLIUM_DRIVER=llvmpipe
 ev_init "$ROLE"
 
 TEARDOWN_DONE=0
+TEARDOWN_STATUS=0
+GRADLE_ROLE="$ROLE"; GRADLE_PID=""; GRADLE_PGID=""; GRADLE_RECORD=""
+XVFB_ROLE="${ROLE}-xvfb"; XVFB_PID=""; XVFB_PGID=""; XVFB_RECORD=""
 teardown() {
-    [ "$TEARDOWN_DONE" = 1 ] && return
+    local cleanup_status=0
+    [ "$TEARDOWN_DONE" = 1 ] && return "$TEARDOWN_STATUS"
     TEARDOWN_DONE=1
-    [ -n "${GRADLE_PID:-}" ] && kill -9 -- "-$GRADLE_PID" 2>/dev/null
-    pkill -9 -f "neoforge.*client" 2>/dev/null || true
-    [ -n "${XVFB_PID:-}" ] && kill -9 "$XVFB_PID" 2>/dev/null
-    clear_pidfile "${ROLE}-xvfb"
-    clear_pidfile "${ROLE}"
+    hsqa_stop_tracked "$GRADLE_ROLE" "$GRADLE_RECORD" || cleanup_status=1
+    hsqa_stop_tracked "$XVFB_ROLE" "$XVFB_RECORD" || cleanup_status=1
+    for _ in $(seq 1 20); do
+        DISPLAY="$DISPLAY_NUM" xdotool getmouselocation >/dev/null 2>&1 || break
+        sleep 0.1
+    done
+    DISPLAY="$DISPLAY_NUM" xdotool getmouselocation >/dev/null 2>&1 \
+        && { echo "FATAL: display $DISPLAY_NUM remained live after teardown" >&2; cleanup_status=1; }
+    TEARDOWN_STATUS="$cleanup_status"
+    return "$cleanup_status"
 }
-trap teardown EXIT INT TERM
+on_signal() {
+    local status="$1" cleanup_status=0 final_status
+    trap - EXIT INT TERM
+    teardown || cleanup_status=1
+    hsqa_finish_interrupted "$status" client \
+        "tools/hearthstead-qa client" "$cleanup_status"
+    final_status=$?
+    exit "$final_status"
+}
+on_exit() {
+    hsqa_exit_after_cleanup "$?" client "tools/hearthstead-qa client" teardown
+}
+trap on_exit EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 
-Xvfb "$DISPLAY_NUM" -screen 0 1280x720x24 > "$EV_LOGS/xvfb.log" 2>&1 &
-XVFB_PID=$!
-register_pid "${ROLE}-xvfb" "$XVFB_PID"
+hsqa_launch_tracked_group "${ROLE}-xvfb" client-boot-xvfb on_signal \
+    XVFB_PID XVFB_PGID XVFB_RECORD XVFB_ROLE \
+    Xvfb "$DISPLAY_NUM" -screen 0 1280x720x24 \
+    > "$EV_LOGS/xvfb.log" 2>&1 \
+    || die xvfb "could not safely launch/register Xvfb"
 sleep 2
 kill -0 "$XVFB_PID" 2>/dev/null || die xvfb "Xvfb failed to start — see logs/xvfb.log"
 check_pass xvfb "Xvfb :97 up (pid $XVFB_PID)"
@@ -36,9 +61,11 @@ check_pass xvfb "Xvfb :97 up (pid $XVFB_PID)"
 # Written deterministically every run, same as playtest.sh/live.sh (finding
 # 12) — the client rewrites options.txt on its own exit, so a prior run's
 # leftovers must never be what this run happens to boot with.
-RUN_DIR="$MOD/run"
-mkdir -p "$RUN_DIR"
-cat > "$RUN_DIR/options.txt" <<'OPTS'
+RUN_DIR=$(hsqa_require_plain_mod_run "$MOD") \
+    || die run_directory "module run directory is symlinked or unsafe"
+OPTIONS_FILE=$(hsqa_require_plain_mod_run_file "$MOD" options.txt) \
+    || die options_path "module options.txt path is symlinked or unsafe"
+cat > "$OPTIONS_FILE" <<'OPTS'
 onboardAccessibility:false
 skipMultiplayerWarning:true
 pauseOnLostFocus:false
@@ -50,12 +77,11 @@ tutorialStep:none
 rawMouseInput:false
 OPTS
 
-cd "$MOD"
-set -m
-DISPLAY="$DISPLAY_NUM" timeout --foreground 700 ./gradlew runClient > "$EV_LOGS/client-run.log" 2>&1 &
-GRADLE_PID=$!
-set +m
-register_pid "$ROLE" "-$GRADLE_PID"
+hsqa_launch_tracked_group "$ROLE" client-boot-client on_signal \
+    GRADLE_PID GRADLE_PGID GRADLE_RECORD GRADLE_ROLE \
+    bash -c 'cd "$1" || exit 1; exec env DISPLAY="$2" timeout --kill-after=10 --foreground 700 ./gradlew --no-daemon runClient' \
+    -- "$MOD" "$DISPLAY_NUM" > "$EV_LOGS/client-run.log" 2>&1 \
+    || die client_launch "could not safely launch/register client"
 
 # Title-screen readiness: neither a specific log string nor mere window
 # existence is reliable here. "Sound engine started" never appears (sound is
@@ -122,6 +148,7 @@ else
     die screenshot_captured "no screenshot captured (install imagemagick or xwd)"
 fi
 
+teardown || die process_cleanup "client/Xvfb process or display survived exact teardown; recovery record retained"
 finish_result PASS
 write_reproduction "# Reproduce: client
 tools/hearthstead-qa client

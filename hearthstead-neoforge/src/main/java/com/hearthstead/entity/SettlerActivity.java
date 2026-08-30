@@ -62,7 +62,22 @@ public enum SettlerActivity {
     // change needed -- say "Out of Arrows" instead of silently reading
     // "Combat" while nothing happens. Same wire-format rule: append only,
     // never reorder.
-    OUT_OF_AMMO("out_of_ammo");
+    OUT_OF_AMMO("out_of_ammo"),
+    // LUMBER-COLLECT: the sack is standing at a fixed world position while
+    // the worker walks between it and the real dropped logs. The renderer
+    // selects the empty-hand or offhand-log gait from the physical offhand;
+    // this activity describes the job, not an invented visual inventory.
+    COLLECTING_ITEMS("collecting_items"),
+    // LUMBER-SELF-MAINTENANCE: truthful server-authored hook while the
+    // Lumberer is physically stopped at the camp's reserved crafting table.
+    // The wooden axe still does not exist until the goal's contact tick, and
+    // it enters real camp storage rather than this presentation enum.
+    WORK_CRAFT("work_craft"),
+    // Visible second half of the reusable crafting truth chain. This stays a
+    // separate append-only activity because the real linked storage can be
+    // several blocks from the crafting table; compressing both into one
+    // stationary clip would visually teleport the output.
+    STORE_CRAFT_OUTPUT("store_craft_output");
 
     public static final SettlerActivity[] BY_ID = values();
 

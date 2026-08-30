@@ -1,0 +1,72 @@
+{
+  "name": "00 — Living Settlement UI standard",
+  "width": 768,
+  "height": 480,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 768, "h": 480},
+    {"t": "title", "x": 16, "y": 11, "text": "Hearthstead — Living Settlement Interface", "box": 420, "id": "system_title"},
+    {"t": "label", "x": 16, "y": 27, "text": "Every screen tells one story: identity > state > blocker > next action", "tone": "text_muted", "box": 500, "id": "system_rule"},
+    {"t": "badge", "x": 608, "y": 12, "w": 140, "h": 20, "text": "PREMIUM STANDARD", "tone": "accent", "id": "standard_badge"},
+    {"t": "divider", "x": 12, "y": 43, "w": 744},
+
+    {"t": "frame", "x": 12, "y": 52, "w": 452, "h": 376, "surface": "inset", "tone": "good", "inner_alpha": 48},
+    {"t": "ellipse", "x": 36, "y": 80, "w": 238, "h": 280, "tone": "good", "alpha": 13},
+    {"t": "ellipse", "x": 192, "y": 118, "w": 236, "h": 260, "tone": "accent", "alpha": 11},
+    {"t": "section", "x": 28, "y": 66, "w": 408, "text": "THE PLAYER'S CURRENT ROAD", "tone": "good", "id": "story_section"},
+
+    {"t": "road", "points": [[88, 136], [154, 168], [210, 144], [278, 188], [350, 166]], "tone": "good", "width": 5},
+    {"t": "medallion", "x": 88, "y": 136, "radius": 28, "tone": "good", "asset": "item/hearthward_seal.png", "icon_size": 28},
+    {"t": "badge", "x": 60, "y": 99, "w": 56, "h": 18, "text": "HOME", "tone": "good", "id": "home_badge"},
+    {"t": "medallion", "x": 210, "y": 144, "radius": 24, "tone": "warn", "asset": "item/courier_emblem.png", "icon_size": 23},
+    {"t": "badge", "x": 174, "y": 106, "w": 72, "h": 18, "text": "BLOCKED", "tone": "warn", "id": "blocked_badge"},
+    {"t": "medallion", "x": 350, "y": 166, "radius": 30, "tone": "accent", "asset": "item/work_scepter.png", "icon_size": 28},
+    {"t": "badge", "x": 306, "y": 118, "w": 88, "h": 18, "text": "NEXT ACTION", "tone": "accent", "id": "action_badge"},
+
+    {"t": "label", "x": 46, "y": 180, "text": "Oakmere", "tone": "text_strong", "box": 86, "id": "settlement_name"},
+    {"t": "label", "x": 158, "y": 198, "text": "Courier request", "tone": "warn", "box": 108, "id": "request_name"},
+    {"t": "label", "x": 306, "y": 210, "text": "Resolve route", "tone": "accent", "box": 104, "id": "action_name"},
+
+    {"t": "soft_panel", "x": 32, "y": 246, "w": 408, "h": 92, "tone": "warn", "alpha": 16, "stroke_alpha": 150},
+    {"t": "icon", "x": 50, "y": 264, "size": 40, "asset": "item/courier_emblem.png"},
+    {"t": "label", "x": 104, "y": 258, "text": "Warehouse delivery is blocked", "tone": "text_strong", "box": 240, "id": "blocker_title"},
+    {"t": "paragraph", "x": 104, "y": 276, "w": 300, "h": 24, "box": 300, "lines": 2, "text": "The Courier cannot reach the Lumber Camp door. No items were moved.", "tone": "text_muted", "id": "blocker_detail"},
+    {"t": "badge", "x": 104, "y": 308, "w": 112, "h": 18, "text": "NO ITEMS LOST", "tone": "good", "id": "safe_badge"},
+    {"t": "button", "x": 274, "y": 302, "w": 146, "h": 24, "text": "Open Request Route", "state": "idle"},
+
+    {"t": "label", "x": 32, "y": 356, "text": "Warm metal + living terrain", "tone": "text_muted", "box": 190, "id": "visual_note"},
+    {"t": "label", "x": 32, "y": 374, "text": "Colour supports meaning; words always explain it", "tone": "text", "box": 360, "id": "colour_note"},
+    {"t": "ribbon", "x": 32, "y": 397, "w": 408, "h": 20, "text": "CALM WHEN HEALTHY  •  PRECISE WHEN BLOCKED", "tone": "good", "id": "tone_ribbon"},
+
+    {"t": "frame", "x": 472, "y": 52, "w": 284, "h": 376, "surface": "window", "tone": "accent", "stroke": 2, "inner_alpha": 88},
+    {"t": "medallion", "x": 516, "y": 94, "radius": 28, "tone": "good", "asset": "item/lumberer_emblem.png", "icon_size": 28},
+    {"t": "label", "x": 554, "y": 72, "text": "Lumber Camp", "tone": "text_strong", "box": 126, "id": "identity_title"},
+    {"t": "label", "x": 554, "y": 89, "text": "Northwatch", "tone": "text_muted", "box": 110, "id": "identity_settlement"},
+    {"t": "badge", "x": 660, "y": 72, "w": 76, "h": 20, "text": "WORKING", "tone": "good", "id": "working_badge"},
+
+    {"t": "section", "x": 492, "y": 132, "w": 244, "text": "STATE", "tone": "good", "id": "state_section"},
+    {"t": "label", "x": 492, "y": 151, "text": "Staff", "tone": "text_muted", "box": 70, "id": "staff_label"},
+    {"t": "label", "x": 722, "y": 151, "text": "1 / 1", "tone": "good", "align": "right", "box": 40, "id": "staff_value"},
+    {"t": "label", "x": 492, "y": 169, "text": "Output", "tone": "text_muted", "box": 70, "id": "output_label"},
+    {"t": "label", "x": 722, "y": 169, "text": "64 logs", "tone": "text", "align": "right", "box": 70, "id": "output_value"},
+
+    {"t": "section", "x": 492, "y": 198, "w": 244, "text": "JOB FIT", "tone": "accent", "id": "fit_section"},
+    {"t": "label", "x": 492, "y": 218, "text": "Strength", "tone": "text", "box": 72, "id": "strength_label"},
+    {"t": "bar", "x": 566, "y": 220, "w": 116, "h": 6, "value": 0.72, "tone": "good"},
+    {"t": "label", "x": 730, "y": 217, "text": "72 / 100", "tone": "good", "align": "right", "box": 54, "id": "strength_value"},
+    {"t": "label", "x": 492, "y": 238, "text": "Stamina", "tone": "text", "box": 72, "id": "stamina_label"},
+    {"t": "bar", "x": 566, "y": 240, "w": 116, "h": 6, "value": 0.76, "tone": "good"},
+    {"t": "label", "x": 730, "y": 237, "text": "76 / 100", "tone": "good", "align": "right", "box": 54, "id": "stamina_value"},
+    {"t": "label", "x": 492, "y": 258, "text": "Wits", "tone": "text", "box": 72, "id": "wits_label"},
+    {"t": "bar", "x": 566, "y": 260, "w": 116, "h": 6, "value": 0.39, "tone": "warn"},
+    {"t": "label", "x": 730, "y": 257, "text": "39 / 100", "tone": "warn", "align": "right", "box": 54, "id": "wits_value"},
+
+    {"t": "section", "x": 492, "y": 292, "w": 244, "text": "NEXT ACTION", "tone": "warn", "id": "next_section"},
+    {"t": "paragraph", "x": 492, "y": 312, "w": 244, "h": 24, "box": 244, "lines": 2, "text": "Fix the blocked door route, then let the Courier resume the same request.", "tone": "text", "id": "next_detail"},
+    {"t": "button", "x": 492, "y": 350, "w": 244, "h": 24, "text": "Open Request Route", "state": "idle"},
+    {"t": "label", "x": 492, "y": 386, "text": "Hover explains every number and effect.", "tone": "text_muted", "box": 244, "id": "hover_rule"},
+    {"t": "label", "x": 492, "y": 402, "text": "Essential actions never require hover.", "tone": "text_muted", "box": 244, "id": "essential_rule"},
+
+    {"t": "label", "x": 16, "y": 451, "text": "This is the minimum visual and interaction standard for every Hearthstead screen.", "tone": "text_muted", "box": 620, "id": "footer"},
+    {"t": "badge", "x": 640, "y": 444, "w": 108, "h": 20, "text": "ENGLISH UI", "tone": "accent", "id": "language_badge"}
+  ]
+}

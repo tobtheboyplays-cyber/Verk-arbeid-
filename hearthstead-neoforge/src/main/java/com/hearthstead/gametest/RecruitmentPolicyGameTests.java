@@ -2,18 +2,23 @@ package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.menu.HearthMenu;
+import com.hearthstead.network.HearthMayorAction;
+import com.hearthstead.network.HearthNetwork;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.ReadyFood;
 import com.hearthstead.settlement.RecruitmentPolicy;
+import com.hearthstead.settlement.RecruitmentTransaction;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.state.FoundingJourney;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -22,6 +27,8 @@ import net.minecraft.nbt.ListTag;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -32,6 +39,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.network.registration.NetworkRegistry;
 
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -84,9 +92,26 @@ public class RecruitmentPolicyGameTests {
 
     private static Building tavern(GameTestHelper helper, Settlement s) {
         BlockPos anchor = helper.absolutePos(TAVERN);
-        return GameTestFixtures.registerWithBounds(helper, s, BuildingType.TAVERN,
+        Building building = GameTestFixtures.registerWithBounds(helper, s,
+            BuildingType.TAVERN,
             TAVERN, TAVERN.above(),
             BoundingBox.fromCorners(anchor, anchor.offset(2, 2, 2)));
+        // Synthetic fixture registration bypasses the real survey commit;
+        // recruitment deliberately requires the plaque to carry the exact
+        // same durable building UUID, so mirror that one committed field.
+        if (!(helper.getLevel().getBlockEntity(building.plaquePos)
+            instanceof PlaqueBlockEntity plaque)) {
+            throw new IllegalStateException("fixture Tavern plaque missing");
+        }
+        try {
+            var field = PlaqueBlockEntity.class.getDeclaredField("buildingId");
+            field.setAccessible(true);
+            field.set(plaque, building.id);
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("cannot bind fixture Tavern plaque",
+                failure);
+        }
+        return building;
     }
 
     private static void seedFullBoundary(HearthBlockEntity hearth) {
@@ -123,6 +148,46 @@ public class RecruitmentPolicyGameTests {
         s.moraleCache = 60;
         seedFullBoundary(hearth(helper));
         return s;
+    }
+
+    private static SettlerEntity spawnWaitingTraveler(GameTestHelper helper,
+                                                       Settlement settlement) {
+        helper.assertTrue(SettlementManager.primeRecruitment(helper.getLevel(),
+            settlement), "eligible fixture must prime exact recruitment state");
+        SettlementManager.tickRecruitment(helper.getLevel(), settlement);
+        UUID travelerId = settlement.recruitment.travelerId();
+        Entity entity = travelerId == null ? null
+            : helper.getLevel().getEntity(travelerId);
+        helper.assertTrue(entity instanceof SettlerEntity,
+            "primed recruitment must spawn the physical traveler");
+        SettlerEntity traveler = (SettlerEntity) entity;
+        BlockPos anchor = settlement.recruitment.tavernAnchor();
+        traveler.moveTo(anchor.getX() + 0.5, anchor.getY(), anchor.getZ() + 0.5,
+            0.0F, 0.0F);
+        SettlementManager.tickRecruitment(helper.getLevel(), settlement);
+        helper.assertTrue(settlement.recruitment.status()
+                == RecruitmentTransaction.Status.WAITING_ADMISSION,
+            "arrival must commit only at the exact Tavern anchor");
+        return traveler;
+    }
+
+    private static HearthMenu openHearth(GameTestHelper helper,
+                                         Settlement settlement,
+                                         ServerPlayer player) {
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
+            .getBlockEntity(settlement.center);
+        NetworkRegistry.configureMockConnection(player.connection.getConnection());
+        player.setPos(settlement.center.getX() + 0.5D,
+            settlement.center.getY() + 0.5D,
+            settlement.center.getZ() + 0.5D);
+        player.openMenu(hearth, buf -> {
+            buf.writeBlockPos(settlement.center);
+            buf.writeUUID(settlement.id);
+            buf.writeUtf(settlement.name);
+        });
+        helper.assertTrue(player.containerMenu instanceof HearthMenu,
+            "fixture must open the exact live HearthMenu");
+        return (HearthMenu) player.containerMenu;
     }
 
     // ------------------------------------------------ transaction boundaries
@@ -252,7 +317,7 @@ public class RecruitmentPolicyGameTests {
     // ---------------------------------------------------------- policy gates
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
-    public void WaitingAdmissionGrandfathersTavernAndMorale(GameTestHelper helper) {
+    public void WaitingAdmissionRevalidatesTavernAndMorale(GameTestHelper helper) {
         Settlement s = settlement(helper, true);
         s.moraleCache = 1;
         seedFullBoundary(hearth(helper));
@@ -262,8 +327,8 @@ public class RecruitmentPolicyGameTests {
             RecruitmentPolicy.Stage.WAITING_ADMISSION);
         helper.assertTrue(attraction.blocker() == RecruitmentPolicy.Blocker.NO_TAVERN,
             "attraction must still require a tavern");
-        helper.assertTrue(waiting.eligible(),
-            "a waiting guest must grandfather both tavern and morale");
+        helper.assertTrue(waiting.blocker() == RecruitmentPolicy.Blocker.NO_TAVERN,
+            "waiting admission must revalidate the live Tavern before morale");
         helper.succeed();
     }
 
@@ -348,7 +413,9 @@ public class RecruitmentPolicyGameTests {
             "blocker protocol ids changed");
         helper.assertTrue(RecruitmentPolicy.Stage.ATTRACTION.wireId() == 0
             && RecruitmentPolicy.Stage.WAITING_ADMISSION.wireId() == 1
-            && RecruitmentPolicy.Stage.INVALID.wireId() == 2,
+            && RecruitmentPolicy.Stage.INVALID.wireId() == 2
+            && RecruitmentPolicy.Stage.QUALIFYING.wireId() == 3
+            && RecruitmentPolicy.Stage.TRAVELING.wireId() == 4,
             "stage protocol ids changed");
         helper.assertTrue(RecruitmentPolicy.Blocker.fromWireId(999)
                 == RecruitmentPolicy.Blocker.INVALID_STATE,
@@ -385,47 +452,62 @@ public class RecruitmentPolicyGameTests {
             && s.recruitTarget == locked && s.recruitCycle == 0,
             "a traveler must not appear one qualified second before the locked target");
         SettlementManager.tickRecruitment(helper.getLevel(), s);
-        helper.assertTrue(s.travelerId != null,
-            "the final qualified second of the 2-4 day target must spawn the candidate");
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.READY_TO_SPAWN
+                && s.travelerId == null,
+            "the final qualified second must first persist READY_TO_SPAWN");
+        SettlementManager.tickRecruitment(helper.getLevel(), s);
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.TRAVELING
+                && s.travelerId != null,
+            "a later tick may publish the exact physical candidate");
         helper.succeed();
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
     public void TargetAloneCannotBypassQualifiedMinimum(GameTestHelper helper) {
         Settlement s = eligible(helper);
-        s.recruitProgress = s.recruitTarget - 1;
-        s.recruitQualifiedSeconds = 100;
+        // Loose compatibility mirrors are never recruitment authority.
+        s.recruitProgress = s.recruitTarget;
+        s.recruitQualifiedSeconds = RecruitmentPolicy.MIN_QUALIFIED_SECONDS;
         SettlementManager.tickRecruitment(helper.getLevel(), s);
-        helper.assertTrue(s.recruitProgress == s.recruitTarget
-            && s.recruitQualifiedSeconds == 101 && s.travelerId == null,
-            "a full target gauge without 2400 qualified seconds must not spawn");
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.QUALIFYING
+                && s.recruitProgress == 1
+                && s.recruitQualifiedSeconds == 1 && s.travelerId == null,
+            "legacy scalar writes must not bypass the persisted transaction");
         helper.succeed();
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
     public void BlockedClocksDecayTogether(GameTestHelper helper) {
-        Settlement s = settlement(helper, true); // no tavern: attraction blocked
-        s.recruitProgress = 70;
-        s.recruitQualifiedSeconds = 50;
+        Settlement s = eligible(helper);
+        for (int i = 0; i < 5; i++) {
+            SettlementManager.tickRecruitment(helper.getLevel(), s);
+        }
+        s.moraleCache = 0;
         SettlementManager.tickRecruitment(helper.getLevel(), s);
-        helper.assertTrue(s.recruitProgress == 69 && s.recruitQualifiedSeconds == 49,
+        helper.assertTrue(s.recruitProgress == 4 && s.recruitQualifiedSeconds == 4,
             "one blocked second must decay both clocks by exactly one");
         helper.succeed();
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
-    public void SuccessfulTravelerSpawnRenewsTargetOnlyThen(GameTestHelper helper) {
+    public void WaitingTravelerNeverAutoPaysOrAutoConverts(GameTestHelper helper) {
         Settlement s = eligible(helper);
-        int oldTarget = s.recruitTarget;
-        s.recruitProgress = oldTarget - 1;
-        s.recruitQualifiedSeconds = RecruitmentPolicy.MIN_QUALIFIED_SECONDS - 1;
+        HearthBlockEntity h = hearth(helper);
+        int breadBefore = count(h, Items.BREAD);
+        int planksBefore = count(h, Items.OAK_PLANKS);
+        SettlerEntity traveler = spawnWaitingTraveler(helper, s);
         SettlementManager.tickRecruitment(helper.getLevel(), s);
-        helper.assertTrue(s.travelerId != null,
-            "both completed clocks must create a real waiting traveler");
-        helper.assertTrue(s.recruitCycle == 1 && s.recruitProgress == 0
-            && s.recruitQualifiedSeconds == 0
-            && s.recruitTarget == RecruitmentPolicy.targetFor(s.id, 1),
-            "only successful spawn may advance the generation and renew clocks");
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.WAITING_ADMISSION
+                && traveler.isTraveler() && s.record(traveler.getUUID()) == null,
+            "waiting ticks must never turn a guest into a member");
+        helper.assertTrue(count(h, Items.BREAD) == breadBefore
+                && count(h, Items.OAK_PLANKS) == planksBefore
+                && s.recruitCycle == 0,
+            "waiting ticks must never auto-pay or silently advance the cycle");
         helper.succeed();
     }
 
@@ -434,8 +516,8 @@ public class RecruitmentPolicyGameTests {
         Settlement s = eligible(helper);
         int lockedTarget = s.recruitTarget;
         int lockedCycle = s.recruitCycle;
-        s.recruitProgress = lockedTarget - 1;
-        s.recruitQualifiedSeconds = RecruitmentPolicy.MIN_QUALIFIED_SECONDS - 1;
+        helper.assertTrue(SettlementManager.primeRecruitment(helper.getLevel(), s),
+            "fixture must persist READY_TO_SPAWN before cancellation");
 
         Consumer<EntityJoinLevelEvent> rejectSettler = event -> {
             if (event.getLevel() == helper.getLevel()
@@ -451,7 +533,9 @@ public class RecruitmentPolicyGameTests {
             NeoForge.EVENT_BUS.unregister(rejectSettler);
         }
 
-        helper.assertTrue(s.travelerId == null,
+        helper.assertTrue(s.travelerId == null
+                && s.recruitment.status()
+                    == RecruitmentTransaction.Status.READY_TO_SPAWN,
             "a candidate rejected by the level must not become the waiting traveler");
         helper.assertTrue(s.recruitCycle == lockedCycle
             && s.recruitTarget == lockedTarget,
@@ -467,9 +551,12 @@ public class RecruitmentPolicyGameTests {
         Settlement s = eligible(helper);
         helper.assertTrue(SettlementManager.primeRecruitment(helper.getLevel(), s),
             "eligible settlement should accept command fast-forward");
-        helper.assertTrue(s.recruitProgress == s.recruitTarget - 1
-            && s.recruitQualifiedSeconds == RecruitmentPolicy.MIN_QUALIFIED_SECONDS - 1,
-            "command must prime both clocks to exactly one second before completion");
+        helper.assertTrue(s.recruitProgress == s.recruitTarget
+            && s.recruitQualifiedSeconds == RecruitmentPolicy.MIN_QUALIFIED_SECONDS
+            && s.recruitment.status()
+                == RecruitmentTransaction.Status.READY_TO_SPAWN
+            && !s.recruitment.survivalAuthored(),
+            "command may prepare physical flow but cannot author survival progress");
 
         Settlement blocked = settlement(helper, true);
         blocked.recruitProgress = 7;
@@ -479,6 +566,158 @@ public class RecruitmentPolicyGameTests {
         helper.assertTrue(blocked.recruitProgress == 7
             && blocked.recruitQualifiedSeconds == 6,
             "refused command must not alter either clock");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
+    public void ArrivalCommitsOnlyAtExactTavernNotHearth(GameTestHelper helper) {
+        Settlement s = eligible(helper);
+        helper.assertTrue(SettlementManager.primeRecruitment(helper.getLevel(), s),
+            "fixture must prime recruitment");
+        SettlementManager.tickRecruitment(helper.getLevel(), s);
+        SettlerEntity traveler = (SettlerEntity) helper.getLevel()
+            .getEntity(s.recruitment.travelerId());
+        helper.assertTrue(traveler != null && s.recruitment.status()
+                == RecruitmentTransaction.Status.TRAVELING,
+            "candidate must exist physically in TRAVELING state");
+
+        traveler.moveTo(s.center.getX() + 0.5D, s.center.getY(),
+            s.center.getZ() + 0.5D, 0.0F, 0.0F);
+        SettlementManager.tickRecruitment(helper.getLevel(), s);
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.TRAVELING
+                && s.recruitment.arrivedTick() == RecruitmentTransaction.NO_TICK,
+            "standing at the Hearth cannot fake a Tavern arrival");
+
+        BlockPos anchor = s.recruitment.tavernAnchor();
+        traveler.moveTo(anchor.getX() + 0.5D, anchor.getY(),
+            anchor.getZ() + 0.5D, 0.0F, 0.0F);
+        long arrivalTick = helper.getLevel().getGameTime();
+        SettlementManager.tickRecruitment(helper.getLevel(), s);
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.WAITING_ADMISSION
+                && s.recruitment.arrivedTick() == arrivalTick,
+            "actual <=3-block Tavern arrival must persist the patience start");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
+    public void TwoPlayersProduceOnePaidAdmissionWinner(GameTestHelper helper) {
+        Settlement s = eligible(helper);
+        SettlerEntity traveler = spawnWaitingTraveler(helper, s);
+        HearthBlockEntity h = hearth(helper);
+        int breadBefore = count(h, Items.BREAD);
+        int planksBefore = count(h, Items.OAK_PLANKS);
+        int revision = s.recruitment.revision();
+
+        ServerPlayer winner = helper.makeMockServerPlayerInLevel();
+        ServerPlayer replay = helper.makeMockServerPlayerInLevel();
+        HearthMenu winnerMenu = openHearth(helper, s, winner);
+        HearthMenu replayMenu = openHearth(helper, s, replay);
+        HearthNetwork.handle(winner, new HearthMayorAction(s.center, s.id,
+            winnerMenu.getContainerId(), HearthMayorAction.Kind.ADMIT_TRAVELER,
+            traveler.getUUID(), revision));
+        int breadAfterWinner = count(h, Items.BREAD);
+        int planksAfterWinner = count(h, Items.OAK_PLANKS);
+        HearthNetwork.handle(replay, new HearthMayorAction(s.center, s.id,
+            replayMenu.getContainerId(), HearthMayorAction.Kind.ADMIT_TRAVELER,
+            traveler.getUUID(), revision));
+        HearthNetwork.handle(replay, new HearthMayorAction(s.center, s.id,
+            replayMenu.getContainerId(), HearthMayorAction.Kind.REJECT_TRAVELER,
+            traveler.getUUID(), revision));
+
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.ADMITTED
+                && s.record(traveler.getUUID()) != null && !traveler.isTraveler(),
+            "exactly one action must bind exactly the saved traveler");
+        helper.assertTrue(breadAfterWinner == breadBefore - 4
+                && planksAfterWinner == planksBefore - 8
+                && count(h, Items.BREAD) == breadAfterWinner
+                && count(h, Items.OAK_PLANKS) == planksAfterWinner,
+            "winner pays one exact price; stale admit/reject replays mutate nothing");
+        helper.assertTrue(s.recruitment.admissionReceipt() != null
+                && winner.getUUID().equals(
+                    s.recruitment.admissionReceipt().playerId())
+                && s.recruitment.admissionReceipt().removedItemCount() == 12,
+            "persisted receipt must name the winning actor and exact item delta");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
+    public void ExplicitDismissalTakesNoPaymentAndReplayIsInert(GameTestHelper helper) {
+        Settlement s = eligible(helper);
+        SettlerEntity traveler = spawnWaitingTraveler(helper, s);
+        HearthBlockEntity h = hearth(helper);
+        int breadBefore = count(h, Items.BREAD);
+        int planksBefore = count(h, Items.OAK_PLANKS);
+        int revision = s.recruitment.revision();
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        HearthMenu menu = openHearth(helper, s, player);
+
+        HearthNetwork.handle(player, new HearthMayorAction(s.center, s.id,
+            menu.getContainerId(), HearthMayorAction.Kind.REJECT_TRAVELER,
+            traveler.getUUID(), revision));
+        HearthNetwork.handle(player, new HearthMayorAction(s.center, s.id,
+            menu.getContainerId(), HearthMayorAction.Kind.ADMIT_TRAVELER,
+            traveler.getUUID(), revision));
+
+        helper.assertTrue(s.recruitment.status()
+                == RecruitmentTransaction.Status.LEFT
+                && s.recruitment.terminalReason()
+                    == RecruitmentTransaction.TerminalReason.PLAYER_REJECTED
+                && s.record(traveler.getUUID()) == null,
+            "dismissal must persist a terminal no-member decision");
+        helper.assertTrue(count(h, Items.BREAD) == breadBefore
+                && count(h, Items.OAK_PLANKS) == planksBefore,
+            "dismissal and stale admission replay must take no payment");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
+    public void AdmissionFailuresConserveItemsAndMembership(GameTestHelper helper) {
+        Settlement s = eligible(helper);
+        SettlerEntity traveler = spawnWaitingTraveler(helper, s);
+        HearthBlockEntity h = hearth(helper);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        int revision = s.recruitment.revision();
+
+        for (int slot = 0; slot < h.getInventory().getSlots(); slot++) {
+            if (h.getInventory().getStackInSlot(slot).is(ItemTags.PLANKS)) {
+                h.getInventory().setStackInSlot(slot, ItemStack.EMPTY);
+            }
+        }
+        int breadBefore = count(h, Items.BREAD);
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                traveler.getUUID(), revision)
+                == SettlementManager.AdmissionResult.BLOCKED_POLICY,
+            "missing physical payment must fail before mutation");
+        helper.assertTrue(count(h, Items.BREAD) == breadBefore
+                && s.record(traveler.getUUID()) == null,
+            "failed payment preflight must conserve inventory and membership");
+
+        h.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
+        addResidents(s, s.capacity());
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                traveler.getUUID(), revision)
+                == SettlementManager.AdmissionResult.BLOCKED_POLICY,
+            "a capacity race must fail admission without payment");
+        s.settlers.clear();
+
+        Building locked = s.buildings.stream()
+            .filter(b -> b.id.equals(s.recruitment.tavernBuildingId()))
+            .findFirst().orElseThrow();
+        locked.valid = false;
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                traveler.getUUID(), revision)
+                == SettlementManager.AdmissionResult.INVALID_TAVERN,
+            "destroying the exact Tavern must block rather than fall back to Hearth");
+        helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
+                traveler.getUUID(), revision - 1)
+                == SettlementManager.AdmissionResult.STALE_REVISION,
+            "stale revisions fail before any changed live gate is considered");
+        helper.assertTrue(count(h, Items.BREAD) == breadBefore
+                && s.record(traveler.getUUID()) == null,
+            "every failed path must preserve physical conservation");
         helper.succeed();
     }
 
@@ -499,7 +738,7 @@ public class RecruitmentPolicyGameTests {
     // ------------------------------------------------------------- Data v2
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
-    public void DataVersionOneProgressMigratesProportionally(GameTestHelper helper) {
+    public void LegacyProgressMigratesWithoutRelockingOrFreeRecruit(GameTestHelper helper) {
         Settlement original = new Settlement(UUID.randomUUID(), "Gamle Matvik", BlockPos.ZERO);
         CompoundTag tag = original.writeNbt();
         tag.putInt("RecruitProgress", 120);
@@ -512,25 +751,24 @@ public class RecruitmentPolicyGameTests {
         SettlementSavedData migratedData = SettlementSavedData.load(v1Root,
             helper.getLevel().registryAccess());
         Settlement migrated = migratedData.settlements.get(original.id);
-        int halfTargetRounded = (migrated.recruitTarget + 1) / 2;
-        helper.assertTrue(migrated.recruitProgress == halfTargetRounded,
-            "half of the old gauge must remain half of the deterministic target");
-        helper.assertTrue(migrated.recruitQualifiedSeconds == 1_200
-            && migrated.recruitCycle == 0,
-            "half progress must become exactly one qualified Minecraft day");
+        helper.assertTrue(migrated.recruitProgress == 0
+            && migrated.recruitQualifiedSeconds == 0
+            && migrated.recruitCycle == 0
+            && migrated.recruitment.status()
+                == RecruitmentTransaction.Status.ATTRACTING
+            && migrated.recruitment.transactionId() == null,
+            "legacy clocks cannot fabricate an exact Tavern lock or candidate");
         CompoundTag v2Root = migratedData.save(new CompoundTag(),
             helper.getLevel().registryAccess());
         Settlement reloaded = SettlementSavedData.load(v2Root,
             helper.getLevel().registryAccess()).settlements.get(original.id);
-        helper.assertTrue(reloaded.recruitTarget == migrated.recruitTarget
-            && reloaded.recruitProgress == migrated.recruitProgress
-            && reloaded.recruitQualifiedSeconds == migrated.recruitQualifiedSeconds,
-            "migrated fraction must survive its first DataVersion 2 reload exactly");
+        helper.assertTrue(reloaded.recruitment.equals(migrated.recruitment),
+            "the fail-closed migrated cycle must survive its current-schema reload");
         helper.succeed();
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
-    public void DataVersionTwoReloadPreservesCorrectClocks(GameTestHelper helper) {
+    public void LegacyVersionTwoPreservesCycleButDropsUnverifiableClocks(GameTestHelper helper) {
         Settlement original = new Settlement(UUID.randomUUID(), "Ny Matvik", BlockPos.ZERO);
         original.recruitCycle = 4;
         original.recruitTarget = RecruitmentPolicy.targetFor(original.id, 4);
@@ -539,9 +777,11 @@ public class RecruitmentPolicyGameTests {
         Settlement loaded = Settlement.readNbt(original.writeNbt(), 2);
         helper.assertTrue(loaded.recruitCycle == 4
             && loaded.recruitTarget == original.recruitTarget
-            && loaded.recruitProgress == 777
-            && loaded.recruitQualifiedSeconds == 600,
-            "a valid v2 save must round-trip without resetting correct progress");
+            && loaded.recruitProgress == 0
+            && loaded.recruitQualifiedSeconds == 0
+            && loaded.recruitment.status()
+                == RecruitmentTransaction.Status.ATTRACTING,
+            "v2 can preserve cycle balance but cannot invent a Tavern identity");
         helper.succeed();
     }
 
@@ -555,11 +795,12 @@ public class RecruitmentPolicyGameTests {
         Settlement first = Settlement.readNbt(tag.copy(), 1);
         Settlement second = Settlement.readNbt(tag.copy(), 1);
         helper.assertTrue(first.recruitTarget == 4_538,
-            "the fixed UUID's cycle-zero migration target is a frozen v2 contract");
+            "the fixed UUID's cycle-zero target remains deterministic");
         helper.assertTrue(first.recruitTarget == second.recruitTarget
             && first.recruitProgress == second.recruitProgress
-            && first.recruitQualifiedSeconds == second.recruitQualifiedSeconds,
-            "identical UUID/tags must migrate identically without load-time RNG");
+            && first.recruitQualifiedSeconds == second.recruitQualifiedSeconds
+            && first.recruitProgress == 0,
+            "identical legacy tags must reset identically without load-time relocking");
         helper.succeed();
     }
 
@@ -588,6 +829,31 @@ public class RecruitmentPolicyGameTests {
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
+    public void CurrentMalformedAndLegacyTravelerStatesQuarantine(GameTestHelper helper) {
+        Settlement current = eligible(helper);
+        SettlementManager.tickRecruitment(helper.getLevel(), current);
+        CompoundTag currentTag = current.writeNbt();
+        currentTag.getCompound("RecruitmentTransaction").remove("TavernAnchor");
+        Settlement damaged = Settlement.readNbt(currentTag,
+            SettlementSavedData.CURRENT_DATA_VERSION);
+        helper.assertTrue(damaged.recruitment.status()
+                == RecruitmentTransaction.Status.QUARANTINED,
+            "partial current Tavern identity must quarantine, never relock");
+
+        Settlement legacy = new Settlement(UUID.randomUUID(), "Legacy guest",
+            BlockPos.ZERO);
+        CompoundTag legacyTag = legacy.writeNbt();
+        legacyTag.putUUID("TravelerId", UUID.randomUUID());
+        Settlement quarantined = Settlement.readNbt(legacyTag, 6);
+        helper.assertTrue(quarantined.recruitment.status()
+                == RecruitmentTransaction.Status.QUARANTINED
+                && quarantined.recruitment.terminalReason()
+                    == RecruitmentTransaction.TerminalReason.LEGACY_UNVERIFIABLE,
+            "legacy loose TravelerId must never become a free member");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
     public void FutureDataVersionIsRejected(GameTestHelper helper) {
         CompoundTag root = new CompoundTag();
         root.putInt("DataVersion", SettlementSavedData.CURRENT_DATA_VERSION + 1);
@@ -604,17 +870,17 @@ public class RecruitmentPolicyGameTests {
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
-    public void VersionZeroRecruitFractionStillMigratesWithLegacyContract(GameTestHelper helper) {
+    public void VersionZeroRecruitFractionCannotFabricateQualification(GameTestHelper helper) {
         Settlement original = new Settlement(UUID.randomUUID(), "Eldste Matvik", BlockPos.ZERO);
         CompoundTag tag = original.writeNbt();
         tag.putInt("RecruitProgress", 50);
         tag.putInt("RecruitTarget", 200);
         Settlement migrated = Settlement.readNbt(tag, 0);
-        helper.assertTrue(migrated.recruitQualifiedSeconds == 600,
-            "v0's quarter gauge must survive as one half Minecraft day");
-        helper.assertTrue(migrated.recruitProgress > 0
-            && migrated.recruitProgress < migrated.recruitTarget,
-            "v0 progress must neither reset nor become ready during migration");
+        helper.assertTrue(migrated.recruitQualifiedSeconds == 0
+            && migrated.recruitProgress == 0
+            && migrated.recruitment.status()
+                == RecruitmentTransaction.Status.ATTRACTING,
+            "v0 lacked exact Tavern proof and must restart without free progress");
         helper.succeed();
     }
 
@@ -623,6 +889,9 @@ public class RecruitmentPolicyGameTests {
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
     public void HearthMenuDataMatchesPolicyAssessment(GameTestHelper helper) {
         Settlement s = settlement(helper, true);
+        s.foundingJourney = FoundingJourney.fresh();
+        helper.assertTrue(s.foundingJourney.noteLumberCampLinked(),
+            "journey menu fixture must advance to its second authoritative phase");
         tavern(helper, s);
         HearthBlockEntity h = hearth(helper);
         h.insertGoods(new ItemStack(Items.BREAD, 10));
@@ -639,14 +908,18 @@ public class RecruitmentPolicyGameTests {
             && menu.get(HearthMenu.DATA_MISSING_RESERVE) == a.missingReadyFood()
             && menu.get(HearthMenu.DATA_RECRUIT_STAGE) == a.stage().wireId(),
             "menu must expose the exact server assessment, not a client formula");
+        helper.assertTrue(menu.get(HearthMenu.DATA_JOURNEY_PHASE)
+                == FoundingJourney.Phase.HIRE_LUMBERER.wireId()
+                && menu.get(HearthMenu.DATA_JOURNEY_REVISION) == 1
+                && menu.get(HearthMenu.DATA_JOURNEY_CAN_SKIP) == 1,
+            "journey phase, revision and skip permission must come from server menu data");
         helper.succeed();
     }
 
     @GameTest(batch = "recruitment_policy", template = "empty16", timeoutTicks = 100)
     public void WaitingStateIsServerAuthoritativeInMenu(GameTestHelper helper) {
-        Settlement s = settlement(helper, true);
-        s.travelerId = UUID.randomUUID();
-        seedFullBoundary(hearth(helper));
+        Settlement s = eligible(helper);
+        spawnWaitingTraveler(helper, s);
         RecruitmentPolicy.Assessment a = assess(helper, s,
             RecruitmentPolicy.Stage.WAITING_ADMISSION);
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
@@ -654,7 +927,11 @@ public class RecruitmentPolicyGameTests {
             .createMenu(2, player.getInventory(), player);
         helper.assertTrue(menu.get(HearthMenu.DATA_RECRUIT_STAGE)
                 == RecruitmentPolicy.Stage.WAITING_ADMISSION.wireId()
-            && menu.get(HearthMenu.DATA_RECRUIT_BLOCKER) == a.blocker().wireId(),
+            && menu.get(HearthMenu.DATA_RECRUIT_BLOCKER) == a.blocker().wireId()
+            && menu.get(HearthMenu.DATA_RECRUIT_REVISION)
+                == s.recruitment.revision()
+            && menu.get(HearthMenu.DATA_RECRUIT_TRANSACTION_STATUS)
+                == RecruitmentTransaction.Status.WAITING_ADMISSION.wireId(),
             "waiting/admission state and blocker must come from server policy");
         helper.succeed();
     }

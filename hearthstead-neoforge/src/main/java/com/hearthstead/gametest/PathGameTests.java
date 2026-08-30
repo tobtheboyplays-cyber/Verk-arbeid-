@@ -8,9 +8,12 @@ import com.hearthstead.entity.path.PathWear;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Settlement;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.pathfinder.Path;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -168,5 +171,55 @@ public class PathGameTests {
 
         PathWear.forget(helper.getLevel());
         helper.succeed();
+    }
+
+    /**
+     * Regression for the live warehouse/lumber-camp geometry: a closed
+     * wooden door is the only path through the wall. The settler must open it
+     * before collision, cross, and close it after passing.
+     */
+    @GameTest(batch = "path", template = "empty16", timeoutTicks = 300)
+    public void settlersReliablyCrossAndCloseAClosedDoor(GameTestHelper helper) {
+        meadow(helper, 16);
+        for (int x = 0; x < 16; x++) {
+            if (x == 8) {
+                continue;
+            }
+            helper.setBlock(new BlockPos(x, 1, 7), Blocks.STONE_BRICKS);
+            helper.setBlock(new BlockPos(x, 2, 7), Blocks.STONE_BRICKS);
+        }
+        var lower = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.NORTH)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        helper.setBlock(new BlockPos(8, 1, 7), lower);
+        helper.setBlock(new BlockPos(8, 2, 7), lower
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+
+        SettlerEntity walker = settler(helper, new BlockPos(8, 1, 3));
+        BlockPos target = helper.absolutePos(new BlockPos(8, 1, 11));
+        BlockPos door = helper.absolutePos(new BlockPos(8, 1, 7));
+        boolean[] sawOpen = {false};
+
+        helper.onEachTick(() -> {
+            if (walker.getNavigation().isDone()) {
+                walker.getNavigation().moveTo(target.getX() + 0.5D,
+                    target.getY(), target.getZ() + 0.5D, 1.0D);
+            }
+            var state = helper.getLevel().getBlockState(door);
+            if (state.is(Blocks.OAK_DOOR)
+                && state.getValue(DoorBlock.OPEN)) {
+                sawOpen[0] = true;
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(sawOpen[0],
+                "the closed path door must visibly open before crossing");
+            helper.assertTrue(walker.getZ() > target.getZ() - 1.0D,
+                "the settler must reach the far side of the doorway");
+            helper.assertTrue(!helper.getLevel().getBlockState(door)
+                    .getValue(DoorBlock.OPEN),
+                "the door must close after the settler has passed");
+        });
     }
 }

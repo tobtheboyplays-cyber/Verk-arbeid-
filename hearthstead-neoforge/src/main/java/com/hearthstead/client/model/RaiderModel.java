@@ -193,8 +193,11 @@ public class RaiderModel extends HierarchicalModel<RaiderEntity> {
             ageInTicks + (id % 53));
 
         if (captain) {
-            torso.xRot -= CAPTAIN_STRAIGHTEN;
-            head.xRot -= CAPTAIN_STRAIGHTEN * 0.5F;
+            // Negative X is forward on this rig. The authored family now
+            // uses that verified sign, so straightening must add toward zero
+            // rather than deepen the former backwards bend.
+            torso.xRot += CAPTAIN_STRAIGHTEN;
+            head.xRot += CAPTAIN_STRAIGHTEN * 0.5F;
         }
 
         // ---- One-shots: clear only the MOTION (rotation) of the bones

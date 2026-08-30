@@ -7,7 +7,15 @@ public enum FirstRaidState {
     UNINITIALIZED(0, "uninitialized"),
     SCHEDULED(1, "scheduled"),
     ACTIVE(2, "active"),
-    COMPLETED(3, "completed");
+    COMPLETED(3, "completed"),
+    /**
+     * A fresh settlement whose one founding roll is persisted, but whose
+     * player-confirmed readiness has not armed the warning calendar yet.
+     *
+     * <p>Wire id 4 is intentionally appended. Existing ids are save data and
+     * must never be renumbered when enum source order changes.
+     */
+    PREPARING(4, "preparing");
 
     private final int wireId;
     private final String id;

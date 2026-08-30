@@ -20,6 +20,7 @@ import com.hearthstead.settlement.raid.RaidTelegraph;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -96,6 +97,51 @@ public class RaiderGameTests {
     }
 
     /**
+     * The first-raid counter lesson only works when the targets themselves
+     * read differently: the Archer gets a fast, fragile Skirmisher and the
+     * Guard gets a slow, heavy Brute. Damage remains equal so the silhouette
+     * never hides an unexplained damage spike.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "raider_variants_have_distinct_honest_combat_profiles")
+    public void variantsHaveDistinctHonestCombatProfiles(
+            GameTestHelper helper) {
+        buildArena(helper, 10);
+        Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
+        UUID captainId = UUID.randomUUID();
+        RaiderEntity skirmisher = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(2, 1, 2));
+        skirmisher.setVariant(RaiderEntity.Variant.SKIRMISHER);
+        skirmisher.assign(captainId, s.id, RaidObjective.BLOD, 1.0F, false);
+        RaiderEntity brute = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(3, 1, 2));
+        brute.setVariant(RaiderEntity.Variant.BRUTE);
+        brute.assign(captainId, s.id, RaidObjective.BLOD, 1.0F, false);
+
+        helper.assertTrue(skirmisher.getMaxHealth()
+                == RaiderEntity.SKIRMISHER_MAX_HEALTH
+                && brute.getMaxHealth() == RaiderEntity.BRUTE_MAX_HEALTH
+                && brute.getMaxHealth() > skirmisher.getMaxHealth(),
+            "Brute must be the visibly durable target, got "
+                + brute.getMaxHealth() + " vs " + skirmisher.getMaxHealth());
+        double skirmisherSpeed = skirmisher.getAttributeValue(
+            Attributes.MOVEMENT_SPEED);
+        double bruteSpeed = brute.getAttributeValue(Attributes.MOVEMENT_SPEED);
+        helper.assertTrue(skirmisherSpeed > bruteSpeed,
+            "Skirmisher must be the fast target, got " + skirmisherSpeed
+                + " vs " + bruteSpeed);
+        helper.assertTrue(brute.getAttributeValue(
+                Attributes.KNOCKBACK_RESISTANCE)
+                > skirmisher.getAttributeValue(
+                    Attributes.KNOCKBACK_RESISTANCE),
+            "Brute must resist knockback more than the pack");
+        helper.assertTrue(brute.getAttributeValue(Attributes.ATTACK_DAMAGE)
+                == skirmisher.getAttributeValue(Attributes.ATTACK_DAMAGE),
+            "variant identity must not hide an unexplained damage spike");
+        helper.succeed();
+    }
+
+    /**
      * Strength comes from the captain's own record, not from the player's
      * stat sheet -- and it is capped, so a long feud stays winnable rather
      * than becoming a wall.
@@ -152,6 +198,12 @@ public class RaiderGameTests {
         quarry.setSettlerName("Quarry");
         quarry.bindTo(s.id, s.center);
 
+        // This test owns target state directly. Without the isolation,
+        // vanilla's target selector can legitimately reacquire the still-live
+        // quarry in the same tick after setTarget(null), making a sync test
+        // depend on unrelated combat-goal timing.
+        raider.setNoAi(true);
+
         helper.assertTrue(!raider.isCharging(),
             "a raider with no target must not report charging");
 
@@ -190,19 +242,37 @@ public class RaiderGameTests {
         buildArena(helper, 10);
         Settlement s = makeSettlement(helper, new BlockPos(5, 1, 5));
         RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(2, 1, 2));
-        UUID captainId = UUID.randomUUID();
+        RaidCaptain remembered = RaidDirector.pickCaptain(s,
+            helper.getLevel().getRandom());
+        UUID captainId = remembered.id();
         raider.assign(captainId, s.id, RaidObjective.BRANN, 1.5F, true);
+        raider.setCustomName(Component.literal(remembered.name()));
+        raider.setCustomNameVisible(true);
         raider.setObjectivePos(helper.absolutePos(new BlockPos(5, 1, 5)));
 
         helper.assertTrue(!raider.removeWhenFarAway(4096.0),
             "raiders must never despawn for distance");
 
-        var tag = new net.minecraft.nbt.CompoundTag();
-        raider.addAdditionalSaveData(tag);
-        RaiderEntity reloaded = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(6, 1, 2));
-        reloaded.readAdditionalSaveData(tag);
+        double maxHealthBefore = raider.getAttribute(Attributes.MAX_HEALTH)
+            .getBaseValue();
+        double damageBefore = raider.getAttribute(Attributes.ATTACK_DAMAGE)
+            .getBaseValue();
+        var tag = raider.saveWithoutId(new net.minecraft.nbt.CompoundTag());
+        RaiderEntity reloaded = ModEntities.RAIDER.get().create(helper.getLevel());
+        helper.assertTrue(reloaded != null, "the persisted raider must be creatable");
+        reloaded.load(tag);
 
         helper.assertTrue(reloaded.isCaptain(), "captaincy must survive a save");
+        helper.assertTrue(reloaded.getCustomName() != null
+                && remembered.name().equals(reloaded.getCustomName().getString())
+                && reloaded.isCustomNameVisible(),
+            "the canonical field identity and visible nameplate must survive a full "
+                + "Entity restart, got " + reloaded.getCustomName());
+        helper.assertTrue(Math.abs(reloaded.getAttribute(Attributes.MAX_HEALTH)
+                    .getBaseValue() - maxHealthBefore) < 0.000001D
+                && Math.abs(reloaded.getAttribute(Attributes.ATTACK_DAMAGE)
+                    .getBaseValue() - damageBefore) < 0.000001D,
+            "reload must restore, not apply captain stats a second time");
         helper.assertTrue(reloaded.objective() == RaidObjective.BRANN,
             "as must the objective, got " + reloaded.objective());
         helper.assertTrue(captainId.equals(reloaded.captainId()),
@@ -284,20 +354,30 @@ public class RaiderGameTests {
         var random = level.getRandom();
         RaidCaptain captain = RaidDirector.pickCaptain(s, random);
         RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 3L);
-        s.pendingRaid = plan;
 
         var band = RaidDirector.spawnBand(level, s, plan);
         helper.assertTrue(!band.isEmpty(),
             "the band must actually arrive, spawned " + band.size());
+        RaidAuthorityFixtures.armActive(s, plan,
+            band.stream().map(RaiderEntity::getUUID).toList());
         helper.assertTrue(!RaidDirector.livingRaidersOf(level, s).isEmpty(),
             "and must be findable as this settlement's raiders");
         // Asserted on the band spawnBand actually produced, not on what a
         // bounded box query can see: a raider that forms up 30+ blocks out
         // lands beyond the small region a GameTest force-loads, so the query
         // legitimately cannot see all of them here.
-        boolean anyCaptain = band.stream().anyMatch(RaiderEntity::isCaptain);
-        helper.assertTrue(anyCaptain,
+        RaiderEntity fieldCaptain = band.stream()
+            .filter(RaiderEntity::isCaptain).findFirst().orElse(null);
+        helper.assertTrue(fieldCaptain != null,
             "a band is led, so one of them is the captain [band=" + band.size() + "]");
+        helper.assertTrue(fieldCaptain.getCustomName() != null
+                && captain.name().equals(fieldCaptain.getCustomName().getString()),
+            "the fresh wild/non-Saga field captain must carry the exact canonical "
+                + "RaidCaptain name, got " + (fieldCaptain.getCustomName() == null
+                    ? "<anonymous>" : fieldCaptain.getCustomName().getString())
+                + " vs " + captain.name());
+        helper.assertTrue(fieldCaptain.isCustomNameVisible(),
+            "the fresh field captain's identity must render, not remain hidden");
 
         // Not over while anyone still stands.
         helper.assertTrue(!RaidDirector.resolveIfOver(level, s),
@@ -319,6 +399,163 @@ public class RaiderGameTests {
                 + s.raidPressure.pressure() + " from " + pressureBefore);
         helper.assertTrue(captain.defeats() == defeatsBefore + 1,
             "and the captain must remember being driven off");
+        RaidLogEntry aftermath = s.raidLog.get(s.raidLog.size() - 1);
+        helper.assertTrue(captain.name().equals(aftermath.captainName()),
+            "the wild/non-Saga field captain and persisted Aftermath must retain "
+                + "the same canonical identity, got " + aftermath.captainName());
+        helper.succeed();
+    }
+
+    /** A recurring serial with an unauditable leader must never spawn. */
+    @GameTest(template = "empty16", timeoutTicks = 300,
+        batch = "raider_malformed_recurring_captain_identity_fails_closed")
+    public void malformedRecurringCaptainIdentityFailsClosed(GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
+
+        // Recurring authority begins only after one definitive first raid.
+        var lifecycle = new com.hearthstead.settlement.state.RaidLifecycle();
+        RaidPlan first = new RaidPlan(UUID.randomUUID(), RaidObjective.KORN,
+            0.0F, 4L);
+        UUID firstParticipant = UUID.randomUUID();
+        helper.assertTrue(lifecycle.initializeAtFounding(0L, 4, 2)
+                && lifecycle.queueFirstPlan(first)
+                && lifecycle.beginFirstRaid(first)
+                && lifecycle.recordParticipant(firstParticipant)
+                && lifecycle.sealParticipants()
+                && lifecycle.recordTerminalParticipant(firstParticipant)
+                && lifecycle.completeFirstRaid(false),
+            "fixture must complete the authored first raid before recurring authority");
+        s.raidLifecycle = lifecycle;
+
+        UUID captainId = UUID.randomUUID();
+        var malformedTag = new net.minecraft.nbt.CompoundTag();
+        malformedTag.putUUID("Id", captainId);
+        malformedTag.putString("Name", "\n");
+        malformedTag.putInt("Victories", 0);
+        malformedTag.putInt("Defeats", 0);
+        s.raidCaptains.add(RaidCaptain.readNbt(malformedTag));
+        RaidPlan recurring = new RaidPlan(captainId, RaidObjective.BLOD,
+            0.0F, 12L);
+        helper.assertTrue(s.recurringRaidRun.queue(recurring),
+            "fixture must allocate one exact recurring serial");
+
+        var spawned = RaidDirector.startQueuedRecurringRaid(helper.getLevel(), s);
+        helper.assertTrue(spawned.isEmpty()
+                && s.recurringRaidRun.isBlocked()
+                && s.pendingRaid == null
+                && RaidDirector.livingRaidersOf(helper.getLevel(), s).isEmpty(),
+            "blank/control leader data must consume and quarantine the serial before "
+                + "any entity, arrival broadcast or reward authority exists");
+        helper.succeed();
+    }
+
+    /**
+     * A captain finding the settlement while every follower bearing is void
+     * must not turn a queued raid into a sealed one-entity encounter. The
+     * partial spawn is rolled back, then the same plan and serial may retry
+     * once the terrain can hold a complete band.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 400,
+        batch = "raider_partial_band_rolls_back_and_retries_same_plan")
+    public void partialBandRollsBackAndRetriesSamePlan(GameTestHelper helper) {
+        var level = helper.getLevel();
+        Settlement s = makeSettlement(helper, new BlockPos(8, 200, 8));
+
+        // Recurring authority lets this focused terrain test exercise the
+        // same spawn-and-seal transaction without forging the first raid's
+        // extensive live Journey-readiness evidence.
+        var lifecycle = new com.hearthstead.settlement.state.RaidLifecycle();
+        RaidPlan first = new RaidPlan(UUID.randomUUID(), RaidObjective.KORN,
+            0.0F, 4L);
+        UUID firstParticipant = UUID.randomUUID();
+        helper.assertTrue(lifecycle.initializeAtFounding(0L, 4, 2)
+                && lifecycle.queueFirstPlan(first)
+                && lifecycle.beginFirstRaid(first)
+                && lifecycle.recordParticipant(firstParticipant)
+                && lifecycle.sealParticipants()
+                && lifecycle.recordTerminalParticipant(firstParticipant)
+                && lifecycle.completeFirstRaid(false),
+            "fixture must complete the authored first raid before recurring authority");
+        s.raidLifecycle = lifecycle;
+
+        RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
+        RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 12L);
+        helper.assertTrue(s.recurringRaidRun.queue(plan),
+            "fixture must queue one exact recurring plan");
+        long serial = s.recurringRaidRun.activeSerial();
+        int plannedSize = RaidDirector.bandSizeFor(s, captain);
+        helper.assertTrue(plannedSize >= RaidDirector.MIN_BAND,
+            "fixture must plan a real band, got " + plannedSize);
+
+        // Only the settlement centre has footing. The captain's bounded
+        // last-resort sweep therefore succeeds there, while every possible
+        // direct follower column (all bearings and all random distances) is
+        // verified empty before the transaction starts.
+        level.setBlock(s.center.below(), Blocks.STONE_BRICKS.defaultBlockState(), 3);
+        helper.assertTrue(RaidDirector.standableNear(level, s.center) != null,
+            "fixture must guarantee captain footing at the bounded fallback");
+        for (int i = 1; i < plannedSize; i++) {
+            float spread = (i / (float) (plannedSize - 1) - 0.5F)
+                * 2.0F * RaidDirector.SPAWN_ARC;
+            for (int distance = RaidDirector.SPAWN_MIN_DISTANCE;
+                 distance <= RaidDirector.SPAWN_MAX_DISTANCE; distance++) {
+                BlockPos follower = RaidDirector.formUpAt(s.center,
+                    plan.approachDegrees() + spread, distance);
+                helper.assertTrue(RaidDirector.standableNear(level, follower) == null,
+                    "fixture follower column unexpectedly has footing at " + follower);
+            }
+        }
+
+        var rejected = RaidDirector.startQueuedRecurringRaid(level, s);
+        helper.assertTrue(rejected.isEmpty()
+                && s.recurringRaidRun.isQueued()
+                && s.recurringRaidRun.activeSerial() == serial
+                && s.recurringRaidRun.plan().orElseThrow().equals(plan)
+                && s.pendingRaid == null
+                && RaidDirector.livingRaidersOf(level, s).isEmpty(),
+            "captain-only acceptance must roll back every entity and retain the "
+                + "same queued plan/serial without sealing or announcing");
+
+        // Give every possible random distance on every planned bearing one
+        // direct floor, then retry without changing the plan or serial.
+        java.util.Set<BlockPos> retryFloors = new java.util.LinkedHashSet<>();
+        for (int i = 0; i < plannedSize; i++) {
+            float spread = (i / (float) (plannedSize - 1) - 0.5F)
+                * 2.0F * RaidDirector.SPAWN_ARC;
+            for (int distance = RaidDirector.SPAWN_MIN_DISTANCE;
+                 distance <= RaidDirector.SPAWN_MAX_DISTANCE; distance++) {
+                retryFloors.add(RaidDirector.formUpAt(s.center,
+                    plan.approachDegrees() + spread, distance).below());
+            }
+        }
+        for (BlockPos floor : retryFloors) {
+            level.setBlock(floor, Blocks.STONE_BRICKS.defaultBlockState(), 3);
+        }
+
+        java.util.List<RaiderEntity> retry;
+        try {
+            retry = RaidDirector.startQueuedRecurringRaid(level, s);
+        } finally {
+            for (BlockPos floor : retryFloors) {
+                level.setBlock(floor, Blocks.AIR.defaultBlockState(), 3);
+            }
+            level.setBlock(s.center.below(), Blocks.AIR.defaultBlockState(), 3);
+        }
+        helper.assertTrue(retry.size() >= RaidDirector.MIN_BAND
+                && retry.size() <= RaidDirector.MAX_BAND
+                && s.recurringRaidRun.isActive()
+                && s.recurringRaidRun.activeSerial() == serial
+                && s.recurringRaidRun.plan().orElseThrow().equals(plan)
+                && s.recurringRaidRun.participants().size() == retry.size()
+                && plan.equals(s.pendingRaid),
+            "restored footing must activate and seal 2-9 entities under the exact "
+                + "same queued plan/serial, got " + retry.size());
+        for (RaiderEntity raider : retry) {
+            raider.discard();
+        }
+        SettlementSavedData.get(level).settlements.remove(s.id);
+        SettlementSavedData.get(level).setDirty();
         helper.succeed();
     }
 
@@ -393,7 +630,8 @@ public class RaiderGameTests {
         }
         var level = helper.getLevel();
         RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
-        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 2L);
+        RaidAuthorityFixtures.armTerminal(s,
+            new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 2L));
         s.raidPressure.setPressureForTesting(50);
 
         // The band is gone AND the goods went with them.
@@ -476,7 +714,8 @@ public class RaiderGameTests {
         }
         var level = helper.getLevel();
         RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
-        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 5L);
+        RaidAuthorityFixtures.armTerminal(s,
+            new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 5L));
         s.raidLootEscaped = true;
         s.raidItemsStolenTonight = 7;
         s.raidSettlersHurtTonight = 2;
@@ -523,7 +762,8 @@ public class RaiderGameTests {
         }
         var level = helper.getLevel();
         RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
-        s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 6L);
+        RaidAuthorityFixtures.armTerminal(s,
+            new RaidPlan(captain.id(), RaidObjective.KORN, 0.0F, 6L));
         s.raidSettlersHurtTonight = 1;
         // raidLootEscaped is left false: nothing got away with the goods --
         // KORN's own signal, so the raid holds even though a settler was
@@ -548,7 +788,8 @@ public class RaiderGameTests {
         var level = helper.getLevel();
         for (int i = 0; i < RaidDirector.MAX_RAID_LOG + 5; i++) {
             RaidCaptain captain = RaidDirector.pickCaptain(s, level.getRandom());
-            s.pendingRaid = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, i);
+            RaidAuthorityFixtures.armTerminal(s,
+                new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, i));
             helper.assertTrue(RaidDirector.resolveIfOver(level, s),
                 "an empty band resolves immediately");
         }

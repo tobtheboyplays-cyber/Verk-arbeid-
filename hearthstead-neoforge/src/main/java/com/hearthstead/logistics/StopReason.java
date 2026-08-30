@@ -6,7 +6,7 @@ import net.minecraft.network.chat.Component;
  * A stable, player-facing explanation for why a logistics trip cannot move.
  *
  * <p>The wire ids are an explicit protocol. They are packed into the low
- * three bits of a settler's synced logistics byte, so neither declaration
+ * four bits of a settler's synced logistics integer, so neither declaration
  * order nor enum ordinal may ever become network state. Unknown values fail
  * closed to {@link #NONE}: a damaged or newer packet may hide a diagnostic,
  * but it may never invent the wrong one or crash a client.
@@ -19,9 +19,11 @@ public enum StopReason {
     NO_WAREHOUSE_SPACE(4, "hearthstead.logistics.stop.no_warehouse_space"),
     RESERVED_BY_OTHER(5, "hearthstead.logistics.stop.reserved_by_other"),
     RESTING_AFTER_FAIL(6, "hearthstead.logistics.stop.resting_after_fail"),
-    NO_PATH(7, "hearthstead.logistics.stop.no_path");
+    NO_PATH(7, "hearthstead.logistics.stop.no_path"),
+    NO_WORK_ZONE(8, "hearthstead.logistics.stop.no_work_zone"),
+    NO_VALID_TARGET(9, "hearthstead.logistics.stop.no_valid_target");
 
-    private static final StopReason[] BY_WIRE_ID = new StopReason[8];
+    private static final StopReason[] BY_WIRE_ID = new StopReason[10];
 
     static {
         for (StopReason reason : values()) {

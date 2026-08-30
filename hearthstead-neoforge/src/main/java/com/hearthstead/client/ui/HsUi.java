@@ -1,12 +1,18 @@
 package com.hearthstead.client.ui;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.registry.ModSounds;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Renderable;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
+
+import java.util.List;
 
 /**
  * The drawing half of the Hearthstead UI kit.
@@ -32,6 +38,38 @@ import net.minecraft.resources.ResourceLocation;
  * {@code tools/gen_ui.py}; edit the generator, never the PNG.
  */
 public final class HsUi {
+
+    /** Genuine parchment transition; never call from hover or redraw paths. */
+    public static void playOpenSound() {
+        playUiSound(ModSounds.UI_OPEN.get());
+    }
+
+    /** Genuine parchment transition; never call from hover or redraw paths. */
+    public static void playCloseSound() {
+        playUiSound(ModSounds.UI_CLOSE.get());
+    }
+
+    /** Authoritative server acceptance, not a local button attempt. */
+    public static void playConfirmSound() {
+        playUiSound(ModSounds.UI_CONFIRM.get());
+    }
+
+    /** Authoritative server refusal, not a disabled button or hover. */
+    public static void playErrorSound() {
+        playUiSound(ModSounds.UI_ERROR.get());
+    }
+
+    private static void playUiSound(net.minecraft.sounds.SoundEvent sound) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null) {
+            return;
+        }
+        // sounds.json already keeps these transients quiet. The per-instance
+        // gain leaves extra headroom against combat/work sounds; live mix QA
+        // remains the release authority.
+        minecraft.getSoundManager().play(
+            SimpleSoundInstance.forUI(sound, 1.0F, 0.70F));
+    }
 
     /**
      * Draws a screen's widgets WITHOUT repainting the blurred background --
@@ -97,17 +135,19 @@ public final class HsUi {
 
     /** The tone a value carries: good, warning, bad — for pips, bars and text. */
     public enum Tone {
-        ACCENT("accent", HsUiTokens.ACCENT),
-        GOOD("good", HsUiTokens.GOOD),
-        WARN("warn", HsUiTokens.WARN),
-        BAD("bad", HsUiTokens.BAD);
+        ACCENT("accent", "good", HsUiTokens.ACCENT),
+        GOOD("good", "good", HsUiTokens.GOOD),
+        WARN("warn", "warn", HsUiTokens.WARN),
+        BAD("bad", "bad", HsUiTokens.BAD);
 
-        private final String key;
         private final int colour;
+        private final ResourceLocation pip;
+        private final ResourceLocation barFill;
 
-        Tone(String key, int colour) {
-            this.key = key;
+        Tone(String pipKey, String barFillKey, int colour) {
             this.colour = colour;
+            this.pip = sprite("widget/pip_" + pipKey);
+            this.barFill = sprite("bar/fill_" + barFillKey);
         }
 
         public int colour() {
@@ -115,11 +155,11 @@ public final class HsUi {
         }
 
         public ResourceLocation pip() {
-            return sprite("widget/pip_" + key);
+            return pip;
         }
 
         public ResourceLocation barFill() {
-            return sprite("bar/fill_" + (this == ACCENT ? "good" : key));
+            return barFill;
         }
 
         /** The tone a 0..1 ratio deserves, so bars and pips agree everywhere. */
@@ -132,6 +172,17 @@ public final class HsUi {
 
     public static void window(GuiGraphics g, int x, int y, int w, int h) {
         g.blitSprite(WINDOW, x, y, w, h);
+    }
+
+    /**
+     * A late-drawn modal/popout must hide every slot, label and item rendered
+     * before it.  The current window sprite is opaque, but the explicit field
+     * underlay keeps that contract true if the atlas is later softened or
+     * given translucent parchment edges.
+     */
+    public static void modalWindow(GuiGraphics g, int x, int y, int w, int h) {
+        g.fill(x + 2, y + 2, x + w - 2, y + h - 2, HsUiTokens.FIELD);
+        window(g, x, y, w, h);
     }
 
     public static void inset(GuiGraphics g, int x, int y, int w, int h) {
@@ -263,6 +314,46 @@ public final class HsUi {
             : Component.literal(font.plainSubstrByWidth(text.getString(),
                 box - font.width("...")) + "...");
         g.drawString(font, shown, x, y, colour, true);
+    }
+
+    /**
+     * Pays translation, width and optional ellipsis work once when a screen's
+     * render model changes. Hot render paths can draw the returned component
+     * directly without calling {@link #labelIn} every frame.
+     */
+    public static FittedLabel fitLabel(Font font, Component text, int box) {
+        int safeBox = Math.max(1, box);
+        int width = font.width(text);
+        if (width <= safeBox) {
+            return new FittedLabel(text, width);
+        }
+        Component shown = Component.literal(font.plainSubstrByWidth(
+            text.getString(), Math.max(1, safeBox - font.width("..."))) + "...");
+        return new FittedLabel(shown, font.width(shown));
+    }
+
+    /** Pre-splits immutable text for render-model caches. */
+    public static List<FormattedCharSequence> fitLines(Font font,
+                                                        Component text,
+                                                        int width) {
+        return List.copyOf(font.split(text, Math.max(1, width)));
+    }
+
+    /** Draws already-split lines without performing another font split. */
+    public static int drawLines(GuiGraphics graphics, Font font,
+                                List<FormattedCharSequence> lines,
+                                int x, int y, int colour) {
+        int cursor = y;
+        for (int index = 0, size = lines.size(); index < size; index++) {
+            // Matches GuiGraphics.drawWordWrap exactly; only the split itself
+            // has moved into the cache-building path.
+            graphics.drawString(font, lines.get(index), x, cursor, colour, false);
+            cursor += 9;
+        }
+        return cursor;
+    }
+
+    public record FittedLabel(Component text, int width) {
     }
 
     // -- layout -----------------------------------------------------------

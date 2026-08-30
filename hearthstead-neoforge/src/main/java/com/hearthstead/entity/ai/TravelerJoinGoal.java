@@ -1,10 +1,7 @@
 package com.hearthstead.entity.ai;
 
-import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
-import com.hearthstead.settlement.Schedule;
-import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -17,11 +14,10 @@ import java.util.EnumSet;
  *
  * <p>SLICE RECRUIT-1 (DESIGN.md system 8). Arriving used to mean joining on
  * the spot; a traveler is a guest first now. This goal only ever gets them to
- * the right doorstep — the tavern's anchor when a valid one stands, the
- * hearth otherwise, the way {@link Schedule}'s own gathering spots already
- * fall back — and keeps them looking like they are waiting for something once
+ * the exact persisted tavern doorstep — never the Hearth as a fallback — and
+ * keeps them looking like they are waiting for something once
  * they are there. Whether and when they actually join is entirely
- * {@link SettlementManager#tickRecruitment}'s call, made once a second off
+     * {@link SettlementManager#tickRecruitment}'s call, made once a second off
  * the settlement's own state (can it pay? has patience run out?), so this
  * goal never decides that itself and can never double-fire it.
  */
@@ -36,7 +32,9 @@ public class TravelerJoinGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        return settler.isTraveler() && settler.getHearthPos() != null;
+        return settler.isTraveler()
+            && settler.level() instanceof ServerLevel level
+            && SettlementManager.travelerTavernAnchor(level, settler) != null;
     }
 
     @Override
@@ -45,29 +43,27 @@ public class TravelerJoinGoal extends Goal {
         path();
     }
 
-    /** The tavern's anchor if the settlement has a valid one, else the hearth. */
+    /** Exact locked tavern anchor, or null while its chunks/identity are invalid. */
     private BlockPos waitingSpot() {
-        BlockPos hearth = settler.getHearthPos();
         if (!(settler.level() instanceof ServerLevel level)) {
-            return hearth;
+            return null;
         }
-        Settlement s = SettlementManager.byId(level, settler.getTargetSettlementId());
-        if (s == null) {
-            return hearth;
-        }
-        BlockPos tavern = Schedule.firstValid(s, BuildingType.TAVERN);
-        return tavern != null ? tavern : hearth;
+        return SettlementManager.travelerTavernAnchor(level, settler);
     }
 
     private void path() {
         BlockPos spot = waitingSpot();
+        if (spot == null) {
+            settler.getNavigation().stop();
+            return;
+        }
         settler.getNavigation().moveTo(spot.getX() + 0.5, spot.getY() + 1,
             spot.getZ() + 0.5, 1.0);
     }
 
     @Override
     public boolean canContinueToUse() {
-        return settler.isTraveler();
+        return settler.isTraveler() && waitingSpot() != null;
     }
 
     @Override
