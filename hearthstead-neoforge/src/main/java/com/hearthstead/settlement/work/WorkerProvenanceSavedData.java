@@ -454,13 +454,15 @@ public final class WorkerProvenanceSavedData extends SavedData {
         setDirty();
     }
 
-    void removePending(UUID actionId) {
+    boolean removePending(UUID actionId) {
         Action action = actions.get(actionId);
         if (action != null && action.active() && action.resolved.isEmpty()
             && action.pendingOperation == null && action.produced.isEmpty()) {
             actions.remove(actionId);
             setDirty();
+            return true;
         }
+        return false;
     }
 
     // Package-visible so deterministic persistence tests can exercise the

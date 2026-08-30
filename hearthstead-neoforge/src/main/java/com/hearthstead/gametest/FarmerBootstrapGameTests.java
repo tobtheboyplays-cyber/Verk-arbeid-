@@ -321,11 +321,64 @@ public class FarmerBootstrapGameTests {
      * a distant crop wait behind hundreds of empty vertical voxels.  The crop
      * at (14, 1, 14) is behind more than the old 512 nearest-first 3D samples
      * of this 16x16x64 confirmed zone; the new floor/crop-column cursor must
-     * still reach it promptly and harvest it through the ordinary transaction.
+     * still reach it promptly. This focused scanner contract supplies one
+     * explicit serviceable tool so its strict deadline measures only column
+     * discovery and the absence of a per-batch idle cooldown. The separate
+     * integration test below retains the no-starting-tools acquisition path.
      */
     @GameTest(template = "empty16", timeoutTicks = 20,
         batch = "farmer_bootstrap_day")
     public void tallConfirmedFarmFindsFarFloorCropWithoutIdleCooldown(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        s.radius = 20;
+        Building house = farmhouse(helper, s, 8, 8);
+        WorkZone tall = WorkZone.between(s.id, house.id, WorkZone.Type.FARM,
+            helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(0, 0, 0)),
+            helper.absolutePos(new BlockPos(15, 63, 15)), 2);
+        helper.assertTrue(house.commitWorkZone(1, tall),
+            "fixture: the tall confirmed Farm Zone must replace the default zone");
+
+        BlockPos cropRel = new BlockPos(14, 1, 14);
+        helper.setBlock(cropRel.below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        // Start beside the crop so this deadline isolates field discovery,
+        // rather than making normal path length part of a scan regression.
+        // The crop remains distant from the farmhouse scan origin.
+        SettlerEntity astrid = farmer(helper, s, house, 14, 14);
+        astrid.attributes().pinForTest(
+            com.hearthstead.entity.Attribute.DEXTERITY, 100);
+        astrid.setItemSlot(EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_HOE));
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "the far crop in a tall confirmed zone must be selected without "
+                    + "per-batch idle cooldown (activity=" + astrid.getActivity()
+                    + ", stop=" + astrid.logisticsStopReason()
+                    + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * Full no-starting-tools companion to the strict scan test above. The
+     * Farmer begins empty-handed, walks to the linked Farmhouse chest, performs
+     * the ordinary physical pickup, and only then discovers the same distant
+     * crop in the tall zone. A first-mutation latch prevents later proximity
+     * from masking a remote tool transfer.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 240,
+        batch = "farmer_bootstrap_day")
+    public void tallConfirmedFarmFetchesToolThenFindsFarFloorCrop(
             GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
@@ -347,23 +400,37 @@ public class FarmerBootstrapGameTests {
             .setValue(FarmBlock.MOISTURE, 7));
         helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
             .setValue(CropBlock.AGE, 7));
-
-        // Start beside the crop so this deadline isolates field discovery,
-        // rather than making normal path length part of a scan regression.
-        // The crop remains distant from the farmhouse scan origin.
         SettlerEntity astrid = farmer(helper, s, house, 14, 14);
         astrid.attributes().pinForTest(
             com.hearthstead.entity.Attribute.DEXTERITY, 100);
+        helper.assertTrue(astrid.getMainHandItem().isEmpty(),
+            "no-starting-tools integration fixture must begin empty-handed");
+
+        BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
+        boolean[] firstToolMutationSeen = {false};
+        boolean[] firstToolPickupHadContact = {false};
+        helper.onEachTick(() -> {
+            if (!firstToolMutationSeen[0]
+                && astrid.getMainHandItem().is(Items.IRON_HOE)) {
+                firstToolMutationSeen[0] = true;
+                firstToolPickupHadContact[0] = ContainerApproach.inspect(
+                    helper.getLevel(), astrid, chest).canInteract();
+            }
+        });
 
         helper.succeedWhen(() -> {
             BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(firstToolMutationSeen[0]
+                    && firstToolPickupHadContact[0],
+                "the first hoe mutation must occur at physical Farmhouse "
+                    + "storage contact");
             helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
                     || !crop.is(Blocks.WHEAT)
                     || crop.getValue(CropBlock.AGE) < 7,
-                "the far crop in a tall confirmed zone must be selected without "
-                    + "per-batch idle cooldown (activity=" + astrid.getActivity()
-                    + ", stop=" + astrid.logisticsStopReason()
-                    + ", route=" + astrid.routeFailureNote() + ")");
+                "after physical tool pickup, the far crop in the tall zone must "
+                    + "be selected without idle cooldown (activity="
+                    + astrid.getActivity() + ", route="
+                    + astrid.routeFailureNote() + ")");
         });
     }
 
@@ -463,6 +530,7 @@ public class FarmerBootstrapGameTests {
         BlockPos door = helper.absolutePos(new BlockPos(8, 1, 10));
         BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
         boolean[] sawOpen = {false};
+        boolean[] firstInsertSeen = {false};
         boolean[] firstInsertHadContact = {false};
         helper.onEachTick(() -> {
             BlockState doorState = helper.getLevel().getBlockState(door);
@@ -470,8 +538,8 @@ public class FarmerBootstrapGameTests {
                 && doorState.getValue(DoorBlock.OPEN)) {
                 sawOpen[0] = true;
             }
-            if (!firstInsertHadContact[0]
-                && countIn(storage, Items.WHEAT) > 0) {
+            if (!firstInsertSeen[0] && countIn(storage, Items.WHEAT) > 0) {
+                firstInsertSeen[0] = true;
                 firstInsertHadContact[0] = ContainerApproach.inspect(
                     helper.getLevel(), astrid, chest).canInteract();
             }
@@ -480,7 +548,7 @@ public class FarmerBootstrapGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(sawOpen[0],
                 "the farmer must visibly open the only Farmhouse door");
-            helper.assertTrue(firstInsertHadContact[0],
+            helper.assertTrue(firstInsertSeen[0] && firstInsertHadContact[0],
                 "the first storage mutation must occur at a visible chest face");
             helper.assertTrue(countIn(storage, Items.WHEAT) == 3
                     && bagCount(astrid, Items.WHEAT) == 0,

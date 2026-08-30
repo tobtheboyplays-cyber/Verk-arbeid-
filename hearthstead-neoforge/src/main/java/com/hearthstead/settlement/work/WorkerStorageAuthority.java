@@ -147,6 +147,31 @@ public final class WorkerStorageAuthority {
     }
 
     /**
+     * Resolves one accepted slot from one exact linked container. Unlike
+     * {@link #find}, this never falls through to another chest when the named
+     * source changed while a worker was walking to it.
+     */
+    @Nullable
+    public static Source findAt(ServerLevel level, Building building,
+                                BlockPos sourcePos,
+                                Predicate<ItemStack> accepted) {
+        if (accepted == null) {
+            return null;
+        }
+        Container container = containerAt(level, building, sourcePos);
+        if (container == null) {
+            return null;
+        }
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (!stack.isEmpty() && accepted.test(stack)) {
+                return new Source(sourcePos, slot, stack);
+            }
+        }
+        return null;
+    }
+
+    /**
      * One physical source-to-bag move. The action tagger runs on the removed
      * single item before it enters the bag. Capacity is preflighted, so no
      * stamped remainder ever needs to merge back into an untagged source row.

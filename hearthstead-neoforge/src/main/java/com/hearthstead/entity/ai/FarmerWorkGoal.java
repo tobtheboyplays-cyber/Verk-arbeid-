@@ -16,6 +16,7 @@ import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.settlement.work.WorkerProvenanceSavedData;
 import com.hearthstead.settlement.work.WorkerProvenanceService;
 import com.hearthstead.settlement.work.WorkerStackProvenance;
+import com.hearthstead.settlement.work.WorkerStackProvenance.TransitKind;
 import com.hearthstead.settlement.work.WorkerStorageAuthority;
 import com.hearthstead.settlement.workzone.WorkZone;
 import com.hearthstead.settlement.workzone.WorkZoneService;
@@ -42,6 +43,7 @@ import java.util.Deque;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Predicate;
 import javax.annotation.Nullable;
 
 /**
@@ -130,7 +132,13 @@ public class FarmerWorkGoal extends Goal {
      *  batch-counted so the light work does not spend as fast as a harvest. */
     private static final int LIGHT_ACTIONS_PER_EFFORT = 4;
 
-    private enum Mode { TO_WORK, HARVESTING, PLANTING, TO_MAINTAIN, TILLING, WATERING, TO_STORAGE }
+    private enum Mode {
+        TO_WORK, HARVESTING, PLANTING, TO_MAINTAIN, TILLING, WATERING,
+        TO_STORAGE, TO_INPUT, TO_REPLANT, TO_RETURN_INPUT
+    }
+
+    /** Why one exact Farmhouse input visit is in progress. */
+    private enum InputPurpose { MAINTAIN, CANE, REPLANT }
 
     private final SettlerEntity settler;
     private final Deque<BlockPos> queue = new ArrayDeque<>();
@@ -141,6 +149,16 @@ public class FarmerWorkGoal extends Goal {
     private BlockPos maintainTarget;
     /** Real chest in this farmer's own farmhouse; never the Hearth. */
     private BlockPos depositTarget;
+    /** Exact Farmhouse container selected for one physical seed/cane pickup. */
+    @Nullable
+    private BlockPos inputTarget;
+    @Nullable
+    private Block inputCrop;
+    @Nullable
+    private InputPurpose inputPurpose;
+    /** Active input action being returned after its persisted target invalidated. */
+    @Nullable
+    private UUID inputReturnAction;
     private boolean maintainIsWater;
     /** True when the maintain target is bare farmland the farmer is going
      *  to PLANT rather than water -- the audit's "re-water bare tiles
@@ -210,10 +228,21 @@ public class FarmerWorkGoal extends Goal {
         if (s == null) {
             return false;
         }
+        Building employer = Employment.employerOf(s, settler.getUUID());
+        WorkZone zone = settler.level() instanceof ServerLevel level
+            ? authoritativeZone(level, s, employer) : null;
         // Hauling already-produced food never requires a working hoe. This
         // must run before the equipment gate or a tool that breaks on the
         // final action would strand the physical bag at the field.
-        if (bagCount() >= BAG_TRIGGER || bagHoldsProduce()) {
+        // A small harvest must not discard the remaining columns of the same
+        // confirmed-zone survey merely because it already has one output in
+        // its bag. The hard bag cap still wins, but otherwise finish the
+        // resumable sweep/queues before beginning the storage leg.
+        // Only a genuinely active pass for the CURRENT authoritative zone may
+        // defer a small load. A missing/replaced/quarantined zone, or the
+        // default never-surveyed state, must never strand physical produce.
+        if (bagCount() >= BAG_TRIGGER || (bagHoldsProduce()
+            && !activeSurveyFor(zone))) {
             if (depositRetryCooldown > 0) {
                 depositRetryCooldown--;
                 return false;
@@ -221,10 +250,29 @@ public class FarmerWorkGoal extends Goal {
             mode = Mode.TO_STORAGE;
             return true;
         }
-        Building employer = Employment.employerOf(s, settler.getUUID());
-        WorkZone zone = settler.level() instanceof ServerLevel level
-            ? authoritativeZone(level, s, employer) : null;
         activeZone = zone;
+        WorkerProvenanceSavedData.ActionView recovery = null;
+        WorkerProvenanceSavedData.ActionView resume = null;
+        boolean preparedResume = false;
+        if (settler.level() instanceof ServerLevel level) {
+            recovery = WorkerProvenanceService.recoverableFarmPlant(level, s,
+                settler);
+            if (recovery != null) {
+                resume = zone == null ? null
+                    : WorkerProvenanceService.resumableFarmPlant(level, s,
+                        employer, settler);
+                preparedResume = resume != null && !resume.planned().isEmpty()
+                    && resumePreparedPlant(resume);
+                // A paid/tagged input with a lost or now-invalid target must
+                // not block all future farming. Walk it back to its exact
+                // source chest instead of silently retargeting or deleting it.
+                // Returning already-owned cargo is logistics, so it must not
+                // be blocked by a hoe that broke or disappeared during reload.
+                if (!preparedResume) {
+                    return beginInputReturn(recovery);
+                }
+            }
+        }
         if (zone == null) {
             publishWorkZoneStop(StopReason.NO_WORK_ZONE,
                 employer == null ? null : employer.plaquePos,
@@ -232,6 +280,8 @@ public class FarmerWorkGoal extends Goal {
             return false;
         }
         // A real employed farmer does not work with a projected/magic hoe.
+        // This gate deliberately follows invalid-input recovery above: a tool
+        // is required to continue a valid plant, never to return its seed.
         if (equipmentRetryCooldown > 0) {
             equipmentRetryCooldown--;
             return false;
@@ -241,13 +291,8 @@ public class FarmerWorkGoal extends Goal {
             equipmentRetryCooldown = 20;
             return false;
         }
-        if (settler.level() instanceof ServerLevel level) {
-            WorkerProvenanceSavedData.ActionView resume =
-                WorkerProvenanceService.resumableFarmPlant(level, s, employer,
-                    settler);
-            if (resume != null && !resume.planned().isEmpty()) {
-                return resumePreparedPlant(resume);
-            }
+        if (preparedResume) {
+            return true;
         }
         if (queue.isEmpty() && maintainQueue.isEmpty() && caneQueue.isEmpty()) {
             // A new/unfinished confirmed field must advance on every selection
@@ -298,11 +343,18 @@ public class FarmerWorkGoal extends Goal {
                     // forever and planted never. It is a planting site when
                     // a seed can be found, and skipped entirely when not --
                     // it is no longer a watering target either way.
-                    if (!ensureSeedInBag()) {
-                        continue;
-                    }
+                    maintainTarget = candidate;
                     maintainIsWater = false;
                     maintainIsPlant = true;
+                    maintainIsCane = false;
+                    if (!ensureSeedInBag()) {
+                        if (beginInputAcquisition(InputPurpose.MAINTAIN, null)) {
+                            clearWorkZoneStop();
+                            return true;
+                        }
+                        maintainTarget = null;
+                        continue;
+                    }
                 } else {
                     maintainIsWater = true;
                     maintainIsPlant = false;
@@ -318,6 +370,22 @@ public class FarmerWorkGoal extends Goal {
                 // still caps both paths.
                 boolean expansion = touchesFarmland(candidate) && hasNearbyCropAnchor(candidate);
                 if (!expansion && !ensureSeedInBag()) {
+                    maintainTarget = candidate;
+                    maintainIsWater = false;
+                    maintainIsPlant = false;
+                    maintainIsCane = false;
+                    if (beginInputAcquisition(InputPurpose.MAINTAIN, null)) {
+                        clearWorkZoneStop();
+                        return true;
+                    }
+                    maintainTarget = null;
+                    // A legal cane site is also bare dirt. It belongs to crop
+                    // bootstrap only when crop input exists; otherwise retain
+                    // it for the lower-priority cane pass rather than losing
+                    // the candidate after one failed wheat-seed lookup.
+                    if (isCaneSite(candidate.above())) {
+                        caneQueue.addFirst(candidate.above());
+                    }
                     continue; // unanchored, seedless tilling would terraform for nothing
                 }
                 maintainIsWater = false;
@@ -335,13 +403,22 @@ public class FarmerWorkGoal extends Goal {
         // first without paying for a third world scan.
         while (!caneQueue.isEmpty()) {
             BlockPos candidate = caneQueue.poll();
-            if (!isCaneSite(candidate) || !ensureCaneInBag()) {
+            if (!isCaneSite(candidate)) {
                 continue;
             }
             maintainTarget = candidate;
             maintainIsWater = false;
             maintainIsPlant = false;
             maintainIsCane = true;
+            if (!ensureCaneInBag()) {
+                if (beginInputAcquisition(InputPurpose.CANE,
+                        Blocks.SUGAR_CANE)) {
+                    clearWorkZoneStop();
+                    return true;
+                }
+                maintainTarget = null;
+                continue;
+            }
             mode = Mode.TO_MAINTAIN;
             clearWorkZoneStop();
             return true;
@@ -349,6 +426,13 @@ public class FarmerWorkGoal extends Goal {
         publishWorkZoneStop(StopReason.NO_VALID_TARGET, employer.plaquePos,
             "ai_no_valid_target", zone);
         return false;
+    }
+
+    /** True only while unfinished survey/queue state belongs to this zone. */
+    private boolean activeSurveyFor(@Nullable WorkZone zone) {
+        return zone != null && zone.equals(surveyedFieldZone)
+            && (!fieldSweepComplete || !queue.isEmpty()
+                || !maintainQueue.isEmpty() || !caneQueue.isEmpty());
     }
 
     /** Re-enters the exact persisted target; it never retargets a paid seed. */
@@ -379,6 +463,22 @@ public class FarmerWorkGoal extends Goal {
         maintainIsPlant = !cane;
         maintainIsWater = false;
         mode = Mode.TO_MAINTAIN;
+        clearWorkZoneStop();
+        return true;
+    }
+
+    /** Starts lossless recovery of one invalid/unplanned persisted input. */
+    private boolean beginInputReturn(WorkerProvenanceSavedData.ActionView action) {
+        if (action == null || action.source() == null
+            || provenanceSeedSlot(action.id()) < 0) {
+            settler.recordRouteFailure("farm_seed_recovery_input_missing");
+            return false;
+        }
+        inputTarget = action.source().immutable();
+        inputReturnAction = action.id();
+        inputPurpose = null;
+        inputCrop = null;
+        mode = Mode.TO_RETURN_INPUT;
         clearWorkZoneStop();
         return true;
     }
@@ -716,6 +816,9 @@ public class FarmerWorkGoal extends Goal {
             // tool-safe sack hold instead of an empty ordinary WALK.
             settler.setActivity(SettlerActivity.CARRYING);
             pathToStorage();
+        } else if (mode == Mode.TO_INPUT || mode == Mode.TO_RETURN_INPUT) {
+            settler.setActivity(SettlerActivity.COLLECTING_ITEMS);
+            pathToInput();
         } else if (mode == Mode.TO_MAINTAIN) {
             pathToMaintainTarget();
         } else {
@@ -774,7 +877,8 @@ public class FarmerWorkGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
-        return !done && (mode == Mode.TO_STORAGE || workConditions());
+        return !done && (mode == Mode.TO_STORAGE || mode == Mode.TO_INPUT
+            || mode == Mode.TO_RETURN_INPUT || workConditions());
     }
 
     @Override
@@ -792,6 +896,214 @@ public class FarmerWorkGoal extends Goal {
             case TILLING -> tickTilling();
             case WATERING -> tickWatering();
             case TO_STORAGE -> tickDeposit();
+            case TO_INPUT -> tickInputAcquisition();
+            case TO_REPLANT -> tickReplantTravel();
+            case TO_RETURN_INPUT -> tickInputReturn();
+        }
+    }
+
+    /**
+     * Reserves no inventory: it only chooses one loaded, matching Farmhouse
+     * container and starts the caller-owned physical approach. The later
+     * CONTACT tick re-reads both the container and its accepted input.
+     */
+    private boolean beginInputAcquisition(InputPurpose purpose,
+                                          @Nullable Block requestedCrop) {
+        if (!(settler.level() instanceof ServerLevel level) || purpose == null) {
+            return false;
+        }
+        Building farmhouse = tendedFarmhouse();
+        if (farmhouse == null) {
+            return false;
+        }
+        Predicate<ItemStack> accepted = inputPredicate(purpose, requestedCrop);
+        WorkerStorageAuthority.Source source = WorkerStorageAuthority.find(level,
+            farmhouse, accepted, settler.blockPosition());
+        if (source == null) {
+            return false;
+        }
+        inputTarget = source.pos();
+        inputCrop = requestedCrop;
+        inputPurpose = purpose;
+        inputReturnAction = null;
+        mode = Mode.TO_INPUT;
+        return true;
+    }
+
+    private Predicate<ItemStack> inputPredicate(InputPurpose purpose,
+                                                @Nullable Block requestedCrop) {
+        if (purpose == InputPurpose.CANE) {
+            return stack -> stack.is(Items.SUGAR_CANE);
+        }
+        if (requestedCrop != null) {
+            return stack -> stack.getItem() instanceof BlockItem item
+                && item.getBlock() == requestedCrop;
+        }
+        return FarmerWorkGoal::isSeedStack;
+    }
+
+    /** One exact seed/cane leaves storage only on the same tick as CONTACT. */
+    private boolean withdrawInputAtContact(ServerLevel level) {
+        Settlement settlement = settler.settlement();
+        Building farmhouse = tendedFarmhouse();
+        if (settlement == null || farmhouse == null || inputTarget == null
+            || inputPurpose == null
+            || !ContainerApproach.inspect(level, settler, inputTarget).canInteract()) {
+            return false;
+        }
+        BlockPos plannedTarget = switch (inputPurpose) {
+            case REPLANT -> target;
+            case CANE -> maintainTarget;
+            case MAINTAIN -> maintainTarget == null ? null
+                : maintainTarget.above();
+        };
+        if (plannedTarget == null) {
+            return false;
+        }
+        UUID action = WorkerProvenanceService.supplyOneSeedAt(level, settlement,
+            farmhouse, settler, inputTarget,
+            inputPredicate(inputPurpose, inputCrop), plannedTarget);
+        if (action == null) {
+            return false;
+        }
+        boolean held = inputPurpose == InputPurpose.CANE
+            ? caneSlotForAction(action) >= 0
+            : inputCrop == null ? provenanceSeedSlot(action) >= 0
+                : seedSlotForAction(inputCrop, action) >= 0;
+        if (held) {
+            // The action and its exact plant cell were persisted before the
+            // source changed. Retain the id across travel and any goal restart.
+            plantActionId = action;
+        }
+        return held;
+    }
+
+    private void tickInputAcquisition() {
+        if (!(settler.level() instanceof ServerLevel level) || inputTarget == null
+            || inputPurpose == null) {
+            abandonInputAcquisition();
+            return;
+        }
+        settler.getLookControl().setLookAt(inputTarget.getX() + 0.5D,
+            inputTarget.getY() + 0.6D, inputTarget.getZ() + 0.5D);
+        ContainerApproach.Result contact = ContainerApproach.inspect(level, settler,
+            inputTarget);
+        if (contact.canInteract()) {
+            settler.getNavigation().stop();
+            stuckChecks = 0;
+            InputPurpose completed = inputPurpose;
+            if (!withdrawInputAtContact(level)) {
+                abandonInputAcquisition();
+                return;
+            }
+            inputTarget = null;
+            inputCrop = null;
+            inputPurpose = null;
+            inputReturnAction = null;
+            if (completed == InputPurpose.REPLANT) {
+                mode = Mode.TO_REPLANT;
+                pathToTarget();
+            } else {
+                mode = Mode.TO_MAINTAIN;
+                pathToMaintainTarget();
+            }
+            return;
+        }
+        if (--repathTimer <= 0) {
+            repathTimer = 40;
+            if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
+                inputTarget = null;
+            }
+            if (++stuckChecks > 6) {
+                settler.recordRouteFailure("farmhouse_input_unreachable");
+                abandonInputAcquisition();
+            } else {
+                pathToInput();
+            }
+        }
+    }
+
+    private void tickInputReturn() {
+        if (!(settler.level() instanceof ServerLevel level)
+            || inputTarget == null || inputReturnAction == null) {
+            done = true;
+            return;
+        }
+        settler.getLookControl().setLookAt(inputTarget.getX() + 0.5D,
+            inputTarget.getY() + 0.6D, inputTarget.getZ() + 0.5D);
+        ContainerApproach.Result contact = ContainerApproach.inspect(level,
+            settler, inputTarget);
+        if (contact.canInteract()) {
+            Settlement settlement = settler.settlement();
+            Building farmhouse = tendedFarmhouse();
+            if (settlement != null && farmhouse != null
+                && WorkerProvenanceService.returnFarmSeedAt(level, settlement,
+                    farmhouse, settler, inputReturnAction, inputTarget)) {
+                inputTarget = null;
+                inputReturnAction = null;
+                plantActionId = null;
+                mode = Mode.TO_WORK;
+                nextOrFinish();
+            } else {
+                settler.recordRouteFailure("farm_seed_recovery_storage_refused");
+                done = true;
+            }
+            return;
+        }
+        if (--repathTimer <= 0) {
+            repathTimer = 40;
+            if (++stuckChecks > 6) {
+                settler.recordRouteFailure("farm_seed_recovery_unreachable");
+                done = true;
+            } else {
+                pathToInput();
+            }
+        }
+    }
+
+    private void abandonInputAcquisition() {
+        inputTarget = null;
+        inputCrop = null;
+        inputPurpose = null;
+        // Never leave a failed branch carrying stale TO_INPUT evidence into
+        // the next canUse() selection pass.
+        mode = Mode.TO_WORK;
+        nextOrFinish();
+    }
+
+    /** Returns to the exact just-harvested crop cell before beginning WORK_SOW. */
+    private void tickReplantTravel() {
+        if (target == null || !(harvestedCrop instanceof CropBlock)
+            || !hasSeedFor(harvestedCrop)
+            || !isWithinTendedPlot(target)
+            || !isWithinTendedPlot(target.below())
+            || !settler.level().getBlockState(target).isAir()
+            || !settler.level().getBlockState(target.below()).is(Blocks.FARMLAND)) {
+            nextOrFinish();
+            return;
+        }
+        if (settler.level() instanceof ServerLevel level
+            && !zoneAllowsMutation(level, target, "replant_travel")) {
+            nextOrFinish();
+            return;
+        }
+        settler.getLookControl().setLookAt(target.getX() + 0.5D,
+            target.getY() + 0.1D, target.getZ() + 0.5D);
+        if (settler.blockPosition().distSqr(target) <= 6.5D) {
+            settler.getNavigation().stop();
+            mode = Mode.PLANTING;
+            workTicks = 0;
+            plantContactCommitted = false;
+            plantCrop = harvestedCrop;
+            plantDuration = REPLANT_DURATION;
+            settler.setActivity(SettlerActivity.WORK_SOW);
+        } else if (--repathTimer <= 0) {
+            repathTimer = 40;
+            if (++stuckChecks > 6) {
+                nextOrFinish();
+            } else {
+                pathToTarget();
+            }
         }
     }
 
@@ -871,10 +1183,20 @@ public class FarmerWorkGoal extends Goal {
             // never fires for one. Cane needs no replant at all: cutting
             // only the top segment (see isMatureCane) leaves the base
             // standing to regrow on its own.
-            if (isWithinTendedPlot(target.below())
-                && hasSeedFor(harvestedCrop)
-                && settler.level().getBlockState(target.below())
-                .is(Blocks.FARMLAND)) {
+            boolean replantableCrop = harvestedCrop instanceof CropBlock
+                && isWithinTendedPlot(target.below())
+                && settler.level().getBlockState(target.below()).is(Blocks.FARMLAND);
+            if (replantableCrop && !hasSeedFor(harvestedCrop)
+                && beginInputAcquisition(InputPurpose.REPLANT, harvestedCrop)) {
+                // The output remains physically in the bag while this exact
+                // Farmhouse input journey runs; it cannot be silently reused
+                // as seed or deposited ahead of the replant.
+                harvestContactCommitted = false;
+                settler.setActivity(SettlerActivity.COLLECTING_ITEMS);
+                pathToInput();
+                return;
+            }
+            if (replantableCrop && hasSeedFor(harvestedCrop)) {
                 mode = Mode.PLANTING;
                 workTicks = 0;
                 plantContactCommitted = false;
@@ -892,6 +1214,19 @@ public class FarmerWorkGoal extends Goal {
                 nextOrFinish();
             }
             harvestContactCommitted = false;
+        }
+    }
+
+    /** Starts a bounded route to the already-selected Farmhouse input source. */
+    private void pathToInput() {
+        if (!(settler.level() instanceof ServerLevel level) || inputTarget == null) {
+            abandonInputAcquisition();
+            return;
+        }
+        ContainerApproach.Result approach = ContainerApproach.moveToContact(level,
+            settler, inputTarget, 1.0D);
+        if (approach.state() == ContainerApproach.State.INVALID_TARGET) {
+            inputTarget = null;
         }
     }
 
@@ -1392,6 +1727,21 @@ public class FarmerWorkGoal extends Goal {
                 return;
             }
         }
+        // Do not let one partially scanned column batch turn a small harvest
+        // into a storage trip. Restarting selection keeps the queues and the
+        // fixed-X/Z cursor intact, so the next bounded batch is surveyed
+        // before any below-threshold output can leave the field.
+        WorkZone currentZone = null;
+        Settlement settlement = settler.settlement();
+        if (settlement != null && settler.level() instanceof ServerLevel level) {
+            Building employer = Employment.employerOf(settlement,
+                settler.getUUID());
+            currentZone = authoritativeZone(level, settlement, employer);
+        }
+        if (activeSurveyFor(currentZone)) {
+            done = true;
+            return;
+        }
         // Only the one still-active Farmhouse input unit is working stock.
         // Harvested/ordinary seed is output like any other crop: it returns
         // to the Farmhouse before a later action can withdraw one exact unit.
@@ -1408,11 +1758,26 @@ public class FarmerWorkGoal extends Goal {
     private boolean bagHoldsProduce() {
         for (int i = 0; i < settler.bag.getContainerSize(); i++) {
             ItemStack stack = settler.bag.getItem(i);
-            if (!stack.isEmpty() && farmSeedAction(stack).isEmpty()) {
+            if (!stack.isEmpty() && isDepositableFarmerCargo(stack)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Ordinary matter and authenticated Farm output may travel to storage.
+     * A seed-input receipt (or malformed/foreign transit marker) stays in the
+     * bag for its exact recovery path and can never be laundered as produce.
+     */
+    private static boolean isDepositableFarmerCargo(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        var transit = WorkerStackProvenance.readTransit(stack).orElse(null);
+        return transit == null
+            ? !WorkerStackProvenance.hasTransitMarker(stack)
+            : transit.kind() == TransitKind.FARM_CROP;
     }
 
     private void tickDeposit() {
@@ -1453,7 +1818,7 @@ public class FarmerWorkGoal extends Goal {
                 if (stack.isEmpty()) {
                     continue;
                 }
-                if (farmSeedAction(stack).isPresent()) {
+                if (!isDepositableFarmerCargo(stack)) {
                     continue;
                 }
                 ItemStack send = stack.copy();
@@ -1500,6 +1865,16 @@ public class FarmerWorkGoal extends Goal {
     public void stop() {
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
+        if (mode == Mode.TO_INPUT || mode == Mode.TO_RETURN_INPUT) {
+            // Source selection itself owns no inventory. Drop transient route
+            // state on preemption; any already-withdrawn action is persisted
+            // and will rebuild either its exact plant or exact return route.
+            inputTarget = null;
+            inputCrop = null;
+            inputPurpose = null;
+            inputReturnAction = null;
+            mode = Mode.TO_WORK;
+        }
         target = null;
         plantCrop = null;
         plantActionId = null;
@@ -1593,18 +1968,10 @@ public class FarmerWorkGoal extends Goal {
      * arbitrary bag cargo cannot spoof FJ-360.
      */
     private boolean ensureSeedInBag() {
-        if (provenanceSeedSlot(false) >= 0) {
-            return true;
-        }
-        Building farmhouse = tendedFarmhouse();
-        Settlement settlement = settler.settlement();
-        if (farmhouse == null || settlement == null
-            || !(settler.level() instanceof ServerLevel serverLevel)) {
-            return false;
-        }
-        UUID action = WorkerProvenanceService.supplyOneSeed(serverLevel,
-            settlement, farmhouse, settler, FarmerWorkGoal::isSeedStack);
-        return action != null && provenanceSeedSlot(false) >= 0;
+        // Selection is read-only. A missing seed starts TO_INPUT, which
+        // invokes the authoritative source-to-bag move only at real container
+        // contact; this method must never mutate a distant Farmhouse chest.
+        return provenanceSeedSlot(false) >= 0;
     }
 
     /** Removes one exact Farmhouse-input cane with lossless rollback. */
@@ -1663,18 +2030,7 @@ public class FarmerWorkGoal extends Goal {
      * exact tagged input unit or withdraws one from the linked Farmhouse.
      */
     private boolean ensureCaneInBag() {
-        if (provenanceSeedSlot(true) >= 0) {
-            return true;
-        }
-        Building farmhouse = tendedFarmhouse();
-        Settlement settlement = settler.settlement();
-        if (farmhouse == null || settlement == null
-            || !(settler.level() instanceof ServerLevel serverLevel)) {
-            return false;
-        }
-        UUID action = WorkerProvenanceService.supplyOneSeed(serverLevel,
-            settlement, farmhouse, settler, stack -> stack.is(Items.SUGAR_CANE));
-        return action != null && provenanceSeedSlot(true) >= 0;
+        return provenanceSeedSlot(true) >= 0;
     }
 
 }

@@ -443,9 +443,32 @@ public final class WorkerProvenanceService {
     public static UUID supplyOneSeed(ServerLevel level, Settlement settlement,
                                      Building farmhouse, SettlerEntity worker,
                                      Predicate<ItemStack> accepted) {
+        WorkerStorageAuthority.Source source = WorkerStorageAuthority.find(level,
+            farmhouse, accepted, worker == null ? null : worker.blockPosition());
+        return source == null ? null : supplyOneSeedAt(level, settlement,
+            farmhouse, worker, source.pos(), accepted, null);
+    }
+
+    /**
+     * Withdraws from one exact, physically reached Farmhouse container. The
+     * optional plant target is persisted in the same action before the source
+     * inventory can change, making the paid input restart-safe from its first
+     * authoritative tick.
+     */
+    @Nullable
+    public static UUID supplyOneSeedAt(ServerLevel level,
+                                       Settlement settlement,
+                                       Building farmhouse,
+                                       SettlerEntity worker,
+                                       BlockPos sourcePos,
+                                       Predicate<ItemStack> accepted,
+                                       @Nullable BlockPos plannedTarget) {
         Context context = context(level, settlement, farmhouse, worker,
             BuildingType.FARMHOUSE, WorkZone.Type.FARM);
-        if (context == null || accepted == null
+        if (context == null || accepted == null || sourcePos == null
+            || (plannedTarget != null && !WorkZoneService.livePositionAllowed(
+                level, context.zone, plannedTarget))
+            || !ContainerApproach.inspect(level, worker, sourcePos).canInteract()
             || !serviceableTool(worker, Profession.FARMER)) {
             return null;
         }
@@ -454,15 +477,16 @@ public final class WorkerProvenanceService {
             || data.activeFor(worker.getUUID(), Kind.FARM_PLANT) != null) {
             return null;
         }
-        WorkerStorageAuthority.Source source = WorkerStorageAuthority.find(level,
-            farmhouse, accepted, worker.blockPosition());
+        WorkerStorageAuthority.Source source = WorkerStorageAuthority.findAt(
+            level, farmhouse, sourcePos, accepted);
         if (source == null) {
             return null;
         }
         UUID id = UUID.randomUUID();
         var action = new WorkerProvenanceSavedData.Action(id, Kind.FARM_PLANT,
             Phase.INPUT_HELD, worker.getUUID(), context.zone, source.pos(),
-            List.of(), level.getGameTime());
+            plannedTarget == null ? List.of() : List.of(plannedTarget),
+            level.getGameTime());
         action.inputItem = itemId(source.observed());
         action.inputCount = 1;
         if (action.inputItem == null || !data.add(action)) {
@@ -515,21 +539,126 @@ public final class WorkerProvenanceService {
             ? Optional.of(action.id()) : Optional.empty();
     }
 
+    /**
+     * Returns one still-unconsumed tagged input to the exact chest it came
+     * from. This is the fail-closed recovery for a persisted plant target that
+     * became invalid during rest, reload or another world change.
+     */
+    public static boolean returnFarmSeedAt(ServerLevel level,
+                                           Settlement settlement,
+                                           Building farmhouse,
+                                           SettlerEntity worker,
+                                           UUID actionId,
+                                           BlockPos sourcePos) {
+        ActionView recoverable = recoverableFarmPlant(level, settlement, worker);
+        if (recoverable == null || farmhouse == null || actionId == null
+            || sourcePos == null || !recoverable.id().equals(actionId)
+            || !recoverable.zone().buildingId().equals(farmhouse.id)
+            || !recoverable.source().equals(sourcePos)
+            || !ContainerApproach.inspect(level, worker, sourcePos).canInteract()) {
+            return false;
+        }
+        WorkerProvenanceSavedData data = WorkerProvenanceSavedData.get(level);
+        WorkerProvenanceSavedData.Action action = data.mutable(actionId);
+        if (action == null || action.kind != Kind.FARM_PLANT
+            || !action.workerId.equals(worker.getUUID())
+            || !action.zone.equals(recoverable.zone())
+            || action.phase != Phase.INPUT_HELD
+            || action.inputItem == null || action.inputCount != 1
+            || !action.source.equals(sourcePos)
+            || !action.resolved.isEmpty() || action.pendingOperation != null
+            || !action.produced.isEmpty()) {
+            return false;
+        }
+        int seedSlot = -1;
+        ItemStack seed = ItemStack.EMPTY;
+        for (int slot = 0; slot < worker.bag.getContainerSize(); slot++) {
+            ItemStack candidate = worker.bag.getItem(slot);
+            Transit transit = WorkerStackProvenance.readTransit(candidate)
+                .orElse(null);
+            ResourceLocation candidateItem = itemId(candidate);
+            if (candidate.getCount() == 1 && transit != null
+                && transit.actionId().equals(actionId)
+                && transit.kind() == TransitKind.FARM_SEED_INPUT
+                && transit.settlementId().equals(settlement.id)
+                && transit.buildingId().equals(farmhouse.id)
+                && transit.workerId().equals(worker.getUUID())
+                && transit.dimension().equals(level.dimension().location())
+                && transit.sourcePos() == sourcePos.asLong()
+                && java.util.Objects.equals(candidateItem, action.inputItem)) {
+                if (seedSlot >= 0) {
+                    return false;
+                }
+                seedSlot = slot;
+                seed = candidate;
+            }
+        }
+        if (seedSlot < 0 || !data.removePending(actionId)) {
+            return false;
+        }
+        WorkerStorageAuthority.Insert returned = WorkerStorageAuthority.insertAt(
+            level, farmhouse, sourcePos, seed, 1, true);
+        if (returned.inserted() != 1 || !returned.remainder().isEmpty()) {
+            // The action was removed only to make the return one transaction.
+            // Re-add the same in-memory row when the physical source refused
+            // the item; the tagged bag unit remains untouched and resumable.
+            data.add(action);
+            return false;
+        }
+        worker.bag.setItem(seedSlot, ItemStack.EMPTY);
+        return true;
+    }
+
     /** Restart-safe exact target for an already prepared seed action. */
     @Nullable
     public static ActionView resumableFarmPlant(ServerLevel level,
                                                 Settlement settlement,
                                                 Building farmhouse,
                                                 SettlerEntity worker) {
-        Context context = context(level, settlement, farmhouse, worker,
-            BuildingType.FARMHOUSE, WorkZone.Type.FARM);
-        if (context == null) {
+        ActionView action = recoverableFarmPlant(level, settlement, worker);
+        return action != null && farmhouse != null
+            && action.zone().buildingId().equals(farmhouse.id)
+            && currentActionBuilding(settlement, level, action)
+            ? action : null;
+    }
+
+    /**
+     * Persisted seed-input authority that remains recoverable after the field
+     * volume is replaced or quarantined. It can only return the exact tagged
+     * unit to its exact employer building; it cannot mutate a field or author
+     * progression evidence without {@link #resumableFarmPlant}'s live-zone
+     * check.
+     */
+    @Nullable
+    public static ActionView recoverableFarmPlant(ServerLevel level,
+                                                  Settlement settlement,
+                                                  SettlerEntity worker) {
+        if (level == null || settlement == null || worker == null
+            || !level.getServer().isSameThread()
+            || SettlementManager.byId(level, settlement.id) != settlement
+            || worker.level() != level || !worker.isAlive()
+            || level.getEntity(worker.getId()) != worker
+            || !settlement.id.equals(worker.getSettlementId())
+            || settlement.record(worker.getUUID()) == null) {
             return null;
         }
         WorkerProvenanceSavedData data = WorkerProvenanceSavedData.get(level);
         ActionView action = data.activeFor(worker.getUUID(), Kind.FARM_PLANT);
-        return action != null && action.zone().equals(context.zone)
-            && currentActionBuilding(settlement, level, action)
+        if (data.quarantined() || action == null
+            || action.phase() != Phase.INPUT_HELD
+            || action.zone().type() != WorkZone.Type.FARM
+            || !action.zone().withinPersistentLimits()
+            || !action.zone().settlementId().equals(settlement.id)
+            || !action.zone().dimension().equals(level.dimension().location())) {
+            return null;
+        }
+        Building farmhouse = exactBuilding(settlement,
+            action.zone().buildingId());
+        return farmhouse != null && farmhouse.valid
+            && farmhouse.type == BuildingType.FARMHOUSE
+            && farmhouse.contains(action.source())
+            && farmhouse.workers.contains(worker.getUUID())
+            && Employment.employerOf(settlement, worker.getUUID()) == farmhouse
             ? action : null;
     }
 
@@ -784,9 +913,14 @@ public final class WorkerProvenanceService {
                                                 ItemStack source,
                                                 BuildingType buildingType,
                                                 WorkZone.Type zoneType) {
-        Context context = context(level, settlement, workplace, worker,
-            buildingType, zoneType);
-        if (context == null || source == null || source.isEmpty()
+        // Untagged output is already physical worker cargo and cannot author
+        // Journey/provenance evidence. Returning that cargo to the exact live
+        // employer therefore uses logistics authority, not field-mutation
+        // authority: a missing, superseded or quarantined Work Zone may stop
+        // new work, but may never strand ordinary matter in the worker bag.
+        if (!logisticsAuthority(level, settlement, workplace, worker,
+                buildingType, zoneType)
+            || source == null || source.isEmpty()
             || WorkerStackProvenance.hasTransitMarker(source)) {
             return new DepositResult(source, null);
         }
@@ -801,6 +935,33 @@ public final class WorkerProvenanceService {
         return inserted.conserved()
             ? new DepositResult(inserted.remainder(), null)
             : new DepositResult(source, null);
+    }
+
+    /**
+     * Exact physical workplace authority for cargo-only recovery. This is
+     * intentionally narrower than a generic container insert and deliberately
+     * does not require a live Work Zone: it cannot start or credit work.
+     */
+    private static boolean logisticsAuthority(ServerLevel level,
+                                               Settlement settlement,
+                                               Building building,
+                                               SettlerEntity worker,
+                                               BuildingType buildingType,
+                                               WorkZone.Type zoneType) {
+        return level != null && settlement != null && building != null
+            && worker != null && buildingType != null && zoneType != null
+            && zoneType.buildingType() == buildingType
+            && zoneType.profession() == worker.getProfession()
+            && level.getServer().isSameThread()
+            && SettlementManager.byId(level, settlement.id) == settlement
+            && worker.level() == level && worker.isAlive()
+            && level.getEntity(worker.getId()) == worker
+            && settlement.id.equals(worker.getSettlementId())
+            && settlement.record(worker.getUUID()) != null
+            && exactRegistered(settlement, building) && building.valid
+            && building.type == buildingType
+            && building.workers.contains(worker.getUUID())
+            && Employment.employerOf(settlement, worker.getUUID()) == building;
     }
 
     private static boolean prepareToolOperation(ServerLevel level,
