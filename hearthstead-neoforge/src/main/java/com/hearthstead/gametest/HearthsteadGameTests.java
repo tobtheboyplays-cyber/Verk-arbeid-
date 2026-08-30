@@ -6,6 +6,7 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.entity.ai.RestAtNightGoal;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
@@ -1336,6 +1337,29 @@ public class HearthsteadGameTests {
         // sleep -> recovery -> dawn wake contract.
         settler.claimBed(helper.absolutePos(bedRel));
         settler.setEnergy(20.0F); // realistic post-workday energy
+
+        // Bed discovery and the registered goal-selector integration are
+        // covered by the preceding test. Drive one real RestAtNightGoal here
+        // so this regression owns only the deterministic REST -> RISE clock,
+        // sleeping energy recovery and wake transition; the shared GameTest
+        // level cannot safely own global dayTime while other batches run.
+        RestAtNightGoal restGoal = new RestAtNightGoal(settler);
+        helper.assertTrue(settler.isBound() && settler.getHearthPos() != null
+                && restGoal.canUse(),
+            "fixture: pinned-bed settler must be eligible for real REST goal");
+        restGoal.start();
+        final boolean[] restGoalRunning = {true};
+        helper.onEachTick(() -> {
+            if (!restGoalRunning[0]) {
+                return;
+            }
+            if (restGoal.canContinueToUse()) {
+                restGoal.tick();
+            } else {
+                restGoal.stop();
+                restGoalRunning[0] = false;
+            }
+        });
 
         final boolean[] sawSleeping = {false};
         final boolean[] sawEnergyRiseWhileAsleep = {false};
