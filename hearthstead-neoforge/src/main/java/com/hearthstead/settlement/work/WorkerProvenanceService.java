@@ -540,6 +540,31 @@ public final class WorkerProvenanceService {
     }
 
     /**
+     * Exact tagged seed check for recovery only. Unlike
+     * {@link #farmSeedAction}, it accepts the action's persisted old zone after
+     * a field revision changes, but still binds every physical identity field
+     * and grants no permission to plant or author progression.
+     */
+    public static Optional<UUID> recoverableFarmSeedAction(
+        ServerLevel level, Settlement settlement, SettlerEntity worker,
+        ItemStack seed) {
+        ActionView action = recoverableFarmPlant(level, settlement, worker);
+        Transit transit = WorkerStackProvenance.readTransit(seed).orElse(null);
+        ResourceLocation seedItem = itemId(seed);
+        return action != null && transit != null && seed.getCount() == 1
+            && action.inputCount() == 1 && action.inputItem() != null
+            && transit.actionId().equals(action.id())
+            && transit.kind() == TransitKind.FARM_SEED_INPUT
+            && transit.settlementId().equals(settlement.id)
+            && transit.buildingId().equals(action.zone().buildingId())
+            && transit.workerId().equals(worker.getUUID())
+            && transit.dimension().equals(level.dimension().location())
+            && transit.sourcePos() == action.source().asLong()
+            && java.util.Objects.equals(seedItem, action.inputItem())
+            ? Optional.of(action.id()) : Optional.empty();
+    }
+
+    /**
      * Returns one still-unconsumed tagged input to the exact chest it came
      * from. This is the fail-closed recovery for a persisted plant target that
      * became invalid during rest, reload or another world change.
@@ -574,18 +599,8 @@ public final class WorkerProvenanceService {
         ItemStack seed = ItemStack.EMPTY;
         for (int slot = 0; slot < worker.bag.getContainerSize(); slot++) {
             ItemStack candidate = worker.bag.getItem(slot);
-            Transit transit = WorkerStackProvenance.readTransit(candidate)
-                .orElse(null);
-            ResourceLocation candidateItem = itemId(candidate);
-            if (candidate.getCount() == 1 && transit != null
-                && transit.actionId().equals(actionId)
-                && transit.kind() == TransitKind.FARM_SEED_INPUT
-                && transit.settlementId().equals(settlement.id)
-                && transit.buildingId().equals(farmhouse.id)
-                && transit.workerId().equals(worker.getUUID())
-                && transit.dimension().equals(level.dimension().location())
-                && transit.sourcePos() == sourcePos.asLong()
-                && java.util.Objects.equals(candidateItem, action.inputItem)) {
+            if (recoverableFarmSeedAction(level, settlement, worker, candidate)
+                    .filter(actionId::equals).isPresent()) {
                 if (seedSlot >= 0) {
                     return false;
                 }

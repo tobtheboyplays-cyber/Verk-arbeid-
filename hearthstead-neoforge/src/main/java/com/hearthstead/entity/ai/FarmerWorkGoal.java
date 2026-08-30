@@ -470,7 +470,7 @@ public class FarmerWorkGoal extends Goal {
     /** Starts lossless recovery of one invalid/unplanned persisted input. */
     private boolean beginInputReturn(WorkerProvenanceSavedData.ActionView action) {
         if (action == null || action.source() == null
-            || provenanceSeedSlot(action.id()) < 0) {
+            || recoverableSeedSlot(action.id()) < 0) {
             settler.recordRouteFailure("farm_seed_recovery_input_missing");
             return false;
         }
@@ -1946,6 +1946,30 @@ public class FarmerWorkGoal extends Goal {
             }
         }
         return -1;
+    }
+
+    /** Exact old-zone input unit accepted only for return-to-source recovery. */
+    private int recoverableSeedSlot(UUID actionId) {
+        if (!(settler.level() instanceof ServerLevel level)) {
+            return -1;
+        }
+        Settlement settlement = settler.settlement();
+        if (settlement == null) {
+            return -1;
+        }
+        int found = -1;
+        for (int slot = 0; slot < settler.bag.getContainerSize(); slot++) {
+            if (WorkerProvenanceService.recoverableFarmSeedAction(level,
+                    settlement, settler, settler.bag.getItem(slot))
+                    .filter(actionId::equals).isEmpty()) {
+                continue;
+            }
+            if (found >= 0) {
+                return -1;
+            }
+            found = slot;
+        }
+        return found;
     }
 
     private java.util.Optional<UUID> farmSeedAction(ItemStack stack) {
