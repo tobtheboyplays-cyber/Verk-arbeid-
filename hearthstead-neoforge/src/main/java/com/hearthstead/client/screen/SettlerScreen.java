@@ -10,6 +10,7 @@ import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.ArcherRank;
 import com.hearthstead.entity.GuardExperience;
 import com.hearthstead.entity.GuardRank;
+import com.hearthstead.entity.JobAttributeProfile;
 import com.hearthstead.entity.JobEffects;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
@@ -80,9 +81,9 @@ import java.util.List;
  */
 public class SettlerScreen extends Screen implements QaUiInspectable {
 
-    // -- geometry: vanilla metrics (20px buttons, 4px grid), see the
-    //    minecraft-ui skill. Text boxes are generous and rely on
-    //    HsUi.labelIn's ellipsis as the safety net for long translations. --
+    // -- geometry: vanilla metrics (20px buttons, 4px grid). The compact
+    //    dossier pays translation and font fitting only when its immutable
+    //    render projection changes; ordinary frames draw cached labels. --
     // 224 clipped the mayor badge's "settling in" sentence -- "Ordfører —
     // Nøysomt arbeid (setter seg inn)" measured 224px against its 200px box
     // (CONTENT_W - 8), 24px over. 256 carries that box to 232px, clearing it
@@ -96,9 +97,14 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private static final int COMPACT_BREAKPOINT_H = 540;
     private static final int COMPACT_PANEL_MAX_W = 411;
     private static final int COMPACT_PANEL_H = 224;
-    private static final int COMPACT_ATTRIBUTE_CELL_H = 20;
-    private static final int COMPACT_ATTRIBUTE_GAP = 2;
-    private static final int COMPACT_ACTION_W = 104;
+    private static final int COMPACT_SUMMARY_W = 142;
+    private static final int COMPACT_FRAME_GAP = 6;
+    private static final int COMPACT_FRAME_H = 134;
+    private static final int COMPACT_ATTRIBUTE_ROW_H = 18;
+    private static final int COMPACT_ATTRIBUTE_ROW_STEP = 19;
+    private static final int COMPACT_ATTRIBUTE_TEXT_GAP = 3;
+    private static final int COMPACT_JOB_BAND_H = 28;
+    private static final int COMPACT_FOOTER_BUTTON_W = 92;
     private static final BlessingId[] BLESSING_IDS = BlessingId.values();
     private static final int PAD = HsUiTokens.PAD;
     private static final int GUTTER = HsUiTokens.GUTTER;
@@ -111,8 +117,10 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private static final int HEADER_H = PORTRAIT_H;
     private static final int HEADER_TEXT_X = PAD + PORTRAIT_W + 8;
     private static final int HEADER_TEXT_W = PANEL_W - HEADER_TEXT_X - PAD;
-    /** The mayor mark's own cap -- both languages' "Mayor"/"Ordfører" clear it. */
+    /** Legacy wide-sheet mayor-mark cap. */
     private static final int MAYOR_MARK_W = 40;
+    /** Compact header has room to keep the full Norwegian mayor mark. */
+    private static final int COMPACT_MAYOR_MARK_W = 56;
 
     // Eight attributes are a stable 2x4 first-page grid. The number remains
     // the primary signal; the tiny bar and tone only reinforce it. Keeping
@@ -165,19 +173,17 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private int cachedViewWidth = -1;
     private int cachedViewHeight = -1;
     private int cachedViewCombatExperience = -1;
+    private int cachedViewCarryCapacity = Integer.MIN_VALUE;
     private Font cachedViewFont;
     private String cachedViewLanguage = "";
     /** Numeric need labels are stable between their rendered integer changes. */
     private final NeedValueCache needValueCache = new NeedValueCache();
+    /** Activity changes independently from the snapshot, so it owns one fit. */
+    private final HsUi.FittedLabelCache compactDoingCache =
+        new HsUi.FittedLabelCache();
     private int cachedDoingActivity = -1;
     private String cachedDoingLanguage = "";
     private Component cachedDoingLine = Component.empty();
-    private int cachedVitalsHunger = Integer.MIN_VALUE;
-    private int cachedVitalsEnergy = Integer.MIN_VALUE;
-    private int cachedVitalsMorale = Integer.MIN_VALUE;
-    private int cachedVitalsPace = Integer.MIN_VALUE;
-    private String cachedVitalsLanguage = "";
-    private Component cachedCompactVitals = Component.empty();
     /** Rebuilt with the cached view when snapshot, size or locale changes. */
     private Component blessingStatusLine = Component.empty();
     private boolean hasBlessings;
@@ -435,16 +441,38 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
      * enablement rules as the wide sheet.
      */
     private void rebuildCompactWidgets(CachedView view, Layout l) {
-        int footerY = top + l.footerTop;
-        closeButton = HsButton.normal(left + panelWidth - PAD - BTN_W,
-            footerY, BTN_W, HsUiTokens.BUTTON_H,
+        UiRect closeRect = l.footerButtons[3];
+        closeButton = HsButton.normal(left + closeRect.x,
+            top + closeRect.y, closeRect.width, closeRect.height,
             Component.translatable("hearthstead.settler.close"), this::onClose);
         addRenderableWidget(closeButton);
 
         if (!compactActionsOpen) {
-            actionsButton = HsButton.normal(left + PAD, footerY,
-                COMPACT_ACTION_W, HsUiTokens.BUTTON_H,
-                Component.translatable("hearthstead.settler.actions"), () -> {
+            UiRect inventoryRect = l.footerButtons[0];
+            inventoryButton = HsButton.normal(left + inventoryRect.x,
+                top + inventoryRect.y, inventoryRect.width, inventoryRect.height,
+                Component.translatable("hearthstead.settler.compact.inventory"),
+                () -> requestChild(SettlerActionPayload.Kind.OPEN_INVENTORY));
+            inventoryButton.active = snapshot != null && snapshot.canManage();
+            inventoryButton.setTooltip(Tooltip.create(Component.translatable(
+                "hearthstead.settler.control.inventory.tip")));
+            addRenderableWidget(inventoryButton);
+
+            UiRect workplaceRect = l.footerButtons[1];
+            workplaceButton = HsButton.normal(left + workplaceRect.x,
+                top + workplaceRect.y, workplaceRect.width, workplaceRect.height,
+                Component.translatable("hearthstead.settler.compact.workplace"),
+                () -> requestChild(SettlerActionPayload.Kind.OPEN_WORKPLACE));
+            workplaceButton.active = snapshot != null && snapshot.canManage()
+                && !snapshot.employerBuildingId().isEmpty();
+            workplaceButton.setTooltip(Tooltip.create(Component.translatable(
+                "hearthstead.settler.control.workplace.tip")));
+            addRenderableWidget(workplaceButton);
+
+            UiRect actionsRect = l.footerButtons[2];
+            actionsButton = HsButton.normal(left + actionsRect.x,
+                top + actionsRect.y, actionsRect.width, actionsRect.height,
+                Component.translatable("hearthstead.settler.compact.actions"), () -> {
                     compactActionsOpen = true;
                     rebuild();
                 });
@@ -459,16 +487,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         int rowY = top + l.compactActionsTop;
         int rowStep = HsUiTokens.BUTTON_H + GUTTER;
 
-        inventoryButton = HsButton.normal(firstX, rowY, columnWidth,
-            HsUiTokens.BUTTON_H,
-            Component.translatable("hearthstead.settler.control.inventory"),
-            () -> requestChild(SettlerActionPayload.Kind.OPEN_INVENTORY));
-        inventoryButton.active = snapshot != null && snapshot.canManage();
-        inventoryButton.setTooltip(Tooltip.create(Component.translatable(
-            "hearthstead.settler.control.inventory.tip")));
-        addRenderableWidget(inventoryButton);
-
-        locateButton = HsButton.normal(secondX, rowY, columnWidth,
+        locateButton = HsButton.normal(firstX, rowY, columnWidth,
             HsUiTokens.BUTTON_H,
             Component.translatable("hearthstead.settler.control.locate", title),
             () -> act(SettlerActionPayload.Kind.LOCATE));
@@ -476,17 +495,6 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         locateButton.setTooltip(Tooltip.create(Component.translatable(
             "hearthstead.settler.control.locate.tip")));
         addRenderableWidget(locateButton);
-
-        rowY += rowStep;
-        workplaceButton = HsButton.normal(firstX, rowY, columnWidth,
-            HsUiTokens.BUTTON_H,
-            Component.translatable("hearthstead.settler.control.workplace"),
-            () -> requestChild(SettlerActionPayload.Kind.OPEN_WORKPLACE));
-        workplaceButton.active = snapshot != null && snapshot.canManage()
-            && !snapshot.employerBuildingId().isEmpty();
-        workplaceButton.setTooltip(Tooltip.create(Component.translatable(
-            "hearthstead.settler.control.workplace.tip")));
-        addRenderableWidget(workplaceButton);
 
         editWorkZoneButton = HsButton.normal(secondX, rowY, columnWidth,
             HsUiTokens.BUTTON_H,
@@ -537,8 +545,9 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             addRenderableWidget(guardOrderButton);
         }
 
-        backButton = HsButton.normal(left + PAD, footerY, BTN_W,
-            HsUiTokens.BUTTON_H, Component.translatable("gui.back"), () -> {
+        UiRect backRect = l.footerButtons[0];
+        backButton = HsButton.normal(left + backRect.x, top + backRect.y,
+            backRect.width, backRect.height, Component.translatable("gui.back"), () -> {
                 compactActionsOpen = false;
                 rebuild();
             });
@@ -742,6 +751,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
 
     private void drawCompactHeader(GuiGraphics g, int mouseX, int mouseY,
                                    Layout l, CachedView view) {
+        CompactView compact = view.compact;
         int portraitX = left + PAD;
         int portraitY = top + l.nameTop;
         int portraitSize = 32;
@@ -752,62 +762,122 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             mouseX, mouseY, settler);
 
         int textX = portraitX + portraitSize + 6;
-        int textWidth = panelWidth - PAD - textX + left;
         boolean mayor = snapshot != null && snapshot.isMayor();
-        int nameWidth = textWidth;
         if (mayor) {
-            int badgeWidth = Math.min(font.width(view.mayorMark) + 6,
-                MAYOR_MARK_W);
-            HsUi.badge(g, font, view.mayorMark,
-                textX + textWidth - badgeWidth, portraitY,
-                badgeWidth, HsUiTokens.ACCENT & 0xFFFFFF);
-            nameWidth -= badgeWidth + 4;
+            HsUi.fittedBadge(g, font, compact.mayorMark,
+                textX + compact.headerTextWidth - compact.mayorBadgeWidth,
+                portraitY, HsUiTokens.ACCENT & 0xFFFFFF);
         }
-        HsUi.labelIn(g, font, title, textX, portraitY, nameWidth,
+        drawFitted(g, compact.title, textX, portraitY,
             HsUiTokens.TEXT_STRONG);
-        Profession profession = settler.getProfession();
-        Component job = profession.employed() ? profession.displayName()
-            : view.noProfession;
-        HsUi.badge(g, font, job, textX, portraitY + 11, textWidth,
-            0xFF000000 | profession.color());
-        HsUi.labelIn(g, font, doingLine(), textX, portraitY + 22,
-            textWidth, HsUiTokens.TEXT_MUTED);
+        drawFitted(g, compact.roleWorkplace, textX, portraitY + 11,
+            HsUiTokens.ACCENT);
+        HsUi.FittedLabel doing = compactDoingCache.fit(font, doingLine(),
+            compact.headerTextWidth, compact.languageEpoch);
+        drawFitted(g, doing, textX, portraitY + 22,
+            HsUiTokens.TEXT_MUTED);
     }
 
     private void drawCompactOverview(GuiGraphics g, int mouseX, int mouseY,
                                      Layout l, CachedView view) {
-        int x = left + PAD;
-        HsUi.divider(g, x, top + l.dividerA, contentWidth);
+        CompactView compact = view.compact;
+        int contentX = left + PAD;
+        HsUi.divider(g, contentX, top + l.dividerA, contentWidth);
 
-        int requestY = top + l.currentRequestLabelTop;
-        HsUi.labelIn(g, font, view.currentRequestName, x, requestY,
-            contentWidth, view.currentRequestStack.isEmpty()
-                ? HsUiTokens.GOOD : HsUiTokens.WARN);
-        if (hover(mouseX, mouseY, x, requestY, contentWidth, ROW)
-            && !view.currentRequestTooltip.isEmpty()) {
-            pendingTooltip = view.currentRequestTooltip;
+        UiRect summary = l.summaryFrame;
+        int summaryX = left + summary.x;
+        int summaryY = top + summary.y;
+        HsUi.inset(g, summaryX, summaryY, summary.width, summary.height);
+        int summaryRight = summaryX + summary.width - 8;
+        drawFitted(g, compact.rightNow, summaryX + 8,
+            top + l.currentRequestLabelTop, HsUiTokens.WARN);
+        HsUi.FittedLabel paceValue = needValueCache.valueFor(3,
+            workPacePercent(), font);
+        if (compact.showPaceLabel) {
+            drawFitted(g, compact.pace,
+                summaryRight - compact.maxPaceValueWidth - 4
+                    - compact.pace.width(),
+                top + l.currentRequestLabelTop, HsUiTokens.TEXT_MUTED);
         }
-        HsUi.labelIn(g, font, compactVitalsLine(), x, top + l.needsTop,
-            contentWidth, HsUiTokens.TEXT_MUTED);
+        drawRightFitted(g, paceValue, summaryRight,
+            top + l.currentRequestLabelTop, HsUiTokens.GOOD);
 
-        HsUi.divider(g, x, top + l.dividerB, contentWidth);
+        UiRect request = l.requestCard;
+        int requestX = left + request.x;
+        int requestY = top + request.y;
+        boolean requestHovered = hover(mouseX, mouseY, requestX, requestY,
+            request.width, request.height);
+        HsUi.card(g, requestX, requestY, request.width, request.height,
+            requestHovered);
+        int requestTextX = requestX + 6;
+        if (!view.currentRequestStack.isEmpty()) {
+            g.renderItem(view.currentRequestStack, requestX + 7, requestY + 13);
+            requestTextX += 24;
+        }
+        drawFitted(g, compact.currentRequestLabel,
+            requestTextX, requestY + 4,
+            view.currentRequestStack.isEmpty()
+                ? HsUiTokens.TEXT_MUTED : HsUiTokens.WARN);
+        drawFitted(g, compact.currentRequestName,
+            requestTextX, requestY + 16,
+            view.currentRequestStack.isEmpty()
+                ? HsUiTokens.GOOD : HsUiTokens.TEXT_STRONG);
+        drawFitted(g, compact.nextAction,
+            requestTextX, requestY + 28,
+            view.refusal == null ? HsUiTokens.TEXT_MUTED : HsUiTokens.WARN);
+        if (requestHovered && !view.compactRequestTooltip.isEmpty()) {
+            pendingTooltip = view.compactRequestTooltip;
+        }
+
+        drawCompactNeed(g, view, 0, summaryX + 8,
+            top + l.needsTop, summary.width - 16);
+        drawCompactNeed(g, view, 1, summaryX + 8,
+            top + l.needsTop + 14, summary.width - 16);
+        drawCompactNeed(g, view, 2, summaryX + 8,
+            top + l.needsTop + 28, summary.width - 16);
+
+        int traitsY = top + l.traitsTop;
+        drawFitted(g, compact.traits, summaryX + 8, traitsY,
+            HsUiTokens.TEXT);
+        if (hover(mouseX, mouseY, summaryX + 8, traitsY,
+            summary.width - 16, ROW) && !view.compactTraitsTooltip.isEmpty()) {
+            pendingTooltip = view.compactTraitsTooltip;
+        }
+        drawFitted(g, compact.blessing, summaryX + 8,
+            top + l.blessingsTop,
+            hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
+
         drawCompactAttributes(g, mouseX, mouseY, l, view);
+        HsUi.divider(g, contentX, top + l.dividerD, contentWidth);
+    }
 
-        if (snapshot != null) {
-            HsUi.labelIn(g, font, view.employmentLine, x,
-                top + l.employmentTop, contentWidth, HsUiTokens.TEXT);
-            HsUi.labelIn(g, font, blessingStatusLine, x,
-                top + l.blessingsTop, contentWidth,
-                hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
-        }
-        HsUi.divider(g, x, top + l.dividerD, contentWidth);
+    private void drawCompactNeed(GuiGraphics g, CachedView view, int slot,
+                                 int x, int y, int width) {
+        float value = switch (slot) {
+            case 0 -> settler.getHunger();
+            case 1 -> settler.getEnergy();
+            default -> settler.getMorale();
+        };
+        drawFitted(g, view.compact.needLabels[slot], x, y,
+            HsUiTokens.TEXT_MUTED);
+        drawRightFitted(g, needValueCache.valueFor(slot, value, font),
+            x + 62, y, HsUiTokens.TEXT);
+        int barX = x + 66;
+        HsUi.bar(g, barX, y + 3, Math.max(1, width - 66), 6,
+            value / 100.0F, HsUi.Tone.of(value / 100.0F));
     }
 
     private void drawCompactAttributes(GuiGraphics g, int mouseX, int mouseY,
                                        Layout l, CachedView view) {
+        UiRect frame = l.attributesFrame;
+        int frameX = left + frame.x;
+        int frameY = top + frame.y;
+        HsUi.inset(g, frameX, frameY, frame.width, frame.height);
+        drawFitted(g, view.compact.attributesHeading,
+            frameX + 8, top + l.currentRequestLabelTop, HsUiTokens.ACCENT);
         if (snapshot == null) {
-            HsUi.labelIn(g, font, view.loading, left + PAD,
-                top + l.attributesTop + ROW * 2, contentWidth,
+            drawFitted(g, view.compact.loading, frameX + 8,
+                top + l.attributesTop + ROW * 2,
                 HsUiTokens.TEXT_MUTED);
             return;
         }
@@ -818,18 +888,49 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             int cellY = top + rect.y;
             boolean hovered = hover(mouseX, mouseY, cellX, cellY,
                 rect.width, rect.height);
-            HsUi.card(g, cellX, cellY, rect.width, rect.height, hovered);
-            int textX = cellX + 4;
-            HsUi.labelIn(g, font, attribute.label, textX, cellY + 3,
-                rect.width - ATTRIBUTE_VALUE_W - 8,
-                attribute.knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
-            HsUi.right(g, font, attribute.valueText,
-                cellX + rect.width - 4, cellY + 3,
+            int labelColour = attribute.knack
+                || attribute.importance == JobAttributeProfile.Importance.CORE
+                    ? HsUiTokens.ACCENT
+                    : attribute.importance == JobAttributeProfile.Importance.SUPPORT
+                        ? HsUiTokens.WARN : HsUiTokens.TEXT;
+            drawFitted(g, attribute.compactLabel, cellX, cellY,
+                labelColour);
+            drawRightFitted(g, attribute.compactValue,
+                cellX + rect.width, cellY,
                 attribute.tone.colour());
-            HsUi.bar(g, textX, cellY + rect.height - 5,
-                rect.width - 8, 3, attribute.ratio, attribute.tone);
+            HsUi.bar(g, cellX, cellY + 10,
+                rect.width, 6, attribute.ratio, attribute.tone);
             if (hovered) {
                 pendingTooltip = attribute.tooltip;
+            }
+        }
+        drawCompactJobImpacts(g, mouseX, mouseY, l, view);
+    }
+
+    private void drawCompactJobImpacts(GuiGraphics g, int mouseX, int mouseY,
+                                       Layout l, CachedView view) {
+        UiRect area = l.jobImpactArea;
+        int areaX = left + area.x;
+        int areaY = top + area.y;
+        HsUi.card(g, areaX, areaY, area.width, area.height, false);
+        if (view.jobImpacts.length == 0) {
+            drawFitted(g, view.compact.noJobImpact,
+                areaX + 6, areaY + 9, HsUiTokens.TEXT_MUTED);
+            return;
+        }
+        int gap = 6;
+        int columnWidth = compactJobColumnWidth(area.width,
+            view.jobImpacts.length);
+        for (int slot = 0; slot < view.jobImpacts.length; slot++) {
+            JobImpactView impact = view.jobImpacts[slot];
+            int impactX = areaX + 6 + slot * (columnWidth + gap);
+            drawFitted(g, impact.label, impactX, areaY + 4,
+                impact.tone.colour());
+            drawFitted(g, impact.effect, impactX, areaY + 16,
+                impact.live ? HsUiTokens.GOOD : HsUiTokens.TEXT_MUTED);
+            if (hover(mouseX, mouseY, impactX, areaY + 2,
+                columnWidth, area.height - 4)) {
+                pendingTooltip = impact.tooltip;
             }
         }
     }
@@ -837,11 +938,11 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private void drawCompactActions(GuiGraphics g, Layout l, CachedView view) {
         int x = left + PAD;
         HsUi.divider(g, x, top + l.dividerA, contentWidth);
-        HsUi.labelIn(g, font, view.actionTitle,
-            x, top + l.compactActionsTitleTop, contentWidth,
+        drawFitted(g, view.compact.actionTitle,
+            x, top + l.compactActionsTitleTop,
             HsUiTokens.TEXT_STRONG);
-        HsUi.labelIn(g, font, view.actionHelp,
-            x, top + l.compactActionsTitleTop + ROW, contentWidth,
+        drawFitted(g, view.compact.actionHelp,
+            x, top + l.compactActionsTitleTop + ROW,
             HsUiTokens.TEXT_MUTED);
         HsUi.divider(g, x, top + l.dividerD, contentWidth);
     }
@@ -882,14 +983,14 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         float energy = settler.getEnergy();
         float morale = settler.getMorale();
         drawNeed(g, x, y, width, view.needLabels[0], hunger,
-            needValueCache.valueFor(0, hunger));
+            needValueCache.valueFor(0, hunger, font));
         drawNeed(g, x, y + ROW, width, view.needLabels[1], energy,
-            needValueCache.valueFor(1, energy));
+            needValueCache.valueFor(1, energy, font));
         drawNeed(g, x, y + ROW * 2, width, view.needLabels[2], morale,
-            needValueCache.valueFor(2, morale));
+            needValueCache.valueFor(2, morale, font));
         int pace = workPacePercent();
         drawNeed(g, x, y + ROW * 3, width, view.needLabels[3], pace,
-            needValueCache.valueFor(3, pace));
+            needValueCache.valueFor(3, pace, font));
     }
 
     private int workPacePercent() {
@@ -912,35 +1013,27 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         return cachedDoingLine;
     }
 
-    private Component compactVitalsLine() {
-        int hunger = (int) settler.getHunger();
-        int energy = (int) settler.getEnergy();
-        int morale = (int) settler.getMorale();
-        int pace = workPacePercent();
-        if (hunger != cachedVitalsHunger || energy != cachedVitalsEnergy
-            || morale != cachedVitalsMorale || pace != cachedVitalsPace
-            || !cachedVitalsLanguage.equals(currentLanguage())) {
-            cachedVitalsHunger = hunger;
-            cachedVitalsEnergy = energy;
-            cachedVitalsMorale = morale;
-            cachedVitalsPace = pace;
-            cachedVitalsLanguage = currentLanguage();
-            cachedCompactVitals = Component.translatable(
-                "hearthstead.settler.compact.vitals",
-                hunger, energy, morale, pace);
-        }
-        return cachedCompactVitals;
+    /** Draws an immutable, already fitted label without measuring it again. */
+    private void drawFitted(GuiGraphics g, HsUi.FittedLabel label,
+                            int x, int y, int colour) {
+        g.drawString(font, label.text(), x, y, colour, true);
+    }
+
+    /** Right-aligns using the width captured with the fitted label. */
+    private void drawRightFitted(GuiGraphics g, HsUi.FittedLabel label,
+                                 int rightX, int y, int colour) {
+        g.drawString(font, label.text(), rightX - label.width(), y,
+            colour, true);
     }
 
     private void drawNeed(GuiGraphics g, int x, int y, int width, Component label,
-                          float value, Component valueText) {
+                          float value, HsUi.FittedLabel valueText) {
         HsUi.labelIn(g, font, label, x, y, NEED_LABEL_W, HsUiTokens.TEXT);
         int barX = x + NEED_LABEL_W;
         int barW = width - NEED_LABEL_W - NEED_PCT_W - GUTTER;
         float ratio = Mth.clamp(value, 0.0F, 100.0F) / 100.0F;
         HsUi.bar(g, barX, y, barW, NEED_BAR_H, ratio, HsUi.Tone.of(ratio));
-        HsUi.right(g, font, valueText, x + width, y,
-            HsUiTokens.TEXT_MUTED);
+        drawRightFitted(g, valueText, x + width, y, HsUiTokens.TEXT_MUTED);
     }
 
     private void drawAttributes(GuiGraphics g, int x, int y, int mouseX, int mouseY,
@@ -1237,15 +1330,18 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private CachedView view() {
         String language = currentLanguage();
         int combatExperience = settler.combatExperience();
+        int carryCapacity = settler.getCarryCapacity();
         if (cachedView == null || !viewCacheMatches(cachedViewSnapshot,
             cachedViewWidth, cachedViewHeight, cachedViewCombatExperience,
-            cachedViewFont, cachedViewLanguage, snapshot, width, height,
-            combatExperience, font, language)) {
+            cachedViewCarryCapacity, cachedViewFont, cachedViewLanguage,
+            snapshot, width, height, combatExperience, carryCapacity, font,
+            language)) {
             CachedView rebuilt = buildView();
             cachedViewSnapshot = snapshot;
             cachedViewWidth = width;
             cachedViewHeight = height;
             cachedViewCombatExperience = combatExperience;
+            cachedViewCarryCapacity = carryCapacity;
             cachedViewFont = font;
             cachedViewLanguage = language;
             cachedView = rebuilt;
@@ -1265,14 +1361,16 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     /** Pure cache key for this screen's immutable render view. */
     static boolean viewCacheMatches(Object cachedSnapshot, int cachedWidth,
                                     int cachedHeight, int cachedCombatExperience,
-                                    Object cachedFont, String cachedLanguage,
+                                    int cachedCarryCapacity, Object cachedFont,
+                                    String cachedLanguage,
                                     Object snapshot, int width, int height,
-                                    int combatExperience, Object font,
-                                    String language) {
+                                    int combatExperience, int carryCapacity,
+                                    Object font, String language) {
         return cachedSnapshot == snapshot
             && cachedWidth == width
             && cachedHeight == height
             && cachedCombatExperience == combatExperience
+            && cachedCarryCapacity == carryCapacity
             && cachedFont == font
             && cachedLanguage.equals(language);
     }
@@ -1280,6 +1378,15 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     /** All allocations here are paid only when {@link #view()} invalidates. */
     private CachedView buildView() {
         Profession profession = settler.getProfession();
+        JobAttributeProfile jobProfile = JobAttributeProfile.find(profession)
+            .orElse(null);
+        JobAttributeProfile.Importance[] jobImportance =
+            new JobAttributeProfile.Importance[Attribute.COUNT];
+        if (jobProfile != null) {
+            for (JobAttributeProfile.Slot slot : jobProfile.slots()) {
+                jobImportance[slot.attribute().ordinal()] = slot.importance();
+            }
+        }
         boolean mayor = snapshot != null && snapshot.isMayor();
         int traitRows = snapshot == null ? 1 : Math.max(1,
             Math.min(TRAIT_SLOTS, snapshot.traitOrdinals().size()));
@@ -1296,6 +1403,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         };
         AttributeView[] attributes = new AttributeView[Attribute.COUNT];
         TraitView[] traits = new TraitView[TRAIT_SLOTS];
+        JobImpactView[] jobImpacts = new JobImpactView[0];
         ItemStack[] bagStacks = new ItemStack[BAG_SLOTS];
         for (int i = 0; i < BAG_SLOTS; i++) {
             bagStacks[i] = ItemStack.EMPTY;
@@ -1303,6 +1411,14 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
 
         Component loading = Component.translatable("hearthstead.settler.loading");
         Component noProfession = Component.translatable("hearthstead.profession.none");
+        Component rightNowLabel = Component.translatable(
+            "hearthstead.settler.compact.right_now");
+        Component paceLabel = Component.translatable(
+            "hearthstead.settler.compact.pace");
+        Component attributesHeading = Component.translatable(
+            "hearthstead.settler.compact.attributes");
+        Component noJobImpactLine = Component.translatable(
+            "hearthstead.settler.compact.job.none");
         Component bagLabel = Component.translatable("hearthstead.settler.bag");
         Component mayorMark = Component.translatable("hearthstead.settler.mayor_mark");
         Component mayorBadgeLine = Component.empty();
@@ -1320,12 +1436,24 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         Component currentRequestInstruction = Component.translatable(
             "hearthstead.settler.request.none.instruction");
         List<Component> currentRequestTooltip = List.of();
+        Component nextActionLine = currentRequestInstruction;
+        List<Component> compactRequestTooltip = List.of();
+        Component compactTraitsLine = Component.translatable(
+            "hearthstead.settler.compact.traits.none");
+        List<Component> compactTraitsTooltip = List.of();
         Component actionTitle = Component.translatable(
             "hearthstead.settler.actions.title");
         Component actionHelp = Component.translatable(
             "hearthstead.settler.actions.help");
 
         Component building = buildingName();
+        Component job = profession.employed() ? profession.displayName()
+            : noProfession;
+        Component compactRoleWorkplaceLine = snapshot != null
+            && !snapshot.employerBuildingId().isEmpty()
+                ? Component.translatable(
+                    "hearthstead.settler.compact.role_workplace", job, building)
+                : job;
         Component dismissTooltip = Component.translatable(
             "hearthstead.settler.dismiss.tip", title, building);
         Component appointTooltip = appointTooltip();
@@ -1344,19 +1472,52 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                     ? Component.translatable("hearthstead.settler.attribute_knack", name)
                     : name;
                 Component valueText = Component.literal(value + " / 100");
-                List<Component> tooltip = List.of(
-                    tooltipName.copy().append(Component.literal("  " + value
-                        + " / 100")).withStyle(knack
-                            ? ChatFormatting.GOLD : ChatFormatting.WHITE),
-                    Component.translatable("hearthstead.attribute."
-                        + attribute.key() + ".role"),
-                    attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY));
+                Component compactValueText = Component.literal(value + "/100");
+                Component compactDisplayName = name;
+                HsUi.FittedLabel compactValue = new HsUi.FittedLabel(
+                    Component.empty(), 0);
+                HsUi.FittedLabel compactLabel = compactValue;
+                if (layout.mode == SettlerLayoutMode.COMPACT) {
+                    UiRect cell = layout.attributeCells[ordinal];
+                    compactValue = HsUi.fitLabel(font, compactValueText,
+                        cell.width);
+                    int labelWidth = Math.max(1,
+                        cell.width - compactValue.width()
+                            - COMPACT_ATTRIBUTE_TEXT_GAP);
+                    Component preferred = Component.translatable(
+                        "hearthstead.attribute." + attribute.key() + ".compact");
+                    Component abbreviation = Component.translatable(
+                        "hearthstead.attribute." + attribute.key() + ".abbr");
+                    compactDisplayName = font.width(preferred) <= labelWidth
+                        ? preferred : abbreviation;
+                    compactLabel = HsUi.fitLabel(font, compactDisplayName,
+                        labelWidth);
+                }
+                List<Component> tooltip = new ArrayList<>(4);
+                tooltip.add(tooltipName.copy().append(Component.literal("  " + value
+                    + " / 100")).withStyle(knack
+                        ? ChatFormatting.GOLD : ChatFormatting.WHITE));
+                tooltip.add(Component.translatable("hearthstead.attribute."
+                    + attribute.key() + ".role"));
+                tooltip.add(attribute.trainedBy().copy().withStyle(ChatFormatting.GRAY));
+                JobAttributeProfile.Importance importance = jobImportance[ordinal];
+                if (importance != null) {
+                    tooltip.add(Component.translatable(importance
+                            == JobAttributeProfile.Importance.CORE
+                                ? "hearthstead.settler.compact.job.core"
+                                : "hearthstead.settler.compact.job.support",
+                        job).withStyle(ChatFormatting.GOLD));
+                }
                 attributes[ordinal] = new AttributeView(label, valueText,
-                    value / 100.0F, attributeTone(value), knack, tooltip);
+                    compactDisplayName, compactLabel, compactValue,
+                    value / 100.0F, attributeTone(value), knack, importance,
+                    List.copyOf(tooltip));
             }
 
             List<Integer> traitOrdinals = snapshot.traitOrdinals();
             int visibleTraits = Math.min(TRAIT_SLOTS, traitOrdinals.size());
+            MutableComponent traitNames = Component.empty();
+            List<Component> traitTooltip = new ArrayList<>();
             for (int slot = 0; slot < visibleTraits; slot++) {
                 Trait trait = Trait.ALL[traitOrdinals.get(slot)];
                 Component name = trait.displayName();
@@ -1365,7 +1526,18 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                 traits[slot] = new TraitView(name, description, effects,
                     List.of(name,
                         description.copy().withStyle(ChatFormatting.GRAY)));
+                if (slot > 0) {
+                    traitNames.append(Component.literal(" • "));
+                }
+                traitNames.append(name);
+                traitTooltip.addAll(traits[slot].tooltip);
             }
+            if (visibleTraits > 0) {
+                compactTraitsLine = Component.translatable(
+                    "hearthstead.settler.compact.traits", traitNames);
+                compactTraitsTooltip = List.copyOf(traitTooltip);
+            }
+            jobImpacts = buildJobImpacts(jobProfile, job, layout, attributes);
 
             List<Integer> ids = snapshot.bagItemIds();
             List<Integer> counts = snapshot.bagCounts();
@@ -1448,8 +1620,28 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                         currentRequestInstruction.copy().withStyle(ChatFormatting.GRAY));
                 }
             }
+            nextActionLine = refusal == null ? currentRequestInstruction : refusal;
+            List<Component> requestTooltip = new ArrayList<>(
+                currentRequestTooltip.size() + (refusal == null ? 1 : 2));
+            requestTooltip.addAll(currentRequestTooltip);
+            if (currentRequestTooltip.isEmpty()) {
+                requestTooltip.add(currentRequestInstruction.copy()
+                    .withStyle(ChatFormatting.GRAY));
+            }
+            if (refusal != null) {
+                requestTooltip.add(refusal.copy().withStyle(ChatFormatting.GOLD));
+            }
+            compactRequestTooltip = List.copyOf(requestTooltip);
             rebuildBlessingStatus();
         }
+
+        CompactView compact = layout.mode == SettlerLayoutMode.COMPACT
+            ? buildCompactView(layout, mayor, needLabels, loading, mayorMark,
+                currentRequestStack, currentRequestName, nextActionLine,
+                compactRoleWorkplaceLine, rightNowLabel, paceLabel,
+                attributesHeading, compactTraitsLine, noJobImpactLine,
+                actionTitle, actionHelp)
+            : null;
 
         return new CachedView(layout, needLabels, attributes, traits, bagStacks,
             loading, noProfession, bagLabel, mayorMark, mayorBadgeLine,
@@ -1457,7 +1649,211 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             combatProgressTooltip, refusal, refusalLines, dismissTooltip,
             appointTooltip, currentRequestLabel, currentRequestStack,
             currentRequestName, currentRequestInstruction,
-            currentRequestTooltip, actionTitle, actionHelp);
+            currentRequestTooltip, compactRequestTooltip,
+            compactTraitsTooltip, jobImpacts, compact);
+    }
+
+    /**
+     * Builds every steady compact label once. Dynamic activity and need values
+     * have their own tiny caches because those entity fields can change without
+     * a server snapshot.
+     */
+    private CompactView buildCompactView(Layout layout, boolean mayor,
+                                         Component[] needLabels,
+                                         Component loading,
+                                         Component mayorMark,
+                                         ItemStack currentRequestStack,
+                                         Component currentRequestName,
+                                         Component nextActionLine,
+                                         Component roleWorkplaceLine,
+                                         Component rightNowLabel,
+                                         Component paceLabel,
+                                         Component attributesHeading,
+                                         Component traitsLine,
+                                         Component noJobImpactLine,
+                                         Component actionTitle,
+                                         Component actionHelp) {
+        int headerTextWidth = Math.max(1,
+            layout.panelWidth - PAD - (PAD + 32 + 6));
+        HsUi.FittedLabel fittedMayor = HsUi.fitLabel(font, mayorMark,
+            COMPACT_MAYOR_MARK_W - 6);
+        int mayorBadgeWidth = mayor ? fittedMayor.width() + 6 : 0;
+        int titleWidth = Math.max(1, headerTextWidth
+            - (mayor ? mayorBadgeWidth + 4 : 0));
+
+        UiRect summary = layout.summaryFrame;
+        int summaryInnerWidth = Math.max(1, summary.width - 16);
+        HsUi.FittedLabel maxPaceValue = HsUi.fitLabel(font,
+            Component.literal("100%"), 32);
+        int rightNowWidth = font.width(rightNowLabel);
+        int paceWidth = font.width(paceLabel);
+        boolean showPaceLabel = rightNowWidth + paceWidth
+            + maxPaceValue.width() + 8 <= summaryInnerWidth;
+        int rightNowBox = Math.max(1, summaryInnerWidth
+            - maxPaceValue.width() - 4
+            - (showPaceLabel ? paceWidth + 4 : 0));
+
+        int requestTextInset = 6
+            + (currentRequestStack.isEmpty() ? 0 : 24);
+        int requestTextWidth = Math.max(1,
+            layout.requestCard.width - requestTextInset - 5);
+        HsUi.FittedLabel[] compactNeeds = new HsUi.FittedLabel[needLabels.length];
+        for (int slot = 0; slot < needLabels.length; slot++) {
+            compactNeeds[slot] = HsUi.fitLabel(font, needLabels[slot], 46);
+        }
+
+        return new CompactView(
+            HsUi.fitLabel(font, title, titleWidth),
+            fittedMayor, mayorBadgeWidth, headerTextWidth,
+            HsUi.fitLabel(font, roleWorkplaceLine, headerTextWidth),
+            HsUi.fitLabel(font, rightNowLabel, rightNowBox),
+            HsUi.fitLabel(font, paceLabel, Math.max(1, paceWidth)),
+            showPaceLabel, maxPaceValue.width(),
+            HsUi.fitLabel(font, Component.translatable(
+                "hearthstead.settler.compact.request"), requestTextWidth),
+            HsUi.fitLabel(font, currentRequestName, requestTextWidth),
+            HsUi.fitLabel(font, nextActionLine, requestTextWidth),
+            compactNeeds,
+            HsUi.fitLabel(font, attributesHeading,
+                layout.attributesFrame.width - 16),
+            HsUi.fitLabel(font, loading,
+                layout.attributesFrame.width - 16),
+            HsUi.fitLabel(font, traitsLine, summaryInnerWidth),
+            HsUi.fitLabel(font, blessingStatusLine, summaryInnerWidth),
+            HsUi.fitLabel(font, noJobImpactLine,
+                layout.jobImpactArea.width - 12),
+            HsUi.fitLabel(font, actionTitle, layout.contentWidth),
+            HsUi.fitLabel(font, actionHelp, layout.contentWidth),
+            currentLanguage());
+    }
+
+    /**
+     * Two core job attributes occupy the compact impact band. Optional support
+     * attributes remain highlighted in the eight-value frame and in their
+     * detailed hover, rather than squeezing a third explanation into a width
+     * where Norwegian copy would become unreadable.
+     */
+    private JobImpactView[] buildJobImpacts(JobAttributeProfile profile,
+                                            Component job, Layout layout,
+                                            AttributeView[] attributes) {
+        if (snapshot == null || profile == null) {
+            return new JobImpactView[0];
+        }
+        int coreCount = (int) profile.slots().stream()
+            .filter(slot -> slot.importance()
+                == JobAttributeProfile.Importance.CORE)
+            .count();
+        int columnWidth = layout.mode == SettlerLayoutMode.COMPACT
+            ? compactJobColumnWidth(layout.jobImpactArea.width, coreCount)
+            : CONTENT_W;
+        List<JobImpactView> impacts = new ArrayList<>(2);
+        for (JobAttributeProfile.Slot slot : profile.slots()) {
+            if (slot.importance() != JobAttributeProfile.Importance.CORE) {
+                continue;
+            }
+            int value = snapshot.attributeValues().get(slot.attribute().ordinal());
+            Component fullLabel = Component.translatable(
+                "hearthstead.settler.compact.job.value",
+                slot.attribute().displayName(), value);
+            Component bandName = attributes[slot.attribute().ordinal()]
+                .compactDisplayName;
+            Component bandLabel = Component.translatable(
+                "hearthstead.settler.compact.job.value", bandName, value);
+            JobImpactEvidence evidence = jobImpactEvidence(
+                profile.profession(), slot);
+            Component effect;
+            Component bandEffect;
+            Component detail;
+            if (evidence == JobImpactEvidence.LIVE
+                && profile.profession() == Profession.LUMBERER
+                && slot.effect() == JobAttributeProfile.EffectId.LUMBER_CONTACTS) {
+                int contacts = JobEffects.lumberContacts(value);
+                int capacity = settler.getCarryCapacity();
+                effect = Component.translatable(
+                    "hearthstead.settler.compact.job.lumber.live",
+                    contacts, capacity);
+                bandEffect = Component.translatable(
+                    "hearthstead.settler.compact.job.lumber.band",
+                    contacts, capacity);
+                detail = Component.translatable(
+                    "hearthstead.settler.compact.job.lumber.live.detail",
+                    contacts, capacity);
+            } else if (evidence == JobImpactEvidence.LIVE
+                && slot.attribute() == Attribute.STAMINA) {
+                int minimumPace = (int) Math.round(
+                    JobEffects.minimumPace(value) * 100.0D);
+                effect = Component.translatable(
+                    "hearthstead.settler.compact.job.stamina.live",
+                    minimumPace);
+                bandEffect = Component.translatable(
+                    "hearthstead.settler.compact.job.stamina.band",
+                    minimumPace);
+                detail = Component.translatable(
+                    "hearthstead.settler.compact.job.stamina.live.detail",
+                    minimumPace);
+            } else {
+                effect = Component.translatable(
+                    "hearthstead.settler.compact.job.values",
+                    Component.translatable(
+                        "hearthstead.settler.compact.job.effect."
+                            + jobEffectKey(slot.effect())));
+                bandEffect = Component.translatable(
+                    "hearthstead.settler.compact.job.effect."
+                        + jobEffectKey(slot.effect()) + ".band");
+                detail = Component.translatable(
+                    "hearthstead.settler.compact.job.priority_only");
+            }
+            List<Component> tooltip = List.of(
+                fullLabel.copy().withStyle(ChatFormatting.WHITE),
+                Component.translatable("hearthstead.settler.compact.job.core", job)
+                    .withStyle(ChatFormatting.GOLD),
+                effect,
+                detail.copy().withStyle(evidence == JobImpactEvidence.LIVE
+                    ? ChatFormatting.GREEN : ChatFormatting.GRAY));
+            impacts.add(new JobImpactView(
+                HsUi.fitLabel(font, bandLabel, columnWidth),
+                HsUi.fitLabel(font, bandEffect, columnWidth),
+                attributeTone(value), evidence == JobImpactEvidence.LIVE,
+                tooltip));
+        }
+        return impacts.toArray(JobImpactView[]::new);
+    }
+
+    private static int compactJobColumnWidth(int areaWidth, int count) {
+        if (count <= 0) {
+            return Math.max(1, areaWidth - 12);
+        }
+        int gap = 6;
+        return Math.max(1,
+            (areaWidth - 12 - gap * (count - 1)) / count);
+    }
+
+    static JobImpactEvidence jobImpactEvidence(Profession profession,
+                                                JobAttributeProfile.Slot slot) {
+        if (slot.attribute() == Attribute.STAMINA
+            && slot.effect() == JobAttributeProfile.EffectId.FATIGUE_PACE) {
+            return JobImpactEvidence.LIVE;
+        }
+        if (profession == Profession.LUMBERER
+            && slot.effect() == JobAttributeProfile.EffectId.LUMBER_CONTACTS) {
+            return JobImpactEvidence.LIVE;
+        }
+        return JobImpactEvidence.ROLE_PRIORITY;
+    }
+
+    private static String jobEffectKey(JobAttributeProfile.EffectId effect) {
+        return switch (effect) {
+            case PHYSICAL_OUTPUT -> "physical_output";
+            case FATIGUE_PACE -> "fatigue_pace";
+            case LEARNING_RATE -> "learning_rate";
+            case PRECISION_EXECUTION -> "precision_execution";
+            case MORALE_RESILIENCE -> "morale_resilience";
+            case TARGET_DISCOVERY -> "target_discovery";
+            case TASK_CONTINUITY -> "task_continuity";
+            case SOCIAL_INFLUENCE -> "social_influence";
+            case CARRY_CAPACITY -> "carry_capacity";
+            case LUMBER_CONTACTS -> "lumber_contacts";
+        };
     }
 
     /** Both call sites already guard {@code snapshot != null} before reaching here. */
@@ -1553,31 +1949,80 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         l.nameTop = 8;
         l.professionTop = 19;
         l.activityTop = 30;
-        l.dividerA = 44;
-        l.currentRequestLabelTop = 50;
-        l.currentRequestCardTop = 50;
-        l.needsTop = 60;
-        l.dividerB = 70;
-        l.attributesTop = 76;
-        l.employmentTop = 164;
-        l.blessingsTop = 174;
-        l.dividerD = 185;
-        l.footerTop = 192;
+        l.dividerA = 46;
+        l.currentRequestLabelTop = 59;
+        l.currentRequestCardTop = 72;
+        l.needsTop = 122;
+        l.dividerB = 0;
+        l.attributesTop = 74;
+        l.traitsTop = 166;
+        l.employmentTop = 0;
+        l.blessingsTop = 177;
+        l.dividerD = 190;
+        l.footerTop = 197;
         l.compactActionsTitleTop = 52;
         l.compactActionsTop = 78;
 
-        int columnWidth = (l.contentWidth - GUTTER) / ATTRIBUTE_COLUMNS;
+        int frameGap = Math.min(COMPACT_FRAME_GAP,
+            Math.max(1, l.contentWidth - 2));
+        int summaryWidth = Math.min(COMPACT_SUMMARY_W,
+            Math.max(1, l.contentWidth * 36 / 100));
+        if (summaryWidth + frameGap >= l.contentWidth) {
+            summaryWidth = Math.max(1, l.contentWidth - frameGap - 1);
+        }
+        int attributesWidth = Math.max(1,
+            l.contentWidth - summaryWidth - frameGap);
+        l.summaryFrame = new UiRect(PAD, 52, summaryWidth, COMPACT_FRAME_H);
+        l.attributesFrame = new UiRect(PAD + summaryWidth + frameGap,
+            52, attributesWidth, COMPACT_FRAME_H);
+        l.requestCard = new UiRect(l.summaryFrame.x + 8, 72,
+            Math.max(1, l.summaryFrame.width - 16), 43);
+
+        int attributeInset = Math.min(8,
+            Math.max(0, (l.attributesFrame.width - 2) / 4));
+        int attributeContentWidth = Math.max(1,
+            l.attributesFrame.width - attributeInset * 2);
+        int attributeGap = Math.min(9,
+            Math.max(1, attributeContentWidth / 12));
+        int firstColumnWidth = Math.max(1,
+            (attributeContentWidth - attributeGap) / ATTRIBUTE_COLUMNS);
+        int secondColumnWidth = Math.max(1,
+            attributeContentWidth - attributeGap - firstColumnWidth);
         l.attributeCells = new UiRect[Attribute.COUNT];
         for (int i = 0; i < Attribute.COUNT; i++) {
             int column = i % ATTRIBUTE_COLUMNS;
             int row = i / ATTRIBUTE_COLUMNS;
+            int columnX = l.attributesFrame.x + attributeInset
+                + (column == 0 ? 0 : firstColumnWidth + attributeGap);
             l.attributeCells[i] = new UiRect(
-                PAD + column * (columnWidth + GUTTER),
-                l.attributesTop + row * (COMPACT_ATTRIBUTE_CELL_H
-                    + COMPACT_ATTRIBUTE_GAP),
-                columnWidth, COMPACT_ATTRIBUTE_CELL_H);
+                columnX,
+                l.attributesTop + row * COMPACT_ATTRIBUTE_ROW_STEP,
+                column == 0 ? firstColumnWidth : secondColumnWidth,
+                COMPACT_ATTRIBUTE_ROW_H);
         }
+        l.jobImpactArea = new UiRect(l.attributesFrame.x + attributeInset,
+            150, attributeContentWidth, COMPACT_JOB_BAND_H);
+
+        l.footerButtons = compactFooterButtons(l.contentWidth, l.footerTop);
         return l;
+    }
+
+    private static UiRect[] compactFooterButtons(int contentWidth, int footerTop) {
+        int gap = Math.min(GUTTER, Math.max(0, (contentWidth - 4) / 3));
+        int available = Math.max(4, contentWidth - gap * 3);
+        int regularWidth = Math.min(COMPACT_FOOTER_BUTTON_W,
+            Math.max(1, available / 4));
+        int closeWidth = Math.max(1, available - regularWidth * 3);
+        UiRect[] buttons = new UiRect[4];
+        int x = PAD;
+        for (int index = 0; index < 3; index++) {
+            buttons[index] = new UiRect(x, footerTop, regularWidth,
+                HsUiTokens.BUTTON_H);
+            x += regularWidth + gap;
+        }
+        buttons[3] = new UiRect(x, footerTop, closeWidth,
+            HsUiTokens.BUTTON_H);
+        return buttons;
     }
 
     private static Layout wideLayout(int originY, boolean showMayorBadge,
@@ -1703,6 +2148,11 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         int footerTop;
         int compactActionsTitleTop;
         int compactActionsTop;
+        UiRect summaryFrame;
+        UiRect attributesFrame;
+        UiRect requestCard;
+        UiRect jobImpactArea;
+        UiRect[] footerButtons;
         UiRect[] attributeCells;
         int totalHeight;
     }
@@ -1722,35 +2172,93 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     }
 
     private record AttributeView(Component label, Component valueText,
-                                 float ratio, HsUi.Tone tone, boolean knack,
+                                 Component compactDisplayName,
+                                 HsUi.FittedLabel compactLabel,
+                                 HsUi.FittedLabel compactValue, float ratio,
+                                 HsUi.Tone tone, boolean knack,
+                                 JobAttributeProfile.Importance importance,
+                                 List<Component> tooltip) {
+    }
+
+    enum JobImpactEvidence {
+        LIVE,
+        ROLE_PRIORITY
+    }
+
+    private record JobImpactView(HsUi.FittedLabel label,
+                                 HsUi.FittedLabel effect,
+                                 HsUi.Tone tone, boolean live,
                                  List<Component> tooltip) {
     }
 
     /** Screen-owned cache for the four integer labels beside need bars. */
     static final class NeedValueCache {
+        private static final int VALUE_BOX = 32;
+        private final NeedValueFitter fitter;
         private final int[] renderedValues = {
             Integer.MIN_VALUE, Integer.MIN_VALUE,
             Integer.MIN_VALUE, Integer.MIN_VALUE
         };
-        private final Component[] labels = new Component[renderedValues.length];
+        private final Font[] fonts = new Font[renderedValues.length];
+        private final HsUi.FittedLabel[] labels =
+            new HsUi.FittedLabel[renderedValues.length];
 
-        Component valueFor(int slot, float value) {
+        NeedValueCache() {
+            this(HsUi::fitLabel);
+        }
+
+        NeedValueCache(NeedValueFitter fitter) {
+            this.fitter = fitter;
+        }
+
+        HsUi.FittedLabel valueFor(int slot, float value, Font font) {
             if (slot < 0 || slot >= renderedValues.length) {
                 throw new IllegalArgumentException("unknown need slot " + slot);
             }
             int rendered = (int) value;
-            if (renderedValues[slot] != rendered) {
+            if (renderedValues[slot] != rendered || fonts[slot] != font) {
                 renderedValues[slot] = rendered;
-                labels[slot] = Component.literal(Integer.toString(rendered)
+                fonts[slot] = font;
+                Component component = Component.literal(Integer.toString(rendered)
                     + (slot == 3 ? "%" : ""));
+                labels[slot] = fitter.fit(font, component, VALUE_BOX);
             }
             return labels[slot];
         }
     }
 
+    @FunctionalInterface
+    interface NeedValueFitter {
+        HsUi.FittedLabel fit(Font font, Component component, int width);
+    }
+
     /** Snapshot-authored trait card; its effect list is never rebuilt in render. */
     private record TraitView(Component name, Component description,
                              List<Effect> effects, List<Component> tooltip) {
+    }
+
+    /** Every stable compact text run, already translated, fitted and measured. */
+    private record CompactView(HsUi.FittedLabel title,
+                               HsUi.FittedLabel mayorMark,
+                               int mayorBadgeWidth,
+                               int headerTextWidth,
+                               HsUi.FittedLabel roleWorkplace,
+                               HsUi.FittedLabel rightNow,
+                               HsUi.FittedLabel pace,
+                               boolean showPaceLabel,
+                               int maxPaceValueWidth,
+                               HsUi.FittedLabel currentRequestLabel,
+                               HsUi.FittedLabel currentRequestName,
+                               HsUi.FittedLabel nextAction,
+                               HsUi.FittedLabel[] needLabels,
+                               HsUi.FittedLabel attributesHeading,
+                               HsUi.FittedLabel loading,
+                               HsUi.FittedLabel traits,
+                               HsUi.FittedLabel blessing,
+                               HsUi.FittedLabel noJobImpact,
+                               HsUi.FittedLabel actionTitle,
+                               HsUi.FittedLabel actionHelp,
+                               String languageEpoch) {
     }
 
     /**
@@ -1773,9 +2281,11 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                               Component currentRequestLabel,
                               ItemStack currentRequestStack,
                                Component currentRequestName,
-                               Component currentRequestInstruction,
-                               List<Component> currentRequestTooltip,
-                               Component actionTitle,
-                               Component actionHelp) {
+                              Component currentRequestInstruction,
+                              List<Component> currentRequestTooltip,
+                              List<Component> compactRequestTooltip,
+                              List<Component> compactTraitsTooltip,
+                              JobImpactView[] jobImpacts,
+                              CompactView compact) {
     }
 }

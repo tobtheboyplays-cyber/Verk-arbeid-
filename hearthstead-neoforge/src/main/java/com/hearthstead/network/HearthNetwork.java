@@ -421,7 +421,12 @@ public final class HearthNetwork {
 
     // ----------------------------------------------------------- snapshot --
 
-    private static HearthMayorSnapshot snapshot(ServerLevel level, Settlement settlement) {
+    /**
+     * Builds the server-authored Hearth view in settlement resident order.
+     * Package visibility lets the native Mayor GameTest exercise this exact
+     * production projection instead of duplicating its ordering logic.
+     */
+    static HearthMayorSnapshot snapshot(ServerLevel level, Settlement settlement) {
         SettlerEntity mayor = Mayor.find(level, settlement);
         List<HearthMayorSnapshot.Candidate> candidates = new ArrayList<>();
         for (SettlerEntity settler : Mayor.candidates(level, settlement)) {
@@ -430,10 +435,9 @@ public final class HearthNetwork {
                 settler.getSettlerName(), settler.getProfession().name(),
                 boon.key(), settler.attributes().get(boon.from())));
         }
-        // Whoever is furthest along in the attribute their own boon comes
-        // from reads first -- the same "the server already sorted it, the
-        // first row is the suggestion" idea as the plaque's hire tab.
-        candidates.sort((a, b) -> Integer.compare(b.knack(), a.knack()));
+        // Preserve the settlement's own resident order. Mayor appointment is
+        // a player decision: the server supplies facts but does not rank,
+        // recommend or silently reorder people by an invented fitness score.
 
         return new HearthMayorSnapshot(revisionOf(settlement),
             mayor != null, mayor != null ? mayor.getUUID() : new UUID(0, 0),

@@ -30,13 +30,16 @@ class ResponsiveScreenLayoutTest {
     void mayorAndJourneyPopoutsFitEveryNativeTargetHeight() {
         for (int viewportHeight : TARGET_HEIGHTS) {
             HearthScreen.MayorLayout mayor =
-                HearthScreen.mayorLayoutFor(viewportHeight);
+                HearthScreen.mayorLayoutFor(427, viewportHeight);
+            assertEquals(411, mayor.panelWidth());
             assertTrue(mayor.panelHeight() <= viewportHeight);
-            assertTrue(mayor.visibleRows() >= 1);
+            assertEquals(3, mayor.visibleRows(),
+                "every 240px-or-taller native viewport fits three people");
             assertEquals(mayor.visibleRows() * 42 - 4,
                 mayor.listHeight());
-            assertTrue(mayor.foot() + 33 <= mayor.panelHeight(),
-                "Mayor footer and bottom padding must remain inside");
+            assertEquals(mayor.foot() + 6, mayor.buttonY());
+            assertEquals(mayor.buttonY() + 20 + 8, mayor.panelHeight(),
+                "Mayor pagination and bottom padding must remain inside");
 
             HearthScreen.JourneyLayout journey =
                 HearthScreen.journeyLayoutFor(viewportHeight);
@@ -56,6 +59,33 @@ class ResponsiveScreenLayoutTest {
             assertTrue(readinessRows >= 3,
                 "the compact checklist must retain a useful scroll window");
         }
+    }
+
+    @Test
+    void mayorRosterContractsWithoutLosingRowsAtMinimumSupportedViewport() {
+        HearthScreen.MayorLayout narrow =
+            HearthScreen.mayorLayoutFor(320, 240);
+        assertEquals(304, narrow.panelWidth());
+        assertEquals(224, narrow.panelHeight());
+        assertEquals(3, narrow.visibleRows());
+
+        HearthScreen.MayorLayout approved =
+            HearthScreen.mayorLayoutFor(427, 240);
+        assertEquals(411, approved.panelWidth());
+        assertEquals(224, approved.panelHeight());
+        assertEquals(3, approved.visibleRows());
+    }
+
+    @Test
+    void mayorRosterPagesExactGroupsWithoutSkippingOrInventingRows() {
+        assertEquals(1, HearthScreen.mayorPageCount(0, 3));
+        assertEquals(1, HearthScreen.mayorPageCount(3, 3));
+        assertEquals(2, HearthScreen.mayorPageCount(4, 3));
+        assertEquals(22, HearthScreen.mayorPageCount(64, 3));
+        assertEquals(0, HearthScreen.mayorPageStart(-5, 7, 3));
+        assertEquals(3, HearthScreen.mayorPageStart(1, 7, 3));
+        assertEquals(6, HearthScreen.mayorPageStart(99, 7, 3));
+        assertEquals(2, HearthScreen.mayorClampPage(99, 7, 3));
     }
 
     @Test

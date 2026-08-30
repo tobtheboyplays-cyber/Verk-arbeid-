@@ -277,6 +277,27 @@ public final class HsUi {
         return w;
     }
 
+    /**
+     * Draws a badge whose text was already translated, measured and fitted by
+     * the owning screen's immutable render model. Unlike {@link #badge}, this
+     * overload performs no font measurement or ellipsis allocation in the hot
+     * render path.
+     */
+    public static int fittedBadge(GuiGraphics g, Font font, FittedLabel label,
+                                  int x, int y, int trade) {
+        int w = label.width() + 6;
+        int h = 10;
+        int rim = 0xFF000000 | (trade & 0xFFFFFF);
+        int fill = mixToward(trade, 0x241A0E, 0.62F);
+        g.fill(x, y, x + w, y + h, fill);
+        g.fill(x, y, x + w, y + 1, rim);
+        g.fill(x, y + h - 1, x + w, y + h, rim);
+        g.fill(x, y, x + 1, y + h, rim);
+        g.fill(x + w - 1, y, x + w, y + h, rim);
+        g.drawString(font, label.text(), x + 3, y + 1, rim, true);
+        return w;
+    }
+
     /** Blends {@code rgb} toward {@code towardRgb} by {@code t} (0..1), alpha forced opaque. */
     private static int mixToward(int rgb, int towardRgb, float t) {
         int r = Math.round(((rgb >> 16) & 0xFF) * (1 - t) + ((towardRgb >> 16) & 0xFF) * t);

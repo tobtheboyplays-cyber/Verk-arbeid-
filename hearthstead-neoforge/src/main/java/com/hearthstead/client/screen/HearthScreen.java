@@ -36,9 +36,11 @@ import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -108,48 +110,44 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private static final int TAB_STRIP_W = TAB_SETTLEMENT_W + TAB_MAYOR_W
         + TAB_JOURNEY_W + TAB_REQUESTS_W + TAB_DEVELOPMENT_W + 4 * TAB_GAP;
 
-    // -- the Mayor tab's popout panel, laid out exactly like PlaqueScreen's
-    //    card list (same PAD/SCROLL_W/CARD proportions) plus a status block
-    //    up top for the seat itself. --
-    private static final int MAYOR_PANEL_W = 256;
+    // -- Mayor roster ----------------------------------------------------
+    // The old 256px scroll column hid profession and converted the one
+    // player-facing attribute into five vague pips. The roster is now a
+    // bounded dossier: three complete rows, an exact page counter, and one
+    // explicit Appoint action per person. At 427x240 it is the approved
+    // 411x224 composition; at 320px it contracts to 304px without changing
+    // the information hierarchy.
+    private static final int MAYOR_PANEL_MAX_W = 411;
+    private static final int MAYOR_PANEL_MIN_W = 240;
     private static final int MAYOR_PAD = HsUiTokens.PAD;
     private static final int MAYOR_GAP = 6;
-    private static final int MAYOR_TITLE_Y = 12;
-    private static final int MAYOR_DIV1_Y = 26;
-    private static final int MAYOR_STATUS_Y = 32;
-    private static final int MAYOR_STATUS_H = 48;
-    private static final int MAYOR_DIV2_Y = MAYOR_STATUS_Y + MAYOR_STATUS_H + 6;
-    private static final int MAYOR_LABEL_Y = MAYOR_DIV2_Y + 8;
-    private static final int MAYOR_LIST_TOP = MAYOR_LABEL_Y + 12;
+    private static final int MAYOR_TITLE_Y = 8;
+    private static final int MAYOR_RULE_Y = 42;
+    private static final int MAYOR_STATUS_Y = 6;
+    private static final int MAYOR_STATUS_W = 135;
+    private static final int MAYOR_STATUS_H = 32;
+    private static final int MAYOR_LABEL_Y = 48;
+    private static final int MAYOR_LIST_TOP = 64;
     private static final int MAYOR_MAX_ROWS = 3;
     private static final int MAYOR_CARD_H = 38;
     private static final int MAYOR_CARD_STEP = MAYOR_CARD_H + 4;
-    // The footer sometimes wraps to two lines -- "Appointing someone new
-    // stands Gislebert the Younger down" measured 299px against a 240px box
-    // (59px over) in English, 249px (9px over) in Norwegian, both from the
-    // rare "crowded settlement" long-name fallback. Two lines clears both
-    // with room to spare; reserved unconditionally like the rest of this
-    // panel's fixed shape.
-    private static final int MAYOR_FOOTER_H = HsUiTokens.TEXT_H + 9;
-    private static final int MAYOR_PANEL_H = MAYOR_LIST_TOP
-        + MAYOR_MAX_ROWS * MAYOR_CARD_STEP - 4 + 6
-        + 8 + MAYOR_FOOTER_H + 8;
-
     private static final int MAYOR_CARD_X = MAYOR_PAD;
-    private static final int MAYOR_CARD_W =
-        MAYOR_PANEL_W - 2 * MAYOR_PAD - HsUiTokens.SCROLL_W - 2;
-    private static final int MAYOR_BTN_W = 64;
-    private static final int MAYOR_BTN_X = MAYOR_CARD_X + MAYOR_CARD_W - MAYOR_BTN_W - 8;
-    private static final int MAYOR_TEXT_X = MAYOR_CARD_X + 10;
-    // Measured against "Gislebert the Younger" (111px, the crowded-settlement
-    // long-name fallback) -- 110 clipped it by 1px. 114 clears it and still
-    // leaves a 2px gap before the pips column at MAYOR_BTN_X - 34.
-    private static final int MAYOR_NAME_BOX = MAYOR_BTN_X - MAYOR_TEXT_X - 36;
-    private static final int MAYOR_LINE_BOX = MAYOR_BTN_X - MAYOR_TEXT_X - 6;
+    private static final int MAYOR_AVATAR_X = MAYOR_CARD_X + 6;
+    private static final int MAYOR_AVATAR_SIZE = 24;
+    private static final int MAYOR_TEXT_X = MAYOR_AVATAR_X + MAYOR_AVATAR_SIZE + 6;
+    private static final int MAYOR_ROW_NAME_WIDE = 104;
+    private static final int MAYOR_ROW_NAME_NARROW = 96;
+    private static final int MAYOR_NAV_GAP = 4;
+    private static final int MAYOR_NAV_W = 60;
+    private static final int MAYOR_CLOSE_W = 61;
+    private static final int MAYOR_FOOTER_GAP_TOP = 6;
+    private static final int MAYOR_PANEL_BOTTOM_PAD = 8;
     private static final Component MAYOR_TITLE = Component.translatable(
         "hearthstead.mayor.tab.title");
+    private static final Component MAYOR_CHOICE_RULE = Component.translatable(
+        "hearthstead.mayor.choice_rule");
     private static final Component MAYOR_CANDIDATES_TITLE = Component.translatable(
-        "hearthstead.mayor.candidates.title");
+        "hearthstead.mayor.roster.title");
     private static final Component MAYOR_LOADING = Component.translatable(
         "hearthstead.mayor.loading");
     private static final Component MAYOR_CANDIDATES_EMPTY = Component.translatable(
@@ -277,7 +275,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private int observedJourneyRevision = Integer.MIN_VALUE;
     private int observedJourneyCanSkip = Integer.MIN_VALUE;
     private HearthMayorSnapshot mayorSnapshot;
-    private int mayorScroll;
+    private int mayorPage;
     private final List<SeatTabButton> seatTabs = new ArrayList<>();
     /** Controls registered for input/narration and drawn once after the modal. */
     private final List<AbstractButton> latePanelWidgets = new ArrayList<>();
@@ -285,10 +283,12 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private boolean uiCloseSoundPlayed;
     private int mayorPanelLeft;
     private int mayorPanelTop;
-    private int mayorPanelHeight = MAYOR_PANEL_H;
+    private int mayorPanelWidth = MAYOR_PANEL_MAX_W;
+    private int mayorPanelHeight = 224;
     private int mayorVisibleRows = MAYOR_MAX_ROWS;
     private int mayorListHeight = MAYOR_MAX_ROWS * MAYOR_CARD_STEP - 4;
-    private int mayorFoot = MAYOR_LIST_TOP + mayorListHeight + 6;
+    private int mayorFoot = MAYOR_LIST_TOP + mayorListHeight + 4;
+    private int mayorButtonY = mayorFoot + MAYOR_FOOTER_GAP_TOP;
     private int journeyPanelLeft;
     private int journeyPanelTop;
     private int journeyPanelHeight = JOURNEY_PANEL_H;
@@ -358,11 +358,14 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private FormattedCharSequence recruitLine2 = FormattedCharSequence.EMPTY;
     private HearthMayorSnapshot mayorRenderSnapshot;
     private String mayorRenderLanguage = "";
+    private int mayorRenderPanelWidth = -1;
     private int mayorRenderPanelHeight = -1;
     private int mayorRenderVisibleRows = -1;
+    private int mayorRenderPage = -1;
     private MayorRenderModel mayorRenderModel = MayorRenderModel.empty();
     private HearthMayorSnapshot mayorStatusSnapshot;
     private String mayorStatusLanguage = "";
+    private int mayorStatusPanelWidth = -1;
     private long mayorStatusSecond = Long.MIN_VALUE;
     private MayorStatusRenderModel mayorStatusRenderModel =
         MayorStatusRenderModel.empty();
@@ -470,18 +473,24 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     }
 
     /**
-     * Mayor keeps the complete status and footer at every target profile;
-     * only the already-scrollable candidate window loses a row at 240px.
+     * Pure Mayor geometry shared by native runtime and deterministic layout
+     * tests. A 16px viewport gutter yields the approved 411x224 panel at
+     * 427x240 and a truthful 304x224 contraction at 320x240.
      */
-    static MayorLayout mayorLayoutFor(int viewportHeight) {
-        int available = Math.max(1, viewportHeight - 2);
-        int fixed = MAYOR_LIST_TOP - 4 + 6 + 8 + MAYOR_FOOTER_H + 8;
-        int rows = Mth.clamp((available - fixed) / MAYOR_CARD_STEP,
+    static MayorLayout mayorLayoutFor(int viewportWidth, int viewportHeight) {
+        int panelWidth = Mth.clamp(viewportWidth - 16,
+            MAYOR_PANEL_MIN_W, MAYOR_PANEL_MAX_W);
+        int availableHeight = Math.max(1, viewportHeight - 16);
+        // panel height = 98 fixed pixels + one 42px step per visible row.
+        int rows = Mth.clamp((availableHeight - 98) / MAYOR_CARD_STEP,
             1, MAYOR_MAX_ROWS);
         int listHeight = rows * MAYOR_CARD_STEP - 4;
-        int foot = MAYOR_LIST_TOP + listHeight + 6;
-        int panelHeight = foot + 8 + MAYOR_FOOTER_H + 8;
-        return new MayorLayout(panelHeight, rows, listHeight, foot);
+        int foot = MAYOR_LIST_TOP + listHeight + 4;
+        int buttonY = foot + MAYOR_FOOTER_GAP_TOP;
+        int panelHeight = buttonY + HsUiTokens.BUTTON_H
+            + MAYOR_PANEL_BOTTOM_PAD;
+        return new MayorLayout(panelWidth, panelHeight, rows, listHeight,
+            foot, buttonY);
     }
 
     /** The bounded Journey projection always renders current plus next only. */
@@ -496,11 +505,13 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     }
 
     private void applyResponsivePopoutLayout() {
-        MayorLayout mayor = mayorLayoutFor(height);
+        MayorLayout mayor = mayorLayoutFor(width, height);
+        mayorPanelWidth = mayor.panelWidth();
         mayorPanelHeight = mayor.panelHeight();
         mayorVisibleRows = mayor.visibleRows();
         mayorListHeight = mayor.listHeight();
         mayorFoot = mayor.foot();
+        mayorButtonY = mayor.buttonY();
 
         JourneyLayout journey = journeyLayoutFor(height);
         journeyPanelHeight = journey.panelHeight();
@@ -511,8 +522,26 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         journeyButtonY = journey.buttonY();
     }
 
-    record MayorLayout(int panelHeight, int visibleRows,
-                       int listHeight, int foot) {
+    record MayorLayout(int panelWidth, int panelHeight, int visibleRows,
+                       int listHeight, int foot, int buttonY) {
+    }
+
+    static int mayorPageCount(int candidateCount, int rowsPerPage) {
+        int safeRows = Math.max(1, rowsPerPage);
+        int safeCandidates = Math.max(0, candidateCount);
+        return Math.max(1, (safeCandidates + safeRows - 1) / safeRows);
+    }
+
+    static int mayorClampPage(int requestedPage, int candidateCount,
+                              int rowsPerPage) {
+        return Mth.clamp(requestedPage, 0,
+            mayorPageCount(candidateCount, rowsPerPage) - 1);
+    }
+
+    static int mayorPageStart(int page, int candidateCount,
+                              int rowsPerPage) {
+        int clamped = mayorClampPage(page, candidateCount, rowsPerPage);
+        return clamped * Math.max(1, rowsPerPage);
     }
 
     record JourneyLayout(int panelHeight, int stepHeight, int stepGap,
@@ -527,25 +556,29 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         }
     }
 
-    private record MayorRenderRow(HsUi.FittedLabel name,
-                                  HsUi.FittedLabel boon) {
+    private record MayorRenderRow(HsUi.FittedLabel initial,
+                                  HsUi.FittedLabel name,
+                                  HsUi.FittedLabel profession,
+                                  HsUi.FittedLabel boon,
+                                  HsUi.FittedLabel knack,
+                                  HsUi.Tone tone) {
     }
 
-    private record MayorRenderModel(int titleWidth,
+    private record MayorRenderModel(HsUi.FittedLabel title,
+                                    HsUi.FittedLabel choiceRule,
                                     HsUi.FittedLabel candidatesTitle,
                                     HsUi.FittedLabel loading,
                                     HsUi.FittedLabel emptyCandidates,
                                     List<MayorRenderRow> candidates,
-                                    List<FormattedCharSequence> footer) {
+                                    HsUi.FittedLabel page) {
         private MayorRenderModel {
             candidates = List.copyOf(candidates);
-            footer = List.copyOf(footer);
         }
 
         private static MayorRenderModel empty() {
             HsUi.FittedLabel empty = fittedEmpty();
-            return new MayorRenderModel(0, empty, empty, empty,
-                List.of(), List.of());
+            return new MayorRenderModel(empty, empty, empty, empty, empty,
+                List.of(), empty);
         }
     }
 
@@ -780,21 +813,60 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         }
         updateMayorPanelPosition();
         suppressCoveredTabs(mayorPanelLeft, mayorPanelTop,
-            MAYOR_PANEL_W, mayorPanelHeight);
-        addPanelClose(mayorPanelLeft, mayorPanelTop, MAYOR_PANEL_W);
+            mayorPanelWidth, mayorPanelHeight);
+
+        int candidateCount = mayorSnapshot == null
+            ? 0 : mayorSnapshot.candidates().size();
+        mayorPage = mayorClampPage(mayorPage, candidateCount,
+            mayorVisibleRows);
+        int pages = mayorPageCount(candidateCount, mayorVisibleRows);
+        int closeWidth = Math.min(MAYOR_CLOSE_W,
+            Math.max(44, mayorPanelWidth / 5));
+        int navWidth = Math.min(MAYOR_NAV_W,
+            Math.max(48, mayorPanelWidth / 5));
+        int closeX = mayorPanelLeft + mayorPanelWidth - MAYOR_PAD - closeWidth;
+        int nextX = closeX - MAYOR_NAV_GAP - navWidth;
+
+        HsButton previous = HsButton.normal(mayorPanelLeft + MAYOR_PAD,
+            mayorPanelTop + mayorButtonY, navWidth, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.mayor.page.previous"),
+            () -> changeMayorPage(-1));
+        previous.active = mayorPage > 0;
+        previous.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.mayor.page.previous.tip")));
+        addPanelWidget(previous);
+
+        HsButton next = HsButton.normal(nextX, mayorPanelTop + mayorButtonY,
+            navWidth, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.mayor.page.next"),
+            () -> changeMayorPage(1));
+        next.active = mayorPage + 1 < pages;
+        next.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.mayor.page.next.tip")));
+        addPanelWidget(next);
+
+        HsButton close = HsButton.normal(closeX, mayorPanelTop + mayorButtonY,
+            closeWidth, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.gui.close"), this::closePopout);
+        close.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.gui.close.tip")));
+        addPanelWidget(close);
+
         if (mayorSnapshot == null) {
             return;
         }
         List<HearthMayorSnapshot.Candidate> candidates = mayorSnapshot.candidates();
-        int rows = candidates.size();
-        mayorScroll = Math.max(0, Math.min(mayorScroll,
-            Math.max(0, rows - mayorVisibleRows)));
+        int pageStart = mayorPageStart(mayorPage, candidates.size(),
+            mayorVisibleRows);
         boolean canAppoint = !mayorSnapshot.mourning();
         for (int row = 0; row < mayorVisibleRows
-            && row + mayorScroll < rows; row++) {
-            HearthMayorSnapshot.Candidate candidate = candidates.get(row + mayorScroll);
+            && row + pageStart < candidates.size(); row++) {
+            HearthMayorSnapshot.Candidate candidate = candidates.get(row + pageStart);
             int y = mayorPanelTop + MAYOR_LIST_TOP + row * MAYOR_CARD_STEP;
-            HsButton appoint = HsButton.normal(mayorPanelLeft + MAYOR_BTN_X, y + 4, MAYOR_BTN_W,
+            int appointWidth = mayorAppointWidth(mayorPanelWidth);
+            int appointX = mayorPanelLeft + mayorPanelWidth - MAYOR_PAD
+                - appointWidth;
+            HsButton appoint = HsButton.normal(appointX, y + 4, appointWidth,
                 HsUiTokens.BUTTON_H, Component.translatable("hearthstead.mayor.appoint"),
                 () -> appointAction(candidate.id()));
             appoint.active = canAppoint;
@@ -1007,14 +1079,52 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         rebuildSeatWidgets();
     }
 
+    private void changeMayorPage(int direction) {
+        int candidates = mayorSnapshot == null
+            ? 0 : mayorSnapshot.candidates().size();
+        int next = mayorClampPage(mayorPage + Integer.signum(direction),
+            candidates, mayorVisibleRows);
+        if (next == mayorPage) {
+            return;
+        }
+        mayorPage = next;
+        QaClientObserver.markUiTransition("hearth_mayor_page");
+        rebuildSeatWidgets();
+    }
+
+    private static int mayorAppointWidth(int panelWidth) {
+        return panelWidth >= 360 ? 61 : 54;
+    }
+
+    private static int mayorNameWidth(int panelWidth) {
+        return panelWidth >= 360
+            ? MAYOR_ROW_NAME_WIDE : MAYOR_ROW_NAME_NARROW;
+    }
+
+    private static int mayorInfoX(int panelWidth) {
+        return MAYOR_TEXT_X + mayorNameWidth(panelWidth) + 8;
+    }
+
+    private static int mayorBoonWidth(int panelWidth) {
+        int buttonX = panelWidth - MAYOR_PAD - mayorAppointWidth(panelWidth);
+        return Math.max(1, buttonX - mayorInfoX(panelWidth) - 8);
+    }
+
+    private static int mayorKnackWidth(int panelWidth) {
+        return Math.max(1, panelWidth - MAYOR_PAD
+            - mayorInfoX(panelWidth));
+    }
+
     /** Prefers the right of the window; falls back left, then clamps on-screen. */
     private void updateMayorPanelPosition() {
         int tabLeft = leftPos + (imageWidth - TAB_STRIP_W) / 2;
         int preferred = Math.max(leftPos + imageWidth,
             tabLeft + TAB_STRIP_W) + MAYOR_GAP;
-        if (preferred + MAYOR_PANEL_W > width) {
-            int leftSide = Math.min(leftPos, tabLeft) - MAYOR_GAP - MAYOR_PANEL_W;
-            preferred = leftSide >= 0 ? leftSide : Math.max(0, width - MAYOR_PANEL_W);
+        if (preferred + mayorPanelWidth > width) {
+            int leftSide = Math.min(leftPos, tabLeft) - MAYOR_GAP
+                - mayorPanelWidth;
+            preferred = leftSide >= 0 ? leftSide
+                : Math.max(0, width - mayorPanelWidth);
         }
         mayorPanelLeft = preferred;
         mayorPanelTop = Mth.clamp(
@@ -1667,20 +1777,27 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         if (mayorTabOpen && mayorSnapshot != null) {
             int rows = mayorSnapshot.candidates().size();
             if (rows > mayorVisibleRows && mouseX >= mayorPanelLeft
-                && mouseX <= mayorPanelLeft + MAYOR_PANEL_W
+                && mouseX <= mayorPanelLeft + mayorPanelWidth
                 && mouseY >= mayorPanelTop
                 && mouseY <= mayorPanelTop + mayorPanelHeight) {
-                int before = mayorScroll;
-                mayorScroll = Math.max(0, Math.min(rows - mayorVisibleRows,
-                    mayorScroll - (int) Math.signum(dy)));
-                if (before != mayorScroll) {
-                    QaClientObserver.markUiTransition("hearth_mayor_scroll");
-                    rebuildSeatWidgets();
-                    return true;
-                }
+                int before = mayorPage;
+                changeMayorPage(-(int) Math.signum(dy));
+                return before != mayorPage;
             }
         }
         return super.mouseScrolled(mouseX, mouseY, dx, dy);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (mayorTabOpen && (keyCode == GLFW.GLFW_KEY_PAGE_UP
+            || keyCode == GLFW.GLFW_KEY_PAGE_DOWN)) {
+            int before = mayorPage;
+            changeMayorPage(keyCode == GLFW.GLFW_KEY_PAGE_UP ? -1 : 1);
+            return before != mayorPage
+                || super.keyPressed(keyCode, scanCode, modifiers);
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
@@ -1713,7 +1830,8 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
                 && mouseY < recruitmentPanelTop + RECRUIT_PANEL_H;
         }
         if (mayorTabOpen) {
-            return mouseX >= mayorPanelLeft && mouseX < mayorPanelLeft + MAYOR_PANEL_W
+            return mouseX >= mayorPanelLeft
+                && mouseX < mayorPanelLeft + mayorPanelWidth
                 && mouseY >= mayorPanelTop
                 && mouseY < mayorPanelTop + mayorPanelHeight;
         }
@@ -1748,7 +1866,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
             : requestPanelOpen ? requestPanelTop
             : journeyTabOpen ? journeyPanelTop : -1;
         int panelWidth = recruitmentPanelOpen ? RECRUIT_PANEL_W
-            : mayorTabOpen ? MAYOR_PANEL_W
+            : mayorTabOpen ? mayorPanelWidth
             : requestPanelOpen ? REQUEST_PANEL_W
             : journeyTabOpen ? JOURNEY_PANEL_W : 0;
         int panelHeight = recruitmentPanelOpen ? RECRUIT_PANEL_H
@@ -1771,6 +1889,9 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
             + ",ledgerOverlap=" + overlapsLedger + ",hiddenTabs=" + hiddenTabs
             + ",lateWidgets=" + latePanelWidgets.size()
             + ",mayorRows=" + mayorVisibleRows
+            + ",mayorPage=" + mayorPage
+            + ",mayorPages=" + mayorPageCount(mayorSnapshot == null
+                ? 0 : mayorSnapshot.candidates().size(), mayorVisibleRows)
             + ",journeyCompact=" + (journeyPanelHeight < JOURNEY_PANEL_H)
             + ",journeyConfirm=" + journeySkipConfirm
             + ",recruitPresent=" + cachedRecruitmentCard.present()
@@ -1826,64 +1947,78 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         ensureMayorRenderModels();
         int pl = mayorPanelLeft;
         int pt = mayorPanelTop;
-        HsUi.modalWindow(graphics, pl, pt, MAYOR_PANEL_W, mayorPanelHeight);
-        graphics.drawString(font, MAYOR_TITLE,
-            pl + (MAYOR_PANEL_W - mayorRenderModel.titleWidth()) / 2,
-            pt + MAYOR_TITLE_Y, HsUiTokens.TEXT_STRONG, true);
-        HsUi.divider(graphics, pl + MAYOR_PAD, pt + MAYOR_DIV1_Y, MAYOR_PANEL_W - 2 * MAYOR_PAD);
+        int pw = mayorPanelWidth;
+        HsUi.modalWindow(graphics, pl, pt, pw, mayorPanelHeight);
+        graphics.drawString(font, mayorRenderModel.title().text(),
+            pl + MAYOR_PAD, pt + MAYOR_TITLE_Y,
+            HsUiTokens.TEXT_STRONG, true);
+        if (pw >= 360) {
+            graphics.drawString(font, mayorRenderModel.choiceRule().text(),
+                pl + MAYOR_PAD, pt + MAYOR_TITLE_Y + 14,
+                HsUiTokens.TEXT_MUTED, true);
+        }
 
         drawMayorStatus(graphics, pl, pt);
 
-        HsUi.divider(graphics, pl + MAYOR_PAD, pt + MAYOR_DIV2_Y, MAYOR_PANEL_W - 2 * MAYOR_PAD);
+        HsUi.divider(graphics, pl + MAYOR_PAD, pt + MAYOR_RULE_Y,
+            pw - 2 * MAYOR_PAD);
         graphics.drawString(font, mayorRenderModel.candidatesTitle().text(),
             pl + MAYOR_PAD, pt + MAYOR_LABEL_Y, HsUiTokens.TEXT_MUTED, true);
 
+        List<HearthMayorSnapshot.Candidate> candidates = mayorSnapshot == null
+            ? List.of() : mayorSnapshot.candidates();
         if (mayorSnapshot == null) {
             graphics.drawString(font, mayorRenderModel.loading().text(),
                 pl + MAYOR_PAD, pt + MAYOR_LIST_TOP,
                 HsUiTokens.TEXT_MUTED, true);
-            return;
-        }
-
-        List<HearthMayorSnapshot.Candidate> candidates = mayorSnapshot.candidates();
-        if (candidates.isEmpty()) {
+        } else if (candidates.isEmpty()) {
             graphics.drawString(font, mayorRenderModel.emptyCandidates().text(),
                 pl + MAYOR_PAD, pt + MAYOR_LIST_TOP,
                 HsUiTokens.TEXT_MUTED, true);
         }
+        int pageStart = mayorPageStart(mayorPage, candidates.size(),
+            mayorVisibleRows);
         for (int row = 0; row < mayorVisibleRows
-            && row + mayorScroll < candidates.size(); row++) {
-            HearthMayorSnapshot.Candidate candidate = candidates.get(row + mayorScroll);
+            && row + pageStart < candidates.size(); row++) {
             int y = pt + MAYOR_LIST_TOP + row * MAYOR_CARD_STEP;
-            boolean hovered = mouseX >= pl + MAYOR_CARD_X && mouseX <= pl + MAYOR_CARD_X + MAYOR_CARD_W
+            int cardWidth = pw - 2 * MAYOR_PAD;
+            boolean hovered = mouseX >= pl + MAYOR_CARD_X
+                && mouseX <= pl + MAYOR_CARD_X + cardWidth
                 && mouseY >= y && mouseY <= y + MAYOR_CARD_H;
-            HsUi.card(graphics, pl + MAYOR_CARD_X, y, MAYOR_CARD_W, MAYOR_CARD_H, hovered);
+            HsUi.card(graphics, pl + MAYOR_CARD_X, y, cardWidth,
+                MAYOR_CARD_H, hovered);
             MayorRenderRow rendered = mayorRenderModel.candidates()
-                .get(row + mayorScroll);
+                .get(row + pageStart);
+            HsUi.inset(graphics, pl + MAYOR_AVATAR_X, y + 7,
+                MAYOR_AVATAR_SIZE, MAYOR_AVATAR_SIZE);
+            graphics.drawString(font, rendered.initial().text(),
+                pl + MAYOR_AVATAR_X
+                    + (MAYOR_AVATAR_SIZE - rendered.initial().width()) / 2,
+                y + 15, rendered.tone().colour(), true);
             graphics.drawString(font, rendered.name().text(),
-                pl + MAYOR_TEXT_X, y + 6, HsUiTokens.TEXT_STRONG, true);
+                pl + MAYOR_TEXT_X, y + 5, HsUiTokens.TEXT_STRONG, true);
+            graphics.drawString(font, rendered.profession().text(),
+                pl + MAYOR_TEXT_X, y + 25, HsUiTokens.GOOD, true);
             graphics.drawString(font, rendered.boon().text(),
-                pl + MAYOR_TEXT_X, y + 20, HsUiTokens.TEXT_MUTED, true);
-            HsUi.pips(graphics, pl + MAYOR_BTN_X - 34, y + 9,
-                Math.min(5, candidate.knack() * 5 / 100), 5, HsUi.Tone.ACCENT);
+                pl + mayorInfoX(pw), y + 5, HsUiTokens.ACCENT, true);
+            graphics.drawString(font, rendered.knack().text(),
+                pl + mayorInfoX(pw), y + 25,
+                rendered.tone().colour(), true);
         }
 
-        int rows = candidates.size();
-        HsUi.scrollbar(graphics, pl + MAYOR_PANEL_W - MAYOR_PAD - HsUiTokens.SCROLL_W,
-            pt + MAYOR_LIST_TOP, mayorListHeight,
-            rows == 0 ? 1.0F
-                : Math.min(1.0F, (float) mayorVisibleRows / rows),
-            rows <= mayorVisibleRows ? 0.0F
-                : (float) mayorScroll / (rows - mayorVisibleRows), false);
-
         HsUi.divider(graphics, pl + MAYOR_PAD, pt + mayorFoot,
-            MAYOR_PANEL_W - 2 * MAYOR_PAD);
-        // Word-wrapped, not labelIn -- the "stands X down" sentence can carry
-        // the current mayor's full (possibly long) name, and ellipsising a
-        // name mid-sentence here reads as a different, shorter sentence
-        // rather than a merely-truncated one. See MAYOR_FOOTER_H.
-        HsUi.drawLines(graphics, font, mayorRenderModel.footer(),
-            pl + MAYOR_PAD, pt + mayorFoot + 7, HsUiTokens.ACCENT);
+            pw - 2 * MAYOR_PAD);
+        int previousRight = MAYOR_PAD
+            + Math.min(MAYOR_NAV_W, Math.max(48, pw / 5));
+        int closeWidth = Math.min(MAYOR_CLOSE_W, Math.max(44, pw / 5));
+        int navWidth = Math.min(MAYOR_NAV_W, Math.max(48, pw / 5));
+        int nextX = pw - MAYOR_PAD - closeWidth - MAYOR_NAV_GAP - navWidth;
+        int pageBoxLeft = previousRight + MAYOR_NAV_GAP;
+        int pageBoxWidth = Math.max(1, nextX - MAYOR_NAV_GAP - pageBoxLeft);
+        graphics.drawString(font, mayorRenderModel.page().text(),
+            pl + pageBoxLeft
+                + (pageBoxWidth - mayorRenderModel.page().width()) / 2,
+            pt + mayorButtonY + 6, HsUiTokens.TEXT_MUTED, true);
     }
 
     private void renderRecruitmentPanel(GuiGraphics graphics) {
@@ -2240,51 +2375,32 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
      * mourning and the reason Appoint is disabled below.
      */
     private void drawMayorStatus(GuiGraphics graphics, int pl, int pt) {
-        int x = pl + MAYOR_PAD;
+        int x = pl + mayorPanelWidth - MAYOR_PAD - MAYOR_STATUS_W;
         int y = pt + MAYOR_STATUS_Y;
-        int w = MAYOR_PANEL_W - 2 * MAYOR_PAD;
+        int w = MAYOR_STATUS_W;
         HsUi.inset(graphics, x, y, w, MAYOR_STATUS_H);
         MayorStatusRenderModel model = mayorStatusRenderModel;
         if (model.kind() == 0) {
             return;
         }
         if (model.kind() == 1) {
-            graphics.drawString(font, model.first().text(), x + 6, y + 8,
+            graphics.drawString(font, model.first().text(), x + 6, y + 5,
                 HsUiTokens.WARN, true);
-            graphics.drawString(font, model.second().text(), x + 6, y + 22,
+            graphics.drawString(font, model.second().text(), x + 6, y + 18,
                 HsUiTokens.TEXT_MUTED, true);
             return;
         }
         if (model.kind() == 2) {
-            graphics.drawString(font, model.first().text(), x + 6, y + 8,
+            graphics.drawString(font, model.first().text(), x + 6, y + 5,
                 HsUiTokens.TEXT_STRONG, true);
-            graphics.drawString(font, model.second().text(), x + 6, y + 22,
+            graphics.drawString(font, model.second().text(), x + 6, y + 18,
                 HsUiTokens.TEXT_MUTED, true);
             return;
         }
-        graphics.drawString(font, model.first().text(), x + 6, y + 4,
+        graphics.drawString(font, model.first().text(), x + 6, y + 5,
             HsUiTokens.TEXT_STRONG, true);
-        graphics.drawString(font, model.second().text(), x + 6, y + 15,
+        graphics.drawString(font, model.second().text(), x + 6, y + 18,
             model.secondTone(), true);
-        graphics.drawString(font, model.third().text(), x + 6, y + 26,
-            HsUiTokens.TEXT_MUTED, true);
-        graphics.drawString(font, model.fourth().text(), x + 6, y + 37,
-            HsUiTokens.GOOD, true);
-    }
-
-    private Component mayorFooter() {
-        if (mayorSnapshot == null) {
-            return Component.translatable("hearthstead.mayor.loading");
-        }
-        if (mayorSnapshot.mourning()) {
-            return Component.translatable("hearthstead.mayor.refused.mourning");
-        }
-        if (mayorSnapshot.candidates().isEmpty()) {
-            return Component.translatable("hearthstead.mayor.candidates.empty");
-        }
-        return mayorSnapshot.hasMayor()
-            ? Component.translatable("hearthstead.mayor.footer.swap", mayorSnapshot.mayorName())
-            : Component.translatable("hearthstead.mayor.vacant.hint");
     }
 
     private static Component boonName(String key) {
@@ -2340,38 +2456,58 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     /** Stable Mayor copy is measured once per snapshot/locale/layout. */
     private void ensureMayorRenderModels() {
         String language = currentLanguage();
-        if (mayorRenderSnapshot != mayorSnapshot
-            || !mayorRenderLanguage.equals(language)
-            || mayorRenderPanelHeight != mayorPanelHeight
-            || mayorRenderVisibleRows != mayorVisibleRows) {
+        if (!mayorRenderCacheMatches(mayorRenderSnapshot,
+            mayorRenderLanguage, mayorRenderPanelWidth,
+            mayorRenderPanelHeight, mayorRenderVisibleRows, mayorRenderPage,
+            mayorSnapshot, language, mayorPanelWidth, mayorPanelHeight,
+            mayorVisibleRows, mayorPage)) {
             List<MayorRenderRow> candidates = new ArrayList<>();
             if (mayorSnapshot != null) {
                 for (HearthMayorSnapshot.Candidate candidate
                         : mayorSnapshot.candidates()) {
+                    int knack = Mth.clamp(candidate.knack(), 0, 100);
                     candidates.add(new MayorRenderRow(
+                        HsUi.fitLabel(font, Component.literal(
+                            firstInitial(candidate.name())), MAYOR_AVATAR_SIZE),
                         HsUi.fitLabel(font, Component.literal(candidate.name()),
-                            MAYOR_NAME_BOX),
+                            mayorNameWidth(mayorPanelWidth)),
                         HsUi.fitLabel(font, Component.translatable(
-                                "hearthstead.mayor.would_bring",
-                                boonName(candidate.boonKey())),
-                            MAYOR_LINE_BOX)));
+                                "hearthstead.profession."
+                                    + candidate.professionId().toLowerCase(
+                                        Locale.ROOT)),
+                            mayorNameWidth(mayorPanelWidth)),
+                        HsUi.fitLabel(font, boonName(candidate.boonKey()),
+                            mayorBoonWidth(mayorPanelWidth)),
+                        HsUi.fitLabel(font, Component.translatable(
+                                "hearthstead.mayor.knack.value",
+                                boonAttributeName(candidate.boonKey()), knack),
+                            mayorKnackWidth(mayorPanelWidth)),
+                        HsUi.Tone.of(knack / 100.0F)));
                 }
             }
+            int titleBox = Math.max(1, mayorPanelWidth - 2 * MAYOR_PAD
+                - MAYOR_STATUS_W - MAYOR_PAD);
+            int pages = mayorPageCount(mayorSnapshot == null
+                ? 0 : mayorSnapshot.candidates().size(), mayorVisibleRows);
             mayorRenderModel = new MayorRenderModel(
-                font.width(MAYOR_TITLE),
+                HsUi.fitLabel(font, MAYOR_TITLE, titleBox),
+                HsUi.fitLabel(font, MAYOR_CHOICE_RULE, titleBox),
                 HsUi.fitLabel(font, MAYOR_CANDIDATES_TITLE,
-                    MAYOR_PANEL_W - 2 * MAYOR_PAD),
+                    mayorPanelWidth - 2 * MAYOR_PAD),
                 HsUi.fitLabel(font, MAYOR_LOADING,
-                    MAYOR_PANEL_W - 2 * MAYOR_PAD),
+                    mayorPanelWidth - 2 * MAYOR_PAD),
                 HsUi.fitLabel(font, MAYOR_CANDIDATES_EMPTY,
-                    MAYOR_PANEL_W - 2 * MAYOR_PAD),
+                    mayorPanelWidth - 2 * MAYOR_PAD),
                 candidates,
-                HsUi.fitLines(font, mayorFooter(),
-                    MAYOR_PANEL_W - 2 * MAYOR_PAD));
+                HsUi.fitLabel(font, Component.translatable(
+                        "hearthstead.mayor.page", mayorPage + 1, pages),
+                    Math.max(1, mayorPanelWidth / 3)));
             mayorRenderSnapshot = mayorSnapshot;
             mayorRenderLanguage = language;
+            mayorRenderPanelWidth = mayorPanelWidth;
             mayorRenderPanelHeight = mayorPanelHeight;
             mayorRenderVisibleRows = mayorVisibleRows;
+            mayorRenderPage = mayorPage;
             mayorStatusSecond = Long.MIN_VALUE;
         }
 
@@ -2379,20 +2515,38 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         long second = countdownSecond(gameTime);
         if (mayorStatusSnapshot == mayorSnapshot
             && mayorStatusLanguage.equals(language)
+            && mayorStatusPanelWidth == mayorPanelWidth
             && !needsCountdownRefresh(mayorStatusSecond, gameTime)) {
             return;
         }
         mayorStatusSnapshot = mayorSnapshot;
         mayorStatusLanguage = language;
+        mayorStatusPanelWidth = mayorPanelWidth;
         mayorStatusSecond = second;
         mayorStatusRenderModel = buildMayorStatusRenderModel();
+    }
+
+    /** Pure cache key: roster text is rebuilt only on actual visible input. */
+    static boolean mayorRenderCacheMatches(Object cachedSnapshot,
+                                            String cachedLanguage,
+                                            int cachedWidth, int cachedHeight,
+                                            int cachedRows, int cachedPage,
+                                            Object snapshot, String language,
+                                            int width, int height,
+                                            int rows, int page) {
+        return cachedSnapshot == snapshot
+            && cachedLanguage.equals(language)
+            && cachedWidth == width
+            && cachedHeight == height
+            && cachedRows == rows
+            && cachedPage == page;
     }
 
     private MayorStatusRenderModel buildMayorStatusRenderModel() {
         if (mayorSnapshot == null) {
             return MayorStatusRenderModel.empty();
         }
-        int box = MAYOR_PANEL_W - 2 * MAYOR_PAD - 12;
+        int box = MAYOR_STATUS_W - 12;
         HsUi.FittedLabel empty = fittedEmpty();
         long now = currentGameTime();
         if (mayorSnapshot.mourning()) {
@@ -2423,10 +2577,35 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         return new MayorStatusRenderModel(3,
             HsUi.fitLabel(font, Component.literal(mayorSnapshot.mayorName()), box),
             HsUi.fitLabel(font, boonLine, box),
-            HsUi.fitLabel(font, boonDesc(mayorSnapshot.boonKey()), box),
-            HsUi.fitLabel(font, Component.translatable(
-                "hearthstead.mayor.emblems.hint"), box),
+            empty,
+            empty,
             settling ? HsUiTokens.TEXT_MUTED : HsUiTokens.ACCENT);
+    }
+
+    static String firstInitial(String name) {
+        if (name == null || name.isBlank()) {
+            return "?";
+        }
+        String stripped = name.strip();
+        int end = stripped.offsetByCodePoints(0, 1);
+        return stripped.substring(0, end).toUpperCase(Locale.ROOT);
+    }
+
+    private static Component boonAttributeName(String boonKey) {
+        String attribute = switch (boonKey == null ? "" : boonKey) {
+            case "hard_hands" -> "strength";
+            case "long_days" -> "stamina";
+            case "good_counsel" -> "wits";
+            case "careful_work" -> "dexterity";
+            case "open_hearth" -> "spirit";
+            case "clear_sight" -> "perception";
+            case "steady_purpose" -> "focus";
+            case "common_voice" -> "presence";
+            default -> "";
+        };
+        return attribute.isEmpty()
+            ? Component.translatable("hearthstead.mayor.knack.unknown")
+            : Component.translatable("hearthstead.attribute." + attribute);
     }
 
     /** Readiness lists are split once per authoritative generation. */
@@ -2927,7 +3106,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
                 : mayorTabOpen ? mayorPanelLeft
                 : requestPanelOpen ? requestPanelLeft : journeyPanelLeft;
             int panelWidth = recruitmentPanelOpen ? RECRUIT_PANEL_W
-                : mayorTabOpen ? MAYOR_PANEL_W
+                : mayorTabOpen ? mayorPanelWidth
                 : requestPanelOpen ? REQUEST_PANEL_W : JOURNEY_PANEL_W;
             if (panelLeft < leftPos + imageWidth
                 && panelLeft + panelWidth > leftPos) {

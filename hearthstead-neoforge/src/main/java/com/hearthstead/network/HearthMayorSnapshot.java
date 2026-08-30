@@ -68,9 +68,9 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
     /**
      * Someone who could take the seat, and the boon they would eventually
      * bring -- {@code Mayor.boonOf} is one boon per key attribute, so this is
-     * never ambiguous. {@code knack} is that attribute's own 0-100 score,
-     * carried so the screen can draw it as pips: a candidate's fitness for
-     * their own boon reads at a glance rather than as a raw number.
+     * never ambiguous. {@code knack} is that attribute's own player-facing
+     * 0-100 score. The client names the exact attribute and prints the exact
+     * number; it must not collapse the choice into pips or a hidden score.
      */
     public record Candidate(UUID id, String name, String professionId, String boonKey,
                             int knack) {

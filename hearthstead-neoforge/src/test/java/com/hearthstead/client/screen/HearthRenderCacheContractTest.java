@@ -58,4 +58,28 @@ class HearthRenderCacheContractTest {
         assertFalse(HearthScreen.statusRenderCacheMatches(0, font, "en_us", 236,
             0, font, "en_us", 192));
     }
+
+    @Test
+    void mayorRosterCacheTracksSnapshotLocaleLayoutRowsAndPage() {
+        Object snapshot = new Object();
+        assertTrue(HearthScreen.mayorRenderCacheMatches(snapshot, "en_us",
+            411, 224, 3, 0, snapshot, "en_us", 411, 224, 3, 0));
+        assertFalse(HearthScreen.mayorRenderCacheMatches(snapshot, "en_us",
+            411, 224, 3, 0, new Object(), "en_us", 411, 224, 3, 0));
+        assertFalse(HearthScreen.mayorRenderCacheMatches(snapshot, "en_us",
+            411, 224, 3, 0, snapshot, "nb_no", 411, 224, 3, 0));
+        assertFalse(HearthScreen.mayorRenderCacheMatches(snapshot, "en_us",
+            411, 224, 3, 0, snapshot, "en_us", 304, 224, 3, 0));
+        assertFalse(HearthScreen.mayorRenderCacheMatches(snapshot, "en_us",
+            411, 224, 3, 0, snapshot, "en_us", 411, 224, 2, 0));
+        assertFalse(HearthScreen.mayorRenderCacheMatches(snapshot, "en_us",
+            411, 224, 3, 0, snapshot, "en_us", 411, 224, 3, 1));
+    }
+
+    @Test
+    void mayorInitialIsStableForEmptyAsciiAndUnicodeNames() {
+        assertEquals("?", HearthScreen.firstInitial(""));
+        assertEquals("R", HearthScreen.firstInitial(" Runa"));
+        assertEquals("Å", HearthScreen.firstInitial("Åse"));
+    }
 }
