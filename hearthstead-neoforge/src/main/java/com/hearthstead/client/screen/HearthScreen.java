@@ -23,6 +23,7 @@ import com.hearthstead.settlement.request.RequestType;
 import com.hearthstead.settlement.raid.FirstRaidReadinessService;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.components.Tooltip;
@@ -242,6 +243,12 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         "hearthstead.gui.morale");
     private static final Component ALERT_LABEL = Component.translatable(
         "hearthstead.gui.alert");
+    private static final Component SETTLEMENT_STATUS_LABEL = Component.translatable(
+        "hearthstead.gui.settlement_status");
+    private static final Component SETTLEMENT_STATUS_ALERT = Component.translatable(
+        "hearthstead.gui.settlement_status.alert");
+    private static final Component SETTLEMENT_STATUS_STABLE = Component.translatable(
+        "hearthstead.gui.settlement_status.stable");
     private static final Component COMMAND_CENTER_LABEL = Component.translatable(
         "hearthstead.gui.command_center");
     private static final Component SETTLEMENT_PULSE_LABEL = Component.translatable(
@@ -344,6 +351,9 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private int cachedRecruitReadyFood = Integer.MIN_VALUE;
     private int cachedRecruitRequiredFood = Integer.MIN_VALUE;
     private boolean cachedRecruitCandidatePresent;
+    private Font cachedRecruitFont;
+    private String cachedRecruitLanguage = "";
+    private int cachedRecruitLineWidth = -1;
     private FormattedCharSequence recruitLine1 = FormattedCharSequence.EMPTY;
     private FormattedCharSequence recruitLine2 = FormattedCharSequence.EMPTY;
     private HearthMayorSnapshot mayorRenderSnapshot;
@@ -385,13 +395,26 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private int cachedStatsEmployed = Integer.MIN_VALUE;
     private int cachedStatsFood = Integer.MIN_VALUE;
     private int cachedStatsRadius = Integer.MIN_VALUE;
+    private int cachedStatsMorale = Integer.MIN_VALUE;
     private int cachedStatsMoraleBand = Integer.MIN_VALUE;
+    private int cachedStatsAlert = Integer.MIN_VALUE;
+    private int cachedStatsLayoutWidth = -1;
+    private int cachedStatsCardLabelWidth = -1;
+    private int cachedSettlementStatusWidth = -1;
+    private Font cachedStatsFont;
     private String cachedStatsLanguage = "";
-    private String cachedPopulationStat = "";
-    private String cachedEmploymentStat = "";
-    private String cachedFoodStat = "";
-    private String cachedRadiusStat = "";
+    private HsUi.FittedLabel cachedPopulationStat = fittedEmpty();
+    private HsUi.FittedLabel cachedEmploymentStat = fittedEmpty();
+    private HsUi.FittedLabel cachedFoodStat = fittedEmpty();
+    private HsUi.FittedLabel cachedRadiusStat = fittedEmpty();
+    private HsUi.FittedLabel cachedMoraleValue = fittedEmpty();
     private HsUi.FittedLabel cachedMoraleBand = fittedEmpty();
+    private HsUi.FittedLabel cachedPopulationCardLabel = fittedEmpty();
+    private HsUi.FittedLabel cachedEmploymentCardLabel = fittedEmpty();
+    private HsUi.FittedLabel cachedFoodCardLabel = fittedEmpty();
+    private HsUi.FittedLabel cachedRadiusCardLabel = fittedEmpty();
+    private HsUi.FittedLabel cachedSettlementStatusTitle = fittedEmpty();
+    private HsUi.FittedLabel cachedSettlementStatusDetail = fittedEmpty();
 
     public HearthScreen(HearthMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -2580,35 +2603,82 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
 
     private void updateStatRenderCache(int population, int capacity,
                                        int employed, int food, int radius,
-                                       int morale) {
+                                       int morale, int alert,
+                                       int wideCardLabelWidth,
+                                       int settlementStatusWidth) {
         String language = currentLanguage();
         boolean languageChanged = !cachedStatsLanguage.equals(language);
-        cachedStatsLanguage = language;
+        boolean fontChanged = cachedStatsFont != font;
+        boolean layoutChanged = cachedStatsLayoutWidth != imageWidth;
         boolean populationChanged = population != cachedStatsPopulation;
         if (populationChanged
-            || capacity != cachedStatsCapacity) {
+            || capacity != cachedStatsCapacity || fontChanged || languageChanged) {
             cachedStatsPopulation = population;
             cachedStatsCapacity = capacity;
-            cachedPopulationStat = population + " / " + capacity;
+            cachedPopulationStat = HsUi.fitLabel(font,
+                Component.literal(population + " / " + capacity), Integer.MAX_VALUE);
         }
         if (employed != cachedStatsEmployed
-            || populationChanged) {
+            || populationChanged || fontChanged || languageChanged) {
             cachedStatsEmployed = employed;
-            cachedEmploymentStat = employed + " / " + population;
+            cachedEmploymentStat = HsUi.fitLabel(font,
+                Component.literal(employed + " / " + population), Integer.MAX_VALUE);
         }
-        if (food != cachedStatsFood) {
+        if (food != cachedStatsFood || fontChanged || languageChanged) {
             cachedStatsFood = food;
-            cachedFoodStat = String.valueOf(food);
+            cachedFoodStat = HsUi.fitLabel(font, Component.literal(String.valueOf(food)),
+                Integer.MAX_VALUE);
         }
-        if (radius != cachedStatsRadius) {
+        if (radius != cachedStatsRadius || fontChanged || languageChanged) {
             cachedStatsRadius = radius;
-            cachedRadiusStat = radius + " m";
+            cachedRadiusStat = HsUi.fitLabel(font,
+                Component.literal(radius + " m"), Integer.MAX_VALUE);
+        }
+        if (morale != cachedStatsMorale || fontChanged || languageChanged) {
+            cachedStatsMorale = morale;
+            cachedMoraleValue = HsUi.fitLabel(font,
+                Component.literal(morale + " / 100"), Integer.MAX_VALUE);
         }
         int band = morale < 25 ? 0 : morale < 50 ? 1 : morale < 75 ? 2 : 3;
-        if (band != cachedStatsMoraleBand || languageChanged) {
+        if (band != cachedStatsMoraleBand || languageChanged || fontChanged || layoutChanged) {
             cachedStatsMoraleBand = band;
             cachedMoraleBand = HsUi.fitLabel(font, moraleBand(morale), STAT_W);
         }
+        if (wideCardLabelWidth > 0 && (languageChanged || fontChanged
+            || cachedStatsCardLabelWidth != wideCardLabelWidth)) {
+            cachedPopulationCardLabel = HsUi.fitLabel(font, POPULATION_LABEL,
+                wideCardLabelWidth);
+            cachedEmploymentCardLabel = HsUi.fitLabel(font, EMPLOYED_LABEL,
+                wideCardLabelWidth);
+            cachedFoodCardLabel = HsUi.fitLabel(font, FOOD_LABEL, wideCardLabelWidth);
+            cachedRadiusCardLabel = HsUi.fitLabel(font, RADIUS_LABEL, wideCardLabelWidth);
+            cachedStatsCardLabelWidth = wideCardLabelWidth;
+        }
+        if (settlementStatusWidth > 0 && !statusRenderCacheMatches(cachedStatsAlert,
+            cachedStatsFont, cachedStatsLanguage, cachedSettlementStatusWidth, alert, font,
+            language, settlementStatusWidth)) {
+            cachedSettlementStatusTitle = HsUi.fitLabel(font,
+                alert == 1 ? ALERT_LABEL : SETTLEMENT_STATUS_LABEL, Integer.MAX_VALUE);
+            cachedSettlementStatusDetail = HsUi.fitLabel(font,
+                alert == 1 ? SETTLEMENT_STATUS_ALERT : SETTLEMENT_STATUS_STABLE,
+                settlementStatusWidth);
+            cachedSettlementStatusWidth = settlementStatusWidth;
+        }
+        cachedStatsLanguage = language;
+        cachedStatsFont = font;
+        cachedStatsLayoutWidth = imageWidth;
+        cachedStatsAlert = alert;
+    }
+
+    /** Pure cache key for the status card and its fitted detail line. */
+    static boolean statusRenderCacheMatches(int cachedAlert, Object cachedFont,
+                                            String cachedLanguage, int cachedWidth,
+                                            int alert, Object font, String language,
+                                            int width) {
+        return cachedAlert == alert
+            && cachedFont == font
+            && cachedWidth == width
+            && cachedLanguage.equals(language);
     }
 
     @Override
@@ -2649,42 +2719,39 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         int food = menu.get(HearthMenu.DATA_FOOD);
         int radius = menu.get(HearthMenu.DATA_RADIUS);
         int morale = Mth.clamp(menu.get(HearthMenu.DATA_MORALE), 0, 100);
-        updateStatRenderCache(pop, cap, employed, food, radius, morale);
+        int alert = menu.get(HearthMenu.DATA_ALERT);
+        boolean widePulse = imageWidth >= 400;
+        int pulseX = 248;
+        int pulseW = widePulse ? imageWidth - pulseX - 16 : 0;
+        int columnGap = 4;
+        int columnW = widePulse ? (pulseW - columnGap) / 2 : 0;
+        updateStatRenderCache(pop, cap, employed, food, radius, morale, alert,
+            widePulse ? columnW - 12 : -1,
+            widePulse ? pulseW - 12 : -1);
         int fillColor = moraleColor(morale);
-        if (imageWidth >= 400) {
-            int pulseX = 248;
-            int pulseW = imageWidth - pulseX - 16;
-            int columnGap = 4;
-            int columnW = (pulseW - columnGap) / 2;
+        if (widePulse) {
             graphics.drawString(font, SETTLEMENT_PULSE_LABEL, pulseX, 40,
                 HsUiTokens.TEXT_STRONG, true);
-            drawStatCard(graphics, pulseX, 53, columnW, POPULATION_LABEL,
+            drawStatCard(graphics, pulseX, 53, columnW, cachedPopulationCardLabel,
                 cachedPopulationStat, HsUi.Tone.ACCENT);
             drawStatCard(graphics, pulseX + columnW + columnGap, 53, columnW,
-                EMPLOYED_LABEL, cachedEmploymentStat, HsUi.Tone.GOOD);
-            drawStatCard(graphics, pulseX, 83, columnW, FOOD_LABEL,
+                cachedEmploymentCardLabel, cachedEmploymentStat, HsUi.Tone.GOOD);
+            drawStatCard(graphics, pulseX, 83, columnW, cachedFoodCardLabel,
                 cachedFoodStat, food > 0 ? HsUi.Tone.GOOD : HsUi.Tone.BAD);
             drawStatCard(graphics, pulseX + columnW + columnGap, 83, columnW,
-                RADIUS_LABEL, cachedRadiusStat, HsUi.Tone.ACCENT);
+                cachedRadiusCardLabel, cachedRadiusStat, HsUi.Tone.ACCENT);
             HsUi.card(graphics, pulseX, 113, pulseW, 33, false);
             graphics.drawString(font, MORALE_LABEL, pulseX + 6, 119,
                 HsUiTokens.TEXT, false);
-            HsUi.right(graphics, font, Component.literal(morale + " / 100"),
-                pulseX + pulseW - 6, 119, fillColor);
+            graphics.drawString(font, cachedMoraleValue.text(),
+                pulseX + pulseW - 6 - cachedMoraleValue.width(), 119, fillColor, true);
             HsUi.bar(graphics, pulseX + 6, 133, pulseW - 12, 6,
                 morale / 100.0F, HsUi.Tone.of(morale / 100.0F));
             HsUi.card(graphics, pulseX, 152, pulseW, 42, false);
-            graphics.drawString(font,
-                menu.get(HearthMenu.DATA_ALERT) == 1 ? ALERT_LABEL
-                    : Component.translatable("hearthstead.gui.settlement_status"),
-                pulseX + 6, 158,
-                menu.get(HearthMenu.DATA_ALERT) == 1
-                    ? HsUiTokens.BAD : HsUiTokens.GOOD, false);
-            HsUi.labelIn(graphics, font,
-                menu.get(HearthMenu.DATA_ALERT) == 1
-                    ? Component.translatable("hearthstead.gui.settlement_status.alert")
-                    : Component.translatable("hearthstead.gui.settlement_status.stable"),
-                pulseX + 6, 174, pulseW - 12, HsUiTokens.TEXT_MUTED);
+            graphics.drawString(font, cachedSettlementStatusTitle.text(), pulseX + 6, 158,
+                alert == 1 ? HsUiTokens.BAD : HsUiTokens.GOOD, false);
+            graphics.drawString(font, cachedSettlementStatusDetail.text(), pulseX + 6, 174,
+                HsUiTokens.TEXT_MUTED, true);
         } else {
             drawStat(graphics, 0, POPULATION_LABEL, cachedPopulationStat);
             drawStat(graphics, 1, EMPLOYED_LABEL, cachedEmploymentStat);
@@ -2705,7 +2772,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
             RECRUIT_H, false);
         graphics.fill(RECRUIT_X, RECRUIT_Y, RECRUIT_X + 2,
             RECRUIT_Y + RECRUIT_H, fillColor);
-        if (menu.get(HearthMenu.DATA_ALERT) == 1) {
+        if (alert == 1) {
             // A stable urgent colour is easier to read and cheaper to render
             // than the old 400 ms flash. The flash also made the nearby stat
             // icons appear to pulse whenever the alert card was visible.
@@ -2743,6 +2810,9 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         int readyFood = menu.get(HearthMenu.DATA_READY_AFTER_PRICE);
         int requiredFood = menu.get(HearthMenu.DATA_REQUIRED_RESERVE);
         boolean candidatePresent = cachedRecruitmentCard.present();
+        String language = currentLanguage();
+        int lineWidth = RECRUIT_W - 12
+            - (candidatePresent ? RECRUIT_REVIEW_W + 4 : 0);
         if (blocker == cachedRecruitBlocker
             && stage == cachedRecruitStage
             && population == cachedRecruitPopulation
@@ -2751,7 +2821,10 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
             && recruit == cachedRecruitProgress
             && readyFood == cachedRecruitReadyFood
             && requiredFood == cachedRecruitRequiredFood
-            && candidatePresent == cachedRecruitCandidatePresent) {
+            && candidatePresent == cachedRecruitCandidatePresent
+            && cachedRecruitFont == font
+            && cachedRecruitLanguage.equals(language)
+            && cachedRecruitLineWidth == lineWidth) {
             return;
         }
         cachedRecruitBlocker = blocker;
@@ -2763,9 +2836,11 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         cachedRecruitReadyFood = readyFood;
         cachedRecruitRequiredFood = requiredFood;
         cachedRecruitCandidatePresent = candidatePresent;
+        cachedRecruitFont = font;
+        cachedRecruitLanguage = language;
+        cachedRecruitLineWidth = lineWidth;
         List<FormattedCharSequence> lines = font.split(
-            recruitStatus(blocker, population, capacity, morale),
-            RECRUIT_W - 12 - (candidatePresent ? RECRUIT_REVIEW_W + 4 : 0));
+            recruitStatus(blocker, population, capacity, morale), lineWidth);
         recruitLine1 = lines.isEmpty()
             ? FormattedCharSequence.EMPTY : lines.get(0);
         recruitLine2 = lines.size() < 2
@@ -2804,20 +2879,20 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
 
     /** Compact fallback used when the command center contracts below 400px. */
     private void drawStat(GuiGraphics graphics, int row, Component label,
-                          String value) {
+                          HsUi.FittedLabel value) {
         int y = STAT_Y + row * STAT_ROW_H;
         graphics.drawString(font, label, STAT_X, y, HsUiTokens.TEXT_MUTED, false);
-        HsUi.right(graphics, font, Component.literal(value),
-            STAT_X + STAT_W, y, HsUiTokens.TEXT_STRONG);
+        graphics.drawString(font, value.text(), STAT_X + STAT_W - value.width(), y,
+            HsUiTokens.TEXT_STRONG, true);
     }
 
     private void drawStatCard(GuiGraphics graphics, int x, int y, int width,
-                              Component label, String value, HsUi.Tone tone) {
+                              HsUi.FittedLabel label, HsUi.FittedLabel value,
+                              HsUi.Tone tone) {
         HsUi.card(graphics, x, y, width, 26, false);
-        HsUi.labelIn(graphics, font, label, x + 6, y + 4,
-            width - 12, HsUiTokens.TEXT_MUTED);
-        HsUi.right(graphics, font, Component.literal(value),
-            x + width - 6, y + 14, tone.colour());
+        graphics.drawString(font, label.text(), x + 6, y + 4, HsUiTokens.TEXT_MUTED, true);
+        graphics.drawString(font, value.text(), x + width - 6 - value.width(), y + 14,
+            tone.colour(), true);
     }
 
     private static int moraleColor(int morale) {

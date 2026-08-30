@@ -6,6 +6,7 @@ import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.network.ResearchActionPayload;
 import com.hearthstead.network.ResearchSnapshotPayload;
 import com.hearthstead.settlement.research.ResearchProject;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
@@ -14,7 +15,9 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Prøvebenken's own screen: the study's one active project as a hero, the
@@ -74,13 +77,12 @@ public class ResearchScreen extends Screen {
     private static final int HERO_TEXT_BOX = CARD_W - 20;
 
     private ResearchSnapshotPayload snapshot;
+    /** Immutable presentation for the current snapshot/font/language/layout. */
+    private ResearchRenderView renderView;
     private int scroll;
     private int left;
     private int top;
     private boolean uiSoundActive;
-    private final ItemStack studyEmblem =
-        new ItemStack(com.hearthstead.building.BuildingType.ARCHITECTS_STUDY.emblem());
-
     public ResearchScreen(ResearchSnapshotPayload snapshot) {
         super(Component.translatable("hearthstead.research.title"));
         this.snapshot = snapshot;
@@ -89,6 +91,7 @@ public class ResearchScreen extends Screen {
     /** A fresh snapshot from the server replaces what is on screen. */
     public void update(ResearchSnapshotPayload fresh) {
         this.snapshot = fresh;
+        this.renderView = null;
         rebuild();
     }
 
@@ -96,6 +99,7 @@ public class ResearchScreen extends Screen {
     protected void init() {
         left = (width - PANEL_W) / 2;
         top = (height - PANEL_H) / 2;
+        renderView = null;
         rebuild();
         if (!uiSoundActive) {
             uiSoundActive = true;
@@ -205,16 +209,18 @@ public class ResearchScreen extends Screen {
             HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
             return;
         }
+        ResearchRenderView view = renderView();
         HsUi.window(graphics, left, top, PANEL_W, PANEL_H);
-        graphics.renderItem(studyEmblem, left + 10, top + 6);
-        HsUi.centred(graphics, font, title(), left + PANEL_W / 2, top + 12,
+        graphics.renderItem(view.studyEmblem(), left + 10, top + 6);
+        HsUi.label(graphics, font, view.title().text(),
+            left + PANEL_W / 2 - view.title().width() / 2, top + 12,
             HsUiTokens.TEXT_STRONG);
         HsUi.divider(graphics, left + 10, top + 26, PANEL_W - 20);
         HsUi.divider(graphics, left + 10, top + 30, PANEL_W - 20);
 
-        drawHero(graphics);
+        drawHero(graphics, view.hero());
         HsUi.divider(graphics, left + 10, top + LIST_TOP - 8, PANEL_W - 20);
-        drawProjects(graphics, mouseX, mouseY);
+        drawProjects(graphics, mouseX, mouseY, view.projects());
 
         int total = ResearchProject.BY_ORDINAL.length;
         HsUi.scrollbar(graphics, left + PANEL_W - PAD - SCROLL_W, top + LIST_TOP, LIST_H,
@@ -222,58 +228,36 @@ public class ResearchScreen extends Screen {
             total <= ROWS ? 0.0F : (float) scroll / (total - ROWS), false);
 
         HsUi.divider(graphics, left + 10, top + FOOT, PANEL_W - 20);
-        HsUi.labelIn(graphics, font, footer(), left + 12, top + FOOT + 7,
-            PANEL_W - 24, HsUiTokens.ACCENT);
+        HsUi.label(graphics, font, view.footer().text(), left + 12, top + FOOT + 7,
+            HsUiTokens.ACCENT);
         HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
     }
 
-    private Component title() {
-        return Component.translatable("hearthstead.research.title");
-    }
-
-    private Component footer() {
-        return Component.translatable("hearthstead.research.footer.progress",
-            snapshot.completedOrdinals().size(), ResearchProject.BY_ORDINAL.length);
-    }
-
-    private void drawHero(GuiGraphics graphics) {
+    private void drawHero(GuiGraphics graphics, HeroRenderView hero) {
         int cardTop = top + HERO_TOP;
         HsUi.card(graphics, left + CARD_X, cardTop, CARD_W, HERO_H, false);
 
-        int ordinal = snapshot.activeOrdinal();
-        if (ordinal < 0) {
-            HsUi.labelIn(graphics, font,
-                Component.translatable("hearthstead.research.hero.empty"),
-                left + HERO_TEXT_X, cardTop + 24, HERO_TEXT_BOX, HsUiTokens.TEXT_MUTED);
+        if (hero.empty()) {
+            HsUi.label(graphics, font, hero.emptyLabel().text(),
+                left + HERO_TEXT_X, cardTop + 24, HsUiTokens.TEXT_MUTED);
             return;
         }
-        ResearchProject project = ResearchProject.BY_ORDINAL[ordinal];
-        graphics.renderItem(new ItemStack(project.emblem()), left + HERO_TEXT_X - 2, cardTop + 4);
-        HsUi.labelIn(graphics, font, project.displayName(),
-            left + HERO_TEXT_X + 18, cardTop + 5, HERO_TEXT_BOX - 18, HsUiTokens.TEXT_STRONG);
-        HsUi.labelIn(graphics, font, project.effectSentence(),
-            left + HERO_TEXT_X, cardTop + 17, HERO_TEXT_BOX, HsUiTokens.ACCENT);
+        graphics.renderItem(hero.emblem(), left + HERO_TEXT_X - 2, cardTop + 4);
+        HsUi.label(graphics, font, hero.name().text(),
+            left + HERO_TEXT_X + 18, cardTop + 5, HsUiTokens.TEXT_STRONG);
+        HsUi.label(graphics, font, hero.effect().text(),
+            left + HERO_TEXT_X, cardTop + 17, HsUiTokens.ACCENT);
 
-        int sessions = snapshot.activeSessions();
-        int workDays = project.workDays();
+        int sessions = hero.sessions();
+        int workDays = hero.workDays();
         float ratio = workDays <= 0 ? 0.0F : (float) sessions / workDays;
         HsUi.bar(graphics, left + HERO_TEXT_X, cardTop + 30, HERO_TEXT_BOX, 6, ratio,
             HsUi.Tone.ACCENT);
         dayMarks(graphics, left + HERO_TEXT_X, cardTop + 30, HERO_TEXT_BOX, 6, workDays);
-
-        // Scholar and session count share one line -- squeezing the count
-        // beside the bar left too little width for a Norwegian worst case
-        // ("arbeidsdager"), so it moved to its own full-width line instead.
-        MutableComponent scholarPart = snapshot.scholarName().isEmpty()
-            ? Component.translatable("hearthstead.research.hero.no_scholar")
-            : Component.translatable("hearthstead.research.hero.scholar", snapshot.scholarName());
-        Component progressLine = scholarPart.append("   ")
-            .append(Component.translatable("hearthstead.research.hero.sessions", sessions, workDays));
-        HsUi.labelIn(graphics, font, progressLine,
-            left + HERO_TEXT_X, cardTop + 40, HERO_TEXT_BOX, HsUiTokens.TEXT_MUTED);
-
-        HsUi.labelIn(graphics, font, paidLine(project),
-            left + HERO_TEXT_X, cardTop + 50, HERO_TEXT_BOX, HsUiTokens.TEXT_MUTED);
+        HsUi.label(graphics, font, hero.progress().text(),
+            left + HERO_TEXT_X, cardTop + 40, HsUiTokens.TEXT_MUTED);
+        HsUi.label(graphics, font, hero.paid().text(),
+            left + HERO_TEXT_X, cardTop + 50, HsUiTokens.TEXT_MUTED);
     }
 
     /** Thin notches at each work-day boundary — measured in real screen
@@ -289,44 +273,29 @@ public class ResearchScreen extends Screen {
         }
     }
 
-    private Component paidLine(ResearchProject project) {
-        StringBuilder sb = new StringBuilder();
-        for (ResearchProject.Cost cost : project.costs()) {
-            if (sb.length() > 0) {
-                sb.append(", ");
-            }
-            sb.append(new ItemStack(cost.item()).getHoverName().getString())
-                .append(" ×").append(cost.count());
-        }
-        return Component.translatable("hearthstead.research.hero.paid_prefix")
-            .append(" ").append(Component.literal(sb.toString()));
-    }
-
-    private void drawProjects(GuiGraphics graphics, int mouseX, int mouseY) {
+    private void drawProjects(GuiGraphics graphics, int mouseX, int mouseY,
+                              List<ProjectRenderView> projects) {
         for (int row = 0; row < ROWS; row++) {
-            int ordinal = row + scroll;
-            if (ordinal >= ResearchProject.BY_ORDINAL.length) {
+            int ordinal = projectOrdinalForRow(scroll, row);
+            if (ordinal >= projects.size()) {
                 break;
             }
-            ResearchProject project = ResearchProject.BY_ORDINAL[ordinal];
+            ProjectRenderView project = projects.get(ordinal);
             int y = top + LIST_TOP + row * CARD_STEP;
             boolean hovered = hovering(mouseX, mouseY, y);
-            boolean done = snapshot.completedOrdinals().contains(ordinal);
             HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
-            graphics.renderItem(new ItemStack(project.emblem()), left + ICON_X, y + 5);
+            graphics.renderItem(project.emblem(), left + ICON_X, y + 5);
 
-            int nameColour = done ? HsUiTokens.TEXT_MUTED : HsUiTokens.TEXT_STRONG;
-            HsUi.labelIn(graphics, font, project.displayName(),
-                left + TEXT_X, y + 5, TEXT_BOX, nameColour);
-            HsUi.labelIn(graphics, font, project.effectSentence(),
-                left + TEXT_X, y + 17, TEXT_BOX, HsUiTokens.TEXT_MUTED);
+            HsUi.label(graphics, font, project.name().text(), left + TEXT_X, y + 5,
+                project.nameColour());
+            HsUi.label(graphics, font, project.effect().text(), left + TEXT_X, y + 17,
+                HsUiTokens.TEXT_MUTED);
 
-            if (done) {
-                HsUi.labelIn(graphics, font,
-                    Component.translatable("hearthstead.research.blocked.done"),
-                    left + TEXT_X, y + 30, TEXT_BOX, HsUiTokens.GOOD);
+            if (project.done()) {
+                HsUi.label(graphics, font, project.doneLabel().text(),
+                    left + TEXT_X, y + 30, HsUiTokens.GOOD);
             } else {
-                drawCosts(graphics, project, ordinal, left + TEXT_X, y + 30);
+                drawCosts(graphics, project.costs(), left + TEXT_X, y + 30);
             }
         }
     }
@@ -334,27 +303,170 @@ public class ResearchScreen extends Screen {
     /** Itemised, each cost line coloured by whether the study (or hearth)
      *  currently holds enough of it — have/need, exactly {@link
      *  PlaqueScreen}'s requirement chips. */
-    private void drawCosts(GuiGraphics graphics, ResearchProject project, int ordinal,
-                           int x, int y) {
+    private void drawCosts(GuiGraphics graphics, List<CostRenderView> costs, int x, int y) {
+        for (int index = 0, size = costs.size(); index < size; index++) {
+            CostRenderView cost = costs.get(index);
+            HsUi.label(graphics, font, cost.label().text(), x + cost.offset(), y,
+                cost.colour());
+        }
+    }
+
+    /**
+     * Builds presentation only when an input that can change fitted text or
+     * rendered items changes.  In particular, {@link #scroll} is absent from
+     * the key: scrolling selects cards already present in this view.
+     */
+    private ResearchRenderView renderView() {
+        Font currentFont = font;
+        String language = net.minecraft.client.Minecraft.getInstance()
+            .getLanguageManager().getSelected();
+        int layoutWidth = width;
+        if (renderView == null || !renderViewInputsMatch(renderView.snapshot(),
+            renderView.revision(), renderView.font(), renderView.language(),
+            renderView.layoutWidth(), snapshot, snapshot.revision(), currentFont,
+            language, layoutWidth)) {
+            renderView = buildRenderView(currentFont, language, layoutWidth);
+        }
+        return renderView;
+    }
+
+    private ResearchRenderView buildRenderView(Font currentFont, String language,
+                                                int layoutWidth) {
+        List<ProjectRenderView> projects = new ArrayList<>(ResearchProject.BY_ORDINAL.length);
+        for (int ordinal = 0; ordinal < ResearchProject.BY_ORDINAL.length; ordinal++) {
+            projects.add(buildProjectView(currentFont, ResearchProject.BY_ORDINAL[ordinal],
+                ordinal));
+        }
+        return new ResearchRenderView(snapshot, snapshot.revision(), currentFont, language,
+            layoutWidth,
+            new ItemStack(com.hearthstead.building.BuildingType.ARCHITECTS_STUDY.emblem()),
+            HsUi.fitLabel(currentFont, Component.translatable("hearthstead.research.title"),
+                Integer.MAX_VALUE),
+            HsUi.fitLabel(currentFont, Component.translatable(
+                "hearthstead.research.footer.progress", snapshot.completedOrdinals().size(),
+                ResearchProject.BY_ORDINAL.length), PANEL_W - 24),
+            buildHeroView(currentFont), List.copyOf(projects));
+    }
+
+    private HeroRenderView buildHeroView(Font currentFont) {
+        int ordinal = snapshot.activeOrdinal();
+        if (ordinal < 0) {
+            return new HeroRenderView(null, HsUi.fitLabel(currentFont,
+                Component.translatable("hearthstead.research.hero.empty"), HERO_TEXT_BOX),
+                null, null, null, null, 0, 0);
+        }
+        ResearchProject project = ResearchProject.BY_ORDINAL[ordinal];
+        int sessions = snapshot.activeSessions();
+        int workDays = project.workDays();
+        // Scholar and session count share one line -- squeezing the count
+        // beside the bar left too little width for a Norwegian worst case
+        // ("arbeidsdager"), so it moved to its own full-width line instead.
+        MutableComponent scholarPart = snapshot.scholarName().isEmpty()
+            ? Component.translatable("hearthstead.research.hero.no_scholar")
+            : Component.translatable("hearthstead.research.hero.scholar", snapshot.scholarName());
+        HsUi.FittedLabel progress = HsUi.fitLabel(currentFont, scholarPart.append("   ")
+            .append(Component.translatable("hearthstead.research.hero.sessions", sessions,
+                workDays)), HERO_TEXT_BOX);
+        return new HeroRenderView(new ItemStack(project.emblem()), null,
+            HsUi.fitLabel(currentFont, project.displayName(), HERO_TEXT_BOX - 18),
+            HsUi.fitLabel(currentFont, project.effectSentence(), HERO_TEXT_BOX), progress,
+            paidLabel(currentFont, project), sessions, workDays);
+    }
+
+    private ProjectRenderView buildProjectView(Font currentFont, ResearchProject project,
+                                               int ordinal) {
+        boolean done = snapshot.completedOrdinals().contains(ordinal);
+        return new ProjectRenderView(new ItemStack(project.emblem()),
+            HsUi.fitLabel(currentFont, project.displayName(), TEXT_BOX),
+            HsUi.fitLabel(currentFont, project.effectSentence(), TEXT_BOX), done,
+            done ? HsUiTokens.TEXT_MUTED : HsUiTokens.TEXT_STRONG,
+            done ? HsUi.fitLabel(currentFont,
+                Component.translatable("hearthstead.research.blocked.done"), TEXT_BOX) : null,
+            done ? List.of() : buildCostViews(currentFont, project, ordinal));
+    }
+
+    private List<CostRenderView> buildCostViews(Font currentFont, ResearchProject project,
+                                                int ordinal) {
         List<Integer> haves = snapshot.costHaves().get(ordinal);
         List<ResearchProject.Cost> costs = project.costs();
-        int cursor = x;
+        List<CostRenderView> lines = new ArrayList<>(costs.size());
+        int cursor = 0;
         int remaining = TEXT_BOX;
-        for (int i = 0; i < costs.size(); i++) {
-            ResearchProject.Cost cost = costs.get(i);
-            int have = haves.get(i);
-            String text = new ItemStack(cost.item()).getHoverName().getString()
-                + " " + have + "/" + cost.count();
+        for (int index = 0; index < costs.size(); index++) {
+            ResearchProject.Cost cost = costs.get(index);
+            int have = haves.get(index);
+            Component text = Component.literal(new ItemStack(cost.item()).getHoverName().getString()
+                + " " + have + "/" + cost.count());
+            int box = Math.min(remaining, 120);
+            HsUi.FittedLabel label = HsUi.fitLabel(currentFont, text, box);
+            int drawn = Math.min(currentFont.width(text), box);
             int colour = have >= cost.count() ? HsUiTokens.GOOD : HsUiTokens.WARN;
-            HsUi.labelIn(graphics, font, Component.literal(text), cursor, y,
-                Math.min(remaining, 120), colour);
-            int drawn = Math.min(font.width(text), Math.min(remaining, 120));
+            lines.add(new CostRenderView(label, cursor, colour));
             cursor += drawn + 10;
             remaining -= drawn + 10;
             if (remaining <= 0) {
                 break;
             }
         }
+        return List.copyOf(lines);
+    }
+
+    private HsUi.FittedLabel paidLabel(Font currentFont, ResearchProject project) {
+        MutableComponent paid = Component.translatable("hearthstead.research.hero.paid_prefix")
+            .append(" ");
+        List<ResearchProject.Cost> costs = project.costs();
+        for (int index = 0; index < costs.size(); index++) {
+            if (index > 0) {
+                paid.append(", ");
+            }
+            ResearchProject.Cost cost = costs.get(index);
+            paid.append(Component.literal(new ItemStack(cost.item()).getHoverName().getString()))
+                .append(" ×")
+                .append(Component.literal(Integer.toString(cost.count())));
+        }
+        return HsUi.fitLabel(currentFont, paid, HERO_TEXT_BOX);
+    }
+
+    /** Package-visible for the cache contract test; scroll is deliberately not an input. */
+    static boolean renderViewInputsMatch(Object cachedSnapshot, int cachedRevision,
+                                         Object cachedFont, String cachedLanguage,
+                                         int cachedLayoutWidth, Object snapshot, int revision,
+                                         Object font, String language, int layoutWidth) {
+        return cachedSnapshot == snapshot
+            && cachedRevision == revision
+            && cachedFont == font
+            && Objects.equals(cachedLanguage, language)
+            && cachedLayoutWidth == layoutWidth;
+    }
+
+    /** Maps a visible row to its cached project; no view rebuild belongs here. */
+    static int projectOrdinalForRow(int scroll, int row) {
+        return scroll + row;
+    }
+
+    private record ResearchRenderView(ResearchSnapshotPayload snapshot, int revision,
+                                      Font font, String language, int layoutWidth,
+                                      ItemStack studyEmblem, HsUi.FittedLabel title,
+                                      HsUi.FittedLabel footer, HeroRenderView hero,
+                                      List<ProjectRenderView> projects) {
+    }
+
+    private record HeroRenderView(ItemStack emblem, HsUi.FittedLabel emptyLabel,
+                                  HsUi.FittedLabel name, HsUi.FittedLabel effect,
+                                  HsUi.FittedLabel progress, HsUi.FittedLabel paid,
+                                  int sessions, int workDays) {
+        boolean empty() {
+            return emblem == null;
+        }
+    }
+
+    private record ProjectRenderView(ItemStack emblem, HsUi.FittedLabel name,
+                                     HsUi.FittedLabel effect, boolean done,
+                                     int nameColour, HsUi.FittedLabel doneLabel,
+                                     List<CostRenderView> costs) {
+    }
+
+    private record CostRenderView(HsUi.FittedLabel label, int offset, int colour) {
     }
 
     private boolean hovering(int mouseX, int mouseY, int cardTop) {

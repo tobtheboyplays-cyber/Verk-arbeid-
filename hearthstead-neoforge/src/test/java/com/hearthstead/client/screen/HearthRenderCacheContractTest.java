@@ -42,4 +42,20 @@ class HearthRenderCacheContractTest {
             RecruitmentPolicy.Stage.QUALIFYING,
             RecruitmentPolicy.Blocker.NO_BED));
     }
+
+    @Test
+    void settlementStatusCacheInvalidatesForStateFontLanguageAndLayout() {
+        Object font = new Object();
+
+        assertTrue(HearthScreen.statusRenderCacheMatches(0, font, "en_us", 236,
+            0, font, "en_us", 236));
+        assertFalse(HearthScreen.statusRenderCacheMatches(0, font, "en_us", 236,
+            1, font, "en_us", 236));
+        assertFalse(HearthScreen.statusRenderCacheMatches(0, font, "en_us", 236,
+            0, new Object(), "en_us", 236));
+        assertFalse(HearthScreen.statusRenderCacheMatches(0, font, "en_us", 236,
+            0, font, "nb_no", 236));
+        assertFalse(HearthScreen.statusRenderCacheMatches(0, font, "en_us", 236,
+            0, font, "en_us", 192));
+    }
 }
