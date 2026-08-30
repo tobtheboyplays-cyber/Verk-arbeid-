@@ -40,13 +40,12 @@ def gitExitCode = { String... arguments ->
 }
 
 def hearthsteadGitCommit = gitOutput('rev-parse', '--verify', 'HEAD')
-gitExitCode('update-index', '-q', '--refresh')
 // The JAR identity describes the compiled Hearthstead module. The QA
 // controller separately fingerprints its root-level protocol and evidence;
 // its transient run state must not make an otherwise clean module look dirty.
 def hearthsteadModulePathspec = ':(top)hearthstead-neoforge'
 def hearthsteadTrackedDirty = gitExitCode(
-    'diff-index', '--quiet', 'HEAD', '--', hearthsteadModulePathspec) != 0
+    'diff', '--quiet', '--no-ext-diff', 'HEAD', '--', hearthsteadModulePathspec) != 0
 def hearthsteadUntrackedStatus = gitOutput(
     'ls-files', '--others', '--exclude-standard', '--', hearthsteadModulePathspec)
 def hearthsteadUntrackedDirty = hearthsteadUntrackedStatus != 'unknown' && !hearthsteadUntrackedStatus.isBlank()
