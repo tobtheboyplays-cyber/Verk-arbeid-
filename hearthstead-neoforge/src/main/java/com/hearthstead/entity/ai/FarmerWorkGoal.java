@@ -113,8 +113,14 @@ public class FarmerWorkGoal extends Goal {
     /** Bootstrap withdrawal cap: how many seeds one visit to the
      *  farmhouse's own chests may move into the bag. See ensureSeedInBag()
      *  for why the effective cap also stays under {@link #BAG_TRIGGER}. */
-    /** Maximum exact-zone positions read by one idle survey pass. */
-    private static final int FIELD_SURVEY_BUDGET = 512;
+    /**
+     * Farm work is rooted in the confirmed floor and the crop cell directly
+     * above it.  One survey unit is therefore a column pair, not an arbitrary
+     * voxel in the selected headroom.  Keeping this at 128 means the ordinary
+     * soil/crop reads stay well below the old 512-voxel pass while a tall,
+     * valid Farm Zone cannot hide its actual field behind empty sky blocks.
+     */
+    private static final int FIELD_SURVEY_COLUMN_BUDGET = 128;
     private static final int FIELD_SURVEY_COOLDOWN_MIN = 20;
     private static final int FIELD_SURVEY_COOLDOWN_JITTER = 20;
     /** A blocked farmhouse chest is a logistics wait, not a per-tick scan. */
@@ -126,7 +132,6 @@ public class FarmerWorkGoal extends Goal {
     private enum Mode { TO_WORK, HARVESTING, PLANTING, TO_MAINTAIN, TILLING, WATERING, TO_STORAGE }
 
     private final SettlerEntity settler;
-    private final WorkScanner scanner = new WorkScanner();
     private final Deque<BlockPos> queue = new ArrayDeque<>();
     private final Deque<BlockPos> maintainQueue = new ArrayDeque<>();
     private final Deque<BlockPos> caneQueue = new ArrayDeque<>();
@@ -154,6 +159,12 @@ public class FarmerWorkGoal extends Goal {
     private int plantDuration;
     private int workTicks;
     private int scanCooldown;
+    /** Resumable X/Z cursor for the confirmed Farm Zone's floor/crop pairs. */
+    private int fieldColumnCursor;
+    @Nullable
+    private WorkZone surveyedFieldZone;
+    /** True only once every confirmed floor column has been offered once. */
+    private boolean fieldSweepComplete;
     /** Missing-tool chest/request retry is bounded; AI selection itself may run every tick. */
     private int equipmentRetryCooldown;
     /** Full or missing farmhouse storage is retried at a bounded cadence. */
@@ -237,13 +248,30 @@ public class FarmerWorkGoal extends Goal {
                 return resumePreparedPlant(resume);
             }
         }
-        if (scanCooldown > 0) {
-            scanCooldown--;
-        } else if (queue.isEmpty() && maintainQueue.isEmpty()
-            && caneQueue.isEmpty()) {
-            scanCooldown = FIELD_SURVEY_COOLDOWN_MIN
-                + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER);
-            surveyTendedField(zone);
+        if (queue.isEmpty() && maintainQueue.isEmpty() && caneQueue.isEmpty()) {
+            // A new/unfinished confirmed field must advance on every selection
+            // evaluation.  Applying the ordinary 20-39 tick idle cooldown to
+            // every partial batch is what made a real distant crop look like
+            // "nothing workable" for a large, tall but perfectly valid zone.
+            if (!zone.equals(surveyedFieldZone) || !fieldSweepComplete) {
+                if (surveyTendedField(zone)) {
+                    scanCooldown = FIELD_SURVEY_COOLDOWN_MIN
+                        + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER);
+                }
+            } else if (scanCooldown > 0) {
+                scanCooldown--;
+            } else {
+                // The previous sweep ended with the cursor at totalColumns.
+                // A new polling cycle must start from the first field column;
+                // merely clearing the completion flag would otherwise keep
+                // returning an empty, instantly-complete sweep forever.
+                fieldColumnCursor = 0;
+                fieldSweepComplete = false;
+                if (surveyTendedField(zone)) {
+                    scanCooldown = FIELD_SURVEY_COOLDOWN_MIN
+                        + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER);
+                }
+            }
         }
         while (!queue.isEmpty()) {
             BlockPos candidate = queue.poll();
@@ -355,45 +383,80 @@ public class FarmerWorkGoal extends Goal {
     }
 
     /**
-     * Surveys only the farmer's real field, once, and classifies every
-     * discovered position into the three existing priority queues.
+     * Surveys the confirmed farm's floor and the crop cell immediately above
+     * it, classifying the same three existing priority queues as before.
      *
-     * <p>The previous implementation let dense low-priority soil fill a
-     * result-capped batch before a ripe crop later in the confirmed volume
-     * was even inspected. This pass always consumes the same exact
-     * {@value #FIELD_SURVEY_BUDGET}-position ceiling, orders those positions
-     * around the authoritative Farmhouse anchor, and caps only the resulting
-     * queues. A rare harvest can therefore outrank ordinary maintenance
-     * without reading outside the Work Zone or increasing the per-pass
-     * position budget.
+     * <p>A Farm Zone is selected from two horizontal floor corners and one
+     * explicit height click.  The height is growing headroom/authority, not a
+     * reason to walk every empty air voxel before looking at the field.  This
+     * cursor is exact in X/Z, resumes across calls and never constructs a
+     * position outside the committed volume.
+     *
+     * @return whether this call completed one full confirmed-zone sweep
      */
-    private void surveyTendedField(WorkZone zone) {
+    private boolean surveyTendedField(WorkZone zone) {
         if (zone == null || zone.type() != WorkZone.Type.FARM) {
-            return;
+            return false;
+        }
+        if (!(settler.level() instanceof ServerLevel level)) {
+            return false;
         }
         List<BlockPos> harvest = new ArrayList<>();
         List<BlockPos> maintain = new ArrayList<>();
         List<BlockPos> cane = new ArrayList<>();
-        Building farmhouse = tendedFarmhouse();
-        if (farmhouse == null || farmhouse.anchor == null) {
-            return;
+        if (!zone.equals(surveyedFieldZone)) {
+            surveyedFieldZone = zone;
+            fieldColumnCursor = 0;
+            fieldSweepComplete = false;
         }
-        scanner.visitBoxNearest(zone.min(), zone.max(), farmhouse.anchor,
-            FIELD_SURVEY_BUDGET, candidate -> {
-            if (isHarvestable(candidate)) {
+
+        int sizeX = zone.sizeX();
+        int sizeZ = zone.sizeZ();
+        int totalColumns = sizeX * sizeZ;
+        int examined = 0;
+        while (examined < FIELD_SURVEY_COLUMN_BUDGET
+            && fieldColumnCursor < totalColumns) {
+            int index = fieldColumnCursor++;
+            int x = zone.min().getX() + index / sizeZ;
+            int z = zone.min().getZ() + index % sizeZ;
+            BlockPos soil = new BlockPos(x, zone.min().getY(), z);
+            BlockPos crop = soil.above();
+            examined++;
+
+            // A valid Farm Zone always has at least one headroom block.  Keep
+            // the authoritative live/zone gate explicit before either read.
+            if (!WorkZoneService.livePositionAllowed(level, zone, soil)
+                || !WorkZoneService.livePositionAllowed(level, zone, crop)) {
+                continue;
+            }
+            if (isHarvestable(crop)) {
                 if (harvest.size() < 12) {
-                    harvest.add(candidate);
+                    harvest.add(crop);
                 }
-            } else if (isMaintainable(candidate)) {
-                if (maintain.size() < 6) {
-                    maintain.add(candidate);
-                }
-            } else if (isCaneSite(candidate)) {
-                if (cane.size() < 4) {
-                    cane.add(candidate);
+            } else {
+                // Mature cane lives one cell above its planted base.  This is
+                // still a bounded per-column probe, retains the old top-only
+                // harvest behavior, and is attempted only inside the exact
+                // committed Farm Zone.
+                BlockPos caneTop = crop.above();
+                if (zone.contains(caneTop)
+                    && WorkZoneService.livePositionAllowed(level, zone, caneTop)
+                    && isHarvestable(caneTop)) {
+                    if (harvest.size() < 12) {
+                        harvest.add(caneTop);
+                    }
+                } else if (isMaintainable(soil)) {
+                    if (maintain.size() < 6) {
+                        maintain.add(soil);
+                    }
+                } else if (isCaneSite(crop)) {
+                    if (cane.size() < 4) {
+                        cane.add(crop);
+                    }
                 }
             }
-        });
+        }
+        fieldSweepComplete = fieldColumnCursor >= totalColumns;
 
         Comparator<BlockPos> nearestFirst = Comparator.comparingDouble(
             pos -> pos.distSqr(settler.blockPosition()));
@@ -403,6 +466,7 @@ public class FarmerWorkGoal extends Goal {
         queue.addAll(harvest);
         maintainQueue.addAll(maintain);
         caneQueue.addAll(cane);
+        return fieldSweepComplete;
     }
 
     private boolean isMatureCrop(BlockPos pos) {

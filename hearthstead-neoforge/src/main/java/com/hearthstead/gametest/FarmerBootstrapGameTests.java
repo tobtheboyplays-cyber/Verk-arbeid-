@@ -12,6 +12,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.workzone.WorkZone;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -307,6 +308,57 @@ public class FarmerBootstrapGameTests {
                 "a farmer must notice a ripe crop in their remote tended field "
                     + "within ten seconds (activity=" + astrid.getActivity()
                     + ", pos=" + astrid.blockPosition()
+                    + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * A Farm Zone's height is real authority/headroom, but it must never make
+     * a distant crop wait behind hundreds of empty vertical voxels.  The crop
+     * at (14, 1, 14) is behind more than the old 512 nearest-first 3D samples
+     * of this 16x16x64 confirmed zone; the new floor/crop-column cursor must
+     * still reach it promptly and harvest it through the ordinary transaction.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 20,
+        batch = "farmer_bootstrap_day")
+    public void tallConfirmedFarmFindsFarFloorCropWithoutIdleCooldown(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        s.radius = 20;
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+
+        WorkZone tall = WorkZone.between(s.id, house.id, WorkZone.Type.FARM,
+            helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(0, 0, 0)),
+            helper.absolutePos(new BlockPos(15, 63, 15)), 2);
+        helper.assertTrue(house.commitWorkZone(1, tall),
+            "fixture: the tall confirmed Farm Zone must replace the default zone");
+
+        BlockPos cropRel = new BlockPos(14, 1, 14);
+        helper.setBlock(cropRel.below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        // Start beside the crop so this deadline isolates field discovery,
+        // rather than making normal path length part of a scan regression.
+        // The crop remains distant from the farmhouse scan origin.
+        SettlerEntity astrid = farmer(helper, s, house, 14, 14);
+        astrid.attributes().pinForTest(
+            com.hearthstead.entity.Attribute.DEXTERITY, 100);
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "the far crop in a tall confirmed zone must be selected without "
+                    + "per-batch idle cooldown (activity=" + astrid.getActivity()
+                    + ", stop=" + astrid.logisticsStopReason()
                     + ", route=" + astrid.routeFailureNote() + ")");
         });
     }
