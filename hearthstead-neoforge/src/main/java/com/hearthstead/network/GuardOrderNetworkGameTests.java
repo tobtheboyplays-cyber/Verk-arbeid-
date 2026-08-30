@@ -337,6 +337,14 @@ public class GuardOrderNetworkGameTests {
             GameTestHelper helper) {
         Fixture f = fixture(helper);
         PayloadProbe packets = new PayloadProbe(f.player, "spectator");
+        // GameTest mock players share the server player list between batches.
+        // A previous spectator fixture can therefore leave this reused mock in
+        // spectator mode. Start from an explicit mutable session, then revoke
+        // that authority after the snapshot so this row proves the action-time
+        // production check rather than the mock player's inherited mode.
+        f.player.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
+        helper.assertFalse(f.player.isSpectator(),
+            "fixture: the management session must begin as a non-spectator");
         UUID session = SettlerNetwork.openFor(f.player, f.guard);
         flush(packets);
         GuardOrderSnapshotPayload state = act(helper, f, packets,
@@ -346,9 +354,8 @@ public class GuardOrderNetworkGameTests {
         // Set the authoritative game-mode controller directly so this test
         // measures GuardOrderNetwork's spectator rejection, not a failed
         // fixture transition.
-        helper.assertTrue(f.player.gameMode.changeGameModeForPlayer(
-                GameType.SPECTATOR)
-                && f.player.isSpectator(),
+        f.player.gameMode.changeGameModeForPlayer(GameType.SPECTATOR);
+        helper.assertTrue(f.player.isSpectator(),
             "fixture: mock player must actually be a spectator");
         GuardOrderSnapshotPayload refused = act(helper, f, packets,
             action(f, session, GuardOrderActionPayload.Kind.HOLD_HERE,

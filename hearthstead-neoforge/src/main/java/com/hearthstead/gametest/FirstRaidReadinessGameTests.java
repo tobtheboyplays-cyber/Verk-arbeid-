@@ -938,10 +938,17 @@ public final class FirstRaidReadinessGameTests {
         serveMissingToolRequest(helper, f, f.guard, warehouse.building,
             helper.absolutePos(warehouse.storageRelative), barracks.building,
             helper.absolutePos(barracks.storageRelative), Items.IRON_SWORD);
-        helper.assertTrue(f.settlement.firstRaidReadiness.assess(
-                helper.getLevel(), f.settlement)
-                == FirstRaidReadiness.Assessment.GUARD_UNARMED,
-            "a delivered sword must remain storage, not equipped readiness");
+        var guardRequirement = EquipmentRequests.requirementFor(Profession.GUARD);
+        FirstRaidReadinessService.Report deliveredButNotEquipped =
+            FirstRaidReadinessService.assessDomain(helper.getLevel(), f.settlement);
+        helper.assertTrue(guardRequirement != null
+                && f.guard.getMainHandItem().isEmpty()
+                && WorkplaceStorage.hasMatching(helper.getLevel(),
+                    barracks.building, guardRequirement)
+                && deliveredButNotEquipped.blockedBy(
+                    FirstRaidReadinessService.Blocker.GUARD_UNARMED),
+            "a delivered sword must remain physical Barracks storage and the "
+                + "live readiness domain must still report the Guard unarmed");
         equipPhysicalFromStorage(helper, barracks.building, f.guard);
         issueDefenderOrder(helper, f, f.guard, barracks.building, false);
         unlock(helper, f.hearth, f.settlement, DevelopmentNode.ARM_THE_WATCH);

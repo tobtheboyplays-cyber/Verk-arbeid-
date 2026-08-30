@@ -429,6 +429,11 @@ public class ArcherGameTests {
                     + "job receipt, order, bag, quiver and physical item count");
 
             archer.setHealth(1.0F);
+            // Both death edges are compressed into one GameTest tick. The
+            // cancelled lethal hit correctly leaves vanilla's hurt cooldown
+            // behind, so clear only that fixture clock before exercising the
+            // distinct accepted terminal edge.
+            archer.invulnerableTime = 0;
             int breadBeforeAcceptedDeath = helper.getLevel()
                 .getEntitiesOfClass(ItemEntity.class, nearby,
                     item -> item.getItem().is(Items.BREAD))
@@ -685,11 +690,6 @@ public class ArcherGameTests {
 
         RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
         pell.setNoAi(true);
-        // The fourth cadence slot is a Power Shot. Keep the fixture target
-        // alive through the following fifth slot so the Triple Shot cadence,
-        // rather than a premature target death, decides the assertion.
-        pell.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0D);
-        pell.setHealth(pell.getMaxHealth());
         float pellMax = pell.getMaxHealth();
         ArcherAttackGoal goal = arm(archer);
         archer.setTarget(pell);
@@ -814,6 +814,11 @@ public class ArcherGameTests {
 
         RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
         pell.setNoAi(true);
+        // The fourth cadence slot is a Power Shot. Keep the fixture target
+        // alive through the following fifth slot so Triple Shot cadence,
+        // rather than a premature target death, owns this assertion.
+        pell.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0D);
+        pell.setHealth(pell.getMaxHealth());
         float pellMax = pell.getMaxHealth();
         ArcherAttackGoal goal = arm(archer);
         archer.setTarget(pell);

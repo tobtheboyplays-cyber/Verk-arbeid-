@@ -415,9 +415,14 @@ public class GuardControlGameTests {
     public void nullBuildingCannotBecomeGuardAuthority(
             GameTestHelper helper) {
         ReadyFixture fixture = readyFixture(helper);
-        fixture.settlement().buildings.add(null);
         int revision = fixture.order().revision();
+        // SettlementSavedData.get() performs the real persistence-boundary
+        // sanitation that removes malformed null building rows. Resolve that
+        // mutating boundary before injecting the in-memory corruption so the
+        // assertion exercises GuardAssignmentService's read-only fail-closed
+        // validation rather than sanitizing its own fixture away.
         SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        fixture.settlement().buildings.add(null);
         data.setDirty(false);
 
         GuardAssignmentService.Validation validation =
