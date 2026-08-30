@@ -1,0 +1,33 @@
+{
+  "name": "G0 statisk forhåndsvisning — Utvikling 42% etter",
+  "width": 427,
+  "height": 240,
+  "evidence": {"type":"static-preview-only","nativeEvidence":false,"phase":"after","screen":"development-overview","viewport":"427x240","zoom":0.42,"locale":"nb","baseline":"current runtime geometry"},
+  "elements": [
+    {"t":"window","x":8,"y":8,"w":411,"h":224},
+    {"t":"title","x":20,"y":18,"text":"UTVIKLING","box":190,"id":"title"},
+    {"t":"label","x":212,"y":19,"text":"KJØRETIDSGEOMETRI","tone":"good","box":140,"id":"phase"},
+    {"t":"label","x":354,"y":19,"text":"42%","tone":"accent","box":48,"id":"zoom"},
+    {"t":"divider","x":20,"y":52,"w":387},
+    {"t":"inset","x":20,"y":60,"w":247,"h":134},
+    {"t":"label","x":28,"y":68,"text":"UTVIKLINGSKART","tone":"accent","box":140,"id":"map_title"},
+    {"t":"line","points":[[55,122],[131,122],[207,122],[283,122]],"tone":"road_edge","alpha":180,"width":2},
+    {"t":"card","x":24,"y":110,"w":61,"h":23},
+    {"t":"label","x":28,"y":114,"text":"ROT","tone":"text_strong","box":53,"id":"n1"},
+    {"t":"card","x":100,"y":110,"w":61,"h":23},
+    {"t":"label","x":104,"y":114,"text":"VERKTØY","tone":"text_strong","box":53,"id":"n2"},
+    {"t":"card","x":175,"y":110,"w":61,"h":23},
+    {"t":"label","x":179,"y":114,"text":"LAGER","tone":"text_strong","box":53,"id":"n3"},
+    {"t":"card","x":251,"y":110,"w":61,"h":23},
+    {"t":"label","x":255,"y":114,"text":"VEIER","tone":"text_strong","box":53,"id":"n4"},
+    {"t":"label","x":28,"y":178,"text":"KOMPAKTE NODER / LESBART VED 42%","tone":"good","box":230,"id":"map_note"},
+    {"t":"frame","x":275,"y":60,"w":132,"h":134,"surface":"window","tone":"accent","inner_alpha":35},
+    {"t":"title","x":283,"y":68,"text":"DETALJER","tone":"good","box":112,"id":"inspector_title"},
+    {"t":"label","x":283,"y":84,"text":"ROT-NODE","tone":"text_strong","box":112,"id":"inspector_node"},
+    {"t":"label","x":283,"y":98,"text":"Kravkjede","tone":"text_muted","box":112,"id":"inspector_help"},
+    {"t":"soft_panel","x":283,"y":117,"w":116,"h":30,"tone":"accent","alpha":14,"stroke_alpha":100},
+    {"t":"label","x":291,"y":124,"text":"NESTE: VERKTØY","tone":"accent","box":100,"id":"next"},
+    {"t":"button","x":283,"y":155,"w":116,"h":20,"text":"FOKUSER NODE","state":"idle"},
+    {"t":"label","x":283,"y":180,"text":"PAN -10 / -40","tone":"text_muted","box":116,"id":"pan"}
+  ]
+}

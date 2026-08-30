@@ -342,6 +342,24 @@ def render_verified(spec_path: Path, scale: int) -> tuple[Image.Image, dict]:
         "strictWarnings": 0,
         "deterministic": True,
     }
+    evidence = spec.get("evidence")
+    if isinstance(evidence, dict):
+        # Keep provenance next to the pixels.  These fields describe a static
+        # design/layout preview only; they are never a native-client claim.
+        record["evidence"] = {
+            key: evidence[key]
+            for key in (
+                "type",
+                "nativeEvidence",
+                "phase",
+                "screen",
+                "viewport",
+                "zoom",
+                "locale",
+                "baseline",
+            )
+            if key in evidence
+        }
     return first, record
 
 
@@ -408,6 +426,17 @@ def contact_sheet(rendered: list[tuple[str, Image.Image]], scale: int) -> Image.
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--spec-dir", type=Path, default=DEFAULT_SPEC_DIR)
+    parser.add_argument(
+        "--spec",
+        action="append",
+        type=Path,
+        help="render one selected JSON spec; may be repeated",
+    )
+    parser.add_argument(
+        "--skip-development",
+        action="store_true",
+        help="do not append the concept renderer's Development outputs",
+    )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--scale", type=int, default=2)
     args = parser.parse_args()
@@ -417,7 +446,9 @@ def main() -> int:
     spec_dir = args.spec_dir.resolve()
     out_dir = args.out_dir.resolve()
     specs: list[Path] = []
-    for candidate in sorted(spec_dir.glob("*.json")):
+    candidates = [candidate.resolve() for candidate in args.spec] if args.spec \
+        else sorted(spec_dir.glob("*.json"))
+    for candidate in candidates:
         with candidate.open(encoding="utf-8") as handle:
             candidate_data = json.load(handle)
         # The overhaul directory also contains machine-readable design
@@ -442,12 +473,13 @@ def main() -> int:
         rendered.append((record["name"], image))
         print(f"PASS  {spec_path.name} -> {output}")
 
-    for record, image in render_development_verified(
-        out_dir, individual, args.scale
-    ):
-        records.append(record)
-        rendered.append((record["name"], image))
-        print(f"PASS  {record['spec']} -> {PROJECT / record['output']}")
+    if not args.skip_development:
+        for record, image in render_development_verified(
+            out_dir, individual, args.scale
+        ):
+            records.append(record)
+            rendered.append((record["name"], image))
+            print(f"PASS  {record['spec']} -> {PROJECT / record['output']}")
 
     sheet = contact_sheet(rendered, args.scale)
     sheet_path = out_dir / "hearthstead-ui-overhaul-contact-sheet.png"
@@ -458,7 +490,7 @@ def main() -> int:
         "specDirectory": str(spec_dir.relative_to(PROJECT)).replace("\\", "/"),
         "strict": True,
         "allDeterministic": True,
-        "approvedDevelopmentPreviews": [
+        "approvedDevelopmentPreviews": [] if args.skip_development else [
             filename for filename, _ in APPROVED_DEVELOPMENT_PREVIEWS
         ],
         "contactSheet": str(sheet_path.relative_to(PROJECT)).replace("\\", "/"),
