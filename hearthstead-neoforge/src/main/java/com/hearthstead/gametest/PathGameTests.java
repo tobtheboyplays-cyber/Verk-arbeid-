@@ -201,11 +201,14 @@ public class PathGameTests {
         BlockPos door = helper.absolutePos(new BlockPos(8, 1, 7));
         boolean[] sawOpen = {false};
 
+        // Issue one real route. Re-submitting it every time navigation became
+        // done used to hide the exact terminal-node failure this regression
+        // is meant to catch.
+        helper.runAtTickTime(5L, () -> helper.assertTrue(
+            walker.getNavigation().moveTo(target.getX() + 0.5D,
+                target.getY(), target.getZ() + 0.5D, 1.0D),
+            "the initial route through the closed door must be accepted"));
         helper.onEachTick(() -> {
-            if (walker.getNavigation().isDone()) {
-                walker.getNavigation().moveTo(target.getX() + 0.5D,
-                    target.getY(), target.getZ() + 0.5D, 1.0D);
-            }
             var state = helper.getLevel().getBlockState(door);
             if (state.is(Blocks.OAK_DOOR)
                 && state.getValue(DoorBlock.OPEN)) {

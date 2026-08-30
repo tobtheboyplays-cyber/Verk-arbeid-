@@ -12,6 +12,7 @@ import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.journey.JourneyServerHooks;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
 import com.hearthstead.util.AuthorityTelemetry;
@@ -56,6 +57,16 @@ public final class RequestLedgerService {
             && courier.distanceToSqr(container.getX() + 0.5D,
                 container.getY() + 0.5D, container.getZ() + 0.5D)
                 <= CONTAINER_REACH_SQR;
+    }
+
+    /**
+     * Reports a transient physical-contact failure without persisting a
+     * blocker. The caller may turn this into normal route recovery, but this
+     * transaction boundary must not alter ledger revision/state before any
+     * inventory mutation has occurred.
+     */
+    private static Decision contactUnavailable(RequestRecord request) {
+        return new Decision(Outcome.BLOCKED, request, RequestBlocker.NO_PATH);
     }
 
     public enum Outcome {
@@ -643,6 +654,14 @@ public final class RequestLedgerService {
             return block(level, settlement, request, RequestBlocker.NO_PATH,
                 "pickup_not_at_source");
         }
+        // Reach alone is insufficient: a closed door or wall can change
+        // after travel begins. This check deliberately precedes markPickup
+        // and every inventory mutation, so a failed contact leaves the
+        // request in its exact prior state for the owning route to retry.
+        if (!ContainerApproach.inspect(level, courier,
+                request.sourceContainer()).canInteract()) {
+            return contactUnavailable(request);
+        }
         RequestBlocker physical = validateForReservation(level, settlement,
             request, courier);
         if (physical != RequestBlocker.NONE) {
@@ -728,6 +747,16 @@ public final class RequestLedgerService {
         }
         if (request.state() == RequestState.BLOCKED
             && request.blockedFrom() == RequestState.IN_TRANSIT) {
+            if (!withinContainerReach(courier, request.targetContainer())) {
+                return block(level, settlement, request, RequestBlocker.NO_PATH,
+                    "deliver_not_at_target");
+            }
+            // resume() itself changes request state. A sealed target must
+            // leave this recovery record untouched for the caller to retry.
+            if (!ContainerApproach.inspect(level, courier,
+                    request.targetContainer()).canInteract()) {
+                return contactUnavailable(request);
+            }
             RequestBlocker ready = validateInTransit(level, request, courier);
             if (ready != RequestBlocker.NONE || !request.resume(
                     level.getGameTime())) {
@@ -742,6 +771,11 @@ public final class RequestLedgerService {
         if (!withinContainerReach(courier, request.targetContainer())) {
             return block(level, settlement, request, RequestBlocker.NO_PATH,
                 "deliver_not_at_target");
+        }
+        // Final same-tick guard before the target container can be mutated.
+        if (!ContainerApproach.inspect(level, courier,
+                request.targetContainer()).canInteract()) {
+            return contactUnavailable(request);
         }
         Building sourceBuilding = registeredById(settlement,
             request.sourceBuildingId());

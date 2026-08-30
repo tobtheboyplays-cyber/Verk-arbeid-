@@ -47,10 +47,15 @@ public final class SettlerDoorGoal extends Goal {
             return false;
         }
         Path path = nav.getPath();
-        if (path == null || path.isDone()) {
+        if (path == null) {
             return false;
         }
-        doorPos = nextDoor(path);
+        // A closed door can make navigation finish on the final walkable
+        // node immediately in front of it.  Refusing a completed path here
+        // strands the settler precisely when this goal is needed most.  Keep
+        // the ordinary bounded look-ahead for active routes, and use a still
+        // tighter five-cell probe around a terminal path node for recovery.
+        doorPos = path.isDone() ? terminalDoor(path) : nextDoor(path);
         return doorPos != null;
     }
 
@@ -121,6 +126,43 @@ public final class SettlerDoorGoal extends Goal {
         BlockPos at = settler.blockPosition();
         BlockPos found = nearbyDoor(at);
         return found != null ? found : nearbyDoor(at.above());
+    }
+
+    /**
+     * Finds only a closed wooden door touching the final node of a completed
+     * path.  The reach check inside {@link #nearbyDoor(BlockPos)} prevents an
+     * old or remote terminal path from opening an unrelated building door.
+     */
+    @Nullable
+    private BlockPos terminalDoor(Path path) {
+        if (path.getNodeCount() <= 0) {
+            return null;
+        }
+        Node terminal = path.getNode(path.getNodeCount() - 1);
+        BlockPos terminalPos = new BlockPos(terminal.x, terminal.y, terminal.z);
+        BlockPos found = closedNearbyDoor(terminalPos);
+        if (found != null) {
+            return found;
+        }
+        for (var direction : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+            found = closedNearbyDoor(terminalPos.relative(direction));
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    private BlockPos closedNearbyDoor(BlockPos candidate) {
+        BlockPos lower = nearbyDoor(candidate);
+        if (lower == null) {
+            return null;
+        }
+        BlockState state = settler.level().getBlockState(lower);
+        return state.hasProperty(DoorBlock.OPEN)
+                && !state.getValue(DoorBlock.OPEN)
+            ? lower : null;
     }
 
     @Nullable

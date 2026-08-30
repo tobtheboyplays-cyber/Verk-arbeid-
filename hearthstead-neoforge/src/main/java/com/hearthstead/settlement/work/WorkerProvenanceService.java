@@ -743,6 +743,13 @@ public final class WorkerProvenanceService {
         if (authorised <= 0) {
             return new DepositResult(source, null);
         }
+        // This is the final authority boundary, not merely a routing hint:
+        // a door or wall may change during the worker's contact animation.
+        // Do not insert, advance provenance, or mint a receipt unless the
+        // exact worker can still touch this exact live container now.
+        if (!ContainerApproach.inspect(level, worker, target).canInteract()) {
+            return new DepositResult(source, null);
+        }
         WorkerStorageAuthority.Insert inserted = WorkerStorageAuthority.insertAt(
             level, workplace, target, source, authorised, true);
         if (!inserted.conserved() || inserted.inserted() <= 0) {
@@ -781,6 +788,12 @@ public final class WorkerProvenanceService {
             buildingType, zoneType);
         if (context == null || source == null || source.isEmpty()
             || WorkerStackProvenance.hasTransitMarker(source)) {
+            return new DepositResult(source, null);
+        }
+        // Ordinary cargo has no receipt, but it still requires the same
+        // exact, server-authoritative physical container contact as tagged
+        // output. A failed contact is a strict no-op for caller retry logic.
+        if (!ContainerApproach.inspect(level, worker, target).canInteract()) {
             return new DepositResult(source, null);
         }
         var inserted = WorkerStorageAuthority.insertAt(level, workplace, target,
