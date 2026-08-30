@@ -666,6 +666,7 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
     private static final class TabButton extends AbstractButton {
         private final boolean selected;
         private final Runnable onPress;
+        private final HsUi.FittedLabelCache fittedLabel = new HsUi.FittedLabelCache();
 
         private TabButton(int x, int y, int w, int h, Component label,
                           boolean selected, Runnable onPress) {
@@ -689,10 +690,12 @@ public class PlaqueScreen extends Screen implements QaUiInspectable {
                 graphics.fill(getX() + 3, getY() + 1, getX() + getWidth() - 3, getY() + 2,
                     0x40000000 | (HsUiTokens.ACCENT & 0x00FFFFFF));
             }
-            var font = net.minecraft.client.Minecraft.getInstance().font;
-            HsUi.labelIn(graphics, font, getMessage(),
+            var minecraft = net.minecraft.client.Minecraft.getInstance();
+            var font = minecraft.font;
+            HsUi.FittedLabel label = fittedLabel.fit(font, getMessage(), getWidth() - 8,
+                minecraft.getLanguageManager().getSelected());
+            HsUi.label(graphics, font, label.text(),
                 getX() + 4, getY() + (getHeight() - HsUiTokens.TEXT_H) / 2,
-                getWidth() - 8,
                 selected ? HsUiTokens.TEXT : HsUiTokens.TEXT_MUTED);
         }
 

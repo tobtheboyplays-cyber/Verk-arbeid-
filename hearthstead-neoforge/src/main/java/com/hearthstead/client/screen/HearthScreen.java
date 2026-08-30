@@ -2987,6 +2987,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
     private static final class SeatTabButton extends AbstractButton {
         private final boolean selected;
         private final Runnable onPress;
+        private final HsUi.FittedLabelCache fittedLabel = new HsUi.FittedLabelCache();
 
         private SeatTabButton(int x, int y, int w, int h, Component label,
                               boolean selected, Runnable onPress) {
@@ -3004,10 +3005,12 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
         protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY,
                                     float partialTick) {
             HsUi.tab(graphics, getX(), getY(), getWidth(), getHeight(), selected);
-            var font = net.minecraft.client.Minecraft.getInstance().font;
-            HsUi.labelIn(graphics, font, getMessage(),
+            var minecraft = net.minecraft.client.Minecraft.getInstance();
+            var font = minecraft.font;
+            HsUi.FittedLabel label = fittedLabel.fit(font, getMessage(), getWidth() - 8,
+                minecraft.getLanguageManager().getSelected());
+            HsUi.label(graphics, font, label.text(),
                 getX() + 4, getY() + (getHeight() - HsUiTokens.TEXT_H) / 2,
-                getWidth() - 8,
                 selected ? HsUiTokens.TEXT : HsUiTokens.TEXT_MUTED);
         }
 

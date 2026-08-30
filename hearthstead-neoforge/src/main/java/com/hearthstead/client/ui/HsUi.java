@@ -13,6 +13,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The drawing half of the Hearthstead UI kit.
@@ -354,6 +355,79 @@ public final class HsUi {
     }
 
     public record FittedLabel(Component text, int width) {
+    }
+
+    /**
+     * A deliberately small, widget-owned cache for a fitted label.
+     *
+     * <p>This is not a global text cache: a widget creates one instance and
+     * owns its lifetime.  The cache only remembers the most recent fit and
+     * redoes translation/measurement when the visible input can have changed:
+     * message identity, available width, font instance or language epoch.
+     * Keeping the language epoch explicit makes a live language switch safe
+     * even when a widget still holds the same translatable component.
+     */
+    public static final class FittedLabelCache {
+        private final LabelFitter fitter;
+        private FittedLabel cachedLabel;
+        private Component cachedMessage;
+        private Font cachedFont;
+        private int cachedWidth = -1;
+        private String cachedLanguage = "";
+
+        public FittedLabelCache() {
+            this(HsUi::fitLabel);
+        }
+
+        FittedLabelCache(LabelFitter fitter) {
+            this.fitter = Objects.requireNonNull(fitter, "fitter");
+        }
+
+        /**
+         * Returns the current fitted label, rebuilding it only when this
+         * widget's visible text inputs change.
+         */
+        public FittedLabel fit(Font font, Component message, int width,
+                               String languageEpoch) {
+            Objects.requireNonNull(message, "message");
+            int safeWidth = Math.max(1, width);
+            String safeLanguage = languageEpoch == null ? "" : languageEpoch;
+            if (!isCurrent(cachedLabel, cachedMessage, cachedFont, cachedWidth,
+                cachedLanguage, message, font, safeWidth, safeLanguage)) {
+                cachedLabel = fitter.fit(font, message, safeWidth);
+                cachedMessage = message;
+                cachedFont = font;
+                cachedWidth = safeWidth;
+                cachedLanguage = safeLanguage;
+            }
+            return cachedLabel;
+        }
+
+        /** Clears the one cached entry when a widget is explicitly rebuilt. */
+        public void invalidate() {
+            cachedLabel = null;
+            cachedMessage = null;
+            cachedFont = null;
+            cachedWidth = -1;
+            cachedLanguage = "";
+        }
+
+        /** Package-visible so the invalidation contract has a no-client unit test. */
+        static boolean isCurrent(FittedLabel cachedLabel, Component cachedMessage,
+                                 Object cachedFont, int cachedWidth,
+                                 String cachedLanguage, Component message,
+                                 Object font, int width, String languageEpoch) {
+            return cachedLabel != null
+                && cachedMessage == message
+                && cachedFont == font
+                && cachedWidth == width
+                && Objects.equals(cachedLanguage, languageEpoch);
+        }
+    }
+
+    @FunctionalInterface
+    interface LabelFitter {
+        FittedLabel fit(Font font, Component message, int width);
     }
 
     // -- layout -----------------------------------------------------------

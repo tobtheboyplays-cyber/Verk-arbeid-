@@ -3,6 +3,8 @@ package com.hearthstead.client.ui;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractButton;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -41,6 +43,8 @@ public class HsButton extends AbstractButton {
 
     private final Runnable onPress;
     private final Kind kind;
+    /** One entry per button; never a process-wide translation or label cache. */
+    private final HsUi.FittedLabelCache fittedLabel = new HsUi.FittedLabelCache();
 
     public HsButton(int x, int y, int width, int height, Component label,
                     Kind kind, Runnable onPress) {
@@ -78,14 +82,17 @@ public class HsButton extends AbstractButton {
         graphics.blitSprite(sprite, getX(), getY(), getWidth(), getHeight());
         int colour = active ? HsUiTokens.TEXT : HsUiTokens.TEXT_MUTED;
         // The label is centred on the button's own box and clipped to it, so a
-        // long translation shortens instead of spilling over the frame.
-        HsUi.labelIn(graphics, net.minecraft.client.Minecraft.getInstance().font,
-            getMessage(),
-            getX() + (getWidth() - Math.min(getWidth() - 8,
-                net.minecraft.client.Minecraft.getInstance().font
-                    .width(getMessage()))) / 2,
-            getY() + (getHeight() - HsUiTokens.TEXT_H) / 2 + 1,
-            getWidth() - 8, colour);
+        // long translation shortens instead of spilling over the frame. The
+        // fitting itself is cached until one of its visual inputs changes.
+        Minecraft minecraft = Minecraft.getInstance();
+        Font font = minecraft.font;
+        int innerWidth = Math.max(1, getWidth() - 8);
+        HsUi.FittedLabel label = fittedLabel.fit(font, getMessage(), innerWidth,
+            minecraft.getLanguageManager().getSelected());
+        int drawnWidth = Math.min(innerWidth, label.width());
+        int labelX = getX() + 4 + (innerWidth - drawnWidth) / 2;
+        graphics.drawString(font, label.text(), labelX,
+            getY() + (getHeight() - HsUiTokens.TEXT_H) / 2 + 1, colour, true);
     }
 
     private boolean isMouseDown() {
