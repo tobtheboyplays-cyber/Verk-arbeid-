@@ -1286,7 +1286,7 @@ def seed_valid_full_pass(repo: Path, fingerprint: str) -> tuple[Path, Path, byte
     suites = {name: {"status": "PASS", "note": "isolated safety fixture"}
               for name in EXPECTED_SUITES}
     manifest = {
-        "protocol_version": "1.2.0",
+        "protocol_version": "1.3.0",
         "fingerprint": fingerprint,
         "git_commit": "fixture",
         "dirty_hash": "0" * 64,

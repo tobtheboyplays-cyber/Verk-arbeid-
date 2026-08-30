@@ -28,7 +28,8 @@ public class Hearthstead {
         ModMenus.register(modBus);
         ModSounds.register(modBus);
         ModCreativeTabs.register(modBus);
-        LOGGER.info("Hearthstead is kindling the fire...");
+        LOGGER.info("Hearthstead is kindling the fire... build={}",
+            BuildIdentity.display());
     }
 
     public static ResourceLocation id(String path) {

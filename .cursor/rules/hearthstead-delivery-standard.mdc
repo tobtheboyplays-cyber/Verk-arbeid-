@@ -1,0 +1,34 @@
+---
+description: Converts Tobias's Hearthstead feedback into evidence-driven implementation work
+alwaysApply: true
+---
+
+# Hearthstead Delivery Standard
+
+For every Tobias request, internally rewrite it into this compact contract
+before delegating or editing:
+
+1. **Player outcome:** the concrete difference the player must notice.
+2. **Acceptance:** normal flow, blocked/error flow, persistence, multiplayer,
+   performance and visual/animation requirements that apply.
+3. **Evidence:** exact tests, native in-game checks and before/after captures.
+4. **Scope:** files/systems allowed to change; preserve unrelated work.
+
+Rules:
+
+- Inspect current source and relevant evidence before choosing a solution.
+- Give every subagent the outcome, constraints, acceptance checks and forbidden
+  shortcuts; never delegate a vague request such as "make UI better".
+- Route work by difficulty: strongest reasoning for architecture, root-cause
+  repair and final approval; faster models for bounded audits and mechanical
+  checks. A cheaper model may contribute but never solely approve a P0 result.
+- A visible overhaul must look materially different in side-by-side captures.
+  Compilation, class presence or a mockup alone is not completion.
+- UI work requires all major demo screens, 1280x720 and narrow/worst-case text,
+  button interaction, keyboard/mouse input, and before/after frame-time checks.
+- Gameplay work requires real in-game behavior plus deterministic tests for
+  conservation, reload/retry and client/server authority where relevant.
+- Never say fixed, premium, optimized, playable or finished without fresh
+  evidence from the exact commit/JAR being reported.
+- If evidence disappoints or exposes a regression, loop back and repair it
+  before delivery instead of lowering the standard.

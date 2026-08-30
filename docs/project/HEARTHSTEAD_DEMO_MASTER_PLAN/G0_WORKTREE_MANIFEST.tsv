@@ -1,4 +1,4 @@
-status`tcategory`tpath`treason
+status	category	path	reason
 A 	tooling	.gitattributes	build, generation, validation, or repository control
 M 	tooling	.gitignore	build, generation, validation, or repository control
 A 	test-qa	demo/2026-08-27-2300/PLAYTEST_2026-08-27.md	test, harness, scenario, or QA contract

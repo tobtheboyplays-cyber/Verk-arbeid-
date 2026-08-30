@@ -83,7 +83,7 @@ import json, sys
 latest, run_manifest, run_dir, fingerprint = sys.argv[1:5]
 suites = {name: {"status": "PASS", "note": "interrupt-selftest"}
           for name in sys.argv[5:]}
-manifest = {"protocol_version": "1.2.0", "fingerprint": fingerprint,
+manifest = {"protocol_version": "1.3.0", "fingerprint": fingerprint,
             "overall": "PASS", "green_streak": 2, "suites": suites,
             "artifacts": run_dir}
 for path in (latest, run_manifest):

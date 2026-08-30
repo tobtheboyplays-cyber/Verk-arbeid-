@@ -6,6 +6,54 @@ plugins {
 group = 'com.hearthstead'
 version = mod_version
 
+// Give every built JAR an identity that can be traced back to one exact
+// source checkpoint. The value is generated from Git at build time and is
+// also embedded in the manifest and runtime resources.
+def gitOutput = { String... arguments ->
+    try {
+        def command = ['git'] + arguments.toList()
+        def process = new ProcessBuilder(command)
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        def output = process.inputStream.getText('UTF-8').trim()
+        process.waitFor()
+        return process.exitValue() == 0 ? output : 'unknown'
+    } catch (Exception ignored) {
+        return 'unknown'
+    }
+}
+
+def hearthsteadGitCommit = gitOutput('rev-parse', '--verify', 'HEAD')
+def hearthsteadTrackedStatus = gitOutput('status', '--porcelain', '--untracked-files=no')
+def hearthsteadGitDirty = hearthsteadTrackedStatus != 'unknown' && !hearthsteadTrackedStatus.isBlank()
+def hearthsteadBuildIdentity = "${mod_version}+g${hearthsteadGitCommit.take(12)}${hearthsteadGitDirty ? '.dirty' : ''}"
+def generatedBuildInfoDir = layout.buildDirectory.dir('generated/resources/hearthsteadBuildInfo')
+
+def generateHearthsteadBuildInfo = tasks.register('generateHearthsteadBuildInfo') {
+    def outputFile = generatedBuildInfoDir.map { it.file('hearthstead-build.properties') }
+    inputs.property('version', mod_version)
+    inputs.property('gitCommit', hearthsteadGitCommit)
+    inputs.property('gitDirty', hearthsteadGitDirty)
+    inputs.property('buildIdentity', hearthsteadBuildIdentity)
+    outputs.file(outputFile)
+    doLast {
+        def target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.setText(
+            "version=${mod_version}\n" +
+            "gitCommit=${hearthsteadGitCommit}\n" +
+            "gitDirty=${hearthsteadGitDirty}\n" +
+            "buildIdentity=${hearthsteadBuildIdentity}\n",
+            'UTF-8')
+    }
+}
+
+sourceSets.main.resources.srcDir(generatedBuildInfoDir)
+tasks.named('processResources').configure {
+    dependsOn(generateHearthsteadBuildInfo)
+}
+
 // Parallel QA lanes must never contend for or erase another lane's reports.
 // Pass -PhearthsteadBuildDir=<folder> to give a lane its own disposable
 // build tree; ordinary developer builds keep Gradle's default `build/`.
@@ -96,6 +144,11 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
 test {
     useJUnitPlatform()
 }
@@ -107,8 +160,11 @@ jar {
             'Specification-Vendor'  : 'Hearthstead',
             'Specification-Version' : '1',
             'Implementation-Title'  : 'Hearthstead',
-            'Implementation-Version': mod_version,
-            'Implementation-Vendor' : 'Hearthstead'
+            'Implementation-Version': hearthsteadBuildIdentity,
+            'Implementation-Vendor' : 'Hearthstead',
+            'Hearthstead-Git-Commit': hearthsteadGitCommit,
+            'Hearthstead-Git-Dirty' : hearthsteadGitDirty.toString(),
+            'Hearthstead-Build-Identity': hearthsteadBuildIdentity
         )
     }
 }
