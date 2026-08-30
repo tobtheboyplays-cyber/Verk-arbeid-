@@ -24,9 +24,27 @@ def gitOutput = { String... arguments ->
     }
 }
 
+def gitExitCode = { String... arguments ->
+    try {
+        def command = ['git'] + arguments.toList()
+        def process = new ProcessBuilder(command)
+            .directory(rootDir)
+            .redirectErrorStream(true)
+            .start()
+        process.inputStream.transferTo(OutputStream.nullOutputStream())
+        process.waitFor()
+        return process.exitValue()
+    } catch (Exception ignored) {
+        return -1
+    }
+}
+
 def hearthsteadGitCommit = gitOutput('rev-parse', '--verify', 'HEAD')
-def hearthsteadTrackedStatus = gitOutput('status', '--porcelain', '--untracked-files=no')
-def hearthsteadGitDirty = hearthsteadTrackedStatus != 'unknown' && !hearthsteadTrackedStatus.isBlank()
+gitExitCode('update-index', '-q', '--refresh')
+def hearthsteadTrackedDirty = gitExitCode('diff-index', '--quiet', 'HEAD', '--') != 0
+def hearthsteadUntrackedStatus = gitOutput('ls-files', '--others', '--exclude-standard')
+def hearthsteadUntrackedDirty = hearthsteadUntrackedStatus != 'unknown' && !hearthsteadUntrackedStatus.isBlank()
+def hearthsteadGitDirty = hearthsteadTrackedDirty || hearthsteadUntrackedDirty
 def hearthsteadBuildIdentity = "${mod_version}+g${hearthsteadGitCommit.take(12)}${hearthsteadGitDirty ? '.dirty' : ''}"
 def generatedBuildInfoDir = layout.buildDirectory.dir('generated/resources/hearthsteadBuildInfo')
 

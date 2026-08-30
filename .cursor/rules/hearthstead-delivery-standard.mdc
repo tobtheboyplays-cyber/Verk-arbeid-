@@ -24,6 +24,8 @@ Rules:
   checks. A cheaper model may contribute but never solely approve a P0 result.
 - A visible overhaul must look materially different in side-by-side captures.
   Compilation, class presence or a mockup alone is not completion.
+- A generational patch must be coherent across every primary demo surface;
+  one redesigned screen surrounded by legacy screens fails acceptance.
 - UI work requires all major demo screens, 1280x720 and narrow/worst-case text,
   button interaction, keyboard/mouse input, and before/after frame-time checks.
 - Gameplay work requires real in-game behavior plus deterministic tests for
