@@ -1325,7 +1325,14 @@ public class HearthsteadGameTests {
                 return phase[0];
             }
         };
-        BlockPos spawn = helper.absolutePos(new BlockPos(4, 1, 3));
+        // The preceding regression owns the full outside-to-bed path and door
+        // traversal.  This test owns the sleep/recovery/wake transition, so
+        // start beside the real bed instead of letting unrelated registered
+        // movement goals compete with the manually driven RestAtNightGoal.
+        // The production goal must still perform the physical startSleeping
+        // contact itself; the fixture never sets SLEEPING or teleports into
+        // the bed pose.
+        BlockPos spawn = helper.absolutePos(bedRel.offset(1, 0, 0));
         settler.setPos(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D);
         helper.assertTrue(helper.getLevel().addFreshEntity(settler),
             "fixture: deterministic-clock settler must enter the server level");

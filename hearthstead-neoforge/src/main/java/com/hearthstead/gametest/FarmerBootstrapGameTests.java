@@ -530,26 +530,37 @@ public class FarmerBootstrapGameTests {
         BlockPos door = helper.absolutePos(new BlockPos(8, 1, 10));
         BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
         boolean[] sawOpen = {false};
+        boolean[] reachedVisibleChestFace = {false};
         boolean[] firstInsertSeen = {false};
-        boolean[] firstInsertHadContact = {false};
         helper.onEachTick(() -> {
             BlockState doorState = helper.getLevel().getBlockState(door);
             if (doorState.is(Blocks.OAK_DOOR)
                 && doorState.getValue(DoorBlock.OPEN)) {
                 sawOpen[0] = true;
             }
+            // GameTest's callback observes the completed entity tick. The
+            // farmer may release this goal and begin the next route before a
+            // newly inserted stack is visible here, so inspecting only after
+            // that mutation can sample the worker one movement beat too late.
+            // Latch the exact physical face contact while storage is still
+            // empty. WorkerProvenanceService.depositOrdinary rechecks the same
+            // contact immediately before its authoritative insert.
+            if (!firstInsertSeen[0] && countIn(storage, Items.WHEAT) == 0
+                && ContainerApproach.inspect(helper.getLevel(), astrid, chest)
+                    .canInteract()) {
+                reachedVisibleChestFace[0] = true;
+            }
             if (!firstInsertSeen[0] && countIn(storage, Items.WHEAT) > 0) {
                 firstInsertSeen[0] = true;
-                firstInsertHadContact[0] = ContainerApproach.inspect(
-                    helper.getLevel(), astrid, chest).canInteract();
             }
         });
 
         helper.succeedWhen(() -> {
             helper.assertTrue(sawOpen[0],
                 "the farmer must visibly open the only Farmhouse door");
-            helper.assertTrue(firstInsertSeen[0] && firstInsertHadContact[0],
-                "the first storage mutation must occur at a visible chest face");
+            helper.assertTrue(firstInsertSeen[0] && reachedVisibleChestFace[0],
+                "the farmer must reach a visible chest face before the first "
+                    + "storage mutation");
             helper.assertTrue(countIn(storage, Items.WHEAT) == 3
                     && bagCount(astrid, Items.WHEAT) == 0,
                 "the closed-door deposit must conserve all three wheat "
