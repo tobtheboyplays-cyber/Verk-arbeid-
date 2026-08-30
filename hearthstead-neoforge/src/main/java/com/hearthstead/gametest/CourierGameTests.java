@@ -46,6 +46,14 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public class CourierGameTests {
 
+    /**
+     * Once the first weight-bounded log load lands, the 4 + 2 follow-up trip
+     * has ample time to cross the same door twice without turning this into a
+     * generic timeout test. The pre-fix schedule/reselection wedge exceeded
+     * two thousand ticks and never selected that second trip at all.
+     */
+    private static final int SEALED_WAREHOUSE_SECOND_TRIP_DEADLINE = 800;
+
     private static void buildArena(GameTestHelper helper, int size) {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
@@ -265,6 +273,10 @@ public class CourierGameTests {
      * <p>Two things are asserted, and the second is the one the open-arena
      * tests could never catch: the goods arrive, AND the courier was inside
      * the room when they did. Reaching through a wall is not delivering.
+     * Six heavy logs also force a 4 + 2 capacity split: after the first load
+     * the empty courier must retain logistics ownership long enough to choose
+     * the second trip instead of yielding to a same-priority schedule walk
+     * that can strand her on the inside of this doorway.
      */
     @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_day")
     public void courierEntersASealedWarehouseAndDelivers(GameTestHelper helper) {
@@ -308,11 +320,18 @@ public class CourierGameTests {
         final int[] seen = {0};
         final String[] postedFrom = {null};
         final boolean[] everInside = {false};
+        final long[] firstLoadDeliveredAt = {Long.MIN_VALUE};
+        final String[] timingFault = {null};
 
         helper.succeedWhen(() -> {
             Container chest = containerAt(helper, chestRel);
             helper.assertTrue(chest != null, "warehouse chest should exist");
             int delivered = countIn(chest, Items.OAK_LOG);
+            int atHearth = hearthCount(helper, hearthRel);
+            int bagged = bagCount(bud);
+            helper.assertTrue(delivered + atHearth + bagged == 6,
+                "the capacity split must conserve all six logs [warehouse="
+                    + delivered + " hearth=" + atHearth + " bag=" + bagged + "]");
             if (interior.isInside(bud.blockPosition())) {
                 everInside[0] = true;
             }
@@ -325,6 +344,18 @@ public class CourierGameTests {
                     postedFrom[0] = bud.blockPosition().toShortString();
                 }
             }
+            if (delivered >= 4 && firstLoadDeliveredAt[0] == Long.MIN_VALUE) {
+                firstLoadDeliveredAt[0] = helper.getLevel().getGameTime();
+            }
+            if (firstLoadDeliveredAt[0] != Long.MIN_VALUE && delivered < 6
+                && helper.getLevel().getGameTime() - firstLoadDeliveredAt[0]
+                    > SEALED_WAREHOUSE_SECOND_TRIP_DEADLINE
+                && timingFault[0] == null) {
+                timingFault[0] = "the first four-log weight load landed, but the "
+                    + "two-log remainder was not re-selected within "
+                    + SEALED_WAREHOUSE_SECOND_TRIP_DEADLINE + " ticks";
+            }
+            helper.assertTrue(timingFault[0] == null, timingFault[0]);
             helper.assertTrue(postedFrom[0] == null,
                 "the courier must walk into the warehouse, not post goods "
                     + "through the wall -- stowed from " + postedFrom[0]);
@@ -337,9 +368,13 @@ public class CourierGameTests {
                     + " [act=" + bud.getActivity()
                     + " pos=" + bud.blockPosition().toShortString()
                     + " energy=" + String.format("%.1f", bud.getEnergy())
-                    + " bag=" + bagCount(bud)
+                    + " phase=" + bud.dayPhase()
+                    + " hearth=" + atHearth
+                    + " bag=" + bagged
                     + " everInside=" + everInside[0]
                     + " doorOpen=" + doorOpen(helper, new BlockPos(9, 1, 6))
+                    + " containers=" + warehouseContainerCount(helper, s)
+                    + " lastRouteFailure=" + bud.routeFailureNote()
                     + "]");
         });
     }

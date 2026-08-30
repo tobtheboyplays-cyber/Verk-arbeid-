@@ -268,7 +268,21 @@ public class CourierWorkGoal extends Goal {
         TO_HEARTH, LOADING, TO_WAREHOUSE, SORTING, RETURNING,
         TO_SOURCE, WITHDRAWING, TO_CRAFTER, DEPOSITING,
         /** FOOD_DELIVERY's set-down: bag -> hearth, one stack per cycle. */
-        STOCKING
+        STOCKING,
+        /**
+         * A successful trip has committed, but the courier still owns the
+         * movement turn while she checks for the next logistics route.
+         *
+         * <p>Without this one-tick handoff an empty bag made the ordinary
+         * schedule goal eligible between two capacity-split trips. Both goals
+         * have the same priority, so an unassigned courier inside a sealed
+         * warehouse could spend the rest of the shift repeatedly trying to
+         * return to the settlement centre while two real items remained at
+         * the hearth. Keeping ownership only through this bounded re-selection
+         * preserves the complete priority ladder and releases immediately when
+         * there is no more logistics work.
+         */
+        RESELECTING
     }
 
     /**
@@ -476,44 +490,53 @@ public class CourierWorkGoal extends Goal {
             restockCooldown--;
         } else {
             restockCooldown = RESTOCK_LOOK_INTERVAL;
-            resetStopObservation();
-            EquipmentJob equipment = findEquipmentJob(level, s);
-            if (equipment != null) {
-                beginEquipment(equipment);
-                return true;
-            }
-            RestockJob restock = findRestockJob(level, s);
-            if (restock != null) {
-                beginRestock(restock);
-                return true;
-            }
-            // Same budgeted slot, next rung down (FOOD_DELIVERY): no
-            // crafter is starving, so the larder gets looked at before any
-            // shelf-tidying does.
-            FoodJob food = findFoodJob(level, s);
-            if (food != null) {
-                beginFoodDelivery(food);
-                return true;
-            }
-            // Same budgeted slot again, next rung down (OUTPUT_COLLECTION):
-            // only when no crafter is starving and the village can eat does
-            // the courier go around emptying workshop output shelves into
-            // the warehouse.
-            CollectionJob collection = findCollectionJob(level, s);
-            if (collection != null) {
-                beginCollection(collection);
-                return true;
-            }
-            // Consolidation remains the last priority rung. On the scan
-            // tick it also gets the chance to explain a missing/full
-            // warehouse before the observation is published.
-            if (beginConsolidation(level, s)) {
-                return true;
-            }
-            publishStopObservation();
-            return false;
+            return selectPrioritizedRoute(level, s);
         }
         return beginConsolidation(level, s);
+    }
+
+    /**
+     * Runs the complete bounded logistics ladder at a decision point.
+     *
+     * <p>Idle couriers call this on the existing forty-tick budget. A courier
+     * that has just completed a physical delivery calls it once more from
+     * {@link Mode#RESELECTING}; that is not a per-tick scan, and it prevents a
+     * capacity-split source from being abandoned between its first and second
+     * trip without allowing routine consolidation to jump ahead of a newly
+     * opened equipment, restock, food or output request.
+     */
+    private boolean selectPrioritizedRoute(ServerLevel level, Settlement s) {
+        resetStopObservation();
+        EquipmentJob equipment = findEquipmentJob(level, s);
+        if (equipment != null) {
+            beginEquipment(equipment);
+            return true;
+        }
+        RestockJob restock = findRestockJob(level, s);
+        if (restock != null) {
+            beginRestock(restock);
+            return true;
+        }
+        // Same budgeted slot, next rung down (FOOD_DELIVERY): no crafter is
+        // starving, so the larder gets looked at before shelf-tidying.
+        FoodJob food = findFoodJob(level, s);
+        if (food != null) {
+            beginFoodDelivery(food);
+            return true;
+        }
+        // Same slot again, next rung down (OUTPUT_COLLECTION).
+        CollectionJob collection = findCollectionJob(level, s);
+        if (collection != null) {
+            beginCollection(collection);
+            return true;
+        }
+        // Consolidation remains last and gets the chance to publish a useful
+        // missing/full-warehouse blocker before the observation is committed.
+        if (beginConsolidation(level, s)) {
+            return true;
+        }
+        publishStopObservation();
+        return false;
     }
 
     /**
@@ -1030,6 +1053,11 @@ public class CourierWorkGoal extends Goal {
         settler.clearWorkContainer();
         stuckChecks = 0;
         repathTimer = 0;
+        launchCurrentLeg();
+    }
+
+    /** Starts navigation/presentation for a mode selected by either entry path. */
+    private void launchCurrentLeg() {
         switch (mode) {
             case TO_WAREHOUSE -> {
                 settler.setActivity(SettlerActivity.CARRYING);
@@ -1058,6 +1086,7 @@ public class CourierWorkGoal extends Goal {
                     ? SettlerActivity.CARRYING : SettlerActivity.TRAVELING);
                 pathAbove(settler.getHearthPos());
             }
+            case RESELECTING -> settler.setActivity(SettlerActivity.IDLE);
         }
     }
 
@@ -1097,7 +1126,38 @@ public class CourierWorkGoal extends Goal {
             case TO_CRAFTER -> tickToCrafter();
             case DEPOSITING -> tickDepositing();
             case STOCKING -> tickStocking();
+            case RESELECTING -> tickReselecting();
         }
+    }
+
+    /**
+     * Hands a completed trip directly to the next real logistics decision.
+     * This owns at most one scan tick; no work means the goal ends now and the
+     * ordinary settlement schedule gets the movement flag back.
+     */
+    private void tickReselecting() {
+        if (!(settler.level() instanceof ServerLevel level)
+            || !settler.dayPhase().work()
+            || level.getGameTime() < cooldownUntil) {
+            done = true;
+            return;
+        }
+        Settlement settlement = settler.settlement();
+        if (settlement == null) {
+            done = true;
+            return;
+        }
+        restockCooldown = RESTOCK_LOOK_INTERVAL;
+        if (!selectPrioritizedRoute(level, settlement)) {
+            done = true;
+            return;
+        }
+        workTicks = 0;
+        liftContactCommitted = false;
+        setDownInProgress = false;
+        stuckChecks = 0;
+        repathTimer = 0;
+        launchCurrentLeg();
     }
 
     private void tickToHearth() {
@@ -2058,7 +2118,10 @@ public class CourierWorkGoal extends Goal {
         noteCompletedDelivery(level, settlement, source, warehouse);
         clearPublishedStop();
         setPlaqueStop(warehouse, StopReason.NONE);
-        done = true;
+        // A weight-bounded load can be only the first physical leg of one
+        // source drain (six logs are 4 + 2). Re-run the full priority ladder
+        // before surrendering MOVE so the schedule cannot wedge that remainder.
+        mode = Mode.RESELECTING;
     }
 
     private void finishCrafterDelivery(ServerLevel level, Settlement settlement,
@@ -2072,7 +2135,7 @@ public class CourierWorkGoal extends Goal {
         noteCompletedDelivery(level, settlement, source, crafter);
         clearPublishedStop();
         setPlaqueStop(crafter, StopReason.NONE);
-        done = true;
+        mode = Mode.RESELECTING;
     }
 
     private void finishHearthDelivery(ServerLevel level) {
@@ -2085,7 +2148,7 @@ public class CourierWorkGoal extends Goal {
             : findBuildingById(settlement, sourceWarehouseId);
         noteCompletedDelivery(level, settlement, source, null);
         clearPublishedStop();
-        done = true;
+        mode = Mode.RESELECTING;
     }
 
     /**
