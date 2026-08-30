@@ -1,14 +1,31 @@
 # Hearthstead — full, ærlig overlevering til Claude
 
-**Oppdatert:** 28. august 2026. Les hele filen før du endrer noe.
+**Oppdatert:** 30. august 2026 etter canonical recovery-/handover-gjennomgang.
+Les hele filen før du endrer noe.
 
-> **Sann status:** Et stort nytt systemlag for UI, logistikk, rekruttering,
-> animasjon, guard og første raid er implementert i et svært dirty arbeidstre.
-> Modden er **ikke leveringsklar**. Siste fullførte autoritative GameTest:
-> **552 / 600 bestått, 48 feil**. Feilene ble deretter analysert og patched
-> eller fikk moderniserte fixtures, men dette er **ikke validert** av en ny
-> GameTest. Siste quick bygget kildekoden og passerte asset-/animasjonssjekker,
-> men ble avbrutt før `QUICK: PASS`. Ikke installer eller lever ny JAR ennå.
+> **Sann status:** Den canonical integrasjonen ligger på
+> `integration/hearthstead-demo-recovery-20260830` med recovery checkpoint
+> `98926b99...`. Et stort nytt systemlag for UI, logistikk, rekruttering,
+> animasjon, guard og første raid finnes, men modden er **ikke leveringsklar**.
+> Quick er kun en billig PASS-sjekk. Siste historiske GameTest-evidence er
+> **612 totalt / 48 påkrevde feil**; dette er **ikke current green proof**.
+> Ikke installer eller lever ny JAR ennå.
+
+## Canonical recovery truth
+
+| Felt | Verdi |
+| --- | --- |
+| Integrasjonsgren | `integration/hearthstead-demo-recovery-20260830` |
+| Recovery-ref | `recovery/hearthstead-pre-g0-head-20260830` |
+| Recovery-tag | `recovery-pre-g0-head-20260830` |
+| Recovery checkpoint | `98926b99...` |
+| Build-identity foundation | `cd277d5eb3b11f1c83566fccf98d5d96a55457cc` |
+| Endelig G0-tag/archive | **PENDING — opprettes etter docs closure** |
+
+Recovery checkpointet og ref/tag-navnene over er den aktive G0-sannheten.
+Endelig G0-tag, archive-navn og archive-hash skal opprettes etter at denne
+dokumentasjonen er lukket; eksakte verdier skal ikke gjettes eller lånes fra
+eldre artefakter.
 
 ## 1. Prosjektkart og sikkerhet
 
@@ -17,13 +34,30 @@
 | Repo-rot | `C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\Verk-arbeid-` |
 | Aktiv modul | `hearthstead-neoforge/` |
 | Plattform | NeoForge 1.21.1 |
-| Gren | `claude/hearthstead-settlement-mod-vbdb9n` |
+| Gren | `integration/hearthstead-demo-recovery-20260830` |
 | Frosset prototype | `hearthstead/` — ikke utvikle her |
 | Spillerprofil | `C:\\Users\\tobia\\curseforge\\minecraft\\Instances\\SIVILASJON (1)` |
-| Sikker backup | `C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\_backups\\Verk-arbeid-checkpoint-20260827T2025.zip` |
+| Checkpoint ZIP | `C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\_backups\\Verk-arbeid-G0-canonical-98926b99efdc-20260830T200137.zip` |
+| Checkpoint bundle | `C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\_backups\\Verk-arbeid-G0-canonical-98926b99efdc-20260830T200137.bundle` |
 
-Arbeidstreet har omtrent **281 endrede/tilføyde filer** og ca. **38 025
-innsettinger / 4 671 slettinger**. Det er bevisst dirty.
+Arbeidstreet og recoveryhistorikken må behandles som en bevisst, ikke-
+releasegodkjent arbeidskopi. Den endelige G0-taggen/archive er fortsatt
+uopprettet.
+
+Forgjenger-ZIP-en har SHA-256
+`8DD7851A5D9AF4EF15C4D9E6799D6432F12B2793628E3D3A54A2EB2364DB29FC` og er
+kun en predecessor recovery-artifact. Den utelater `.git`, byggoutput,
+Gradle/run og QA-rapporter. Den er ikke recovery-taggen og ikke det kommende
+endelige G0-arkivet.
+
+Checkpoint-ZIP-en har SHA-256
+`50BCA15FB5F6634D7E955E2487181A74FAA260DBE0EDD64587B6C80EE44004CC`,
+inneholder 1 391 filer og bestod byte-identisk kontroll mot `git archive`.
+Checkpoint-bundle-en har SHA-256
+`B72037B9695F469F12086E30C62AD7E6C67B467FBE581151E2E7BC67217F957A`
+og bestod `git bundle verify`. Begge peker på recovery-checkpointet
+`98926b99efdc1cfa38a125cb91171cddacc7931e`, ikke på den kommende endelige
+G0-lukkingen.
 
 **Aldri:** `git reset --hard`, `git checkout --`, masse-sletting, opprydding av
 ukjente filer, eller arbeid i `hearthstead/`. Ikke rediger mens QA kjører. Ikke
@@ -33,7 +67,19 @@ et build-output, ikke en godkjent release.
 Les først: `AGENTS.md`, denne filen, `qa/QUICKSTART.md`, `qa/PROTOCOL.md` og
 `qa/RELEASE_CLIENT_GATE.md`.
 
+Den gamle `claude/hearthstead-ui-performance-ldc42l`-UI-en skal ikke merges
+wholesale inn i current integration. Ta bare inn selektive, manuelt vurderte
+ytelses-/QA-lærdommer som ikke bryter nåværende tabs, data contracts eller
+spillerflyt.
+
 ## 2. Eiers mål — hva demoen faktisk må gi spilleren
+
+### Aktiv prioritet i current integration
+
+1. Synlig UI-overhaul med lesbar, responsiv og målbar spilleropplevelse.
+2. Farmer, dører og storage som P0-flyt, med ekte autoritativ state og fysisk
+   logistikk.
+3. Én sammenhengende demo frem til og gjennom første raid.
 
 Tobias vil ha én komplett, tilfredsstillende og forståelig spilløkt til første
 raid, ikke en bred mod med halvferdige systemer:
@@ -146,37 +192,22 @@ lyd eller data.
 - Store aktive WIP-endringer finnes i `HearthScreen`, `PlaqueScreen`,
   `SettlerScreen`, `StorageScreen`, `ResearchScreen`, `HandbookScreen`, `HsUi`
   og nettverkssnapshots. Ikke kall dette ferdig UI overhaul.
-- Siste assetsjekk: **995/995 PASS**.
-- Siste animasjonskontrakt: **PASS med 3 warnings**:
-  1. 39 katalogførte clips er fortsatt bare planlagt/fasevis.
-  2. `HUNTER_LOOSE`: runtime MAINHAND følger høyre arm, clip authorer venstre
-     som buearm; ikke godkjenn prop-renderen.
-  3. `CLEAVE`/`IDLE_SENTRY` er kontekstuelle og mangler universelt sannferdig
-     prop.
+- Eldre asset-/animasjonsresultater er historiske og skal ikke brukes som
+  current green proof. Visuell godkjenning krever ny evidence fra
+  `integration/hearthstead-demo-recovery-20260830`.
 
 ## 5. Autoritativ QA-status
 
-### Siste fullførte GameTest
+### Current evidence interpretation
 
-- **552/600 pass, 48 feil**.
-- Artefakt: `qa/reports/artifacts/20260828T175857.838204119Z-1747.83CyTW/`.
-- Detaljer: `gametest-failures.txt` i samme mappe.
-- Alle fikk senere reparasjon/fixture-migrering, men **ingen ny GameTest har
-  validert dette**.
-
-### Siste quick
-
-- Artefakt: `qa/reports/artifacts/20260828T182940.885484422Z-415.O1yQtj/`.
-- Build produserte `hearthstead-neoforge/build/libs/hearthstead-0.2.0.jar`.
-- Assets PASS 995/995. Animasjonskontrakt PASS med warningene over.
-- Quick ble avbrutt før sluttlinjen `QUICK: PASS`; resultatet er **ikke grønt**.
-
-### Eldre compile-funn som trolig er rettet, men ikke bevises ennå
-
-`qa/reports/artifacts/20260828T182353.349015308Z-396.ZG14zu/` har tidligere
-compile-feil i `RecruitGameTests.java` fordi `LevelData.setGameTime(long)` ikke
-finnes på interface. Fixture ble endret til `ServerLevelData` etterpå. Første
-rene quick må bevise at dette faktisk kompilerer.
+- Quick er kun en billig PASS-sjekk for tidlig feedback. En quick-PASS alene er
+  ikke grønt releasebevis og beviser ikke hele GameTest- eller klientflyten.
+- Siste historiske GameTest-evidence er **612 totalt / 48 påkrevde feil**.
+  Dette er ikke current green proof, uansett hvilke senere patches eller
+  fixture-endringer som finnes i arbeidstreet.
+- Ingen aktuell GameTest-, build- eller JAR-status skal kalles grønn før den
+  er kjørt på denne integrasjonsgrenen og knyttet til riktig source/build
+  identity.
 
 ### Absolutt QA-regel
 
@@ -194,9 +225,10 @@ Ingen rå Gradle, `runGameTestServer` eller `runClient`. Ikke slett
 fixture ikke følger ekte spillerflyt, migrer fixture — ikke svekk autoritativ
 produksjonslogikk.
 
-**Leveringsbevis:** quick grønn → gametest grønn → `full` to ganger på uendret
-source fingerprint → `gate` → ekte Windows-klienttest etter
-`qa/RELEASE_CLIENT_GATE.md`. Først da er en JAR testklar.
+**Leveringsbevis etter G0:** quick (billig feedback) → fersk gametest med alle
+historiske feil klassifisert → `full` to ganger på uendret source fingerprint →
+`gate` → ekte Windows-klienttest etter `qa/RELEASE_CLIENT_GATE.md`. Først da er
+en JAR testklar.
 
 ## 6. Alle 48 historiske GameTest-feil — gruppevis
 
@@ -317,16 +349,20 @@ flytt originale NVIDIA-videoer.
 
 ## 9. Presis oppstartsrekkefølge for Claude
 
-1. Les dokumentene, sjekk ingen gammel QA-prosess skriver, noter working-tree.
-2. Kjør `bash tools/hearthstead-qa quick` uendret og vent på sluttlinje.
-3. Hvis ikke PASS: reparer kun første faktiske feil med fersk artifact som bevis.
-4. Ved grønn quick: kjør én `bash tools/hearthstead-qa gametest`.
-5. Sammenlign med alle 48 navn ovenfor. Ikke erklær noe løst fordi suite stoppet
-   før den nådde den gamle feilen.
-6. Prioriter: Farmer target/3D-zone → dører + Courier → Lumberer-to-tree loop →
-   Tavern/recruitment → Archer/Guard/raid → UI-yting/målt UX → animasjon/lyd.
-7. For hver endring: fakta → hypotese → liten løsning → test + in-game QA.
-8. Etter grønn GameTest: `full` to ganger på samme fingerprint, `gate`, deretter
+1. Les dokumentene og lukk canonical G0-statusen mot integrasjonsgren,
+   recovery-ref/tag, recovery checkpoint og build-identity foundation.
+2. Ikke opprett eller påstå endelig G0-tag/archive før docs closure er ferdig;
+   registrer de faktiske navnene/hashene når de finnes.
+3. Kontroller at ingen gammel QA-prosess skriver, og noter working-tree.
+4. Kjør deretter `bash tools/hearthstead-qa quick` uendret og vent på sluttlinje.
+5. Hvis ikke PASS: reparer kun første faktiske feil med fersk artifact som bevis.
+6. Ved grønn quick: kjør én `bash tools/hearthstead-qa gametest`.
+7. Sammenlign med alle 48 historiske feilnavn ovenfor. Ikke erklær noe løst
+   fordi suite stoppet før den nådde en gammel feil.
+8. Prioriter synlig UI-overhaul → Farmer/door/storage P0 → Lumberer-to-tree
+   loop → Tavern/recruitment → Archer/Guard og first-raid-demo.
+9. For hver endring: fakta → hypotese → liten løsning → test + in-game QA.
+10. Etter grønn GameTest: `full` to ganger på samme fingerprint, `gate`, deretter
    Windows-klientspill: onboarding, plaque, emblem, inventory/request/Courier,
    Lumberer, Farmer, UI/FPS, Guards og første raid. Test save/reload,
    full inventory/chest, avbrutt rute og relevant multiplayer.
@@ -334,17 +370,22 @@ flytt originale NVIDIA-videoer.
 ## 10. Klar melding til Claude
 
 > Ta over Hearthstead fra `docs/project/HANDOVER_CHATGPT.md`. Les alt før du
-> jobber. Ikke redesign eller installer JAR nå: etabler ærlig baseline med kun
-> `bash tools/hearthstead-qa quick`, deretter `gametest`. Siste autoritative
-> resultat er 552/600; reparasjonene etterpå er uverifiserte. Prioriter ekte
-> Farmer target-detection, stabile dører/Courier, Lumberer-kontinuitet og legitim
-> rekruttering til Archer/Guard før første raid. Behold fysisk itemflyt og
-> fail-closed-regler. Ikke kall noe ferdig før full QA og faktisk Windows-
-> klientplaythrough til første raid er bevist.
+> jobber. Current integration er `integration/hearthstead-demo-recovery-20260830`,
+> med recovery checkpoint `98926b99...`, recovery-ref
+> `recovery/hearthstead-pre-g0-head-20260830`, recovery-tag
+> `recovery-pre-g0-head-20260830` og build-identity foundation
+> `cd277d5eb3b11f1c83566fccf98d5d96a55457cc`. Lukk docs før endelig G0-
+> tag/archive; eksakte sluttverdier er foreløpig pending. Quick er kun en
+> billig PASS-sjekk. Siste historiske GameTest-evidence er 612 totalt / 48
+> påkrevde feil, ikke current green proof. Prioriter synlig UI-overhaul,
+> Farmer/door/storage P0 og en sammenhengende first-raid-demo. Den gamle
+> `claude/hearthstead-ui-performance-ldc42l`-UI-en skal ikke wholesale-merges;
+> behold fysisk itemflyt og fail-closed-regler. Ikke kall noe ferdig før full
+> QA og faktisk Windows-klientplaythrough til første raid er bevist.
 
 ## 11. Ærlig status til Tobias
 
 Mye er bygget. **Ingenting nytt er godkjent for installasjon.** Denne filen
-inneholder nå mål, låste valg, faktisk endret arbeid, runtimefunn, alle 48
-historiske testfeil, QA-bevis, filseams og eksakt fortsettelsesrekkefølge, slik
+inneholder canonical recovery truth, aktiv prioritet, låste valg, runtimefunn,
+alle 48 historiske testfeil, QA-regler og eksakt fortsettelsesrekkefølge, slik
 at neste agent kan arbeide videre uten å gjette eller late som modden er ferdig.
