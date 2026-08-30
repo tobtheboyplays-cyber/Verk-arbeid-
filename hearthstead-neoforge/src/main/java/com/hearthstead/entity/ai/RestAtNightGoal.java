@@ -119,6 +119,18 @@ public class RestAtNightGoal extends Goal {
                 return;
             }
         }
+        if (resting && settler.getClaimedBed() != null) {
+            // Housing assignment is also push-driven: a Plaque survey may
+            // hand this settler a bed between two retry ticks.  Previously
+            // that bypassed the branch above (the bed was no longer null),
+            // leaving the goal latched in rough rest until dawn even though
+            // a real bed was waiting.  Treat either assignment path as the
+            // same state transition and walk to the newly claimed bed now.
+            resting = false;
+            settler.setActivity(SettlerActivity.IDLE);
+            path();
+            return;
+        }
         if (resting) {
             // Rough rest at the hearth: stay put, gaze into the fire.
             settler.getNavigation().stop();
