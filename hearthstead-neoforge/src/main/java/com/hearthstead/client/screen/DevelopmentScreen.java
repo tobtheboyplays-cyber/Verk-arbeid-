@@ -124,6 +124,7 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
     private boolean uiCloseSoundPlayed;
     private double lastDragX;
     private double lastDragY;
+    private String nodeTextEpoch = "";
 
     public DevelopmentScreen(DevelopmentSnapshotPayload snapshot) {
         super(Component.translatable("hearthstead.development.title"));
@@ -344,18 +345,23 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
      */
     private void relayoutNodeControls() {
         float zoom = zoom();
+        NodeGeometry geometry = nodeGeometry(zoom);
         int viewLeft = left + VIEW_X;
         int viewTop = top + VIEW_Y;
         int viewRight = viewLeft + viewWidth;
         int viewBottom = viewTop + viewHeight;
+        String textEpoch = currentTextEpoch();
+        nodeTextEpoch = textEpoch;
         for (TechNodeButton button : nodeButtons) {
             int x = screenX(worldX(button.node.node), zoom);
             int y = screenY(worldY(button.node.node), zoom);
-            int w = scaledNodeWidth(zoom);
-            int h = scaledNodeHeight(zoom);
-            button.relayout(x, y, w, h, viewLeft, viewTop, viewRight,
-                viewBottom, font);
+            button.relayout(x, y, geometry, viewLeft, viewTop, viewRight,
+                viewBottom, font, textEpoch);
         }
+    }
+
+    private String currentTextEpoch() {
+        return minecraft == null ? "" : minecraft.getLanguageManager().getSelected();
     }
 
     private void unlock(DevelopmentNode node) {
@@ -392,12 +398,36 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
         return ZOOMS[zoomIndex];
     }
 
+    /**
+     * A far overview is a different presentation, not a detailed card forced
+     * into too little world space. At 30%, trunk columns are only 54px apart
+     * and doctrine lanes only 24px apart; the former 72x36 floor therefore
+     * made both kinds of node overlap. The compact state chip leaves the full
+     * name, quest, cost and reward in the existing inspector/narration path.
+     */
+    static NodeGeometry nodeGeometry(float zoom) {
+        if (zoom < 0.56F) {
+            return new NodeGeometry(Math.max(44, Math.round(NODE_W * zoom)),
+                Math.max(18, Math.round(NODE_H * zoom)), NodeVisualMode.OVERVIEW);
+        }
+        return new NodeGeometry(Math.max(72, Math.round(NODE_W * zoom)),
+            Math.max(36, Math.round(NODE_H * zoom)), NodeVisualMode.DETAILED);
+    }
+
     static int scaledNodeWidth(float zoom) {
-        return Math.max(72, Math.round(NODE_W * zoom));
+        return nodeGeometry(zoom).width();
     }
 
     static int scaledNodeHeight(float zoom) {
-        return Math.max(36, Math.round(NODE_H * zoom));
+        return nodeGeometry(zoom).height();
+    }
+
+    enum NodeVisualMode {
+        DETAILED,
+        OVERVIEW
+    }
+
+    record NodeGeometry(int width, int height, NodeVisualMode mode) {
     }
 
     private int screenX(int worldX, float zoom) {
@@ -410,6 +440,12 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // Locale changes do not necessarily recreate this Screen. Re-fit the
+        // fixed widget tree once here; ordinary frames keep the cached lines.
+        if (!nodeTextEpoch.equals(currentTextEpoch())) {
+            rebuildDisplayLines();
+            relayoutNodeControls();
+        }
         renderBackground(graphics, mouseX, mouseY, partialTick);
         HsUi.window(graphics, left, top, panelWidth, panelHeight);
         graphics.drawString(font, titleLine, left + PAD, top + 12,
@@ -674,7 +710,7 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
         };
     }
 
-    private static int worldY(DevelopmentNode node) {
+    static int worldY(DevelopmentNode node) {
         return switch (node) {
             case SHIELD_DOCTRINE -> 0;
             case GUILD_DOCTRINE -> 80;
@@ -823,10 +859,15 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
         private int clipBottom;
         private CachedNode node;
         private final Runnable onPress;
+        private NodeVisualMode visualMode = NodeVisualMode.DETAILED;
+        private boolean textDirty = true;
+        private Font fittedFont;
+        private String fittedTextEpoch = "";
         private Component nameLine = Component.empty();
         private Component questLine = Component.empty();
         private Component costLine = Component.empty();
         private Component stateLine = Component.empty();
+        private int overviewStateWidth;
 
         TechNodeButton(CachedNode node, Runnable onPress) {
             super(0, 0, 1, 1, node.name);
@@ -841,6 +882,7 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
         void updateNode(CachedNode fresh) {
             node = fresh;
             setMessage(fresh.name);
+            textDirty = true;
         }
 
         boolean isHoveredAt(int mouseX, int mouseY) {
@@ -848,14 +890,20 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
                 && mouseY >= getY() && mouseY < getY() + getHeight();
         }
 
-        void relayout(int drawX, int drawY, int drawWidth, int drawHeight,
+        void relayout(int drawX, int drawY, NodeGeometry geometry,
                       int viewLeft, int viewTop, int viewRight, int viewBottom,
-                      Font font) {
+                      Font font, String textEpoch) {
+            int drawWidth = geometry.width();
+            int drawHeight = geometry.height();
             boolean widthChanged = this.drawWidth != drawWidth;
+            boolean modeChanged = visualMode != geometry.mode();
+            boolean textEpochChanged = !fittedTextEpoch.equals(textEpoch)
+                || fittedFont != font;
             this.drawX = drawX;
             this.drawY = drawY;
             this.drawWidth = drawWidth;
             this.drawHeight = drawHeight;
+            this.visualMode = geometry.mode();
             this.clipLeft = viewLeft;
             this.clipTop = viewTop;
             this.clipRight = viewRight;
@@ -871,12 +919,18 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
             setWidth(Math.max(1, right - x));
             setHeight(Math.max(1, bottom - y));
 
-            // Card width changes only on zoom/layout, never while panning.
-            if (widthChanged) {
+            // Text is only re-fit for a changed geometry, node snapshot,
+            // locale/font epoch or visual mode; panning remains geometry-only.
+            if (widthChanged || modeChanged || textDirty || textEpochChanged) {
+                fittedFont = font;
+                fittedTextEpoch = textEpoch;
                 nameLine = clipLine(font, node.name, drawWidth - 30);
                 questLine = clipLine(font, node.questText, drawWidth - 12);
                 costLine = clipLine(font, node.costText, drawWidth - 12);
-                stateLine = clipLine(font, node.stateText, drawWidth - 12);
+                stateLine = clipLine(font, node.stateText,
+                    visualMode == NodeVisualMode.OVERVIEW ? drawWidth - 6 : drawWidth - 12);
+                overviewStateWidth = font == null ? 0 : font.width(stateLine);
+                textDirty = false;
             }
         }
 
@@ -897,8 +951,16 @@ public final class DevelopmentScreen extends Screen implements QaUiInspectable {
                 node.outline);
             graphics.fill(drawX, drawY + drawHeight - 2,
                 drawX + drawWidth, drawY + drawHeight, node.outline);
-            graphics.renderItem(node.icon, drawX + 5, drawY + 5);
             var font = net.minecraft.client.Minecraft.getInstance().font;
+            if (visualMode == NodeVisualMode.OVERVIEW) {
+                graphics.drawString(font, stateLine,
+                    drawX + Math.max(3, (drawWidth - overviewStateWidth) / 2),
+                    drawY + Math.max(3, (drawHeight - HsUiTokens.TEXT_H) / 2),
+                    node.outline, true);
+                graphics.disableScissor();
+                return;
+            }
+            graphics.renderItem(node.icon, drawX + 5, drawY + 5);
             graphics.drawString(font, nameLine, drawX + 25, drawY + 5,
                 node.learned ? HsUiTokens.GOOD : HsUiTokens.TEXT_STRONG, true);
             if (drawHeight >= 48) {
