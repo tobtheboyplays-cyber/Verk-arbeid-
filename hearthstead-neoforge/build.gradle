@@ -11,7 +11,10 @@ version = mod_version
 // also embedded in the manifest and runtime resources.
 def gitOutput = { String... arguments ->
     try {
-        def command = ['git'] + arguments.toList()
+        // The same checkout is built by Windows and WSL. Normalize text for
+        // status comparisons so CRLF/LF checkout policy never creates a
+        // false dirty identity while real content edits still do.
+        def command = ['git', '-c', 'core.autocrlf=true'] + arguments.toList()
         def process = new ProcessBuilder(command)
             .directory(rootDir)
             .start()
@@ -29,11 +32,20 @@ def hearthsteadGitCommit = gitOutput('rev-parse', '--verify', 'HEAD')
 // The JAR identity describes the compiled Hearthstead module. The QA
 // controller separately fingerprints its root-level protocol and evidence;
 // its transient run state must not make an otherwise clean module look dirty.
-def hearthsteadModulePathspec = ':(top)hearthstead-neoforge'
-def hearthsteadTrackedStatus = gitOutput(
-    'diff', '--name-only', '--no-ext-diff', 'HEAD', '--', hearthsteadModulePathspec)
-def hearthsteadUntrackedStatus = gitOutput(
-    'ls-files', '--others', '--exclude-standard', '--', hearthsteadModulePathspec)
+def hearthsteadJarInputPathspecs = [
+    ':(top)hearthstead-neoforge/build.gradle',
+    ':(top)hearthstead-neoforge/gradle.properties',
+    ':(top)hearthstead-neoforge/settings.gradle',
+    ':(top)hearthstead-neoforge/gradlew',
+    ':(top)hearthstead-neoforge/gradle/wrapper/gradle-wrapper.properties',
+    ':(top)hearthstead-neoforge/src'
+]
+def hearthsteadTrackedStatus = gitOutput(*(([
+    'diff', '--name-only', '--no-ext-diff', 'HEAD', '--'
+] + hearthsteadJarInputPathspecs) as String[]))
+def hearthsteadUntrackedStatus = gitOutput(*(([
+    'ls-files', '--others', '--exclude-standard', '--'
+] + hearthsteadJarInputPathspecs) as String[]))
 def hearthsteadTrackedDirty = hearthsteadTrackedStatus == 'unknown' || !hearthsteadTrackedStatus.isBlank()
 def hearthsteadUntrackedDirty = hearthsteadUntrackedStatus == 'unknown' || !hearthsteadUntrackedStatus.isBlank()
 def hearthsteadGitDirty = hearthsteadTrackedDirty || hearthsteadUntrackedDirty
