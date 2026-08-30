@@ -912,8 +912,8 @@ public class LumbererGameTests {
         final long[] unsealedAt = {Long.MIN_VALUE};
         helper.onEachTick(() -> {
             if (!sawBoundedYield[0]
-                && "lumber_camp_unreachable".equals(
-                    lumberer.routeFailureNote())
+                && lumberer.routeFailureNote().startsWith(
+                    "lumber_camp_unreachable@")
                 && lumberer.getActivity() == SettlerActivity.IDLE
                 && lumberer.getNavigation().isDone()) {
                 helper.assertTrue(lumberer.getCarryLoad() == 1
@@ -1130,7 +1130,7 @@ public class LumbererGameTests {
                         item.setNoGravity(true);
                         item.setDeltaMovement(Vec3.ZERO);
                         movingWasAlive[0] = true;
-                        nextMoveAt[0] = level.getGameTime() + 8;
+                        nextMoveAt[0] = level.getGameTime() + 1;
                         break;
                     }
                 }
@@ -1145,7 +1145,7 @@ public class LumbererGameTests {
                 // Move again before the 12-tick contact can complete. Twenty-
                 // four changes keep the same UUID mobile beyond the old
                 // eight-check stuck budget; only the final position is held.
-                nextMoveAt[0] = level.getGameTime() + 8;
+                nextMoveAt[0] = level.getGameTime() + 1;
             }
             if (moving[0] != null) {
                 boolean aliveNow = moving[0].isAlive();
