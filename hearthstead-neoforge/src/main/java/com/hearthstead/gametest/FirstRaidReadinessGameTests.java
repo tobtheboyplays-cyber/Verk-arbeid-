@@ -155,7 +155,7 @@ public final class FirstRaidReadinessGameTests {
         helper.assertTrue(f.settlement.foundingJourney.phase()
                 == FoundingJourney.Phase.COMPLETE
                 && f.settlement.firstRaidReadiness.assess(helper.getLevel(), f.settlement)
-                    == FirstRaidReadiness.Assessment.KNOWLEDGE_MISSING,
+                    == FirstRaidReadiness.Assessment.JOURNEY_INCOMPLETE,
             "the old House + Lumber Camp + one-log slice must remain fail-closed");
 
         JourneyV2 v2 = completeJourneyV2(helper, f);
@@ -932,8 +932,9 @@ public final class FirstRaidReadinessGameTests {
         purchaseAndHire(helper, f, Profession.GUARD, f.guard, barracks.building);
         helper.assertTrue(f.settlement.firstRaidReadiness.assess(
                 helper.getLevel(), f.settlement)
-                == FirstRaidReadiness.Assessment.KNOWLEDGE_MISSING,
-            "First Watch must grant the Guard loop without bypassing its Courier proof");
+                == FirstRaidReadiness.Assessment.JOURNEY_INCOMPLETE,
+            "First Watch must grant the Guard loop without bypassing its Courier proof "
+                + "or the later Archer/Journey receipts");
         serveMissingToolRequest(helper, f, f.guard, warehouse.building,
             helper.absolutePos(warehouse.storageRelative), barracks.building,
             helper.absolutePos(barracks.storageRelative), Items.IRON_SWORD);

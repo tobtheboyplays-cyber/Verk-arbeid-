@@ -28,6 +28,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -252,22 +253,29 @@ public class ArcherGameTests {
         ArcherAttackGoal goal = arm(archer);
         archer.setTarget(target);
 
-        helper.succeedWhen(() -> {
-            int borrowed = goal.quiverCount();
-            helper.assertTrue(borrowed > 0 && goal.shotsFired() == 0,
-                "fixture must save after rack withdrawal and before release");
-            int inRack = countOf(rack, Items.ARROW);
+        // The persistence boundary is the first real combat tick: it pulls
+        // the physical rack arrows, then begins the ordinary 20-tick draw.
+        // Drive that single authoritative goal tick directly so the save
+        // cannot race the selector past this deliberately narrow boundary.
+        helper.assertTrue(goal.canUse(),
+            "fixture: the physically armed Archer must enter its real combat goal");
+        goal.start();
+        goal.tick();
+        int borrowed = goal.quiverCount();
+        helper.assertTrue(borrowed > 0 && goal.shotsFired() == 0,
+            "fixture must save after rack withdrawal and before release");
+        int inRack = countOf(rack, Items.ARROW);
 
-            CompoundTag save = new CompoundTag();
-            archer.addAdditionalSaveData(save);
-            helper.assertTrue(save.getInt(SettlerEntity.ARCHER_QUIVER_NBT_KEY)
-                    == borrowed,
-                "entity save must own the exact borrowed arrow count");
-            helper.assertTrue(save.hasUUID(
-                    SettlerEntity.ARCHER_QUIVER_SOURCE_NBT_KEY)
-                    && save.getUUID(SettlerEntity.ARCHER_QUIVER_SOURCE_NBT_KEY)
-                        .equals(watchtower.id),
-                "entity save must bind borrowed arrows to the exact source tower");
+        CompoundTag save = new CompoundTag();
+        archer.addAdditionalSaveData(save);
+        helper.assertTrue(save.getInt(SettlerEntity.ARCHER_QUIVER_NBT_KEY)
+                == borrowed,
+            "entity save must own the exact borrowed arrow count");
+        helper.assertTrue(save.hasUUID(
+                SettlerEntity.ARCHER_QUIVER_SOURCE_NBT_KEY)
+                && save.getUUID(SettlerEntity.ARCHER_QUIVER_SOURCE_NBT_KEY)
+                    .equals(watchtower.id),
+            "entity save must bind borrowed arrows to the exact source tower");
 
             SettlerEntity loaded = ModEntities.SETTLER.get().create(
                 helper.getLevel());
@@ -614,7 +622,7 @@ public class ArcherGameTests {
                     settlement.id, replacement.getUUID(), watchtower.id,
                     Profession.ARCHER),
                 "replacement authority must survive restart after terminal cleanup");
-        });
+        helper.succeed();
     }
 
     /**
@@ -677,6 +685,11 @@ public class ArcherGameTests {
 
         RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
         pell.setNoAi(true);
+        // The fourth cadence slot is a Power Shot. Keep the fixture target
+        // alive through the following fifth slot so the Triple Shot cadence,
+        // rather than a premature target death, decides the assertion.
+        pell.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0D);
+        pell.setHealth(pell.getMaxHealth());
         float pellMax = pell.getMaxHealth();
         ArcherAttackGoal goal = arm(archer);
         archer.setTarget(pell);

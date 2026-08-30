@@ -346,7 +346,8 @@ public class GuardOrderNetworkGameTests {
         // Set the authoritative game-mode controller directly so this test
         // measures GuardOrderNetwork's spectator rejection, not a failed
         // fixture transition.
-        helper.assertTrue(f.player.setGameMode(GameType.SPECTATOR)
+        helper.assertTrue(f.player.gameMode.changeGameModeForPlayer(
+                GameType.SPECTATOR)
                 && f.player.isSpectator(),
             "fixture: mock player must actually be a spectator");
         GuardOrderSnapshotPayload refused = act(helper, f, packets,
