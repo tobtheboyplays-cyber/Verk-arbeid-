@@ -1,5 +1,6 @@
 package com.hearthstead.network;
 
+import com.mojang.authlib.GameProfile;
 import com.hearthstead.Hearthstead;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
@@ -21,12 +22,15 @@ import io.netty.util.ReferenceCountUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.Connection;
 import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.network.CommonListenerCookie;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -335,39 +339,34 @@ public class GuardOrderNetworkGameTests {
         batch = "guard_order_spectator_rejected")
     public void spectatorSessionIsReadOnlyAndCannotCreateAnOrder(
             GameTestHelper helper) {
-        Fixture f = fixture(helper);
-        PayloadProbe packets = new PayloadProbe(f.player, "spectator");
-        // GameTest mock players share the server player list between batches.
-        // A previous spectator fixture can therefore leave this reused mock in
-        // spectator mode. Start from an explicit mutable session, then revoke
-        // that authority after the snapshot so this row proves the action-time
-        // production check rather than the mock player's inherited mode.
-        f.player.gameMode.changeGameModeForPlayer(GameType.SURVIVAL);
-        helper.assertFalse(f.player.isSpectator(),
-            "fixture: the management session must begin as a non-spectator");
-        UUID session = SettlerNetwork.openFor(f.player, f.guard);
-        flush(packets);
-        GuardOrderSnapshotPayload state = act(helper, f, packets,
-            action(f, session, GuardOrderActionPayload.Kind.REFRESH,
-                SettlerActionPayload.NO_SETTLER, -1));
-        // The mock player does not run the normal server command pipeline.
-        // Set the authoritative game-mode controller directly so this test
-        // measures GuardOrderNetwork's spectator rejection, not a failed
-        // fixture transition.
-        f.player.gameMode.changeGameModeForPlayer(GameType.SPECTATOR);
-        helper.assertTrue(f.player.isSpectator(),
-            "fixture: mock player must actually be a spectator");
-        GuardOrderSnapshotPayload refused = act(helper, f, packets,
-            action(f, session, GuardOrderActionPayload.Kind.HOLD_HERE,
-                f.settlement.id, state.revision()));
+        Fixture f = fixture(helper, true);
+        try (PayloadProbe packets = new PayloadProbe(f.player, "spectator")) {
+            helper.assertFalse(f.player.isSpectator(),
+                "fixture: the management session must begin as a non-spectator");
+            UUID session = SettlerNetwork.openFor(f.player, f.guard);
+            flush(packets);
+            GuardOrderSnapshotPayload state = act(helper, f, packets,
+                action(f, session, GuardOrderActionPayload.Kind.REFRESH,
+                    SettlerActionPayload.NO_SETTLER, -1));
 
-        helper.assertTrue(refused.outcome()
-                == GuardOrderSnapshotPayload.Outcome.REFUSED
-                && currentRevision(f) == 0
-                && f.settlement.guardOrders.size() == 0,
-            "spectators may refresh server truth but cannot create Guard authority");
-        packets.close();
-        InspectionViewers.clear(helper.getLevel().getServer());
+            helper.assertTrue(f.player.gameMode.changeGameModeForPlayer(
+                    GameType.SPECTATOR),
+                "fixture: the real server player must enter spectator mode");
+            helper.assertTrue(f.player.isSpectator(),
+                "fixture: the authoritative player must actually be a spectator");
+            GuardOrderSnapshotPayload refused = act(helper, f, packets,
+                action(f, session, GuardOrderActionPayload.Kind.HOLD_HERE,
+                    f.settlement.id, state.revision()));
+
+            helper.assertTrue(refused.outcome()
+                    == GuardOrderSnapshotPayload.Outcome.REFUSED
+                    && currentRevision(f) == 0
+                    && f.settlement.guardOrders.size() == 0,
+                "spectators may refresh server truth but cannot create Guard authority");
+        } finally {
+            InspectionViewers.clear(helper.getLevel().getServer());
+            helper.getLevel().getServer().getPlayerList().remove(f.player);
+        }
         helper.succeed();
     }
 
@@ -524,6 +523,11 @@ public class GuardOrderNetworkGameTests {
     }
 
     private static Fixture fixture(GameTestHelper helper) {
+        return fixture(helper, false);
+    }
+
+    private static Fixture fixture(GameTestHelper helper,
+                                   boolean modeAwarePlayer) {
         InspectionViewers.clear(helper.getLevel().getServer());
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
@@ -553,10 +557,28 @@ public class GuardOrderNetworkGameTests {
         guard.setItemSlot(EquipmentSlot.MAINHAND,
             new ItemStack(Items.IRON_SWORD));
 
-        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        ServerPlayer player = modeAwarePlayer
+            ? makeModeAwareServerPlayer(helper)
+            : helper.makeMockServerPlayerInLevel();
         NetworkRegistry.configureMockConnection(player.connection.getConnection());
         player.setPos(guard.getX(), guard.getY(), guard.getZ());
         return new Fixture(settlement, barracks, guard, player);
+    }
+
+    /** Vanilla's deprecated GameTest mock hard-overrides spectator to false. */
+    private static ServerPlayer makeModeAwareServerPlayer(
+            GameTestHelper helper) {
+        GameProfile profile = new GameProfile(UUID.randomUUID(),
+            "guard-order-player");
+        CommonListenerCookie cookie = CommonListenerCookie.createInitial(
+            profile, false);
+        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(),
+            helper.getLevel(), profile, cookie.clientInformation());
+        Connection connection = new Connection(PacketFlow.SERVERBOUND);
+        new EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(
+            connection, player, cookie);
+        return player;
     }
 
     private static void flush(PayloadProbe probe) {

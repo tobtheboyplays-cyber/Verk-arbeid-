@@ -91,6 +91,7 @@ public final class JourneyServerHooks {
         }
         ServerLevel level = player.serverLevel();
         boolean reconciled = reconcileOwnedTechUnlock(player, settlement);
+        reconciled |= reconcilePhysicalHousingCapacity(level, settlement);
         reconciled |= reconcileWatchRecruitmentSlot(level, settlement);
         long token = Integer.toUnsignedLong(java.util.Objects.hash(
             level.getGameTime(), menu.getContainerId(), settlement.journeyState.revision()));
@@ -143,7 +144,14 @@ public final class JourneyServerHooks {
             JourneyEvent.TECH_UNLOCKED_COMMITTED, transaction,
             Optional.of(player.getUUID()), Optional.empty(), Optional.empty(),
             Optional.empty(), Optional.of("node:" + node.id()), JourneyOutcome.NONE);
-        return accepted(result) ? Optional.of(transaction) : Optional.empty();
+        boolean applied = accepted(result);
+        if (applied && node == DevelopmentNode.ARM_THE_WATCH) {
+            // Existing homes are normally built before this branch unlocks.
+            // Re-observe their loaded physical bed heads at the exact gate;
+            // the player must never relink a valid home just to continue.
+            reconcilePhysicalHousingCapacity(player.serverLevel(), settlement);
+        }
+        return applied ? Optional.of(transaction) : Optional.empty();
     }
 
     /**
@@ -170,7 +178,11 @@ public final class JourneyServerHooks {
             Optional.of(player.getUUID()), Optional.empty(), Optional.empty(),
             Optional.empty(), Optional.of("node:arm_the_watch;owned_revision:"
                 + development.revision()), JourneyOutcome.NONE);
-        return accepted(result);
+        boolean applied = accepted(result);
+        if (applied) {
+            reconcilePhysicalHousingCapacity(level, settlement);
+        }
+        return applied;
     }
 
     public static boolean noteBuildingLinked(ServerLevel level,
@@ -193,19 +205,7 @@ public final class JourneyServerHooks {
                 Optional.empty(), Optional.empty(), JourneyOutcome.NONE));
         }
         if (building.type.housesResidents()) {
-            int physicalBeds = physicalHousingBeds(level, settlement);
-            if (physicalBeds >= 5) {
-                UUID capacityTransaction = JourneyTransactionIds.forRevision(
-                    "physical_fifth_bed", settlement.id, building.id,
-                    physicalBeds);
-                observed |= accepted(record(level, settlement,
-                    JourneyIds.FJ_552_ADD_FIFTH_BED,
-                    JourneyEvent.HOUSING_CAPACITY_COMMITTED,
-                    capacityTransaction, Optional.empty(), Optional.empty(),
-                    Optional.of(building.id), Optional.empty(),
-                    Optional.of("physical_bed_heads:" + physicalBeds),
-                    JourneyOutcome.NONE));
-            }
+            observed |= reconcilePhysicalHousingCapacity(level, settlement);
         }
         if (settlement.journeyState.isCompleted(
                 JourneyIds.FJ_552_ADD_FIFTH_BED)) {
@@ -1139,12 +1139,15 @@ public final class JourneyServerHooks {
     }
 
     private static boolean exactRegistered(Settlement settlement, Building building) {
-        if (settlement == null || building == null) {
+        if (settlement == null || building == null || building.id == null) {
             return false;
         }
         int identities = 0;
         boolean same = false;
         for (Building registered : settlement.buildings) {
+            if (registered == null || registered.id == null) {
+                return false;
+            }
             if (registered.id.equals(building.id)) {
                 identities++;
                 same |= registered == building;
@@ -1556,7 +1559,14 @@ public final class JourneyServerHooks {
         Set<BlockPos> globalBeds = new HashSet<>();
         for (Building building : settlement.buildings) {
             if (building == null || building.id == null
-                || !buildings.add(building.id) || !building.valid
+                || !buildings.add(building.id)
+                || !exactRegistered(settlement, building)) {
+                // A duplicated/corrupt building identity makes the aggregate
+                // ambiguous. Never accept the first copy and silently ignore
+                // the second when this count grants recruitment authority.
+                return -1;
+            }
+            if (!building.valid
                 || building.type == null || !building.type.housesResidents()
                 || building.bounds == null || building.beds == null) {
                 continue;
@@ -1578,6 +1588,67 @@ public final class JourneyServerHooks {
             }
         }
         return total;
+    }
+
+    /**
+     * Authors fifth-bed capacity only after Arm the Watch is real Journey
+     * authority. The observation is event-driven (unlock, home link or
+     * Journey reopen), bounded by the registered building list and never
+     * chunk-loads. This prevents an early house survey from silently crossing
+     * the later watch gate while still healing a persisted unlock/receipt tear.
+     */
+    private static boolean reconcilePhysicalHousingCapacity(
+            ServerLevel level, Settlement settlement) {
+        if (!live(level, settlement)
+            || !settlement.journeyState.isCompleted(
+                JourneyIds.FJ_551_UNLOCK_ARM_THE_WATCH)
+            || settlement.journeyState.isCompleted(
+                JourneyIds.FJ_552_ADD_FIFTH_BED)) {
+            return false;
+        }
+        int physicalBeds = physicalHousingBeds(level, settlement);
+        if (physicalBeds < 5) {
+            return false;
+        }
+        Building authority = null;
+        for (Building candidate : settlement.buildings) {
+            if (candidate == null || candidate.id == null || !candidate.valid
+                || !exactRegistered(settlement, candidate)
+                || candidate.type == null || !candidate.type.housesResidents()
+                || candidate.bounds == null || candidate.beds == null) {
+                continue;
+            }
+            boolean hasLoadedHead = false;
+            for (BlockPos bed : candidate.beds) {
+                if (bed == null || !candidate.contains(bed)
+                    || !level.hasChunkAt(bed)) {
+                    continue;
+                }
+                BlockState state = level.getBlockState(bed);
+                if (state.getBlock() instanceof BedBlock
+                    && state.hasProperty(BedBlock.PART)
+                    && state.getValue(BedBlock.PART) == BedPart.HEAD) {
+                    hasLoadedHead = true;
+                    break;
+                }
+            }
+            if (hasLoadedHead && (authority == null
+                    || candidate.id.compareTo(authority.id) < 0)) {
+                authority = candidate;
+            }
+        }
+        if (authority == null) {
+            return false;
+        }
+        UUID capacityTransaction = JourneyTransactionIds.forRevision(
+            "physical_fifth_bed", settlement.id, authority.id, physicalBeds);
+        return accepted(record(level, settlement,
+            JourneyIds.FJ_552_ADD_FIFTH_BED,
+            JourneyEvent.HOUSING_CAPACITY_COMMITTED,
+            capacityTransaction, Optional.empty(), Optional.empty(),
+            Optional.of(authority.id), Optional.empty(),
+            Optional.of("physical_bed_heads:" + physicalBeds),
+            JourneyOutcome.NONE));
     }
 
     /** Exact linked tower chest count, saturated and never chunk-loading. */

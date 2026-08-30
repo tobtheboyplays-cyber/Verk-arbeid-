@@ -539,8 +539,13 @@ public class ArcherGameTests {
                 "fixture: a same-UUID wrong-position collision must join first");
             DeferredItemMaterializationSavedData.retryLoaded(
                 helper.getLevel());
-            helper.assertTrue(escrow.pendingRows() == 2,
-                "same UUID+stack+proof outside bounded replay displacement must not consume escrow");
+            helper.assertTrue(escrow.pendingRows() == 1
+                    && escrow.pendingItems(helper.getLevel().registryAccess(),
+                        Items.ARROW) == 3
+                    && escrow.pendingItems(helper.getLevel().registryAccess(),
+                        Items.BREAD) == 0,
+                "an out-of-bounds UUID collision must retain the exact arrow "
+                    + "escrow while an independent bread row remains free to materialize");
             wrongPosition.discard();
 
             ItemEntity alreadyPhysical = new ItemEntity(helper.getLevel(),

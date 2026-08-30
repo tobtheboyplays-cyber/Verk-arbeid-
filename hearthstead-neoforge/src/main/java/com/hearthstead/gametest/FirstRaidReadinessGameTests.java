@@ -7,11 +7,16 @@ import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.block.PlaqueItemData;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.PlaqueState;
+import com.hearthstead.entity.ai.GroundCollectionSession;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.item.JobEmblemItem;
 import com.hearthstead.menu.HearthMenu;
+import com.hearthstead.menu.SettlerInventoryMenu;
+import com.hearthstead.network.HearthMayorAction;
+import com.hearthstead.network.HearthMayorSnapshot;
+import com.hearthstead.network.HearthNetwork;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.Building;
@@ -40,24 +45,36 @@ import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidLogEntry;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.raid.RaidPlan;
+import com.hearthstead.settlement.request.RequestLedgerService;
+import com.hearthstead.settlement.request.RequestPriority;
+import com.hearthstead.settlement.request.RequestRecord;
 import com.hearthstead.settlement.state.FirstRaidState;
 import com.hearthstead.settlement.state.FoundingJourney;
 import com.hearthstead.settlement.state.GuardOrder;
 import com.hearthstead.settlement.state.RaidLifecycle;
+import com.hearthstead.settlement.work.WorkerProvenanceService;
+import com.hearthstead.settlement.work.WorkerStackProvenance;
 import com.hearthstead.settlement.workzone.WorkZone;
+import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.util.ReferenceCountUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.LadderBlock;
 import net.minecraft.world.level.block.state.properties.BedPart;
@@ -85,6 +102,8 @@ public final class FirstRaidReadinessGameTests {
     private static final BlockPos BARRACKS_ORIGIN = new BlockPos(8, 10, 1);
     private static final BlockPos WATCHTOWER_ORIGIN = new BlockPos(8, 10, 10);
     private static final BlockPos SECOND_WATCHTOWER_ORIGIN = new BlockPos(1, 10, 10);
+    private static final BlockPos LUMBER_TREE_ROOT = new BlockPos(6, 1, 6);
+    private static final BlockPos FARM_FIELD = new BlockPos(6, 1, 10);
 
     @GameTest(template = "empty16", timeoutTicks = 500,
         batch = "first_raid_readiness_real_journey")
@@ -122,6 +141,7 @@ public final class FirstRaidReadinessGameTests {
             "the charged player path must persist the exact emblem-backed worker");
         helper.assertTrue(hire.player.getMainHandItem().isEmpty(),
             "the successful first job must consume exactly one held Lumberer emblem");
+        viewLumberInventory(helper, f);
 
         int evidenceRevision = f.settlement.firstRaidReadiness.revision();
         hire.player.setItemInHand(InteractionHand.MAIN_HAND,
@@ -138,7 +158,7 @@ public final class FirstRaidReadinessGameTests {
         commitLumberZoneForJourney(helper, f);
 
         equipPhysical(helper, f.camp, f.worker, Items.IRON_AXE);
-        ItemStack offered = new ItemStack(Items.OAK_LOG, 16);
+        ItemStack offered = performLumberWork(helper, f);
         helper.assertTrue(!f.settlement.firstRaidReadiness.noteStoredProduction(
                 helper.getLevel(), f.settlement, null, f.worker, offered, 1)
                 && !f.settlement.firstRaidReadiness.noteStoredProduction(
@@ -146,7 +166,6 @@ public final class FirstRaidReadinessGameTests {
                 && f.settlement.firstRaidReadiness.revision() == evidenceRevision,
             "the wrong camp or worker must not author stored-production proof");
 
-        storePhysicalLog(helper, f, offered);
         helper.assertTrue(FoundingJourneyProgress.noteLogStored(helper.getLevel(),
                 f.settlement, f.camp, f.worker, offered, offered.getCount())
                 && DevelopmentQuests.noteLumberLogsStored(helper.getLevel(),
@@ -668,11 +687,11 @@ public final class FirstRaidReadinessGameTests {
             GameTestHelper helper) {
         Fixture f = foundedKnowledgeBuildingsAndMayor(helper, "Ashenwatch");
         purchaseAndHireDirectly(helper, f);
+        viewLumberInventory(helper, f);
         commitLumberZoneForJourney(helper, f);
         equipPhysical(helper, f.camp, f.worker, Items.IRON_AXE);
 
-        ItemStack logs = new ItemStack(Items.OAK_LOG, 16);
-        storePhysicalLog(helper, f, logs);
+        ItemStack logs = performLumberWork(helper, f);
         helper.assertTrue(FoundingJourneyProgress.noteLogStored(
                 helper.getLevel(), f.settlement, f.camp, f.worker,
                 logs, logs.getCount())
@@ -741,7 +760,9 @@ public final class FirstRaidReadinessGameTests {
             "the raw admin/GameTest seam must never record a consumed emblem");
 
         ItemStack offered = new ItemStack(Items.OAK_LOG);
-        storePhysicalLog(helper, f, offered);
+        helper.assertTrue(WorkplaceStorage.insert(helper.getLevel(), f.camp,
+                offered.copy()).isEmpty(),
+            "fixture: the raw hire must still have one physical camp log to test");
         helper.assertTrue(!FoundingJourneyProgress.noteLogStored(helper.getLevel(),
                 f.settlement, f.camp, f.worker, offered, 1)
                 && f.settlement.foundingJourney.phase()
@@ -865,10 +886,6 @@ public final class FirstRaidReadinessGameTests {
         SettlerEntity mayor = members.get(0);
         SettlerEntity worker = members.get(1);
         SettlerEntity farmer = members.get(2);
-        helper.assertTrue(Mayor.appoint(helper.getLevel(), settlement, mayor) == null
-                && settlement.mayorId.equals(mayor.getUUID()),
-            "the first real Mayor appointment must fill the live seat");
-
         SettlerEntity courier = mayor;
         helper.assertTrue(settlement.population() == 3
                 && settlement.validBedCount() == 0,
@@ -878,8 +895,16 @@ public final class FirstRaidReadinessGameTests {
         // First Fire is measured from the live Hearth, bound Mayor and three
         // founded residents. Housing is deliberately authored later by HOME;
         // no client-reported quest progress is involved.
-        unlock(helper, hearth, settlement, DevelopmentNode.SHELTER);
-        unlock(helper, hearth, settlement, DevelopmentNode.TIMBER_RIGHTS);
+        openJourney(helper, builder, hearth, settlement);
+        helper.assertTrue(Mayor.appoint(helper.getLevel(), settlement, mayor) == null
+                && settlement.mayorId.equals(mayor.getUUID())
+                && JourneyServerHooks.noteMayorAppointed(builder, settlement,
+                    mayor),
+            "the first real Mayor appointment must fill the live seat and "
+                + "author its server Journey receipt");
+
+        unlock(helper, hearth, settlement, DevelopmentNode.SHELTER, builder);
+        unlock(helper, hearth, settlement, DevelopmentNode.TIMBER_RIGHTS, builder);
         PlaqueAndBuilding camp = buildCamp(helper, settlement, builder);
         helper.assertTrue(settlement.foundingJourney.phase()
                 == FoundingJourney.Phase.HIRE_LUMBERER,
@@ -891,29 +916,41 @@ public final class FirstRaidReadinessGameTests {
 
     /** Completes every server-authored pre-raid rung after the founding log. */
     private static JourneyV2 completeJourneyV2(GameTestHelper helper, Fixture f) {
-        unlock(helper, f.hearth, f.settlement, DevelopmentNode.STORES_AND_ROADS);
+        unlock(helper, f.hearth, f.settlement,
+            DevelopmentNode.STORES_AND_ROADS, f.builder);
 
         PlaqueAndBuilding warehouse = buildWarehouse(helper, f.settlement, f.builder);
         purchaseAndHire(helper, f, Profession.COURIER, f.courier, warehouse.building);
-        ItemStack delivery = new ItemStack(Items.OAK_LOG);
-        helper.assertTrue(WorkplaceStorage.insert(helper.getLevel(), warehouse.building,
-                delivery.copy()).isEmpty()
+        viewRequestLedger(helper, f);
+        int logsMoved = routeOutput(helper, f, f.camp,
+            helper.absolutePos(f.storageRelative), warehouse.building,
+            helper.absolutePos(warehouse.storageRelative), Items.OAK_LOG, 1);
+        helper.assertTrue(logsMoved == 1
                 && DevelopmentQuests.noteCourierDelivery(helper.getLevel(),
-                    f.settlement, f.courier, f.camp, warehouse.building, 1),
+                    f.settlement, f.courier, f.camp, warehouse.building,
+                    logsMoved),
             "fixture: one physical Camp-to-Warehouse route must author Cultivated Ground");
-        unlock(helper, f.hearth, f.settlement, DevelopmentNode.CULTIVATED_GROUND);
+        unlock(helper, f.hearth, f.settlement,
+            DevelopmentNode.CULTIVATED_GROUND, f.builder);
 
         PlaqueAndBuilding farm = buildFarmhouse(helper, f.settlement, f.builder);
         purchaseAndHire(helper, f, Profession.FARMER, f.farmer, farm.building);
         equipPhysical(helper, farm.building, f.farmer, Items.IRON_HOE);
+        commitFarmZoneForJourney(helper, f, farm.building);
 
-        ItemStack crops = new ItemStack(Items.WHEAT, 24);
-        helper.assertTrue(WorkplaceStorage.insert(helper.getLevel(), farm.building,
-                crops.copy()).isEmpty()
-                && DevelopmentQuests.noteFarmCropsStored(helper.getLevel(),
-                    f.settlement, farm.building, f.farmer, crops, crops.getCount()),
-            "fixture: physical Farmer crops must author Home progress");
-        unlock(helper, f.hearth, f.settlement, DevelopmentNode.HOME);
+        ItemStack crops = performFarmWork(helper, f, farm.building,
+            helper.absolutePos(farm.storageRelative));
+        helper.assertTrue(DevelopmentQuests.noteFarmCropsStored(
+                helper.getLevel(), f.settlement, farm.building, f.farmer,
+                crops, crops.getCount()),
+            "fixture: the physical Farmhouse receipt must author Home progress");
+        int cropsMoved = routeOutput(helper, f, farm.building,
+            helper.absolutePos(farm.storageRelative), warehouse.building,
+            helper.absolutePos(warehouse.storageRelative), Items.WHEAT,
+            crops.getCount());
+        helper.assertTrue(cropsMoved == crops.getCount(),
+            "fixture: the exact Farmhouse crop must reach Warehouse authority");
+        unlock(helper, f.hearth, f.settlement, DevelopmentNode.HOME, f.builder);
 
         f.house = buildHouse(helper, f.settlement, f.builder,
             HOUSE_ORIGIN, 4).building;
@@ -921,12 +958,14 @@ public final class FirstRaidReadinessGameTests {
             SECOND_HOUSE_ORIGIN, 1).building;
         helper.assertTrue(f.settlement.validBedCount() == 5,
             "fixture: learned Home plans must survey exactly five physical bed heads");
-        unlock(helper, f.hearth, f.settlement, DevelopmentNode.HOSPITALITY);
+        unlock(helper, f.hearth, f.settlement,
+            DevelopmentNode.HOSPITALITY, f.builder);
         PlaqueAndBuilding tavern = buildTavern(helper, f.settlement, f.builder);
 
         fundTwoNaturalAdmissions(f);
         f.guard = recruitNaturally(helper, f, tavern.building, 4);
-        unlock(helper, f.hearth, f.settlement, DevelopmentNode.FIRST_WATCH);
+        unlock(helper, f.hearth, f.settlement,
+            DevelopmentNode.FIRST_WATCH, f.builder);
 
         PlaqueAndBuilding barracks = buildBarracks(helper, f.settlement, f.builder);
         purchaseAndHire(helper, f, Profession.GUARD, f.guard, barracks.building);
@@ -951,11 +990,27 @@ public final class FirstRaidReadinessGameTests {
                 + "live readiness domain must still report the Guard unarmed");
         equipPhysicalFromStorage(helper, barracks.building, f.guard);
         issueDefenderOrder(helper, f, f.guard, barracks.building, false);
-        unlock(helper, f.hearth, f.settlement, DevelopmentNode.ARM_THE_WATCH);
-        helper.assertTrue(JourneyServerHooks.noteBuildingLinked(helper.getLevel(),
-                f.settlement, f.secondHouse)
-                && f.settlement.journeyState.isCompleted(
+
+        // A duplicate building UUID is corrupt settlement authority, even if
+        // both list entries happen to be the same Java object. Arm the Watch
+        // may persist, but its derived five-bed receipt must stay fail-closed
+        // until a later bounded re-observation sees one exact registration.
+        int buildingsBeforeDuplicate = f.settlement.buildings.size();
+        f.settlement.buildings.add(f.house);
+        unlock(helper, f.hearth, f.settlement,
+            DevelopmentNode.ARM_THE_WATCH, f.builder);
+        helper.assertTrue(f.settlement.journeyState.isCompleted(
+                JourneyIds.FJ_551_UNLOCK_ARM_THE_WATCH)
+                && !f.settlement.journeyState.isCompleted(
                     JourneyIds.FJ_552_ADD_FIFTH_BED),
+            "duplicate building UUID authority must block the physical-bed receipt");
+        helper.assertTrue(f.settlement.buildings.remove(
+                f.settlement.buildings.size() - 1) == f.house
+                && f.settlement.buildings.size() == buildingsBeforeDuplicate,
+            "fixture: removing the injected duplicate must restore one exact home");
+        openJourney(helper, f.builder, f.hearth, f.settlement);
+        helper.assertTrue(f.settlement.journeyState.isCompleted(
+                JourneyIds.FJ_552_ADD_FIFTH_BED),
             "Arm the Watch must re-observe five loaded physical bed heads before "
                 + "the second recruitment cycle begins");
         FirstRaidReadinessService.Report guardOnly =
@@ -1284,7 +1339,8 @@ public final class FirstRaidReadinessGameTests {
     }
 
     private static void unlock(GameTestHelper helper, HearthBlockEntity hearth,
-                               Settlement settlement, DevelopmentNode node) {
+                               Settlement settlement, DevelopmentNode node,
+                               ServerPlayer actor) {
         if (Development.of(helper.getLevel(), settlement).unlocked(node)) {
             return;
         }
@@ -1292,7 +1348,8 @@ public final class FirstRaidReadinessGameTests {
             put(hearth, cost.item(), cost.count());
         }
         Development.Result result = Development.purchaseNode(helper.getLevel(), settlement,
-            hearth, node, Development.revisionOf(helper.getLevel(), settlement));
+            hearth, node, Development.revisionOf(helper.getLevel(), settlement),
+            actor);
         helper.assertTrue(result == Development.Result.APPLIED,
             "server-authoritative " + node.id() + " unlock failed: " + result);
     }
@@ -1475,19 +1532,393 @@ public final class FirstRaidReadinessGameTests {
                 .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
     }
 
-    private static void storePhysicalLog(GameTestHelper helper, Fixture f,
-                                         ItemStack offered) {
-        helper.assertTrue(helper.getLevel().getBlockEntity(
-                helper.absolutePos(f.storageRelative)) instanceof Container,
-            "fixture: Lumber Camp storage must be a live physical container");
-        ItemStack remainder = WorkplaceStorage.insert(helper.getLevel(), f.camp,
-            offered.copy());
-        helper.assertTrue(remainder.isEmpty(),
-            "fixture: the real worker storage route must insert the offered log");
-        Container storage = (Container) helper.getLevel().getBlockEntity(
-            helper.absolutePos(f.storageRelative));
-        helper.assertTrue(countIn(storage, Items.OAK_LOG) == offered.getCount(),
-            "fixture: log must exist in workplace storage before recording the event");
+    private static void openJourney(GameTestHelper helper,
+                                    ServerPlayer player,
+                                    HearthBlockEntity hearth,
+                                    Settlement settlement) {
+        player.setPos(settlement.center.getX() + 0.5D,
+            settlement.center.getY() + 0.5D,
+            settlement.center.getZ() + 0.5D);
+        player.openMenu(hearth, buffer -> {
+            buffer.writeBlockPos(settlement.center);
+            buffer.writeUUID(settlement.id);
+            buffer.writeUtf(settlement.name);
+        });
+        helper.assertTrue(player.containerMenu instanceof HearthMenu
+                && JourneyServerHooks.noteJourneyViewOpened(player, settlement),
+            "fixture: a real nearby Hearth menu must author Journey opening");
+        player.closeContainer();
+    }
+
+    private static void viewLumberInventory(GameTestHelper helper, Fixture f) {
+        f.builder.closeContainer();
+        f.builder.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+        f.builder.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        f.builder.setPos(f.worker.getX(), f.worker.getY(), f.worker.getZ());
+        f.builder.setShiftKeyDown(true);
+        var result = f.worker.interact(f.builder, InteractionHand.MAIN_HAND);
+        f.builder.setShiftKeyDown(false);
+        helper.assertTrue(result.consumesAction()
+                && f.builder.containerMenu instanceof SettlerInventoryMenu
+                && f.settlement.journeyState.isCompleted(
+                    JourneyIds.FJ_130_OPEN_LUMBERER_INVENTORY),
+            "fixture: empty-hand sneak interaction must open the exact "
+                + "Lumberer inventory and author its Journey receipt");
+        f.builder.closeContainer();
+    }
+
+    /** Executes one complete, provenance-backed natural-tree output cycle. */
+    private static ItemStack performLumberWork(GameTestHelper helper,
+                                               Fixture f) {
+        BlockPos root = helper.absolutePos(LUMBER_TREE_ROOT);
+        BlockPos top = root.above();
+        helper.setBlock(LUMBER_TREE_ROOT.below(), Blocks.DIRT);
+        helper.setBlock(LUMBER_TREE_ROOT, Blocks.OAK_LOG);
+        helper.setBlock(LUMBER_TREE_ROOT.above(), Blocks.OAK_LOG);
+        List<BlockPos> leafPositions = List.of(top.north(), top.south(),
+            top.east(), top.west());
+        for (BlockPos leaf : leafPositions) {
+            helper.getLevel().setBlockAndUpdate(leaf,
+                Blocks.OAK_LEAVES.defaultBlockState());
+        }
+        WorkZone zone = f.camp.workZone().orElseThrow();
+        List<BlockPos> logs = List.of(root, top);
+        standAtWorkTarget(helper, f.worker, root, root.getY(), "tree root");
+        UUID action = WorkerProvenanceService.beginLumberTree(
+            helper.getLevel(), f.settlement, f.camp, f.worker, zone, root,
+            logs);
+        helper.assertTrue(action != null,
+            "fixture: the loaded natural tree must begin one exact Lumber action");
+
+        GroundCollectionSession collection = new GroundCollectionSession(
+            f.worker, stack -> stack.is(ItemTags.LOGS), logs.size());
+        int carriedLogs = 0;
+        for (BlockPos log : List.of(top, root)) {
+            standAtWorkTarget(helper, f.worker, log, root.getY(), "tree log");
+            ItemStack output = new ItemStack(Items.OAK_LOG);
+            helper.assertTrue(WorkerProvenanceService.prepareLumberLog(
+                    helper.getLevel(), f.settlement, f.camp, f.worker,
+                    action, log)
+                    && WorkerProvenanceService.stampOutput(helper.getLevel(),
+                        f.settlement, f.camp, f.worker, action, output, log),
+                "fixture: each physical log must receive one tool-use and "
+                    + "transit receipt before its block is removed");
+            UUID transfer = collection.queuePhysical(helper.getLevel(), log,
+                output);
+            helper.assertTrue(transfer != null,
+                "fixture: stamped Lumber output must enter durable transfer authority");
+            helper.getLevel().setBlockAndUpdate(log,
+                Blocks.AIR.defaultBlockState());
+            helper.assertTrue(collection.materializeQueued(helper.getLevel(),
+                    log, transfer),
+                "fixture: source-cleared Lumber output must materialize exactly once");
+            ItemEntity physical = helper.getLevel().getEntity(transfer)
+                instanceof ItemEntity item ? item : null;
+            helper.assertTrue(physical != null && physical.isAlive()
+                    && physical.getItem().is(Items.OAK_LOG)
+                    && WorkerStackProvenance.readTransit(
+                        physical.getItem()).filter(transit ->
+                            transit.actionId().equals(action)).isPresent(),
+                "fixture: the exact action-stamped log must exist in world authority");
+            helper.assertTrue(WorkerProvenanceService.completeLumberLog(
+                    helper.getLevel(), f.settlement, f.camp, f.worker,
+                    action, log, physical.getItem()),
+                "fixture: each removed log must close its exact operation");
+            collection.select(physical);
+            helper.assertTrue(collection.takeOneToOffhand(helper.getLevel(),
+                    4.0D) == GroundCollectionSession.PickupResult.PICKED
+                    && !physical.isAlive()
+                    && f.worker.getOffhandItem().is(Items.OAK_LOG),
+                "fixture: physical pickup contact must move the world log into offhand");
+            helper.assertTrue(collection.stowOne()
+                    == GroundCollectionSession.StowResult.STOWED
+                    && f.worker.getOffhandItem().isEmpty(),
+                "fixture: the carried offhand log must enter the persistent worker bag");
+            carriedLogs++;
+            helper.assertTrue(countIn(f.worker.bag, Items.OAK_LOG) == carriedLogs,
+                "fixture: every resolved log must remain physical in the carried bag");
+        }
+        for (BlockPos leaf : leafPositions) {
+            helper.getLevel().setBlockAndUpdate(leaf,
+                Blocks.AIR.defaultBlockState());
+        }
+        helper.assertTrue(WorkerProvenanceService.commitLumberTree(
+                helper.getLevel(), f.settlement, f.camp, f.worker, action),
+            "fixture: the resolved whole tree must author FJ-170 once");
+
+        BlockPos campStorage = helper.absolutePos(f.storageRelative);
+        standBeside(f.worker, campStorage);
+        int depositedLogs = 0;
+        while (depositedLogs < carriedLogs) {
+            int slot = firstTaggedSlot(f.worker.bag, Items.OAK_LOG, action);
+            helper.assertTrue(slot >= 0,
+                "fixture: each deposit must originate in an action-tagged bag slot");
+            ItemStack carried = f.worker.bag.getItem(slot);
+            WorkerProvenanceService.DepositResult deposited =
+                WorkerProvenanceService.depositOutput(helper.getLevel(),
+                    f.settlement, f.camp, f.worker, campStorage, carried);
+            f.worker.bag.setItem(slot, deposited.remainder());
+            helper.assertTrue(deposited.remainder().isEmpty()
+                    && deposited.receipt() != null,
+                "fixture: each stamped log must enter the exact Camp chest "
+                    + "through a durable output receipt");
+            depositedLogs++;
+        }
+        Container storage = storage(helper, f.storageRelative);
+        helper.assertTrue(countIn(storage, Items.OAK_LOG) == carriedLogs
+                && countIn(f.worker.bag, Items.OAK_LOG) == 0,
+            "fixture: every produced log must be physical Camp stock");
+        return new ItemStack(Items.OAK_LOG, carriedLogs);
+    }
+
+    private static void viewRequestLedger(GameTestHelper helper, Fixture f) {
+        f.builder.setPos(f.settlement.center.getX() + 0.5D,
+            f.settlement.center.getY() + 0.5D,
+            f.settlement.center.getZ() + 0.5D);
+        f.builder.openMenu(f.hearth, buffer -> {
+            buffer.writeBlockPos(f.settlement.center);
+            buffer.writeUUID(f.settlement.id);
+            buffer.writeUtf(f.settlement.name);
+        });
+        helper.assertTrue(f.builder.containerMenu instanceof HearthMenu
+                && !f.settlement.journeyState.isCompleted(
+                    JourneyIds.FJ_230_OPEN_REQUEST_LEDGER),
+            "fixture: opening the Hearth alone must not claim a delivered request ledger");
+        HearthMenu menu = (HearthMenu) f.builder.containerMenu;
+        EmbeddedChannel channel = (EmbeddedChannel) f.builder.connection
+            .getConnection().channel();
+        drainOutbound(channel);
+        HearthNetwork.handle(f.builder, new HearthMayorAction(
+            f.settlement.center, f.settlement.id, menu.containerId,
+            HearthMayorAction.Kind.OPEN_REQUEST_LEDGER,
+            HearthMayorAction.NO_ID, 0));
+        channel.runPendingTasks();
+        HearthMayorSnapshot delivered = null;
+        int deliveredSnapshots = 0;
+        Object outbound;
+        while ((outbound = channel.readOutbound()) != null) {
+            try {
+                if (outbound instanceof ClientboundCustomPayloadPacket packet
+                    && packet.payload() instanceof HearthMayorSnapshot snapshot
+                    && snapshot.requests().matches(f.settlement.id,
+                        menu.containerId)) {
+                    delivered = snapshot;
+                    deliveredSnapshots++;
+                }
+            } finally {
+                ReferenceCountUtil.release(outbound);
+            }
+        }
+        helper.assertTrue(deliveredSnapshots == 1 && delivered != null
+                && delivered.requests().open()
+                && f.settlement.journeyState.isCompleted(
+                    JourneyIds.FJ_230_OPEN_REQUEST_LEDGER),
+            "the production Hearth handler must hand one bounded ledger payload "
+                + "to the exact connection before authoring its Journey receipt");
+        f.builder.closeContainer();
+    }
+
+    private static void drainOutbound(EmbeddedChannel channel) {
+        channel.runPendingTasks();
+        Object outbound;
+        while ((outbound = channel.readOutbound()) != null) {
+            ReferenceCountUtil.release(outbound);
+        }
+    }
+
+    /** Routes one exact physical source stack through Courier bag authority. */
+    private static int routeOutput(GameTestHelper helper, Fixture f,
+                                   Building source, BlockPos sourceContainer,
+                                   Building target, BlockPos targetContainer,
+                                   Item item, int requested) {
+        Container sourceInventory = container(helper, sourceContainer);
+        int sourceSlot = firstSlot(sourceInventory, item, requested);
+        helper.assertTrue(sourceSlot >= 0,
+            "fixture: output route source must hold the requested stack");
+        RequestLedgerService.Decision opened =
+            RequestLedgerService.openOutputPickup(helper.getLevel(),
+                f.settlement, source, sourceContainer, sourceSlot, target,
+                targetContainer, requested, RequestPriority.NORMAL);
+        RequestRecord request = opened.request();
+        helper.assertTrue(opened.outcome()
+                == RequestLedgerService.Outcome.COMMITTED && request != null,
+            "fixture: exact source and Warehouse target must open one typed request");
+        RequestLedgerService.Decision reserved = RequestLedgerService.reserve(
+            helper.getLevel(), f.settlement, request.id(), f.courier);
+        helper.assertTrue(reserved.outcome()
+                == RequestLedgerService.Outcome.COMMITTED,
+            "fixture: the live Warehouse Courier must reserve the exact request");
+
+        standBeside(f.courier, sourceContainer);
+        RequestLedgerService.Decision pickedUp = RequestLedgerService.pickup(
+            helper.getLevel(), f.settlement, request.id(), f.courier);
+        helper.assertTrue(pickedUp.outcome()
+                == RequestLedgerService.Outcome.COMMITTED,
+            "fixture: exact source stock must move into the Courier bag");
+        standBeside(f.courier, targetContainer);
+        RequestLedgerService.Decision delivered = RequestLedgerService.deliver(
+            helper.getLevel(), f.settlement, request.id(), f.courier);
+        helper.assertTrue(delivered.outcome()
+                == RequestLedgerService.Outcome.SATISFIED
+                && f.courier.bag.isEmpty(),
+            "fixture: exact Courier bag stock must reach Warehouse and close once");
+        return request.deliveredCount();
+    }
+
+    private static void commitFarmZoneForJourney(GameTestHelper helper,
+                                                 Fixture f,
+                                                 Building farmhouse) {
+        WorkZone zone = WorkZone.between(f.settlement.id, farmhouse.id,
+            WorkZone.Type.FARM, helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(6, 0, 8)),
+            helper.absolutePos(new BlockPos(7, 3, 12)),
+            farmhouse.workZoneRevision() + 1);
+        helper.assertTrue(farmhouse.commitWorkZone(
+                farmhouse.workZoneRevision(), zone)
+                && JourneyServerHooks.noteWorkZoneCommitted(helper.getLevel(),
+                    f.settlement, farmhouse, zone),
+            "fixture: exact Farmhouse authority must commit a bounded field zone");
+    }
+
+    /** Plants, harvests and deposits one crop through physical provenance. */
+    private static ItemStack performFarmWork(GameTestHelper helper, Fixture f,
+                                             Building farmhouse,
+                                             BlockPos farmStorage) {
+        helper.setBlock(FARM_FIELD.below(), Blocks.FARMLAND);
+        helper.setBlock(FARM_FIELD, Blocks.AIR);
+        helper.assertTrue(WorkplaceStorage.insert(helper.getLevel(), farmhouse,
+                new ItemStack(Items.WHEAT_SEEDS)).isEmpty(),
+            "fixture: one physical seed must enter Farmhouse storage");
+        standBeside(f.farmer, farmStorage);
+        BlockPos crop = helper.absolutePos(FARM_FIELD);
+        UUID plant = WorkerProvenanceService.supplyOneSeedAt(
+            helper.getLevel(), f.settlement, farmhouse, f.farmer,
+            farmStorage, stack -> stack.is(Items.WHEAT_SEEDS), crop);
+        helper.assertTrue(plant != null,
+            "fixture: the Farmer must withdraw one exact tagged seed");
+        ItemStack consumedSeed = removeAll(f.farmer.bag, Items.WHEAT_SEEDS);
+        standAtWorkTarget(helper, f.farmer, crop, crop.getY(), "farm plot");
+        helper.assertTrue(consumedSeed.getCount() == 1
+                && WorkerProvenanceService.prepareFarmPlant(helper.getLevel(),
+                    f.settlement, farmhouse, f.farmer, plant, crop),
+            "fixture: one carried seed and one hoe use must fund planting");
+        helper.setBlock(FARM_FIELD, Blocks.WHEAT.defaultBlockState());
+        helper.assertTrue(WorkerProvenanceService.commitFarmPlant(
+                helper.getLevel(), f.settlement, farmhouse, f.farmer,
+                plant, crop, BuiltInRegistries.BLOCK.getKey(Blocks.WHEAT)),
+            "fixture: the consumed seed must become one physical crop block");
+
+        helper.setBlock(FARM_FIELD, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, CropBlock.MAX_AGE));
+        standAtWorkTarget(helper, f.farmer, crop, crop.getY(), "mature crop");
+        UUID harvest = WorkerProvenanceService.beginFarmHarvest(
+            helper.getLevel(), f.settlement, farmhouse, f.farmer, crop);
+        ItemStack output = new ItemStack(Items.WHEAT);
+        helper.assertTrue(harvest != null
+                && WorkerProvenanceService.stampOutput(helper.getLevel(),
+                    f.settlement, farmhouse, f.farmer, harvest, output, crop),
+            "fixture: the mature crop must begin one receipt-backed harvest");
+        GroundCollectionSession collection = new GroundCollectionSession(
+            f.farmer, stack -> stack.is(Items.WHEAT), 1);
+        UUID transfer = collection.queuePhysical(helper.getLevel(), crop,
+            output);
+        helper.assertTrue(transfer != null,
+            "fixture: stamped harvest must enter durable transfer authority");
+        helper.setBlock(FARM_FIELD, Blocks.AIR);
+        helper.assertTrue(collection.materializeQueued(helper.getLevel(), crop,
+                transfer),
+            "fixture: source-cleared harvest must materialize exactly once");
+        ItemEntity physical = helper.getLevel().getEntity(transfer)
+            instanceof ItemEntity item ? item : null;
+        helper.assertTrue(physical != null && physical.isAlive()
+                && physical.getItem().is(Items.WHEAT)
+                && WorkerStackProvenance.readTransit(physical.getItem())
+                    .filter(transit -> transit.actionId().equals(harvest))
+                    .isPresent(),
+            "fixture: exact harvest output must exist in world authority");
+        helper.assertTrue(WorkerProvenanceService.commitFarmHarvest(
+                helper.getLevel(), f.settlement, farmhouse, f.farmer,
+                harvest, crop, List.of(physical.getItem())),
+            "fixture: the removed mature crop must close one harvest action");
+        collection.select(physical);
+        helper.assertTrue(collection.takeOneToOffhand(helper.getLevel(),
+                4.0D) == GroundCollectionSession.PickupResult.PICKED
+                && !physical.isAlive()
+                && f.farmer.getOffhandItem().is(Items.WHEAT),
+            "fixture: harvest pickup contact must move wheat into offhand");
+        helper.assertTrue(collection.stowOne()
+                == GroundCollectionSession.StowResult.STOWED
+                && f.farmer.getOffhandItem().isEmpty()
+                && countIn(f.farmer.bag, Items.WHEAT) == 1,
+            "fixture: the carried wheat must enter the persistent Farmer bag");
+        standBeside(f.farmer, farmStorage);
+        int outputSlot = firstTaggedSlot(f.farmer.bag, Items.WHEAT, harvest);
+        helper.assertTrue(outputSlot >= 0,
+            "fixture: Farmhouse deposit must originate in the tagged Farmer bag");
+        ItemStack carriedOutput = f.farmer.bag.getItem(outputSlot);
+        WorkerProvenanceService.DepositResult deposited =
+            WorkerProvenanceService.depositOutput(helper.getLevel(),
+                f.settlement, farmhouse, f.farmer, farmStorage, carriedOutput);
+        f.farmer.bag.setItem(outputSlot, deposited.remainder());
+        helper.assertTrue(deposited.remainder().isEmpty()
+                && deposited.receipt() != null
+                && countIn(f.farmer.bag, Items.WHEAT) == 0,
+            "fixture: harvested wheat must enter Farmhouse storage by receipt");
+        return new ItemStack(Items.WHEAT);
+    }
+
+    private static Container container(GameTestHelper helper,
+                                       BlockPos absolute) {
+        if (!(helper.getLevel().getBlockEntity(absolute)
+                instanceof Container container)) {
+            throw new IllegalStateException("fixture container is not loaded");
+        }
+        return container;
+    }
+
+    private static int firstSlot(Container container, Item item, int count) {
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            if (container.getItem(slot).is(item)
+                && container.getItem(slot).getCount() >= count) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    private static int firstTaggedSlot(Container container, Item item,
+                                       UUID actionId) {
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.is(item) && WorkerStackProvenance.readTransit(stack)
+                    .filter(transit -> transit.actionId().equals(actionId))
+                    .isPresent()) {
+                return slot;
+            }
+        }
+        return -1;
+    }
+
+    /** Places the real worker at hand range before any field mutation seam. */
+    private static void standAtWorkTarget(GameTestHelper helper,
+                                          SettlerEntity worker,
+                                          BlockPos target,
+                                          int standingY,
+                                          String label) {
+        worker.moveTo(target.getX() + 1.5D, standingY,
+            target.getZ() + 0.5D, worker.getYRot(), worker.getXRot());
+        worker.getNavigation().stop();
+        helper.assertTrue(worker.level() == helper.getLevel()
+                && worker.isAlive()
+                && worker.distanceToSqr(Vec3.atCenterOf(target)) <= 4.0D,
+            "fixture: worker must have physical hand range at " + label);
+    }
+
+    private static void standBeside(SettlerEntity settler,
+                                    BlockPos container) {
+        settler.setPos(container.getX() + 1.5D, container.getY(),
+            container.getZ() + 0.5D);
+        settler.getNavigation().stop();
     }
 
     private static int countIn(Container container, Item item) {
