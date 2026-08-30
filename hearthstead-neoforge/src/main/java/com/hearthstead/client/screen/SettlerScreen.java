@@ -71,7 +71,7 @@ import java.util.List;
  * <h2>A compact shape derived from the authoritative snapshot</h2>
  *
  * <p>The mayor badge, combat progress, refusal banner and second trait are
- * conditional rows. {@link #layout} includes only content present in the
+ * conditional rows. {@link #layoutFor} includes only content present in the
  * latest server snapshot, then keeps that geometry stable until a new
  * snapshot arrives. This removes the large dead areas civilians used to show
  * without letting ordinary scrolling resize controls under the pointer.
@@ -90,6 +90,13 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     // person, not a document. 336x340 is the reviewed compact target and fits
     // a 1920x1080 client at GUI scale 3 without vertical scrolling.
     private static final int PANEL_W = 336;
+    private static final int COMPACT_BREAKPOINT_W = 768;
+    private static final int COMPACT_BREAKPOINT_H = 540;
+    private static final int COMPACT_PANEL_MAX_W = 411;
+    private static final int COMPACT_PANEL_H = 224;
+    private static final int COMPACT_ATTRIBUTE_CELL_H = 20;
+    private static final int COMPACT_ATTRIBUTE_GAP = 2;
+    private static final int COMPACT_ACTION_W = 104;
     private static final BlessingId[] BLESSING_IDS = BlessingId.values();
     private static final int PAD = HsUiTokens.PAD;
     private static final int GUTTER = HsUiTokens.GUTTER;
@@ -160,9 +167,20 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     /** Work Pace changes slowly; avoid allocating a new percent label per frame. */
     private int cachedWorkPacePercent = -1;
     private Component cachedWorkPaceValue = Component.empty();
+    private int cachedDoingActivity = -1;
+    private Component cachedDoingLine = Component.empty();
+    private int cachedVitalsHunger = Integer.MIN_VALUE;
+    private int cachedVitalsEnergy = Integer.MIN_VALUE;
+    private int cachedVitalsMorale = Integer.MIN_VALUE;
+    private int cachedVitalsPace = Integer.MIN_VALUE;
+    private Component cachedCompactVitals = Component.empty();
     /** Rebuilt with the cached view when snapshot, size or locale changes. */
     private Component blessingStatusLine = Component.empty();
     private boolean hasBlessings;
+    private int panelWidth = PANEL_W;
+    private int contentWidth = CONTENT_W;
+    private SettlerLayoutMode layoutMode = SettlerLayoutMode.WIDE;
+    private boolean compactActionsOpen;
     private int left;
     private int top;
     // -- scroll: only load-bearing when the content-shaped panel does not fit
@@ -187,6 +205,8 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     private HsButton editWorkZoneButton;
     private HsButton workplaceButton;
     private HsButton locateButton;
+    private HsButton actionsButton;
+    private HsButton backButton;
     /** True only between an Overview click and its server-authored zone reply. */
     private boolean workZoneRequestPending;
 
@@ -256,7 +276,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
     @Override
     protected void init() {
         openingChild = false;
-        left = (width - PANEL_W) / 2;
+        invalidateView();
         rebuild();
         if (!uiSoundActive) {
             uiSoundActive = true;
@@ -292,8 +312,12 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         clearWidgets();
         CachedView view = view();
         Layout l = view.layout;
+        layoutMode = l.mode;
+        panelWidth = l.panelWidth;
+        contentWidth = l.contentWidth;
+        left = (width - panelWidth) / 2;
         contentHeight = l.totalHeight;
-        maxScroll = Math.max(0, contentHeight - height + PAD * 2);
+        maxScroll = maxScrollFor(l, height);
         scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
         baseTop = maxScroll == 0 ? (height - contentHeight) / 2 : PAD;
         top = baseTop - scrollOffset;
@@ -306,6 +330,13 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         editWorkZoneButton = null;
         workplaceButton = null;
         locateButton = null;
+        actionsButton = null;
+        backButton = null;
+
+        if (layoutMode == SettlerLayoutMode.COMPACT) {
+            rebuildCompactWidgets(view, l);
+            return;
+        }
 
         inventoryButton = HsButton.normal(left + PAD, top + l.controlsTop,
             CONTROL_BTN_W, HsUiTokens.BUTTON_H,
@@ -393,6 +424,123 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         addRenderableWidget(appointButton);
     }
 
+    /**
+     * The scale-three overview keeps all eight attributes visible without a
+     * scroll wall. Secondary commands live behind one deliberate Actions
+     * control, then reuse the exact same authoritative packet paths and
+     * enablement rules as the wide sheet.
+     */
+    private void rebuildCompactWidgets(CachedView view, Layout l) {
+        int footerY = top + l.footerTop;
+        closeButton = HsButton.normal(left + panelWidth - PAD - BTN_W,
+            footerY, BTN_W, HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.close"), this::onClose);
+        addRenderableWidget(closeButton);
+
+        if (!compactActionsOpen) {
+            actionsButton = HsButton.normal(left + PAD, footerY,
+                COMPACT_ACTION_W, HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.settler.actions"), () -> {
+                    compactActionsOpen = true;
+                    rebuild();
+                });
+            actionsButton.active = snapshot != null;
+            addRenderableWidget(actionsButton);
+            return;
+        }
+
+        int columnWidth = (contentWidth - GUTTER) / 2;
+        int firstX = left + PAD;
+        int secondX = firstX + columnWidth + GUTTER;
+        int rowY = top + l.compactActionsTop;
+        int rowStep = HsUiTokens.BUTTON_H + GUTTER;
+
+        inventoryButton = HsButton.normal(firstX, rowY, columnWidth,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.inventory"),
+            () -> requestChild(SettlerActionPayload.Kind.OPEN_INVENTORY));
+        inventoryButton.active = snapshot != null && snapshot.canManage();
+        inventoryButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.inventory.tip")));
+        addRenderableWidget(inventoryButton);
+
+        locateButton = HsButton.normal(secondX, rowY, columnWidth,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.locate", title),
+            () -> act(SettlerActionPayload.Kind.LOCATE));
+        locateButton.active = snapshot != null;
+        locateButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.locate.tip")));
+        addRenderableWidget(locateButton);
+
+        rowY += rowStep;
+        workplaceButton = HsButton.normal(firstX, rowY, columnWidth,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.workplace"),
+            () -> requestChild(SettlerActionPayload.Kind.OPEN_WORKPLACE));
+        workplaceButton.active = snapshot != null && snapshot.canManage()
+            && !snapshot.employerBuildingId().isEmpty();
+        workplaceButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.workplace.tip")));
+        addRenderableWidget(workplaceButton);
+
+        editWorkZoneButton = HsButton.normal(secondX, rowY, columnWidth,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.control.work_zone"),
+            this::requestWorkZone);
+        editWorkZoneButton.active = snapshot != null && snapshot.canManage()
+            && (settler.getProfession() == Profession.FARMER
+                || settler.getProfession() == Profession.LUMBERER);
+        editWorkZoneButton.setTooltip(Tooltip.create(Component.translatable(
+            "hearthstead.settler.control.work_zone.tip")));
+        addRenderableWidget(editWorkZoneButton);
+
+        rowY += rowStep;
+        appointButton = HsButton.normal(firstX, rowY, columnWidth,
+            HsUiTokens.BUTTON_H,
+            Component.translatable("hearthstead.settler.appoint"),
+            () -> act(SettlerActionPayload.Kind.APPOINT));
+        appointButton.active = appointEnabled();
+        appointButton.setTooltip(Tooltip.create(view.appointTooltip));
+        addRenderableWidget(appointButton);
+
+        if (settler.getProfession().employed()) {
+            dismissButton = HsButton.danger(secondX, rowY, columnWidth,
+                HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.employ.dismiss"),
+                () -> act(SettlerActionPayload.Kind.DISMISS));
+            dismissButton.active = snapshot != null && snapshot.canManage();
+            dismissButton.setTooltip(Tooltip.create(view.dismissTooltip));
+            addRenderableWidget(dismissButton);
+        }
+
+        rowY += rowStep;
+        if (settler.getProfession() == Profession.COURIER) {
+            requestListButton = HsButton.normal(firstX, rowY, columnWidth,
+                HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.equipment.requests"),
+                this::openRequestList);
+            requestListButton.active = snapshot != null;
+            addRenderableWidget(requestListButton);
+        } else if (settler.getProfession().martial()) {
+            guardOrderButton = HsButton.normal(firstX, rowY, columnWidth,
+                HsUiTokens.BUTTON_H,
+                Component.translatable("hearthstead.guard.command.open"),
+                this::openGuardOrders);
+            guardOrderButton.active = snapshot != null && snapshot.canManage();
+            guardOrderButton.setTooltip(Tooltip.create(Component.translatable(
+                "hearthstead.guard.command.open_tip")));
+            addRenderableWidget(guardOrderButton);
+        }
+
+        backButton = HsButton.normal(left + PAD, footerY, BTN_W,
+            HsUiTokens.BUTTON_H, Component.translatable("gui.back"), () -> {
+                compactActionsOpen = false;
+                rebuild();
+            });
+        addRenderableWidget(backButton);
+    }
+
     /** Scrolling changes geometry only; it never reallocates the widget tree. */
     private void relayoutWidgets() {
         Layout l = view().layout;
@@ -464,12 +612,28 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g, mouseX, mouseY, partialTick);
+        // A lightweight dim keeps the world readable behind the citizen card
+        // without paying Minecraft's full-screen blur on every frame.
+        renderTransparentBackground(g);
         pendingTooltip = null;
         CachedView view = view();
         Layout l = view.layout;
 
-        HsUi.window(g, left, top, PANEL_W, l.totalHeight);
+        HsUi.window(g, left, top, panelWidth, l.totalHeight);
+        if (l.mode == SettlerLayoutMode.COMPACT) {
+            drawCompactHeader(g, mouseX, mouseY, l, view);
+            if (compactActionsOpen) {
+                drawCompactActions(g, l, view);
+            } else {
+                drawCompactOverview(g, mouseX, mouseY, l, view);
+            }
+            HsUi.widgets(this, g, mouseX, mouseY, partialTick);
+            if (pendingTooltip != null && !pendingTooltip.isEmpty()) {
+                g.renderComponentTooltip(font, pendingTooltip, mouseX, mouseY);
+            }
+            return;
+        }
+
         drawHeader(g, mouseX, mouseY, l, view);
         HsUi.divider(g, left + PAD, top + l.dividerA, CONTENT_W);
         drawNeeds(g, left + PAD, top + l.needsTop, SUMMARY_COL_W, view);
@@ -535,8 +699,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         HsUi.badge(g, font, job, tx, top + l.professionTop, HEADER_TEXT_W,
             professionColor);
 
-        HsUi.labelIn(g, font, Component.translatable("hearthstead.gui.doing",
-            settler.getActivity().displayName()), tx, top + l.activityTop, HEADER_TEXT_W,
+        HsUi.labelIn(g, font, doingLine(), tx, top + l.activityTop, HEADER_TEXT_W,
             HsUiTokens.TEXT_MUTED);
     }
 
@@ -571,6 +734,112 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         if (hover(mouseX, mouseY, x, y, CONTENT_W, MAYOR_BADGE_H)) {
             pendingTooltip = view.mayorTooltip;
         }
+    }
+
+    private void drawCompactHeader(GuiGraphics g, int mouseX, int mouseY,
+                                   Layout l, CachedView view) {
+        int portraitX = left + PAD;
+        int portraitY = top + l.nameTop;
+        int portraitSize = 32;
+        HsUi.inset(g, portraitX, portraitY, portraitSize, portraitSize);
+        InventoryScreen.renderEntityInInventoryFollowsMouse(g,
+            portraitX + 2, portraitY + 2, portraitX + portraitSize - 2,
+            portraitY + portraitSize - 2, 15, 0.0625F,
+            mouseX, mouseY, settler);
+
+        int textX = portraitX + portraitSize + 6;
+        int textWidth = panelWidth - PAD - textX + left;
+        boolean mayor = snapshot != null && snapshot.isMayor();
+        int nameWidth = textWidth;
+        if (mayor) {
+            int badgeWidth = Math.min(font.width(view.mayorMark) + 6,
+                MAYOR_MARK_W);
+            HsUi.badge(g, font, view.mayorMark,
+                textX + textWidth - badgeWidth, portraitY,
+                badgeWidth, HsUiTokens.ACCENT & 0xFFFFFF);
+            nameWidth -= badgeWidth + 4;
+        }
+        HsUi.labelIn(g, font, title, textX, portraitY, nameWidth,
+            HsUiTokens.TEXT_STRONG);
+        Profession profession = settler.getProfession();
+        Component job = profession.employed() ? profession.displayName()
+            : view.noProfession;
+        HsUi.badge(g, font, job, textX, portraitY + 11, textWidth,
+            0xFF000000 | profession.color());
+        HsUi.labelIn(g, font, doingLine(), textX, portraitY + 22,
+            textWidth, HsUiTokens.TEXT_MUTED);
+    }
+
+    private void drawCompactOverview(GuiGraphics g, int mouseX, int mouseY,
+                                     Layout l, CachedView view) {
+        int x = left + PAD;
+        HsUi.divider(g, x, top + l.dividerA, contentWidth);
+
+        int requestY = top + l.currentRequestLabelTop;
+        HsUi.labelIn(g, font, view.currentRequestName, x, requestY,
+            contentWidth, view.currentRequestStack.isEmpty()
+                ? HsUiTokens.GOOD : HsUiTokens.WARN);
+        if (hover(mouseX, mouseY, x, requestY, contentWidth, ROW)
+            && !view.currentRequestTooltip.isEmpty()) {
+            pendingTooltip = view.currentRequestTooltip;
+        }
+        HsUi.labelIn(g, font, compactVitalsLine(), x, top + l.needsTop,
+            contentWidth, HsUiTokens.TEXT_MUTED);
+
+        HsUi.divider(g, x, top + l.dividerB, contentWidth);
+        drawCompactAttributes(g, mouseX, mouseY, l, view);
+
+        if (snapshot != null) {
+            HsUi.labelIn(g, font, view.employmentLine, x,
+                top + l.employmentTop, contentWidth, HsUiTokens.TEXT);
+            HsUi.labelIn(g, font, blessingStatusLine, x,
+                top + l.blessingsTop, contentWidth,
+                hasBlessings ? HsUiTokens.ACCENT : HsUiTokens.TEXT_MUTED);
+        }
+        HsUi.divider(g, x, top + l.dividerD, contentWidth);
+    }
+
+    private void drawCompactAttributes(GuiGraphics g, int mouseX, int mouseY,
+                                       Layout l, CachedView view) {
+        if (snapshot == null) {
+            HsUi.labelIn(g, font, view.loading, left + PAD,
+                top + l.attributesTop + ROW * 2, contentWidth,
+                HsUiTokens.TEXT_MUTED);
+            return;
+        }
+        for (int i = 0; i < view.attributes.length; i++) {
+            AttributeView attribute = view.attributes[i];
+            UiRect rect = l.attributeCells[i];
+            int cellX = left + rect.x;
+            int cellY = top + rect.y;
+            boolean hovered = hover(mouseX, mouseY, cellX, cellY,
+                rect.width, rect.height);
+            HsUi.card(g, cellX, cellY, rect.width, rect.height, hovered);
+            int textX = cellX + 4;
+            HsUi.labelIn(g, font, attribute.label, textX, cellY + 3,
+                rect.width - ATTRIBUTE_VALUE_W - 8,
+                attribute.knack ? HsUiTokens.ACCENT : HsUiTokens.TEXT);
+            HsUi.right(g, font, attribute.valueText,
+                cellX + rect.width - 4, cellY + 3,
+                attribute.tone.colour());
+            HsUi.bar(g, textX, cellY + rect.height - 5,
+                rect.width - 8, 3, attribute.ratio, attribute.tone);
+            if (hovered) {
+                pendingTooltip = attribute.tooltip;
+            }
+        }
+    }
+
+    private void drawCompactActions(GuiGraphics g, Layout l, CachedView view) {
+        int x = left + PAD;
+        HsUi.divider(g, x, top + l.dividerA, contentWidth);
+        HsUi.labelIn(g, font, view.actionTitle,
+            x, top + l.compactActionsTitleTop, contentWidth,
+            HsUiTokens.TEXT_STRONG);
+        HsUi.labelIn(g, font, view.actionHelp,
+            x, top + l.compactActionsTitleTop + ROW, contentWidth,
+            HsUiTokens.TEXT_MUTED);
+        HsUi.divider(g, x, top + l.dividerD, contentWidth);
     }
 
     private void requestChild(SettlerActionPayload.Kind kind) {
@@ -608,6 +877,12 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         drawNeed(g, x, y, width, view.needLabels[0], settler.getHunger());
         drawNeed(g, x, y + ROW, width, view.needLabels[1], settler.getEnergy());
         drawNeed(g, x, y + ROW * 2, width, view.needLabels[2], settler.getMorale());
+        int pace = workPacePercent();
+        drawNeed(g, x, y + ROW * 3, width, view.needLabels[3], pace,
+            cachedWorkPaceValue);
+    }
+
+    private int workPacePercent() {
         int stamina = snapshot == null ? 0
             : snapshot.attributeValues().get(Attribute.STAMINA.ordinal());
         int pace = Mth.clamp((int) Math.round(JobEffects.workPace(
@@ -616,8 +891,35 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             cachedWorkPacePercent = pace;
             cachedWorkPaceValue = Component.literal(pace + "%");
         }
-        drawNeed(g, x, y + ROW * 3, width, view.needLabels[3], pace,
-            cachedWorkPaceValue);
+        return pace;
+    }
+
+    private Component doingLine() {
+        int activity = settler.getActivity().ordinal();
+        if (activity != cachedDoingActivity) {
+            cachedDoingActivity = activity;
+            cachedDoingLine = Component.translatable("hearthstead.gui.doing",
+                settler.getActivity().displayName());
+        }
+        return cachedDoingLine;
+    }
+
+    private Component compactVitalsLine() {
+        int hunger = (int) settler.getHunger();
+        int energy = (int) settler.getEnergy();
+        int morale = (int) settler.getMorale();
+        int pace = workPacePercent();
+        if (hunger != cachedVitalsHunger || energy != cachedVitalsEnergy
+            || morale != cachedVitalsMorale || pace != cachedVitalsPace) {
+            cachedVitalsHunger = hunger;
+            cachedVitalsEnergy = energy;
+            cachedVitalsMorale = morale;
+            cachedVitalsPace = pace;
+            cachedCompactVitals = Component.translatable(
+                "hearthstead.settler.compact.vitals",
+                hunger, energy, morale, pace);
+        }
+        return cachedCompactVitals;
     }
 
     private void drawNeed(GuiGraphics g, int x, int y, int width,
@@ -954,7 +1256,8 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         boolean combatRow = profession == Profession.GUARD
             || profession == Profession.ARCHER;
         boolean refusalRows = snapshot != null && snapshot.refusal().isPresent();
-        Layout layout = layout(0, mayor, traitRows, combatRow, refusalRows);
+        Layout layout = layoutFor(width, height, mayor, traitRows,
+            combatRow, refusalRows);
         Component[] needLabels = {
             Component.translatable("hearthstead.gui.hunger"),
             Component.translatable("hearthstead.gui.energy"),
@@ -986,6 +1289,10 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         Component currentRequestInstruction = Component.translatable(
             "hearthstead.settler.request.none.instruction");
         List<Component> currentRequestTooltip = List.of();
+        Component actionTitle = Component.translatable(
+            "hearthstead.settler.actions.title");
+        Component actionHelp = Component.translatable(
+            "hearthstead.settler.actions.help");
 
         Component building = buildingName();
         Component dismissTooltip = Component.translatable(
@@ -1116,7 +1423,7 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             combatProgressTooltip, refusal, dismissTooltip,
             appointTooltip, currentRequestLabel, currentRequestStack,
             currentRequestName, currentRequestInstruction,
-            currentRequestTooltip);
+            currentRequestTooltip, actionTitle, actionHelp);
     }
 
     /** Both call sites already guard {@code snapshot != null} before reaching here. */
@@ -1171,7 +1478,8 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         int reason = snapshot == null ? -1 : snapshot.requestReasonOrdinal();
         return "work=" + settler.getActivity().name() + ",equipment="
             + equipment + ",reason=" + reason + ",panel=" + left + ":" + top
-            + ":" + PANEL_W + ":" + contentHeight + ",scroll=" + scrollOffset
+            + ":" + panelWidth + ":" + contentHeight + ",mode=" + layoutMode
+            + ",actions=" + compactActionsOpen + ",scroll=" + scrollOffset
             + "/" + maxScroll + ",traits="
             + (snapshot == null ? 0 : snapshot.traitOrdinals().size())
             + ",mayor=" + (snapshot != null && snapshot.isMayor());
@@ -1184,10 +1492,67 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
      * selected while the authoritative snapshot is cached; ordinary frames
      * and scrolling reuse this exact geometry until that snapshot changes.
      */
-    private static Layout layout(int originY, boolean showMayorBadge,
-                                 int traitRows, boolean showCombat,
-                                 boolean showRefusal) {
+    static Layout layoutFor(int viewportWidth, int viewportHeight,
+                            boolean showMayorBadge, int traitRows,
+                            boolean showCombat, boolean showRefusal) {
+        if (viewportWidth < COMPACT_BREAKPOINT_W
+            || viewportHeight < COMPACT_BREAKPOINT_H) {
+            return compactLayout(viewportWidth);
+        }
+        return wideLayout(0, showMayorBadge, traitRows, showCombat,
+            showRefusal);
+    }
+
+    static int maxScrollFor(Layout layout, int viewportHeight) {
+        return layout.mode == SettlerLayoutMode.COMPACT ? 0
+            : Math.max(0, layout.totalHeight - viewportHeight + PAD * 2);
+    }
+
+    private static Layout compactLayout(int viewportWidth) {
         Layout l = new Layout();
+        l.mode = SettlerLayoutMode.COMPACT;
+        l.panelWidth = Math.min(COMPACT_PANEL_MAX_W,
+            Math.max(1, viewportWidth - 16));
+        l.contentWidth = Math.max(1, l.panelWidth - PAD * 2);
+        l.totalHeight = COMPACT_PANEL_H;
+
+        l.nameTop = 8;
+        l.professionTop = 19;
+        l.activityTop = 30;
+        l.dividerA = 44;
+        l.currentRequestLabelTop = 50;
+        l.currentRequestCardTop = 50;
+        l.needsTop = 60;
+        l.dividerB = 70;
+        l.attributesTop = 76;
+        l.employmentTop = 164;
+        l.blessingsTop = 174;
+        l.dividerD = 185;
+        l.footerTop = 192;
+        l.compactActionsTitleTop = 52;
+        l.compactActionsTop = 78;
+
+        int columnWidth = (l.contentWidth - GUTTER) / ATTRIBUTE_COLUMNS;
+        l.attributeCells = new UiRect[Attribute.COUNT];
+        for (int i = 0; i < Attribute.COUNT; i++) {
+            int column = i % ATTRIBUTE_COLUMNS;
+            int row = i / ATTRIBUTE_COLUMNS;
+            l.attributeCells[i] = new UiRect(
+                PAD + column * (columnWidth + GUTTER),
+                l.attributesTop + row * (COMPACT_ATTRIBUTE_CELL_H
+                    + COMPACT_ATTRIBUTE_GAP),
+                columnWidth, COMPACT_ATTRIBUTE_CELL_H);
+        }
+        return l;
+    }
+
+    private static Layout wideLayout(int originY, boolean showMayorBadge,
+                                     int traitRows, boolean showCombat,
+                                     boolean showRefusal) {
+        Layout l = new Layout();
+        l.mode = SettlerLayoutMode.WIDE;
+        l.panelWidth = PANEL_W;
+        l.contentWidth = CONTENT_W;
         int y = originY + PAD;
 
         l.nameTop = y;
@@ -1265,8 +1630,19 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         return l;
     }
 
-    /** Plain data holder; see {@link #layout}. */
-    private static final class Layout {
+    enum SettlerLayoutMode {
+        WIDE,
+        COMPACT
+    }
+
+    record UiRect(int x, int y, int width, int height) {
+    }
+
+    /** Plain data holder; see {@link #layoutFor}. */
+    static final class Layout {
+        SettlerLayoutMode mode;
+        int panelWidth;
+        int contentWidth;
         int nameTop;
         int professionTop;
         int activityTop;
@@ -1291,6 +1667,9 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
         int controlsTop;
         int appointTop;
         int footerTop;
+        int compactActionsTitleTop;
+        int compactActionsTop;
+        UiRect[] attributeCells;
         int totalHeight;
     }
 
@@ -1336,8 +1715,10 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
                               Component appointTooltip,
                               Component currentRequestLabel,
                               ItemStack currentRequestStack,
-                              Component currentRequestName,
-                              Component currentRequestInstruction,
-                              List<Component> currentRequestTooltip) {
+                               Component currentRequestName,
+                               Component currentRequestInstruction,
+                               List<Component> currentRequestTooltip,
+                               Component actionTitle,
+                               Component actionHelp) {
     }
 }
