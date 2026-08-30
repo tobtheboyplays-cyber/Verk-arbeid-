@@ -13,7 +13,9 @@ import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.request.RequestLedgerService;
+import com.hearthstead.settlement.work.ContainerApproach;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
@@ -21,7 +23,10 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -236,6 +241,155 @@ public class CourierWorkshopRouteGameTests {
             helper.assertTrue(sawReleasedAfterHold[0],
                 "the collection reservation was claimed but never released once the "
                     + "job resolved");
+        });
+    }
+
+    /**
+     * The shared container-contact contract must hold across the complete
+     * request-owned collection route, not merely at a helper unit boundary.
+     * The mine's exact output request is first lifted from a real source
+     * chest; its warehouse target is a corner chest inside a closed room.
+     * A courier must not post into that target through its wall, but must be
+     * able to open the only oak door, enter, and commit there exactly once.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1200,
+        batch = "courier_container_contact")
+    public void collectionRequestCrossesClosedDoorBeforeCornerChestMutation(
+            GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        s.radius = 20;
+
+        Building mine = addBuilding(helper, s, BuildingType.MINE,
+            new BlockPos(3, 1, 8), new BlockPos(5, 3, 10),
+            new BlockPos(3, 1, 8));
+        BlockPos sourceRel = new BlockPos(4, 1, 9);
+        helper.setBlock(sourceRel, Blocks.CHEST);
+        Container source = containerAt(helper, sourceRel);
+        helper.assertTrue(source != null, "setup: mine source chest should exist");
+        int seeded = 4;
+        source.setItem(0, new ItemStack(Items.COBBLESTONE, seeded));
+
+        // A 4x4 closed warehouse room. The west door is the only route to
+        // the far corner chest; nothing outside can honestly contact it.
+        for (int x = 10; x <= 13; x++) {
+            for (int z = 10; z <= 13; z++) {
+                if (x != 10 && x != 13 && z != 10 && z != 13) {
+                    continue;
+                }
+                for (int y = 1; y <= 2; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                }
+            }
+        }
+        BlockState lowerDoor = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.WEST)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        BlockPos doorRel = new BlockPos(10, 1, 12);
+        helper.setBlock(doorRel, lowerDoor);
+        helper.setBlock(doorRel.above(), lowerDoor
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+
+        addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(10, 0, 10), new BlockPos(13, 3, 13),
+            new BlockPos(10, 2, 10));
+        BlockPos targetRel = new BlockPos(12, 1, 12);
+        helper.setBlock(targetRel, Blocks.CHEST);
+        Container target = containerAt(helper, targetRel);
+        helper.assertTrue(target != null, "setup: corner warehouse chest should exist");
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 9));
+        BlockPos sourcePos = helper.absolutePos(sourceRel);
+        BlockPos targetPos = helper.absolutePos(targetRel);
+        BlockPos doorPos = helper.absolutePos(doorRel);
+        final boolean[] sawOwnedRequest = {false};
+        final boolean[] sawDoorOpen = {false};
+        final boolean[] sawPickup = {false};
+        final boolean[] pickupAtContact = {false};
+        final boolean[] sawDeposit = {false};
+        final boolean[] depositAtContact = {false};
+        final int[] sourcePrevious = {seeded};
+        final int[] targetPrevious = {0};
+
+        helper.onEachTick(() -> {
+            RequestLedgerService.Route route = RequestLedgerService
+                .routeForCourier(helper.getLevel(), s, bud);
+            if (route.request() != null && route.source() != null
+                && route.source().id.equals(mine.id)
+                && bud.getUUID().equals(route.request().courierId())) {
+                sawOwnedRequest[0] = true;
+            }
+            BlockState doorState = helper.getLevel().getBlockState(doorPos);
+            if (doorState.is(Blocks.OAK_DOOR)
+                && doorState.getValue(DoorBlock.OPEN)) {
+                sawDoorOpen[0] = true;
+            }
+
+            int atSource = countIn(source, Items.COBBLESTONE);
+            int atTarget = countIn(target, Items.COBBLESTONE);
+            int inBag = bagCountOf(bud, Items.COBBLESTONE);
+            helper.assertTrue(atSource + atTarget + inBag == seeded,
+                "request cargo must be conserved on every tick, saw "
+                    + (atSource + atTarget + inBag) + " of " + seeded
+                    + " [source=" + atSource + " target=" + atTarget
+                    + " bag=" + inBag + " request=" + sawOwnedRequest[0]
+                    + " doorOpen=" + sawDoorOpen[0]
+                    + " pos=" + bud.blockPosition().toShortString() + "]");
+            if (!sawPickup[0] && atSource < sourcePrevious[0]) {
+                sawPickup[0] = true;
+                pickupAtContact[0] = ContainerApproach.inspect(
+                    helper.getLevel(), bud, sourcePos).state()
+                    == ContainerApproach.State.CONTACT;
+            }
+            if (!sawDeposit[0] && atTarget > targetPrevious[0]) {
+                sawDeposit[0] = true;
+                depositAtContact[0] = ContainerApproach.inspect(
+                    helper.getLevel(), bud, targetPos).state()
+                    == ContainerApproach.State.CONTACT;
+            }
+            helper.assertTrue(sawDoorOpen[0] || atTarget == 0,
+                "the closed/occluded warehouse must not receive a request item "
+                    + "before its only oak door is observed open [target=" + atTarget
+                    + " source=" + atSource + " bag=" + inBag
+                    + " pos=" + bud.blockPosition().toShortString() + "]");
+            sourcePrevious[0] = atSource;
+            targetPrevious[0] = atTarget;
+        });
+
+        helper.succeedWhen(() -> {
+            int atSource = countIn(source, Items.COBBLESTONE);
+            int atTarget = countIn(target, Items.COBBLESTONE);
+            int inBag = bagCountOf(bud, Items.COBBLESTONE);
+            helper.assertTrue(sawOwnedRequest[0],
+                "fixture must exercise a real request owned by the courier "
+                    + "[source=" + atSource + " target=" + atTarget
+                    + " bag=" + inBag + " activity=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+            helper.assertTrue(sawDoorOpen[0],
+                "the courier must visibly open the only oak warehouse door before "
+                    + "reaching the corner chest [source=" + atSource
+                    + " target=" + atTarget + " bag=" + inBag
+                    + " pos=" + bud.blockPosition().toShortString() + "]");
+            helper.assertTrue(sawPickup[0] && pickupAtContact[0],
+                "the first source inventory mutation must occur at "
+                    + "ContainerApproach.CONTACT [sawPickup=" + sawPickup[0]
+                    + " contact=" + pickupAtContact[0] + " source=" + atSource
+                    + " bag=" + inBag + " pos="
+                    + bud.blockPosition().toShortString() + "]");
+            helper.assertTrue(sawDeposit[0] && depositAtContact[0],
+                "the first corner-chest inventory mutation must occur at "
+                    + "ContainerApproach.CONTACT [sawDeposit=" + sawDeposit[0]
+                    + " contact=" + depositAtContact[0] + " target=" + atTarget
+                    + " bag=" + inBag + " pos="
+                    + bud.blockPosition().toShortString() + "]");
+            helper.assertTrue(atSource == 0 && atTarget == seeded && inBag == 0,
+                "the closed-door request route must finish with exactly one conserved "
+                    + "transfer [source=" + atSource + " target=" + atTarget
+                    + " bag=" + inBag + " total=" + (atSource + atTarget + inBag)
+                    + " activity=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
         });
     }
 

@@ -12,6 +12,7 @@ import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.development.DevelopmentQuests;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.settlement.work.WorkerProvenanceSavedData;
 import com.hearthstead.settlement.work.WorkerProvenanceService;
 import com.hearthstead.settlement.work.WorkerStackProvenance;
@@ -748,17 +749,27 @@ public class FarmerWorkGoal extends Goal {
             done = true;
             return;
         }
-        depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
-            farmhouse,
-            settler.blockPosition());
+        // Keep one exact chest throughout a retry cycle. Re-selecting the
+        // nearest container on every repath can make a farmer oscillate
+        // between opposite sides of a doorway and never finish either route.
+        if (depositTarget == null) {
+            depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
+                farmhouse, settler.blockPosition());
+        }
         if (depositTarget == null) {
             settler.recordRouteFailure("farmhouse_storage_missing");
             depositRetryCooldown = DEPOSIT_RETRY_TICKS;
             done = true;
             return;
         }
-        settler.getNavigation().moveTo(depositTarget.getX() + 0.5,
-            depositTarget.getY() + 1, depositTarget.getZ() + 0.5, 1.0);
+        ContainerApproach.Result approach = ContainerApproach.moveToContact(
+            level, settler, depositTarget, 1.0D);
+        if (approach.state() == ContainerApproach.State.INVALID_TARGET) {
+            // The exact chest disappeared. Only this explicit invalidation
+            // releases route ownership and permits a different Farmhouse
+            // container to be selected on the next bounded retry.
+            depositTarget = null;
+        }
     }
 
     @Override
@@ -1429,7 +1440,11 @@ public class FarmerWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(depositTarget.getX() + 0.5,
             depositTarget.getY() + 0.6, depositTarget.getZ() + 0.5);
-        if (settler.blockPosition().distSqr(depositTarget) <= 6.25) {
+        ContainerApproach.Result contact = ContainerApproach.inspect(level,
+            settler, depositTarget);
+        if (contact.canInteract()) {
+            settler.getNavigation().stop();
+            stuckChecks = 0;
             // The exact active input unit remains in the bag until planting;
             // every output unit, including harvested seeds, goes to this
             // linked Farmhouse for later Courier collection.
@@ -1468,6 +1483,15 @@ public class FarmerWorkGoal extends Goal {
             done = true;
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
+            if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
+                depositTarget = null;
+            }
+            if (++stuckChecks > 6) {
+                settler.recordRouteFailure("farmhouse_storage_unreachable");
+                depositRetryCooldown = DEPOSIT_RETRY_TICKS;
+                done = true;
+                return;
+            }
             pathToStorage();
         }
     }

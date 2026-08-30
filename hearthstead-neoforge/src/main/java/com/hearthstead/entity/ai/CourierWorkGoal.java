@@ -25,9 +25,9 @@ import com.hearthstead.settlement.request.RequestPriority;
 import com.hearthstead.settlement.request.RequestRecord;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.util.AuthorityTelemetry;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
@@ -38,20 +38,13 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
-import net.minecraft.world.level.pathfinder.Path;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 
@@ -108,7 +101,7 @@ import java.util.function.Predicate;
  * and re-triggered forever with the load stranded in her bag. The courier
  * now walks to a standable cell beside a real chest, and only stows once
  * she is genuinely within reach of it -- so goods cannot be posted through
- * a wall either (see {@link #hasArrived}, which keeps that promise with a
+ * a wall either (see {@link #hasContainerContact}, which keeps that promise with a
  * reach test rather than requiring literal containment in the building's
  * own recorded bounds -- a strict containment gate could be permanently
  * unsatisfiable when the only standable cell beside the chest lands just
@@ -1076,99 +1069,11 @@ public class CourierWorkGoal extends Goal {
         }
     }
 
-    /** Walks to a cell a settler can actually stand in, feet at {@code pos}. */
-    private void pathToStand(BlockPos pos) {
-        settler.getNavigation().moveTo(pos.getX() + 0.5, pos.getY(),
-            pos.getZ() + 0.5, 0.95);
-    }
-
     /** Walks toward a standable cell beside any chest leg of any route. */
     private void pathToChest(BlockPos pos) {
         if (pos != null && settler.level() instanceof ServerLevel level) {
-            Set<BlockPos> approaches = standableContainerApproaches(level, pos);
-            BlockPos current = settler.blockPosition();
-            if (approaches.contains(current)) {
-                settler.getNavigation().stop();
-                return;
-            }
-            if (!approaches.isEmpty()) {
-                // Lumberer's proven rule is the standard for every job: ask
-                // navigation which of all legal contact cells it can really
-                // reach. A nearest-by-Euclidean-side choice can repeatedly
-                // target the sealed side of a wall or door.
-                Path path = settler.getNavigation().createPath(approaches, 0);
-                if (path != null && path.canReach()
-                    && approaches.contains(path.getTarget())
-                    && settler.getNavigation().moveTo(path, 0.95D)) {
-                    return;
-                }
-                // Legal contact cells exist, but none is currently path
-                // reachable. Do not revive the old nearest-side guess here:
-                // that is exactly how a courier keeps aiming through a wall.
-                // The route's bounded repath/stuck budget will surface NO_PATH
-                // honestly and retry after the obstruction changes.
-                settler.getNavigation().stop();
-                return;
-            }
-            // Preserve the old fallback for unusual modded containers whose
-            // only legal contact node is above the block.
-            pathToStand(approachTo(level, pos, current));
+            ContainerApproach.moveToContact(level, settler, pos, 0.95D);
         }
-    }
-
-    private static Set<BlockPos> standableContainerApproaches(
-        ServerLevel level, BlockPos container) {
-        Set<BlockPos> approaches = new LinkedHashSet<>();
-        for (Direction dir : Direction.Plane.HORIZONTAL) {
-            BlockPos side = container.relative(dir);
-            if (isStandable(level, side)) {
-                approaches.add(side.immutable());
-            }
-        }
-        if (isStandable(level, container.above())) {
-            approaches.add(container.above().immutable());
-        }
-        return approaches;
-    }
-
-    /**
-     * A standable cell beside the chest, preferring the side the courier is
-     * already on. A chest itself is never walkable, and the cell above it is
-     * only walkable for a barrel, so aiming at the container block leaves the
-     * navigator to guess -- and outside a sealed room its guess is the wrong
-     * side of the wall. Picking the nearest open side also avoids sending her
-     * around a chest that is flush against one.
-     */
-    private static BlockPos approachTo(ServerLevel level, BlockPos container,
-                                       BlockPos from) {
-        BlockPos best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (Direction dir : Direction.Plane.HORIZONTAL) {
-            BlockPos side = container.relative(dir);
-            if (!isStandable(level, side)) {
-                continue;
-            }
-            double d = from.distSqr(side);
-            if (d < bestDist) {
-                bestDist = d;
-                best = side;
-            }
-        }
-        if (best != null) {
-            return best;
-        }
-        if (isStandable(level, container.above())) {
-            return container.above();
-        }
-        return container;
-    }
-
-    private static boolean isStandable(ServerLevel level, BlockPos pos) {
-        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
-            && level.getBlockState(pos.above())
-                .getCollisionShape(level, pos.above()).isEmpty()
-            && !level.getBlockState(pos.below())
-                .getCollisionShape(level, pos.below()).isEmpty();
     }
 
     // --------------------------------------------------------------- tick ---
@@ -1321,7 +1226,7 @@ public class CourierWorkGoal extends Goal {
         playHaulSounds();
         settler.getLookControl().setLookAt(dropOff.getX() + 0.5,
             dropOff.getY() + 0.6, dropOff.getZ() + 0.5);
-        if (hasArrived(warehouse, dropOff)) {
+        if (hasContainerContact(level, dropOff)) {
             settler.getNavigation().stop();
             // COURIER_SET_DOWN starts now; its contact is SET_DOWN_TICK
             // ticks in, so the thud is scheduled rather than played here
@@ -1341,105 +1246,22 @@ public class CourierWorkGoal extends Goal {
         }
     }
 
-    /**
-     * Arrival is a REACH test, not a containment test -- being within reach
-     * through a real wall is not arriving, but a courier standing exactly as
-     * close to the chest as the world lets her stand always is, whether or
-     * not that spot is inside the building's own recorded box. Reach alone
-     * cannot tell those two cases apart on its own, so the fallback below
-     * also demands a visible face on the target,
-     * {@link #hasVisibleContainerFace} -- the same physical test vanilla
-     * itself uses to decide whether a block can be interacted with.
-     *
-     * <p>LIVE REGRESSION (coordinator diagnostic, run 20260826T013935Z): a
-     * strict {@code bounds.isInside(at)} gate used to be checked FIRST and
-     * failed the whole test on its own, before distance was ever looked at.
-     * {@link #approachTo} already puts the courier on a standable cell
-     * touching the container -- but the navigator resolves that request to
-     * the last WALKABLE node next to an obstruction (a chest, a wall), which
-     * can land one step short of the requested cell. When the container sits
-     * flush on the edge of the building's own bounds (routine for a chest
-     * against the near wall of a room), landing one step short lands OUTSIDE
-     * the box -- two blocks from the chest, navigation reporting DONE, and a
-     * predicate that can never be satisfied however long she waits: 33
-     * repaths against a length-1 path going nowhere, twice, on two different
-     * legs (TO_CRAFTER and TO_SOURCE), before giving up for good with the
-     * goods never delivered.
-     *
-     * <p>A follow-up run (20260826T0141-ish) showed the first fix's blind
-     * spot: with reach alone (no line-of-sight demand), a courier idling
-     * OUTSIDE a sealed warehouse's one door read as "arrived" the moment she
-     * was close enough to the wall, so she never opened the door and never
-     * went in ({@code courierEntersASealedWarehouseAndDelivers},
-     * {@code courierOpensAClosedDoorToDeliver} both regressed).
-     *
-     * <p>ROOT CAUSE, third pass (run 20260826T020820Z, caught by a
-     * transition diagnostic rather than by reading): adding the ray did not
-     * fix it, because reach itself was measured against the wrong thing. The
-     * fallback used to accept {@code distSqrToBounds(at, building.bounds)
-     * <= CHEST_REACH_SQR} -- distance to the BUILDING'S BOX, not to the
-     * container -- so standing anywhere along the outside of a warehouse
-     * wall counted as reach, from which a diagonal ray could see the chest
-     * straight through the open doorway and call it clear. It WAS clear:
-     * she could see the chest. Seeing it is not reaching it. The diagnostic
-     * caught her six blocks from the chest and outside the walls,
-     * {@code hasArrived=true reason=outside-reachAndLOS}, posting goods
-     * through the wall the test is named after.
-     *
-     * <p>The box clause bought nothing even in the case it was written for:
-     * a courier one step short of a chest flush on the box's edge stands two
-     * blocks from that chest, and {@code CHEST_REACH_SQR} is 6.25 -- 2.5
-     * blocks -- so the container test already covers her. Reach is to the
-     * CONTAINER, always. Bounds is now only a cheap fast path for the common
-     * case of genuinely being inside; outside it, BOTH reach to the
-     * container and a clear ray to it must hold, so a courier who arrives by
-     * the fallback has gone exactly as far toward the chest as the world
-     * lets her, with nothing solid between her and it.
-     *
-     * <p>ROOT CAUSE, fourth pass (run 20260827T010118Z): a reopened west
-     * approach still failed when navigation stopped on the north-west node.
-     * That node was within honest container reach, but the one ray to the
-     * block CENTER clipped the still-solid north wall at the corner. A player
-     * can reach the exposed west face from the same spot. Arrival therefore
-     * samples the center plus four inset horizontal faces. Every accepted ray
-     * must still miss all collision or hit this exact container block; reach
-     * is not widened, and being inside a building no longer bypasses the wall
-     * check. This fixes the corner without reopening delivery through an
-     * internal wall.
-     */
-    private boolean hasArrived(Building building, BlockPos target) {
-        if (!RequestLedgerService.withinContainerReach(settler, target)) {
-            return false;
-        }
-        return hasVisibleContainerFace(target);
+    /** Server-authoritative physical contact gate for every chest mutation. */
+    private boolean hasContainerContact(ServerLevel level, BlockPos target) {
+        return ContainerApproach.inspect(level, settler, target).canInteract();
     }
 
     /**
-     * Whether at least one interactable point on the container is visible.
-     * The center catches ordinary approaches; the inset face samples catch a
-     * real exposed side at a doorway corner without sampling outside the
-     * target block. A miss, or a hit that lands ON the exact target block,
-     * counts as clear. Anything else is a wall, door or other obstruction.
+     * A lost chest contact is a transient travel condition, not evidence of
+     * a full container or a completed request. Preserve the bag, reservation,
+     * route target, animation progress and bounded re-path counters; only
+     * return the visual sack to the carrying pose and retry the same leg.
      */
-    private boolean hasVisibleContainerFace(BlockPos target) {
-        if (!(settler.level() instanceof ServerLevel level)) {
-            return false;
-        }
-        Vec3 from = settler.getEyePosition();
-        Vec3 center = Vec3.atCenterOf(target);
-        double faceInset = 0.49;
-        return rayReachesTarget(level, from, center, target)
-            || rayReachesTarget(level, from, center.add(faceInset, 0.0, 0.0), target)
-            || rayReachesTarget(level, from, center.add(-faceInset, 0.0, 0.0), target)
-            || rayReachesTarget(level, from, center.add(0.0, 0.0, faceInset), target)
-            || rayReachesTarget(level, from, center.add(0.0, 0.0, -faceInset), target);
-    }
-
-    private boolean rayReachesTarget(ServerLevel level, Vec3 from, Vec3 to,
-                                     BlockPos target) {
-        BlockHitResult hit = level.clip(new ClipContext(from, to,
-            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, settler));
-        return hit.getType() == HitResult.Type.MISS || target.equals(hit.getBlockPos());
+    private void resumeChestTravel(Mode travelMode, BlockPos target) {
+        settler.clearWorkContainer();
+        mode = travelMode;
+        settler.setActivity(SettlerActivity.CARRYING);
+        pathToChest(target);
     }
 
     /**
@@ -1483,6 +1305,10 @@ public class CourierWorkGoal extends Goal {
         }
         Settlement s = settler.settlement();
         if (job == JobPriority.OUTPUT_COLLECTION && outputRequestId != null) {
+            if (!hasContainerContact(level, dropOff)) {
+                resumeChestTravel(Mode.TO_WAREHOUSE, dropOff);
+                return;
+            }
             tickTypedOutputDelivery(level, s);
             return;
         }
@@ -1490,6 +1316,10 @@ public class CourierWorkGoal extends Goal {
         if (warehouse == null) {
             reportStop(StopReason.NO_WAREHOUSE_SPACE, dropOff, null);
             beginReturn(); // dissolved mid-delivery: take them home
+            return;
+        }
+        if (!hasContainerContact(level, dropOff)) {
+            resumeChestTravel(Mode.TO_WAREHOUSE, dropOff);
             return;
         }
         WarehouseStorage storage = WarehouseStorage.of(level, warehouse);
@@ -1645,7 +1475,7 @@ public class CourierWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(sourcePos.getX() + 0.5,
             sourcePos.getY() + 0.6, sourcePos.getZ() + 0.5);
-        if (hasArrived(source, sourcePos)) {
+        if (hasContainerContact(level, sourcePos)) {
             settler.getNavigation().stop();
             beginLift(Mode.WITHDRAWING);
         } else if (--repathTimer <= 0) {
@@ -1673,6 +1503,10 @@ public class CourierWorkGoal extends Goal {
         if (!(settler.level() instanceof ServerLevel level)) {
             done = true;
             releaseReservation();
+            return;
+        }
+        if (!hasContainerContact(level, sourcePos)) {
+            resumeChestTravel(Mode.TO_SOURCE, sourcePos);
             return;
         }
         if (job == JobPriority.OUTPUT_COLLECTION && outputRequestId != null) {
@@ -2013,7 +1847,7 @@ public class CourierWorkGoal extends Goal {
         playHaulSounds();
         settler.getLookControl().setLookAt(craftDropOff.getX() + 0.5,
             craftDropOff.getY() + 0.6, craftDropOff.getZ() + 0.5);
-        if (hasArrived(crafter, craftDropOff)) {
+        if (hasContainerContact(level, craftDropOff)) {
             settler.getNavigation().stop();
             beginSetDown(Mode.DEPOSITING);
         } else if (--repathTimer <= 0) {
@@ -2052,6 +1886,10 @@ public class CourierWorkGoal extends Goal {
             // Dismissed/reassigned while the courier was walking. Return the
             // still-real tool to its source rather than stocking the old post.
             beginReturn();
+            return;
+        }
+        if (!hasContainerContact(level, craftDropOff)) {
+            resumeChestTravel(Mode.TO_CRAFTER, craftDropOff);
             return;
         }
         // Reuses the warehouse's own destination-first insert:
@@ -2325,11 +2163,14 @@ public class CourierWorkGoal extends Goal {
         settler.getLookControl().setLookAt(returnPos.getX() + 0.5,
             returnPos.getY() + 0.6, returnPos.getZ() + 0.5);
         boolean arrived = backToSource
-            ? hasArrived(source, returnPos)
+            ? settler.level() instanceof ServerLevel level
+                && hasContainerContact(level, returnPos)
             : settler.blockPosition().distSqr(returnPos) <= reachSqr;
         if (arrived) {
             settler.getNavigation().stop();
-            depositReturnedLoad(backToSource);
+            if (!depositReturnedLoad(backToSource)) {
+                return;
+            }
             playAt(ModSounds.CHEST_STOW.get(), 0.65F,
                 0.95F + settler.getRandom().nextFloat() * 0.1F);
             if (bagCount() > 0) {
@@ -2365,9 +2206,13 @@ public class CourierWorkGoal extends Goal {
         }
     }
 
-    private void depositReturnedLoad(boolean backToSource) {
+    private boolean depositReturnedLoad(boolean backToSource) {
         if (!(settler.level() instanceof ServerLevel level)) {
-            return;
+            return false;
+        }
+        if (backToSource && !hasContainerContact(level, sourcePos)) {
+            resumeChestTravel(Mode.RETURNING, sourcePos);
+            return false;
         }
         int equipmentReturned = 0;
         for (int i = 0; i < settler.bag.getContainerSize(); i++) {
@@ -2416,6 +2261,7 @@ public class CourierWorkGoal extends Goal {
                 outputRequestId = null;
             }
         }
+        return true;
     }
 
     /**

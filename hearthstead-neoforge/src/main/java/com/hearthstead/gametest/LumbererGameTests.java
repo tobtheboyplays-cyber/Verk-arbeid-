@@ -14,7 +14,9 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.work.ContainerApproach;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
@@ -28,6 +30,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -943,6 +948,97 @@ public class LumbererGameTests {
                 "reopened route must conserve exactly one cargo item "
                     + "(storage=" + oakLogs(chest) + " bag="
                     + lumberer.getCarryLoad() + ")");
+        });
+    }
+
+    /**
+     * A normal closed door is a route, not a sealed-camp failure. Recovery
+     * cargo already in the real bag must cross the only doorway and reach a
+     * corner chest once, with physical contact on the mutation tick.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 600,
+        batch = "lumberer_camp_route_recovery")
+    public void carriedLogCrossesClosedDoorToCornerCampChest(
+            GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        level.setDayTime(2000);
+        buildArena(helper, 16);
+
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        SettlementSavedData data = SettlementSavedData.get(level);
+        Settlement settlement = new Settlement(UUID.randomUUID(),
+            "Door Camp", hearthAbs);
+        settlement.radius = 14;
+        data.settlements.put(settlement.id, settlement);
+        data.setDirty();
+        if (level.getBlockEntity(hearthAbs) instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(settlement.id);
+        }
+
+        for (int x = 11; x <= 14; x++) {
+            for (int z = 11; z <= 14; z++) {
+                if (x != 11 && x != 14 && z != 11 && z != 14) {
+                    continue;
+                }
+                for (int y = 1; y <= 2; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                }
+            }
+        }
+        var lower = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.WEST)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        helper.setBlock(new BlockPos(11, 1, 13), lower);
+        helper.setBlock(new BlockPos(11, 2, 13), lower
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+
+        Building camp = GameTestFixtures.register(helper, settlement,
+            BuildingType.LUMBER_CAMP, 11, 11);
+        BlockPos chestRel = new BlockPos(13, 1, 13);
+        helper.setBlock(chestRel, Blocks.CHEST);
+        Container chest = (Container) level.getBlockEntity(
+            helper.absolutePos(chestRel));
+
+        SettlerEntity lumberer = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(8, 1, 13));
+        lumberer.setSettlerName("Door Keeper");
+        lumberer.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(lumberer.getUUID(), "Door Keeper", Profession.NONE);
+        helper.assertTrue(Employment.hire(level, settlement, camp, lumberer).ok(),
+            "fixture: the closed-door lumberer must be genuinely employed");
+        helper.assertTrue(lumberer.bag.addItem(
+                new ItemStack(Items.OAK_LOG)).isEmpty(),
+            "fixture: one exact log must seed recovery routing");
+
+        BlockPos door = helper.absolutePos(new BlockPos(11, 1, 13));
+        BlockPos chestPos = helper.absolutePos(chestRel);
+        boolean[] sawOpen = {false};
+        boolean[] firstInsertHadContact = {false};
+        helper.onEachTick(() -> {
+            BlockState doorState = level.getBlockState(door);
+            if (doorState.is(Blocks.OAK_DOOR)
+                && doorState.getValue(DoorBlock.OPEN)) {
+                sawOpen[0] = true;
+            }
+            if (!firstInsertHadContact[0] && oakLogs(chest) > 0) {
+                firstInsertHadContact[0] = ContainerApproach.inspect(level,
+                    lumberer, chestPos).canInteract();
+            }
+        });
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(sawOpen[0],
+                "the lumberer must visibly open the only camp door");
+            helper.assertTrue(firstInsertHadContact[0],
+                "the first camp insert must occur at a visible chest face");
+            helper.assertTrue(oakLogs(chest) == 1
+                    && lumberer.getCarryLoad() == 0,
+                "the door route must conserve exactly one log (storage="
+                    + oakLogs(chest) + ", bag=" + lumberer.getCarryLoad()
+                    + ", route=" + lumberer.routeFailureNote() + ")");
         });
     }
 

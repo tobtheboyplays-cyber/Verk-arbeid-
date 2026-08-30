@@ -12,8 +12,10 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.settlement.workzone.WorkZone;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
@@ -22,8 +24,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FarmBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -412,6 +416,78 @@ public class FarmerBootstrapGameTests {
                     + countIn(storage, Items.WHEAT) + ", bag="
                     + bagCount(astrid, Items.WHEAT) + ", route="
                     + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * Regression for the live Farmhouse shape: the only storage is in a
+     * closed one-door room and flush with an interior corner. A carried load
+     * must make the farmer open the door, stand at a real exposed chest face
+     * and conserve the exact load instead of depositing through the wall or
+     * abandoning it as "unreachable".
+     */
+    @GameTest(template = "empty16", timeoutTicks = 500,
+        batch = "farmer_storage_recovery")
+    public void carriedProduceCrossesClosedDoorToFarmhouseStorage(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+
+        // 4x4 shell matching the fixture building bounds. The west-side oak
+        // door is the only opening; GameTestFixtures replaces the north-west
+        // upper wall block with the required real Plaque afterwards.
+        for (int x = 8; x <= 11; x++) {
+            for (int z = 8; z <= 11; z++) {
+                if (x != 8 && x != 11 && z != 8 && z != 11) {
+                    continue;
+                }
+                for (int y = 1; y <= 2; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                }
+            }
+        }
+        var lower = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.WEST)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        helper.setBlock(new BlockPos(8, 1, 10), lower);
+        helper.setBlock(new BlockPos(8, 2, 10), lower
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        SettlerEntity astrid = farmer(helper, s, house, 6, 10);
+        astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
+
+        BlockPos door = helper.absolutePos(new BlockPos(8, 1, 10));
+        BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
+        boolean[] sawOpen = {false};
+        boolean[] firstInsertHadContact = {false};
+        helper.onEachTick(() -> {
+            BlockState doorState = helper.getLevel().getBlockState(door);
+            if (doorState.is(Blocks.OAK_DOOR)
+                && doorState.getValue(DoorBlock.OPEN)) {
+                sawOpen[0] = true;
+            }
+            if (!firstInsertHadContact[0]
+                && countIn(storage, Items.WHEAT) > 0) {
+                firstInsertHadContact[0] = ContainerApproach.inspect(
+                    helper.getLevel(), astrid, chest).canInteract();
+            }
+        });
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(sawOpen[0],
+                "the farmer must visibly open the only Farmhouse door");
+            helper.assertTrue(firstInsertHadContact[0],
+                "the first storage mutation must occur at a visible chest face");
+            helper.assertTrue(countIn(storage, Items.WHEAT) == 3
+                    && bagCount(astrid, Items.WHEAT) == 0,
+                "the closed-door deposit must conserve all three wheat "
+                    + "(chest=" + countIn(storage, Items.WHEAT)
+                    + ", bag=" + bagCount(astrid, Items.WHEAT)
+                    + ", route=" + astrid.routeFailureNote() + ")");
         });
     }
 }

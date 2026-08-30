@@ -16,6 +16,7 @@ import com.hearthstead.settlement.FoundingJourneyProgress;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.development.DevelopmentQuests;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.settlement.work.WorkerProvenanceSavedData;
 import com.hearthstead.settlement.work.WorkerProvenanceService;
 import com.hearthstead.settlement.work.WorkerStackProvenance;
@@ -34,7 +35,6 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -42,8 +42,6 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
@@ -785,17 +783,25 @@ public class LumbererWorkGoal extends Goal {
             pauseRecoveryRoute(level, "lumber_camp_missing");
             return false;
         }
-        depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level, camp,
-            settler.blockPosition());
+        // One haul owns one exact destination until it completes or that
+        // physical container becomes invalid. Re-selecting on every retry is
+        // what made a worker bounce between sealed sides of a doorway.
+        if (depositTarget == null) {
+            depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
+                camp, settler.blockPosition());
+        }
         if (depositTarget == null) {
             pauseRecoveryRoute(level, "lumber_camp_storage_missing");
             return false;
         }
         prepareCampBudget(depositTarget);
-        boolean started = settler.getNavigation().moveTo(depositTarget.getX() + 0.5,
-            depositTarget.getY() + 1, depositTarget.getZ() + 0.5, 1.0);
+        ContainerApproach.Result approach = ContainerApproach.moveToContact(
+            level, settler, depositTarget, 1.0D);
+        if (approach.state() == ContainerApproach.State.INVALID_TARGET) {
+            depositTarget = null;
+        }
         repathTimer = CAMP_REPATH_TICKS;
-        return started;
+        return approach.canInteract() || approach.startedPath();
     }
 
     private void prepareCampBudget(BlockPos target) {
@@ -1756,15 +1762,6 @@ public class LumbererWorkGoal extends Goal {
         return dx * dx + dy * dy + dz * dz;
     }
 
-    /** Short reach is not physical authority when a wall seals the chest. */
-    private boolean hasClearCampContact(ServerLevel level, BlockPos target) {
-        BlockHitResult hit = level.clip(new ClipContext(settler.getEyePosition(),
-            Vec3.atCenterOf(target), ClipContext.Block.COLLIDER,
-            ClipContext.Fluid.NONE, settler));
-        return hit.getType() == HitResult.Type.MISS
-            || target.equals(hit.getBlockPos());
-    }
-
     private void lookAtContainer() {
         if (containerPos != null) {
             settler.getLookControl().setLookAt(containerPos.getX() + 0.5,
@@ -1803,8 +1800,11 @@ public class LumbererWorkGoal extends Goal {
             serverLevel.playSound(null, settler.blockPosition(), ModSounds.SETTLER_HM.get(),
                 SoundSource.NEUTRAL, 0.35F, 0.6F + settler.getRandom().nextFloat() * 0.05F);
         }
-        if (settler.blockPosition().distSqr(depositTarget) <= 6.25
-            && hasClearCampContact(serverLevel, depositTarget)) {
+        ContainerApproach.Result contact = ContainerApproach.inspect(serverLevel,
+            settler, depositTarget);
+        if (contact.canInteract()) {
+            settler.getNavigation().stop();
+            campStuckChecks = 0;
             for (int i = 0; i < settler.bag.getContainerSize(); i++) {
                 ItemStack stack = settler.bag.getItem(i);
                 if (!stack.isEmpty()) {
@@ -1857,6 +1857,9 @@ public class LumbererWorkGoal extends Goal {
                 campStuckChecks = 0;
             } else {
                 campStuckChecks++;
+            }
+            if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
+                depositTarget = null;
             }
             boolean started = pathToCamp();
             if (!started && !done) {
