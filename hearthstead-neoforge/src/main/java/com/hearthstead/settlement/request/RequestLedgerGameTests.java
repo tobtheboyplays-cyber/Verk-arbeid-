@@ -76,7 +76,11 @@ public final class RequestLedgerGameTests {
         sourceStack.set(DataComponents.CUSTOM_NAME,
             Component.literal("Gate 6 provenance log"));
         fixture.source.setItem(0, sourceStack);
-        ItemStack existing = sourceStack.copyWithCount(2);
+        // Container.removeItem physically splits and empties the source slot;
+        // retain an immutable expectation before that transfer mutates the
+        // fixture's slot-owned stack object.
+        ItemStack expectedStack = sourceStack.copy();
+        ItemStack existing = expectedStack.copyWithCount(2);
         fixture.target.setItem(0, existing);
         fixture.target.setChanged();
         SettlerEntity courier = courier(helper, fixture,
@@ -98,9 +102,9 @@ public final class RequestLedgerGameTests {
         helper.assertTrue(pickup.accepted(), "physical source-to-bag move failed");
         helper.assertTrue(fixture.source.getItem(0).isEmpty(),
             "source slot must lose the exact four logs");
-        helper.assertTrue(exactCount(courier.bag, sourceStack) == 4,
+        helper.assertTrue(exactCount(courier.bag, expectedStack) == 4,
             "Courier bag must own all four exact component-bearing logs");
-        helper.assertTrue(exactCount(fixture.target, sourceStack) == 2,
+        helper.assertTrue(exactCount(fixture.target, expectedStack) == 2,
             "Warehouse must be unchanged before delivery");
 
         BlockPos target = fixture.targetPos;
@@ -111,9 +115,9 @@ public final class RequestLedgerGameTests {
         helper.assertTrue(delivered.outcome()
                 == RequestLedgerService.Outcome.SATISFIED,
             "bag-to-Warehouse transaction must reach SATISFIED");
-        helper.assertTrue(exactCount(courier.bag, sourceStack) == 0,
+        helper.assertTrue(exactCount(courier.bag, expectedStack) == 0,
             "satisfied cargo cannot remain copied in the bag");
-        helper.assertTrue(exactCount(fixture.target, sourceStack) == 6,
+        helper.assertTrue(exactCount(fixture.target, expectedStack) == 6,
             "two existing plus four delivered exact stacks must remain six");
         RequestLedger ledger = RequestLedgerSavedData.get(helper.getLevel())
             .existing(fixture.settlement.id);

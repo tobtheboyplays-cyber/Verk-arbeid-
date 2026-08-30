@@ -44,7 +44,7 @@ public final class WorkerProvenanceGameTests {
         GameTestHelper helper) {
         Fixture fixture = fixture(helper, BuildingType.LUMBER_CAMP,
             Profession.LUMBERER, Items.IRON_AXE);
-        Container chest = chest(helper, new BlockPos(4, 1, 4));
+        Container chest = chest(helper, new BlockPos(5, 1, 5));
         BlockPos root = helper.absolutePos(new BlockPos(8, 2, 8));
         BlockPos top = root.above();
         naturalTree(helper, root, 2);
@@ -81,7 +81,7 @@ public final class WorkerProvenanceGameTests {
             fixture.worker(), action), "whole tree must terminal-commit");
 
         int deposited = depositTaggedBag(helper, fixture, chest,
-            helper.absolutePos(new BlockPos(4, 1, 4)));
+            helper.absolutePos(new BlockPos(5, 1, 5)));
         WorkerProvenanceSavedData data = WorkerProvenanceSavedData.get(
             helper.getLevel());
         var terminal = data.action(action);
@@ -120,7 +120,7 @@ public final class WorkerProvenanceGameTests {
         GameTestHelper helper) {
         Fixture fixture = fixture(helper, BuildingType.LUMBER_CAMP,
             Profession.LUMBERER, Items.IRON_AXE);
-        BlockPos chestRel = new BlockPos(4, 1, 4);
+        BlockPos chestRel = new BlockPos(5, 1, 5);
         BlockPos chestPos = helper.absolutePos(chestRel);
         Container chest = chest(helper, chestRel);
         BlockPos root = helper.absolutePos(new BlockPos(8, 2, 8));
@@ -252,7 +252,7 @@ public final class WorkerProvenanceGameTests {
         GameTestHelper helper) {
         Fixture fixture = fixture(helper, BuildingType.LUMBER_CAMP,
             Profession.LUMBERER, Items.IRON_AXE);
-        BlockPos chestRel = new BlockPos(4, 1, 4);
+        BlockPos chestRel = new BlockPos(5, 1, 5);
         Container chest = chest(helper, chestRel);
         for (int slot = 0; slot < chest.getContainerSize(); slot++) {
             chest.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
@@ -288,7 +288,7 @@ public final class WorkerProvenanceGameTests {
         GameTestHelper helper) {
         Fixture fixture = fixture(helper, BuildingType.LUMBER_CAMP,
             Profession.LUMBERER, Items.IRON_AXE);
-        BlockPos chestRel = new BlockPos(4, 1, 4);
+        BlockPos chestRel = new BlockPos(5, 1, 5);
         Container chest = chest(helper, chestRel);
         PreparedLog prepared = oneTerminalLog(helper, fixture);
         fixture.settlement().buildings.remove(fixture.building());
@@ -344,7 +344,7 @@ public final class WorkerProvenanceGameTests {
         GameTestHelper helper) {
         Fixture fixture = fixture(helper, BuildingType.FARMHOUSE,
             Profession.FARMER, Items.IRON_HOE);
-        BlockPos chestRel = new BlockPos(4, 1, 4);
+        BlockPos chestRel = new BlockPos(5, 1, 5);
         Container chest = chest(helper, chestRel);
         chest.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 4));
         BlockPos crop = helper.absolutePos(new BlockPos(8, 2, 8));
@@ -469,6 +469,16 @@ public final class WorkerProvenanceGameTests {
 
     private static int depositTaggedBag(GameTestHelper helper, Fixture fixture,
                                         Container chest, BlockPos target) {
+        // Deposit authority now requires the same physical contact a real
+        // Farmer/Courier has at its terminal chest. This fixture is a direct
+        // service test, so make that prerequisite explicit rather than
+        // retaining its old implicit remote-insert shortcut.
+        fixture.worker().moveTo(target.getX() + 0.5D, target.getY(),
+            target.getZ() - 0.5D, fixture.worker().getYRot(),
+            fixture.worker().getXRot());
+        helper.assertTrue(ContainerApproach.inspect(helper.getLevel(),
+                fixture.worker(), target).canInteract(),
+            "fixture must place the worker at real linked-storage contact before deposit");
         int inserted = 0;
         for (int slot = 0; slot < fixture.worker().bag.getContainerSize(); slot++) {
             ItemStack stack = fixture.worker().bag.getItem(slot);

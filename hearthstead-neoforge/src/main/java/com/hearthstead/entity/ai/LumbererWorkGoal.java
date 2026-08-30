@@ -219,6 +219,9 @@ public class LumbererWorkGoal extends Goal {
     /** Exact reachable feet node selected for the current physical drop. */
     @Nullable
     private BlockPos selectedItemApproach;
+    /** Last block occupied by the selected physical ItemEntity. */
+    @Nullable
+    private BlockPos selectedItemTargetBlock;
     private boolean done;
     /** Real chest in the lumber camp; no output is posted to the Hearth. */
     private BlockPos depositTarget;
@@ -715,8 +718,8 @@ public class LumbererWorkGoal extends Goal {
         switch (mode) {
             case TO_CAMP -> {
                 settler.setActivity(SettlerActivity.HAULING_LOG);
-                if (!pathToCamp() && !done
-                    && ++campStuckChecks > MAX_PATH_FAILURES
+                pathToCamp();
+                if (!done && campStuckChecks > MAX_PATH_FAILURES
                     && settler.level() instanceof ServerLevel level) {
                     pauseRecoveryRoute(level, "lumber_camp_unreachable");
                 }
@@ -799,6 +802,13 @@ public class LumbererWorkGoal extends Goal {
             level, settler, depositTarget, 1.0D);
         if (approach.state() == ContainerApproach.State.INVALID_TARGET) {
             depositTarget = null;
+        }
+        // A sticky sealed/occluded target must still consume the same finite
+        // recovery budget as any other failed route attempt. Without this
+        // explicit accounting, a ContainerApproach result that never starts
+        // navigation can leave TO_CAMP owning MOVE/LOOK indefinitely.
+        if (!approach.canInteract() && !approach.startedPath()) {
+            campStuckChecks++;
         }
         repathTimer = CAMP_REPATH_TICKS;
         return approach.canInteract() || approach.startedPath();
@@ -1258,6 +1268,7 @@ public class LumbererWorkGoal extends Goal {
             settler.setActivity(SettlerActivity.COLLECTING_ITEMS);
             resetPathBudget();
             selectedItemApproach = null;
+            selectedItemTargetBlock = null;
             bestItemDistanceSqr = Double.MAX_VALUE;
             pickupRouteAuthorized = false;
             boolean pathStarted = pathToSelectedItem(level);
@@ -1280,6 +1291,8 @@ public class LumbererWorkGoal extends Goal {
         if (target != null && collectionTargetAllowed(level, zone,
                 target.blockPosition())) {
             BlockPos previousApproach = selectedItemApproach;
+            BlockPos previousTargetBlock = selectedItemTargetBlock;
+            selectedItemTargetBlock = target.blockPosition().immutable();
             Set<BlockPos> approaches = standableItemApproaches(level, target);
             BlockPos current = settler.blockPosition();
             boolean started = false;
@@ -1303,11 +1316,14 @@ public class LumbererWorkGoal extends Goal {
                     selectedItemApproach = null;
                 }
             }
-            if (!Objects.equals(previousApproach, selectedItemApproach)) {
+            if (!Objects.equals(previousApproach, selectedItemApproach)
+                || !Objects.equals(previousTargetBlock,
+                    selectedItemTargetBlock)) {
                 // A moving ItemEntity can legitimately move the exact feet
-                // target. Distances to two different world nodes are not one
-                // progress series; rebase instead of spending the old node's
-                // stuck budget against the new one.
+                // target. Distances to two different world nodes, or to a
+                // different block occupied by the same physical UUID, are
+                // not one progress series; rebase instead of spending the
+                // old target's stuck budget against the new one.
                 bestItemDistanceSqr = selectedItemApproach == null
                     ? Double.MAX_VALUE
                     : distanceToApproachSqr(selectedItemApproach);
@@ -1381,6 +1397,7 @@ public class LumbererWorkGoal extends Goal {
         ItemEntity target = collection.selected(level);
         if (target == null) {
             selectedItemApproach = null;
+            selectedItemTargetBlock = null;
             if (collection.selectedDropId() == null) {
                 mode = Mode.SELECTING_ITEM;
             } else if (++unresolvedDropTicks >= UNLOADED_DROP_WAIT_TICKS) {
@@ -1389,11 +1406,24 @@ public class LumbererWorkGoal extends Goal {
             }
             return;
         }
+        BlockPos liveTargetBlock = target.blockPosition();
+        if (!Objects.equals(selectedItemTargetBlock, liveTargetBlock)) {
+            // Rebase as soon as the same physical UUID enters a new block;
+            // waiting for the next repath tick would spend the old target's
+            // bounded stuck budget while the item is already moving.
+            selectedItemTargetBlock = liveTargetBlock.immutable();
+            selectedItemApproach = null;
+            bestItemDistanceSqr = Double.MAX_VALUE;
+            stuckChecks = 0;
+            pickupRouteAuthorized = false;
+            repathTimer = 0;
+        }
         WorkZone zone = currentCollectionZone(level);
         if (!collectionTargetAllowed(level, zone, target.blockPosition())) {
             traceItemRoute("release_outside_zone", target, null, false);
             collection.releaseSelected(level);
             selectedItemApproach = null;
+            selectedItemTargetBlock = null;
             mode = Mode.SELECTING_ITEM;
             return;
         }
@@ -1431,6 +1461,7 @@ public class LumbererWorkGoal extends Goal {
                 settler.recordRouteFailure("felled_item_unreachable");
                 collection.releaseSelected(level);
                 selectedItemApproach = null;
+                selectedItemTargetBlock = null;
                 mode = Mode.SELECTING_ITEM;
             } else {
                 pathToSelectedItem(level);
@@ -1528,6 +1559,7 @@ public class LumbererWorkGoal extends Goal {
             phaseTicks = 0;
             pickupRouteAuthorized = false;
             selectedItemApproach = null;
+            selectedItemTargetBlock = null;
             if (retry == null) {
                 mode = Mode.SELECTING_ITEM;
                 return;
@@ -1688,8 +1720,8 @@ public class LumbererWorkGoal extends Goal {
         mode = Mode.TO_CAMP;
         settler.setActivity(SettlerActivity.HAULING_LOG);
         resetCampBudget();
-        if (!pathToCamp() && !done
-            && ++campStuckChecks > MAX_PATH_FAILURES
+        pathToCamp();
+        if (!done && campStuckChecks > MAX_PATH_FAILURES
             && settler.level() instanceof ServerLevel level) {
             pauseRecoveryRoute(level, "lumber_camp_unreachable");
         }
@@ -1861,10 +1893,7 @@ public class LumbererWorkGoal extends Goal {
             if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
                 depositTarget = null;
             }
-            boolean started = pathToCamp();
-            if (!started && !done) {
-                campStuckChecks++;
-            }
+            pathToCamp();
             if (!done && campStuckChecks > MAX_PATH_FAILURES) {
                 pauseRecoveryRoute(serverLevel, "lumber_camp_unreachable");
             }
