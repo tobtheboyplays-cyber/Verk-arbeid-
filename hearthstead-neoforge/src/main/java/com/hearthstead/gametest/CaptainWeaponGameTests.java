@@ -1,6 +1,7 @@
 package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.item.weapon.CaptainWeaponItem;
@@ -15,6 +16,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -188,6 +190,68 @@ public class CaptainWeaponGameTests {
         helper.assertTrue(WeaponTraits.rollStun(WeaponType.WARHAMMER, z, 0.0F), "a low roll stuns");
         helper.assertTrue(z.hasEffect(MobEffects.MOVEMENT_SLOWDOWN), "the stun is a heavy slowness");
         helper.succeed();
+    }
+
+    /**
+     * T30: a mob's warhammer stuns only on a hit that lands. Incoming damage fires before a
+     * shield block and before the invulnerability-frame rejection, so neither may stun; real
+     * hurt() calls, 40 of each (a 25% stun would show in 40 by chance with odds 1 in 100 000).
+     */
+    @GameTest(template = "empty16", timeoutTicks = 60, batch = "captain_weapon_stun")
+    public void aMobWarhammerStunsOnlyOnAHitThatLands(GameTestHelper helper) {
+        floor(helper);
+        Zombie hammer = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(5, 1, 3));
+        hammer.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(WeaponItems.get(WeaponType.WARHAMMER, Material.IRON)));
+        SettlerEntity guard = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(5, 1, 5));
+        guard.setNoAi(true);
+        guard.assignProfession(Profession.GUARD);
+        guard.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.SHIELD));
+        // Yaw 180 faces north, toward the hammer.
+        guard.setYRot(180.0F);
+        guard.setYHeadRot(180.0F);
+        guard.yBodyRot = 180.0F;
+        guard.startUsingItem(InteractionHand.OFF_HAND);
+        Zombie target = helper.spawnWithNoFreeWill(EntityType.ZOMBIE, new BlockPos(11, 1, 11));
+        target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(2000.0D);
+        target.setHealth(2000.0F);
+        int hits = 40;
+
+        helper.runAfterDelay(6, () -> {
+            helper.assertTrue(WeaponConfig.stunChance() > 0.0D && WeaponTraits.enabled(), "fixture: the stun is on");
+            helper.assertTrue(guard.isBlocking(), "fixture: the guard's shield is really up");
+            float guardHealth = guard.getHealth();
+            for (int i = 0; i < hits; i++) {
+                guard.invulnerableTime = 0;
+                helper.assertFalse(guard.hurt(hammer.damageSources().mobAttack(hammer), 6.0F),
+                    "fixture: a full shield block");
+            }
+            helper.assertTrue(guard.getHealth() == guardHealth, "fully blocked hits cost no health");
+            helper.assertFalse(guard.hasEffect(MobEffects.MOVEMENT_SLOWDOWN), "a full shield block never stuns");
+
+            // A big plain hit opens the invulnerability window; smaller hammer hits inside it are rejected.
+            helper.assertTrue(target.hurt(helper.getLevel().damageSources().generic(), 100.0F), "fixture: the window opens");
+            float windowHealth = target.getHealth();
+            for (int i = 0; i < hits; i++) {
+                helper.assertFalse(target.hurt(hammer.damageSources().mobAttack(hammer), 6.0F),
+                    "fixture: an in-frame hit is rejected");
+            }
+            helper.assertTrue(target.getHealth() == windowHealth, "rejected hits cost no health");
+            helper.assertFalse(target.hasEffect(MobEffects.MOVEMENT_SLOWDOWN), "an in-frame rejection never stuns");
+
+            int stuns = 0;
+            for (int i = 0; i < hits; i++) {
+                target.invulnerableTime = 0;
+                float before = target.getHealth();
+                helper.assertTrue(target.hurt(hammer.damageSources().mobAttack(hammer), 6.0F), "fixture: the hit lands");
+                helper.assertTrue(target.getHealth() < before, "fixture: a landed hit costs health");
+                if (target.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)) {
+                    stuns++;
+                    target.removeEffect(MobEffects.MOVEMENT_SLOWDOWN);
+                }
+            }
+            helper.assertTrue(stuns > 0, "landed warhammer hits still stun (0 of " + hits + ")");
+            helper.succeed();
+        });
     }
 
     @GameTest(template = "empty16", timeoutTicks = 20, batch = "captain_weapons")
