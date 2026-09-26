@@ -1,0 +1,251 @@
+{
+  "id": "jobs_directory",
+  "title": "hearthstead.guide.jobs_directory.title",
+  "icon": "hearthstead:lumberer_emblem",
+  "pages": [
+    {
+      "id": "jobs_directory.list1",
+      "title": "hearthstead.guide.jobs_directory.list1.title",
+      "bullets": [
+        "hearthstead.guide.jobs_directory.list1.b1"
+      ],
+      "tip": "hearthstead.guide.jobs_directory.list1.tip",
+      "entries": [
+        {
+          "ref": "profession:NONE",
+          "name": "hearthstead.guide.ref.jobs_directory.none.name",
+          "icon": "hearthstead:settler_spawn_egg",
+          "text": "hearthstead.guide.ref.jobs_directory.none.text"
+        },
+        {
+          "ref": "profession:FARMER",
+          "name": "hearthstead.guide.ref.jobs_directory.farmer.name",
+          "icon": "hearthstead:farmer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.farmer.text"
+        },
+        {
+          "ref": "profession:LUMBERER",
+          "name": "hearthstead.guide.ref.jobs_directory.lumberer.name",
+          "icon": "hearthstead:lumberer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.lumberer.text"
+        },
+        {
+          "ref": "profession:GUARD",
+          "name": "hearthstead.guide.ref.jobs_directory.guard.name",
+          "icon": "hearthstead:guard_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.guard.text"
+        },
+        {
+          "ref": "profession:COURIER",
+          "name": "hearthstead.guide.ref.jobs_directory.courier.name",
+          "icon": "hearthstead:courier_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.courier.text"
+        },
+        {
+          "ref": "profession:BAKER",
+          "name": "hearthstead.guide.ref.jobs_directory.baker.name",
+          "icon": "hearthstead:baker_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.baker.text"
+        },
+        {
+          "ref": "profession:COOK",
+          "name": "hearthstead.guide.ref.jobs_directory.cook.name",
+          "icon": "hearthstead:cook_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.cook.text"
+        },
+        {
+          "ref": "profession:BUTCHER",
+          "name": "hearthstead.guide.ref.jobs_directory.butcher.name",
+          "icon": "hearthstead:butcher_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.butcher.text"
+        }
+      ]
+    },
+    {
+      "id": "jobs_directory.list2",
+      "title": "hearthstead.guide.jobs_directory.list2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "profession:SMELTER",
+          "name": "hearthstead.guide.ref.jobs_directory.smelter.name",
+          "icon": "hearthstead:smelter_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.smelter.text"
+        },
+        {
+          "ref": "profession:SMITH",
+          "name": "hearthstead.guide.ref.jobs_directory.smith.name",
+          "icon": "hearthstead:smith_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.smith.text"
+        },
+        {
+          "ref": "profession:SAWYER",
+          "name": "hearthstead.guide.ref.jobs_directory.sawyer.name",
+          "icon": "hearthstead:sawyer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.sawyer.text"
+        },
+        {
+          "ref": "profession:CARPENTER",
+          "name": "hearthstead.guide.ref.jobs_directory.carpenter.name",
+          "icon": "hearthstead:carpenter_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.carpenter.text"
+        },
+        {
+          "ref": "profession:MASON",
+          "name": "hearthstead.guide.ref.jobs_directory.mason.name",
+          "icon": "hearthstead:mason_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.mason.text"
+        },
+        {
+          "ref": "profession:FLETCHER",
+          "name": "hearthstead.guide.ref.jobs_directory.fletcher.name",
+          "icon": "hearthstead:fletcher_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.fletcher.text"
+        },
+        {
+          "ref": "profession:WEAVER",
+          "name": "hearthstead.guide.ref.jobs_directory.weaver.name",
+          "icon": "hearthstead:weaver_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.weaver.text"
+        },
+        {
+          "ref": "profession:TANNER",
+          "name": "hearthstead.guide.ref.jobs_directory.tanner.name",
+          "icon": "hearthstead:tanner_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.tanner.text"
+        }
+      ]
+    },
+    {
+      "id": "jobs_directory.list3",
+      "title": "hearthstead.guide.jobs_directory.list3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "profession:MINER",
+          "name": "hearthstead.guide.ref.jobs_directory.miner.name",
+          "icon": "hearthstead:miner_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.miner.text"
+        },
+        {
+          "ref": "profession:INNKEEPER",
+          "name": "hearthstead.guide.ref.jobs_directory.innkeeper.name",
+          "icon": "hearthstead:innkeeper_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.innkeeper.text"
+        },
+        {
+          "ref": "profession:SCHOLAR",
+          "name": "hearthstead.guide.ref.jobs_directory.scholar.name",
+          "icon": "hearthstead:scholar_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.scholar.text"
+        },
+        {
+          "ref": "profession:MILLER",
+          "name": "hearthstead.guide.ref.jobs_directory.miller.name",
+          "icon": "hearthstead:miller_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.miller.text"
+        },
+        {
+          "ref": "profession:BREWER",
+          "name": "hearthstead.guide.ref.jobs_directory.brewer.name",
+          "icon": "hearthstead:brewer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.brewer.text"
+        },
+        {
+          "ref": "profession:ARCHER",
+          "name": "hearthstead.guide.ref.jobs_directory.archer.name",
+          "icon": "hearthstead:archer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.archer.text"
+        },
+        {
+          "ref": "profession:ARMOURER",
+          "name": "hearthstead.guide.ref.jobs_directory.armourer.name",
+          "icon": "hearthstead:armourer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.armourer.text"
+        },
+        {
+          "ref": "profession:HERDER",
+          "name": "hearthstead.guide.ref.jobs_directory.herder.name",
+          "icon": "hearthstead:herder_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.herder.text"
+        }
+      ]
+    },
+    {
+      "id": "jobs_directory.list4",
+      "title": "hearthstead.guide.jobs_directory.list4.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "profession:FISHER",
+          "name": "hearthstead.guide.ref.jobs_directory.fisher.name",
+          "icon": "hearthstead:fisher_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.fisher.text"
+        },
+        {
+          "ref": "profession:HUNTER",
+          "name": "hearthstead.guide.ref.jobs_directory.hunter.name",
+          "icon": "hearthstead:hunter_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.hunter.text"
+        },
+        {
+          "ref": "profession:MAYOR",
+          "name": "hearthstead.guide.ref.jobs_directory.mayor.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.jobs_directory.mayor.text"
+        },
+        {
+          "ref": "profession:TRADER",
+          "name": "hearthstead.guide.ref.jobs_directory.trader.name",
+          "icon": "hearthstead:trader_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.trader.text"
+        },
+        {
+          "ref": "profession:SPEARMAN",
+          "name": "hearthstead.guide.ref.jobs_directory.spearman.name",
+          "icon": "hearthstead:spearman_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.spearman.text"
+        },
+        {
+          "ref": "profession:LONGSWORDSMAN",
+          "name": "hearthstead.guide.ref.jobs_directory.longswordsman.name",
+          "icon": "hearthstead:longswordsman_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.longswordsman.text"
+        },
+        {
+          "ref": "profession:HEALER",
+          "name": "hearthstead.guide.ref.jobs_directory.healer.name",
+          "icon": "hearthstead:healer_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.healer.text"
+        },
+        {
+          "ref": "profession:RUNE_MAGE",
+          "name": "hearthstead.guide.ref.jobs_directory.rune_mage.name",
+          "icon": "hearthstead:rune_mage_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.rune_mage.text"
+        }
+      ]
+    },
+    {
+      "id": "jobs_directory.list5",
+      "title": "hearthstead.guide.jobs_directory.list5.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "profession:BUILDER",
+          "name": "hearthstead.guide.ref.jobs_directory.builder.name",
+          "icon": "hearthstead:builder_emblem",
+          "text": "hearthstead.guide.ref.jobs_directory.builder.text"
+        }
+      ]
+    }
+  ]
+}

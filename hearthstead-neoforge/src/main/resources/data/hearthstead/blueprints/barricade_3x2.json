@@ -1,0 +1,43 @@
+{
+  "id": "barricade_3x2",
+  "name": "Heavy Barricade",
+  "category": "defense",
+  "kind": "barricade",
+  "building_type": null,
+  "variant": "large",
+  "style": "timber",
+  "preset": "Timber",
+  "requires": "builders_hut",
+  "group": "barricade_3x2",
+  "size": [
+    3,
+    4,
+    2
+  ],
+  "ground_level": 0,
+  "eave_y": null,
+  "plaque": null,
+  "work": [],
+  "segment": "barricade",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 6
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 6
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 3
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 3
+    }
+  ],
+  "block_count": 18,
+  "cells": 18
+}

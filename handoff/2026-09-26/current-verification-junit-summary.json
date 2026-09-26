@@ -1,0 +1,41 @@
+{
+  "totals": {
+    "tests": 1150,
+    "failures": 6,
+    "errors": 0,
+    "skipped": 0
+  },
+  "failures": [
+    {
+      "suite": "com.hearthstead.block.BannerholdIdentityTest",
+      "test": "englishTextNeverShowsTheRetiredNames()",
+      "message": "org.opentest4j.AssertionFailedError: player-facing text still says Hearth/Hearthstead: [hearthstead.guide.ref.tech_branches.courier_ledger.text = Couriers serve Urgent, then High, then Normal requests, whatever the kind: Hearth food goes before workshop inputs., hearthstead.guide.ref.tech_branches.warm_hearth.name = Hearth Fires, hearthstead.guide.options.switches1.b1 = Server owners can turn whole systems off in hearthstead-server.toml, [features].] ==> expected: <true> but was: <false>"
+    },
+    {
+      "suite": "com.hearthstead.client.screen.HandbookChapterLanguageTest",
+      "test": "everyChapterPageHasTextAndEveryWrittenPageIsInTheBook()",
+      "message": "org.opentest4j.AssertionFailedError: hearthstead.guide.taverns_ale.title is written but no Handbook chapter shows it ==> expected: <true> but was: <false>"
+    },
+    {
+      "suite": "com.hearthstead.client.ui2.handbook.HandbookChaptersSchemaTest",
+      "test": "everyPageIsWellFormedAndEveryReferenceResolves()",
+      "message": "org.opentest4j.AssertionFailedError: finisher_revive.finish: bullet: hearthstead.guide.finisher_revive.finish.b1 is 180 chars (max 140)\nfinisher_revive.finish: bullet: hearthstead.guide.finisher_revive.finish.b2 is 143 chars (max 140) ==> expected: <true> but was: <false>"
+    },
+    {
+      "suite": "com.hearthstead.client.ui2.handbook.HandbookChaptersSchemaTest",
+      "test": "theIndexParsesWithoutProblemsAndReachesEveryChapterFile()",
+      "message": "org.opentest4j.AssertionFailedError: taverns_ale.json exists but chapters.json never shows it ==> expected: <true> but was: <false>"
+    },
+    {
+      "suite": "com.hearthstead.client.ui2.handbook.ReferenceGuardTest",
+      "test": "everyFeatureSwitchAndConfigSectionIsOnTheOptionsPage()",
+      "message": "org.opentest4j.AssertionFailedError: Config sections / feature switches without a handbook entry (add a row to tools/handbook/facts and run tools/handbook/check.sh): [option:hud] ==> expected: <true> but was: <false>"
+    },
+    {
+      "suite": "com.hearthstead.settlement.journey.NewPlayerGuidanceContractTest",
+      "test": "handbookTechTreePageListsEveryTrunkPrice()",
+      "message": "java.lang.AssertionError: Tech Tree page has no line for Lumber Camp: Open the Banner and choose Tech Tree. The Banner sits in the middle; ranks are rings (Hamlet inside, then Village, Town, Castle) and each branch owns a wedge: Watch, Logistics, Commons and Craft. When the tree opens, the node your Journey asks for next is selected and wears a gold Journey ribbon: for a new village that is Timber Rights (Lumber Camp). Click a node to see its cost, milestones and what it unlocks. Research asks twice: the first click shows \"Confirm\" with the full price, the second click pays (hold Shift to skip the confirm). A red line warns you when a purchase would spend the Coin your Journey step needs. Coins and goods are paid once, from your pack, the Banner and the Warehouse."
+    }
+  ],
+  "manifest_sha256": "5b91dbe0bd7c1f622a7bd008b99b753cf0497d429a888c829e15b993b1fbbbc3"
+}

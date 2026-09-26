@@ -1,0 +1,21 @@
+{
+  "id": "visitor_departure",
+  "title": "hearthstead.guide.visitor_departure.title",
+  "icon": "minecraft:leather_boots",
+  "pages": [
+    {
+      "id": "visitor_departure.farewell",
+      "title": "hearthstead.guide.visitor_departure.farewell.title",
+      "bullets": [
+        "hearthstead.guide.visitor_departure.farewell.b1",
+        "hearthstead.guide.visitor_departure.farewell.b2",
+        "hearthstead.guide.visitor_departure.farewell.b3"
+      ],
+      "tip": "hearthstead.guide.visitor_departure.farewell.tip",
+      "text": [
+        "hearthstead.guide.visitor_departure.farewell.more"
+      ],
+      "image_wanted": "A departing caravan walking along a clear road away from the Banner."
+    }
+  ]
+}

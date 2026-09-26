@@ -1,0 +1,5313 @@
+{
+  "files": 584,
+  "events": 275,
+  "decode_errors": [],
+  "silent": [],
+  "nonfinite": [],
+  "missing": [],
+  "stereo_event_files": [
+    {
+      "event": "music.village_day",
+      "file": "sounds/el/music/day_meadow.ogg"
+    },
+    {
+      "event": "music.village_day",
+      "file": "sounds/el/music/day_harvest.ogg"
+    },
+    {
+      "event": "music.village_day",
+      "file": "sounds/el/music/day_hearth.ogg"
+    },
+    {
+      "event": "music.village_day",
+      "file": "sounds/el/music/day_banner.ogg"
+    },
+    {
+      "event": "music.village_night",
+      "file": "sounds/el/music/night_embers.ogg"
+    },
+    {
+      "event": "music.village_night",
+      "file": "sounds/el/music/night_watch.ogg"
+    },
+    {
+      "event": "music.tavern",
+      "file": "sounds/el/music/tavern_jig.ogg"
+    },
+    {
+      "event": "music.raid",
+      "file": "sounds/el/music/raid.ogg"
+    },
+    {
+      "event": "music.raid_victory",
+      "file": "sounds/el/music/raid_victory.ogg"
+    },
+    {
+      "event": "music.raid_defeat",
+      "file": "sounds/el/music/raid_defeat.ogg"
+    },
+    {
+      "event": "music.title",
+      "file": "sounds/el/music/title.ogg"
+    }
+  ],
+  "voice_duration_mismatch_over_200ms": [],
+  "details": [
+    {
+      "file": "sounds/ambient/cart_roll1.ogg",
+      "seconds": 2.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8412216901779175,
+      "rms": 0.12824000952490847,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/ambient/cart_roll2.ogg",
+      "seconds": 2.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9216434955596924,
+      "rms": 0.11085099028235804,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/ambient/tree_creak1.ogg",
+      "seconds": 1.65,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9028903245925903,
+      "rms": 0.034247107809500604,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/ambient/tree_creak2.ogg",
+      "seconds": 1.9186167800453515,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8406102657318115,
+      "rms": 0.03402680132164312,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/ambient/tree_fall1.ogg",
+      "seconds": 7.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8840153217315674,
+      "rms": 0.07424349996825434,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/ambient/tree_fall2.ogg",
+      "seconds": 7.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8731402158737183,
+      "rms": 0.07147196840838785,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/banner/banner_flutter1.ogg",
+      "seconds": 1.8750113378684807,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8512848019599915,
+      "rms": 0.0844176462889619,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/banner/banner_flutter2.ogg",
+      "seconds": 1.8750113378684807,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8272525072097778,
+      "rms": 0.06755037514068218,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/banner/banner_flutter3.ogg",
+      "seconds": 1.8750113378684807,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8827892541885376,
+      "rms": 0.15161399552701224,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/banner/banner_raise1.ogg",
+      "seconds": 1.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8836267590522766,
+      "rms": 0.0912008411761644,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/banner/banner_raise2.ogg",
+      "seconds": 1.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8789272308349609,
+      "rms": 0.08904728032616736,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/banner/banner_raise3.ogg",
+      "seconds": 1.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8619400858879089,
+      "rms": 0.056035860187361265,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/market_bustle1.ogg",
+      "seconds": 9.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.37225085496902466,
+      "rms": 0.03621555609192085,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/night_crickets1.ogg",
+      "seconds": 9.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.21356439590454102,
+      "rms": 0.02128903663348611,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/rain_roof1.ogg",
+      "seconds": 9.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3692309856414795,
+      "rms": 0.023405240155689417,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/village_murmur1.ogg",
+      "seconds": 9.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.37622684240341187,
+      "rms": 0.06227338523011467,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/village_murmur2.ogg",
+      "seconds": 9.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4703483283519745,
+      "rms": 0.06951846228619936,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/workshop_smithy1.ogg",
+      "seconds": 7.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.47764259576797485,
+      "rms": 0.036415786879251906,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ambience/workshop_wood1.ogg",
+      "seconds": 7.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5709399580955505,
+      "rms": 0.02041000832648503,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/build_done1.ogg",
+      "seconds": 0.83,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.42572104930877686,
+      "rms": 0.06777825396341157,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/build_done2.ogg",
+      "seconds": 1.08,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3834324777126312,
+      "rms": 0.07719059885755389,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/ladder_rung1.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7133740782737732,
+      "rms": 0.07723805612129792,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/ladder_rung2.ogg",
+      "seconds": 0.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8289205431938171,
+      "rms": 0.08989906964329863,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/ladder_rung3.ogg",
+      "seconds": 0.2649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.669118344783783,
+      "rms": 0.09032139009882449,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/nail_tap1.ogg",
+      "seconds": 0.26,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7060364484786987,
+      "rms": 0.10197539138304593,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/nail_tap2.ogg",
+      "seconds": 0.13498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7701099514961243,
+      "rms": 0.1020609491332509,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/nail_tap3.ogg",
+      "seconds": 0.31,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5984562635421753,
+      "rms": 0.07434951463132697,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/nail_tap4.ogg",
+      "seconds": 0.15700680272108844,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7573934197425842,
+      "rms": 0.11735193613132806,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/nail_tap5.ogg",
+      "seconds": 0.22501133786848074,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8366295099258423,
+      "rms": 0.10325418564975164,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/place1.ogg",
+      "seconds": 0.3639909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.734715461730957,
+      "rms": 0.12487790650174488,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/place2.ogg",
+      "seconds": 0.39,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.80646812915802,
+      "rms": 0.18102935523675784,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/place3.ogg",
+      "seconds": 0.36,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6801419854164124,
+      "rms": 0.1428466679390572,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/builder/place4.ogg",
+      "seconds": 0.39,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.711036205291748,
+      "rms": 0.17294987937564743,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/armour_clink1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.38226014375686646,
+      "rms": 0.048817955037453786,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/armour_clink2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2921282947063446,
+      "rms": 0.05349614681392801,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/armour_clink3.ogg",
+      "seconds": 0.43498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.49598610401153564,
+      "rms": 0.04580312247398271,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/armour_clink4.ogg",
+      "seconds": 0.3849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3252347707748413,
+      "rms": 0.0482709861226703,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/axe1.ogg",
+      "seconds": 0.7290022675736961,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5477617979049683,
+      "rms": 0.11219273048400329,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/axe2.ogg",
+      "seconds": 0.63,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6098513007164001,
+      "rms": 0.12689888252221249,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bandage1.ogg",
+      "seconds": 0.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5488705039024353,
+      "rms": 0.05816560841666216,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bandage2.ogg",
+      "seconds": 0.49498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4858534336090088,
+      "rms": 0.06931113192087397,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bare1.ogg",
+      "seconds": 0.43498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7243520021438599,
+      "rms": 0.22351499447675252,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bare2.ogg",
+      "seconds": 0.44997732426303855,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6856038570404053,
+      "rms": 0.22857197737071472,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bash_swing1.ogg",
+      "seconds": 0.38,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7407756447792053,
+      "rms": 0.20215390610668277,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bash_swing2.ogg",
+      "seconds": 0.3949886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6985741853713989,
+      "rms": 0.20627420932936286,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/bash_swing3.ogg",
+      "seconds": 0.43498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.795041561126709,
+      "rms": 0.22213362261208622,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/blade_hit1.ogg",
+      "seconds": 0.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8429166674613953,
+      "rms": 0.14303975861117646,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/blade_hit2.ogg",
+      "seconds": 0.27,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7665899991989136,
+      "rms": 0.1720411659187586,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/blade_hit3.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7041614651679993,
+      "rms": 0.09260140725631757,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/blade_hit4.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6360256671905518,
+      "rms": 0.08297434345779543,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/blade_hit5.ogg",
+      "seconds": 0.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7283599376678467,
+      "rms": 0.11010013575146692,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_alert1.ogg",
+      "seconds": 0.88,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7194567322731018,
+      "rms": 0.12914594037625082,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_alert2.ogg",
+      "seconds": 0.71,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7201534509658813,
+      "rms": 0.14511048021160627,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_alert3.ogg",
+      "seconds": 0.62,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6800723671913147,
+      "rms": 0.13830631017690379,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_heartbeat1.ogg",
+      "seconds": 0.48498866213151925,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7254889607429504,
+      "rms": 0.12962035139787648,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_heartbeat2.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.748226523399353,
+      "rms": 0.10646316258306927,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_heartbeat3.ogg",
+      "seconds": 0.36,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7573124766349792,
+      "rms": 0.13478038798938735,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_heartbeat4.ogg",
+      "seconds": 0.5549886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.790778398513794,
+      "rms": 0.10471536271780464,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_revived1.ogg",
+      "seconds": 0.87,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5740224719047546,
+      "rms": 0.11789805612452019,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/downed_revived2.ogg",
+      "seconds": 0.6449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4970340430736542,
+      "rms": 0.12283564976803145,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_body_fall1.ogg",
+      "seconds": 0.4449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8172374963760376,
+      "rms": 0.11066306294963088,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_body_fall2.ogg",
+      "seconds": 0.4310204081632653,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8795973062515259,
+      "rms": 0.1511379516322004,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_body_fall3.ogg",
+      "seconds": 0.6149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7824479341506958,
+      "rms": 0.11870291412032918,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_double1.ogg",
+      "seconds": 0.64,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8705016374588013,
+      "rms": 0.11073836665973529,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_double2.ogg",
+      "seconds": 0.5649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7933526039123535,
+      "rms": 0.10744266269096767,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_stinger1.ogg",
+      "seconds": 1.0349886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6832152605056763,
+      "rms": 0.14489515896058844,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_stinger2.ogg",
+      "seconds": 0.86,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6678363084793091,
+      "rms": 0.20519855543162485,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_stinger3.ogg",
+      "seconds": 1.09,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7147718667984009,
+      "rms": 0.14358383808141198,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_windup1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.47476446628570557,
+      "rms": 0.07884232945504559,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_windup2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.849811851978302,
+      "rms": 0.0649788982663354,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/execution_windup3.ogg",
+      "seconds": 0.33997732426303856,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6479690074920654,
+      "rms": 0.08352415035490161,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/firebolt_impact1.ogg",
+      "seconds": 0.9,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.764769434928894,
+      "rms": 0.0893772074905471,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/firebolt_impact2.ogg",
+      "seconds": 0.43498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.720982015132904,
+      "rms": 0.15047917995819135,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/frost_rune1.ogg",
+      "seconds": 0.8449886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8304795026779175,
+      "rms": 0.0581905770727051,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/frost_rune2.ogg",
+      "seconds": 0.7449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8020311594009399,
+      "rms": 0.07941043528070851,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/halt1.ogg",
+      "seconds": 0.36498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7247114181518555,
+      "rms": 0.09251170251992874,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/halt2.ogg",
+      "seconds": 0.31498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8065927624702454,
+      "rms": 0.09975113335196953,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/heavy_impact1.ogg",
+      "seconds": 0.5149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8444405794143677,
+      "rms": 0.16136941735287832,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/heavy_impact2.ogg",
+      "seconds": 0.4049886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8531745672225952,
+      "rms": 0.15367387869209462,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/heavy_impact3.ogg",
+      "seconds": 0.37,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8125768899917603,
+      "rms": 0.20293597808123,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/heavy_impact4.ogg",
+      "seconds": 0.4049886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8094779849052429,
+      "rms": 0.19188814400354479,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/impact1.ogg",
+      "seconds": 0.43,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6029624342918396,
+      "rms": 0.14402565884125074,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/impact2.ogg",
+      "seconds": 0.48,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7795825600624084,
+      "rms": 0.12608681174040542,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/impact3.ogg",
+      "seconds": 0.5849886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6110379099845886,
+      "rms": 0.12480063464048181,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/leap_slam1.ogg",
+      "seconds": 0.2749886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7821248173713684,
+      "rms": 0.19945657267133907,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/leap_slam2.ogg",
+      "seconds": 0.30498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8146611452102661,
+      "rms": 0.19149606285031068,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/leap_slam3.ogg",
+      "seconds": 0.46,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.753197431564331,
+      "rms": 0.18624873403524966,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/longsword_cleave1.ogg",
+      "seconds": 0.42,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8961348533630371,
+      "rms": 0.12414502632989621,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/longsword_cleave2.ogg",
+      "seconds": 0.31498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.532729983329773,
+      "rms": 0.10795649139868166,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/mace1.ogg",
+      "seconds": 0.5160090702947846,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6247967481613159,
+      "rms": 0.1072709209570335,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/mace2.ogg",
+      "seconds": 0.58,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5869564414024353,
+      "rms": 0.09531314066674934,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/march1.ogg",
+      "seconds": 0.87,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8547755479812622,
+      "rms": 0.064374494157013,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/march2.ogg",
+      "seconds": 0.6239909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6701287031173706,
+      "rms": 0.06502771489421955,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/march3.ogg",
+      "seconds": 0.6439909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8587841391563416,
+      "rms": 0.08166501873726076,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/rune_cast1.ogg",
+      "seconds": 0.9849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8903992176055908,
+      "rms": 0.08726668424237301,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/rune_cast2.ogg",
+      "seconds": 1.1,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4901826083660126,
+      "rms": 0.061282073500747644,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/shield_thud1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8646977543830872,
+      "rms": 0.11140141939943408,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/shield_thud2.ogg",
+      "seconds": 0.39,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8953271508216858,
+      "rms": 0.14525814125553474,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/shield_thud3.ogg",
+      "seconds": 0.16,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7767432332038879,
+      "rms": 0.2911855523120449,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/shield_thud4.ogg",
+      "seconds": 0.19,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5857946276664734,
+      "rms": 0.24116103904520225,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/shield_thud5.ogg",
+      "seconds": 0.17498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7289578914642334,
+      "rms": 0.17650887790584516,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/spear1.ogg",
+      "seconds": 0.51,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7185423374176025,
+      "rms": 0.13353034184549786,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/spear2.ogg",
+      "seconds": 0.5670068027210884,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6636576652526855,
+      "rms": 0.12319006814891521,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/spear_thrust1.ogg",
+      "seconds": 0.27,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7351247072219849,
+      "rms": 0.15580149670924118,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/spear_thrust2.ogg",
+      "seconds": 0.28,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.767603874206543,
+      "rms": 0.1539311288054709,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/spear_thrust3.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7781843543052673,
+      "rms": 0.1659230919804038,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/summon_arrival1.ogg",
+      "seconds": 0.3039909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7362068891525269,
+      "rms": 0.12404467734565396,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/summon_arrival2.ogg",
+      "seconds": 0.30498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.701538622379303,
+      "rms": 0.1316187394606476,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_heavy1.ogg",
+      "seconds": 0.22,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7010397911071777,
+      "rms": 0.1717650926690945,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_heavy2.ogg",
+      "seconds": 0.2539909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7499552965164185,
+      "rms": 0.1710006006132441,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_heavy3.ogg",
+      "seconds": 0.2639909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7663186192512512,
+      "rms": 0.1369058685190486,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_heavy4.ogg",
+      "seconds": 0.31,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6944359540939331,
+      "rms": 0.16316806789654062,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_light1.ogg",
+      "seconds": 0.16498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8072928786277771,
+      "rms": 0.1629414627876315,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_light2.ogg",
+      "seconds": 0.43,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7871775031089783,
+      "rms": 0.09593794326821954,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_light3.ogg",
+      "seconds": 0.21,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6876276731491089,
+      "rms": 0.1519040756914305,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/swing_light4.ogg",
+      "seconds": 0.16498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.766344428062439,
+      "rms": 0.16828999169331282,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/ward_up1.ogg",
+      "seconds": 0.83,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.46318307518959045,
+      "rms": 0.07031909285778207,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/ward_up2.ogg",
+      "seconds": 0.6849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5698764324188232,
+      "rms": 0.07704344355204074,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/windup1.ogg",
+      "seconds": 0.43,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7000115513801575,
+      "rms": 0.10719935642920636,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/windup2.ogg",
+      "seconds": 0.46,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6928690075874329,
+      "rms": 0.10598355927673657,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/combat/windup3.ogg",
+      "seconds": 0.49,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5247454643249512,
+      "rms": 0.10222434143692034,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/barter_greet.ogg",
+      "seconds": 3.52,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.36705830693244934,
+      "rms": 0.06139305617529347,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/brute_toll_demand.ogg",
+      "seconds": 2.96,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.49917352199554443,
+      "rms": 0.06359983086459593,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/brute_toll_demand2.ogg",
+      "seconds": 5.94,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.39527347683906555,
+      "rms": 0.06677219686683082,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/brute_toll_talk.ogg",
+      "seconds": 3.76,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3802662193775177,
+      "rms": 0.06362135967730358,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/brute_toll_talk_honest.ogg",
+      "seconds": 6.96,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4413357973098755,
+      "rms": 0.06323265113733688,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/brute_toll_talk_walls.ogg",
+      "seconds": 3.76,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.39799973368644714,
+      "rms": 0.06638534333099537,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/caravan_line1.ogg",
+      "seconds": 4.47,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.28372693061828613,
+      "rms": 0.06458672667144748,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/caravan_line2.ogg",
+      "seconds": 10.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2716678977012634,
+      "rms": 0.06469543474926093,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/demo_peddler_greet.ogg",
+      "seconds": 5.06,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3552097678184509,
+      "rms": 0.07058533258680025,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/demo_peddler_haggle_no.ogg",
+      "seconds": 2.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3330390453338623,
+      "rms": 0.07213187163357217,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/demo_peddler_haggle_yes.ogg",
+      "seconds": 2.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3627783954143524,
+      "rms": 0.07174275416255191,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/demo_peddler_intro.ogg",
+      "seconds": 3.11,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.28063371777534485,
+      "rms": 0.07323498819760979,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/minstrels_line1.ogg",
+      "seconds": 6.38,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.30420687794685364,
+      "rms": 0.07093033499448839,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/minstrels_line2.ogg",
+      "seconds": 6.27,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3585953116416931,
+      "rms": 0.06848616707464976,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_demand.ogg",
+      "seconds": 8.26,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.45723530650138855,
+      "rms": 0.06423585132829732,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_demand_reaper.ogg",
+      "seconds": 9.49,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4972975254058838,
+      "rms": 0.07565051018549168,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_demand_red.ogg",
+      "seconds": 9.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2955661714076996,
+      "rms": 0.0582074078304525,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_demand_torch.ogg",
+      "seconds": 10.04,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.23980216681957245,
+      "rms": 0.06141712703726483,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_duel.ogg",
+      "seconds": 1.67,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4681450128555298,
+      "rms": 0.07085714963100208,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_duel_reaper.ogg",
+      "seconds": 2.87,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.41222140192985535,
+      "rms": 0.07464225179483758,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_duel_red.ogg",
+      "seconds": 2.74,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.27175256609916687,
+      "rms": 0.05962861083293454,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_duel_torch.ogg",
+      "seconds": 1.38,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.32707974314689636,
+      "rms": 0.06811126015647384,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_tribute.ogg",
+      "seconds": 2.35,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.39994123578071594,
+      "rms": 0.0656119052287921,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_tribute_reaper.ogg",
+      "seconds": 4.04,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3943847119808197,
+      "rms": 0.07825550115428372,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_tribute_red.ogg",
+      "seconds": 4.04,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2830757200717926,
+      "rms": 0.05899396968087584,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_tribute_torch.ogg",
+      "seconds": 2.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2753337025642395,
+      "rms": 0.0583572731698119,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_truce.ogg",
+      "seconds": 2.68,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5114684700965881,
+      "rms": 0.07114784084840443,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_truce_reaper.ogg",
+      "seconds": 4.17,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5186194181442261,
+      "rms": 0.07410966752270035,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_truce_red.ogg",
+      "seconds": 3.94,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.26630932092666626,
+      "rms": 0.05705305782293557,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_farewell_truce_torch.ogg",
+      "seconds": 2.66,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.24494987726211548,
+      "rms": 0.06982489662266578,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_intro.ogg",
+      "seconds": 3.03,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5589644908905029,
+      "rms": 0.058944660285624624,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_intro_reaper.ogg",
+      "seconds": 4.38,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.43943139910697937,
+      "rms": 0.07504827244575185,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_intro_red.ogg",
+      "seconds": 4.05,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.31620728969573975,
+      "rms": 0.060498116959543484,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_intro_torch.ogg",
+      "seconds": 3.96,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2630453407764435,
+      "rms": 0.06749391174237862,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_duel.ogg",
+      "seconds": 4.13,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5037896037101746,
+      "rms": 0.05952851399097429,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_duel_reaper.ogg",
+      "seconds": 7.0,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5347889065742493,
+      "rms": 0.07494920427625978,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_duel_red.ogg",
+      "seconds": 5.77,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3425145745277405,
+      "rms": 0.057448934401065764,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_duel_torch.ogg",
+      "seconds": 6.18,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.19608893990516663,
+      "rms": 0.06272096631001722,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_refuse.ogg",
+      "seconds": 0.78,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3727548122406006,
+      "rms": 0.0642961242618355,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_refuse_reaper.ogg",
+      "seconds": 1.37,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5841550827026367,
+      "rms": 0.0732618486271186,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_refuse_red.ogg",
+      "seconds": 1.44,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.25813496112823486,
+      "rms": 0.06604723062211793,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_refuse_torch.ogg",
+      "seconds": 0.98,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3312785029411316,
+      "rms": 0.06656646257792291,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_tribute.ogg",
+      "seconds": 3.8,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5008495450019836,
+      "rms": 0.06544876212066628,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_tribute_reaper.ogg",
+      "seconds": 4.32,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.448949933052063,
+      "rms": 0.07400826885320301,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_tribute_red.ogg",
+      "seconds": 4.62,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2826535701751709,
+      "rms": 0.060284408488487755,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_tribute_torch.ogg",
+      "seconds": 5.09,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2503727674484253,
+      "rms": 0.05841950135288188,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_no.ogg",
+      "seconds": 3.16,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4651678204536438,
+      "rms": 0.0639453174906461,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_no_reaper.ogg",
+      "seconds": 3.18,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3521724343299866,
+      "rms": 0.0712845517197135,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_no_red.ogg",
+      "seconds": 3.06,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.27380865812301636,
+      "rms": 0.06229168650150479,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_no_torch.ogg",
+      "seconds": 3.54,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.20907896757125854,
+      "rms": 0.06426371486725174,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_yes.ogg",
+      "seconds": 3.65,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3421615660190582,
+      "rms": 0.06100794925165146,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_yes_reaper.ogg",
+      "seconds": 5.48,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.36954739689826965,
+      "rms": 0.0763327385948605,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_yes_red.ogg",
+      "seconds": 4.68,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.28999507427215576,
+      "rms": 0.05803712438049697,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_truce_yes_torch.ogg",
+      "seconds": 12.05,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.17940740287303925,
+      "rms": 0.06303989602466925,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_no.ogg",
+      "seconds": 2.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.42661598324775696,
+      "rms": 0.0553325455664637,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_no_reaper.ogg",
+      "seconds": 3.52,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4108738601207733,
+      "rms": 0.07211369927741258,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_no_red.ogg",
+      "seconds": 3.12,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2709161937236786,
+      "rms": 0.05511439313756193,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_no_torch.ogg",
+      "seconds": 2.66,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2017822116613388,
+      "rms": 0.061615648701830915,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_yes.ogg",
+      "seconds": 4.39,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5076087713241577,
+      "rms": 0.06315062003836723,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_yes_reaper.ogg",
+      "seconds": 5.46,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.44176629185676575,
+      "rms": 0.07489314963507418,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_yes_red.ogg",
+      "seconds": 5.35,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.31292346119880676,
+      "rms": 0.06004852352212776,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/parley_reply_warn_yes_torch.ogg",
+      "seconds": 15.71,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.1732337772846222,
+      "rms": 0.061819523053638546,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/peddler_line1.ogg",
+      "seconds": 6.48,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3381478190422058,
+      "rms": 0.060310935078053664,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/refugees_line1.ogg",
+      "seconds": 3.36,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.29605820775032043,
+      "rms": 0.07091203400248546,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/refugees_line2.ogg",
+      "seconds": 3.11,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2779211103916168,
+      "rms": 0.07165477141884832,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/refugees_work.ogg",
+      "seconds": 2.28,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.22729873657226562,
+      "rms": 0.07428924385140712,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/rival_envoy_intro.ogg",
+      "seconds": 1.95,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5811929702758789,
+      "rms": 0.07051229783529565,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/rival_envoy_line1.ogg",
+      "seconds": 5.04,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4483267664909363,
+      "rms": 0.07198804426349359,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/rival_envoy_line2.ogg",
+      "seconds": 1.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.43994003534317017,
+      "rms": 0.07541056785329485,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/traveller_bye.ogg",
+      "seconds": 2.27,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3396399915218353,
+      "rms": 0.07748750758685928,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/traveller_greet.ogg",
+      "seconds": 3.94,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.335232675075531,
+      "rms": 0.07614593721080046,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/traveller_intro.ogg",
+      "seconds": 3.02,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2885493040084839,
+      "rms": 0.07636125367139053,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/traveller_news.ogg",
+      "seconds": 3.9,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.39582711458206177,
+      "rms": 0.07330453351099812,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/traveller_shrug.ogg",
+      "seconds": 1.56,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.33400705456733704,
+      "rms": 0.07634400496144315,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/dialogue/traveller_thanks.ogg",
+      "seconds": 2.8,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4272879660129547,
+      "rms": 0.07286821815999454,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/day_banner.ogg",
+      "seconds": 149.95,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.4459942877292633,
+      "rms": 0.09597950535849224,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/day_harvest.ogg",
+      "seconds": 137.8,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.29976215958595276,
+      "rms": 0.08807465345507005,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/day_hearth.ogg",
+      "seconds": 146.25,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.6263566613197327,
+      "rms": 0.08541798275943951,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/day_meadow.ogg",
+      "seconds": 148.2,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.4993824362754822,
+      "rms": 0.09413980542223296,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/night_embers.ogg",
+      "seconds": 148.5,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.50742506980896,
+      "rms": 0.08910031547675733,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/night_watch.ogg",
+      "seconds": 136.0,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.5157150626182556,
+      "rms": 0.09306028027138524,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/raid.ogg",
+      "seconds": 118.6,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.5100208520889282,
+      "rms": 0.09349515540150956,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/raid_defeat.ogg",
+      "seconds": 18.25,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.539549708366394,
+      "rms": 0.07770484226060782,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/raid_victory.ogg",
+      "seconds": 8.9,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.4354495108127594,
+      "rms": 0.071307736559648,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/tavern_jig.ogg",
+      "seconds": 87.99183673469388,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.4527090787887573,
+      "rms": 0.07918194997060476,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/music/title.ogg",
+      "seconds": 146.3,
+      "rate": 44100,
+      "channels": 2,
+      "peak": 0.5427353382110596,
+      "rms": 0.09187189090879166,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/bark1.ogg",
+      "seconds": 0.3739909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6642143726348877,
+      "rms": 0.16952292340645717,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/bark2.ogg",
+      "seconds": 0.6740136054421769,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6219534277915955,
+      "rms": 0.13973647900918187,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/bark3.ogg",
+      "seconds": 0.6149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6611109972000122,
+      "rms": 0.13171202106599356,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/bark4.ogg",
+      "seconds": 0.78,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5450466275215149,
+      "rms": 0.1424868206445286,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/brute_roar1.ogg",
+      "seconds": 1.029002267573696,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7833256125450134,
+      "rms": 0.20345926973831913,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/brute_roar2.ogg",
+      "seconds": 1.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7387786507606506,
+      "rms": 0.21773024587651787,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/brute_roar3.ogg",
+      "seconds": 1.2649886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7467760443687439,
+      "rms": 0.19708939109143558,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/brute_slam1.ogg",
+      "seconds": 0.69,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.781975269317627,
+      "rms": 0.16242232103285364,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/brute_slam2.ogg",
+      "seconds": 0.6250113378684807,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7700844407081604,
+      "rms": 0.1639463076499881,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/brute_slam3.ogg",
+      "seconds": 0.69,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7970644235610962,
+      "rms": 0.17130406032790158,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/death1.ogg",
+      "seconds": 0.78,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5891269445419312,
+      "rms": 0.12434655625317834,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/death2.ogg",
+      "seconds": 0.8649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.45285820960998535,
+      "rms": 0.12477778536461043,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/death3.ogg",
+      "seconds": 0.76,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6347156167030334,
+      "rms": 0.13153082104773592,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/guard_alert1.ogg",
+      "seconds": 2.1,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6947345733642578,
+      "rms": 0.08217208986786369,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/guard_alert2.ogg",
+      "seconds": 1.4049886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6949220299720764,
+      "rms": 0.0934801279788439,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/guard_alert3.ogg",
+      "seconds": 1.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5780226588249207,
+      "rms": 0.10099077336387471,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/horn1.ogg",
+      "seconds": 1.2540136054421769,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4270254075527191,
+      "rms": 0.1570041754398135,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/horn2.ogg",
+      "seconds": 1.5539909297052155,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.49508902430534363,
+      "rms": 0.15970835034191513,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/hurt1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6724668741226196,
+      "rms": 0.13784557715167864,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/hurt2.ogg",
+      "seconds": 0.29498866213151925,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7243127822875977,
+      "rms": 0.15816548687960483,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/hurt3.ogg",
+      "seconds": 0.31498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7762989401817322,
+      "rms": 0.15116143844104868,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/hurt4.ogg",
+      "seconds": 0.30498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7883309721946716,
+      "rms": 0.1497512610233345,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/lost_toll1.ogg",
+      "seconds": 2.3349886621315195,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6944736242294312,
+      "rms": 0.09769346957891324,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/lost_toll2.ogg",
+      "seconds": 1.789002267573696,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.64129638671875,
+      "rms": 0.09729202399889586,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/raid_horn1.ogg",
+      "seconds": 3.0,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6563276648521423,
+      "rms": 0.16893210991102375,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/raid_horn2.ogg",
+      "seconds": 3.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7012744545936584,
+      "rms": 0.19212540691501986,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/raid_won1.ogg",
+      "seconds": 0.92,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4175514876842499,
+      "rms": 0.07179926273741137,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/raid_won2.ogg",
+      "seconds": 0.5249886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5255682468414307,
+      "rms": 0.08957570380589869,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/raid_won3.ogg",
+      "seconds": 0.7249886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.44698527455329895,
+      "rms": 0.08309743113341111,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/rally1.ogg",
+      "seconds": 1.5149886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6069912910461426,
+      "rms": 0.16085464666805172,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/rally2.ogg",
+      "seconds": 1.82,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6791516542434692,
+      "rms": 0.14649413662199756,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/won_fanfare1.ogg",
+      "seconds": 1.7749886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6372748613357544,
+      "rms": 0.13788539897082325,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/raid/won_fanfare2.ogg",
+      "seconds": 2.184988662131519,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.647057056427002,
+      "rms": 0.1311578688935161,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/bar_creak1.ogg",
+      "seconds": 0.5149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5453154444694519,
+      "rms": 0.03836524066096369,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/bar_creak2.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4273551404476166,
+      "rms": 0.03815351966686437,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/burp1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3373691737651825,
+      "rms": 0.04339579096368838,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/burp2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.46124038100242615,
+      "rms": 0.044587988755465414,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/burp3.ogg",
+      "seconds": 0.41498866213151925,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.31971117854118347,
+      "rms": 0.03997797303673572,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/chuckle1.ogg",
+      "seconds": 0.5249886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5975367426872253,
+      "rms": 0.06931638537759992,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/chuckle2.ogg",
+      "seconds": 0.53,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5340511202812195,
+      "rms": 0.06568183505860033,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/chuckle3.ogg",
+      "seconds": 0.6890022675736961,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3900534510612488,
+      "rms": 0.06378645831117112,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/clink1.ogg",
+      "seconds": 0.5749886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7396934032440186,
+      "rms": 0.06936478899947146,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/clink2.ogg",
+      "seconds": 0.54,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6781524419784546,
+      "rms": 0.06687000998486693,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/clink3.ogg",
+      "seconds": 0.5649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8267794251441956,
+      "rms": 0.09591647675126959,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/clink4.ogg",
+      "seconds": 0.5349886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7977916598320007,
+      "rms": 0.09320126959327198,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/cloth_rustle1.ogg",
+      "seconds": 0.43,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3375639319419861,
+      "rms": 0.05641230284686073,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/cloth_rustle2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.31585729122161865,
+      "rms": 0.06626020554219839,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/cloth_rustle3.ogg",
+      "seconds": 0.33997732426303856,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5542222261428833,
+      "rms": 0.08801345286908764,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/drink1.ogg",
+      "seconds": 0.33997732426303856,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7928410172462463,
+      "rms": 0.08589309764745284,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/drink2.ogg",
+      "seconds": 0.25,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6313217878341675,
+      "rms": 0.09812614919676596,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/drink3.ogg",
+      "seconds": 0.39,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6983603835105896,
+      "rms": 0.08854420943500634,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/heh1.ogg",
+      "seconds": 0.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2037762850522995,
+      "rms": 0.0699011418726078,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/heh2.ogg",
+      "seconds": 0.23900226757369614,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.22594429552555084,
+      "rms": 0.06730232415232605,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/heh3.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.24193167686462402,
+      "rms": 0.03667372084463841,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/hiccup1.ogg",
+      "seconds": 0.13900226757369616,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3290941119194031,
+      "rms": 0.06939487174486399,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/hiccup2.ogg",
+      "seconds": 0.19,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.25622469186782837,
+      "rms": 0.05774790814569274,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/hiccup3.ogg",
+      "seconds": 0.29,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2693224549293518,
+      "rms": 0.060463658167824993,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/hiccup4.ogg",
+      "seconds": 0.20900226757369614,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.26021862030029297,
+      "rms": 0.051999930682406346,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/jig_step1.ogg",
+      "seconds": 0.19299319727891157,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6967531442642212,
+      "rms": 0.08742084030541739,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/jig_step2.ogg",
+      "seconds": 0.19498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.861012876033783,
+      "rms": 0.08704053566989854,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/jig_step3.ogg",
+      "seconds": 0.2280045351473923,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7196362614631653,
+      "rms": 0.08112246846399275,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/jig_step4.ogg",
+      "seconds": 0.23498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5802714824676514,
+      "rms": 0.08093013548974433,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/minstrel_sting1.ogg",
+      "seconds": 2.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.38997337222099304,
+      "rms": 0.09782740623096818,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/minstrel_sting2.ogg",
+      "seconds": 2.894988662131519,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.463644802570343,
+      "rms": 0.09132845443420819,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/minstrel_sting3.ogg",
+      "seconds": 2.9649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4441153407096863,
+      "rms": 0.09948075245636924,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/mug_set1.ogg",
+      "seconds": 0.37,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.757370114326477,
+      "rms": 0.08099905960141314,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/mug_set2.ogg",
+      "seconds": 0.23201814058956916,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6824184060096741,
+      "rms": 0.08937111452861402,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/mug_set3.ogg",
+      "seconds": 0.4049886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7898604869842529,
+      "rms": 0.08186502479709493,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/mug_set4.ogg",
+      "seconds": 0.3319954648526077,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.76036536693573,
+      "rms": 0.07836248516899934,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/pour1.ogg",
+      "seconds": 0.7,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.47745460271835327,
+      "rms": 0.07570945380557959,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/pour2.ogg",
+      "seconds": 0.9449886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5292956829071045,
+      "rms": 0.0861894359964912,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/pour3.ogg",
+      "seconds": 0.88,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3666734993457794,
+      "rms": 0.06861036981654911,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/punch_hit1.ogg",
+      "seconds": 0.23498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7143127918243408,
+      "rms": 0.1792682495343373,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/punch_hit2.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8853914737701416,
+      "rms": 0.261728262898539,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/punch_hit3.ogg",
+      "seconds": 0.2749886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.73087477684021,
+      "rms": 0.23998761392864917,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/scuff1.ogg",
+      "seconds": 0.1489795918367347,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7205345034599304,
+      "rms": 0.08274957364707,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/scuff2.ogg",
+      "seconds": 0.15,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6539880633354187,
+      "rms": 0.08063393860438761,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/scuff3.ogg",
+      "seconds": 0.22498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.37648430466651917,
+      "rms": 0.07267476374993331,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/seat_creak1.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.33594614267349243,
+      "rms": 0.037035806405461925,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/seat_creak2.ogg",
+      "seconds": 0.3539909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4497464895248413,
+      "rms": 0.04435162090959623,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/seat_creak3.ogg",
+      "seconds": 0.3449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4675191342830658,
+      "rms": 0.04505956729027889,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/table_slap1.ogg",
+      "seconds": 0.19299319727891157,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8245494365692139,
+      "rms": 0.12152584167386696,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/table_slap2.ogg",
+      "seconds": 0.1519954648526077,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7742963433265686,
+      "rms": 0.11167228186095488,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/table_slap3.ogg",
+      "seconds": 0.15501133786848073,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7085556983947754,
+      "rms": 0.094960338298203,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tap_valve1.ogg",
+      "seconds": 0.2849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5149523615837097,
+      "rms": 0.053600057544184516,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tap_valve2.ogg",
+      "seconds": 0.2649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6265172958374023,
+      "rms": 0.06514797241800048,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tap_valve3.ogg",
+      "seconds": 0.26,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3525470495223999,
+      "rms": 0.07923834513997369,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_ambience1.ogg",
+      "seconds": 11.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.38431334495544434,
+      "rms": 0.08331913983723226,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_ambience2.ogg",
+      "seconds": 11.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4379304051399231,
+      "rms": 0.08307125563430387,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_fire1.ogg",
+      "seconds": 3.0949886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4346087872982025,
+      "rms": 0.042150063877655436,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_fire2.ogg",
+      "seconds": 3.3039909297052152,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9940658211708069,
+      "rms": 0.03942537264074466,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_fire3.ogg",
+      "seconds": 2.9939909297052156,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9645577073097229,
+      "rms": 0.03231449782434592,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_laugh1.ogg",
+      "seconds": 2.1999773242630387,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5194064974784851,
+      "rms": 0.10187811120459561,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_laugh2.ogg",
+      "seconds": 2.3649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5586486458778381,
+      "rms": 0.09184198406340181,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_laugh3.ogg",
+      "seconds": 2.3449886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5577841997146606,
+      "rms": 0.10249774858164287,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/tavern_laugh4.ogg",
+      "seconds": 2.1399773242630387,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5954604148864746,
+      "rms": 0.09934200424044934,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/thud1.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8181045055389404,
+      "rms": 0.07834117081848065,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/thud2.ogg",
+      "seconds": 0.36,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6959102749824524,
+      "rms": 0.09182825664817423,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/tavern/thud3.ogg",
+      "seconds": 0.4649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5224665999412537,
+      "rms": 0.05997768955560104,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/building_level_up1.ogg",
+      "seconds": 1.6690022675736962,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8034910559654236,
+      "rms": 0.1091438559177375,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/building_level_up2.ogg",
+      "seconds": 2.1149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9030699729919434,
+      "rms": 0.08858014028614564,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/click1.ogg",
+      "seconds": 0.13201814058956915,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8239072561264038,
+      "rms": 0.09046530944560387,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/click2.ogg",
+      "seconds": 0.11700680272108843,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6185849905014038,
+      "rms": 0.09646859540991971,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/click3.ogg",
+      "seconds": 0.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7019281983375549,
+      "rms": 0.06932469743036147,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/coin_sale1.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6510030031204224,
+      "rms": 0.06779710456904753,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/coin_sale2.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7418770790100098,
+      "rms": 0.06797460071727555,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/coin_sale3.ogg",
+      "seconds": 0.48,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5526958703994751,
+      "rms": 0.07549706331070197,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/coin_sale4.ogg",
+      "seconds": 0.51,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6433968544006348,
+      "rms": 0.06606261280534953,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/conversation_open1.ogg",
+      "seconds": 0.5849886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8361623287200928,
+      "rms": 0.07781333300249203,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/conversation_open2.ogg",
+      "seconds": 0.7249886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5471884608268738,
+      "rms": 0.0736788692359674,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/conversation_open3.ogg",
+      "seconds": 0.7949886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6774982213973999,
+      "rms": 0.06736748112373094,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/craft_glint1.ogg",
+      "seconds": 0.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.43942970037460327,
+      "rms": 0.058047860334796426,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/craft_glint2.ogg",
+      "seconds": 0.7349886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.42584389448165894,
+      "rms": 0.05993625677573014,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/craft_glint3.ogg",
+      "seconds": 0.66,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.42074376344680786,
+      "rms": 0.05824962287475615,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/craft_legendary1.ogg",
+      "seconds": 1.8149886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5685893893241882,
+      "rms": 0.10047181288651574,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/craft_legendary2.ogg",
+      "seconds": 1.4949886621315194,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5885865092277527,
+      "rms": 0.09059650127680167,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/deal1.ogg",
+      "seconds": 0.37498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6017529964447021,
+      "rms": 0.08981824948184507,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/deal2.ogg",
+      "seconds": 0.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7384411692619324,
+      "rms": 0.09581765135118611,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/guard_experience1.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4628061354160309,
+      "rms": 0.09470990053838427,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/guard_experience2.ogg",
+      "seconds": 0.3249886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7434031367301941,
+      "rms": 0.09530719504423467,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/guard_experience3.ogg",
+      "seconds": 0.36498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6632136702537537,
+      "rms": 0.08832933333297062,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/journey_chapter1.ogg",
+      "seconds": 1.56,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7847510576248169,
+      "rms": 0.11886023028670323,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/journey_chapter2.ogg",
+      "seconds": 1.6149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6807664632797241,
+      "rms": 0.11681396949618951,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/map_ping1.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7642584443092346,
+      "rms": 0.08535069624303353,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/map_ping2.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5540412068367004,
+      "rms": 0.0937670700406421,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/name_card1.ogg",
+      "seconds": 0.3,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6641795039176941,
+      "rms": 0.07281885895284809,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/name_card2.ogg",
+      "seconds": 0.37498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7405145764350891,
+      "rms": 0.05953299451400438,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/order_confirmed1.ogg",
+      "seconds": 0.4749886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.48525282740592957,
+      "rms": 0.09625839169037229,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/order_confirmed2.ogg",
+      "seconds": 0.36498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5346095561981201,
+      "rms": 0.10695176456170426,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/page_turn1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6616501808166504,
+      "rms": 0.055861867488816025,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/page_turn2.ogg",
+      "seconds": 0.37,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5203593969345093,
+      "rms": 0.0609700318927819,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/page_turn3.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5552630424499512,
+      "rms": 0.05235288725350701,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/page_turn4.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.45168614387512207,
+      "rms": 0.05733439292622968,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/patrol_waypoint1.ogg",
+      "seconds": 0.26,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.26254400610923767,
+      "rms": 0.06697889895108544,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/patrol_waypoint2.ogg",
+      "seconds": 0.47401360544217686,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.30914708971977234,
+      "rms": 0.05445960771206377,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/persuade_fail1.ogg",
+      "seconds": 0.5749886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5647659301757812,
+      "rms": 0.09992498152546794,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/persuade_fail2.ogg",
+      "seconds": 0.4749886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.32690516114234924,
+      "rms": 0.10648847660928899,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/persuade_ok1.ogg",
+      "seconds": 1.0,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6310610175132751,
+      "rms": 0.07750267627068874,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/persuade_ok2.ogg",
+      "seconds": 0.7649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5599892735481262,
+      "rms": 0.09708684273334325,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/profession_assigned1.ogg",
+      "seconds": 0.5849886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7634656429290771,
+      "rms": 0.11295925992336948,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/profession_assigned2.ogg",
+      "seconds": 0.68,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7317660450935364,
+      "rms": 0.08377964282392904,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/profession_assigned3.ogg",
+      "seconds": 0.74,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4672953486442566,
+      "rms": 0.1125322783255157,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/promoted1.ogg",
+      "seconds": 2.3249886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7843360304832458,
+      "rms": 0.12680955009530456,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/promoted2.ogg",
+      "seconds": 2.0049886621315194,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6977614164352417,
+      "rms": 0.13423553892485107,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/pull_in1.ogg",
+      "seconds": 0.3949886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6992981433868408,
+      "rms": 0.08642367378864474,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/pull_in2.ogg",
+      "seconds": 0.4489795918367347,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6711391806602478,
+      "rms": 0.08327769960512024,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/settlement_founded1.ogg",
+      "seconds": 1.6449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7759582996368408,
+      "rms": 0.13965010450713436,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/settlement_founded2.ogg",
+      "seconds": 2.2749886621315194,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9018597602844238,
+      "rms": 0.16929312359798648,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/settler_recruited1.ogg",
+      "seconds": 2.07,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7865499258041382,
+      "rms": 0.12812298880879422,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/settler_recruited2.ogg",
+      "seconds": 1.78,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7804599404335022,
+      "rms": 0.12266481487540945,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/skill_level_up1.ogg",
+      "seconds": 0.43,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3497944176197052,
+      "rms": 0.08138135083009934,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/skill_level_up2.ogg",
+      "seconds": 0.75,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3563575744628906,
+      "rms": 0.06264155074825088,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/tech_learned1.ogg",
+      "seconds": 1.78,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8693228960037231,
+      "rms": 0.09334240185607227,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/tech_learned2.ogg",
+      "seconds": 1.7549886621315194,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7241095304489136,
+      "rms": 0.09457979695332788,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_close1.ogg",
+      "seconds": 0.3,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7312518358230591,
+      "rms": 0.086684915543955,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_close2.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5745878219604492,
+      "rms": 0.07928584541616766,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_confirm1.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.729823887348175,
+      "rms": 0.054827269504818366,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_confirm2.ogg",
+      "seconds": 0.27,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.527531087398529,
+      "rms": 0.08675857935149721,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_confirm3.ogg",
+      "seconds": 0.11498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7945271730422974,
+      "rms": 0.16661238662615374,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_error1.ogg",
+      "seconds": 0.3249886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8715800046920776,
+      "rms": 0.09612958336964578,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_error2.ogg",
+      "seconds": 0.16,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7123878002166748,
+      "rms": 0.15471737275366593,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_open1.ogg",
+      "seconds": 0.2849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6783639788627625,
+      "rms": 0.07788479874212142,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_open2.ogg",
+      "seconds": 0.37,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6456581354141235,
+      "rms": 0.06850002332787862,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/ui_open3.ogg",
+      "seconds": 0.3449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5951279401779175,
+      "rms": 0.08263976161697202,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/ui/warehouse_level_up1.ogg",
+      "seconds": 1.3,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7558298707008362,
+      "rms": 0.12359220100129883,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/archer1.ogg",
+      "seconds": 0.5340136054421769,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7699026465415955,
+      "rms": 0.06974330239961908,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/archer2.ogg",
+      "seconds": 0.5190022675736962,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6127026081085205,
+      "rms": 0.09662957536523653,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/cheer1.ogg",
+      "seconds": 1.05,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6366357207298279,
+      "rms": 0.15967369997815428,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/cheer2.ogg",
+      "seconds": 1.0149886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.657846987247467,
+      "rms": 0.14691688596394661,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/cheer3.ogg",
+      "seconds": 1.08,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9005698561668396,
+      "rms": 0.15440555745327927,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/cheer4.ogg",
+      "seconds": 1.0849886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6827576160430908,
+      "rms": 0.17145892857528353,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/command_ack1.ogg",
+      "seconds": 0.6949886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.369210422039032,
+      "rms": 0.11975085168031331,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/command_ack2.ogg",
+      "seconds": 0.6790022675736962,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4865545630455017,
+      "rms": 0.12044057045923079,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/command_ack3.ogg",
+      "seconds": 0.5640136054421768,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4012430012226105,
+      "rms": 0.13527088029381545,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/command_shout1.ogg",
+      "seconds": 0.32900226757369616,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7004047632217407,
+      "rms": 0.1691513442684982,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/command_shout2.ogg",
+      "seconds": 0.33900226757369617,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8943731188774109,
+      "rms": 0.1823850114477767,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/command_shout3.ogg",
+      "seconds": 0.3240136054421769,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9239451885223389,
+      "rms": 0.1927058070401531,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/death1.ogg",
+      "seconds": 0.6449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6816663146018982,
+      "rms": 0.11159835002735809,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/death2.ogg",
+      "seconds": 0.6940136054421768,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7395790815353394,
+      "rms": 0.10557062034168592,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/groan1.ogg",
+      "seconds": 0.6649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.40231573581695557,
+      "rms": 0.05340932055800074,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/groan2.ogg",
+      "seconds": 0.6999773242630386,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.26529353857040405,
+      "rms": 0.04986567346358874,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/groan3.ogg",
+      "seconds": 0.64,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.24482204020023346,
+      "rms": 0.05877375530711804,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/grunt1.ogg",
+      "seconds": 0.17498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7159402966499329,
+      "rms": 0.10825424092769263,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/grunt2.ogg",
+      "seconds": 0.18498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4288119673728943,
+      "rms": 0.11095936795199071,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/grunt3.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5166887044906616,
+      "rms": 0.0768056760204291,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/guard_cheer1.ogg",
+      "seconds": 0.88,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6123675107955933,
+      "rms": 0.15018166667474298,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/guard_cheer2.ogg",
+      "seconds": 0.9949886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6955177783966064,
+      "rms": 0.15191576269668033,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/guard_cheer3.ogg",
+      "seconds": 1.2149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5979456901550293,
+      "rms": 0.14403530332994505,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/guard_cheer4.ogg",
+      "seconds": 1.0749886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6459998488426208,
+      "rms": 0.1562675366848012,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/hurt1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8320888876914978,
+      "rms": 0.10236147154818566,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/hurt2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7165038585662842,
+      "rms": 0.09470126477751394,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/hurt3.ogg",
+      "seconds": 0.22498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7508598566055298,
+      "rms": 0.15103191341837907,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/hurt4.ogg",
+      "seconds": 0.37498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6963894963264465,
+      "rms": 0.1191555811717153,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/mage1.ogg",
+      "seconds": 0.6049886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5567736029624939,
+      "rms": 0.11117105101660364,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/mage2.ogg",
+      "seconds": 0.89,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.30869585275650024,
+      "rms": 0.10011913283501413,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/spear1.ogg",
+      "seconds": 0.67,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3628913164138794,
+      "rms": 0.13362408228034095,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice/spear2.ogg",
+      "seconds": 0.7140136054421768,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4452360272407532,
+      "rms": 0.1267595930157616,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice_brute/grunt1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2899351418018341,
+      "rms": 0.07455586077479755,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice_brute/grunt2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.334003210067749,
+      "rms": 0.06969386884872215,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice_brute/grunt3.ogg",
+      "seconds": 0.27843537414965985,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.43770140409469604,
+      "rms": 0.08374320366354233,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice_brute/grunt4.ogg",
+      "seconds": 0.32387755102040816,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2860864996910095,
+      "rms": 0.07708613174709444,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/voice_brute/grunt5.ogg",
+      "seconds": 0.4488888888888889,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2533954679965973,
+      "rms": 0.06505068179839084,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/anvil_ring1.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.537935733795166,
+      "rms": 0.058907468846853994,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/anvil_ring2.ogg",
+      "seconds": 0.26,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4203561842441559,
+      "rms": 0.08444874944143177,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/anvil_ring3.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.36957356333732605,
+      "rms": 0.06594026588304175,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/anvil_ring4.ogg",
+      "seconds": 0.35,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5597606301307678,
+      "rms": 0.08420476837825824,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/anvil_ring5.ogg",
+      "seconds": 0.38,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5873106718063354,
+      "rms": 0.07348322415338522,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/anvil_ring6.ogg",
+      "seconds": 0.37498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4768219590187073,
+      "rms": 0.07441207296500846,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bar_wipe1.ogg",
+      "seconds": 0.5449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.30466705560684204,
+      "rms": 0.04580996471371724,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bar_wipe2.ogg",
+      "seconds": 0.5349886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.20820337533950806,
+      "rms": 0.049754083475720016,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bar_wipe3.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.2241131216287613,
+      "rms": 0.04689510010417544,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bellows_puff1.ogg",
+      "seconds": 0.5449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4693297743797302,
+      "rms": 0.05710101908649496,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bellows_puff2.ogg",
+      "seconds": 0.63,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5622323751449585,
+      "rms": 0.06014095555711824,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bellows_puff3.ogg",
+      "seconds": 0.28399092970521544,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5211278200149536,
+      "rms": 0.1032272599687877,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bow_loose1.ogg",
+      "seconds": 0.20498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7709006071090698,
+      "rms": 0.1782211990737907,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bow_loose2.ogg",
+      "seconds": 0.2649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5714540481567383,
+      "rms": 0.1540489447278362,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/bow_loose3.ogg",
+      "seconds": 0.19,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.55019211769104,
+      "rms": 0.17220834891610773,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chisel_tap1.ogg",
+      "seconds": 0.1350113378684807,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6584388613700867,
+      "rms": 0.10198432406043777,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chisel_tap2.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6295733451843262,
+      "rms": 0.06503870427780933,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chisel_tap3.ogg",
+      "seconds": 0.21,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.34593886137008667,
+      "rms": 0.07750250499298228,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chisel_tap4.ogg",
+      "seconds": 0.13498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.693336546421051,
+      "rms": 0.09564741675764589,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chisel_tap5.ogg",
+      "seconds": 0.17,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7878263592720032,
+      "rms": 0.10613572899636187,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chop1.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7893171310424805,
+      "rms": 0.08770975840760552,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chop2.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7493912577629089,
+      "rms": 0.10518379021554275,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chop3.ogg",
+      "seconds": 0.16401360544217686,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.873085081577301,
+      "rms": 0.15986854378163323,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chop4.ogg",
+      "seconds": 0.2,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7345075607299805,
+      "rms": 0.14779573414559496,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/chop5.ogg",
+      "seconds": 0.22498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7284543514251709,
+      "rms": 0.1184643479888371,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/cleaver_chop1.ogg",
+      "seconds": 0.19498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6027631759643555,
+      "rms": 0.10218646313617227,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/cleaver_chop2.ogg",
+      "seconds": 0.19498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6551836133003235,
+      "rms": 0.09656206965224197,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/cleaver_chop3.ogg",
+      "seconds": 0.19,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.703158438205719,
+      "rms": 0.11361686147936387,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/cleaver_chop4.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.630274772644043,
+      "rms": 0.07420562916223623,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/crop_pull1.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5489583611488342,
+      "rms": 0.054377139057353786,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/crop_pull2.ogg",
+      "seconds": 0.31,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7442337870597839,
+      "rms": 0.053198785004156465,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/crop_pull3.ogg",
+      "seconds": 0.37498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.40114742517471313,
+      "rms": 0.05369382244838798,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/crop_pull4.ogg",
+      "seconds": 0.33997732426303856,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.335531622171402,
+      "rms": 0.051966763582800134,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/farmer_work1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6413601636886597,
+      "rms": 0.06190082176157154,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/farmer_work2.ogg",
+      "seconds": 0.21900226757369615,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.45654743909835815,
+      "rms": 0.0928388416103626,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/farmer_work3.ogg",
+      "seconds": 0.21,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.339395135641098,
+      "rms": 0.0921232191936171,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/farmer_work4.ogg",
+      "seconds": 0.22,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6361247301101685,
+      "rms": 0.08632709285067933,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/farmer_work5.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7326977849006653,
+      "rms": 0.06709548030732665,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/feather_pinch1.ogg",
+      "seconds": 0.4,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6877338886260986,
+      "rms": 0.04385669731585276,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/feather_pinch2.ogg",
+      "seconds": 0.22,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4856410324573517,
+      "rms": 0.05146974848247646,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/feather_pinch3.ogg",
+      "seconds": 0.21498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4194139838218689,
+      "rms": 0.05577810221435128,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/fish_splash1.ogg",
+      "seconds": 0.7449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8636707663536072,
+      "rms": 0.07311923029696471,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/fish_splash2.ogg",
+      "seconds": 0.71,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7606849670410156,
+      "rms": 0.07179166113288991,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/fish_splash3.ogg",
+      "seconds": 0.44997732426303855,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6184408068656921,
+      "rms": 0.09662785785747223,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/hide_scrape1.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.31064364314079285,
+      "rms": 0.0528029135857021,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/hide_scrape2.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.35163620114326477,
+      "rms": 0.056786405518560304,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/hide_scrape3.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.34361934661865234,
+      "rms": 0.053915991266496294,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/knead_press1.ogg",
+      "seconds": 0.4549886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7453867793083191,
+      "rms": 0.03528849883120978,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/knead_press2.ogg",
+      "seconds": 0.3449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5620464086532593,
+      "rms": 0.05087789577763442,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/knead_press3.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8012254238128662,
+      "rms": 0.051169652353754376,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/ledger_tally1.ogg",
+      "seconds": 0.3490022675736961,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.41107964515686035,
+      "rms": 0.05636982297712401,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/ledger_tally2.ogg",
+      "seconds": 0.4439909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.43867596983909607,
+      "rms": 0.046044558085275106,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/ledger_tally3.ogg",
+      "seconds": 0.47,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4876769185066223,
+      "rms": 0.04804994386722832,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/loom_clack1.ogg",
+      "seconds": 0.14,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8313726782798767,
+      "rms": 0.09946955323454507,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/loom_clack2.ogg",
+      "seconds": 0.22900226757369616,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5634464025497437,
+      "rms": 0.07169414654907784,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/loom_clack3.ogg",
+      "seconds": 0.3249886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7554330825805664,
+      "rms": 0.21200351812115234,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/loom_clack4.ogg",
+      "seconds": 0.1260090702947846,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8389518857002258,
+      "rms": 0.09241179804838696,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/mash_stir1.ogg",
+      "seconds": 0.57,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6918279528617859,
+      "rms": 0.05169129976038508,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/mash_stir2.ogg",
+      "seconds": 0.51,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7188476324081421,
+      "rms": 0.06575398892349262,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/mash_stir3.ogg",
+      "seconds": 0.5149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7767168879508972,
+      "rms": 0.05499179307548262,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/oven_slide1.ogg",
+      "seconds": 0.54,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4520763158798218,
+      "rms": 0.06154425769714939,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/oven_slide2.ogg",
+      "seconds": 0.69,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4003463089466095,
+      "rms": 0.06261021841385896,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/oven_slide3.ogg",
+      "seconds": 0.62,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4190678000450134,
+      "rms": 0.061900087609436515,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pestle_grind1.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.543856680393219,
+      "rms": 0.07014566146184899,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pestle_grind2.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.45273661613464355,
+      "rms": 0.05199113420976984,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pestle_grind3.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.295638769865036,
+      "rms": 0.05343716025952846,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pick_strike1.ogg",
+      "seconds": 0.23201814058956916,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8111638426780701,
+      "rms": 0.0671442162012529,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pick_strike2.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.842487633228302,
+      "rms": 0.057285822924596955,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pick_strike3.ogg",
+      "seconds": 0.20498866213151928,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7859644889831543,
+      "rms": 0.07396475379403379,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pick_strike4.ogg",
+      "seconds": 0.23800453514739228,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8000161051750183,
+      "rms": 0.06988692480335815,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pick_strike5.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8103551864624023,
+      "rms": 0.05581665775025328,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plane_shave1.ogg",
+      "seconds": 0.5149886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.36102160811424255,
+      "rms": 0.07075384086273089,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plane_shave2.ogg",
+      "seconds": 0.5649886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.27310049533843994,
+      "rms": 0.06672854938186805,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plane_shave3.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3072131276130676,
+      "rms": 0.06521272413646244,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plane_shave4.ogg",
+      "seconds": 0.5549886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.274118572473526,
+      "rms": 0.0668402164457904,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plate_hammer1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.46788519620895386,
+      "rms": 0.058984890031716634,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plate_hammer2.ogg",
+      "seconds": 0.24,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5366595983505249,
+      "rms": 0.08975437884320678,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plate_hammer3.ogg",
+      "seconds": 0.28,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4962020516395569,
+      "rms": 0.07676001775496552,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/plate_hammer4.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.566384494304657,
+      "rms": 0.058193388544154144,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pot_stir1.ogg",
+      "seconds": 0.6849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7535972595214844,
+      "rms": 0.05355887464761275,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pot_stir2.ogg",
+      "seconds": 0.6940136054421768,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8216262459754944,
+      "rms": 0.05140273840308446,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/pot_stir3.ogg",
+      "seconds": 0.9,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6527100205421448,
+      "rms": 0.049703930330807465,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quern_grind1.ogg",
+      "seconds": 0.79,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6034880876541138,
+      "rms": 0.06475001472664435,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quern_grind2.ogg",
+      "seconds": 0.6849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7555516362190247,
+      "rms": 0.06495376900284408,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quern_grind3.ogg",
+      "seconds": 0.68,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7758158445358276,
+      "rms": 0.07432229586295248,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quill_scratch1.ogg",
+      "seconds": 0.54,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3373158276081085,
+      "rms": 0.05399459428958408,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quill_scratch2.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4365409016609192,
+      "rms": 0.05242238973229316,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quill_scratch3.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.37716829776763916,
+      "rms": 0.06036951738235599,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/quill_scratch4.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5210584402084351,
+      "rms": 0.0556439979639874,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/saw_stroke1.ogg",
+      "seconds": 0.8890022675736962,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6429972052574158,
+      "rms": 0.09701956477525359,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/saw_stroke2.ogg",
+      "seconds": 0.86,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7654246687889099,
+      "rms": 0.0989004826364328,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/saw_stroke3.ogg",
+      "seconds": 0.8849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6472745537757874,
+      "rms": 0.10010646117289791,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/saw_stroke4.ogg",
+      "seconds": 0.8939909297052154,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6718973517417908,
+      "rms": 0.10360026851306241,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/seed_press1.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8573806881904602,
+      "rms": 0.08035600303692005,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/seed_press2.ogg",
+      "seconds": 0.19399092970521542,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7168359756469727,
+      "rms": 0.07917793263937807,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/seed_press3.ogg",
+      "seconds": 0.34997732426303857,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8084616661071777,
+      "rms": 0.05785574146297749,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/shear_snip1.ogg",
+      "seconds": 0.37900226757369615,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6843998432159424,
+      "rms": 0.049626519465925285,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/shear_snip2.ogg",
+      "seconds": 0.19,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7743241190910339,
+      "rms": 0.07962483866844969,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/shear_snip3.ogg",
+      "seconds": 0.22900226757369616,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8090422749519348,
+      "rms": 0.07164098631589115,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/shear_snip4.ogg",
+      "seconds": 0.3289795918367347,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7375012040138245,
+      "rms": 0.05859537827314708,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/water_pour1.ogg",
+      "seconds": 0.6549886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7695236206054688,
+      "rms": 0.07375911965730353,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/water_pour2.ogg",
+      "seconds": 0.9,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7191197872161865,
+      "rms": 0.05312378653376099,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/water_pour3.ogg",
+      "seconds": 0.79,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5380873680114746,
+      "rms": 0.06115075523936429,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/whetstone_scrape1.ogg",
+      "seconds": 0.2849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.35975536704063416,
+      "rms": 0.07417007859531848,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/whetstone_scrape2.ogg",
+      "seconds": 0.43498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.37379711866378784,
+      "rms": 0.05989963798355322,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/whetstone_scrape3.ogg",
+      "seconds": 0.36498866213151926,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.3707895874977112,
+      "rms": 0.07085112461792543,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/work/whetstone_scrape4.ogg",
+      "seconds": 0.33997732426303856,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.42937588691711426,
+      "rms": 0.07605783127432857,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/boar_charge1.ogg",
+      "seconds": 0.6849886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6382048726081848,
+      "rms": 0.17431143227587687,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/boar_charge2.ogg",
+      "seconds": 0.7049886621315192,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.535196840763092,
+      "rms": 0.1644261942177097,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/boar_grunt1.ogg",
+      "seconds": 0.6549886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5264737010002136,
+      "rms": 0.14790141035534934,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/boar_grunt2.ogg",
+      "seconds": 0.71,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.5865421891212463,
+      "rms": 0.14403636558988034,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/boar_grunt3.ogg",
+      "seconds": 0.64,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4844522178173065,
+      "rms": 0.14919504379410437,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/brute_demand1.ogg",
+      "seconds": 0.88,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8981595039367676,
+      "rms": 0.14947302682524075,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/brute_demand2.ogg",
+      "seconds": 0.8949886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.845693826675415,
+      "rms": 0.22866731832856202,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/brute_grunt1.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8605874180793762,
+      "rms": 0.15218993384365925,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/brute_grunt2.ogg",
+      "seconds": 0.5349886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7242345809936523,
+      "rms": 0.1728567627965307,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/brute_grunt3.ogg",
+      "seconds": 0.48,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8001943230628967,
+      "rms": 0.16512501913443517,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/caravan_arrive1.ogg",
+      "seconds": 2.704988662131519,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6126517653465271,
+      "rms": 0.07546120394060259,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/caravan_arrive2.ogg",
+      "seconds": 2.9,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6701247692108154,
+      "rms": 0.07994259895499445,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/dog_bark1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7081977128982544,
+      "rms": 0.11849154101129437,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/dog_bark2.ogg",
+      "seconds": 0.23,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8292421698570251,
+      "rms": 0.19286816651632166,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/dog_bark3.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7103683352470398,
+      "rms": 0.12202827794673053,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/dog_bark4.ogg",
+      "seconds": 0.2789795918367347,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.714920699596405,
+      "rms": 0.17352212233985762,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/dog_whine1.ogg",
+      "seconds": 0.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.49368247389793396,
+      "rms": 0.11066720543447746,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/dog_whine2.ogg",
+      "seconds": 0.7349886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.4613865613937378,
+      "rms": 0.10192679069824004,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/envoy_fanfare1.ogg",
+      "seconds": 2.02,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6993012428283691,
+      "rms": 0.14385939292750569,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/envoy_fanfare2.ogg",
+      "seconds": 2.02,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6792218089103699,
+      "rms": 0.13693777994256753,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/fox_yip1.ogg",
+      "seconds": 0.29,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6318617463111877,
+      "rms": 0.12363745413240987,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/fox_yip2.ogg",
+      "seconds": 0.19498866213151927,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6384555697441101,
+      "rms": 0.14057860385028254,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/peddler_bells1.ogg",
+      "seconds": 1.9449886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.684030294418335,
+      "rms": 0.07284518260276046,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/peddler_bells2.ogg",
+      "seconds": 1.8949886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8407977223396301,
+      "rms": 0.07265965152639735,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/village_bell1.ogg",
+      "seconds": 3.1749886621315193,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6982314586639404,
+      "rms": 0.09347556807419082,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/village_bell2.ogg",
+      "seconds": 3.249002267573696,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7224169969558716,
+      "rms": 0.08722875648160092,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/village_bell3.ogg",
+      "seconds": 2.48,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6342628002166748,
+      "rms": 0.09455976844438871,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/wolf_howl1.ogg",
+      "seconds": 2.1189795918367347,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.6582980155944824,
+      "rms": 0.15550970131621863,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/el/world/wolf_howl2.ogg",
+      "seconds": 2.7349886621315194,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7568234801292419,
+      "rms": 0.14812932787860603,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/flee1.ogg",
+      "seconds": 1.2907936507936508,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8806897401809692,
+      "rms": 0.0752239471087498,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/flee2.ogg",
+      "seconds": 1.2736507936507937,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9053151607513428,
+      "rms": 0.058822122596276234,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/flee3.ogg",
+      "seconds": 1.2150566893424035,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8977516889572144,
+      "rms": 0.07146383075489375,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/hurt1.ogg",
+      "seconds": 0.25222222222222224,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8439069986343384,
+      "rms": 0.1120392285662898,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/hurt2.ogg",
+      "seconds": 0.45414965986394557,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9217081069946289,
+      "rms": 0.23522102218795657,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/hurt3.ogg",
+      "seconds": 0.20365079365079364,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9285238981246948,
+      "rms": 0.1545596715427564,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/hurt4.ogg",
+      "seconds": 0.32900226757369616,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8727876543998718,
+      "rms": 0.19976391118448306,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/notice1.ogg",
+      "seconds": 0.5151020408163265,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8946144580841064,
+      "rms": 0.24002062613919753,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/notice2.ogg",
+      "seconds": 0.45414965986394557,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9217081069946289,
+      "rms": 0.23793074594376457,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/notice3.ogg",
+      "seconds": 0.5145804988662132,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8293952345848083,
+      "rms": 0.15857167775286699,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/sneak1.ogg",
+      "seconds": 0.42961451247165533,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9450929164886475,
+      "rms": 0.09541776537451696,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/sneak2.ogg",
+      "seconds": 0.5043537414965986,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.918969452381134,
+      "rms": 0.12680377874161886,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/sneak3.ogg",
+      "seconds": 0.6610430839002267,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9037554264068604,
+      "rms": 0.09059690342730636,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/spotted1.ogg",
+      "seconds": 0.9473922902494331,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8212428689002991,
+      "rms": 0.16944819719842144,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/spotted2.ogg",
+      "seconds": 0.6734240362811791,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8799498677253723,
+      "rms": 0.2026101021561388,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/spotted3.ogg",
+      "seconds": 0.48480725623582765,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8733773827552795,
+      "rms": 0.17562149929202703,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/steal1.ogg",
+      "seconds": 0.8455328798185942,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8769938945770264,
+      "rms": 0.12309996564891953,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/steal2.ogg",
+      "seconds": 0.47113378684807256,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8377493023872375,
+      "rms": 0.15257620942439432,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/goblin/steal3.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8832958340644836,
+      "rms": 0.11818809572246403,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/f_panic1.ogg",
+      "seconds": 0.45,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8887045979499817,
+      "rms": 0.14752308213255116,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/f_panic2.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8478559255599976,
+      "rms": 0.08211153500212466,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/innkeeper_hum1.ogg",
+      "seconds": 4.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8939682841300964,
+      "rms": 0.28741368098987075,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/innkeeper_hum2.ogg",
+      "seconds": 4.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8953271508216858,
+      "rms": 0.29274098086911604,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/innkeeper_hum3.ogg",
+      "seconds": 4.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8947095274925232,
+      "rms": 0.22941260900333216,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/innkeeper_hum4.ogg",
+      "seconds": 4.55,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8981587886810303,
+      "rms": 0.2706862667117708,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/m_panic1.ogg",
+      "seconds": 0.436530612244898,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8774826526641846,
+      "rms": 0.13467303542503356,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/m_panic2.ogg",
+      "seconds": 0.78,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8752087950706482,
+      "rms": 0.2546639981919799,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/m_panic3.ogg",
+      "seconds": 0.47002267573696144,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8967651128768921,
+      "rms": 0.31982518458036924,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/settler_hm1.ogg",
+      "seconds": 0.47,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8852599263191223,
+      "rms": 0.2727987045643897,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/settler_hm2.ogg",
+      "seconds": 0.37,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8961555361747742,
+      "rms": 0.35031450058272967,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/settler_hm3.ogg",
+      "seconds": 0.3649433106575964,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.9009878039360046,
+      "rms": 0.33685389674413696,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/settler_hm4.ogg",
+      "seconds": 0.31,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8902626633644104,
+      "rms": 0.3240633114569869,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/settler_hm5.ogg",
+      "seconds": 0.8,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8662388324737549,
+      "rms": 0.10850690685629984,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/yawn1.ogg",
+      "seconds": 1.73,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8986219763755798,
+      "rms": 0.11999279264430154,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/voice/yawn2.ogg",
+      "seconds": 2.82,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8167076110839844,
+      "rms": 0.08011856937466068,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/work/haul_step1.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8599251508712769,
+      "rms": 0.08607454467858676,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/work/haul_step2.ogg",
+      "seconds": 0.6,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.7882251739501953,
+      "rms": 0.0973366511788154,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/work/haul_step3.ogg",
+      "seconds": 0.5065759637188209,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8945297598838806,
+      "rms": 0.11937313279939395,
+      "nonfinite": 0
+    },
+    {
+      "file": "sounds/work/haul_step4.ogg",
+      "seconds": 0.5,
+      "rate": 44100,
+      "channels": 1,
+      "peak": 0.8913536667823792,
+      "rms": 0.12636765666384117,
+      "nonfinite": 0
+    }
+  ]
+}

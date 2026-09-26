@@ -1,0 +1,55 @@
+{
+  "id": "palisade_gate",
+  "name": "Palisade Gate",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": null,
+  "variant": "gate",
+  "style": "timber",
+  "preset": "Timber",
+  "requires": "defense_plans",
+  "group": "palisade_gate",
+  "size": [
+    5,
+    6,
+    2
+  ],
+  "ground_level": 0,
+  "eave_y": null,
+  "plaque": null,
+  "work": [],
+  "segment": "gate",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_log",
+      "count": 11
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 8
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 3
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 3
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 2
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 1
+    }
+  ],
+  "block_count": 29,
+  "cells": 35
+}

@@ -1,0 +1,80 @@
+{
+  "_doc": "Crafting gates seeded by the tech tree framework lane (owner rule 26 Sep: no crafting before the node is learned). Node id -> recipe or item ids. Branch files may add more via nodes[].unlocks_recipes; both are merged. Build plans (hearthstead:build_plan_<type>) are gated automatically by the node that unlocks that building. UNGATED on purpose (first 10 minutes): hearth (Banner), handbook, plaque, bell.",
+  "gates": {
+    "timber_rights": [
+      "hearthstead:work_scepter"
+    ],
+    "builders_hut": [
+      "hearthstead:builders_plan",
+      "hearthstead:survey_rod",
+      "hearthstead:resource_scroll"
+    ],
+    "first_watch": [
+      "hearthstead:patrol_map",
+      "hearthstead:wooden_short_sword",
+      "hearthstead:stone_short_sword",
+      "hearthstead:wooden_double_axe",
+      "hearthstead:stone_double_axe",
+      "hearthstead:wooden_halberd",
+      "hearthstead:stone_halberd",
+      "hearthstead:wooden_warhammer",
+      "hearthstead:stone_warhammer",
+      "hearthstead:wooden_longsword",
+      "hearthstead:stone_longsword"
+    ],
+    "shore_provisions": [
+      "hearthstead:fish_rack",
+      "hearthstead:fishers_chair",
+      "hearthstead:fishers_rod"
+    ],
+    "hospitality": [
+      "hearthstead:ale_tap"
+    ],
+    "land_and_harvest": [
+      "hearthstead:butchering_table",
+      "hearthstead:flour",
+      "hearthstead:bread_from_flour"
+    ],
+    "carpenter_mason": [
+      "hearthstead:wool_bolt"
+    ],
+    "battle_healer": [
+      "hearthstead:bandage"
+    ],
+    "rune_mage": [
+      "hearthstead:rune_stone"
+    ],
+    "spearmen": [
+      "hearthstead:wooden_spear",
+      "hearthstead:iron_spear"
+    ],
+    "longswords": [
+      "hearthstead:iron_longsword"
+    ],
+    "master_armoury": [
+      "hearthstead:diamond_spear",
+      "hearthstead:diamond_longsword",
+      "hearthstead:diamond_short_sword",
+      "hearthstead:netherite_short_sword",
+      "hearthstead:diamond_double_axe",
+      "hearthstead:netherite_double_axe",
+      "hearthstead:diamond_halberd",
+      "hearthstead:netherite_halberd",
+      "hearthstead:diamond_warhammer",
+      "hearthstead:netherite_warhammer",
+      "hearthstead:netherite_longsword"
+    ],
+    "fortification": [
+      "hearthstead:iron_short_sword",
+      "hearthstead:golden_short_sword",
+      "hearthstead:iron_double_axe",
+      "hearthstead:golden_double_axe",
+      "hearthstead:iron_halberd",
+      "hearthstead:golden_halberd",
+      "hearthstead:iron_warhammer",
+      "hearthstead:golden_warhammer",
+      "hearthstead:golden_longsword"
+    ]
+  },
+  "_doc_weapons": "Weapons lane (26 Sep): wooden/stone tiers -> first_watch (Barracks & Guard, day-one guards), iron/golden -> fortification (Armoury), diamond/netherite -> master_armoury. Move to watch.json unlocks_recipes when the watch lane takes them over."
+}

@@ -1,0 +1,32 @@
+{
+  "id": "recruiting",
+  "title": "hearthstead.guide.recruiting.title",
+  "icon": "minecraft:emerald",
+  "pages": [
+    {
+      "id": "recruiting.p1",
+      "title": "hearthstead.guide.recruiting.p1.title",
+      "bullets": [
+        "hearthstead.guide.recruiting.p1.b1",
+        "hearthstead.guide.recruiting.p1.b2",
+        "hearthstead.guide.recruiting.p1.b3",
+        "hearthstead.guide.recruiting.p1.b4"
+      ],
+      "tip": "hearthstead.guide.recruiting.p1.tip",
+      "text": [
+        "hearthstead.guide.recruiting.body"
+      ],
+      "journey": [
+        "fj_440_recruitment_window_starts",
+        "fj_450_traveler_arrives",
+        "fj_460_admit_traveler",
+        "fj_552_add_fifth_bed",
+        "fj_553_second_recruitment_window",
+        "fj_554_second_traveler_arrives",
+        "fj_555_admit_fifth_settler",
+        "fj_400_unlock_home",
+        "fj_410_link_first_home"
+      ]
+    }
+  ]
+}

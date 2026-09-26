@@ -1,0 +1,366 @@
+{
+  "name": "hearth_ledger_512x274",
+  "width": 512,
+  "height": 274,
+  "elements": [
+    {
+      "t": "tab",
+      "x": 98,
+      "y": 7,
+      "w": 64,
+      "h": 20,
+      "text": "Settlement",
+      "selected": true
+    },
+    {
+      "t": "tab",
+      "x": 166,
+      "y": 7,
+      "w": 56,
+      "h": 20,
+      "text": "Mayor",
+      "selected": false
+    },
+    {
+      "t": "tab",
+      "x": 226,
+      "y": 7,
+      "w": 52,
+      "h": 20,
+      "text": "Journey",
+      "selected": false
+    },
+    {
+      "t": "tab",
+      "x": 282,
+      "y": 7,
+      "w": 56,
+      "h": 20,
+      "text": "Requests",
+      "selected": false
+    },
+    {
+      "t": "tab",
+      "x": 342,
+      "y": 7,
+      "w": 72,
+      "h": 20,
+      "text": "Development",
+      "selected": false
+    },
+    {
+      "t": "fill",
+      "x": 96,
+      "y": 27,
+      "w": 320,
+      "h": 220,
+      "colour": "#FF3C403E"
+    },
+    {
+      "t": "fill",
+      "x": 98,
+      "y": 29,
+      "w": 316,
+      "h": 216,
+      "colour": "#FF292B2A"
+    },
+    {
+      "t": "fill",
+      "x": 101,
+      "y": 32,
+      "w": 310,
+      "h": 210,
+      "colour": "#FF171715"
+    },
+    {
+      "t": "fill",
+      "x": 102,
+      "y": 51,
+      "w": 308,
+      "h": 2,
+      "colour": "#FF6C5132"
+    },
+    {
+      "t": "fill",
+      "x": 103,
+      "y": 53,
+      "w": 306,
+      "h": 1,
+      "colour": "#FFC2A25B"
+    },
+    {
+      "t": "fill",
+      "x": 197,
+      "y": 61,
+      "w": 118,
+      "h": 84,
+      "colour": "#FF6C5132"
+    },
+    {
+      "t": "fill",
+      "x": 199,
+      "y": 63,
+      "w": 114,
+      "h": 80,
+      "colour": "#FF30261C"
+    },
+    {
+      "t": "fill",
+      "x": 104,
+      "y": 65,
+      "w": 92,
+      "h": 76,
+      "colour": "#FF292B2A"
+    },
+    {
+      "t": "fill",
+      "x": 316,
+      "y": 65,
+      "w": 92,
+      "h": 76,
+      "colour": "#FF292B2A"
+    },
+    {
+      "t": "fill",
+      "x": 104,
+      "y": 141,
+      "w": 304,
+      "h": 16,
+      "colour": "#FF30261C"
+    },
+    {
+      "t": "fill",
+      "x": 104,
+      "y": 141,
+      "w": 304,
+      "h": 1,
+      "colour": "#FFC2A25B"
+    },
+    {
+      "t": "fill",
+      "x": 168,
+      "y": 157,
+      "w": 176,
+      "h": 89,
+      "colour": "#FF6C5132"
+    },
+    {
+      "t": "fill",
+      "x": 170,
+      "y": 159,
+      "w": 172,
+      "h": 85,
+      "colour": "#FF30261C"
+    },
+    {
+      "t": "title",
+      "x": 108,
+      "y": 35,
+      "text": "Alderwatch",
+      "box": 124,
+      "id": "settlement_name"
+    },
+    {
+      "t": "label",
+      "x": 404,
+      "y": 35,
+      "text": "HEARTH LEDGER",
+      "align": "right",
+      "box": 124,
+      "tone": "accent",
+      "id": "ledger_stamp"
+    },
+    {
+      "t": "label",
+      "x": 256,
+      "y": 58,
+      "text": "COMMUNAL STORES",
+      "align": "center",
+      "box": 108,
+      "tone": "text_strong",
+      "id": "stores"
+    },
+    {
+      "t": "label",
+      "x": 108,
+      "y": 71,
+      "text": "POPULATION",
+      "box": 82,
+      "tone": "text_muted"
+    },
+    {
+      "t": "label",
+      "x": 190,
+      "y": 80,
+      "text": "7 / 10",
+      "align": "right",
+      "box": 82,
+      "tone": "accent"
+    },
+    {
+      "t": "label",
+      "x": 108,
+      "y": 93,
+      "text": "EMPLOYED",
+      "box": 82,
+      "tone": "text_muted"
+    },
+    {
+      "t": "label",
+      "x": 190,
+      "y": 102,
+      "text": "5",
+      "align": "right",
+      "box": 82,
+      "tone": "text_strong"
+    },
+    {
+      "t": "label",
+      "x": 322,
+      "y": 71,
+      "text": "FOOD",
+      "box": 82,
+      "tone": "text_muted"
+    },
+    {
+      "t": "label",
+      "x": 404,
+      "y": 80,
+      "text": "126",
+      "align": "right",
+      "box": 82,
+      "tone": "good"
+    },
+    {
+      "t": "label",
+      "x": 322,
+      "y": 93,
+      "text": "RADIUS",
+      "box": 82,
+      "tone": "text_muted"
+    },
+    {
+      "t": "label",
+      "x": 404,
+      "y": 102,
+      "text": "64",
+      "align": "right",
+      "box": 82,
+      "tone": "accent"
+    },
+    {
+      "t": "label",
+      "x": 108,
+      "y": 115,
+      "text": "MORALE",
+      "box": 82,
+      "tone": "text_muted"
+    },
+    {
+      "t": "bar",
+      "x": 108,
+      "y": 127,
+      "w": 82,
+      "h": 6,
+      "value": 0.78,
+      "tone": "good"
+    },
+    {
+      "t": "label",
+      "x": 322,
+      "y": 115,
+      "text": "SETTLEMENT",
+      "box": 82,
+      "tone": "text_muted"
+    },
+    {
+      "t": "label",
+      "x": 404,
+      "y": 126,
+      "text": "STABLE",
+      "align": "right",
+      "box": 82,
+      "tone": "text_strong"
+    },
+    {
+      "t": "inventory_grid",
+      "x": 202,
+      "y": 69,
+      "columns": 6,
+      "rows": 4,
+      "items": [
+        {
+          "index": 0,
+          "resource": "textures/item/bread.png",
+          "count": 18
+        },
+        {
+          "index": 1,
+          "resource": "textures/block/oak_log.png",
+          "count": 42
+        },
+        {
+          "index": 7,
+          "resource": "textures/item/wheat_seeds.png",
+          "count": 16
+        },
+        {
+          "index": 9,
+          "resource": "textures/item/iron_ingot.png",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "t": "label",
+      "x": 110,
+      "y": 145,
+      "text": "A traveler draws near...",
+      "box": 218,
+      "tone": "text_muted",
+      "id": "context_notice"
+    },
+    {
+      "t": "button",
+      "x": 343,
+      "y": 144,
+      "w": 62,
+      "h": 20,
+      "text": "Review"
+    },
+    {
+      "t": "label",
+      "x": 176,
+      "y": 159,
+      "text": "Inventory",
+      "box": 162,
+      "tone": "text_strong"
+    },
+    {
+      "t": "inventory_grid",
+      "x": 175,
+      "y": 169,
+      "columns": 9,
+      "rows": 3,
+      "items": [
+        {
+          "index": 0,
+          "resource": "textures/item/iron_axe.png"
+        },
+        {
+          "index": 2,
+          "resource": "textures/item/bread.png",
+          "count": 6
+        }
+      ]
+    },
+    {
+      "t": "inventory_grid",
+      "x": 175,
+      "y": 227,
+      "columns": 9,
+      "rows": 1,
+      "items": []
+    }
+  ]
+}

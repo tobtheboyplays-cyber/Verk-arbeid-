@@ -1,0 +1,48 @@
+{
+  "id": "attribute_effects",
+  "title": "hearthstead.guide.attribute_effects.title",
+  "icon": "minecraft:experience_bottle",
+  "pages": [
+    {
+      "id": "attribute_effects.body",
+      "title": "hearthstead.guide.attribute_effects.body.title",
+      "bullets": [
+        "hearthstead.guide.attribute_effects.body.b1",
+        "hearthstead.guide.attribute_effects.body.b2",
+        "hearthstead.guide.attribute_effects.body.b3",
+        "hearthstead.guide.attribute_effects.body.b4"
+      ],
+      "tip": "hearthstead.guide.attribute_effects.body.tip",
+      "text": [
+        "hearthstead.guide.attribute_effects.body.more"
+      ]
+    },
+    {
+      "id": "attribute_effects.mind",
+      "title": "hearthstead.guide.attribute_effects.mind.title",
+      "bullets": [
+        "hearthstead.guide.attribute_effects.mind.b1",
+        "hearthstead.guide.attribute_effects.mind.b2",
+        "hearthstead.guide.attribute_effects.mind.b3",
+        "hearthstead.guide.attribute_effects.mind.b4"
+      ],
+      "tip": "hearthstead.guide.attribute_effects.mind.tip",
+      "text": [
+        "hearthstead.guide.attribute_effects.mind.more"
+      ]
+    },
+    {
+      "id": "attribute_effects.mayor",
+      "title": "hearthstead.guide.attribute_effects.mayor.title",
+      "bullets": [
+        "hearthstead.guide.attribute_effects.mayor.b1",
+        "hearthstead.guide.attribute_effects.mayor.b2",
+        "hearthstead.guide.attribute_effects.mayor.b3"
+      ],
+      "tip": "hearthstead.guide.attribute_effects.mayor.tip",
+      "text": [
+        "hearthstead.guide.attribute_effects.mayor.more"
+      ]
+    }
+  ]
+}

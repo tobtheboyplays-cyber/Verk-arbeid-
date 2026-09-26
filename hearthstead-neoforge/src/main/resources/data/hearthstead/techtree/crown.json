@@ -1,0 +1,245 @@
+{
+  "branch": "crown",
+  "nodes": [
+    {
+      "id": "settlement_charter",
+      "tier": 1,
+      "type": "unlock",
+      "x": 0,
+      "y": 0,
+      "size": "S",
+      "coins": 0,
+      "goods": [],
+      "study_days": 0,
+      "requires": [],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "Raise the Banner",
+      "auto": true,
+      "legacy": "node:settlement_charter",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Banner Raised",
+      "offers": "Found your hamlet: the Mayor, 4 founder places and ring 1 of every branch.",
+      "details": [
+        "Granted automatically when the Banner is raised (3 logs, 5 cobblestone, 1 campfire)",
+        "The Mayor and 3 hireable founders arrive; 4 founder places, and every bed adds one more",
+        "Opens every Hamlet node whose own gate is met",
+        "The separate 'Banner Raised' seal (id shelter) folds into this one; the id stays, but it is hidden"
+      ],
+      "flavor": "Where the banner stands, the law begins.",
+      "depends_on": []
+    },
+    {
+      "id": "first_raid_aftermath",
+      "tier": 2,
+      "type": "capstone",
+      "x": 233,
+      "y": -233,
+      "size": "S",
+      "coins": 0,
+      "goods": [],
+      "study_days": 0,
+      "requires": [
+        "arm_the_watch"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "first_raid"
+        }
+      ],
+      "gate_text": "First raid resolved (auto)",
+      "auto": true,
+      "legacy": "node:first_raid_aftermath",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Village Charter",
+      "offers": "Survive your first raid and the hamlet becomes a Village: ring 2 opens in every branch, and your guards may wear mail.",
+      "details": [
+        "Stamps itself when the first raid resolves, win or lose. There is no Learn click",
+        "Opens every Village node, including the old post-raid upgrades",
+        "Raids from now on: 5-8 raiders every 3-4 in-game days; each victory gives Coins plus a pick of 1 of 3 Blessings",
+        "'Village' title on the Banner screen and the map",
+        "Gear: opens Gear Tier 1 (Mail: chainmail, shields, turtle shell) for Man-at-Arms-rank guards, Marksmen and level-3 workers"
+      ],
+      "flavor": "They came with torches. We are still here.",
+      "depends_on": []
+    },
+    {
+      "id": "town_charter",
+      "tier": 3,
+      "type": "capstone",
+      "x": 403,
+      "y": 403,
+      "size": "M",
+      "coins": 20,
+      "goods": [
+        {
+          "count": 32,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "settlers",
+          "target": 15
+        },
+        {
+          "kind": "raids_won",
+          "target": 3
+        },
+        {
+          "kind": "branch_nodes",
+          "tier": 2,
+          "count": 2,
+          "branches": 3
+        }
+      ],
+      "gate_text": "15 settlers, 3 raids won, and 2 Village nodes in each of 3 branches",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Town Charter",
+      "offers": "Become a Town: ring 3 opens and visiting merchants bring fuller purses.",
+      "details": [
+        "Opens every Town node",
+        "Merchant purse per visit: 12 -> 16 Coins",
+        "Town Hall plan: the Mayor's office adds 2 emblem-shop lines and a notice board for quests",
+        "Raids grow to 10-15 raiders, and shieldbearers and raider archers join"
+      ],
+      "flavor": "A market cross, a hall, a name on the king's map.",
+      "depends_on": [
+        "Rank ladder (roadmap phase 4)",
+        "Study timer on Development nodes",
+        "Enemy roster slice (shieldbearers, raider archers)"
+      ]
+    },
+    {
+      "id": "castle_charter",
+      "tier": 4,
+      "type": "capstone",
+      "x": -573,
+      "y": 573,
+      "size": "L",
+      "coins": 40,
+      "goods": [
+        {
+          "count": 64,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:iron_block"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:gold_ingot"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "town_charter",
+        "stone_walls"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "settlers",
+          "target": 25
+        },
+        {
+          "kind": "raids_won",
+          "target": 6
+        }
+      ],
+      "gate_text": "25 settlers and 6 raids won",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Castle Charter",
+      "offers": "Become a Castle: ring 4 opens, merchants bring fuller purses again, and with the Master Armoury your best fighters may wear diamond.",
+      "details": [
+        "Opens every Castle node",
+        "Keep building: in raids, civilians shelter inside and take -50% damage; guards within 24 blocks deal +10% damage",
+        "Merchant purse 16 -> 20 Coins",
+        "Raids grow to 15-25 raiders, with torchbearers and wolves; nemesis captains return holding grudges",
+        "Gear: half of Gear Tier 3 (Diamond); the other half is the Master Armoury"
+      ],
+      "flavor": "Stone does not burn.",
+      "depends_on": [
+        "Rank ladder",
+        "Walls & gates",
+        "Keep building type",
+        "Torchbearers + fire, wolves"
+      ]
+    },
+    {
+      "id": "kingdom_crown",
+      "tier": 5,
+      "type": "capstone",
+      "x": -750,
+      "y": -750,
+      "size": "L",
+      "coins": 80,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:gold_block"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:diamond"
+        },
+        {
+          "count": 16,
+          "item": "hearthstead:wool_bolt"
+        }
+      ],
+      "study_days": 3,
+      "requires": [
+        "castle_charter"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "settlers",
+          "target": 40
+        },
+        {
+          "kind": "raids_won",
+          "target": 12
+        }
+      ],
+      "gate_text": "40 settlers and 12 raids won",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Crown of the Realm",
+      "offers": "Crown yourself: Kingdom rank, the fullest merchant purses, and with the Master Armoury your captains may wear netherite.",
+      "details": [
+        "Kingdom title and a royal banner for every player's Banner",
+        "Pick 2 Blessings after each victory (3 with the Cathedral)",
+        "Rival kingdoms send envoys: alliances, marriages, spies and declarations of war",
+        "Up to 5 outposts",
+        "Gear: half of Gear Tier 4 (Netherite, for Captains and level-10 workers); the other half is the Master Armoury"
+      ],
+      "flavor": "Kneel a lord, rise a king.",
+      "depends_on": [
+        "Diplomacy + rival AI kingdoms (phase 6)",
+        "Outposts",
+        "Rank ladder"
+      ]
+    }
+  ]
+}

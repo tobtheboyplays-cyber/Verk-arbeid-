@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:paper"
+    },
+    {
+      "item": "minecraft:feather"
+    },
+    {
+      "item": "minecraft:barrel"
+    },
+    [
+      {
+        "item": "minecraft:scaffolding"
+      },
+      {
+        "item": "minecraft:cartography_table"
+      }
+    ]
+  ],
+  "result": {
+    "id": "hearthstead:build_plan",
+    "count": 1,
+    "components": {
+      "hearthstead:building_type": "trading_post"
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "id": "battle_roles",
+  "title": "hearthstead.guide.battle_roles.title",
+  "icon": "minecraft:shield",
+  "pages": [
+    {
+      "id": "battle_roles.front",
+      "title": "hearthstead.guide.battle_roles.front.title",
+      "bullets": [
+        "hearthstead.guide.battle_roles.front.b1",
+        "hearthstead.guide.battle_roles.front.b2",
+        "hearthstead.guide.battle_roles.front.b3"
+      ],
+      "tip": "hearthstead.guide.battle_roles.front.tip",
+      "image_wanted": "Knight, Spearman and Longswordsman side by side with their distinct weapons."
+    },
+    {
+      "id": "battle_roles.support",
+      "title": "hearthstead.guide.battle_roles.support.title",
+      "bullets": [
+        "hearthstead.guide.battle_roles.support.b1",
+        "hearthstead.guide.battle_roles.support.b2",
+        "hearthstead.guide.battle_roles.support.b3"
+      ],
+      "tip": "hearthstead.guide.battle_roles.support.tip",
+      "image_wanted": "Archer and Rune Mage behind defenders, with a Healer tending an ally."
+    }
+  ]
+}

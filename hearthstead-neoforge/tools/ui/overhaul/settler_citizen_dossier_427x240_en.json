@@ -1,0 +1,86 @@
+{
+  "name": "Settler — Citizen Dossier 427x240",
+  "width": 427,
+  "height": 240,
+  "evidence": {
+    "type": "static-preview-only",
+    "nativeEvidence": false,
+    "phase": "design-candidate",
+    "screen": "settler-citizen-dossier",
+    "viewport": "427x240",
+    "locale": "en",
+    "baseline": "shared runtime geometry contract candidate"
+  },
+  "elements": [
+    {"t":"window","x":8,"y":8,"w":411,"h":224},
+
+    {"t":"frame","x":16,"y":16,"w":34,"h":34,"surface":"inset","tone":"accent","inner_alpha":48},
+    {"t":"texture_crop","asset":"entity/settler/settler_lumberer.png","crop":[8,8,16,16],"x":21,"y":21,"w":24,"h":24},
+    {"t":"title","x":58,"y":16,"text":"Runa","box":112,"id":"name"},
+    {"t":"label","x":58,"y":29,"text":"LUMBERER • WESTWOOD CAMP","tone":"accent","box":190,"id":"role_and_workplace"},
+    {"t":"label","x":58,"y":41,"text":"Chopping oak • Hearthward I","tone":"text_muted","box":190,"id":"activity_and_blessing"},
+    {"t":"badge","x":319,"y":16,"w":84,"h":17,"text":"WORKING","tone":"good","id":"state"},
+    {"t":"label","x":403,"y":39,"text":"SERVER LIVE","align":"right","tone":"good","box":72,"id":"authority"},
+    {"t":"divider","x":16,"y":54,"w":395},
+
+    {"t":"frame","x":16,"y":60,"w":142,"h":134,"surface":"inset","tone":"warn","inner_alpha":34},
+    {"t":"section","x":24,"y":67,"w":126,"text":"RIGHT NOW","tone":"warn","id":"now_heading"},
+    {"t":"soft_panel","x":24,"y":80,"w":126,"h":43,"tone":"warn","alpha":20,"stroke_alpha":165},
+    {"t":"vanilla_icon","resource":"textures/item/iron_axe.png","x":30,"y":88,"size":24},
+    {"t":"label","x":60,"y":84,"text":"NEEDS TOOL","tone":"warn","box":84,"id":"request"},
+    {"t":"label","x":60,"y":98,"text":"Iron Axe ×1","tone":"text_strong","box":84,"id":"request_item"},
+    {"t":"label","x":60,"y":111,"text":"Courier queued","tone":"text_muted","box":84,"id":"next_action"},
+    {"t":"label","x":24,"y":130,"text":"HUNGER 78","tone":"good","box":60,"id":"hunger"},
+    {"t":"bar","x":90,"y":132,"w":60,"h":6,"value":0.78,"tone":"good"},
+    {"t":"label","x":24,"y":144,"text":"ENERGY 64","tone":"good","box":60,"id":"energy"},
+    {"t":"bar","x":90,"y":146,"w":60,"h":6,"value":0.64,"tone":"good"},
+    {"t":"label","x":24,"y":158,"text":"MORALE 84","tone":"accent","box":60,"id":"morale"},
+    {"t":"bar","x":90,"y":160,"w":60,"h":6,"value":0.84,"tone":"good"},
+    {"t":"label","x":24,"y":174,"text":"TRAITS  Hardy • Patient","tone":"text_strong","box":126,"id":"traits"},
+    {"t":"label","x":24,"y":185,"text":"BLESSING  Hearthward I","tone":"accent","box":126,"id":"blessing"},
+
+    {"t":"frame","x":164,"y":60,"w":247,"h":134,"surface":"inset","tone":"accent","inner_alpha":30},
+    {"t":"section","x":172,"y":67,"w":231,"text":"ATTRIBUTES • 0–100","tone":"accent","id":"attributes_heading"},
+
+    {"t":"label","x":172,"y":82,"text":"STRENGTH","tone":"text","box":66,"id":"strength_name"},
+    {"t":"label","x":281,"y":82,"text":"34/100","align":"right","tone":"warn","box":38,"id":"strength_value"},
+    {"t":"bar","x":172,"y":91,"w":109,"h":6,"value":0.34,"tone":"warn"},
+    {"t":"label","x":290,"y":82,"text":"STAMINA","tone":"text","box":62,"id":"stamina_name"},
+    {"t":"label","x":403,"y":82,"text":"28/100","align":"right","tone":"warn","box":38,"id":"stamina_value"},
+    {"t":"bar","x":290,"y":91,"w":113,"h":6,"value":0.28,"tone":"warn"},
+
+    {"t":"label","x":172,"y":101,"text":"WITS","tone":"text","box":66,"id":"wits_name"},
+    {"t":"label","x":281,"y":101,"text":"15/100","align":"right","tone":"bad","box":38,"id":"wits_value"},
+    {"t":"bar","x":172,"y":110,"w":109,"h":6,"value":0.15,"tone":"bad"},
+    {"t":"label","x":290,"y":101,"text":"DEXTERITY","tone":"text","box":62,"id":"dexterity_name"},
+    {"t":"label","x":403,"y":101,"text":"22/100","align":"right","tone":"bad","box":38,"id":"dexterity_value"},
+    {"t":"bar","x":290,"y":110,"w":113,"h":6,"value":0.22,"tone":"bad"},
+
+    {"t":"label","x":172,"y":120,"text":"SPIRIT","tone":"text","box":66,"id":"spirit_name"},
+    {"t":"label","x":281,"y":120,"text":"17/100","align":"right","tone":"bad","box":38,"id":"spirit_value"},
+    {"t":"bar","x":172,"y":129,"w":109,"h":6,"value":0.17,"tone":"bad"},
+    {"t":"label","x":290,"y":120,"text":"PERCEPTION","tone":"text","box":70,"id":"perception_name"},
+    {"t":"label","x":403,"y":120,"text":"31/100","align":"right","tone":"warn","box":38,"id":"perception_value"},
+    {"t":"bar","x":290,"y":129,"w":113,"h":6,"value":0.31,"tone":"warn"},
+
+    {"t":"label","x":172,"y":139,"text":"FOCUS","tone":"text","box":66,"id":"focus_name"},
+    {"t":"label","x":281,"y":139,"text":"26/100","align":"right","tone":"warn","box":38,"id":"focus_value"},
+    {"t":"bar","x":172,"y":148,"w":109,"h":6,"value":0.26,"tone":"warn"},
+    {"t":"label","x":290,"y":139,"text":"PRESENCE","tone":"text","box":62,"id":"presence_name"},
+    {"t":"label","x":403,"y":139,"text":"11/100","align":"right","tone":"bad","box":38,"id":"presence_value"},
+    {"t":"bar","x":290,"y":148,"w":113,"h":6,"value":0.11,"tone":"bad"},
+
+    {"t":"soft_panel","x":172,"y":158,"w":231,"h":28,"tone":"good","alpha":15,"stroke_alpha":120},
+    {"t":"icon","asset":"item/lumberer_emblem.png","x":178,"y":164,"size":16},
+    {"t":"label","x":200,"y":162,"text":"STRENGTH 34","tone":"warn","box":72,"id":"job_strength"},
+    {"t":"label","x":200,"y":174,"text":"Fewer hits + carry","tone":"text_muted","box":96,"id":"job_strength_effect"},
+    {"t":"label","x":302,"y":162,"text":"STAMINA 28","tone":"warn","box":88,"id":"job_stamina"},
+    {"t":"label","x":302,"y":174,"text":"Fast under load","tone":"text_muted","box":94,"id":"job_stamina_effect"},
+
+    {"t":"divider","x":16,"y":198,"w":395},
+    {"t":"button","x":16,"y":205,"w":92,"h":20,"text":"Inventory","state":"hover"},
+    {"t":"button","x":112,"y":205,"w":92,"h":20,"text":"Workplace","state":"idle"},
+    {"t":"button","x":208,"y":205,"w":92,"h":20,"text":"Actions","state":"idle"},
+    {"t":"button","x":304,"y":205,"w":107,"h":20,"text":"Close","state":"idle"}
+  ]
+}

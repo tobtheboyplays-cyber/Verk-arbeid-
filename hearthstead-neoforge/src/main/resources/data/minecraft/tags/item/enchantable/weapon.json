@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#hearthstead:spears",
+    "#hearthstead:longswords",
+    "#hearthstead:heavy_weapons"
+  ]
+}

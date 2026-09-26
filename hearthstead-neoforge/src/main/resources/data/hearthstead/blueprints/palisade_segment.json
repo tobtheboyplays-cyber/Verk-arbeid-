@@ -1,0 +1,47 @@
+{
+  "id": "palisade_segment",
+  "name": "Palisade (5)",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": null,
+  "variant": "segment",
+  "style": "timber",
+  "preset": "Timber",
+  "requires": "defense_plans",
+  "group": "palisade_segment",
+  "size": [
+    5,
+    5,
+    2
+  ],
+  "ground_level": 0,
+  "eave_y": null,
+  "plaque": null,
+  "work": [],
+  "segment": "palisade",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_log",
+      "count": 15
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 5
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 5
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 5
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 3
+    }
+  ],
+  "block_count": 33,
+  "cells": 33
+}

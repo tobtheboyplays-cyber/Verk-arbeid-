@@ -1,0 +1,256 @@
+{
+  "name": "settler_inventory_field_kit",
+  "width": 344,
+  "height": 218,
+  "elements": [
+    {
+      "t": "window",
+      "x": 0,
+      "y": 0,
+      "w": 344,
+      "h": 218
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 28,
+      "w": 328
+    },
+    {
+      "t": "inset",
+      "x": 8,
+      "y": 34,
+      "w": 72,
+      "h": 176
+    },
+    {
+      "t": "card",
+      "x": 88,
+      "y": 34,
+      "w": 248,
+      "h": 48
+    },
+    {
+      "t": "card",
+      "x": 88,
+      "y": 86,
+      "w": 248,
+      "h": 30
+    },
+    {
+      "t": "title",
+      "x": 88,
+      "y": 8,
+      "text": "Freya's Inventory",
+      "box": 248,
+      "id": "field_kit_title"
+    },
+    {
+      "t": "label",
+      "x": 88,
+      "y": 19,
+      "text": "FIELD KIT \u2014 DIRECT BAG ACCESS",
+      "box": 248,
+      "tone": "text_muted",
+      "id": "field_kit_subtitle"
+    },
+    {
+      "t": "label",
+      "x": 44,
+      "y": 42,
+      "text": "FIELD KIT",
+      "align": "center",
+      "box": 60,
+      "tone": "accent",
+      "id": "rail_title"
+    },
+    {
+      "t": "label",
+      "x": 15,
+      "y": 63,
+      "text": "BAG SPACE",
+      "box": 58,
+      "tone": "text_strong",
+      "id": "rail_bag"
+    },
+    {
+      "t": "label",
+      "x": 15,
+      "y": 75,
+      "text": "5/8",
+      "box": 58,
+      "tone": "good",
+      "id": "rail_capacity"
+    },
+    {
+      "t": "divider",
+      "x": 15,
+      "y": 91,
+      "w": 58
+    },
+    {
+      "t": "label",
+      "x": 15,
+      "y": 104,
+      "text": "MOVE ITEMS",
+      "box": 58,
+      "tone": "text_muted",
+      "id": "rail_action"
+    },
+    {
+      "t": "label",
+      "x": 15,
+      "y": 116,
+      "text": "Drag items",
+      "box": 58,
+      "tone": "text",
+      "id": "rail_action_detail"
+    },
+    {
+      "t": "label",
+      "x": 96,
+      "y": 39,
+      "text": "SETTLER BAG",
+      "box": 74,
+      "tone": "text_muted",
+      "id": "bag_label"
+    },
+    {
+      "t": "label",
+      "x": 184,
+      "y": 39,
+      "text": "LIVE CAPACITY",
+      "box": 144,
+      "tone": "text_muted",
+      "id": "live_label"
+    },
+    {
+      "t": "label",
+      "x": 184,
+      "y": 54,
+      "text": "5 / 8",
+      "box": 144,
+      "tone": "good",
+      "id": "live_value"
+    },
+    {
+      "t": "inventory_grid",
+      "x": 98,
+      "y": 44,
+      "columns": 4,
+      "rows": 2,
+      "items": [
+        {
+          "index": 0,
+          "resource": "textures/block/oak_log.png",
+          "count": 12
+        },
+        {
+          "index": 1,
+          "resource": "textures/item/iron_axe.png"
+        },
+        {
+          "index": 2,
+          "resource": "textures/item/bread.png",
+          "count": 4
+        },
+        {
+          "index": 4,
+          "resource": "textures/item/wheat_seeds.png",
+          "count": 8
+        },
+        {
+          "index": 5,
+          "resource": "textures/block/oak_sapling.png",
+          "count": 3
+        }
+      ]
+    },
+    {
+      "t": "vanilla_icon",
+      "x": 94,
+      "y": 91,
+      "resource": "textures/item/iron_axe.png",
+      "size": 16
+    },
+    {
+      "t": "label",
+      "x": 116,
+      "y": 89,
+      "text": "Needs Iron Axe",
+      "box": 212,
+      "tone": "warn",
+      "id": "request_title"
+    },
+    {
+      "t": "label",
+      "x": 116,
+      "y": 101,
+      "text": "Bag it or drop it nearby.",
+      "box": 212,
+      "tone": "text_muted",
+      "id": "request_detail"
+    },
+    {
+      "t": "label",
+      "x": 96,
+      "y": 121,
+      "text": "Inventory",
+      "box": 248,
+      "tone": "text_muted",
+      "id": "player_inventory"
+    },
+    {
+      "t": "inventory_grid",
+      "x": 96,
+      "y": 132,
+      "columns": 9,
+      "rows": 3,
+      "items": [
+        {
+          "index": 0,
+          "resource": "textures/block/oak_log.png",
+          "count": 24
+        },
+        {
+          "index": 1,
+          "resource": "textures/item/iron_ingot.png",
+          "count": 6
+        },
+        {
+          "index": 3,
+          "resource": "textures/item/apple.png",
+          "count": 5
+        },
+        {
+          "index": 8,
+          "resource": "textures/block/torch.png",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "t": "inventory_grid",
+      "x": 96,
+      "y": 190,
+      "columns": 9,
+      "rows": 1,
+      "items": [
+        {
+          "index": 0,
+          "resource": "textures/item/wooden_axe.png"
+        },
+        {
+          "index": 1,
+          "resource": "textures/item/bread.png",
+          "count": 8
+        },
+        {
+          "index": 8,
+          "resource": "textures/block/torch.png",
+          "count": 32
+        }
+      ]
+    }
+  ]
+}

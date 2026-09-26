@@ -1,0 +1,39 @@
+{
+  "id": "barricade_3x1",
+  "name": "Barricade",
+  "category": "defense",
+  "kind": "barricade",
+  "building_type": null,
+  "variant": "small",
+  "style": "timber",
+  "preset": "Timber",
+  "requires": "builders_hut",
+  "group": "barricade_3x1",
+  "size": [
+    3,
+    3,
+    1
+  ],
+  "ground_level": 0,
+  "eave_y": null,
+  "plaque": null,
+  "work": [],
+  "segment": "barricade",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 3
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 3
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 3
+    }
+  ],
+  "block_count": 9,
+  "cells": 9
+}

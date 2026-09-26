@@ -1,0 +1,108 @@
+{
+  "id": "mason_small",
+  "name": "Masons' Yard",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mason",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "mason",
+  "size": [
+    13,
+    10,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      4,
+      2,
+      1
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      3,
+      1,
+      2
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 82
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 58
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 38
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 31
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 31
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 24
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 8
+    },
+    {
+      "item": "minecraft:stone",
+      "count": 5
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 4
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 2
+    },
+    {
+      "item": "minecraft:stonecutter",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 294,
+  "cells": 313
+}

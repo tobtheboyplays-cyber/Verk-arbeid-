@@ -1,0 +1,21 @@
+{
+  "id": "housing_limits",
+  "title": "hearthstead.guide.housing_limits.title",
+  "icon": "minecraft:red_bed",
+  "pages": [
+    {
+      "id": "housing_limits.beds",
+      "title": "hearthstead.guide.housing_limits.beds.title",
+      "bullets": [
+        "hearthstead.guide.housing_limits.beds.b1",
+        "hearthstead.guide.housing_limits.beds.b2",
+        "hearthstead.guide.housing_limits.beds.b3"
+      ],
+      "tip": "hearthstead.guide.housing_limits.beds.tip",
+      "text": [
+        "hearthstead.guide.housing_limits.beds.more"
+      ],
+      "image_wanted": "A House plaque beside four, six and eight real beds, with the cap visible."
+    }
+  ]
+}

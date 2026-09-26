@@ -1,0 +1,56 @@
+{
+  "id": "watch",
+  "title": "hearthstead.guide.watch.title",
+  "icon": "hearthstead:guard_emblem",
+  "pages": [
+    {
+      "id": "watch.p1",
+      "title": "hearthstead.guide.watch.p1.title",
+      "bullets": [
+        "hearthstead.guide.watch.p1.b1",
+        "hearthstead.guide.watch.p1.b2",
+        "hearthstead.guide.watch.p1.b3",
+        "hearthstead.guide.watch.p1.b4"
+      ],
+      "items": [
+        "hearthstead:guard_emblem",
+        "hearthstead:archer_emblem",
+        "minecraft:iron_sword",
+        "minecraft:bow",
+        "minecraft:arrow"
+      ],
+      "tip": "hearthstead.guide.watch.p1.tip",
+      "text": [
+        "hearthstead.guide.watch.body"
+      ],
+      "journey": [
+        "fj_500_unlock_first_watch",
+        "fj_510_link_barracks",
+        "fj_520_staff_barracks",
+        "fj_530_guard_requests_weapon",
+        "fj_540_equip_guard",
+        "fj_550_set_guard_order",
+        "fj_551_unlock_arm_the_watch",
+        "fj_556_link_watchtower",
+        "fj_557_staff_watchtower",
+        "fj_558_archer_requests_bow",
+        "fj_559_equip_archer",
+        "fj_559a_supply_archer_ammunition",
+        "fj_559b_set_tower_post"
+      ]
+    },
+    {
+      "id": "watch.p2",
+      "title": "hearthstead.guide.watch.p2.title",
+      "bullets": [
+        "hearthstead.guide.watch.p2.b1",
+        "hearthstead.guide.watch.p2.b2",
+        "hearthstead.guide.watch.p2.b3"
+      ],
+      "tip": "hearthstead.guide.watch.p2.tip",
+      "text": [
+        "hearthstead.guide.watch.body2"
+      ]
+    }
+  ]
+}

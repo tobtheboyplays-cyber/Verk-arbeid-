@@ -1,0 +1,3754 @@
+{
+  "meta": {
+    "version": 3,
+    "changelog": "v3 (26 Sep): Captain's Voice (owner-chosen per-role command keys) replaces the horn; building levels and home tiers are checklist-recognised (plaque scan), never blueprint-bound; new lanes: Builder (builders_hut, defense_plans, masonry), battle roles (spearmen, longswords, rune_mage, high_runes, battle_healer; shieldbearers folded into veteran_techniques, pike_square is a Spearmen doctrine), gear tiers (master_armoury + gear lines), warehouse checklist levels (warehouse_racks = L3, great_storehouse L4, royal_storehouse L5). v2 (26 Sep): Commons & Household rebuilt around a living village (home tiers, War Feast, festivals, Bard's Stage, Rooms to Let, Hall of Heroes, Families, Chapel vs Alehouse); Infirmary moved to Commons; Varied Table merged into Kitchen & Long Table; new Craft node Masters & Apprentices; plain +X% nodes in every branch gained a visible or behavioural hook.",
+    "title": "Bannerhold tech tree (expanded design)",
+    "date": "2026-09-26",
+    "notes": "Design data for the preview page and the later in-game implementation. Layout: screen coordinates with the Banner at (0,0) and y growing DOWN (like DevelopmentScreen): Watch = north (-y), Logistics = east (+x), Commons = south (+y), Craft = west (-x). Tier rings sit at radius ~170-265 (Hamlet), 410-505 (Village), 650-745 (Town) and 890-985 (Castle). The Crown spine spirals clockwise on the ring boundaries (Village NE r330, Town SE r570, Castle SW r810, Kingdom NW r1060). A node with a non-empty 'excludes' list is a pick-one; capstones can be pick-ones too. Goods ids starting with '#' are item tags (any log / any plank / any wool). Coins are always paid first, then goods, all-or-nothing, from the Banner treasury view (buyer inventory, Banner, Warehouse chests). 'time' is study time in in-game days (1 day = 40 real min at x2 day length), which needs a new study timer; tier 1-2 are instant. Building levels and home tiers are recognised from what is built in the room (plaque scan / Requirement checklist, shown as 'next level: add X'); a node unlocks the recognition and perks of a level, and the player or a Builder Upgrade Order meets the checklist. No level depends on a blueprint. 'change' (optional) says what differs from today's code for existing_changed nodes. Ids of existing nodes and upgrades are kept for save compatibility; the Logistics sack/cart/road ids and costs match the logistics build agent's PostRaidUpgrade entries (wire 12-15); warehouse levels use wire 16-18 and the Builder lane 19-20.",
+    "counts": {
+      "nodes": 84,
+      "by_branch": {
+        "crown": 5,
+        "watch": 23,
+        "logistics": 18,
+        "craft": 17,
+        "commons": 21
+      },
+      "by_status": {
+        "existing_changed": 31,
+        "new": 49,
+        "existing": 4
+      },
+      "coins_by_tier": {
+        "1": 48,
+        "2": 218,
+        "3": 254,
+        "4": 348,
+        "5": 80
+      }
+    },
+    "legend": {
+      "type": {
+        "unlock": "new building, job or item",
+        "bonus": "stat bonus",
+        "choice": "pick one of two (see excludes)",
+        "capstone": "big payoff at the end of a branch or a rank seal"
+      },
+      "status": {
+        "existing": "in the game today, unchanged",
+        "existing_changed": "exists in code but is renamed, moved, re-priced or reworked (see 'change')",
+        "new": "not in the game yet"
+      },
+      "size": {
+        "-": "no work",
+        "S": "a few hours, reuses an existing hook",
+        "M": "1-2 days, a new loop or a new item",
+        "L": "a slice of several days, a new system"
+      }
+    }
+  },
+  "branches": [
+    {
+      "id": "crown",
+      "name": "Crown",
+      "color": "#C9A227",
+      "direction": "C",
+      "description": "The rank spine: Hamlet, Village, Town, Castle, Kingdom. Each charter opens the next ring of every branch. It spirals outward from the Banner."
+    },
+    {
+      "id": "watch",
+      "name": "Watch & Defense",
+      "color": "#9B3B34",
+      "direction": "N",
+      "description": "Guards, archers, battle roles, Captain's Voice commands, walls, gates, towers and the infirmary: everything that decides a raid."
+    },
+    {
+      "id": "logistics",
+      "name": "Logistics",
+      "color": "#3E6C8A",
+      "direction": "E",
+      "description": "Couriers, sacks and packs, carts, roads, warehouse capacity and delivery priority. Goods move faster and in bigger loads."
+    },
+    {
+      "id": "commons",
+      "name": "Commons & Household",
+      "color": "#5B7A50",
+      "direction": "S",
+      "description": "Homes and beds, the Tavern and its bard, meals and food variety, morale, festivals and the Blessing shrine."
+    },
+    {
+      "id": "craft",
+      "name": "Craft & Production",
+      "color": "#B5651D",
+      "direction": "W",
+      "description": "Jobs and workstations, farms and fish, the chains from wood, ore, hide and wool to finished goods, and the tools that make work faster."
+    }
+  ],
+  "tiers": [
+    {
+      "id": 1,
+      "name": "Hamlet",
+      "ring": "Ring 1",
+      "requirement": "Raise the Banner. Every Hamlet node is reachable in the first 1-2 hours, before the first raid.",
+      "coin_band": "1-4 Coins",
+      "time_band": "instant"
+    },
+    {
+      "id": 2,
+      "name": "Village",
+      "ring": "Ring 2",
+      "requirement": "Village Charter: stamped automatically when the first raid resolves, win or lose (about 100-120 real min at x2 day length).",
+      "coin_band": "4-10 Coins",
+      "time_band": "instant"
+    },
+    {
+      "id": 3,
+      "name": "Town",
+      "ring": "Ring 3",
+      "requirement": "Town Charter: 15 settlers, 3 raids won, and 2 Village nodes in each of 3 branches.",
+      "coin_band": "10-16 Coins",
+      "time_band": "1 in-game day of study"
+    },
+    {
+      "id": 4,
+      "name": "Castle",
+      "ring": "Ring 4",
+      "requirement": "Castle Charter: 25 settlers, 6 raids won, and stone walls around the Banner.",
+      "coin_band": "24-40 Coins",
+      "time_band": "2 in-game days of study"
+    },
+    {
+      "id": 5,
+      "name": "Kingdom",
+      "ring": "Crown",
+      "requirement": "Crown of the Realm: 40 settlers, 12 raids won, one outpost, and an alliance or vassal.",
+      "coin_band": "80 Coins",
+      "time_band": "3 in-game days"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "settlement_charter",
+      "name": "Banner Raised",
+      "branch": "crown",
+      "tier": 1,
+      "x": 0,
+      "y": 0,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 0,
+        "goods": [],
+        "time": "instant",
+        "other": "Raise the Banner"
+      },
+      "requires": [],
+      "excludes": [],
+      "offers": "Found your hamlet: the Mayor, 4 founder places and ring 1 of every branch.",
+      "details": [
+        "Granted automatically when the Banner is raised (3 logs, 5 cobblestone, 1 campfire)",
+        "The Mayor and 3 hireable founders arrive; 4 founder places, and every bed adds one more",
+        "Opens every Hamlet node whose own gate is met",
+        "The separate 'Banner Raised' seal (id shelter) folds into this one; the id stays, but it is hidden"
+      ],
+      "flavor": "Where the banner stands, the law begins.",
+      "depends_on": [],
+      "change": "Today there are two free auto-granted seals, Settlement Charter and Banner Raised (shelter), and neither does anything. This merges them into one."
+    },
+    {
+      "id": "first_raid_aftermath",
+      "name": "Village Charter",
+      "branch": "crown",
+      "tier": 2,
+      "x": 233,
+      "y": -233,
+      "type": "capstone",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 0,
+        "goods": [],
+        "time": "instant",
+        "other": "First raid resolved (auto)"
+      },
+      "requires": [
+        "arm_the_watch"
+      ],
+      "excludes": [],
+      "offers": "Survive your first raid and the hamlet becomes a Village: ring 2 opens in every branch.",
+      "details": [
+        "Stamps itself when the first raid resolves, win or lose. There is no Learn click",
+        "Opens every Village node, including the old post-raid upgrades",
+        "Raids from now on: 5-8 raiders every 3-4 in-game days; each victory gives Coins plus a pick of 1 of 3 Blessings",
+        "'Village' title on the Banner screen and the map",
+        "Gear: opens Gear Tier 1 (Mail: chainmail, shields, turtle shell) for Man-at-Arms-rank guards, Marksmen and level-3 workers"
+      ],
+      "flavor": "They came with torches. We are still here.",
+      "depends_on": [],
+      "change": "Today it is called 'First Raid Aftermath', must be claimed by hand and grants nothing itself. It becomes the auto-stamped Village rank seal, and the id is kept."
+    },
+    {
+      "id": "town_charter",
+      "name": "Town Charter",
+      "branch": "crown",
+      "tier": 3,
+      "x": 403,
+      "y": 403,
+      "type": "capstone",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 20,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 32
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          },
+          {
+            "item": "minecraft:book",
+            "count": 4
+          }
+        ],
+        "time": "1 day",
+        "other": "15 settlers, 3 raids won, and 2 Village nodes in each of 3 branches"
+      },
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Become a Town: ring 3 opens, merchants bring fuller purses and raids grow tougher.",
+      "details": [
+        "Opens every Town node",
+        "Merchant purse per visit: 12 -> 16 Coins",
+        "Town Hall plan: the Mayor's office adds 2 emblem-shop lines and a notice board for quests",
+        "Raids grow to 10-15 raiders, and shieldbearers and raider archers join"
+      ],
+      "flavor": "A market cross, a hall, a name on the king's map.",
+      "depends_on": [
+        "Rank ladder (roadmap phase 4)",
+        "Study timer on Development nodes",
+        "Enemy roster slice (shieldbearers, raider archers)"
+      ]
+    },
+    {
+      "id": "castle_charter",
+      "name": "Castle Charter",
+      "branch": "crown",
+      "tier": 4,
+      "x": -573,
+      "y": 573,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 40,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 64
+          },
+          {
+            "item": "minecraft:iron_block",
+            "count": 4
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 8
+          }
+        ],
+        "time": "2 days",
+        "other": "25 settlers, 6 raids won, stone walls around the Banner"
+      },
+      "requires": [
+        "town_charter",
+        "stone_walls"
+      ],
+      "excludes": [],
+      "offers": "Become a Castle: ring 4 opens and you raise a Keep, the last stand of your people.",
+      "details": [
+        "Opens every Castle node",
+        "Keep building: in raids, civilians shelter inside and take -50% damage; guards within 24 blocks deal +10% damage",
+        "Merchant purse 16 -> 20 Coins",
+        "Raids grow to 15-25 raiders, with torchbearers and wolves; nemesis captains return holding grudges",
+        "Gear: half of Gear Tier 3 (Diamond); the other half is the Master Armoury"
+      ],
+      "flavor": "Stone does not burn.",
+      "depends_on": [
+        "Rank ladder",
+        "Walls & gates",
+        "Keep building type",
+        "Torchbearers + fire, wolves"
+      ]
+    },
+    {
+      "id": "kingdom_crown",
+      "name": "Crown of the Realm",
+      "branch": "crown",
+      "tier": 5,
+      "x": -750,
+      "y": -750,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 80,
+        "goods": [
+          {
+            "item": "minecraft:gold_block",
+            "count": 4
+          },
+          {
+            "item": "minecraft:diamond",
+            "count": 4
+          },
+          {
+            "item": "hearthstead:wool_bolt",
+            "count": 16
+          }
+        ],
+        "time": "3 days",
+        "other": "40 settlers, 12 raids won, 1 outpost, an alliance or a vassal"
+      },
+      "requires": [
+        "castle_charter"
+      ],
+      "excludes": [],
+      "offers": "Crown yourself: Kingdom rank, two Blessings per victory, and a seat among the rival kingdoms.",
+      "details": [
+        "Kingdom title and a royal banner for every player's Banner",
+        "Pick 2 Blessings after each victory (3 with the Cathedral)",
+        "Rival kingdoms send envoys: alliances, marriages, spies and declarations of war",
+        "Up to 5 outposts",
+        "Gear: half of Gear Tier 4 (Netherite, for Captains and level-10 workers); the other half is the Master Armoury"
+      ],
+      "flavor": "Kneel a lord, rise a king.",
+      "depends_on": [
+        "Diplomacy + rival AI kingdoms (phase 6)",
+        "Outposts",
+        "Rank ladder"
+      ]
+    },
+    {
+      "id": "first_watch",
+      "name": "Barracks & Guard",
+      "branch": "watch",
+      "tier": 1,
+      "x": 0,
+      "y": -170,
+      "type": "unlock",
+      "status": "existing",
+      "size": "-",
+      "cost": {
+        "coins": 4,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 4
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "1 Courier delivery"
+      },
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "offers": "Build a Barracks and hire Guards who patrol, answer the alarm and fight beside you.",
+      "details": [
+        "Barracks plan (2 beds) + Guard emblem (3 Coins, 2 iron, 1 leather)",
+        "Every guard already uses the full moveset: light, telegraphed heavy, 3-hit combo and shield bash",
+        "Well-fed guards regenerate health"
+      ],
+      "flavor": "Every village needs someone awake at night.",
+      "depends_on": []
+    },
+    {
+      "id": "guard_drill",
+      "name": "Guard Drill",
+      "branch": "watch",
+      "tier": 1,
+      "x": -132,
+      "y": -229,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 3,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 8
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": "1 weapon delivered to a Guard"
+      },
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "offers": "Guards spar every morning at the Barracks and earn +15% combat XP.",
+      "details": [
+        "Existing: +15% Guard combat XP from real kills (stacks with Shield Wall to +40%)",
+        "New: morning drill. After breakfast, off-duty guards pair up and spar in front of the Barracks with the real moveset (no damage) for a few minutes",
+        "Guards reach Man-at-Arms rank (leather chest) sooner"
+      ],
+      "flavor": "Sweat in the yard saves blood at the gate.",
+      "depends_on": [
+        "Sparring behaviour (reuses GuardMeleeGoal moves without damage)"
+      ],
+      "change": "It keeps +15% XP and adds a visible morning sparring drill."
+    },
+    {
+      "id": "arm_the_watch",
+      "name": "Watchtower & Archers",
+      "branch": "watch",
+      "tier": 1,
+      "x": -46,
+      "y": -261,
+      "type": "unlock",
+      "status": "existing",
+      "size": "-",
+      "cost": {
+        "coins": 0,
+        "goods": [],
+        "time": "instant",
+        "other": "1 Courier-delivered weapon to a Guard (a proof milestone, no Coins)"
+      },
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "offers": "Build a Watchtower, hire Archers, and post Guards on the tower.",
+      "details": [
+        "Watchtower plan (banner, 4 ladders) + Archer emblem (3 Coins, 4 arrows, 1 leather)",
+        "Tower Post orders for Guards",
+        "Couriers keep tower archers stocked with real arrows"
+      ],
+      "flavor": "From the tower you see them before they see you.",
+      "depends_on": []
+    },
+    {
+      "id": "commanders_horn",
+      "name": "Captain's Voice",
+      "branch": "watch",
+      "tier": 1,
+      "x": 46,
+      "y": -261,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 3,
+        "goods": [
+          {
+            "item": "minecraft:copper_ingot",
+            "count": 4
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "offers": "Command your soldiers in the fight: one key per role (R knights, G archers, and keys for spearmen, longswords, mages, healers), ordered by what you look at.",
+      "details": [
+        "Tap a role key: the order depends on what you look at",
+        "Ground: they form a line there; Enemy: melee charge it, ranged focus it; Wall or tower: archers climb up; your own feet: they follow you",
+        "Shift + key: back to posts",
+        "Hold the key: dots on the ground show each soldier's place; scroll to widen the line, release to confirm",
+        "A short line shows how many heard you, e.g. 'Knights: shield line (4/6)'"
+      ],
+      "flavor": "One shout, and they turn as one.",
+      "depends_on": [
+        "Guard control (per-role keys) - being built now"
+      ],
+      "change": "Replaces the horn + radial idea with the owner's chosen controls (26 Sep)."
+    },
+    {
+      "id": "barricades",
+      "name": "Raise the Barricades",
+      "branch": "watch",
+      "tier": 1,
+      "x": 133,
+      "y": -229,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 2,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_watch",
+        "builders_hut"
+      ],
+      "excludes": [],
+      "offers": "When a raid is spotted, sound the order and the whole village turns out to throw up barricades on the spots you marked.",
+      "details": [
+        "Mark barricade spots with the Work Scepter (the Barricade block itself comes with the Builder's Hut)",
+        "After a raid warning, 'Raise barricades' on the Banner screen sends idle settlers to place stored barricades (40 HP each), carrying them from the Warehouse (visible)",
+        "Raiders already chop through blocking blocks (RaiderBreachGoal); barricades give them a real target",
+        "After the raid, settlers pick up any intact barricades"
+      ],
+      "flavor": "Carts on their sides, stakes in the mud: it will do till morning.",
+      "depends_on": [
+        "Warning-time build order",
+        "Barricade block (Builder lane)"
+      ],
+      "change": "v3: the block recipe moved to the Builder's Hut (Builder lane); this node is the village-wide warning-time order."
+    },
+    {
+      "id": "defense_plans",
+      "name": "Defense Plans",
+      "branch": "watch",
+      "tier": 1,
+      "x": 95,
+      "y": -141,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 3,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          },
+          {
+            "item": "minecraft:stick",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "offers": "Draw a defense line on the ground and your Builder raises palisade walls, gates and a timber watchtower along it.",
+      "details": [
+        "Defense Plan line tool: mark a wall line; the Builder builds palisade segments along it from your stores",
+        "Palisade gates and a timber watchtower blueprint",
+        "Each wall block is tagged with its segment kind (palisade, stone, gate) so raids can find weak points",
+        "Stone versions need Masonry"
+      ],
+      "flavor": "A line in the dirt today, a wall by the next new moon.",
+      "depends_on": [
+        "Builder lane (being built now: PostRaidUpgrade wire 19)"
+      ]
+    },
+    {
+      "id": "shield_doctrine",
+      "name": "Shield Wall",
+      "branch": "watch",
+      "tier": 2,
+      "x": -241,
+      "y": -332,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": "40 Guard combat XP earned (existing gate)"
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "guard_drill"
+      ],
+      "excludes": [],
+      "offers": "Guards learn the shield wall: the Hold the Line order and +25% combat XP.",
+      "details": [
+        "Existing: +25% Guard combat XP, which stacks with Guard Drill",
+        "New: Captain's Voice gains the shield line. Look at the ground and hold the Knights key (R): guards form up shoulder to shoulder on the dots and hold",
+        "A holding guard with a shield takes -30% frontal damage and cannot be knocked back",
+        "No longer the parent of the Hunters' Lodge, which moves to Craft"
+      ],
+      "flavor": "Lock shields. Nobody steps back.",
+      "depends_on": [
+        "Guard control (per-role keys) - being built now"
+      ],
+      "change": "Renamed from 'Shield Doctrine'. It keeps its XP effect and gains the Hold order. The Hunters' Lodge edge moves to Craft."
+    },
+    {
+      "id": "spearmen",
+      "name": "Spearmen",
+      "branch": "watch",
+      "tier": 2,
+      "x": -14,
+      "y": -410,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          },
+          {
+            "item": "minecraft:stick",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "first_watch"
+      ],
+      "excludes": [],
+      "offers": "A new battle role: Spearmen fight from the second rank with long reach and brace against charges.",
+      "details": [
+        "Pike Yard plan (checklist: 2 beds, 2 hay bales as drill targets, 1 storage, 1 door, 2 lights, 30 floor) + Spearman emblem (4 C, 1 iron, 1 leather)",
+        "Spear reach 1.5x normal melee: they strike over the Knights' shield line",
+        "Brace: a braced spearman stops and staggers the first enemy that charges him",
+        "Own Captain's Voice key (J); spearmen use the guard rank ladder for Gear Tiers"
+      ],
+      "flavor": "Keep them at the end of your spear and they cannot reach you.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ],
+      "change": "In code today the Spearman and Pike Yard hang off shield_doctrine (no new DevelopmentNode wire id yet); they move here when the tree lands."
+    },
+    {
+      "id": "guard_arms_iron",
+      "name": "Iron Arms Drill",
+      "branch": "watch",
+      "tier": 2,
+      "x": -140,
+      "y": -385,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 6
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Veterans wear iron chest and legs, Sergeants full iron: one armour tier earlier.",
+      "details": [
+        "Existing effect: GuardArms dresses Veteran and above in the next rank's kit",
+        "Every piece is still taken from the Armoury, a Warehouse or the Banner stores, never conjured",
+        "Pairs with the Armoury, which forges the iron",
+        "Gear: opens Gear Tier 2 (Plate: iron armour, crossbows) for Veteran guards, Sharpshooters and level-5 workers; any one of Iron Arms Drill, Armoury or Mine, Smelter & Smithy counts"
+      ],
+      "flavor": "Iron on the shoulders of those who earned it.",
+      "depends_on": [],
+      "change": "Today it costs 8 Coins and nothing else. This adds 6 iron so every node costs Coins plus goods."
+    },
+    {
+      "id": "archer_longbow_drill",
+      "name": "Longbows",
+      "branch": "watch",
+      "tier": 2,
+      "x": 140,
+      "y": -385,
+      "type": "choice",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:string",
+            "count": 8
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 12
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "arm_the_watch"
+      ],
+      "excludes": [
+        "crossbows"
+      ],
+      "offers": "Archers shoot farther and faster, and loose volleys on your command.",
+      "details": [
+        "Range 18 -> 20 blocks, draw 20 -> 16 ticks (existing ArcherDrill)",
+        "New: Volley. Look at an enemy and tap the Archers key (G): every archer in earshot looses at it at once",
+        "Pick one: Longbows or Crossbows",
+        "Saves that already own the drill keep it, and Crossbows stay locked for them"
+      ],
+      "flavor": "Yew, patience, and forty arrows in the air at once.",
+      "depends_on": [
+        "Guard control (per-role keys) for the Volley"
+      ],
+      "change": "Becomes one side of a pick-one choice against Crossbows, gains the Captain's Voice Volley, and adds string and logs to the Coin-only price."
+    },
+    {
+      "id": "crossbows",
+      "name": "Crossbows",
+      "branch": "watch",
+      "tier": 2,
+      "x": 241,
+      "y": -332,
+      "type": "choice",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 6
+          },
+          {
+            "item": "minecraft:string",
+            "count": 8
+          },
+          {
+            "item": "minecraft:tripwire_hook",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "arm_the_watch"
+      ],
+      "excludes": [
+        "archer_longbow_drill"
+      ],
+      "offers": "Archers switch to crossbows: slower, but every bolt hits hard and punches through shields.",
+      "details": [
+        "Archers wield vanilla crossbows (made by the Smith or bought) and still shoot real arrows",
+        "Crossbows are Gear Tier 2 (Plate): an archer needs Sharpshooter rank and the village needs Iron Arms Drill, an Armoury or a Smithy",
+        "+40% damage per shot, and it ignores a shieldbearer's frontal block",
+        "Reload 30 ticks (a bow draws in 16-20); range 16 blocks",
+        "Pierce 1: a bolt can hit a second raider standing in line"
+      ],
+      "flavor": "Any farmhand can learn it in a week. That is the point.",
+      "depends_on": [
+        "Crossbow branch in ArcherAttackGoal + animation"
+      ]
+    },
+    {
+      "id": "fortification",
+      "name": "Armoury & Armourer",
+      "branch": "watch",
+      "tier": 2,
+      "x": -252,
+      "y": -437,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 12
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "first_watch"
+      ],
+      "excludes": [],
+      "offers": "An Armourer forges armour and shields for your guards from village iron and leather.",
+      "details": [
+        "Armoury plan + Armourer emblem",
+        "Makes leather armour, iron armour and shields from stored goods (these Production recipes already exist)",
+        "Guards dress from the Armoury first, then the Warehouse",
+        "Gear can still be crafted by players or bought",
+        "Gear: opens Gear Tier 2 (Plate: iron armour, crossbows) for Veteran guards, Sharpshooters and level-5 workers; any one of Iron Arms Drill, Armoury or Mine, Smelter & Smithy counts"
+      ],
+      "flavor": "A guard is only as good as the steel the village gives him.",
+      "depends_on": [
+        "Armourer emblem entry + release GameTests"
+      ],
+      "change": "Today a FUTURE placeholder that cannot be bought (4 iron blocks). The building, the profession and its recipes already exist. The price drops to 12 iron."
+    },
+    {
+      "id": "watchfires",
+      "name": "Watchfires & Great Bell",
+      "branch": "watch",
+      "tier": 2,
+      "x": -88,
+      "y": -497,
+      "type": "bonus",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 5,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          },
+          {
+            "item": "minecraft:charcoal",
+            "count": 8
+          },
+          {
+            "item": "minecraft:copper_ingot",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "arm_the_watch"
+      ],
+      "excludes": [],
+      "offers": "Earlier raid warnings, and an alarm bell heard across the whole village.",
+      "details": [
+        "Raid warning comes 30 in-game minutes earlier for each staffed Watchtower (max +1 h, so up to 2 h of warning)",
+        "The warning shows the raid's direction on the Banner screen and the map",
+        "Alarm bell radius 16 -> 32 blocks, and civilians run to shelter 25% faster",
+        "Off-duty guards within 48 blocks answer the bell"
+      ],
+      "flavor": "Smoke on the ridge - ring it, ring it now!",
+      "depends_on": [
+        "Scout-warning timer (owner decision: ~1 in-game hour, earlier with a better watch)"
+      ]
+    },
+    {
+      "id": "palisade",
+      "name": "Manned Palisade",
+      "branch": "watch",
+      "tier": 2,
+      "x": 88,
+      "y": -497,
+      "type": "choice",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 64
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "defense_plans"
+      ],
+      "excludes": [
+        "earthworks"
+      ],
+      "offers": "Your palisade becomes a fighting wall: guards shut the gates on the alarm, archers walk the wall, and the timber holds twice as long.",
+      "details": [
+        "Palisade segments built from Defense Plans get double HP (80); gates are shut by guards on the alarm and opened for settlers",
+        "Archers can be sent up onto the palisade walkway (Captain's Voice: look at the wall, tap G)",
+        "Raiders head for the gate or the weakest gap and must breach it",
+        "Settlers repair damaged palisade after raids with the existing nail and chisel repair loop",
+        "Pick one: Palisade or Ditch & Stakes. Either one upgrades to Stone Walls at Town rank"
+      ],
+      "flavor": "Sharpened oak, shoulder to shoulder, all the way round.",
+      "depends_on": [
+        "Walls & gates slice",
+        "Raider weak-point pathing"
+      ]
+    },
+    {
+      "id": "earthworks",
+      "name": "Ditch & Stakes",
+      "branch": "watch",
+      "tier": 2,
+      "x": 253,
+      "y": -437,
+      "type": "choice",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 24
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "defense_plans"
+      ],
+      "excludes": [
+        "palisade"
+      ],
+      "offers": "Settlers dig a staked ditch. Raiders crossing it slow to a crawl, and there is no gate to lose.",
+      "details": [
+        "Draw a ditch line with the Defense Plan tool; the Builder and idle settlers dig it 2 blocks deep and set stakes",
+        "Raiders in the ditch move 40% slower and take 1 damage per second",
+        "It cannot be breached, only crossed; your own people use the bridges you place",
+        "Pick one: Palisade or Ditch & Stakes. Either one upgrades to Stone Walls at Town rank"
+      ],
+      "flavor": "Let them come. Let them come slowly.",
+      "depends_on": [
+        "Work-zone dig task",
+        "Stake block (slow + damage)"
+      ]
+    },
+    {
+      "id": "stone_walls",
+      "name": "Stone Walls & Arrow Slits",
+      "branch": "watch",
+      "tier": 3,
+      "x": -264,
+      "y": -594,
+      "type": "unlock",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 16,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 96
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 12
+          }
+        ],
+        "time": "1 day",
+        "other": "Own Manned Palisade or Ditch & Stakes"
+      },
+      "requires": [
+        "town_charter",
+        "masonry"
+      ],
+      "excludes": [],
+      "offers": "Stone walls three times as strong, and arrow slits that make your towers deadly.",
+      "details": [
+        "Stone segments built with Masonry get 240 HP (palisade 40, Manned Palisade 80); the Builder converts palisade in place",
+        "Arrow slit block: an archer behind it takes -60% ranged damage and gets +2 range",
+        "Stone gate with 3x the HP of a palisade gate; it closes instantly on the alarm",
+        "Required for the Castle Charter"
+      ],
+      "flavor": "What the axe cannot cut, the fire cannot eat.",
+      "depends_on": [
+        "Walls & gates slice",
+        "Mason job loop"
+      ]
+    },
+    {
+      "id": "veteran_techniques",
+      "name": "Veteran Techniques",
+      "branch": "watch",
+      "tier": 3,
+      "x": 264,
+      "y": -594,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          },
+          {
+            "item": "minecraft:book",
+            "count": 4
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "shield_doctrine"
+      ],
+      "excludes": [],
+      "offers": "Guards master their moveset: harder bashes, a four-strike combo and shield-breaking heavies.",
+      "details": [
+        "Every guard today knows the light attack, the heavy, the 3-hit combo and the bash; this node upgrades them and takes nothing away",
+        "Shield Bash: -30% cooldown, +0.5 s stagger, and it opens a shieldbearer's guard for 2 s",
+        "Combo: a 4th finisher strike (+30% damage) and a combo window 4 ticks longer",
+        "Heavy: breaks a raised shield and knocks brutes back 1 block",
+        "The upgraded moves are for Man-at-Arms rank and up; Recruits keep the basics",
+        "Tower shields: Veteran-rank Knights can carry a tower shield that blocks 80% of frontal arrows and anchors the shield line (replaces the separate Shieldbearer role idea; the owner's roles are Knights, Archers, Spearmen, Longswordsmen, Mages and Healers)"
+      ],
+      "flavor": "Watch the shoulder, not the blade.",
+      "depends_on": [],
+      "change": "Builds on the existing GuardMove / GuardMeleeGoal moveset. The values in GuardMove get upgraded versions, read through Development."
+    },
+    {
+      "id": "longswords",
+      "name": "Longswordsmen",
+      "branch": "watch",
+      "tier": 3,
+      "x": 104,
+      "y": -738,
+      "type": "unlock",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 18,
+        "goods": [
+          {
+            "item": "minecraft:iron_block",
+            "count": 2
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 6
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "spearmen"
+      ],
+      "excludes": [],
+      "offers": "A new battle role: two-handed longswordsmen who break shields and cut through crowds.",
+      "details": [
+        "Sword Hall plan (checklist: 2 beds, 1 anvil, 1 grindstone, 1 storage, 1 door, 2 lights, 30 floor) + Longswordsman emblem (5 C, 3 iron, 2 leather)",
+        "Two-handed sweeps hit several raiders at once; heavy strikes break a raised shield",
+        "No shield of their own: keep them behind the Knights until the line breaks",
+        "Own Captain's Voice key (K); longswordsmen use the guard rank ladder for Gear Tiers"
+      ],
+      "flavor": "Two hands, one blade, and plenty of room around him.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ],
+      "change": "The roles lane lists 'spearmen or shieldbearers' as the requirement; Shieldbearers is not a role, so it is spearmen. In code today it hangs off shield_doctrine."
+    },
+    {
+      "id": "rune_mage",
+      "name": "Rune Mage",
+      "branch": "watch",
+      "tier": 3,
+      "x": 303,
+      "y": -681,
+      "type": "unlock",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 20,
+        "goods": [
+          {
+            "item": "minecraft:lapis_lazuli",
+            "count": 16
+          },
+          {
+            "item": "minecraft:amethyst_shard",
+            "count": 8
+          },
+          {
+            "item": "minecraft:book",
+            "count": 4
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "hearth_doctrine"
+      ],
+      "excludes": [],
+      "offers": "A new battle role: a Rune Mage who spends rune charges on spells that turn a fight.",
+      "details": [
+        "Rune Hall plan (checklist: 1 enchanting table, 4 amethyst blocks, 4 bookshelves, 1 door, 3 lights, 25 floor) + Rune Mage emblem (6 C, 8 lapis, 4 amethyst shards, 1 book)",
+        "Spells cost rune charges: 3 max, +1 every 60 s; a Ward spell lasts 5 s",
+        "Rune Stones (1 amethyst shard + 2 lapis + 1 smooth stone -> 2) are stocked to the Rune Hall by Couriers; each stone gives +1 charge",
+        "Mage cap: 1 (2 with High Runes); own Captain's Voice key (N)"
+      ],
+      "flavor": "Old words, cut into stone, and the stone remembers them.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ],
+      "change": "In code today the Rune Mage hangs off hearth_doctrine plus a built Rune Hall; mage cap 2 at 20+ settlers until high_runes exists."
+    },
+    {
+      "id": "master_armoury",
+      "name": "Master Armoury",
+      "branch": "watch",
+      "tier": 4,
+      "x": 0,
+      "y": -985,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 30,
+        "goods": [
+          {
+            "item": "minecraft:diamond",
+            "count": 4
+          },
+          {
+            "item": "minecraft:iron_block",
+            "count": 2
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 8
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "fortification"
+      ],
+      "excludes": [],
+      "offers": "Your Armourer and Smith learn to work diamond and netherite: Gear Tier 3 for Sergeants, Master Archers and level-8 workers, and with the Crown, Tier 4 for Captains.",
+      "details": [
+        "Gear Tier 3 (Diamond: all diamond gear, trident, mace) with the Castle Charter",
+        "Gear Tier 4 (Netherite) with the Crown of the Realm",
+        "The Armoury can issue the new tiers to guards of the right rank (GearGate: rank AND village knowledge)",
+        "The settler sheet shows 'next gear tier: <rank> + <knowledge>' for every soldier"
+      ],
+      "flavor": "Diamond is only a stone until a master knows where to strike it.",
+      "depends_on": [
+        "Gear tiers (GearTier/GearGate built by the gear agent; resolves node:master_armoury)"
+      ]
+    },
+    {
+      "id": "high_runes",
+      "name": "High Runes",
+      "branch": "watch",
+      "tier": 4,
+      "x": 432,
+      "y": -885,
+      "type": "bonus",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 30,
+        "goods": [
+          {
+            "item": "minecraft:amethyst_block",
+            "count": 4
+          },
+          {
+            "item": "minecraft:diamond",
+            "count": 1
+          },
+          {
+            "item": "minecraft:book",
+            "count": 8
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "rune_mage"
+      ],
+      "excludes": [],
+      "offers": "Your mages master the high runes: a second Rune Mage, more stones from every carving, and longer wards.",
+      "details": [
+        "Mage cap 1 -> 2",
+        "Rune Stone carving makes 3 instead of 2",
+        "Ward lasts 6 s instead of 5 s"
+      ],
+      "flavor": "The high runes are not spoken. They are sung.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ]
+    },
+    {
+      "id": "knights",
+      "name": "Order of Knights",
+      "branch": "watch",
+      "tier": 4,
+      "x": -215,
+      "y": -864,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 30,
+        "goods": [
+          {
+            "item": "minecraft:iron_block",
+            "count": 4
+          },
+          {
+            "item": "minecraft:saddle",
+            "count": 4
+          },
+          {
+            "item": "minecraft:hay_block",
+            "count": 16
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "veteran_techniques"
+      ],
+      "excludes": [
+        "pike_square"
+      ],
+      "offers": "Mounted knights: your best guards (the R-key Knights) take to horseback, charge through raider lines and run down archers.",
+      "details": [
+        "Up to 4 Sergeant or Captain Knights ride horses from your Stable (Knights = the guard group, Captain's Voice key R)",
+        "The Charge order sends knights trampling through a line: 8 damage plus knockback",
+        "Knights catch fleeing raiders and wolves",
+        "Pick one: Knights or Pike Square"
+      ],
+      "flavor": "Hooves on the frost, lances down.",
+      "depends_on": [
+        "Horses + Stable (owner: horses later)",
+        "Mounted combat AI"
+      ]
+    },
+    {
+      "id": "pike_square",
+      "name": "Pike Square",
+      "branch": "watch",
+      "tier": 4,
+      "x": 215,
+      "y": -864,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 30,
+        "goods": [
+          {
+            "item": "minecraft:iron_block",
+            "count": 4
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 32
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 16
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "spearmen"
+      ],
+      "excludes": [
+        "knights"
+      ],
+      "offers": "Spearmen doctrine: your Spearmen form a braced square, and nothing gets through, not brutes, not wolves.",
+      "details": [
+        "Square formation: all-round brace, with no flank penalty while in the square",
+        "Brace strike +50%",
+        "Chargers (brutes, wolves) are stopped dead against a braced square",
+        "Pick one: Order of Knights or Pike Square"
+      ],
+      "flavor": "Ash shafts, iron heads, and not one step back.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)",
+        "Square formation"
+      ]
+    },
+    {
+      "id": "stores_and_roads",
+      "name": "Warehouse & Courier",
+      "branch": "logistics",
+      "tier": 1,
+      "x": 170,
+      "y": 0,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 2,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 8
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": "1 log stored by a Lumberer"
+      },
+      "requires": [
+        "timber_rights"
+      ],
+      "excludes": [],
+      "offers": "Build a Warehouse and hire Couriers who carry goods to one shared store.",
+      "details": [
+        "Warehouse plan + Courier emblem (2 Coins, 1 chest, 2 leather)",
+        "Warehouse levels come from the plaque checklist, never a blueprint. L1 Storeroom manages 16 containers (4 storage, 1 door, 2 lights, 25 floor); L2 Stockroom manages 32 (16 storage, a ledger desk, 4 lights, solid floor). Higher levels need Storehouse, Great Storehouse and Royal Storehouse",
+        "Containers beyond the cap show as 'not managed (warehouse full)'; nothing breaks",
+        "Base Courier load: 8 items per trip"
+      ],
+      "flavor": "A place for everything, and a boy to carry it there.",
+      "depends_on": [],
+      "change": "Renamed only, from 'Stores & Roads'; the roads now live in Paved Roads."
+    },
+    {
+      "id": "stout_straps",
+      "name": "Stout Straps",
+      "branch": "logistics",
+      "tier": 1,
+      "x": 242,
+      "y": -108,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 2,
+        "goods": [
+          {
+            "item": "minecraft:leather",
+            "count": 4
+          },
+          {
+            "item": "minecraft:string",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": "6 Courier deliveries"
+      },
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "offers": "Couriers carry 2 more items and pick up two different jobs on one trip.",
+      "details": [
+        "Existing: a flat +2 carry that stacks with every sack and cart tier",
+        "New: pickup batching. A Courier with room left takes a second request on the way (e.g. logs to the Warehouse, then bread to the Tavern) instead of walking back empty"
+      ],
+      "flavor": "Double-stitched, and it will outlive the courier.",
+      "depends_on": [
+        "Pickup batching (listed as a later idea by the logistics agent)"
+      ],
+      "change": "It keeps +2 carry and gains two-job trips."
+    },
+    {
+      "id": "paved_roads",
+      "name": "Paved Roads",
+      "branch": "logistics",
+      "tier": 1,
+      "x": 242,
+      "y": 108,
+      "type": "bonus",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 4,
+        "goods": [
+          {
+            "item": "minecraft:gravel",
+            "count": 32
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": "8 Courier deliveries"
+      },
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "offers": "Every settler walks 15% faster on roads: dirt path, gravel, cobble, stone and bricks.",
+      "details": [
+        "+15% walking speed (server config logistics.pavedRoadsPercent) on blocks in the hearthstead:roads tag (dirt path, gravel, cobble, stone bricks, bricks)",
+        "Hand carts roll 10% faster on roads",
+        "Raiders get no bonus"
+      ],
+      "flavor": "Lay a road and the village grows along it.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 14)"
+      ]
+    },
+    {
+      "id": "courier_satchel",
+      "name": "Courier Satchel",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 340,
+      "y": -229,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 4,
+        "goods": [],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "stout_straps",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Sack tier 1: Couriers carry 50% more (8 -> 12 per trip), and you can see the satchel on their hip.",
+      "details": [
+        "Carry = 8 x (100 + sack% + cart%) / 100, + 2 Stout Straps, + Trade skill (0-3)",
+        "The weight budget scales with capacity (16 x capacity / 8), so bigger sacks and carts move stone and logs too",
+        "Visible: each sack tier draws on the Courier model (satchel, then leather pack, then frame pack)",
+        "Price unchanged (4 Coins); the logistics agent keeps it as is"
+      ],
+      "flavor": "Oiled canvas and a good buckle.",
+      "depends_on": [
+        "Sack model layer on the Courier (not in the logistics agent's current scope)"
+      ],
+      "change": "The carry effect is unchanged; the satchel becomes visible on the Courier."
+    },
+    {
+      "id": "leather_pack",
+      "name": "Leather Pack",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 390,
+      "y": -127,
+      "type": "bonus",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:leather",
+            "count": 8
+          },
+          {
+            "item": "#minecraft:wool",
+            "count": 4
+          },
+          {
+            "item": "minecraft:string",
+            "count": 6
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "courier_satchel",
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "offers": "Sack tier 2: Couriers carry double (8 -> 16 per trip).",
+      "details": [
+        "Sack +100% (replaces the Satchel's +50%)",
+        "Worker Packs follow the sack tier, so Lumberers and Farmers carry more too"
+      ],
+      "flavor": "Cow-hide on the back, wool on the shoulders.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 12)"
+      ]
+    },
+    {
+      "id": "frame_pack",
+      "name": "Frame Pack",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 454,
+      "y": -221,
+      "type": "bonus",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 10,
+        "goods": [
+          {
+            "item": "minecraft:leather",
+            "count": 12
+          },
+          {
+            "item": "minecraft:string",
+            "count": 8
+          },
+          {
+            "item": "minecraft:stick",
+            "count": 8
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "leather_pack"
+      ],
+      "excludes": [],
+      "offers": "Sack tier 3: Couriers carry 2.5x (8 -> 20 per trip).",
+      "details": [
+        "Sack +150%",
+        "With a Hand Cart: 8 x (100 + 150 + 200) / 100 = 36 items per trip (38 with Straps)",
+        "Lumberers and Farmers carry at the same tier (Worker Packs)"
+      ],
+      "flavor": "A frame of ash, and a man can carry a calf.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 13)"
+      ]
+    },
+    {
+      "id": "hand_cart",
+      "name": "Hand Cart",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 505,
+      "y": 0,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 12
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 4
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "courier_satchel"
+      ],
+      "excludes": [],
+      "offers": "Couriers push a real, visible hand cart: +200% carry.",
+      "details": [
+        "Cart +200% of base: with the Satchel, 8 x 3.5 = 28 items per trip",
+        "+10% speed on roads, -15% off-road (server config: logistics.handCartPercent / handCartRoughPercent)",
+        "A visible cart model rolls behind the Courier"
+      ],
+      "flavor": "Two wheels, two handles, and no more sore backs.",
+      "depends_on": [
+        "Built by the logistics agent now (visible cart)"
+      ],
+      "change": "Today it is an invisible flat +8. It becomes a visible cart with a percentage bonus and road/off-road speed, and 12 planks, 4 logs and 2 iron join the 8 Coins."
+    },
+    {
+      "id": "worker_packs",
+      "name": "Worker Packs",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 390,
+      "y": 127,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 6,
+        "goods": [],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "stores_and_roads",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Lumberers and Farmers carry at the settlement's sack tier (at least +50%).",
+      "details": [
+        "Minimum tier 1 = the old 3/2 behaviour (8 -> 12)",
+        "Leather Pack -> 16, Frame Pack -> 20 per trip",
+        "Visible: Lumberers and Farmers wear the same sack model as the Couriers"
+      ],
+      "flavor": "Fewer walks to the store, more trees down.",
+      "depends_on": [],
+      "change": "Today a fixed x1.5. It now follows the sack tier (logistics agent)."
+    },
+    {
+      "id": "swift_couriers",
+      "name": "Swift Couriers",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 340,
+      "y": 229,
+      "type": "bonus",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 4,
+        "goods": [
+          {
+            "item": "minecraft:leather",
+            "count": 6
+          },
+          {
+            "item": "minecraft:string",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": "12 Courier deliveries"
+      },
+      "requires": [
+        "stout_straps",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Couriers walk 10% faster everywhere and jog when a delivery is urgent.",
+      "details": [
+        "+10% Courier walking speed; stacks with Paved Roads",
+        "Visible: Couriers jog (run animation) on Urgent requests and when restocking arrows during a raid"
+      ],
+      "flavor": "Light boots, and no dawdling at the well.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 15)",
+        "Jog animation (extra)"
+      ]
+    },
+    {
+      "id": "warehouse_racks",
+      "name": "Storehouse (Warehouse L3)",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 492,
+      "y": 114,
+      "type": "unlock",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 5,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 24
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "stores_and_roads",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "The plaque now recognises Warehouse level 3, the Storehouse: 64 managed containers, with labelled shelves your Couriers can read.",
+      "details": [
+        "L3 Storehouse checklist (plaque scan): 32 storage, a ledger desk (lectern or cartography table), 4 labels (signs or item frames), 6 lights, 100 floor, solid floor",
+        "Managed containers 32 -> 64 once the room meets the checklist; the plaque shows 'next level: add X' until then",
+        "You or a Builder Upgrade Order add the missing pieces",
+        "A level built above what you have unlocked counts as your highest unlocked level, and the UI names the missing node",
+        "Old saves keep at least the level that covers their containers (up to L3)"
+      ],
+      "flavor": "Shelves to the rafters, and a label on every one.",
+      "depends_on": [
+        "Warehouse checklist levels (being built now: PostRaidUpgrade wire 16, WarehouseLevels)"
+      ],
+      "change": "v3: this is now the warehouse agent's L3 recognition gate. The earlier 64 -> 96 cap idea is dropped; the Storage Rack display block and sort-by-kind filing stay as a future idea."
+    },
+    {
+      "id": "courier_ledger",
+      "name": "Courier's Ledger",
+      "branch": "logistics",
+      "tier": 2,
+      "x": 437,
+      "y": 252,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 5,
+        "goods": [
+          {
+            "item": "minecraft:paper",
+            "count": 8
+          },
+          {
+            "item": "minecraft:book",
+            "count": 1
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "stores_and_roads",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Set each building's delivery priority and minimum stock; urgent needs are served first.",
+      "details": [
+        "Per-building priority: Low / Normal / Urgent (roadmap M5)",
+        "Minimum stock rules, e.g. keep 32 arrows at the Watchtower and 16 bread at the Tavern (roadmap M3)",
+        "Couriers take Urgent jobs first, then the oldest request",
+        "Set from the Warehouse screen"
+      ],
+      "flavor": "Arrows first. The baker can wait.",
+      "depends_on": [
+        "Request priority + minimum-stock rules (roadmap phase 4)"
+      ]
+    },
+    {
+      "id": "costers_cart",
+      "name": "Coster's Cart",
+      "branch": "logistics",
+      "tier": 3,
+      "x": 611,
+      "y": -222,
+      "type": "bonus",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 14,
+        "goods": [
+          {
+            "item": "hearthstead:timber_beam",
+            "count": 16
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "hand_cart",
+        "paved_roads",
+        "town_charter"
+      ],
+      "excludes": [],
+      "offers": "Two-wheeled cart, cart tier 2: +300% carry.",
+      "details": [
+        "Cart +300% (replaces the Hand Cart's +200%): with a Frame Pack, 8 x 5.5 = 44 items per trip",
+        "Needs roads: off-road it is as slow as a hand cart",
+        "Timber Beams come from the Sawmill"
+      ],
+      "flavor": "Iron-shod wheels, and a coster who knows every rut.",
+      "depends_on": [
+        "Cart entity (shared with the Hand Cart)"
+      ]
+    },
+    {
+      "id": "porters_guild",
+      "name": "Porters' Guild",
+      "branch": "logistics",
+      "tier": 3,
+      "x": 644,
+      "y": 90,
+      "type": "choice",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "hearthstead:cured_hide",
+            "count": 8
+          },
+          {
+            "item": "minecraft:bread",
+            "count": 16
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "courier_ledger"
+      ],
+      "excludes": [
+        "runners_guild"
+      ],
+      "offers": "Heavy loads: +50 points in the carry formula, but Couriers walk 10% slower.",
+      "details": [
+        "Frame Pack + Hand Cart 36 -> 40 per trip; Coster's Cart 44 -> 48",
+        "Courier walking speed -10%",
+        "Visible: Porters carry towering, strapped-up loads, and two Porters can shoulder a whole chest between them to move a store",
+        "Pick one: Porters or Runners"
+      ],
+      "flavor": "Bent backs, full stores.",
+      "depends_on": []
+    },
+    {
+      "id": "runners_guild",
+      "name": "Runners' Guild",
+      "branch": "logistics",
+      "tier": 3,
+      "x": 681,
+      "y": 303,
+      "type": "choice",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "minecraft:leather",
+            "count": 8
+          },
+          {
+            "item": "minecraft:sugar",
+            "count": 16
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "courier_ledger"
+      ],
+      "excludes": [
+        "porters_guild"
+      ],
+      "offers": "Swift feet: Couriers walk 15% faster and take their next job the instant one is free.",
+      "details": [
+        "+15% Courier speed (stacks with Swift Couriers and Paved Roads)",
+        "No idle pause between deliveries",
+        "Runners' relay: on a raid warning, a Runner sprints the news to every outlying worker, who heads home at once instead of waiting for the bell",
+        "Pick one: Porters or Runners"
+      ],
+      "flavor": "There and back before the bread cools.",
+      "depends_on": []
+    },
+    {
+      "id": "great_storehouse",
+      "name": "Great Storehouse (Warehouse L4)",
+      "branch": "logistics",
+      "tier": 3,
+      "x": 743,
+      "y": -52,
+      "type": "unlock",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 32
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "24 Courier deliveries"
+      },
+      "requires": [
+        "warehouse_racks",
+        "town_charter"
+      ],
+      "excludes": [],
+      "offers": "The plaque now recognises the Great Storehouse: 128 managed containers for a town's worth of goods.",
+      "details": [
+        "L4 checklist (plaque scan): 64 storage, a ledger desk, 8 labels, 10 lights, 2 doors, 200 floor, solid floor",
+        "Managed containers 64 -> 128",
+        "You or a Builder Upgrade Order add the missing pieces"
+      ],
+      "flavor": "Two doors: one for what comes in, one for what goes out.",
+      "depends_on": [
+        "Warehouse checklist levels (being built now: PostRaidUpgrade wire 17; in code it hangs off the Village Charter until town_charter exists)"
+      ]
+    },
+    {
+      "id": "mule_cart",
+      "name": "Mule Carts",
+      "branch": "logistics",
+      "tier": 4,
+      "x": 856,
+      "y": -245,
+      "type": "bonus",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 24,
+        "goods": [
+          {
+            "item": "minecraft:hay_block",
+            "count": 16
+          },
+          {
+            "item": "minecraft:lead",
+            "count": 4
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "costers_cart",
+        "castle_charter"
+      ],
+      "excludes": [],
+      "offers": "Mule-drawn carts, cart tier 3: +400% carry, and 20% faster on roads.",
+      "details": [
+        "Stable building; each mule pulls one cart for a Courier or a Carter",
+        "Mules eat hay from the Warehouse",
+        "On the alarm, spooked mules shelter in the Stable"
+      ],
+      "flavor": "Stubborn, hungry, and worth ten men.",
+      "depends_on": [
+        "Mules/horses + Stable (owner: horses later)",
+        "Cart entity"
+      ]
+    },
+    {
+      "id": "royal_storehouse",
+      "name": "Royal Storehouse (Warehouse L5)",
+      "branch": "logistics",
+      "tier": 4,
+      "x": 985,
+      "y": 0,
+      "type": "unlock",
+      "status": "new",
+      "size": "S",
+      "cost": {
+        "coins": 24,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 64
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 16
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": "64 Courier deliveries"
+      },
+      "requires": [
+        "great_storehouse",
+        "castle_charter"
+      ],
+      "excludes": [],
+      "offers": "The plaque now recognises the Royal Storehouse: 256 managed containers, the granary of a castle.",
+      "details": [
+        "L5 checklist (plaque scan): 128 storage, 2 ledger desks, 16 labels, 16 lights, 2 doors, 320 floor, solid floor",
+        "Managed containers 128 -> 256",
+        "You or a Builder Upgrade Order add the missing pieces"
+      ],
+      "flavor": "The king's tithe-barn has nothing on ours.",
+      "depends_on": [
+        "Warehouse checklist levels (being built now: PostRaidUpgrade wire 18)"
+      ]
+    },
+    {
+      "id": "caravan_routes",
+      "name": "Outposts & Caravans",
+      "branch": "logistics",
+      "tier": 4,
+      "x": 856,
+      "y": 245,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 30,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 64
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 8
+          },
+          {
+            "item": "minecraft:white_banner",
+            "count": 1
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "costers_cart"
+      ],
+      "excludes": [],
+      "offers": "Found mine, farm and watch outposts, linked to home by scheduled caravans on the King's Road.",
+      "details": [
+        "Outpost Banner: a small claim with 2-4 workers and one building, up to 256 blocks away (1 outpost at Castle, 5 at Kingdom)",
+        "A Carter runs a timetable between outpost and Warehouse; cargo moves as data while chunks are unloaded",
+        "King's Road: +30% speed on stone-brick roads, and a rich merchant (32-Coin purse, rare goods) every 3 days",
+        "Outposts and caravans can be raided or ambushed (smaller events)"
+      ],
+      "flavor": "The realm is only as wide as its roads.",
+      "depends_on": [
+        "Outposts + Carter (roadmap phase 5)",
+        "Event engine"
+      ]
+    },
+    {
+      "id": "timber_rights",
+      "name": "Lumber Camp",
+      "branch": "craft",
+      "tier": 1,
+      "x": -170,
+      "y": 0,
+      "type": "unlock",
+      "status": "existing",
+      "size": "-",
+      "cost": {
+        "coins": 1,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 8
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "Foundation ready"
+      },
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "offers": "Build a Lumber Camp, hire a Lumberer, and get the Work Scepter.",
+      "details": [
+        "Lumber Camp plan + Lumberer emblem (1 Coin, 2 flint)",
+        "Work Scepter recipe for marking work areas"
+      ],
+      "flavor": "First the axe, then everything else.",
+      "depends_on": []
+    },
+    {
+      "id": "builders_hut",
+      "name": "Builder's Hut",
+      "branch": "craft",
+      "tier": 1,
+      "x": -141,
+      "y": 95,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 3,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "timber_rights"
+      ],
+      "excludes": [],
+      "offers": "Hire a Builder: they fill the gaps on any building's checklist for you, build starter blueprints, and make barricades.",
+      "details": [
+        "Builder's Hut plan + Builder emblem",
+        "Upgrade Orders: on any plaque that says 'next level: add X', order the Builder to add the missing pieces from your stores (beds, lights, labels, a planked floor...)",
+        "Starter blueprints (optional): Cottage, Warehouse, Tavern, Barracks, Builder's Hut. Building levels and home tiers never depend on blueprints; they come only from the plaque checklist",
+        "Barricade block recipe: a first-raid village can rush barricades without Defense Plans",
+        "Stone floors in Upgrade Orders need Masonry"
+      ],
+      "flavor": "Tell me what the room is missing, and I will fetch my hammer.",
+      "depends_on": [
+        "Builder lane (being built now: BUILDERS_HUT + BUILDER, shared BuildingLevelChecklist)"
+      ],
+      "change": "For now the Builder's Hut and Builder emblem ride on timber_rights in code; they move to this node when the tree implementation lands."
+    },
+    {
+      "id": "sharpened_axes",
+      "name": "Sharpened Axes",
+      "branch": "craft",
+      "tier": 1,
+      "x": -229,
+      "y": 132,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 2,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 2
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "16 logs stored by Lumberers"
+      },
+      "requires": [
+        "timber_rights"
+      ],
+      "excludes": [],
+      "offers": "Lumberers whet their axes on a grindstone and fell each tree 10% faster, and they replant as they go.",
+      "details": [
+        "Existing: felling time -10%",
+        "New: every 8 trees, the Lumberer whets his axe at the Lumber Camp grindstone (sparks and sound)",
+        "New: the Lumberer plants a sapling in every stump he leaves, so the forest grows back"
+      ],
+      "flavor": "A keen edge is half the day's work.",
+      "depends_on": [
+        "Grindstone visit + replant step in LumbererWorkGoal"
+      ],
+      "change": "It keeps -10% felling and gains the grindstone visit and replanting."
+    },
+    {
+      "id": "cultivated_ground",
+      "name": "Fields & Farmer",
+      "branch": "craft",
+      "tier": 1,
+      "x": -261,
+      "y": 46,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 2,
+        "goods": [
+          {
+            "item": "minecraft:wheat_seeds",
+            "count": 8
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": "1 Courier delivery"
+      },
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "offers": "Build a Farmhouse and hire a Farmer who sows, reaps and stores wheat.",
+      "details": [
+        "Farmhouse plan + Farmer emblem (2 Coins, 8 seeds, 1 leather)",
+        "Crop Rotation research: +15% crop growth"
+      ],
+      "flavor": "Bread starts in the mud.",
+      "depends_on": [],
+      "change": "Renamed only, from 'Cultivated Ground'."
+    },
+    {
+      "id": "shore_provisions",
+      "name": "Fishery",
+      "branch": "craft",
+      "tier": 1,
+      "x": -261,
+      "y": -46,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 2,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 4
+          },
+          {
+            "item": "minecraft:string",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": "1 Courier delivery"
+      },
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "offers": "Build a Fishery; a Fisher lands food and rare catches for trade.",
+      "details": [
+        "Fishery plan + Fisher emblem (2 Coins, 2 string, 1 leather)",
+        "Rare fish (perch, trout, pike, golden char) sell to merchants"
+      ],
+      "flavor": "The river pays in silver scales.",
+      "depends_on": [],
+      "change": "Renamed only, from 'Shore Provisions'."
+    },
+    {
+      "id": "fishers_nets",
+      "name": "Fisher's Nets",
+      "branch": "craft",
+      "tier": 1,
+      "x": -229,
+      "y": -133,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 3,
+        "goods": [
+          {
+            "item": "minecraft:string",
+            "count": 8
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": "4 Courier deliveries"
+      },
+      "requires": [
+        "shore_provisions"
+      ],
+      "excludes": [],
+      "offers": "Casts finish 10% sooner, and the Fisher sets a net with a floating buoy that fills while he rests.",
+      "details": [
+        "Existing: cast cycle -10%",
+        "New: the Fisher sets a net in the water (a visible buoy); it holds 1 fish per in-game hour, up to 4, which he hauls in at the start of work"
+      ],
+      "flavor": "Mend the net, and the net feeds you while you sleep.",
+      "depends_on": [
+        "Net buoy block + haul step in FisherWorkGoal"
+      ],
+      "change": "It keeps -10% cast time and gains a passive net."
+    },
+    {
+      "id": "guild_doctrine",
+      "name": "Sawmill & Sawyer",
+      "branch": "craft",
+      "tier": 2,
+      "x": -348,
+      "y": 217,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 24
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "64 goods moved + 3 Courier deliveries (existing gate)"
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "timber_rights"
+      ],
+      "excludes": [],
+      "offers": "A Sawyer turns logs into planks and Timber Beams.",
+      "details": [
+        "Sawmill plan + Sawyer emblem",
+        "Seasoned Timber research: sawing -15% time",
+        "Timber Beams feed the Coster's Cart, Deep Mine and Guild Halls"
+      ],
+      "flavor": "The saw sings; the village grows.",
+      "depends_on": [],
+      "change": "Renamed from 'Guild Doctrine'. The ACTIVE/DORMANT 'primary tradition' badge is dropped because nothing reads it."
+    },
+    {
+      "id": "land_and_harvest",
+      "name": "Mill, Bakery & Pasture",
+      "branch": "craft",
+      "tier": 2,
+      "x": -401,
+      "y": 85,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:hay_block",
+            "count": 8
+          },
+          {
+            "item": "minecraft:oak_fence",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "cultivated_ground"
+      ],
+      "excludes": [],
+      "offers": "Millers, Bakers, Herders and Butchers: bread in bulk, wool, leather and meat.",
+      "details": [
+        "Mill, Bakery, Pasture and Butcher plans + Miller, Baker, Herder and Butcher emblems (2 Coins + goods each)",
+        "Flour -> bread in bulk frees the Innkeeper and fills the meal reserve",
+        "Wool feeds beds and Wool Bolts; hides feed the Tannery",
+        "Better Yeast research: baking -15%"
+      ],
+      "flavor": "Grind, knead, shear: the steady heartbeat of a village.",
+      "depends_on": [
+        "Emblem entries + release GameTests for 4 trades"
+      ],
+      "change": "Today a FUTURE placeholder. The buildings, professions, HerderWorkGoal and the Production recipes all exist."
+    },
+    {
+      "id": "border_wardens",
+      "name": "Hunters' Lodge",
+      "branch": "craft",
+      "tier": 2,
+      "x": -401,
+      "y": -85,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:leather",
+            "count": 8
+          },
+          {
+            "item": "minecraft:arrow",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "A Hunter ranges beyond the walls and brings back meat, feathers and hides.",
+      "details": [
+        "Hunters' Lodge plan + Hunter emblem (4 Coins, 12 arrows, 2 leather)",
+        "Carcasses are butchered at the lodge table into meat, feathers and hides"
+      ],
+      "flavor": "The forest gives, if you know where to look.",
+      "depends_on": [],
+      "change": "Moved from Watch (under Shield Doctrine) to Craft. Cost unchanged; it now needs only the Village Charter."
+    },
+    {
+      "id": "tannery",
+      "name": "Tannery & Tanner",
+      "branch": "craft",
+      "tier": 2,
+      "x": -348,
+      "y": -217,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 8
+          },
+          {
+            "item": "minecraft:cauldron",
+            "count": 1
+          }
+        ],
+        "time": "instant",
+        "other": "Own the Hunters' Lodge or Mill, Bakery & Pasture (a hide source)"
+      },
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "A Tanner cures hides into leather and Cured Hide, and you can sew yourself a Pedlar's Sack.",
+      "details": [
+        "Tannery plan + Tanner emblem (the building and its recipes exist)",
+        "Cured Hide feeds the Porters' Guild and Armoury gear: the tanner -> leather -> packs chain",
+        "Player item: Pedlar's Sack recipe (leather + cured hide), a bundle-style bag with 9 extra slots",
+        "Tanning Acid research (-15% time) can now be started"
+      ],
+      "flavor": "It stinks. It pays.",
+      "depends_on": [
+        "Tanner emblem + release GameTests",
+        "Pedlar's Sack player item"
+      ],
+      "change": "Split out of the Craft and Industry placeholder."
+    },
+    {
+      "id": "craft_and_industry",
+      "name": "Mine, Smelter & Smithy",
+      "branch": "craft",
+      "tier": 2,
+      "x": -468,
+      "y": 189,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 24
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "timber_rights"
+      ],
+      "excludes": [],
+      "offers": "Mine ore, smelt iron and forge tools, and workers holding iron tools work faster.",
+      "details": [
+        "Mine, Smelter and Smithy plans + Miner, Smelter and Smith emblems (MinerWorkGoal and the recipes exist)",
+        "Smith makes iron tools and swords for equipment requests",
+        "Tool tiers: a worker holding an iron tool works 10% faster (diamond 20%)",
+        "Blast Bellows research (smelting -15%) can now be started",
+        "Gear: opens Gear Tier 2 (Plate: iron armour, crossbows) for Veteran guards, Sharpshooters and level-5 workers; any one of Iron Arms Drill, Armoury or Mine, Smelter & Smithy counts"
+      ],
+      "flavor": "Stone to ore, ore to bloom, bloom to blade.",
+      "depends_on": [
+        "Emblem entries for 3 trades",
+        "Tool-tier speed hook in the work goals"
+      ],
+      "change": "Reuses the Craft and Industry placeholder id for mining and metal. Tannery, Carpenter, Mason and Weaver split off."
+    },
+    {
+      "id": "masonry",
+      "name": "Masonry",
+      "branch": "craft",
+      "tier": 2,
+      "x": -505,
+      "y": 0,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:cobblestone",
+            "count": 32
+          },
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "defense_plans"
+      ],
+      "excludes": [],
+      "offers": "Your Builder learns stone: stone wall segments, a stone gatehouse, a stone watchtower, and stone floors in Upgrade Orders.",
+      "details": [
+        "Builder can lay stone wall segments and a stone gatehouse along Defense Plan lines",
+        "Stone watchtower blueprint and stone variants of the starter blueprints",
+        "Upgrade Orders can lay stone or cobble floors (e.g. a Warehouse's 'solid floor'); plank floors work without Masonry",
+        "Unlocks no building level: levels stay checklist-only"
+      ],
+      "flavor": "Timber rots. Stone remembers.",
+      "depends_on": [
+        "Builder lane (being built now: PostRaidUpgrade wire 20)"
+      ]
+    },
+    {
+      "id": "carpenter_mason",
+      "name": "Carpenter, Mason & Weaver",
+      "branch": "craft",
+      "tier": 3,
+      "x": -594,
+      "y": 264,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 32
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 32
+          },
+          {
+            "item": "minecraft:loom",
+            "count": 1
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "guild_doctrine"
+      ],
+      "excludes": [],
+      "offers": "Workshops for furniture, stone bricks and Wool Bolts, the stuff towns are built from.",
+      "details": [
+        "Carpenter, Mason and Weaver plans + emblems (the recipes exist)",
+        "Masons cut stone bricks for walls, houses and charters",
+        "Weavers turn wool into Wool Bolts for beds, banners and the Crown",
+        "With a Mason, settlers repair and upgrade buildings 20% faster"
+      ],
+      "flavor": "Measure twice, cut once, and the town stands a hundred years.",
+      "depends_on": [
+        "Emblem entries for 3 trades"
+      ],
+      "change": "Split out of the Craft and Industry placeholder."
+    },
+    {
+      "id": "charcoal_kilns",
+      "name": "Charcoal Kilns",
+      "branch": "craft",
+      "tier": 3,
+      "x": -745,
+      "y": 0,
+      "type": "choice",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "minecraft:cobblestone",
+            "count": 48
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 16
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "craft_and_industry"
+      ],
+      "excludes": [
+        "deep_mine"
+      ],
+      "offers": "The Smelter burns its own charcoal from logs: smelting 25% faster, with no coal needed.",
+      "details": [
+        "Smelter converts logs -> charcoal as fuel automatically",
+        "Smelting -25% time",
+        "Pick one: Kilns or Deep Mine"
+      ],
+      "flavor": "Smoke all night, iron all day.",
+      "depends_on": []
+    },
+    {
+      "id": "deep_mine",
+      "name": "Deep Mine",
+      "branch": "craft",
+      "tier": 3,
+      "x": -594,
+      "y": -264,
+      "type": "choice",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "hearthstead:timber_beam",
+            "count": 16
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 8
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "craft_and_industry"
+      ],
+      "excludes": [
+        "charcoal_kilns"
+      ],
+      "offers": "The Miner digs two levels deeper: +1 ore on 15% of ore blocks, and a chance of gold.",
+      "details": [
+        "Mine shaft depth +2 levels",
+        "15% of ore blocks yield +1 ore",
+        "Gold ore can appear in the Miner's haul",
+        "Pick one: Kilns or Deep Mine"
+      ],
+      "flavor": "Deeper, lads. The good stuff is always deeper.",
+      "depends_on": []
+    },
+    {
+      "id": "masters_apprentices",
+      "name": "Masters & Apprentices",
+      "branch": "craft",
+      "tier": 3,
+      "x": -681,
+      "y": 303,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 12,
+        "goods": [
+          {
+            "item": "minecraft:book",
+            "count": 4
+          },
+          {
+            "item": "minecraft:iron_ingot",
+            "count": 4
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "carpenter_mason"
+      ],
+      "excludes": [],
+      "offers": "Skilled workers become Masters and take an Apprentice who follows them and learns twice as fast.",
+      "details": [
+        "A settler at trade level 5+ can be named Master; their plaque title reads 'Master Smith <name>'",
+        "Assign any settler as their Apprentice: the Apprentice works beside the Master, copying their animations, and earns double trade XP",
+        "Wits matters: the Apprentice earns +1% more XP per Wits point above 15",
+        "When a Master dies, their Apprentice inherits the workshop at the Master's level minus 2"
+      ],
+      "flavor": "Watch my hands, not my face.",
+      "depends_on": [
+        "Apprentice pairing + follow behaviour"
+      ]
+    },
+    {
+      "id": "guild_halls",
+      "name": "Guild Halls",
+      "branch": "craft",
+      "tier": 4,
+      "x": -890,
+      "y": 0,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 30,
+        "goods": [
+          {
+            "item": "hearthstead:timber_beam",
+            "count": 16
+          },
+          {
+            "item": "hearthstead:wool_bolt",
+            "count": 16
+          },
+          {
+            "item": "minecraft:book",
+            "count": 8
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "masters_apprentices"
+      ],
+      "excludes": [],
+      "offers": "Each trade raises its own guild hall with a banner: more hands in every workshop, Fine goods, and a forge that mends the guard's gear.",
+      "details": [
+        "+1 worker slot in every production building; each guild hangs its banner over its workshops",
+        "Crafters at trade level 5+ sometimes make Fine goods that sell for +50% (GoodsQuality exists for fish)",
+        "After each raid the Smithy repairs damaged guard gear for free (materials only)",
+        "Guild feast day: once per week, each guild's workers take the afternoon off at the Tavern (+10 morale)"
+      ],
+      "flavor": "Every master has a hall; every hall has a feast day.",
+      "depends_on": [
+        "Worker-slot override per building",
+        "GoodsQuality for crafted goods"
+      ]
+    },
+    {
+      "id": "home",
+      "name": "Houses & Lodging",
+      "branch": "commons",
+      "tier": 1,
+      "x": 0,
+      "y": 170,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 1,
+        "goods": [
+          {
+            "item": "#minecraft:logs",
+            "count": 12
+          },
+          {
+            "item": "minecraft:cobblestone",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "Foundation ready"
+      },
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "offers": "Build Houses and a Lodging; every bed beyond the 4 founders lets one more settler live here.",
+      "details": [
+        "House (up to 4 beds) and Lodging (up to 8 beds) plans",
+        "Population = beds (minimum 4 founders)",
+        "New: every house plaque shows its home tier and a 'next level: add X' checklist (Hut, then Cottage, Townhouse, Manor as those nodes are learned). Tiers come from what is built in the room, never from a blueprint"
+      ],
+      "flavor": "Four walls, a door and a fire: now it is home.",
+      "depends_on": [],
+      "change": "Renamed from 'Home'. The plaque also shows the home tier (label only)."
+    },
+    {
+      "id": "warm_hearth",
+      "name": "Hearth Fires",
+      "branch": "commons",
+      "tier": 1,
+      "x": 133,
+      "y": 229,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 3,
+        "goods": [
+          {
+            "item": "minecraft:cobblestone",
+            "count": 16
+          },
+          {
+            "item": "#minecraft:logs",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "2 settlers housed"
+      },
+      "requires": [
+        "home"
+      ],
+      "excludes": [],
+      "offers": "At dusk the village gathers round the fire to eat and talk, and warm homes keep hunger down at night.",
+      "details": [
+        "Existing: night-time hunger drain -10%",
+        "New: evening gathering. At dusk, free settlers sit in a ring round the Banner fire (or a house hearth) for a while, eating and chatting with speech bubbles; each gets +3 'good company' morale",
+        "New: a house with a campfire, furnace or fireplace sends up chimney smoke, so you can see which homes are warm"
+      ],
+      "flavor": "A banked fire, a full belly and someone to talk to.",
+      "depends_on": [
+        "Evening gathering (FreeTimeGoal extension)",
+        "Thought/speech bubbles (roadmap phase 1)"
+      ],
+      "change": "Renamed from 'Warm Homes'. It keeps -10% night hunger and gains the dusk gathering and chimney smoke."
+    },
+    {
+      "id": "hospitality",
+      "name": "Tavern & Trade",
+      "branch": "commons",
+      "tier": 1,
+      "x": 46,
+      "y": 261,
+      "type": "unlock",
+      "status": "existing",
+      "size": "-",
+      "cost": {
+        "coins": 4,
+        "goods": [
+          {
+            "item": "minecraft:bread",
+            "count": 4
+          },
+          {
+            "item": "minecraft:leather",
+            "count": 2
+          }
+        ],
+        "time": "instant",
+        "other": "3 settlers housed"
+      },
+      "requires": [
+        "home"
+      ],
+      "excludes": [],
+      "offers": "Build a Tavern and a Trading Post; hire an Innkeeper and a Trader.",
+      "details": [
+        "Tavern plan (a bell, which can be copper) + Innkeeper emblem: meals, ale, recruitment and the evening bard",
+        "Trading Post plan + Trader emblem: sell surplus for Coins",
+        "Recruits cost 25% less with an Innkeeper",
+        "First step of the Tavern ladder: Bard's Stage, then Rooms to Let, then Hall of Revels"
+      ],
+      "flavor": "Every road ends at a tavern door.",
+      "depends_on": []
+    },
+    {
+      "id": "sturdy_beds",
+      "name": "Cottages",
+      "branch": "commons",
+      "tier": 1,
+      "x": -46,
+      "y": 261,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 4,
+        "goods": [
+          {
+            "item": "#minecraft:wool",
+            "count": 3
+          },
+          {
+            "item": "#minecraft:planks",
+            "count": 12
+          }
+        ],
+        "time": "instant",
+        "other": "3 settlers housed"
+      },
+      "requires": [
+        "hospitality",
+        "warm_hearth"
+      ],
+      "excludes": [],
+      "offers": "Home tier 1: the plaque now recognises Cottages. Give a House a bed for everyone, a chest and a flower pot or carpet, and its family makes it theirs.",
+      "details": [
+        "Cottage checklist (plaque scan): a bed per resident + 1 chest + 1 flower pot or carpet. Met: the plaque reads 'Cottage of <family>'; not met: it shows 'next level: add 1 flower pot'. You or a Builder Upgrade Order add the pieces",
+        "Existing effect: residents with a claimed bed get +2 morale",
+        "Morning routine: residents sweep the doorstep or water the flowers before work (a short idle animation)",
+        "Travellers who pass 3 or more Cottages are keener to stay, adding +1 candidate to the recruit pool at the Tavern",
+        "Home ladder: Cottage, then Townhouse, then Manor"
+      ],
+      "flavor": "Straw is for horses. Flowers are for the sill.",
+      "depends_on": [
+        "Home-tier checklist on HOUSE (Requirement tiers + plaque 'next level' line)",
+        "Builder Upgrade Orders (optional helper)",
+        "Idle morning animation"
+      ],
+      "change": "Renamed from 'Sturdy Beds' and turned into home tier 1. It keeps the +2 bed morale, and the Cottage check, the family sign and the morning routine are added."
+    },
+    {
+      "id": "feather_quilts",
+      "name": "Feather Quilts",
+      "branch": "commons",
+      "tier": 2,
+      "x": 241,
+      "y": 332,
+      "type": "bonus",
+      "status": "existing_changed",
+      "size": "S",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:feather",
+            "count": 8
+          },
+          {
+            "item": "#minecraft:wool",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "sturdy_beds",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Settlers who sleep a full night under quilts wake up Well Rested and work faster all morning.",
+      "details": [
+        "Existing: sleep energy regain +20%",
+        "New: Well Rested. A settler who slept the whole night in a quilted bed wakes with a 'Well Rested' bubble and works 10% faster until noon",
+        "Settlers who were woken by the alarm do not get it, so a night raid costs you the morning"
+      ],
+      "flavor": "Goose down: a lord's luxury, now a peasant's right.",
+      "depends_on": [
+        "Thought bubbles (roadmap phase 1)"
+      ],
+      "change": "It keeps +20% sleep energy and gains the visible Well Rested morning buff."
+    },
+    {
+      "id": "hearth_doctrine",
+      "name": "Scholar's Study & Library",
+      "branch": "commons",
+      "tier": 2,
+      "x": 127,
+      "y": 390,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:book",
+            "count": 4
+          },
+          {
+            "item": "minecraft:bread",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": "Everyone housed for 1 day + 5 equipment requests served (existing gate)"
+      },
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "A Scholar researches upgrades you choose, and a Library makes every project cheaper.",
+      "details": [
+        "Architect's Study plan + Scholar emblem; the project scroll on the lectern fills as research progresses",
+        "Research projects: Seasoned Timber, Crop Rotation and Guard Drill now; Better Yeast, Blast Bellows and Tanning Acid open with their trades",
+        "Library plan (moved here from the Hall and Learning placeholder): research goods -25% (the Costs discount exists)",
+        "The Scholar shortens Town and Castle study timers by 25%"
+      ],
+      "flavor": "Ink is cheaper than blood.",
+      "depends_on": [],
+      "change": "Renamed from 'Commons Doctrine'. It also grants the Library plan (the building and discount exist) and speeds the new study timers."
+    },
+    {
+      "id": "bards_songbook",
+      "name": "Bard's Stage",
+      "branch": "commons",
+      "tier": 2,
+      "x": 0,
+      "y": 410,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 5,
+        "goods": [
+          {
+            "item": "minecraft:note_block",
+            "count": 2
+          },
+          {
+            "item": "#minecraft:planks",
+            "count": 16
+          },
+          {
+            "item": "minecraft:bread",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Raise a stage in the Tavern: the bard plays to a crowd, settlers dance, and travellers throw Coins.",
+      "details": [
+        "New block: Bard's Stage. At dusk the bard performs from it and free settlers gather, clap and dance (visible dance loop)",
+        "Evening morale lift 5 -> 8 (TavernBard.EVENING_LIFT), with two sets per evening",
+        "Travellers (never your own settlers) tip 1 Coin each, max 3 per evening; the Coins land on the stage",
+        "Settlers who danced wake Well Rested"
+      ],
+      "flavor": "A song for the living, a song for the dead, and one more for the road.",
+      "depends_on": [
+        "Stage block + dance animation",
+        "TavernBard (exists)"
+      ]
+    },
+    {
+      "id": "kitchen_and_hall",
+      "name": "Kitchen & Long Table",
+      "branch": "commons",
+      "tier": 2,
+      "x": -127,
+      "y": 390,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "M",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "minecraft:smoker",
+            "count": 1
+          },
+          {
+            "item": "#minecraft:planks",
+            "count": 16
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "A Cook feeds the village at one long table, and settlers start to crave favourite foods.",
+      "details": [
+        "Kitchen and Dining Hall plans + Cook emblem (the buildings, profession, recipes and the Dining Hall recruit discount exist)",
+        "Noon meal: settlers walk to the long table and eat together (visible); stews and pies count as 2 meals",
+        "Cravings: a settler shows a craved food in a thought bubble; serving it gives +5 morale",
+        "Variety: 3 or more different foods in the last 5 meals gives -10% hunger drain",
+        "Dining Hall: recruit price -25% (with the Innkeeper, the cap is -50%)"
+      ],
+      "flavor": "Everyone eats at the long table, and everyone has an opinion about the stew.",
+      "depends_on": [
+        "Cook emblem + release GameTests",
+        "Per-settler meal history (roadmap phase 4)",
+        "Thought bubbles"
+      ],
+      "change": "Split out of the Hall and Learning placeholder. It absorbs the old 'Varied Table' stat node as cravings you can see."
+    },
+    {
+      "id": "war_feast",
+      "name": "War Feast",
+      "branch": "commons",
+      "tier": 2,
+      "x": -241,
+      "y": 332,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 16
+          },
+          {
+            "item": "minecraft:bread",
+            "count": 8
+          },
+          {
+            "item": "hearthstead:ale",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "When a raid is spotted, call a feast at the Banner: the village eats together and faces the night unafraid.",
+      "details": [
+        "After a raid warning, 'Call the War Feast' on the Banner screen sets out long tables at the Banner (uses 12 meals + 4 ale from the stores)",
+        "Settlers and guards gather, eat and toast (visible event, cheering and a war-horn sound)",
+        "Guards who ate: +10% damage, +20 morale, and courage for the whole raid (they never flee or break formation)",
+        "Civilians who ate walk calmly to shelter instead of panicking, and nobody freezes in the open",
+        "Once per raid; it needs at least 5 real minutes of warning"
+      ],
+      "flavor": "Eat, drink, and let them hear us singing from the treeline.",
+      "depends_on": [
+        "Feast gathering event at the Banner",
+        "Courage flag for guards and civilians",
+        "Raid warning hook (RaidTelegraph exists)"
+      ]
+    },
+    {
+      "id": "two_storey_houses",
+      "name": "Townhouses",
+      "branch": "commons",
+      "tier": 2,
+      "x": 253,
+      "y": 437,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 32
+          },
+          {
+            "item": "minecraft:glass",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "sturdy_beds",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "offers": "Home tier 2: the plaque now recognises Townhouses. Build a second floor and furnish it: 6 beds, couples move in together, and skilled travellers take notice.",
+      "details": [
+        "Townhouse checklist (plaque scan): 2 floors, a table, a bookshelf and 2 lights. Met: the plaque and a door banner show 'Townhouse'; the plaque lists what is missing. You or a Builder Upgrade Order add the pieces",
+        "House bed cap 4 -> 6 (Lodging 8 -> 10): room for more settlers",
+        "Couples can share a Townhouse (they marry with Families & School)",
+        "With 2 or more Townhouses, travellers of trade level 2-3 start to appear at the Tavern"
+      ],
+      "flavor": "Build up, not out, and put a window box on every sill.",
+      "depends_on": [
+        "Home-tier checklist (Requirement tiers)",
+        "Builder Upgrade Orders (optional helper)",
+        "Traveller skill roll by home tier"
+      ]
+    },
+    {
+      "id": "wayside_shrine",
+      "name": "Wayside Chapel",
+      "branch": "commons",
+      "tier": 2,
+      "x": 88,
+      "y": 497,
+      "type": "choice",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:cobblestone",
+            "count": 16
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 2
+          },
+          {
+            "item": "minecraft:candle",
+            "count": 4
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [
+        "alehouse"
+      ],
+      "offers": "A small chapel: 4 Blessing cards after every victory, a reroll, and a candle for every soul lost.",
+      "details": [
+        "Blessing offer 3 -> 4 cards, plus one free reroll of the whole offer per victory",
+        "After each victory the village gathers at the chapel for a short service (+5 morale)",
+        "A candle is lit on the altar for every settler who has died; they stay lit",
+        "Pick one: Chapel or Alehouse. The Chapel path leads to the Cathedral"
+      ],
+      "flavor": "Leave a coin, say a name, and the road is kinder.",
+      "depends_on": [
+        "Roguelike Blessings expansion (today 3 blessings: Warden's Oath, Hearthward, Thorned Roads)"
+      ]
+    },
+    {
+      "id": "alehouse",
+      "name": "Alehouse",
+      "branch": "commons",
+      "tier": 2,
+      "x": -88,
+      "y": 497,
+      "type": "choice",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 6,
+        "goods": [
+          {
+            "item": "minecraft:barrel",
+            "count": 4
+          },
+          {
+            "item": "minecraft:wheat",
+            "count": 24
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [
+        "wayside_shrine"
+      ],
+      "offers": "A proper alehouse: settlers stop for a pint after work, and feasts and festivals come round far more often.",
+      "details": [
+        "After work, settlers stop at the Tavern for an ale (visible mugs and laughter bubbles): +3 morale",
+        "War Feast and Festivals cost half the food, and Festivals can be held every 2 days instead of every 3",
+        "Every ale sold to a traveller: +1 Coin",
+        "Pick one: Chapel or Alehouse. The Alehouse path leads to the Hall of Revels"
+      ],
+      "flavor": "Brewed on Tuesday, gone by Thursday.",
+      "depends_on": [
+        "After-work Tavern visit (TavernVisitGoal extension)"
+      ]
+    },
+    {
+      "id": "infirmary",
+      "name": "Infirmary",
+      "branch": "commons",
+      "tier": 2,
+      "x": -205,
+      "y": 461,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "L",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "#minecraft:wool",
+            "count": 8
+          },
+          {
+            "item": "minecraft:cauldron",
+            "count": 1
+          },
+          {
+            "item": "minecraft:bread",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "first_raid_aftermath",
+        "home"
+      ],
+      "excludes": [],
+      "offers": "Downed settlers are carried to the Infirmary instead of dying, and rest there until they are whole.",
+      "details": [
+        "Infirmary plan (the building exists; in code it now opens with the Village Charter); Healers are hired here with Battle Healers",
+        "A settler at 0 HP goes down for 60 s, and a guard or the Healer carries them in on their back (visible)",
+        "Patients rest in Infirmary beds and heal 1 HP every 2 s; wounded guards return to duty 50% sooner",
+        "Without an Infirmary, death is permanent (owner decision)",
+        "Cross-link to Watch: the raid report lists who the Infirmary saved"
+      ],
+      "flavor": "Boil the water, and fetch the priest only if I say so.",
+      "depends_on": [
+        "Downed state + permanent death (roadmap phase 3)",
+        "Carry animation"
+      ],
+      "change": "Moved from Watch to Commons, where it sits with the other life-and-care nodes; Watch cross-links to it. Today the building is listed under the Hall and Learning placeholder and does nothing."
+    },
+    {
+      "id": "manors",
+      "name": "Manors",
+      "branch": "commons",
+      "tier": 3,
+      "x": 344,
+      "y": 551,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 14,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 32
+          },
+          {
+            "item": "minecraft:glass",
+            "count": 8
+          },
+          {
+            "item": "minecraft:bookshelf",
+            "count": 4
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "two_storey_houses"
+      ],
+      "excludes": [],
+      "offers": "Home tier 3: the plaque now recognises Manors. Furnish a grand house and it draws master newcomers, raises bigger families, and gives the village an Elder.",
+      "details": [
+        "Manor checklist (plaque scan): 8+ beds, a bookshelf, a carpet, glass windows and 2 lights per room. Met: the plaque and a gold door banner show 'Manor'; otherwise 'next level: add X'. You or a Builder Upgrade Order add the pieces",
+        "Master travellers (trade level 4-5) only visit a village that has a Manor",
+        "Family size: up to 1 child in a Cottage, 2 in a Townhouse and 3 in a Manor",
+        "The Manor's eldest resident becomes the Village Elder: neighbours within 16 blocks get +2 morale, and the Elder gives the Mayor's speech at festivals"
+      ],
+      "flavor": "The oak panelling came from the lord's own forest.",
+      "depends_on": [
+        "Home-tier checklist (Requirement tiers)",
+        "Builder Upgrade Orders (optional helper)",
+        "Traveller skill roll by home tier"
+      ]
+    },
+    {
+      "id": "great_tavern",
+      "name": "Rooms to Let",
+      "branch": "commons",
+      "tier": 3,
+      "x": 113,
+      "y": 640,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 14,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 32
+          },
+          {
+            "item": "#minecraft:wool",
+            "count": 6
+          },
+          {
+            "item": "hearthstead:ale",
+            "count": 16
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "bards_songbook"
+      ],
+      "excludes": [],
+      "offers": "Guest rooms turn the Tavern into a famous inn: travellers stay, pay, and bring stories and surprises.",
+      "details": [
+        "The plaque now recognises Tavern level 2, the Inn (checklist: 3 guest beds, a second storage, 2 more lights; 'next level: add X'). You or a Builder Upgrade Order add the pieces; no blueprint needed",
+        "Guest rooms: up to 3 travellers stay for 2 nights and pay 1 Coin per night plus 1 per meal (TavernGuestPayment)",
+        "Fame: the Tavern sign earns stars as guests leave happy; each star makes a weekly visitor event more likely",
+        "Visitor events: a wandering knight who spars with your guards (guard XP), a rich trader with a 32-Coin purse, or a storyteller (+10 morale)",
+        "Recruiting a guest who stayed costs 25% less"
+      ],
+      "flavor": "The best beds between here and the capital, and the loudest common room.",
+      "depends_on": [
+        "Event engine (roadmap phase 2)",
+        "Guest-room claims (TavernSeating extension)"
+      ]
+    },
+    {
+      "id": "harvest_feast",
+      "name": "Harvest & Midsummer Festivals",
+      "branch": "commons",
+      "tier": 3,
+      "x": -113,
+      "y": 640,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 14,
+        "goods": [
+          {
+            "item": "minecraft:bread",
+            "count": 48
+          },
+          {
+            "item": "hearthstead:ale",
+            "count": 16
+          },
+          {
+            "item": "#minecraft:wool",
+            "count": 8
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "kitchen_and_hall"
+      ],
+      "excludes": [],
+      "offers": "Hold village festivals: bunting and lanterns go up, the bard plays, crowds come to spend, and the whole village works faster the next day.",
+      "details": [
+        "The Mayor calls a Harvest Festival or Midsummer at the Banner (every 3 in-game days; every 2 with the Alehouse)",
+        "Decorations appear: bunting between houses, lanterns and a maypole at Midsummer; the bard plays and settlers dance",
+        "6-10 visitors come and spend 1 Coin each; 2 extra merchants set up stalls",
+        "Morale surge: +15 morale, and +10% work speed for the whole next day",
+        "Cancelled if a raid is warned; then hold a War Feast instead"
+      ],
+      "flavor": "Tables in the square, pipes in the lane, and nobody works till noon.",
+      "depends_on": [
+        "Festival event (event engine, roadmap phase 2)",
+        "Temporary decoration placement and cleanup"
+      ]
+    },
+    {
+      "id": "hall_of_heroes",
+      "name": "Hall of Heroes",
+      "branch": "commons",
+      "tier": 3,
+      "x": -344,
+      "y": 551,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 14,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 32
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 4
+          },
+          {
+            "item": "minecraft:white_banner",
+            "count": 4
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "infirmary"
+      ],
+      "excludes": [],
+      "offers": "Honour the fallen: memorial plaques, nemesis trophies on the wall, and recruits who arrive braver for it.",
+      "details": [
+        "Every fallen guard gets a memorial plaque with name, rank, kills and the raid they fell in",
+        "Trophies of slain nemesis captains hang here: their helmet and banner, with the grudge they held",
+        "New recruits who visit the Hall start with +10 morale and courage: they fight on until 30% HP instead of fleeing",
+        "'For the fallen!': once per raid, guards fighting in sight of the Hall's banner get +15% damage for 20 s"
+      ],
+      "flavor": "Read their names aloud. Then pick up your spear.",
+      "depends_on": [
+        "Named heroes + death records (roadmap phase 3)",
+        "Nemesis captains (RaidCaptain exists)",
+        "Memorial plaque block"
+      ]
+    },
+    {
+      "id": "hall_and_learning",
+      "name": "Families & School",
+      "branch": "commons",
+      "tier": 3,
+      "x": 279,
+      "y": 691,
+      "type": "unlock",
+      "status": "existing_changed",
+      "size": "L",
+      "cost": {
+        "coins": 14,
+        "goods": [
+          {
+            "item": "minecraft:bookshelf",
+            "count": 4
+          },
+          {
+            "item": "#minecraft:wool",
+            "count": 8
+          },
+          {
+            "item": "minecraft:bread",
+            "count": 16
+          }
+        ],
+        "time": "1 day",
+        "other": ""
+      },
+      "requires": [
+        "town_charter",
+        "two_storey_houses"
+      ],
+      "excludes": [],
+      "offers": "Couples marry, children are born and grow up, and at School they learn a parent's trade with a head start.",
+      "details": [
+        "Couples who share a Townhouse or Manor may marry: a small wedding at the Tavern gives +10 morale village-wide",
+        "Children are born when the home has a free bed, grow up over 6 in-game days, and play in the square (visible)",
+        "School plan: children attend lessons, then take a parent's trade at trade level 3 (a 2-level head start)",
+        "On the alarm, children run to the Keep or their home; they never fight"
+      ],
+      "flavor": "Her father was a smith. She will be a better one.",
+      "depends_on": [
+        "Relationships, families and children (roadmap phase 5)",
+        "Child model"
+      ],
+      "change": "Reuses the Hall and Learning placeholder id for the School. The Library moves to Scholar's Study, and Kitchen, Dining Hall and Infirmary are split off."
+    },
+    {
+      "id": "battle_healer",
+      "name": "Battle Healers",
+      "branch": "commons",
+      "tier": 2,
+      "x": -325,
+      "y": 387,
+      "type": "unlock",
+      "status": "new",
+      "size": "M",
+      "cost": {
+        "coins": 8,
+        "goods": [
+          {
+            "item": "minecraft:paper",
+            "count": 6
+          },
+          {
+            "item": "minecraft:string",
+            "count": 8
+          }
+        ],
+        "time": "instant",
+        "other": ""
+      },
+      "requires": [
+        "infirmary"
+      ],
+      "excludes": [],
+      "offers": "Hire Healers at the Infirmary: they bandage the wounded, follow your soldiers into the fight, and are the first answer to permanent death.",
+      "details": [
+        "Healer emblem (3 C, 2 paper, 1 leather), hired at the Infirmary (2 worker slots)",
+        "Bandage recipe: Healers and players patch wounds in the field",
+        "Healers follow the line in a raid and tend the most wounded soldier nearby; they carry the downed back to the Infirmary",
+        "Own Captain's Voice key (H)"
+      ],
+      "flavor": "Hold still. You will live, and you will complain about it.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)",
+        "Downed state (roadmap phase 3) for carrying the fallen"
+      ],
+      "change": "In code today the Healer and the Infirmary hang off first_raid_aftermath, since hall_and_learning is not implemented."
+    },
+    {
+      "id": "cathedral",
+      "name": "Cathedral",
+      "branch": "commons",
+      "tier": 4,
+      "x": 185,
+      "y": 871,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 40,
+        "goods": [
+          {
+            "item": "minecraft:stone_bricks",
+            "count": 96
+          },
+          {
+            "item": "minecraft:gold_ingot",
+            "count": 16
+          },
+          {
+            "item": "minecraft:book",
+            "count": 8
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "wayside_shrine"
+      ],
+      "excludes": [
+        "hall_of_revels"
+      ],
+      "offers": "A cathedral rises over the town: two Blessings after every victory, and curses bite half as hard.",
+      "details": [
+        "Blessing picks per victory 1 -> 2; legendary Blessings show up twice as often",
+        "Curse drawbacks -50%",
+        "The bells ring over the town after every victory; on a holy day every 5 days, all settlers get +10 morale",
+        "Pick one: Cathedral (Chapel path) or Hall of Revels (Alehouse path)"
+      ],
+      "flavor": "Bells for the living, candles for the fallen.",
+      "depends_on": [
+        "Roguelike Blessings expansion"
+      ]
+    },
+    {
+      "id": "hall_of_revels",
+      "name": "Hall of Revels",
+      "branch": "commons",
+      "tier": 4,
+      "x": -185,
+      "y": 871,
+      "type": "capstone",
+      "status": "new",
+      "size": "L",
+      "cost": {
+        "coins": 40,
+        "goods": [
+          {
+            "item": "#minecraft:planks",
+            "count": 64
+          },
+          {
+            "item": "hearthstead:wool_bolt",
+            "count": 16
+          },
+          {
+            "item": "hearthstead:ale",
+            "count": 32
+          }
+        ],
+        "time": "2 days",
+        "other": ""
+      },
+      "requires": [
+        "castle_charter",
+        "alehouse"
+      ],
+      "excludes": [
+        "cathedral"
+      ],
+      "offers": "The greatest hall in the land: Tavern income doubled, travellers flock in, and a Grand Tourney every 4 days.",
+      "details": [
+        "Tavern and guest Coins x2; bard morale x2",
+        "Travellers arrive twice as often (more recruits)",
+        "Grand Tourney every 4 days: guards spar in the lists for XP, and the winner earns a title shown over their head; all settlers get +20 morale",
+        "Pick one: Hall of Revels (Alehouse path) or Cathedral (Chapel path)"
+      ],
+      "flavor": "Ale, song, and a joust at noon.",
+      "depends_on": [
+        "Event engine",
+        "Guard sparring"
+      ]
+    }
+  ]
+}

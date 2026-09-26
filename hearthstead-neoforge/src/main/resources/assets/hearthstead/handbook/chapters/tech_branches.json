@@ -1,0 +1,655 @@
+{
+  "id": "tech_branches",
+  "title": "hearthstead.guide.tech_branches.title",
+  "icon": "minecraft:lectern",
+  "pages": [
+    {
+      "id": "tech_branches.crown1",
+      "title": "hearthstead.guide.tech_branches.crown1.title",
+      "bullets": [
+        "hearthstead.guide.tech_branches.crown1.b1"
+      ],
+      "tip": "hearthstead.guide.tech_branches.crown1.tip",
+      "entries": [
+        {
+          "ref": "node:settlement_charter",
+          "name": "hearthstead.guide.ref.tech_branches.settlement_charter.name",
+          "icon": "minecraft:white_banner",
+          "text": "hearthstead.guide.ref.tech_branches.settlement_charter.text"
+        },
+        {
+          "ref": "node:first_raid_aftermath",
+          "name": "hearthstead.guide.ref.tech_branches.first_raid_aftermath.name",
+          "icon": "minecraft:shield",
+          "text": "hearthstead.guide.ref.tech_branches.first_raid_aftermath.text"
+        },
+        {
+          "ref": "node:town_charter",
+          "name": "hearthstead.guide.ref.tech_branches.town_charter.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.tech_branches.town_charter.text"
+        },
+        {
+          "ref": "node:castle_charter",
+          "name": "hearthstead.guide.ref.tech_branches.castle_charter.name",
+          "icon": "minecraft:stone_bricks",
+          "text": "hearthstead.guide.ref.tech_branches.castle_charter.text"
+        },
+        {
+          "ref": "node:kingdom_crown",
+          "name": "hearthstead.guide.ref.tech_branches.kingdom_crown.name",
+          "icon": "minecraft:golden_helmet",
+          "text": "hearthstead.guide.ref.tech_branches.kingdom_crown.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.watch1",
+      "title": "hearthstead.guide.tech_branches.watch1.title",
+      "bullets": [
+        "hearthstead.guide.tech_branches.watch1.b1"
+      ],
+      "tip": "hearthstead.guide.tech_branches.watch1.tip",
+      "entries": [
+        {
+          "ref": "node:first_watch",
+          "name": "hearthstead.guide.ref.tech_branches.first_watch.name",
+          "icon": "minecraft:iron_sword",
+          "text": "hearthstead.guide.ref.tech_branches.first_watch.text"
+        },
+        {
+          "ref": "node:guard_drill",
+          "name": "hearthstead.guide.ref.tech_branches.guard_drill.name",
+          "icon": "minecraft:wooden_sword",
+          "text": "hearthstead.guide.ref.tech_branches.guard_drill.text"
+        },
+        {
+          "ref": "node:arm_the_watch",
+          "name": "hearthstead.guide.ref.tech_branches.arm_the_watch.name",
+          "icon": "minecraft:bow",
+          "text": "hearthstead.guide.ref.tech_branches.arm_the_watch.text"
+        },
+        {
+          "ref": "node:commanders_horn",
+          "name": "hearthstead.guide.ref.tech_branches.commanders_horn.name",
+          "icon": "minecraft:goat_horn",
+          "text": "hearthstead.guide.ref.tech_branches.commanders_horn.text"
+        },
+        {
+          "ref": "node:barricades",
+          "name": "hearthstead.guide.ref.tech_branches.barricades.name",
+          "icon": "minecraft:oak_fence",
+          "text": "hearthstead.guide.ref.tech_branches.barricades.text"
+        },
+        {
+          "ref": "node:defense_plans",
+          "name": "hearthstead.guide.ref.tech_branches.defense_plans.name",
+          "icon": "hearthstead:builders_plan",
+          "text": "hearthstead.guide.ref.tech_branches.defense_plans.text"
+        },
+        {
+          "ref": "node:shield_doctrine",
+          "name": "hearthstead.guide.ref.tech_branches.shield_doctrine.name",
+          "icon": "minecraft:shield",
+          "text": "hearthstead.guide.ref.tech_branches.shield_doctrine.text"
+        },
+        {
+          "ref": "node:spearmen",
+          "name": "hearthstead.guide.ref.tech_branches.spearmen.name",
+          "icon": "hearthstead:iron_spear",
+          "text": "hearthstead.guide.ref.tech_branches.spearmen.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.watch2",
+      "title": "hearthstead.guide.tech_branches.watch2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:guard_arms_iron",
+          "name": "hearthstead.guide.ref.tech_branches.guard_arms_iron.name",
+          "icon": "minecraft:iron_chestplate",
+          "text": "hearthstead.guide.ref.tech_branches.guard_arms_iron.text"
+        },
+        {
+          "ref": "node:archer_longbow_drill",
+          "name": "hearthstead.guide.ref.tech_branches.archer_longbow_drill.name",
+          "icon": "minecraft:bow",
+          "text": "hearthstead.guide.ref.tech_branches.archer_longbow_drill.text"
+        },
+        {
+          "ref": "node:crossbows",
+          "name": "hearthstead.guide.ref.tech_branches.crossbows.name",
+          "icon": "minecraft:crossbow",
+          "text": "hearthstead.guide.ref.tech_branches.crossbows.text"
+        },
+        {
+          "ref": "node:fortification",
+          "name": "hearthstead.guide.ref.tech_branches.fortification.name",
+          "icon": "minecraft:anvil",
+          "text": "hearthstead.guide.ref.tech_branches.fortification.text"
+        },
+        {
+          "ref": "node:watchfires",
+          "name": "hearthstead.guide.ref.tech_branches.watchfires.name",
+          "icon": "minecraft:campfire",
+          "text": "hearthstead.guide.ref.tech_branches.watchfires.text"
+        },
+        {
+          "ref": "node:palisade",
+          "name": "hearthstead.guide.ref.tech_branches.palisade.name",
+          "icon": "minecraft:spruce_log",
+          "text": "hearthstead.guide.ref.tech_branches.palisade.text"
+        },
+        {
+          "ref": "node:earthworks",
+          "name": "hearthstead.guide.ref.tech_branches.earthworks.name",
+          "icon": "minecraft:iron_shovel",
+          "text": "hearthstead.guide.ref.tech_branches.earthworks.text"
+        },
+        {
+          "ref": "node:stone_walls",
+          "name": "hearthstead.guide.ref.tech_branches.stone_walls.name",
+          "icon": "minecraft:stone_brick_wall",
+          "text": "hearthstead.guide.ref.tech_branches.stone_walls.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.watch3",
+      "title": "hearthstead.guide.tech_branches.watch3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:veteran_techniques",
+          "name": "hearthstead.guide.ref.tech_branches.veteran_techniques.name",
+          "icon": "minecraft:iron_axe",
+          "text": "hearthstead.guide.ref.tech_branches.veteran_techniques.text"
+        },
+        {
+          "ref": "node:captains_commission",
+          "name": "hearthstead.guide.ref.tech_branches.captains_commission.name",
+          "icon": "minecraft:iron_ingot",
+          "text": "hearthstead.guide.ref.tech_branches.captains_commission.text"
+        },
+        {
+          "ref": "node:longswords",
+          "name": "hearthstead.guide.ref.tech_branches.longswords.name",
+          "icon": "hearthstead:iron_longsword",
+          "text": "hearthstead.guide.ref.tech_branches.longswords.text"
+        },
+        {
+          "ref": "node:rune_mage",
+          "name": "hearthstead.guide.ref.tech_branches.rune_mage.name",
+          "icon": "hearthstead:rune_stone",
+          "text": "hearthstead.guide.ref.tech_branches.rune_mage.text"
+        },
+        {
+          "ref": "node:master_armoury",
+          "name": "hearthstead.guide.ref.tech_branches.master_armoury.name",
+          "icon": "minecraft:diamond_chestplate",
+          "text": "hearthstead.guide.ref.tech_branches.master_armoury.text"
+        },
+        {
+          "ref": "node:high_runes",
+          "name": "hearthstead.guide.ref.tech_branches.high_runes.name",
+          "icon": "minecraft:amethyst_shard",
+          "text": "hearthstead.guide.ref.tech_branches.high_runes.text"
+        },
+        {
+          "ref": "node:knights",
+          "name": "hearthstead.guide.ref.tech_branches.knights.name",
+          "icon": "minecraft:iron_horse_armor",
+          "text": "hearthstead.guide.ref.tech_branches.knights.text"
+        },
+        {
+          "ref": "node:pike_square",
+          "name": "hearthstead.guide.ref.tech_branches.pike_square.name",
+          "icon": "hearthstead:diamond_spear",
+          "text": "hearthstead.guide.ref.tech_branches.pike_square.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.logistics1",
+      "title": "hearthstead.guide.tech_branches.logistics1.title",
+      "bullets": [
+        "hearthstead.guide.tech_branches.logistics1.b1"
+      ],
+      "tip": "hearthstead.guide.tech_branches.logistics1.tip",
+      "entries": [
+        {
+          "ref": "node:stores_and_roads",
+          "name": "hearthstead.guide.ref.tech_branches.stores_and_roads.name",
+          "icon": "minecraft:barrel",
+          "text": "hearthstead.guide.ref.tech_branches.stores_and_roads.text"
+        },
+        {
+          "ref": "node:stout_straps",
+          "name": "hearthstead.guide.ref.tech_branches.stout_straps.name",
+          "icon": "minecraft:leather",
+          "text": "hearthstead.guide.ref.tech_branches.stout_straps.text"
+        },
+        {
+          "ref": "node:paved_roads",
+          "name": "hearthstead.guide.ref.tech_branches.paved_roads.name",
+          "icon": "minecraft:gravel",
+          "text": "hearthstead.guide.ref.tech_branches.paved_roads.text"
+        },
+        {
+          "ref": "node:courier_satchel",
+          "name": "hearthstead.guide.ref.tech_branches.courier_satchel.name",
+          "icon": "minecraft:bundle",
+          "text": "hearthstead.guide.ref.tech_branches.courier_satchel.text"
+        },
+        {
+          "ref": "node:leather_pack",
+          "name": "hearthstead.guide.ref.tech_branches.leather_pack.name",
+          "icon": "minecraft:leather_chestplate",
+          "text": "hearthstead.guide.ref.tech_branches.leather_pack.text"
+        },
+        {
+          "ref": "node:frame_pack",
+          "name": "hearthstead.guide.ref.tech_branches.frame_pack.name",
+          "icon": "minecraft:scaffolding",
+          "text": "hearthstead.guide.ref.tech_branches.frame_pack.text"
+        },
+        {
+          "ref": "node:hand_cart",
+          "name": "hearthstead.guide.ref.tech_branches.hand_cart.name",
+          "icon": "minecraft:minecart",
+          "text": "hearthstead.guide.ref.tech_branches.hand_cart.text"
+        },
+        {
+          "ref": "node:worker_packs",
+          "name": "hearthstead.guide.ref.tech_branches.worker_packs.name",
+          "icon": "minecraft:chest",
+          "text": "hearthstead.guide.ref.tech_branches.worker_packs.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.logistics2",
+      "title": "hearthstead.guide.tech_branches.logistics2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:swift_couriers",
+          "name": "hearthstead.guide.ref.tech_branches.swift_couriers.name",
+          "icon": "minecraft:leather_boots",
+          "text": "hearthstead.guide.ref.tech_branches.swift_couriers.text"
+        },
+        {
+          "ref": "node:warehouse_racks",
+          "name": "hearthstead.guide.ref.tech_branches.warehouse_racks.name",
+          "icon": "minecraft:chest",
+          "text": "hearthstead.guide.ref.tech_branches.warehouse_racks.text"
+        },
+        {
+          "ref": "node:courier_ledger",
+          "name": "hearthstead.guide.ref.tech_branches.courier_ledger.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.tech_branches.courier_ledger.text"
+        },
+        {
+          "ref": "node:costers_cart",
+          "name": "hearthstead.guide.ref.tech_branches.costers_cart.name",
+          "icon": "minecraft:chest_minecart",
+          "text": "hearthstead.guide.ref.tech_branches.costers_cart.text"
+        },
+        {
+          "ref": "node:porters_guild",
+          "name": "hearthstead.guide.ref.tech_branches.porters_guild.name",
+          "icon": "hearthstead:cured_hide",
+          "text": "hearthstead.guide.ref.tech_branches.porters_guild.text"
+        },
+        {
+          "ref": "node:runners_guild",
+          "name": "hearthstead.guide.ref.tech_branches.runners_guild.name",
+          "icon": "minecraft:sugar",
+          "text": "hearthstead.guide.ref.tech_branches.runners_guild.text"
+        },
+        {
+          "ref": "node:great_storehouse",
+          "name": "hearthstead.guide.ref.tech_branches.great_storehouse.name",
+          "icon": "minecraft:barrel",
+          "text": "hearthstead.guide.ref.tech_branches.great_storehouse.text"
+        },
+        {
+          "ref": "node:mule_cart",
+          "name": "hearthstead.guide.ref.tech_branches.mule_cart.name",
+          "icon": "minecraft:hay_block",
+          "text": "hearthstead.guide.ref.tech_branches.mule_cart.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.logistics3",
+      "title": "hearthstead.guide.tech_branches.logistics3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:royal_storehouse",
+          "name": "hearthstead.guide.ref.tech_branches.royal_storehouse.name",
+          "icon": "minecraft:gold_block",
+          "text": "hearthstead.guide.ref.tech_branches.royal_storehouse.text"
+        },
+        {
+          "ref": "node:caravan_routes",
+          "name": "hearthstead.guide.ref.tech_branches.caravan_routes.name",
+          "icon": "minecraft:filled_map",
+          "text": "hearthstead.guide.ref.tech_branches.caravan_routes.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.commons1",
+      "title": "hearthstead.guide.tech_branches.commons1.title",
+      "bullets": [
+        "hearthstead.guide.tech_branches.commons1.b1"
+      ],
+      "tip": "hearthstead.guide.tech_branches.commons1.tip",
+      "entries": [
+        {
+          "ref": "node:home",
+          "name": "hearthstead.guide.ref.tech_branches.home.name",
+          "icon": "minecraft:red_bed",
+          "text": "hearthstead.guide.ref.tech_branches.home.text"
+        },
+        {
+          "ref": "node:warm_hearth",
+          "name": "hearthstead.guide.ref.tech_branches.warm_hearth.name",
+          "icon": "minecraft:campfire",
+          "text": "hearthstead.guide.ref.tech_branches.warm_hearth.text"
+        },
+        {
+          "ref": "node:hospitality",
+          "name": "hearthstead.guide.ref.tech_branches.hospitality.name",
+          "icon": "hearthstead:ale",
+          "text": "hearthstead.guide.ref.tech_branches.hospitality.text"
+        },
+        {
+          "ref": "node:sturdy_beds",
+          "name": "hearthstead.guide.ref.tech_branches.sturdy_beds.name",
+          "icon": "minecraft:white_bed",
+          "text": "hearthstead.guide.ref.tech_branches.sturdy_beds.text"
+        },
+        {
+          "ref": "node:feather_quilts",
+          "name": "hearthstead.guide.ref.tech_branches.feather_quilts.name",
+          "icon": "minecraft:feather",
+          "text": "hearthstead.guide.ref.tech_branches.feather_quilts.text"
+        },
+        {
+          "ref": "node:hearth_doctrine",
+          "name": "hearthstead.guide.ref.tech_branches.hearth_doctrine.name",
+          "icon": "minecraft:bookshelf",
+          "text": "hearthstead.guide.ref.tech_branches.hearth_doctrine.text"
+        },
+        {
+          "ref": "node:bards_songbook",
+          "name": "hearthstead.guide.ref.tech_branches.bards_songbook.name",
+          "icon": "minecraft:note_block",
+          "text": "hearthstead.guide.ref.tech_branches.bards_songbook.text"
+        },
+        {
+          "ref": "node:kitchen_and_hall",
+          "name": "hearthstead.guide.ref.tech_branches.kitchen_and_hall.name",
+          "icon": "minecraft:smoker",
+          "text": "hearthstead.guide.ref.tech_branches.kitchen_and_hall.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.commons2",
+      "title": "hearthstead.guide.tech_branches.commons2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:war_feast",
+          "name": "hearthstead.guide.ref.tech_branches.war_feast.name",
+          "icon": "minecraft:cooked_beef",
+          "text": "hearthstead.guide.ref.tech_branches.war_feast.text"
+        },
+        {
+          "ref": "node:two_storey_houses",
+          "name": "hearthstead.guide.ref.tech_branches.two_storey_houses.name",
+          "icon": "minecraft:oak_stairs",
+          "text": "hearthstead.guide.ref.tech_branches.two_storey_houses.text"
+        },
+        {
+          "ref": "node:wayside_shrine",
+          "name": "hearthstead.guide.ref.tech_branches.wayside_shrine.name",
+          "icon": "minecraft:candle",
+          "text": "hearthstead.guide.ref.tech_branches.wayside_shrine.text"
+        },
+        {
+          "ref": "node:alehouse",
+          "name": "hearthstead.guide.ref.tech_branches.alehouse.name",
+          "icon": "minecraft:barrel",
+          "text": "hearthstead.guide.ref.tech_branches.alehouse.text"
+        },
+        {
+          "ref": "node:infirmary",
+          "name": "hearthstead.guide.ref.tech_branches.infirmary.name",
+          "icon": "minecraft:cauldron",
+          "text": "hearthstead.guide.ref.tech_branches.infirmary.text"
+        },
+        {
+          "ref": "node:manors",
+          "name": "hearthstead.guide.ref.tech_branches.manors.name",
+          "icon": "minecraft:lantern",
+          "text": "hearthstead.guide.ref.tech_branches.manors.text"
+        },
+        {
+          "ref": "node:great_tavern",
+          "name": "hearthstead.guide.ref.tech_branches.great_tavern.name",
+          "icon": "minecraft:jukebox",
+          "text": "hearthstead.guide.ref.tech_branches.great_tavern.text"
+        },
+        {
+          "ref": "node:harvest_feast",
+          "name": "hearthstead.guide.ref.tech_branches.harvest_feast.name",
+          "icon": "minecraft:hay_block",
+          "text": "hearthstead.guide.ref.tech_branches.harvest_feast.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.commons3",
+      "title": "hearthstead.guide.tech_branches.commons3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:hall_of_heroes",
+          "name": "hearthstead.guide.ref.tech_branches.hall_of_heroes.name",
+          "icon": "minecraft:gold_ingot",
+          "text": "hearthstead.guide.ref.tech_branches.hall_of_heroes.text"
+        },
+        {
+          "ref": "node:hall_and_learning",
+          "name": "hearthstead.guide.ref.tech_branches.hall_and_learning.name",
+          "icon": "minecraft:lectern",
+          "text": "hearthstead.guide.ref.tech_branches.hall_and_learning.text"
+        },
+        {
+          "ref": "node:battle_healer",
+          "name": "hearthstead.guide.ref.tech_branches.battle_healer.name",
+          "icon": "hearthstead:bandage",
+          "text": "hearthstead.guide.ref.tech_branches.battle_healer.text"
+        },
+        {
+          "ref": "node:cathedral",
+          "name": "hearthstead.guide.ref.tech_branches.cathedral.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.tech_branches.cathedral.text"
+        },
+        {
+          "ref": "node:hall_of_revels",
+          "name": "hearthstead.guide.ref.tech_branches.hall_of_revels.name",
+          "icon": "minecraft:cake",
+          "text": "hearthstead.guide.ref.tech_branches.hall_of_revels.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.craft1",
+      "title": "hearthstead.guide.tech_branches.craft1.title",
+      "bullets": [
+        "hearthstead.guide.tech_branches.craft1.b1"
+      ],
+      "tip": "hearthstead.guide.tech_branches.craft1.tip",
+      "entries": [
+        {
+          "ref": "node:timber_rights",
+          "name": "hearthstead.guide.ref.tech_branches.timber_rights.name",
+          "icon": "minecraft:iron_axe",
+          "text": "hearthstead.guide.ref.tech_branches.timber_rights.text"
+        },
+        {
+          "ref": "node:builders_hut",
+          "name": "hearthstead.guide.ref.tech_branches.builders_hut.name",
+          "icon": "hearthstead:builders_plan",
+          "text": "hearthstead.guide.ref.tech_branches.builders_hut.text"
+        },
+        {
+          "ref": "node:sharpened_axes",
+          "name": "hearthstead.guide.ref.tech_branches.sharpened_axes.name",
+          "icon": "minecraft:grindstone",
+          "text": "hearthstead.guide.ref.tech_branches.sharpened_axes.text"
+        },
+        {
+          "ref": "node:cultivated_ground",
+          "name": "hearthstead.guide.ref.tech_branches.cultivated_ground.name",
+          "icon": "minecraft:wheat",
+          "text": "hearthstead.guide.ref.tech_branches.cultivated_ground.text"
+        },
+        {
+          "ref": "node:shore_provisions",
+          "name": "hearthstead.guide.ref.tech_branches.shore_provisions.name",
+          "icon": "hearthstead:fishers_rod",
+          "text": "hearthstead.guide.ref.tech_branches.shore_provisions.text"
+        },
+        {
+          "ref": "node:fishers_nets",
+          "name": "hearthstead.guide.ref.tech_branches.fishers_nets.name",
+          "icon": "minecraft:string",
+          "text": "hearthstead.guide.ref.tech_branches.fishers_nets.text"
+        },
+        {
+          "ref": "node:guild_doctrine",
+          "name": "hearthstead.guide.ref.tech_branches.guild_doctrine.name",
+          "icon": "hearthstead:timber_beam",
+          "text": "hearthstead.guide.ref.tech_branches.guild_doctrine.text"
+        },
+        {
+          "ref": "node:land_and_harvest",
+          "name": "hearthstead.guide.ref.tech_branches.land_and_harvest.name",
+          "icon": "hearthstead:flour",
+          "text": "hearthstead.guide.ref.tech_branches.land_and_harvest.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.craft2",
+      "title": "hearthstead.guide.tech_branches.craft2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:border_wardens",
+          "name": "hearthstead.guide.ref.tech_branches.border_wardens.name",
+          "icon": "minecraft:arrow",
+          "text": "hearthstead.guide.ref.tech_branches.border_wardens.text"
+        },
+        {
+          "ref": "node:tannery",
+          "name": "hearthstead.guide.ref.tech_branches.tannery.name",
+          "icon": "hearthstead:cured_hide",
+          "text": "hearthstead.guide.ref.tech_branches.tannery.text"
+        },
+        {
+          "ref": "node:craft_and_industry",
+          "name": "hearthstead.guide.ref.tech_branches.craft_and_industry.name",
+          "icon": "minecraft:iron_pickaxe",
+          "text": "hearthstead.guide.ref.tech_branches.craft_and_industry.text"
+        },
+        {
+          "ref": "node:masonry",
+          "name": "hearthstead.guide.ref.tech_branches.masonry.name",
+          "icon": "minecraft:stone_bricks",
+          "text": "hearthstead.guide.ref.tech_branches.masonry.text"
+        },
+        {
+          "ref": "node:carpenter_mason",
+          "name": "hearthstead.guide.ref.tech_branches.carpenter_mason.name",
+          "icon": "minecraft:loom",
+          "text": "hearthstead.guide.ref.tech_branches.carpenter_mason.text"
+        },
+        {
+          "ref": "node:charcoal_kilns",
+          "name": "hearthstead.guide.ref.tech_branches.charcoal_kilns.name",
+          "icon": "minecraft:charcoal",
+          "text": "hearthstead.guide.ref.tech_branches.charcoal_kilns.text"
+        },
+        {
+          "ref": "node:deep_mine",
+          "name": "hearthstead.guide.ref.tech_branches.deep_mine.name",
+          "icon": "minecraft:raw_iron",
+          "text": "hearthstead.guide.ref.tech_branches.deep_mine.text"
+        },
+        {
+          "ref": "node:masters_apprentices",
+          "name": "hearthstead.guide.ref.tech_branches.masters_apprentices.name",
+          "icon": "minecraft:book",
+          "text": "hearthstead.guide.ref.tech_branches.masters_apprentices.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.craft3",
+      "title": "hearthstead.guide.tech_branches.craft3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "node:guild_halls",
+          "name": "hearthstead.guide.ref.tech_branches.guild_halls.name",
+          "icon": "hearthstead:wool_bolt",
+          "text": "hearthstead.guide.ref.tech_branches.guild_halls.text"
+        }
+      ]
+    },
+    {
+      "id": "tech_branches.common1",
+      "title": "hearthstead.guide.tech_branches.common1.title",
+      "bullets": [
+        "hearthstead.guide.tech_branches.common1.b1"
+      ],
+      "tip": "hearthstead.guide.tech_branches.common1.tip",
+      "entries": [
+        {
+          "ref": "node:shelter",
+          "name": "hearthstead.guide.ref.tech_branches.shelter.name",
+          "icon": "hearthstead:hearth",
+          "text": "hearthstead.guide.ref.tech_branches.shelter.text"
+        }
+      ]
+    }
+  ]
+}

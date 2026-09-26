@@ -1,0 +1,140 @@
+{
+  "id": "kitchen_small",
+  "name": "Cookhouse",
+  "category": "work",
+  "kind": "building",
+  "building_type": "kitchen",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "kitchen",
+  "size": [
+    15,
+    10,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      8,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      5,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 99
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 71
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 66
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 65
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 30
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 12
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 11
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 9
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 8
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 3
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 2
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 1
+    },
+    {
+      "item": "minecraft:furnace",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lily_of_the_valley",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    }
+  ],
+  "block_count": 403,
+  "cells": 541
+}

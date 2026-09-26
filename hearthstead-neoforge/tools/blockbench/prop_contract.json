@@ -1,0 +1,306 @@
+{
+  "schema": 4,
+  "minecraftVersion": "1.21.1",
+  "officialClient": {
+    "clientSha1": "30c73b1c5da787909b2f73340419fdf13b9def88",
+    "clientMappingsSha1": "2244b6f072256667bcd9a73df124d6c58de77992"
+  },
+  "hand": "right",
+  "itemInHandLayer": {
+    "rotateSequence": [
+      {"axis": "x", "degrees": -90},
+      {"axis": "y", "degrees": 180}
+    ],
+    "translateModelPixels": [1, 2, -10]
+  },
+  "displayProfiles": {
+    "handheld": {
+      "sourceModel": "minecraft:item/handheld",
+      "translateModelPixels": [0, 4, 0.5],
+      "rotationXYZDegrees": [0, -90, 55],
+      "scale": [0.85, 0.85, 0.85],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "generated": {
+      "sourceModel": "minecraft:item/generated",
+      "translateModelPixels": [0, 3, 1],
+      "rotationXYZDegrees": [0, 0, 0],
+      "scale": [0.55, 0.55, 0.55],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "handheld_rod": {
+      "sourceModel": "minecraft:item/handheld_rod",
+      "translateModelPixels": [0, 4, 2.5],
+      "rotationXYZDegrees": [0, 90, 55],
+      "scale": [0.85, 0.85, 0.85],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "bow": {
+      "sourceModel": "minecraft:item/bow",
+      "translateModelPixels": [-1, -2, 2.5],
+      "rotationXYZDegrees": [-80, 260, -40],
+      "scale": [0.9, 0.9, 0.9],
+      "centerModelPixels": [-8, -8, -8]
+    },
+    "block": {
+      "sourceModel": "minecraft:block/block",
+      "translateModelPixels": [0, 2.5, 0],
+      "rotationXYZDegrees": [75, 45, 0],
+      "scale": [0.375, 0.375, 0.375],
+      "centerModelPixels": [-8, -8, -8]
+    }
+  },
+  "propDisplayProfiles": {
+    "axe": "handheld",
+    "hammer": "handheld",
+    "pickaxe": "handheld",
+    "hoe": "handheld",
+    "sword": "handheld",
+    "shears": "generated",
+    "fishing_rod": "handheld_rod",
+    "bow": "bow"
+  },
+  "blockbench": {
+    "modelToBlockbenchAxisSigns": [-1, -1, 1],
+    "rightArmOrigin": [6, 22, 0],
+    "leftArmOrigin": [-6, 22, 0],
+    "rightHandCubeCenter": [6, 12, 0],
+    "expectedNeutralLayerOrigin": [7, 12, -2],
+    "expectedNeutralLeftLayerOrigin": [-7, 12, -2],
+    "expectedNeutralLeftDisplays": {
+      "block": {
+        "origin": [-7, 12, -4.5],
+        "basisRows": [
+          [-0.707106781186548, 0, -0.707106781186548],
+          [-0.18301270189222, -0.965925826289068, 0.183012701892219],
+          [-0.683012701892219, 0.258819045102521, 0.683012701892219]
+        ]
+      }
+    },
+    "expectedNeutralDisplays": {
+      "handheld": {
+        "origin": [7, 12.5, -6],
+        "basisRows": [
+          [0, 0, -1],
+          [-0.573576436351046, 0.819152044288992, 0],
+          [0.819152044288992, 0.573576436351046, 0]
+        ]
+      },
+      "generated": {
+        "origin": [7, 13, -5],
+        "basisRows": [
+          [-1, 0, 0],
+          [0, 0, 1],
+          [0, 1, 0]
+        ]
+      },
+      "handheld_rod": {
+        "origin": [7, 14.5, -6],
+        "basisRows": [
+          [0, 0, 1],
+          [0.573576436351046, -0.819152044288992, 0],
+          [0.819152044288992, 0.573576436351046, 0]
+        ]
+      },
+      "bow": {
+        "origin": [6, 14.5, 0],
+        "basisRows": [
+          [0.133022221559489, 0.11161889704895, -0.984807753012208],
+          [-0.764023536674181, 0.644483351539012, -0.030153689607046],
+          [0.631326479707016, 0.756427413180285, 0.171010071662834]
+        ]
+      }
+    }
+  },
+  "meleeEvidenceTarget": {
+    "role": "primary_forward_attack_bearing",
+    "actorForwardModel": [0, 0, -1],
+    "centerModelPixels": [0, 14.4, -12],
+    "sizeModelPixels": [9.6, 28.8, 9.6],
+    "actorEyeModelPixels": [0, 25.6, 0],
+    "targetEyeModelPixels": [0, 25.6, -12],
+    "bodyYawDegrees": 0,
+    "lookYawLimitDegrees": 30,
+    "lookPitchLimitDegrees": 30,
+    "maxPrimaryBearingErrorDegrees": 0.5,
+    "contactSeconds": 0.2,
+    "impactBandSeconds": [0.2, 0.25],
+    "mustBeClearSeconds": [0, 0.05, 0.1, 0.15],
+    "mustBeSeparatedSeconds": [0.3, 0.35, 0.4, 0.45, 0.5],
+    "minimumCenterlineTravelPixels": 0.75,
+    "maximumImpactLineDriftPixels": 2.0
+  },
+  "craftingEvidenceTarget": {
+    "role": "fixed_world_authority_reconstruction",
+    "actorForwardModel": [0, 0, -1],
+    "tableCenterModelPixels": [0, 8, -12],
+    "tableSizeModelPixels": [16, 16, 16],
+    "gridSpacingModelPixels": 3.6,
+    "recipeId": "minecraft:wooden_axe",
+    "recipeOccupiedSlots": [0, 1, 3, 4, 7],
+    "recipeSlotItems": {
+      "0": "minecraft:oak_planks",
+      "1": "minecraft:oak_planks",
+      "3": "minecraft:oak_planks",
+      "4": "minecraft:stick",
+      "7": "minecraft:stick"
+    },
+    "layoutContactSeconds": [0.2, 0.4, 0.6, 0.8, 0.9],
+    "transformContactSeconds": 1.5,
+    "pickupContactSeconds": 2.15,
+    "tableBeatDurationSeconds": 2.4,
+    "storageContactSeconds": 0.7,
+    "storageBeatDurationSeconds": 1.2,
+    "outputItem": "minecraft:wooden_axe",
+    "worldPropsMustNotInheritActorTransform": true
+  },
+  "clips": {
+    "FARM_PLANT": "hoe",
+    "FARM_HARVEST": "hoe",
+    "CHOP": "axe",
+    "LIMB_BRANCHES": "axe",
+    "GATHER_LOG": "axe",
+    "HAUL_LOG": "axe",
+    "HAUL_LOG_HEAVY": "axe",
+    "HAMMER_ANVIL": "hammer",
+    "MINE_PICK": "pickaxe",
+    "MASON_CHISEL": "pickaxe",
+    "FARM_TILL": "hoe",
+    "FARM_WATER": "hoe",
+    "FARMER_CARRY": "hoe",
+    "MELEE": "sword",
+    "LEAP_STRIKE": "sword",
+    "GUARD_STANCE": "sword",
+    "GUARD_PATROL": "sword",
+    "GUARD_HIT_REACT": "sword",
+    "ARCHER_STANCE": "bow",
+    "ARCHER_PATROL": "bow",
+    "IDLE_ARCHER": "bow",
+    "SHIELD_BLOCK": "sword",
+    "HERDER_SHEAR": "shears",
+    "FISHER_CAST": "fishing_rod",
+    "HUNTER_LOOSE": "bow"
+  },
+  "contextualClips": {
+    "IDLE_LUMBERER": {
+      "lumberer": "axe"
+    },
+    "WALK": {
+      "lumberer": "axe"
+    },
+    "WALK_LADEN": {
+      "lumberer": "axe"
+    },
+    "WALK_CARRY_ITEM": {
+      "lumberer": "axe"
+    },
+    "WORK_CONTAINER_DOWN": {
+      "lumberer": "axe"
+    },
+    "GROUND_ITEM_PICKUP": {
+      "lumberer": "axe"
+    },
+    "WORK_CONTAINER_STOW": {
+      "lumberer": "axe"
+    },
+    "WORK_CONTAINER_UP": {
+      "lumberer": "axe"
+    },
+    "PICKUP_STOW": {
+      "lumberer": "axe"
+    },
+    "IDLE_SENTRY": {
+      "guard": "sword",
+      "hunter": "none"
+    },
+    "CLEAVE": {
+      "butcher": "none",
+      "herder_cull": "shears"
+    },
+    "LUMBER_CRAFT": {
+      "missing": "none",
+      "worn_existing_axe": "axe"
+    },
+    "CRAFT_OUTPUT_STORE": {
+      "escrow_output": "none"
+    }
+  },
+  "fixedRuntimeMainHandClips": [
+    "FARM_PLANT", "FARM_HARVEST", "FARM_TILL", "FARM_WATER", "FARMER_CARRY",
+    "CHOP", "LIMB_BRANCHES", "GATHER_LOG", "HAUL_LOG", "HAUL_LOG_HEAVY", "MINE_PICK",
+    "MELEE", "LEAP_STRIKE", "GUARD_STANCE", "GUARD_PATROL", "GUARD_HIT_REACT",
+    "ARCHER_STANCE", "ARCHER_PATROL", "IDLE_ARCHER", "SHIELD_BLOCK",
+    "HERDER_SHEAR", "FISHER_CAST", "HUNTER_LOOSE"
+  ],
+  "suppressedHeldItemPresentationClips": ["HAUL_LOG", "HAUL_LOG_HEAVY"],
+  "twoHandFrameGripPostureContracts": {
+    "HAUL_LOG": {
+      "activity": "HAULING_LOG",
+      "runtimeMainHand": "axe",
+      "heldItemPresentation": "suppressed",
+      "attachedLoadGroup": "lumber_frame",
+      "exactOverlayBones": ["left_arm", "right_arm"],
+      "safeArmXBoundsDegrees": {
+        "left_arm": [-50, -30],
+        "right_arm": [-50, -30]
+      }
+    },
+    "HAUL_LOG_HEAVY": {
+      "activity": "HAULING_LOG",
+      "runtimeMainHand": "axe",
+      "heldItemPresentation": "suppressed",
+      "attachedLoadGroup": "lumber_frame",
+      "exactOverlayBones": ["left_arm", "right_arm"],
+      "safeArmXBoundsDegrees": {
+        "left_arm": [-50, -30],
+        "right_arm": [-50, -30]
+      }
+    }
+  },
+  "transitionHeldItemPresentation": {
+    "WORK_CONTAINER_DOWN": {
+      "suppressedBeforeSeconds": 1.20,
+      "restoredAtOrAfterSeconds": 1.20
+    },
+    "WORK_CONTAINER_UP": {
+      "visibleBeforeSeconds": 0.60,
+      "suppressedAtOrAfterSeconds": 0.60
+    }
+  },
+  "workContainerTransitionGripAnchors": {
+    "javaModelPixels": {
+      "negativeXUpperSideRail": [-4.0, 0.5, 0.5],
+      "positiveXUpperSideRail": [4.0, 0.5, 0.5]
+    },
+    "blockbenchModelPixels": {
+      "negativeXUpperSideRail": [-4.0, -0.5, 0.5],
+      "positiveXUpperSideRail": [4.0, -0.5, 0.5]
+    },
+    "maximumHandCenterDistanceModelPixels": 8.0,
+    "downGroundContactSeconds": 1.0,
+    "upGroundContactSeconds": 0.6,
+    "ownership": "Hands migrate from lower backpack grips to the existing upper side rails before ground contact; pickup reverses that path."
+  },
+  "conditionalRuntimeOffhandClips": {
+    "SHIELD_BLOCK": "shield"
+  },
+  "conceptualProxyClips": ["HAMMER_ANVIL", "MASON_CHISEL"],
+  "hunterPhysicalShot": {
+    "clip": "HUNTER_LOOSE",
+    "activity": "WORK_HUNT",
+    "mainHandItem": "bow",
+    "bowArm": "right_arm",
+    "stringArm": "left_arm",
+    "drawClock": "synced_vanilla_mainhand_item_use",
+    "durationTicks": 24,
+    "releaseTick": 14,
+    "releaseEvent": "EV_ARCHER_LOOSE",
+    "releaseRequiresSpawnedProjectile": true,
+    "activityClockStartsImmediately": true,
+    "clipOwnsArms": false,
+    "visualQualification": "offline_multiview_and_native_pending"
+  },
+  "knownVisualNoGoClips": {
+    "CLEAVE": "The clip has no truthful universal prop: BUTCHER runtime is empty-handed despite the catalogue cleaver, while HERDER cull carries shears; BB_CONTEXT is mandatory."
+  }
+}

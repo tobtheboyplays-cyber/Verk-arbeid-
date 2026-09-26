@@ -1,0 +1,21 @@
+{
+  "id": "quality",
+  "title": "hearthstead.guide.quality.title",
+  "icon": "minecraft:iron_ingot",
+  "pages": [
+    {
+      "id": "quality.grades",
+      "title": "hearthstead.guide.quality.grades.title",
+      "bullets": [
+        "hearthstead.guide.quality.grades.b1",
+        "hearthstead.guide.quality.grades.b2",
+        "hearthstead.guide.quality.grades.b3"
+      ],
+      "tip": "hearthstead.guide.quality.grades.tip",
+      "image_wanted": "Six item stacks arranged from Basic to Legendary, with actual tooltip colours.",
+      "text": [
+        "hearthstead.guide.quality.grades.more"
+      ]
+    }
+  ]
+}

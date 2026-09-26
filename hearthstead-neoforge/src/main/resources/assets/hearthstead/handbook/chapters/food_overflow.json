@@ -1,0 +1,21 @@
+{
+  "id": "food_overflow",
+  "title": "hearthstead.guide.food_overflow.title",
+  "icon": "minecraft:bread",
+  "pages": [
+    {
+      "id": "food_overflow.storage",
+      "title": "hearthstead.guide.food_overflow.storage.title",
+      "bullets": [
+        "hearthstead.guide.food_overflow.storage.b1",
+        "hearthstead.guide.food_overflow.storage.b2",
+        "hearthstead.guide.food_overflow.storage.b3"
+      ],
+      "tip": "hearthstead.guide.food_overflow.storage.tip",
+      "text": [
+        "hearthstead.guide.food_overflow.storage.more"
+      ],
+      "image_wanted": "Food entering a Warehouse overflow chest beside the overflow notice."
+    }
+  ]
+}

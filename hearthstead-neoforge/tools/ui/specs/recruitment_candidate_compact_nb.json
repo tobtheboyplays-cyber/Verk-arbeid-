@@ -1,0 +1,33 @@
+{
+  "name": "recruitment_candidate_compact_nb",
+  "width": 427,
+  "height": 240,
+  "elements": [
+    {"t": "label", "x": 3, "y": 207, "text": "KANDIDATVISNING", "tone": "warn", "box": 165, "id": "approval_watermark_1"},
+    {"t": "label", "x": 3, "y": 217, "text": "IKKE NATIVE-GODKJENT", "tone": "warn", "box": 165, "id": "approval_watermark_2"},
+    {"t": "label", "x": 3, "y": 229, "text": "427×240 logisk / GUI-skala 3", "tone": "text_muted", "box": 165},
+    {"t": "window", "x": 103, "y": 16, "w": 220, "h": 222},
+    {"t": "fill", "x": 103, "y": 16, "w": 220, "h": 222, "colour": "#B0101010"},
+    {"t": "tab", "x": 85, "y": 2, "w": 62, "h": 14, "text": "Bosetning", "selected": true},
+    {"t": "tab", "x": 150, "y": 2, "w": 58, "h": 14, "text": "Ordfører", "selected": false},
+    {"t": "tab", "x": 211, "y": 2, "w": 54, "h": 14, "text": "Reise", "selected": false},
+    {"t": "tab", "x": 268, "y": 2, "w": 72, "h": 14, "text": "Utvikling", "selected": false},
+    {"t": "window", "x": 171, "y": 15, "w": 256, "h": 224},
+    {"t": "title", "x": 299, "y": 27, "align": "center", "text": "Traveler ved Tavern", "box": 220, "id": "candidate_title"},
+    {"t": "button", "x": 373, "y": 19, "w": 44, "h": 20, "text": "Lukk"},
+    {"t": "divider", "x": 181, "y": 41, "w": 236},
+    {"t": "label", "x": 181, "y": 50, "text": "Aldith Longstride", "tone": "text_strong", "box": 236, "id": "traveler_name"},
+    {"t": "label", "x": 181, "y": 64, "text": "Venter ved den eksakt tilknyttede Tavern", "tone": "accent", "box": 236, "id": "traveler_stage"},
+    {"t": "inset", "x": 181, "y": 79, "w": 236, "h": 119},
+    {"t": "label", "x": 187, "y": 86, "text": "Pris for å bli medlem", "tone": "text_muted", "box": 224},
+    {"t": "label", "x": 193, "y": 98, "text": "4 × Brød", "box": 218},
+    {"t": "label", "x": 193, "y": 108, "text": "8 × planker", "box": 218},
+    {"t": "label", "x": 187, "y": 143, "text": "Ledige senger: 2", "tone": "text_muted", "box": 224},
+    {"t": "label", "x": 187, "y": 155, "text": "Mat etter betaling: 28 / 24 måltider", "tone": "text_muted", "box": 224},
+    {"t": "label", "x": 187, "y": 167, "text": "Tid igjen til avgjørelse: 1d 14t", "tone": "text_muted", "box": 224},
+    {"t": "label", "x": 187, "y": 180, "text": "Alle levende kontroller er godkjent -", "tone": "good", "box": 224, "id": "blocker_line_1"},
+    {"t": "label", "x": 187, "y": 189, "text": "velg Ta inn eller Avvis", "tone": "good", "box": 224, "id": "blocker_line_2"},
+    {"t": "button", "x": 181, "y": 209, "w": 104, "h": 20, "text": "Ta inn traveler"},
+    {"t": "button", "x": 313, "y": 209, "w": 104, "h": 20, "text": "Avvis traveler", "state": "danger"}
+  ]
+}

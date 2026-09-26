@@ -1,0 +1,84 @@
+{
+  "variants": {
+    "facing=north,hanging=0": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 0
+    },
+    "facing=north,hanging=1": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 0
+    },
+    "facing=north,hanging=2": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 0
+    },
+    "facing=north,hanging=3": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 0
+    },
+    "facing=north,hanging=4": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 0
+    },
+    "facing=east,hanging=0": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 90
+    },
+    "facing=east,hanging=1": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 90
+    },
+    "facing=east,hanging=2": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 90
+    },
+    "facing=east,hanging=3": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 90
+    },
+    "facing=east,hanging=4": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 90
+    },
+    "facing=south,hanging=0": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 180
+    },
+    "facing=south,hanging=1": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 180
+    },
+    "facing=south,hanging=2": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 180
+    },
+    "facing=south,hanging=3": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 180
+    },
+    "facing=south,hanging=4": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 180
+    },
+    "facing=west,hanging=0": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 270
+    },
+    "facing=west,hanging=1": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 270
+    },
+    "facing=west,hanging=2": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 270
+    },
+    "facing=west,hanging=3": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 270
+    },
+    "facing=west,hanging=4": {
+      "model": "hearthstead:block/fish_rack",
+      "y": 270
+    }
+  }
+}

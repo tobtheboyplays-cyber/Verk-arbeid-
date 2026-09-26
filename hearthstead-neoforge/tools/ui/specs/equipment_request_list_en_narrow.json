@@ -1,0 +1,27 @@
+{
+  "name": "equipment_request_list_en_narrow",
+  "width": 410,
+  "height": 208,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 410, "h": 208},
+    {"t": "title", "x": 205, "y": 12, "align": "center", "text": "Request Queue", "box": 390, "id": "title"},
+    {"t": "label", "x": 10, "y": 28, "text": "Physical deliveries in the exact order your Courier will take them", "tone": "text_muted", "box": 390, "id": "subtitle"},
+    {"t": "label", "x": 10, "y": 41, "text": "Drag requests to change delivery order.", "tone": "accent", "box": 390, "id": "drag_help"},
+    {"t": "divider", "x": 10, "y": 56, "w": 390},
+    {"t": "label", "x": 10, "y": 62, "text": "15 active requests • showing 15", "tone": "text_muted", "box": 390, "id": "summary"},
+
+    {"t": "card_hover", "x": 10, "y": 78, "w": 390, "h": 44},
+    {"t": "label", "x": 23, "y": 96, "align": "center", "text": "#1", "tone": "text_strong", "box": 24, "id": "row0.position"},
+    {"t": "label", "x": 36, "y": 82, "text": "Gislebert the Younger • 1× Iron Sword", "tone": "text_strong", "box": 252, "id": "row0.item"},
+    {"t": "label", "x": 293, "y": 82, "text": "Courier assigned", "tone": "accent", "box": 90, "id": "row0.status"},
+    {"t": "label", "x": 36, "y": 95, "text": "Urgent priority • To Barracks", "tone": "warn", "box": 347, "id": "row0.meta"},
+    {"t": "label", "x": 36, "y": 108, "text": "Missing tool — waiting for a physical delivery", "tone": "text_muted", "box": 347, "id": "row0.reason"},
+    {"t": "fill", "x": 391, "y": 95, "w": 5, "h": 1, "colour": "text_muted"},
+    {"t": "fill", "x": 391, "y": 99, "w": 5, "h": 1, "colour": "text_muted"},
+    {"t": "fill", "x": 391, "y": 103, "w": 5, "h": 1, "colour": "text_muted"},
+
+    {"t": "divider", "x": 10, "y": 170, "w": 390},
+    {"t": "button", "x": 10, "y": 181, "w": 78, "h": 20, "text": "Refresh"},
+    {"t": "button", "x": 322, "y": 181, "w": 78, "h": 20, "text": "Back"}
+  ]
+}

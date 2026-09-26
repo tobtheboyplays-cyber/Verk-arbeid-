@@ -1,0 +1,128 @@
+{
+  "id": "mine_rustic",
+  "name": "Mine Headframe (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mine",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "mine",
+  "size": [
+    13,
+    16,
+    14
+  ],
+  "ground_level": 5,
+  "eave_y": 9,
+  "plaque": {
+    "pos": [
+      10,
+      7,
+      2
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      5,
+      6,
+      4
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 162
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 78
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 46
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 45
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 42
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 41
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 14
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 12
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 6
+    },
+    {
+      "item": "minecraft:rail",
+      "count": 6
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 6
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 6
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 6
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 5
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 5
+    },
+    {
+      "item": "minecraft:stripped_oak_log",
+      "count": 4
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:hopper",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 491,
+  "cells": 517
+}

@@ -1,0 +1,20 @@
+{
+  "id": "saga",
+  "title": "hearthstead.guide.saga.title",
+  "icon": "minecraft:written_book",
+  "pages": [
+    {
+      "id": "saga.p1",
+      "title": "hearthstead.guide.saga.p1.title",
+      "bullets": [
+        "hearthstead.guide.saga.p1.b1",
+        "hearthstead.guide.saga.p1.b2",
+        "hearthstead.guide.saga.p1.b3"
+      ],
+      "tip": "hearthstead.guide.saga.p1.tip",
+      "text": [
+        "hearthstead.guide.saga.body"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "id": "weapons",
+  "title": "hearthstead.guide.weapons.title",
+  "icon": "hearthstead:iron_double_axe",
+  "pages": [
+    {
+      "id": "weapons.materials",
+      "title": "hearthstead.guide.weapons.materials.title",
+      "bullets": [
+        "hearthstead.guide.weapons.materials.b1",
+        "hearthstead.guide.weapons.materials.b2",
+        "hearthstead.guide.weapons.materials.b3"
+      ],
+      "tip": "hearthstead.guide.weapons.materials.tip",
+      "text": [
+        "hearthstead.guide.weapons.materials.more"
+      ]
+    },
+    {
+      "id": "weapons.short_sword",
+      "title": "hearthstead.guide.weapons.short_sword.title",
+      "bullets": [
+        "hearthstead.guide.weapons.short_sword.b1",
+        "hearthstead.guide.weapons.short_sword.b2"
+      ],
+      "tip": "hearthstead.guide.weapons.short_sword.tip",
+      "text": [
+        "hearthstead.guide.weapons.short_sword.more"
+      ],
+      "recipes": [
+        "hearthstead:iron_short_sword"
+      ],
+      "items": [
+        "hearthstead:wooden_short_sword",
+        "hearthstead:stone_short_sword",
+        "hearthstead:iron_short_sword",
+        "hearthstead:golden_short_sword",
+        "hearthstead:diamond_short_sword",
+        "hearthstead:netherite_short_sword"
+      ]
+    },
+    {
+      "id": "weapons.longsword",
+      "title": "hearthstead.guide.weapons.longsword.title",
+      "bullets": [
+        "hearthstead.guide.weapons.longsword.b1",
+        "hearthstead.guide.weapons.longsword.b2"
+      ],
+      "tip": "hearthstead.guide.weapons.longsword.tip",
+      "text": [
+        "hearthstead.guide.weapons.longsword.more"
+      ],
+      "recipes": [
+        "hearthstead:iron_longsword"
+      ],
+      "items": [
+        "hearthstead:wooden_longsword",
+        "hearthstead:stone_longsword",
+        "hearthstead:iron_longsword",
+        "hearthstead:golden_longsword",
+        "hearthstead:diamond_longsword",
+        "hearthstead:netherite_longsword"
+      ]
+    },
+    {
+      "id": "weapons.double_axe",
+      "title": "hearthstead.guide.weapons.double_axe.title",
+      "bullets": [
+        "hearthstead.guide.weapons.double_axe.b1",
+        "hearthstead.guide.weapons.double_axe.b2"
+      ],
+      "tip": "hearthstead.guide.weapons.double_axe.tip",
+      "text": [
+        "hearthstead.guide.weapons.double_axe.more"
+      ],
+      "recipes": [
+        "hearthstead:iron_double_axe"
+      ],
+      "items": [
+        "hearthstead:wooden_double_axe",
+        "hearthstead:stone_double_axe",
+        "hearthstead:iron_double_axe",
+        "hearthstead:golden_double_axe",
+        "hearthstead:diamond_double_axe",
+        "hearthstead:netherite_double_axe"
+      ]
+    },
+    {
+      "id": "weapons.halberd",
+      "title": "hearthstead.guide.weapons.halberd.title",
+      "bullets": [
+        "hearthstead.guide.weapons.halberd.b1",
+        "hearthstead.guide.weapons.halberd.b2"
+      ],
+      "tip": "hearthstead.guide.weapons.halberd.tip",
+      "text": [
+        "hearthstead.guide.weapons.halberd.more"
+      ],
+      "recipes": [
+        "hearthstead:iron_halberd"
+      ],
+      "items": [
+        "hearthstead:wooden_halberd",
+        "hearthstead:stone_halberd",
+        "hearthstead:iron_halberd",
+        "hearthstead:golden_halberd",
+        "hearthstead:diamond_halberd",
+        "hearthstead:netherite_halberd"
+      ]
+    },
+    {
+      "id": "weapons.warhammer",
+      "title": "hearthstead.guide.weapons.warhammer.title",
+      "bullets": [
+        "hearthstead.guide.weapons.warhammer.b1",
+        "hearthstead.guide.weapons.warhammer.b2"
+      ],
+      "tip": "hearthstead.guide.weapons.warhammer.tip",
+      "text": [
+        "hearthstead.guide.weapons.warhammer.more"
+      ],
+      "recipes": [
+        "hearthstead:iron_warhammer"
+      ],
+      "items": [
+        "hearthstead:wooden_warhammer",
+        "hearthstead:stone_warhammer",
+        "hearthstead:iron_warhammer",
+        "hearthstead:golden_warhammer",
+        "hearthstead:diamond_warhammer",
+        "hearthstead:netherite_warhammer"
+      ]
+    }
+  ]
+}

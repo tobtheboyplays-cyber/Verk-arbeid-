@@ -1,0 +1,194 @@
+{
+  "id": "architects_study_stone",
+  "name": "Drawing Office (Stone Hall)",
+  "category": "common",
+  "kind": "building",
+  "building_type": "architects_study",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall",
+  "requires": "builders_hut",
+  "group": "architects_study",
+  "size": [
+    17,
+    15,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      9,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      10,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        8,
+        1,
+        4
+      ],
+      "to": "another_furniture:dark_oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        8,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        7,
+        1,
+        4
+      ],
+      "to": "another_furniture:dark_oak_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        9,
+        1,
+        4
+      ],
+      "to": "another_furniture:dark_oak_chair[facing=west,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 118
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 103
+    },
+    {
+      "item": "minecraft:dark_oak_log",
+      "count": 89
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 84
+    },
+    {
+      "item": "minecraft:dark_oak_planks",
+      "count": 73
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 59
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 40
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 25
+    },
+    {
+      "item": "minecraft:dark_oak_fence",
+      "count": 21
+    },
+    {
+      "item": "minecraft:dark_oak_slab",
+      "count": 8
+    },
+    {
+      "item": "minecraft:dark_oak_trapdoor",
+      "count": 8
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 6
+    },
+    {
+      "item": "minecraft:bookshelf",
+      "count": 6
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 3
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 3
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lectern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:allium",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cartography_table",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dark_oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dark_oak_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 663,
+  "cells": 993
+}

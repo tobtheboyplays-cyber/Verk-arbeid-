@@ -1,0 +1,9 @@
+{
+  "gui": {
+    "scaling": {
+      "height": 2,
+      "type": "tile",
+      "width": 2
+    }
+  }
+}

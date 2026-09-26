@@ -1,0 +1,23 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:wooden_double_axe",
+    "hearthstead:stone_double_axe",
+    "hearthstead:iron_double_axe",
+    "hearthstead:golden_double_axe",
+    "hearthstead:diamond_double_axe",
+    "hearthstead:netherite_double_axe",
+    "hearthstead:wooden_halberd",
+    "hearthstead:stone_halberd",
+    "hearthstead:iron_halberd",
+    "hearthstead:golden_halberd",
+    "hearthstead:diamond_halberd",
+    "hearthstead:netherite_halberd",
+    "hearthstead:wooden_warhammer",
+    "hearthstead:stone_warhammer",
+    "hearthstead:iron_warhammer",
+    "hearthstead:golden_warhammer",
+    "hearthstead:diamond_warhammer",
+    "hearthstead:netherite_warhammer"
+  ]
+}

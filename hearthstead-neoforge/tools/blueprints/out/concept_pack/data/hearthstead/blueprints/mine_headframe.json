@@ -1,0 +1,120 @@
+{
+  "id": "mine_headframe",
+  "name": "Mine Headframe",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mine",
+  "variant": "concept",
+  "style": "elmfield",
+  "preset": "Elmfield (job concept)",
+  "requires": "builders_hut",
+  "group": "mine",
+  "size": [
+    13,
+    16,
+    13
+  ],
+  "ground_level": 5,
+  "eave_y": null,
+  "plaque": {
+    "pos": [
+      10,
+      7,
+      1
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      5,
+      6,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:cobblestone",
+      "count": 87
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 70
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 45
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 42
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 18
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 14
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 6
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 6
+    },
+    {
+      "item": "minecraft:rail",
+      "count": 6
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 6
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 6
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 5
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 5
+    },
+    {
+      "item": "minecraft:stripped_oak_log",
+      "count": 4
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:hopper",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 327,
+  "cells": 353
+}

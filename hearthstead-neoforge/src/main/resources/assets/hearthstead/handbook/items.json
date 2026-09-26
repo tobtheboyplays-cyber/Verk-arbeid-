@@ -1,0 +1,406 @@
+{
+  "schema": 1,
+  "families": {
+    "banner": {
+      "page": "items.banner",
+      "use": "hearthstead.howto.banner.use",
+      "steps": [
+        "hearthstead.howto.banner.s1",
+        "hearthstead.howto.banner.s2",
+        "hearthstead.howto.banner.s3",
+        "hearthstead.howto.banner.s4"
+      ]
+    },
+    "handbook": {
+      "page": "items.handbook",
+      "use": "hearthstead.howto.handbook.use",
+      "steps": [
+        "hearthstead.howto.handbook.s1",
+        "hearthstead.howto.handbook.s2",
+        "hearthstead.howto.handbook.s3"
+      ],
+      "obtain": "hearthstead.howto.handbook.obtain"
+    },
+    "plaque": {
+      "page": "items.plaque",
+      "use": "hearthstead.howto.plaque.use",
+      "steps": [
+        "hearthstead.howto.plaque.s1",
+        "hearthstead.howto.plaque.s2",
+        "hearthstead.howto.plaque.s3",
+        "hearthstead.howto.plaque.s4"
+      ]
+    },
+    "build_plan": {
+      "page": "items.plaque",
+      "use": "hearthstead.howto.build_plan.use",
+      "steps": [
+        "hearthstead.howto.build_plan.s1",
+        "hearthstead.howto.build_plan.s2",
+        "hearthstead.howto.build_plan.s3"
+      ],
+      "obtain": "hearthstead.howto.build_plan.obtain"
+    },
+    "work_scepter": {
+      "page": "items.work_scepter",
+      "use": "hearthstead.howto.work_scepter.use",
+      "steps": [
+        "hearthstead.howto.work_scepter.s1",
+        "hearthstead.howto.work_scepter.s2",
+        "hearthstead.howto.work_scepter.s3",
+        "hearthstead.howto.work_scepter.s4"
+      ],
+      "hint": true
+    },
+    "builders_plan": {
+      "page": "items.builders_plan",
+      "use": "hearthstead.howto.builders_plan.use",
+      "steps": [
+        "hearthstead.howto.builders_plan.s1",
+        "hearthstead.howto.builders_plan.s2",
+        "hearthstead.howto.builders_plan.s3",
+        "hearthstead.howto.builders_plan.s4"
+      ],
+      "hint": true
+    },
+    "survey_rod": {
+      "page": "items.survey_rod",
+      "use": "hearthstead.howto.survey_rod.use",
+      "steps": [
+        "hearthstead.howto.survey_rod.s1",
+        "hearthstead.howto.survey_rod.s2",
+        "hearthstead.howto.survey_rod.s3",
+        "hearthstead.howto.survey_rod.s4"
+      ],
+      "hint": true
+    },
+    "resource_scroll": {
+      "page": "items.resource_scroll",
+      "use": "hearthstead.howto.resource_scroll.use",
+      "steps": [
+        "hearthstead.howto.resource_scroll.s1",
+        "hearthstead.howto.resource_scroll.s2"
+      ],
+      "hint": true
+    },
+    "patrol_map": {
+      "page": "items.patrol_map",
+      "use": "hearthstead.howto.patrol_map.use",
+      "steps": [
+        "hearthstead.howto.patrol_map.s1",
+        "hearthstead.howto.patrol_map.s2",
+        "hearthstead.howto.patrol_map.s3",
+        "hearthstead.howto.patrol_map.s4"
+      ],
+      "hint": true
+    },
+    "job_emblem": {
+      "page": "items.emblems",
+      "use": "hearthstead.howto.job_emblem.use",
+      "steps": [
+        "hearthstead.howto.job_emblem.s1",
+        "hearthstead.howto.job_emblem.s2",
+        "hearthstead.howto.job_emblem.s3",
+        "hearthstead.howto.job_emblem.s4"
+      ],
+      "obtain": "hearthstead.howto.job_emblem.obtain",
+      "hint": true
+    },
+    "blessing_seal": {
+      "page": "items.seals",
+      "use": "hearthstead.howto.blessing_seal.use",
+      "steps": [
+        "hearthstead.howto.blessing_seal.s1",
+        "hearthstead.howto.blessing_seal.s2",
+        "hearthstead.howto.blessing_seal.s3"
+      ],
+      "obtain": "hearthstead.howto.blessing_seal.obtain",
+      "hint": true
+    },
+    "coin": {
+      "page": "items.coins",
+      "use": "hearthstead.howto.coin.use",
+      "steps": [
+        "hearthstead.howto.coin.s1",
+        "hearthstead.howto.coin.s2",
+        "hearthstead.howto.coin.s3"
+      ],
+      "obtain": "hearthstead.howto.coin.obtain"
+    },
+    "role_weapon": {
+      "page": "items.weapons",
+      "use": "hearthstead.howto.role_weapon.use",
+      "steps": [
+        "hearthstead.howto.role_weapon.s1",
+        "hearthstead.howto.role_weapon.s2",
+        "hearthstead.howto.role_weapon.s3"
+      ]
+    },
+    "captain_short_sword": {
+      "page": "items.short_sword",
+      "use": "hearthstead.howto.captain_short_sword.use",
+      "steps": [
+        "hearthstead.howto.captain_short_sword.s1",
+        "hearthstead.howto.captain_short_sword.s2",
+        "hearthstead.howto.captain_short_sword.s3"
+      ]
+    },
+    "captain_double_axe": {
+      "page": "items.double_axe",
+      "use": "hearthstead.howto.captain_double_axe.use",
+      "steps": [
+        "hearthstead.howto.captain_double_axe.s1",
+        "hearthstead.howto.captain_double_axe.s2",
+        "hearthstead.howto.captain_double_axe.s3",
+        "hearthstead.howto.captain_double_axe.s4"
+      ]
+    },
+    "captain_halberd": {
+      "page": "items.halberd",
+      "use": "hearthstead.howto.captain_halberd.use",
+      "steps": [
+        "hearthstead.howto.captain_halberd.s1",
+        "hearthstead.howto.captain_halberd.s2",
+        "hearthstead.howto.captain_halberd.s3"
+      ]
+    },
+    "captain_warhammer": {
+      "page": "items.warhammer",
+      "use": "hearthstead.howto.captain_warhammer.use",
+      "steps": [
+        "hearthstead.howto.captain_warhammer.s1",
+        "hearthstead.howto.captain_warhammer.s2",
+        "hearthstead.howto.captain_warhammer.s3"
+      ]
+    },
+    "longsword": {
+      "page": "items.longsword",
+      "use": "hearthstead.howto.longsword.use",
+      "steps": [
+        "hearthstead.howto.longsword.s1",
+        "hearthstead.howto.longsword.s2"
+      ]
+    },
+    "bandage": {
+      "page": "items.battle_supplies",
+      "use": "hearthstead.howto.bandage.use",
+      "steps": [
+        "hearthstead.howto.bandage.s1",
+        "hearthstead.howto.bandage.s2"
+      ]
+    },
+    "rune_stone": {
+      "page": "items.battle_supplies",
+      "use": "hearthstead.howto.rune_stone.use",
+      "steps": [
+        "hearthstead.howto.rune_stone.s1",
+        "hearthstead.howto.rune_stone.s2"
+      ]
+    },
+    "fishers_rod": {
+      "page": "items.fishery",
+      "use": "hearthstead.howto.fishers_rod.use",
+      "steps": [
+        "hearthstead.howto.fishers_rod.s1",
+        "hearthstead.howto.fishers_rod.s2"
+      ]
+    },
+    "fishers_chair": {
+      "page": "items.fishery",
+      "use": "hearthstead.howto.fishers_chair.use",
+      "steps": [
+        "hearthstead.howto.fishers_chair.s1",
+        "hearthstead.howto.fishers_chair.s2"
+      ]
+    },
+    "fish_rack": {
+      "page": "items.fishery",
+      "use": "hearthstead.howto.fish_rack.use",
+      "steps": [
+        "hearthstead.howto.fish_rack.s1",
+        "hearthstead.howto.fish_rack.s2"
+      ]
+    },
+    "ale_tap": {
+      "page": "items.workplace",
+      "use": "hearthstead.howto.ale_tap.use",
+      "steps": [
+        "hearthstead.howto.ale_tap.s1",
+        "hearthstead.howto.ale_tap.s2",
+        "hearthstead.howto.ale_tap.s3"
+      ]
+    },
+    "butchering_table": {
+      "page": "items.workplace",
+      "use": "hearthstead.howto.butchering_table.use",
+      "steps": [
+        "hearthstead.howto.butchering_table.s1",
+        "hearthstead.howto.butchering_table.s2",
+        "hearthstead.howto.butchering_table.s3"
+      ]
+    },
+    "goods": {
+      "page": "items.goods",
+      "use": "hearthstead.howto.goods.use",
+      "steps": [
+        "hearthstead.howto.goods.s1",
+        "hearthstead.howto.goods.s2",
+        "hearthstead.howto.goods.s3"
+      ],
+      "obtain": "hearthstead.howto.goods.obtain"
+    },
+    "fish": {
+      "page": "items.fish_game",
+      "use": "hearthstead.howto.fish.use",
+      "steps": [
+        "hearthstead.howto.fish.s1",
+        "hearthstead.howto.fish.s2",
+        "hearthstead.howto.fish.s3"
+      ],
+      "obtain": "hearthstead.howto.fish.obtain"
+    },
+    "carcass": {
+      "page": "items.fish_game",
+      "use": "hearthstead.howto.carcass.use",
+      "steps": [
+        "hearthstead.howto.carcass.s1",
+        "hearthstead.howto.carcass.s2"
+      ],
+      "obtain": "hearthstead.howto.carcass.obtain"
+    },
+    "goblin_loot": {
+      "page": "items.oddities",
+      "use": "hearthstead.howto.goblin_loot.use",
+      "steps": [
+        "hearthstead.howto.goblin_loot.s1",
+        "hearthstead.howto.goblin_loot.s2"
+      ],
+      "obtain": "hearthstead.howto.goblin_loot.obtain"
+    },
+    "spawn_egg": {
+      "page": "items.oddities",
+      "use": "hearthstead.howto.spawn_egg.use",
+      "steps": [
+        "hearthstead.howto.spawn_egg.s1"
+      ],
+      "obtain": "hearthstead.howto.spawn_egg.obtain"
+    },
+    "props": {
+      "internal": "Display-only work tools drawn in settlers' hands; never in any inventory."
+    }
+  },
+  "items": {
+    "hearthstead:hearth": "banner",
+    "hearthstead:handbook": "handbook",
+    "hearthstead:plaque": "plaque",
+    "hearthstead:build_plan": "build_plan",
+    "hearthstead:work_scepter": "work_scepter",
+    "hearthstead:builders_plan": "builders_plan",
+    "hearthstead:survey_rod": "survey_rod",
+    "hearthstead:resource_scroll": "resource_scroll",
+    "hearthstead:patrol_map": "patrol_map",
+    "hearthstead:lumberer_emblem": "job_emblem",
+    "hearthstead:farmer_emblem": "job_emblem",
+    "hearthstead:fisher_emblem": "job_emblem",
+    "hearthstead:courier_emblem": "job_emblem",
+    "hearthstead:trader_emblem": "job_emblem",
+    "hearthstead:innkeeper_emblem": "job_emblem",
+    "hearthstead:guard_emblem": "job_emblem",
+    "hearthstead:archer_emblem": "job_emblem",
+    "hearthstead:hunter_emblem": "job_emblem",
+    "hearthstead:sawyer_emblem": "job_emblem",
+    "hearthstead:scholar_emblem": "job_emblem",
+    "hearthstead:builder_emblem": "job_emblem",
+    "hearthstead:spearman_emblem": "job_emblem",
+    "hearthstead:longswordsman_emblem": "job_emblem",
+    "hearthstead:healer_emblem": "job_emblem",
+    "hearthstead:rune_mage_emblem": "job_emblem",
+    "hearthstead:miller_emblem": "job_emblem",
+    "hearthstead:herder_emblem": "job_emblem",
+    "hearthstead:baker_emblem": "job_emblem",
+    "hearthstead:butcher_emblem": "job_emblem",
+    "hearthstead:miner_emblem": "job_emblem",
+    "hearthstead:smelter_emblem": "job_emblem",
+    "hearthstead:smith_emblem": "job_emblem",
+    "hearthstead:tanner_emblem": "job_emblem",
+    "hearthstead:carpenter_emblem": "job_emblem",
+    "hearthstead:mason_emblem": "job_emblem",
+    "hearthstead:weaver_emblem": "job_emblem",
+    "hearthstead:cook_emblem": "job_emblem",
+    "hearthstead:brewer_emblem": "job_emblem",
+    "hearthstead:armourer_emblem": "job_emblem",
+    "hearthstead:fletcher_emblem": "job_emblem",
+    "hearthstead:warden_oath_seal": "blessing_seal",
+    "hearthstead:hearthward_seal": "blessing_seal",
+    "hearthstead:thorned_roads_seal": "blessing_seal",
+    "hearthstead:gold_coin": "coin",
+    "hearthstead:wooden_spear": "role_weapon",
+    "hearthstead:iron_spear": "role_weapon",
+    "hearthstead:diamond_spear": "role_weapon",
+    "hearthstead:wooden_short_sword": "captain_short_sword",
+    "hearthstead:stone_short_sword": "captain_short_sword",
+    "hearthstead:iron_short_sword": "captain_short_sword",
+    "hearthstead:golden_short_sword": "captain_short_sword",
+    "hearthstead:diamond_short_sword": "captain_short_sword",
+    "hearthstead:netherite_short_sword": "captain_short_sword",
+    "hearthstead:wooden_double_axe": "captain_double_axe",
+    "hearthstead:stone_double_axe": "captain_double_axe",
+    "hearthstead:iron_double_axe": "captain_double_axe",
+    "hearthstead:golden_double_axe": "captain_double_axe",
+    "hearthstead:diamond_double_axe": "captain_double_axe",
+    "hearthstead:netherite_double_axe": "captain_double_axe",
+    "hearthstead:wooden_halberd": "captain_halberd",
+    "hearthstead:stone_halberd": "captain_halberd",
+    "hearthstead:iron_halberd": "captain_halberd",
+    "hearthstead:golden_halberd": "captain_halberd",
+    "hearthstead:diamond_halberd": "captain_halberd",
+    "hearthstead:netherite_halberd": "captain_halberd",
+    "hearthstead:wooden_warhammer": "captain_warhammer",
+    "hearthstead:stone_warhammer": "captain_warhammer",
+    "hearthstead:iron_warhammer": "captain_warhammer",
+    "hearthstead:golden_warhammer": "captain_warhammer",
+    "hearthstead:diamond_warhammer": "captain_warhammer",
+    "hearthstead:netherite_warhammer": "captain_warhammer",
+    "hearthstead:wooden_longsword": "longsword",
+    "hearthstead:stone_longsword": "longsword",
+    "hearthstead:iron_longsword": "longsword",
+    "hearthstead:golden_longsword": "longsword",
+    "hearthstead:diamond_longsword": "longsword",
+    "hearthstead:netherite_longsword": "longsword",
+    "hearthstead:bandage": "bandage",
+    "hearthstead:rune_stone": "rune_stone",
+    "hearthstead:fishers_rod": "fishers_rod",
+    "hearthstead:fishers_chair": "fishers_chair",
+    "hearthstead:fish_rack": "fish_rack",
+    "hearthstead:ale_tap": "ale_tap",
+    "hearthstead:butchering_table": "butchering_table",
+    "hearthstead:flour": "goods",
+    "hearthstead:malt": "goods",
+    "hearthstead:ale": "goods",
+    "hearthstead:iron_bloom": "goods",
+    "hearthstead:timber_beam": "goods",
+    "hearthstead:cured_hide": "goods",
+    "hearthstead:wool_bolt": "goods",
+    "hearthstead:river_perch": "fish",
+    "hearthstead:brown_trout": "fish",
+    "hearthstead:silver_pike": "fish",
+    "hearthstead:golden_char": "fish",
+    "hearthstead:fish_portion": "fish",
+    "hearthstead:carcass": "carcass",
+    "hearthstead:poop_stick": "goblin_loot",
+    "hearthstead:troll_toenail": "goblin_loot",
+    "hearthstead:settler_spawn_egg": "spawn_egg",
+    "hearthstead:prop_smith_hammer": "props",
+    "hearthstead:prop_hammer": "props",
+    "hearthstead:prop_mallet": "props",
+    "hearthstead:prop_chisel": "props",
+    "hearthstead:prop_plane": "props",
+    "hearthstead:prop_cleaver": "props",
+    "hearthstead:prop_scraper": "props",
+    "hearthstead:prop_peel": "props",
+    "hearthstead:prop_ladle": "props",
+    "hearthstead:prop_shuttle": "props",
+    "hearthstead:prop_mash_paddle": "props",
+    "hearthstead:prop_sack_scoop": "props"
+  }
+}

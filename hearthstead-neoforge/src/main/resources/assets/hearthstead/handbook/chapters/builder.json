@@ -1,0 +1,67 @@
+{
+  "id": "builder",
+  "title": "hearthstead.guide.builder.title",
+  "icon": "hearthstead:builders_plan",
+  "pages": [
+    {
+      "id": "builder.hut",
+      "title": "hearthstead.guide.builder.hut.title",
+      "bullets": [
+        "hearthstead.guide.builder.hut.b1",
+        "hearthstead.guide.builder.hut.b2",
+        "hearthstead.guide.builder.hut.b3"
+      ],
+      "tip": "hearthstead.guide.builder.hut.tip",
+      "image_wanted": "In-game hut with its plaque and chest, beside a small unconfirmed building ghost.",
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.builder.hut.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:builders_plan"
+      ]
+    },
+    {
+      "id": "builder.sites",
+      "title": "hearthstead.guide.builder.sites.title",
+      "bullets": [
+        "hearthstead.guide.builder.sites.b1",
+        "hearthstead.guide.builder.sites.b2",
+        "hearthstead.guide.builder.sites.b3"
+      ],
+      "tip": "hearthstead.guide.builder.sites.tip",
+      "image_wanted": "Sites screen showing one missing material and stock in the hut and Warehouse.",
+      "items": [
+        "hearthstead:resource_scroll"
+      ]
+    },
+    {
+      "id": "builder.designs",
+      "title": "hearthstead.guide.builder.designs.title",
+      "bullets": [
+        "hearthstead.guide.builder.designs.b1",
+        "hearthstead.guide.builder.designs.b2",
+        "hearthstead.guide.builder.designs.b3"
+      ],
+      "tip": "hearthstead.guide.builder.designs.tip",
+      "image_wanted": "Two selected survey corners next to a wall-line ghost.",
+      "items": [
+        "hearthstead:survey_rod",
+        "hearthstead:builders_plan"
+      ]
+    },
+    {
+      "id": "builder.upgrades",
+      "title": "hearthstead.guide.builder.upgrades.title",
+      "bullets": [
+        "hearthstead.guide.builder.upgrades.b1",
+        "hearthstead.guide.builder.upgrades.b2",
+        "hearthstead.guide.builder.upgrades.b3"
+      ],
+      "tip": "hearthstead.guide.builder.upgrades.tip",
+      "image_wanted": "Upgrade checklist with one placeable furnishing and one hand-only requirement."
+    }
+  ]
+}

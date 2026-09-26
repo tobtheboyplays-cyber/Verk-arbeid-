@@ -1,0 +1,62 @@
+{
+  "name": "Mayor — Settler Roster 427x240",
+  "width": 427,
+  "height": 240,
+  "evidence": {
+    "type": "static-preview-only",
+    "nativeEvidence": false,
+    "phase": "design-candidate",
+    "screen": "mayor-settler-roster",
+    "viewport": "427x240",
+    "locale": "en",
+    "baseline": "candidate list replacement"
+  },
+  "elements": [
+    {"t":"window","x":8,"y":8,"w":411,"h":224},
+    {"t":"title","x":16,"y":16,"text":"Mayor's Seat","box":130,"id":"title"},
+    {"t":"label","x":16,"y":30,"text":"Choose the person. Hearthstead shows the facts.","tone":"text_muted","box":252,"id":"choice_rule"},
+    {"t":"frame","x":276,"y":14,"w":135,"h":30,"surface":"inset","tone":"accent","inner_alpha":40},
+    {"t":"medallion","x":292,"y":29,"radius":11,"tone":"accent","asset":"item/hearthward_seal.png","icon_size":12},
+    {"t":"label","x":310,"y":18,"text":"Alda Farwatch","tone":"text_strong","box":92,"id":"current_mayor"},
+    {"t":"label","x":310,"y":32,"text":"Good Counsel","tone":"accent","box":92,"id":"current_boon"},
+    {"t":"divider","x":16,"y":50,"w":395},
+
+    {"t":"section","x":16,"y":57,"w":395,"text":"SETTLERS • EXACT KNACK / 100","tone":"accent","id":"roster_heading"},
+
+    {"t":"soft_panel","x":16,"y":72,"w":395,"h":38,"tone":"good","alpha":14,"stroke_alpha":115},
+    {"t":"medallion","x":34,"y":91,"radius":12,"tone":"good","text":"R"},
+    {"t":"label","x":54,"y":77,"text":"Runa Hazelstep","tone":"text_strong","box":104,"id":"candidate_1_name"},
+    {"t":"label","x":54,"y":94,"text":"Lumberer","tone":"good","box":104,"id":"candidate_1_profession"},
+    {"t":"label","x":166,"y":77,"text":"HARD HANDS","tone":"accent","box":92,"id":"candidate_1_boon"},
+    {"t":"label","x":166,"y":94,"text":"Strength boon","tone":"text_muted","box":92,"id":"candidate_1_boon_effect"},
+    {"t":"label","x":266,"y":77,"text":"STRENGTH","tone":"text_muted","box":66,"id":"candidate_1_knack_name"},
+    {"t":"label","x":332,"y":94,"text":"34/100","align":"right","tone":"warn","box":42,"id":"candidate_1_knack_value"},
+    {"t":"button","x":342,"y":78,"w":61,"h":24,"text":"Appoint","state":"hover"},
+
+    {"t":"soft_panel","x":16,"y":114,"w":395,"h":38,"tone":"accent","alpha":10,"stroke_alpha":88},
+    {"t":"medallion","x":34,"y":133,"radius":12,"tone":"accent","text":"E"},
+    {"t":"label","x":54,"y":119,"text":"Eadric Miller","tone":"text_strong","box":104,"id":"candidate_2_name"},
+    {"t":"label","x":54,"y":136,"text":"Farmer","tone":"good","box":104,"id":"candidate_2_profession"},
+    {"t":"label","x":166,"y":119,"text":"LONG DAYS","tone":"accent","box":92,"id":"candidate_2_boon"},
+    {"t":"label","x":166,"y":136,"text":"Stamina boon","tone":"text_muted","box":92,"id":"candidate_2_boon_effect"},
+    {"t":"label","x":266,"y":119,"text":"STAMINA","tone":"text_muted","box":66,"id":"candidate_2_knack_name"},
+    {"t":"label","x":332,"y":136,"text":"42/100","align":"right","tone":"good","box":42,"id":"candidate_2_knack_value"},
+    {"t":"button","x":342,"y":120,"w":61,"h":24,"text":"Appoint","state":"idle"},
+
+    {"t":"soft_panel","x":16,"y":156,"w":395,"h":38,"tone":"accent","alpha":10,"stroke_alpha":88},
+    {"t":"medallion","x":34,"y":175,"radius":12,"tone":"accent","text":"M"},
+    {"t":"label","x":54,"y":161,"text":"Merewen Reed","tone":"text_strong","box":104,"id":"candidate_3_name"},
+    {"t":"label","x":54,"y":178,"text":"Courier","tone":"good","box":104,"id":"candidate_3_profession"},
+    {"t":"label","x":166,"y":161,"text":"CLEAR SIGHT","tone":"accent","box":92,"id":"candidate_3_boon"},
+    {"t":"label","x":166,"y":178,"text":"Perception boon","tone":"text_muted","box":92,"id":"candidate_3_boon_effect"},
+    {"t":"label","x":266,"y":161,"text":"PERCEPTION","tone":"text_muted","box":66,"id":"candidate_3_knack_name"},
+    {"t":"label","x":332,"y":178,"text":"31/100","align":"right","tone":"warn","box":42,"id":"candidate_3_knack_value"},
+    {"t":"button","x":342,"y":162,"w":61,"h":24,"text":"Appoint","state":"idle"},
+
+    {"t":"divider","x":16,"y":199,"w":395},
+    {"t":"button","x":16,"y":205,"w":54,"h":20,"text":"Previous","state":"disabled"},
+    {"t":"label","x":213,"y":211,"text":"PAGE 1 / 3","align":"center","tone":"text_muted","box":72,"id":"page"},
+    {"t":"button","x":278,"y":205,"w":60,"h":20,"text":"Next","state":"idle"},
+    {"t":"button","x":342,"y":205,"w":69,"h":20,"text":"Close","state":"idle"}
+  ]
+}

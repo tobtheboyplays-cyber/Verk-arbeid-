@@ -1,0 +1,29 @@
+{
+  "id": "world_events",
+  "title": "hearthstead.guide.world_events.title",
+  "icon": "minecraft:bell",
+  "pages": [
+    {
+      "id": "world_events.visitors",
+      "title": "hearthstead.guide.world_events.visitors.title",
+      "bullets": [
+        "hearthstead.guide.world_events.visitors.b1",
+        "hearthstead.guide.world_events.visitors.b2",
+        "hearthstead.guide.world_events.visitors.b3"
+      ],
+      "tip": "hearthstead.guide.world_events.visitors.tip",
+      "image_wanted": "Realm map event marker beside an in-game arriving caravan."
+    },
+    {
+      "id": "world_events.trouble",
+      "title": "hearthstead.guide.world_events.trouble.title",
+      "bullets": [
+        "hearthstead.guide.world_events.trouble.b1",
+        "hearthstead.guide.world_events.trouble.b2",
+        "hearthstead.guide.world_events.trouble.b3"
+      ],
+      "tip": "hearthstead.guide.world_events.trouble.tip",
+      "image_wanted": "A brute toll party waiting near the Banner, with its demand visible."
+    }
+  ]
+}

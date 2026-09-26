@@ -1,0 +1,34 @@
+{
+  "id": "research",
+  "title": "hearthstead.guide.research.title",
+  "icon": "minecraft:writable_book",
+  "pages": [
+    {
+      "id": "research.p1",
+      "title": "hearthstead.guide.research.p1.title",
+      "bullets": [
+        "hearthstead.guide.research.p1.b1",
+        "hearthstead.guide.research.p1.b2",
+        "hearthstead.guide.research.p1.b3",
+        "hearthstead.guide.research.p1.b4"
+      ],
+      "tip": "hearthstead.guide.research.p1.tip",
+      "text": [
+        "hearthstead.guide.research.body"
+      ]
+    },
+    {
+      "id": "research.p2",
+      "title": "hearthstead.guide.research.p2.title",
+      "bullets": [
+        "hearthstead.guide.research.p2.b1",
+        "hearthstead.guide.research.p2.b2",
+        "hearthstead.guide.research.p2.b3"
+      ],
+      "tip": "hearthstead.guide.research.p2.tip",
+      "text": [
+        "hearthstead.guide.research.body2"
+      ]
+    }
+  ]
+}

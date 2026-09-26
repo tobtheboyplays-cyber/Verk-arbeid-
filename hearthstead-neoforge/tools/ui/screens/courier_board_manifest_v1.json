@@ -1,0 +1,46 @@
+{
+  "name": "courier_board_manifest_v1",
+  "width": 427,
+  "height": 240,
+  "elements": [
+    {"t": "window", "x": 8, "y": 8, "w": 411, "h": 224},
+    {"t": "title", "x": 20, "y": 18, "text": "Courier Board", "box": 387, "id": "courier_title"},
+    {"t": "label", "x": 20, "y": 31, "text": "Physical delivery manifest — drag a ticket to change its priority", "box": 387, "tone": "text_muted", "id": "courier_subtitle"},
+    {"t": "label", "x": 20, "y": 47, "text": "2 active requests • oldest waiting 1m", "box": 387, "tone": "text_muted", "id": "courier_summary"},
+    {"t": "divider", "x": 20, "y": 59, "w": 387},
+
+    {"t": "fill", "x": 22, "y": 67, "w": 387, "h": 61, "colour": "#FF17130E"},
+    {"t": "fill", "x": 20, "y": 65, "w": 387, "h": 61, "colour": "#FF8B6A3E"},
+    {"t": "fill", "x": 21, "y": 66, "w": 385, "h": 59, "colour": "#FFE0C99A"},
+    {"t": "fill", "x": 43, "y": 67, "w": 1, "h": 57, "colour": "#FFB79A68"},
+    {"t": "fill", "x": 30, "y": 72, "w": 8, "h": 10, "colour": "#FF8F3E35"},
+    {"t": "fill", "x": 28, "y": 74, "w": 12, "h": 6, "colour": "#FF8F3E35"},
+    {"t": "label", "x": 30, "y": 91, "text": "#1", "box": 12, "align": "center", "tone": "#FF2C2115", "id": "ticket_position_1"},
+    {"t": "vanilla_icon", "resource": "textures/item/iron_axe.png", "x": 49, "y": 70, "size": 16},
+    {"t": "label", "x": 69, "y": 69, "text": "Astrid • 1× Iron Axe", "box": 220, "tone": "#FF2C2115", "id": "ticket_title_1"},
+    {"t": "label", "x": 398, "y": 69, "text": "IN TRANSIT • 42s", "align": "right", "box": 104, "tone": "#FF2C2115", "id": "ticket_state_1"},
+    {"t": "label", "x": 49, "y": 81, "text": "Warehouse → Lumber Camp", "box": 350, "tone": "#FF68543A", "id": "ticket_route_1"},
+    {"t": "label", "x": 49, "y": 93, "text": "Physical owner: Freya's Courier bag", "box": 350, "tone": "#FF68543A", "id": "ticket_owner_1"},
+    {"t": "label", "x": 49, "y": 105, "text": "Cause: Ready", "box": 350, "tone": "#FF68543A", "id": "ticket_cause_1"},
+    {"t": "label", "x": 49, "y": 117, "text": "Next: Let Freya finish the physical delivery", "box": 350, "tone": "#FF2C2115", "id": "ticket_next_1"},
+
+    {"t": "fill", "x": 22, "y": 131, "w": 387, "h": 61, "colour": "#FF17130E"},
+    {"t": "fill", "x": 20, "y": 129, "w": 387, "h": 61, "colour": "#FF8B6A3E"},
+    {"t": "fill", "x": 21, "y": 130, "w": 385, "h": 59, "colour": "#FFEBD8AF"},
+    {"t": "fill", "x": 43, "y": 131, "w": 1, "h": 57, "colour": "#FFB79A68"},
+    {"t": "fill", "x": 30, "y": 136, "w": 8, "h": 10, "colour": "#FF8F3E35"},
+    {"t": "fill", "x": 28, "y": 138, "w": 12, "h": 6, "colour": "#FF8F3E35"},
+    {"t": "label", "x": 30, "y": 155, "text": "#2", "box": 12, "align": "center", "tone": "#FF2C2115", "id": "ticket_position_2"},
+    {"t": "vanilla_icon", "resource": "textures/item/wooden_hoe.png", "x": 49, "y": 134, "size": 16},
+    {"t": "label", "x": 69, "y": 133, "text": "Eirik • 1× Wooden Hoe", "box": 220, "tone": "#FF2C2115", "id": "ticket_title_2"},
+    {"t": "label", "x": 398, "y": 133, "text": "BLOCKED • 1m", "align": "right", "box": 104, "tone": "#FF8F3E35", "id": "ticket_state_2"},
+    {"t": "label", "x": 49, "y": 145, "text": "Expected route: Warehouse → Farmhouse", "box": 350, "tone": "#FF68543A", "id": "ticket_route_2"},
+    {"t": "label", "x": 49, "y": 157, "text": "Physical owner: unverified location", "box": 350, "tone": "#FF68543A", "id": "ticket_owner_2"},
+    {"t": "label", "x": 49, "y": 169, "text": "Cause: Source is empty", "box": 350, "tone": "#FF8F3E35", "id": "ticket_cause_2"},
+    {"t": "label", "x": 49, "y": 181, "text": "Next: Place this exact item in Warehouse storage", "box": 350, "tone": "#FF2C2115", "id": "ticket_next_2"},
+
+    {"t": "divider", "x": 20, "y": 196, "w": 387},
+    {"t": "button", "x": 20, "y": 205, "w": 78, "h": 20, "text": "Refresh"},
+    {"t": "button", "x": 329, "y": 205, "w": 78, "h": 20, "text": "Back"}
+  ]
+}

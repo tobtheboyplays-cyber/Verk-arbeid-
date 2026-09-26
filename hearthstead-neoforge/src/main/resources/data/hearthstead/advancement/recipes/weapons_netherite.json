@@ -1,0 +1,29 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_material": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:netherite_ingot"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_material"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "hearthstead:netherite_double_axe",
+      "hearthstead:netherite_halberd",
+      "hearthstead:netherite_longsword",
+      "hearthstead:netherite_short_sword",
+      "hearthstead:netherite_warhammer"
+    ]
+  }
+}

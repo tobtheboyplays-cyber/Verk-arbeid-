@@ -1,0 +1,62 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_logs": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "#minecraft:logs"
+          }
+        ]
+      }
+    },
+    "has_paper": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:paper"
+          }
+        ]
+      }
+    },
+    "has_stick": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "items": "minecraft:stick"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_logs",
+      "has_paper",
+      "has_stick"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "hearthstead:builders_plan",
+      "hearthstead:survey_rod",
+      "hearthstead:resource_scroll",
+      "hearthstead:patrol_map",
+      "hearthstead:ale_tap",
+      "hearthstead:fishers_chair",
+      "hearthstead:fish_rack",
+      "hearthstead:fishers_rod",
+      "hearthstead:bandage",
+      "hearthstead:rune_stone",
+      "hearthstead:butchering_table",
+      "hearthstead:wooden_spear",
+      "hearthstead:iron_spear",
+      "hearthstead:iron_longsword",
+      "hearthstead:diamond_spear",
+      "hearthstead:diamond_longsword"
+    ]
+  }
+}

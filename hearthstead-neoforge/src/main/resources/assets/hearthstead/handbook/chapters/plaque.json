@@ -1,0 +1,53 @@
+{
+  "id": "plaque",
+  "title": "hearthstead.guide.plaque.title",
+  "icon": "hearthstead:plaque",
+  "pages": [
+    {
+      "id": "plaque.p1",
+      "title": "hearthstead.guide.plaque.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/plaque_checklist.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.plaque.p1.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.plaque.p1.b1",
+        "hearthstead.guide.plaque.p1.b2",
+        "hearthstead.guide.plaque.p1.b3"
+      ],
+      "items": [
+        "hearthstead:plaque",
+        "hearthstead:build_plan",
+        "minecraft:copper_ingot",
+        "minecraft:iron_ingot"
+      ],
+      "tip": "hearthstead.guide.plaque.p1.tip",
+      "text": [
+        "hearthstead.guide.plaque.body"
+      ]
+    },
+    {
+      "id": "plaque.p2",
+      "title": "hearthstead.guide.plaque.p2.title",
+      "bullets": [
+        "hearthstead.guide.plaque.p2.b1",
+        "hearthstead.guide.plaque.p2.b2",
+        "hearthstead.guide.plaque.p2.b3",
+        "hearthstead.guide.plaque.p2.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.plaque.p2.k1"
+        }
+      ],
+      "tip": "hearthstead.guide.plaque.p2.tip",
+      "text": [
+        "hearthstead.guide.plaque.body2"
+      ]
+    }
+  ]
+}

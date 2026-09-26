@@ -1,0 +1,9 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "food",
+  "ingredients": [
+    { "item": "hearthstead:flour" },
+    { "item": "hearthstead:flour" }
+  ],
+  "result": { "id": "minecraft:bread", "count": 1 }
+}

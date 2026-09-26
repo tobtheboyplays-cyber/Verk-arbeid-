@@ -1,0 +1,416 @@
+[
+  {
+    "id": "NONE",
+    "key": "none",
+    "name": "Unassigned",
+    "does": "An unassigned settler waiting for a job.",
+    "hire": "Every new settler starts unassigned. Firing a worker returns them here.",
+    "unlocked_by": "",
+    "building": "none",
+    "icon": "hearthstead:settler_spawn_egg",
+    "tags": []
+  },
+  {
+    "id": "FARMER",
+    "key": "farmer",
+    "name": "Farmer",
+    "does": "Tills, sows and harvests the fields you mark, then stores the wheat.",
+    "hire": "Buy the Farmer Emblem from the Mayor (2 Coins, 8 Wheat Seeds, 1 Leather).",
+    "unlocked_by": "cultivated_ground",
+    "building": "farmhouse",
+    "icon": "hearthstead:farmer_emblem",
+    "tags": []
+  },
+  {
+    "id": "LUMBERER",
+    "key": "lumberer",
+    "name": "Lumberer",
+    "does": "Fells trees in its marked work area and brings the logs back to camp.",
+    "hire": "Buy the Lumberer Emblem from the Mayor (1 Coin, 2 Flint).",
+    "unlocked_by": "timber_rights",
+    "building": "lumber_camp",
+    "icon": "hearthstead:lumberer_emblem",
+    "tags": []
+  },
+  {
+    "id": "GUARD",
+    "key": "guard",
+    "name": "Guard",
+    "does": "Patrols, answers the alarm and fights raiders; climbs the ranks up to Captain.",
+    "hire": "Buy the Guard Emblem from the Mayor (3 Coins, 2 Iron Ingots, 1 Leather).",
+    "unlocked_by": "first_watch",
+    "building": "barracks",
+    "icon": "hearthstead:guard_emblem",
+    "tags": [
+      "martial",
+      "battlefield"
+    ]
+  },
+  {
+    "id": "COURIER",
+    "key": "courier",
+    "name": "Courier",
+    "does": "Carries goods between the Banner, the Warehouse and the workshops.",
+    "hire": "Buy the Courier Emblem from the Mayor (2 Coins, 1 Chest, 2 Leather).",
+    "unlocked_by": "stores_and_roads",
+    "building": "warehouse",
+    "icon": "hearthstead:courier_emblem",
+    "tags": []
+  },
+  {
+    "id": "BAKER",
+    "key": "baker",
+    "name": "Baker",
+    "does": "Bakes bread from wheat or flour at the Bakery.",
+    "hire": "Buy the Baker Emblem from the Mayor (2 Coins, 2 Bread, 1 Leather).",
+    "unlocked_by": "land_and_harvest",
+    "building": "bakery",
+    "icon": "hearthstead:baker_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "COOK",
+    "key": "cook",
+    "name": "Cook",
+    "does": "Cooks mushroom stew, baked potatoes and dried kelp into meals at the Kitchen.",
+    "hire": "Buy the Cook Emblem from the Mayor (2 Coins, 2 Bowls, 1 Leather).",
+    "unlocked_by": "kitchen_and_hall",
+    "building": "kitchen",
+    "icon": "hearthstead:cook_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "BUTCHER",
+    "key": "butcher",
+    "name": "Butcher",
+    "does": "Cooks raw beef, pork, mutton and chicken, and cures rabbit into Cured Hide.",
+    "hire": "Buy the Butcher Emblem from the Mayor (2 Coins, 1 Iron Ingot, 1 Leather).",
+    "unlocked_by": "land_and_harvest",
+    "building": "butcher",
+    "icon": "hearthstead:butcher_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "SMELTER",
+    "key": "smelter",
+    "name": "Smelter",
+    "does": "Smelts raw iron, copper and gold into ingots, and logs into charcoal.",
+    "hire": "Buy the Smelter Emblem from the Mayor (2 Coins, 1 Furnace, 1 Leather).",
+    "unlocked_by": "craft_and_industry",
+    "building": "smelter",
+    "icon": "hearthstead:smelter_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "SMITH",
+    "key": "smith",
+    "name": "Smith",
+    "does": "Forges iron blooms into ingots and makes iron axes, pickaxes, hoes and swords.",
+    "hire": "Buy the Smith Emblem from the Mayor (2 Coins, 2 Iron Ingots, 1 Leather).",
+    "unlocked_by": "craft_and_industry",
+    "building": "smithy",
+    "icon": "hearthstead:smith_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "SAWYER",
+    "key": "sawyer",
+    "name": "Sawyer",
+    "does": "Saws logs into planks and Timber Beams at the Sawmill.",
+    "hire": "Buy the Sawyer Emblem from the Mayor (2 Coins, 2 Iron Ingots, 2 Leather).",
+    "unlocked_by": "guild_doctrine",
+    "building": "sawmill",
+    "icon": "hearthstead:sawyer_emblem",
+    "tags": []
+  },
+  {
+    "id": "CARPENTER",
+    "key": "carpenter",
+    "name": "Carpenter",
+    "does": "Makes sticks, barrels and ladders from planks and Timber Beams.",
+    "hire": "Buy the Carpenter Emblem from the Mayor (2 Coins, 8 Sticks, 1 Leather).",
+    "unlocked_by": "carpenter_mason",
+    "building": "carpenter",
+    "icon": "hearthstead:carpenter_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "MASON",
+    "key": "mason",
+    "name": "Mason",
+    "does": "Cuts cobblestone into stone and stone into stone bricks.",
+    "hire": "Buy the Mason Emblem from the Mayor (2 Coins, 16 Cobblestone, 1 Leather).",
+    "unlocked_by": "carpenter_mason",
+    "building": "mason",
+    "icon": "hearthstead:mason_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "FLETCHER",
+    "key": "fletcher",
+    "name": "Fletcher",
+    "does": "Makes arrows from flint or feathers, and bows from string.",
+    "hire": "Buy the Fletcher Emblem from the Mayor (2 Coins, 4 Feathers, 2 Flint).",
+    "unlocked_by": "fortification",
+    "building": "fletcher",
+    "icon": "hearthstead:fletcher_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "WEAVER",
+    "key": "weaver",
+    "name": "Weaver",
+    "does": "Spins string into wool, weaves Wool Bolts and sews banners.",
+    "hire": "Buy the Weaver Emblem from the Mayor (2 Coins, 4 String, 1 Leather).",
+    "unlocked_by": "carpenter_mason",
+    "building": "weaver",
+    "icon": "hearthstead:weaver_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "TANNER",
+    "key": "tanner",
+    "name": "Tanner",
+    "does": "Tans Cured Hide and rabbit hide into leather.",
+    "hire": "Buy the Tanner Emblem from the Mayor (2 Coins, 2 Leather).",
+    "unlocked_by": "tannery",
+    "building": "tannery",
+    "icon": "hearthstead:tanner_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "MINER",
+    "key": "miner",
+    "name": "Miner",
+    "does": "Digs a shaft below the Mine and brings up stone and ore.",
+    "hire": "Buy the Miner Emblem from the Mayor (2 Coins, 8 Torches, 1 Leather).",
+    "unlocked_by": "craft_and_industry",
+    "building": "mine",
+    "icon": "hearthstead:miner_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "INNKEEPER",
+    "key": "innkeeper",
+    "name": "Innkeeper",
+    "does": "Runs the Tavern: serves ale and food to seated guests and cuts the recruit price.",
+    "hire": "Buy the Innkeeper Emblem from the Mayor (2 Coins, 2 Bread, 2 Leather).",
+    "unlocked_by": "hospitality",
+    "building": "tavern",
+    "icon": "hearthstead:innkeeper_emblem",
+    "tags": []
+  },
+  {
+    "id": "SCHOLAR",
+    "key": "scholar",
+    "name": "Scholar",
+    "does": "Studies at the Architect's Study to advance your chosen research project.",
+    "hire": "Buy the Scholar Emblem from the Mayor (2 Coins, 2 Books, 2 Leather).",
+    "unlocked_by": "hearth_doctrine",
+    "building": "architects_study",
+    "icon": "hearthstead:scholar_emblem",
+    "tags": []
+  },
+  {
+    "id": "MILLER",
+    "key": "miller",
+    "name": "Miller",
+    "does": "Grinds wheat into flour and sugar cane into paper at the Mill.",
+    "hire": "Buy the Miller Emblem from the Mayor (2 Coins, 8 Wheat, 1 Leather).",
+    "unlocked_by": "land_and_harvest",
+    "building": "mill",
+    "icon": "hearthstead:miller_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "BREWER",
+    "key": "brewer",
+    "name": "Brewer",
+    "does": "Brews malt and ale from wheat at the Brewery.",
+    "hire": "Buy the Brewer Emblem from the Mayor (2 Coins, 2 Glass Bottles, 1 Leather).",
+    "unlocked_by": "alehouse",
+    "building": "brewery",
+    "icon": "hearthstead:brewer_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "ARCHER",
+    "key": "archer",
+    "name": "Archer",
+    "does": "Shoots raiders from the Watchtower; ranks up to Master Archer with practice.",
+    "hire": "Buy the Archer Emblem from the Mayor (3 Coins, 4 Arrows, 1 Leather).",
+    "unlocked_by": "arm_the_watch",
+    "building": "watchtower",
+    "icon": "hearthstead:archer_emblem",
+    "tags": [
+      "martial",
+      "battlefield"
+    ]
+  },
+  {
+    "id": "ARMOURER",
+    "key": "armourer",
+    "name": "Armourer",
+    "does": "Makes leather and iron armour for your soldiers at the Armoury.",
+    "hire": "Buy the Armourer Emblem from the Mayor (2 Coins, 2 Iron Ingots, 2 Leather).",
+    "unlocked_by": "fortification",
+    "building": "armoury",
+    "icon": "hearthstead:armourer_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "HERDER",
+    "key": "herder",
+    "name": "Herder",
+    "does": "Shears sheep, feeds and breeds animals and collects eggs in the Pasture.",
+    "hire": "Buy the Herder Emblem from the Mayor (2 Coins, 1 Hay Block, 1 Leather).",
+    "unlocked_by": "land_and_harvest",
+    "building": "pasture",
+    "icon": "hearthstead:herder_emblem",
+    "tags": [
+      "extended_trade"
+    ]
+  },
+  {
+    "id": "FISHER",
+    "key": "fisher",
+    "name": "Fisher",
+    "does": "Fishes from the shore chair and lands fish and rare catches for food and trade.",
+    "hire": "Buy the Fisher Emblem from the Mayor (2 Coins, 2 String, 1 Leather).",
+    "unlocked_by": "shore_provisions",
+    "building": "fishery",
+    "icon": "hearthstead:fisher_emblem",
+    "tags": []
+  },
+  {
+    "id": "HUNTER",
+    "key": "hunter",
+    "name": "Hunter",
+    "does": "Hunts wild game near the Lodge and brings back meat, hides and feathers.",
+    "hire": "Buy the Hunter Emblem from the Mayor (2 Coins, 12 Arrows, 2 Leather).",
+    "unlocked_by": "border_wardens",
+    "building": "hunters_lodge",
+    "icon": "hearthstead:hunter_emblem",
+    "tags": []
+  },
+  {
+    "id": "MAYOR",
+    "key": "mayor",
+    "name": "Mayor",
+    "does": "Speaks for the village, sells job emblems and gives a boon from their best attribute.",
+    "hire": "A founder becomes Mayor when the Banner is raised. Appoint another from a settler's screen.",
+    "unlocked_by": "",
+    "building": "none",
+    "icon": "minecraft:bell",
+    "tags": []
+  },
+  {
+    "id": "TRADER",
+    "key": "trader",
+    "name": "Trade Steward",
+    "does": "Carries surplus goods from the Trading Post to visiting merchants and sells them for Coins.",
+    "hire": "Buy the Trade Steward Emblem from the Mayor (2 Coins, 2 Paper, 2 Leather).",
+    "unlocked_by": "hospitality",
+    "building": "trading_post",
+    "icon": "hearthstead:trader_emblem",
+    "tags": []
+  },
+  {
+    "id": "SPEARMAN",
+    "key": "spearman",
+    "name": "Spearman",
+    "does": "Battle role: fights from the second rank with long reach and braces against charges.",
+    "hire": "Buy the Spearman Emblem from the Mayor (4 Coins, 1 Iron Ingot, 1 Leather).",
+    "unlocked_by": "spearmen",
+    "building": "pike_yard",
+    "icon": "hearthstead:spearman_emblem",
+    "tags": [
+      "martial",
+      "battlefield",
+      "battle_role"
+    ]
+  },
+  {
+    "id": "LONGSWORDSMAN",
+    "key": "longswordsman",
+    "name": "Longswordsman",
+    "does": "Battle role: a two-handed swordsman who breaks shields and cuts through crowds.",
+    "hire": "Buy the Longswordsman Emblem from the Mayor (5 Coins, 3 Iron Ingots, 2 Leather).",
+    "unlocked_by": "longswords",
+    "building": "sword_hall",
+    "icon": "hearthstead:longswordsman_emblem",
+    "tags": [
+      "martial",
+      "battlefield",
+      "battle_role"
+    ]
+  },
+  {
+    "id": "HEALER",
+    "key": "healer",
+    "name": "Healer",
+    "does": "Battle role: tends wounded soldiers in a fight and revives downed players.",
+    "hire": "Buy the Healer Emblem from the Mayor (3 Coins, 2 Paper, 1 Leather).",
+    "unlocked_by": "battle_healer",
+    "building": "infirmary",
+    "icon": "hearthstead:healer_emblem",
+    "tags": [
+      "battlefield",
+      "battle_role"
+    ]
+  },
+  {
+    "id": "RUNE_MAGE",
+    "key": "rune_mage",
+    "name": "Rune Mage",
+    "does": "Battle role: spends rune charges on spells and wards that turn a fight.",
+    "hire": "Buy the Rune Mage Emblem from the Mayor (6 Coins, 8 Lapis Lazuli, 4 Amethyst Shards, 1 Book).",
+    "unlocked_by": "rune_mage",
+    "building": "rune_hall",
+    "icon": "hearthstead:rune_mage_emblem",
+    "tags": [
+      "martial",
+      "battlefield",
+      "battle_role"
+    ]
+  },
+  {
+    "id": "BUILDER",
+    "key": "builder",
+    "name": "Builder",
+    "does": "Builds blueprints, defense lines and Upgrade Orders from real delivered materials.",
+    "hire": "Buy the Builder Emblem from the Mayor (2 Coins, 2 Flint, 8 Sticks).",
+    "unlocked_by": "builders_hut",
+    "building": "builders_hut",
+    "icon": "hearthstead:builder_emblem",
+    "tags": []
+  }
+]
