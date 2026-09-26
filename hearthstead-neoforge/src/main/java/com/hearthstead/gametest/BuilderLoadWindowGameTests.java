@@ -2,17 +2,24 @@ package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.registry.ModBlocks;
+import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
+import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.builder.Blueprint;
 import com.hearthstead.settlement.builder.BlueprintMeta;
 import com.hearthstead.settlement.builder.BuildJob;
 import com.hearthstead.settlement.builder.BuildJobs;
 import com.hearthstead.settlement.builder.BuildPlanner;
 import com.hearthstead.settlement.builder.BuilderStock;
+import com.hearthstead.settlement.builder.BuilderSupply;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
@@ -37,21 +44,29 @@ import java.util.List;
 @PrefixGameTestTemplate(false)
 public class BuilderLoadWindowGameTests {
 
-    /** 64 cobblestone in four 16-block rows, then one plank three rows further on, all on one layer. */
-    static Blueprint cobbleRowsThenPlank(String id) {
+    /** Four rows of 16 cobblestone: the 64-unit load prefix. */
+    private static final int ROWS = 4;
+
+    /** {@code rows} 16-block rows of cobblestone, then one plank two rows further on, all on one layer. */
+    static Blueprint cobbleRowsThenPlank(String id, int rows) {
         BuilderTestKit.Cells c = new BuilderTestKit.Cells()
-            .box(0, 0, 0, 15, 0, 3, Blocks.COBBLESTONE.defaultBlockState())
-            .set(8, 0, 6, Blocks.OAK_PLANKS.defaultBlockState());
+            .box(0, 0, 0, 15, 0, rows - 1, Blocks.COBBLESTONE.defaultBlockState())
+            .set(8, 0, rows + 2, Blocks.OAK_PLANKS.defaultBlockState());
         return new Blueprint(BuilderTestKit.meta(id, BlueprintMeta.Kind.DEFENSE, null, null, null),
-            16, 1, 7, c.list());
+            16, 1, rows + 3, c.list());
     }
 
     private static BuildJob commit(GameTestHelper helper, BuilderTestKit.Arena arena, BlockPos site, String id) {
+        return commit(helper, arena, site, id, ROWS);
+    }
+
+    private static BuildJob commit(GameTestHelper helper, BuilderTestKit.Arena arena, BlockPos site, String id, int rows) {
         BuildPlanner.Plan plan = BuildPlanner.planBlueprint(arena.level(), arena.settlement(),
-            cobbleRowsThenPlank(id), helper.absolutePos(site), 0, false, null);
+            cobbleRowsThenPlank(id, rows), helper.absolutePos(site), 0, false, null);
         helper.assertTrue(plan.validation().ok() && plan.job() != null, "plan: " + plan.validation().reasonKey());
         BuildJob job = plan.job();
-        helper.assertTrue(job.size() == 65, "fixture: 65 steps, got " + job.size());
+        int cobble = rows * 16;
+        helper.assertTrue(job.size() == cobble + 1, "fixture: " + (cobble + 1) + " steps, got " + job.size());
         int plank = -1;
         for (int i = 0; i < job.size(); i++) {
             if (job.state(i).is(Blocks.OAK_PLANKS)) {
@@ -60,15 +75,20 @@ public class BuilderLoadWindowGameTests {
             helper.assertTrue(job.phase(i) == job.phase(0) && job.pos(i).getY() == job.pos(0).getY(),
                 "fixture: one phase, one layer");
         }
-        helper.assertTrue(plank == 64, "fixture: the plank step comes after the 64 cobblestone units, got " + plank);
+        helper.assertTrue(plank == cobble, "fixture: the plank step comes after the " + cobble
+            + " cobblestone units, got " + plank);
         helper.assertTrue(BuildJobs.commit(arena.level(), arena.settlement(), job) == null, "queued");
         return job;
     }
 
     private static int placed(GameTestHelper helper, BlockPos site, Block block) {
+        return placed(helper, site, block, ROWS);
+    }
+
+    private static int placed(GameTestHelper helper, BlockPos site, Block block, int rows) {
         int n = 0;
         for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 7; z++) {
+            for (int z = 0; z < rows + 3; z++) {
                 n += helper.getBlockState(site.offset(x, 0, z)).is(block) ? 1 : 0;
             }
         }
@@ -86,6 +106,11 @@ public class BuilderLoadWindowGameTests {
     /** Huts + sacks + ground + placed, per item: nothing conjured, nothing lost. */
     private static void assertConserved(GameTestHelper helper, List<Container> huts, List<SettlerEntity> builders,
                                         List<BlockPos> sites, Item item, Block block, int stocked) {
+        assertConserved(helper, huts, builders, sites, item, block, stocked, ROWS);
+    }
+
+    private static void assertConserved(GameTestHelper helper, List<Container> huts, List<SettlerEntity> builders,
+                                        List<BlockPos> sites, Item item, Block block, int stocked, int rows) {
         int stored = 0;
         for (Container hut : huts) {
             stored += BuilderTestKit.count(hut, item);
@@ -96,7 +121,7 @@ public class BuilderLoadWindowGameTests {
         }
         int built = 0;
         for (BlockPos site : sites) {
-            built += placed(helper, site, block);
+            built += placed(helper, site, block, rows);
         }
         int total = stored + bags + onGround(helper, item) + built;
         helper.assertTrue(total == stocked, item + ": huts+sacks+ground+placed = " + total + ", stocked " + stocked);
@@ -165,6 +190,46 @@ public class BuilderLoadWindowGameTests {
             assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1);
             helper.assertTrue(BuilderTestKit.count(arena.chest(), Items.DIRT) + BuilderStock.bagCount(builder.bag, Items.DIRT)
                 + onGround(helper, Items.DIRT) == dirt, "the chest's other goods are untouched");
+        });
+    }
+
+    // The chosen plank lies beyond the 128 units BuilderSupply asks for (144 cobblestone first), the
+    // hut has none and a Courier is employed: the Builder asks for the plank itself and it is delivered.
+    @GameTest(template = "empty32", timeoutTicks = 12000, batch = "builder_load")
+    public void courierDeliversTheChosenStepBeyondTheRequestBatch(GameTestHelper helper) {
+        BuilderTestKit.Arena arena = BuilderTestKit.arena(helper, 32, 4);
+        ServerLevel level = arena.level();
+        Settlement settlement = arena.settlement();
+        int rows = 9;
+        helper.assertTrue(rows * 16 > BuilderSupply.BATCH_UNITS, "fixture: the plank is beyond the request batch");
+        BlockPos site = new BlockPos(8, 1, 2);
+        BuildJob job = commit(helper, arena, site, "test_load_courier", rows);
+        // Couriers keep the Hearth's food floor first (settlers find it at the settlement centre).
+        BlockPos hearthRel = new BlockPos(16, 1, 16);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        var hearth = (com.hearthstead.block.HearthBlockEntity) level.getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.bindSettlement(settlement.id);
+        hearth.getInventory().setStackInSlot(0, new ItemStack(Items.BREAD, 64));
+        Building warehouse = GameTestFixtures.register(helper, settlement, BuildingType.WAREHOUSE, 25, 2);
+        BlockPos storeRel = new BlockPos(26, 1, 3);
+        helper.setBlock(storeRel, Blocks.CHEST);
+        Container store = (Container) level.getBlockEntity(helper.absolutePos(storeRel));
+        BuilderTestKit.stock(store, new ItemStack(Items.OAK_PLANKS, 1));
+        BuilderTestKit.stock(arena.chest(), new ItemStack(Items.COBBLESTONE, rows * 16));
+        SettlerEntity builder = BuilderTestKit.hireBuilder(helper, arena, site.offset(8, 0, rows + 4), "Frode");
+        SettlerEntity courier = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(20, 1, 20));
+        courier.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(courier.getUUID(), "Courier", Profession.NONE);
+        helper.assertTrue(Employment.hire(level, settlement, warehouse, courier).ok(), "courier hired");
+        List<Container> stores = List.of(arena.chest(), store);
+        List<SettlerEntity> carriers = List.of(builder, courier);
+        helper.succeedWhen(() -> {
+            BuildJob live = BuilderTestKit.job(level, settlement, job.id);
+            helper.assertTrue(live != null && live.state == BuildJob.State.COMPLETE,
+                "site complete: " + (live == null ? "gone" : live.state + " " + live.status + " " + live.statusArgs));
+            helper.assertTrue(placed(helper, site, Blocks.OAK_PLANKS, rows) == 1, "the delivered plank is set");
+            assertConserved(helper, stores, carriers, List.of(site), Items.COBBLESTONE, Blocks.COBBLESTONE, rows * 16, rows);
+            assertConserved(helper, stores, carriers, List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1, rows);
         });
     }
 
