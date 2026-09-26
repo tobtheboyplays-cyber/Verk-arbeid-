@@ -1,21 +1,23 @@
 # Bannerhold broad QA — working report
-## Current reading guide — 15:12 Oslo (interim)
+## Current reading guide — 15:55 Oslo (interim)
 
-Read this summary first; the chronological sections below preserve earlier evidence and later corrections. This is not a clean bill of health or a completed QA report.
+This section supersedes older statuses in the chronological evidence below. Broad QA is still in progress; this is not release approval. No shared production code or real saves were changed.
 
-| Area | Current evidence | Next action / limitation |
+| Area | Latest independently obtained evidence | Remaining limitation |
 |---|---|---|
-| Source baseline | Current snapshot4126 files; manifest5b91dbe0…; full JUnit1150/1144/6 | Six remaining handbook/branding assertions require classification/fixes |
-| Broad server suite | Old2091 cases/208 failures; current1902/17 with194 builds excluded | Different source snapshots and denominators; do not subtract counts as proof of improvement |
-| Builder QA-BUILD-01 | PR5 head62ca318: Codex local7/7 JUnit and4/4 GameTests |194 generated construction cases RUNNING; no result yet |
-| Fisher QA-FISH-01 | Far approach fails alone, near control passes | P2; route cause requires implementation review |
-| Balcony QA-PATH-01 | Historical corner fails alone | P2; preserve fall safety and exact spawn geometry |
-| Test defects | Wrong spear pattern, full-health finisher setup, shared drunk override, mine grandfathering, departure barriers, unticked duel player, stale raid composition | Detailed evidence QA-TEST-01 through07; corrected controls are not a rewritten full-suite pass |
-| Assets | Audio584 OGG decode/reference checks; animation97 definitions/733 channels | These checks do not prove how they look or sound in game |
-| Native / co-op | Historical captures and Claude reports only where explicitly marked | Latest-client rendering, perceived audio, full survival and real two-client co-op still not verified |
+| Baseline identity | Current4126-file manifest SHA2565b91dbe0bd7c1f622a7bd008b99b753cf0497d429a888c829e15b993b1fbbbc3 | Frozen copy, not automatically latest shared source |
+| Candidate41eeffc | Compiled PASS; JUnit1161/1159pass/2fail/0errors/skips | Naming guard and old fixed-price prose contract remain unresolved |
+| Candidate focused GameTests |36/36 required PASS: Builder5,craft14,finisher3,parley13,first-raid1 | These do not replace a full-suite run on this candidate |
+| Broad baseline server suite | Old2091/208required failures; current1902/17 excluding194generated builds | Different snapshots/denominators, do not subtract as improvement |
+| Generated construction | Production62ca318:194completed,192required failures,2non-failing,37.78min | General construction remains unreliable; failures are not192distinct root causes |
+| Startup QA-CLIENT-01 P1 | Empty config failed on baseline; da67b84-only correction reached actual main menu with new empty game directory | Independent native acceptance of the fix, not full PR deployment |
+| Native single client | Fresh world/Banner, handbook paging/search, core navigation, research confirm/payment and world reload checked | All screens/actions and long survival not covered |
+| Native co-op | Two real non-op clients; concurrent research charged once with stale rejection; non-founder research charged only buyer and shared knowledge visible | Creative/Peaceful disposable server; combat, storage races, reconnect persistence and full co-op not yet covered |
+| Small patches | Claude owns config, handbook and fixture patches; independent41eeffc checks above pass for affected cases | Generator source must also preserve option:hud; further departure/UI patches pending |
+| Other confirmed findings | Fisher far approach P2, balcony escape P2, research confirmation cost clipping P3 | Reproductions below; wider navigation/design changes deferred to main Claude |
+| Assets |584OGG/275events decoded/referenced;97animation definitions/733channels structural check | Null audio backend: not listened to; no blanket animation quality approval |
 
-PR5 source audit compared every source file: only BuilderWorkGoal.java changed and two PR test files were added; no deletions. Exact SHA256 manifest: pr5-source-identity.json. Shared live BuilderWorkGoal still matches pre-PR snapshot; no integration performed. GitHub report delivery is interim; later local findings must be synced before final handoff.
-
+Candidate source: original PR5 manifest pr5-source-identity.json at62ca318 plus exact12-file delta to41eeffc43febdfc369c5e2d81f6ef9137612b207 in pr5-fixes-41eeffc-diff.json and pr5-fixes-41eeffc-files.json. Logs pr5-fixes-41eeffc-junit.log, pr5-fixes-41eeffc-gametest.log and pr5-blueprints.log. Detailed commands below. GitHub delivery remains interim until final sync.
 Status: IN PROGRESS. Owner requested testing through 17:17 Europe/Oslo on 26 September 2026 and delivery to Claude. This is a snapshot report, not a release approval.
 
 ## Scope and isolation
@@ -344,3 +346,18 @@ QA-UI-01(P3): confirmation button text visibly clipped at1920x1080, guiScale=0: 
 Cloud config correction da67b842ca143246e9f5e7951dccf99edfac6cd5 reviewed: List.of replaced by Arrays.asList at healthCounter definition;4 JUnit empty client/server, invalid, valid-off cases added. Native empty-config acceptance still pending. No shared code changed.
 ## 2026-09-26 15:35 — codex — QA-CLIENT-01 native acceptance PASS
 Evidence: Compiled + Seen in game (empty-config client startup). Claude commit da67b842ca143246e9f5e7951dccf99edfac6cd5 replaces List.of with null-safe Arrays.asList in HearthsteadClientConfig. Independently compiled ONLY that source (SHA256 efc4bddef15c0bb782390b804d1ad9117ecf91d7b28eb967ec30160c7798006f) against frozen current-verification dependencies using Java21; copied baseline compiled tree and compared hashes: only config main/enum class differs. New entirely empty game directory /root/codex-bannerhold-native-20260926/configfix-da67b84/game, no seeded config: rendered Welcome and main menu, generated hud.healthCounter="lookAt". Launch script, full command/identity, log and screenshots in build-codex/configfix-native. Baseline empty-config NPE and seeded-key control previously retained. Shared source not integrated. Native acceptance passed for this defect only. GitHub PR5 comment5846696266 delivered to cloud Claude.
+## Two actual clients joined private dedicated server — 15:41 Oslo
+Dedicated server PID4014, MC1.21.1/NeoForge21.1.248, frozen baseline plus config-only da67b84. New world /root/codex-bannerhold-native-20260926/coop-server/game/codex-coop-disposable. Bind127.0.0.1:25587 ONLY, offline test identities, Creative/Peaceful/view4/simulation4. Launch script build-codex/launch-coop-server.py; full command identity under WSL coop-server/identity.json. No owner server/save used.
+Two real rendered clients connected simultaneously: CodexQA(pid777,display92) at15:40:06, UUID da2c6267-afd6-3685-ac37-914b6c3d528b; CodexQB(pid4296,display93) at15:40:49, UUID1fa4fcc3-6527-39d3-8a4a-2426ceacb2c0. Both rendered world and received starter handbook. Server log confirms both login and joined messages. Screenshots coop-a-joined.png and coop-b-joined.png. PASS limited to dedicated startup/two concurrent connections/starter handbook delivery. Shared purchase, settlement permissions, race conditions, combat and reconnect persistence remain untested; no broad co-op pass claimed.
+## 2026-09-26 15:49 — Independent construction result and co-op research race
+- Production revision62ca318: generated construction GameTests completed194 cases in37.78min;192 required failures,2 non-failing. Log pr5-blueprints.log. Narrow Builder load-window regressions passed earlier, but general blueprint completion remains unresolved. Do not treat192 failures as192 independent bugs.
+- Two actual non-op clients (CodexQA and CodexQB) on own loopback dedicated server25587 founded/accessed Frostfield. Concurrent Lumber Camp research produced exactly one committed purchase and one stale rejection. A inventory2coins/16logs/16cobble became1/8/8; B stayed2/16/16. Both clients displayed the learned node. Evidence coop-research-clicks.json, coop-a-tech-after.png, coop-b-tech-after.png and server-controlled.log. Broader co-op remains unverified.
+- Cloud Claude owns small patches already submitted through41eeffc; no duplicate Codex patch. Independent compile/fullJUnit is running against frozen private copy plus the12 changed files from62ca318 to41eeffc. Diff and downloaded hashes retained in pr5-fixes-41eeffc-diff.json and pr5-fixes-41eeffc-files.json.
+- Owner requests small patches/debugging now; broad pathfinding/design changes deferred for main Claude. No shared production source changed or PR merged.
+## 2026-09-26 15:52 — codex — Claude patch acceptance through41eeffc
+Evidence: Compiled PASS. Full JUnit1161:1159 passed,2 failed,0 errors/skipped (BannerholdIdentityTest and NewPlayerGuidanceContractTest remain deferred). GameTest36/36 required PASS: builder_load5,craft_gate6,craft8,finisher3,parley13,first-raid journey1. Fresh private world,14.48s. Logs pr5-fixes-41eeffc-junit.log and pr5-fixes-41eeffc-gametest.log.
+Command: ./gradlew.bat compileJava test --offline --max-workers=2 -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build
+GameTest: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-fixes-41eeffc.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build
+Init uses own pr5-fixes-41eeffc-world and batchPrefix builder_load,techtree_craft,scenario_finisher,scenario_parley,first_raid_readiness_real_journey. Result sent PR5. Claude owns subsequent departure fixture and UI small fixes; Codex did not duplicate patches. Handbook generator source still needs hud row preserved on integration. Larger pathing/building work remains deferred, no shared code integration.
+## 2026-09-26 15:55 — Native non-founder shared research
+CodexQB, a non-op non-founder, bought Houses & Lodging through actual UI. Server committed techtree:home at revision1→2, item cost21 conserved. QB changed2coins/16logs/16cobble→1/4/8. QA remained1/8/8. QA reopened Tech Tree and saw Houses & Lodging Learned, Commons1/21. This proves shared access/payment/knowledge for this case, not continuous-open-screen push synchronisation. Screenshots coop-house-ready.png, coop-house-purchased-b.png, coop-house-shared-a.png; exact inventory and commit lines in native server-controlled.log. Server5080, clients777/4296, private25587, no ops.
