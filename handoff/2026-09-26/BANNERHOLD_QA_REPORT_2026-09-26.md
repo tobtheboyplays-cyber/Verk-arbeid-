@@ -156,3 +156,23 @@ Private source snapshot `current-verification`, 4126 source files, manifest SHA-
 - com.hearthstead.settlement.journey.NewPlayerGuidanceContractTest.handbookTechTreePageListsEveryTrunkPrice()
 
 Evidence: current-verification-junit.log, current-verification-junit-summary.json, current-verification-build/test-results/test. Historical handbook lane claim of 33 green guards does not prove current integrated data green. Broader baseline GameTests continue independently on the original snapshot.
+
+
+## Full baseline GameTest suite — terminal result 14:19:34 Oslo
+
+2091 GameTests completed in 36.76 minutes of reported game-suite time; 208 required failures, hence 1883 non-failing cases. The process shut down normally after reporting failures; Gradle task exit was failure (game JVM exit208). No tests were deliberately excluded in this baseline run.
+
+192 of the 194 generated blueprint construction cases failed. These are correlated outcomes, not 192 distinct root causes. Sixteen other tests failed; exact names/reasons are in `gametest-failures-final.json`. Two finisher failures stop at the same full-health fixture setup; crafting gate failure uses the wrong recipe fixture. The remaining outcomes need current-snapshot rechecks and focused diagnosis before assigning production severity.
+
+A second run on the current 4126-file snapshot has now started in a new private world. It uses the existing `hearthstead.gametest.skipBlueprintBuilds=true` switch to avoid repeating the 194 long construction cases before their confirmed batching defect is addressed. This second run is explicitly NOT a replacement for the complete baseline run. It preserves the other builder, yard, fishery and mechanism tests selected by the project's registry.
+
+
+## QA-TEST-03 — P2 test isolation: drunkenness tests clear another test's enable switch
+
+Confirmed by paired runs against current source. `DrunkennessGameTests.aleLevelsSlowCiviliansButNeverTheWatch` fails with the four-test tavern_drunk batch (4 run /3 pass /1 fail), but PASSES alone (1 run /1 pass). Production code is unchanged; the only source difference in the private single-case copy is that test's batch label, `tavern_drunk` to `codex_drunk_single`.
+
+Cause: all four tests share a JVM-global `Drunkenness.testOverride`. `drunkennessSurvivesAReload` sets it true, executes immediately, then clears it to null. Other tests still have delayed assertions at ticks21/25/26/62. `Drunkenness.enabledIn` explicitly disables drunkenness on GameTestServer when the override is null, and SettlerEntity.tickDrunk clears points/level when disabled. Depending on start ordering, the levels test fails at one ale or three ales. The isolated case passes with its original assertions intact.
+
+Locations: `gametest/DrunkennessGameTests.java` batch declarations and testOverride assignments; `entity/Drunkenness.java:230-233`; `entity/SettlerEntity.java:263-269`. Fix the fixture's switch lifetime: enable at batch start and reset after the entire batch, or give independently toggling cases separate batches. Do not weaken production drunkenness rules or remove assertions to make the suite green.
+
+Commands: `./gradlew.bat runGameTestServer --offline --max-workers=2 -I <private>/drunk-isolation.init.gradle -PhearthsteadBuildDir=<private>/current-verification-build` in current-verification/hearthstead-neoforge; then the same command with drunk-single.init.gradle and drunk-single-build in drunk-single/hearthstead-neoforge. Both init scripts set private fresh game directories and the existing batchPrefix filter. Evidence: drunk-isolation.log (4 cases,1 failure), drunk-single.log (1 case,BUILD SUCCESSFUL). This identifies test interference; it does not validate every native drunkenness animation or sound.
