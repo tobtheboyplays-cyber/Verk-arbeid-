@@ -860,4 +860,58 @@ public final class BughuntGameTests {
         }
         h.succeed();
     }
+
+    /**
+     * Save-review CLOUD-03 S-04: a member's hand items are real kit (a chest-supplied
+     * tool, an armoury shield). Vanilla drops hand items only on a player kill, so a
+     * settler killed by anything else lost them with the corpse. A world-event
+     * visitor's display prop must still never become a real item.
+     */
+    @GameTest(template = ARENA, batch = "bughunt_death_hands", timeoutTicks = 100)
+    public void aDeadSettlersToolsDropExactlyOnceAndVisitorPropsNever(GameTestHelper h) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                h.setBlock(new BlockPos(x, 0, z), net.minecraft.world.level.block.Blocks.STONE);
+            }
+        }
+        SettlementSavedData data = SettlementSavedData.get(h.getLevel());
+        Settlement s = new Settlement(UUID.randomUUID(), "Toolholm", h.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 16;
+        data.settlements.put(s.id, s);
+        com.hearthstead.entity.SettlerEntity worker = h.spawn(
+            com.hearthstead.registry.ModEntities.SETTLER.get(), new BlockPos(4, 1, 4));
+        worker.setSettlerName("Axe Carrier");
+        worker.bindTo(s.id, s.center);
+        s.putRecord(worker.getUUID(), "Axe Carrier", com.hearthstead.entity.Profession.NONE);
+        worker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_AXE));
+        worker.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
+            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SHIELD));
+        com.hearthstead.entity.SettlerEntity visitor = h.spawn(
+            com.hearthstead.registry.ModEntities.SETTLER.get(), new BlockPos(11, 1, 11));
+        visitor.setSettlerName("Envoy");
+        visitor.getPersistentData().put(com.hearthstead.event.worldevent.WorldEventDirector.TAG,
+            new net.minecraft.nbt.CompoundTag());
+        visitor.setItemSlot(net.minecraft.world.entity.EquipmentSlot.OFFHAND,
+            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.WRITABLE_BOOK));
+        worker.kill();
+        visitor.kill();
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(
+            h.absolutePos(new BlockPos(0, 0, 0))).expandTowards(16, 8, 16);
+        h.succeedWhen(() -> {
+            int axes = 0, shields = 0, books = 0;
+            for (net.minecraft.world.entity.item.ItemEntity item
+                    : h.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box)) {
+                net.minecraft.world.item.ItemStack stack = item.getItem();
+                if (stack.is(net.minecraft.world.item.Items.IRON_AXE)) axes += stack.getCount();
+                if (stack.is(net.minecraft.world.item.Items.SHIELD)) shields += stack.getCount();
+                if (stack.is(net.minecraft.world.item.Items.WRITABLE_BOOK)) books += stack.getCount();
+            }
+            h.assertTrue(axes == 1 && shields == 1,
+                "the dead member's axe and shield must drop exactly once: axes " + axes + " shields " + shields);
+            h.assertTrue(books == 0, "a visitor's display prop must never become a real item: books " + books);
+            h.assertTrue(worker.getMainHandItem().isEmpty() && worker.getOffhandItem().isEmpty(),
+                "and the corpse no longer holds them");
+        });
+    }
 }
