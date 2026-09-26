@@ -101,6 +101,8 @@ public class ScenarioFinisherGameTests {
     public static void switchedOffRefusesTheRequest(GameTestHelper h) {
         Fixture f = fixture(h);
         h.runAfterDelay(5, () -> {
+            // Eligible as in play: off balance AND below 10% health (5 of 60).
+            f.raider().setHealth(5.0F);
             h.assertTrue(FinisherService.forceOpenWindow(f.raider()), "fixture: window opens on stagger");
             HearthsteadServerConfig.FINISHER_ENABLED.set(false);
             FinisherService.Result r = FinisherService.request(f.player(), f.raider());
@@ -133,6 +135,8 @@ public class ScenarioFinisherGameTests {
     public static void switchedOffMidMoveTheExecutionStillFinishesCleanly(GameTestHelper h) {
         Fixture f = fixture(h);
         h.runAfterDelay(5, () -> {
+            // Eligible as in play: off balance AND below 10% health (5 of 60).
+            f.raider().setHealth(5.0F);
             h.assertTrue(FinisherService.forceOpenWindow(f.raider()), "fixture: window opens on stagger");
             FinisherService.Result r = FinisherService.request(f.player(), f.raider());
             h.assertTrue(r == FinisherService.Result.STARTED, "solo request starts: " + r);
