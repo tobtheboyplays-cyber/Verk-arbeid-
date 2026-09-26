@@ -1,4 +1,20 @@
 # Bannerhold broad QA — working report
+## Current reading guide — 15:12 Oslo (interim)
+
+Read this summary first; the chronological sections below preserve earlier evidence and later corrections. This is not a clean bill of health or a completed QA report.
+
+| Area | Current evidence | Next action / limitation |
+|---|---|---|
+| Source baseline | Current snapshot4126 files; manifest5b91dbe0…; full JUnit1150/1144/6 | Six remaining handbook/branding assertions require classification/fixes |
+| Broad server suite | Old2091 cases/208 failures; current1902/17 with194 builds excluded | Different source snapshots and denominators; do not subtract counts as proof of improvement |
+| Builder QA-BUILD-01 | PR5 head62ca318: Codex local7/7 JUnit and4/4 GameTests |194 generated construction cases RUNNING; no result yet |
+| Fisher QA-FISH-01 | Far approach fails alone, near control passes | P2; route cause requires implementation review |
+| Balcony QA-PATH-01 | Historical corner fails alone | P2; preserve fall safety and exact spawn geometry |
+| Test defects | Wrong spear pattern, full-health finisher setup, shared drunk override, mine grandfathering, departure barriers, unticked duel player, stale raid composition | Detailed evidence QA-TEST-01 through07; corrected controls are not a rewritten full-suite pass |
+| Assets | Audio584 OGG decode/reference checks; animation97 definitions/733 channels | These checks do not prove how they look or sound in game |
+| Native / co-op | Historical captures and Claude reports only where explicitly marked | Latest-client rendering, perceived audio, full survival and real two-client co-op still not verified |
+
+PR5 source audit compared every source file: only BuilderWorkGoal.java changed and two PR test files were added; no deletions. Exact SHA256 manifest: pr5-source-identity.json. Shared live BuilderWorkGoal still matches pre-PR snapshot; no integration performed. GitHub report delivery is interim; later local findings must be synced before final handoff.
 
 Status: IN PROGRESS. Owner requested testing through 17:17 Europe/Oslo on 26 September 2026 and delivery to Claude. This is a snapshot report, not a release approval.
 
@@ -273,3 +289,58 @@ Single-case diagnostic duel-probe.log: after65 scheduled world ticks player tick
 Private control only: explicitly invoke p.player().tick()65 times immediately before the same damage call; unchanged production. Result duel-ticked.log: hurt=true, health20,outcomes=[false]; All1 required tests passed, BUILD SUCCESSFUL at15:04:30. Health remaining20 is compatible with yield cancellation; outcome and band-release assertions pass. tickCount still0 because this ServerPlayer override and doTick serve different parts of the tick lifecycle; do not use tickCount alone as proof no server-side method ever ran.
 
 Command: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/duel-ticked.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/drunk-single-build ; cwd drunk-single/hearthstead-neoforge, fresh duel-ticked-world. Recommendation: proper embedded player connection/ticking lifecycle in the fixture and explicit damage-readiness precondition; do not remove production spawn protection. Diagnostic burst ticking is evidence, not necessarily the preferred permanent test fix. Real client duel behavior remains unverified by this experiment.
+
+## PR5 independent local verification - head62ca3188294e5ffdff892d65993a691a879890e3
+
+Read production diff and both new test files, relevant loading/retention/self-fetch callers, requestItem duplicate suppression and full-chest deferral. No concrete blocking defect identified in this bounded review; not a blanket release approval.
+
+Private pr5-verification copied from current-verification with only the3 PR files replaced from exact head. New private pr5-build. Targeted JUnit command: ./gradlew.bat test --tests com.hearthstead.entity.ai.BuilderLoadWindowTest --offline --max-workers=2 -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build. XML:7 tests,0 failures,0 errors. GameTest command: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-builder.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build. Fresh pr5-builder-world, builder_load batch:4/4 PASS, exit0 at15:08:09. Evidence pr5-junit.log, pr5-builder.log and JUnit XML.
+
+Coverage: selected material beyond64, full sack, full hut, two Builders/two sites with per-item conservation; pure window boundaries through511 and larger bag/scaffold. Does not verify courier request beyond128 end-to-end,192 generated blueprint failures, real co-op or native play. Full JUnit not rerun by Codex for this PR; Claude reports1157/1151/6 separately. No shared-source integration or merge.
+
+## QA-TEST-07 (P2): first-raid assertions retain the old five-actor composition
+
+Current source inspection explains two broad-suite failures without changing gameplay. RaidDirector.java:115-120 documents the26 Sep curve: one bandit captain plus three bandits, no Brute; firstRaidVariantFor:482-487 returns BANDIT for every valid first-raid slot. FirstRaidReadinessGameTests.java:733-743 already checks the new composition, then:744-763 contradicts it by requiring one non-captain BRUTE plus three SKIRMISHER records and saying five actors. RaidQaFixtureGameTests.java:824,827 hardcodes spawned==5 and participants==5; later:874-879 repeats5. Actual broad log shows STARTED with4, replay ALREADY_STARTED with4, as the new composition specifies.
+
+Recommendation: update stale test expectations to the current explicit four-bandit contract (and retain exact captain/UUID/role ledger agreement and replay conservation checks). Do not simply delete roster assertions or change production back to five. Confirm product policy with Claude if the escalation curve is disputed. Evidence current-gametest-v2.log and source locations. No corrected rerun yet, so this only diagnoses these specific failing predicates and does not claim either whole test now passes.
+
+## Native client preparation audit (not yet launched by Codex)
+
+Read qa-survival/launch.sh only; did not execute it. It targets Claude-owned /root/hssurv-frozen, /root/hssurv-game and display:80, so it is unsuitable for direct Codex reuse. Read-only WSL inspection confirms Xvfb, xdotool and a106-line launch template with97 classpath entries; six entries reference hssurv-build. No --gameDir or --accessToken option present in that template. Existing Claude game directory retained untouched.
+
+Next native step requires a Codex-owned frozen classes/resources directory, separate game directory/display, and a sanitized copied launch description that substitutes every source/build reference. Do not count the old frozen client as latest snapshot evidence. No screenshot or interactive result has been obtained from this preparation.
+
+## PR5 follow-up test review / client preparation
+
+Remote PR5 advanced to529d59827ac7382f98dd6d626d86cb45fb56e58e with only BuilderLoadWindowGameTests changed. Reviewed added Courier case:144 prefix cobblestone, plank beyond BATCH_UNITS, warehouse holds plank, employed Courier, completion and material conservation across stores/bags/ground/placed. Claude reports5/5 and4/5 after removing targeted request line. These are Claude results, not Codex reruns. Production remains62ca318, so ongoing generated run is still the same production version.
+
+Preparing isolated native client /root/codex-bannerhold-native-20260926 from current-verification-build classes/resources, with own game directory and copied/rebased NeoForge21.1.248 client launch metadata. This uses the baseline current snapshot, NOT PR5. Preparation process52637; do not rerun blindly if observation times out. Client not launched yet. Existing Claude folders remain untouched. Exact frozen file hashes will be frozen-identity.json when copy completes.
+
+## QA-CLIENT-01 (potential P1): native clean-client default configuration failure
+
+Actual native launch baseline current-verification classes/resources (5039 frozen files hashed in /root/codex-bannerhold-native-20260926/frozen-identity.json), new empty game directory, MC1.21.1/NeoForge21.1.248/Java21, rendered mod-loading error. Screenshot native-startup.png. Stack ImmutableCollections.List12.contains -> ModConfigSpec.ValueSpec.test -> correct -> ConfigTracker.createDefaultConfig. Candidate HearthsteadClientConfig.java:134 defines healthCounter through List.of(lookAt,off), whose contains(null) throws. Causality control still needed; this is an observed startup failure, not yet a fully confirmed root cause. Reported to Claude for priority. Existing config may mask it. No gameplay/world loaded; native UI tests not achieved.
+
+### QA-CLIENT-01 causal control: clean config fails, single default value succeeds
+
+Same5039 frozen classes/resources, new game-control directory; seeded ONLY config/hearthstead-client.toml with [hud] healthCounter="lookAt". Native client reaches Minecraft welcome/accessibility screen, screenshot native-control.png. Initial empty-config directory fails during mod load, screenshot native-startup.png. No code or dependency change. Confirms missing-value/default-config path as blocker; HearthsteadClientConfig:134 List.of validator is the corresponding null-unsafe path. Severity P1 for first-time users or missing-key config migration. Requires a source fix plus empty/missing-key correction regressions; seeded-config workaround is NOT a shipped fix.
+
+Original client385 exited via its Quit Game button; original Xvfb381 remains. Control client777 on private display:92 (Xvfb771), game-control folder. Main client process is now available for further visual QA with explicitly documented seeded config. Null audio output still precludes audible verification.
+
+## Native UI execution — 2026-09-26 15:27 Oslo
+Evidence level: Seen in game, narrow single-client UI checks only. Frozen current-verification classes/resources, private WSL display :92 and game-control directory. The QA-CLIENT-01 workaround is explicitly present: only hud.healthCounter="lookAt" was seeded before launch; this is not a fix acceptance run.
+- Created new disposable world "Codex Visual QA 20260926", Creative, Normal, commands ON, Superflat. Rendered terrain and starter handbook in hand; no existing saves used.
+- Right-click handbook opens rendered Settler's Handbook. Next changes Start here 1/10 to 2/10 (Raise the Banner).
+- Search "tavern" populates results. Clicking Tavern evenings navigates to its second page and displays seating/bard guidance. No crash in these interactions.
+- Screenshots: native-game-settings.png, native-world-load.png, native-handbook.png, native-handbook-next.png, native-handbook-search.png, native-handbook-result.png, native-handbook-scroll.png (all under build-codex).
+- Not yet covered: full button matrix, Banner/tech screens, real two-client co-op, audible playback (null audio driver), survival progression or PR5 native integration. Existing Mayor text reflects the pre-Guildmaster snapshot; the new design is not implemented here.
+- PR5 generated-construction session65543 positively re-polled live at15:24; no restart. Cloud Claude acknowledged QA-CLIENT-01 and is preparing a bounded correction separately.
+## Native Banner navigation — 15:29 Oslo
+Same frozen baseline/client and disposable Creative world. Gave one hearthstead:hearth item by command, placed using actual right-click. Settlement Birchwick founded and advancement appeared. Right-click on stand opened Banner overview with 3 Unassigned +1 Mayor. Opened Settlers, Buildings (empty state), Storage (empty inventory/open request), Journey (Research Lumber Camp), closed Journey via X, then opened Tech Tree. Tech Tree selected Journey Lumber Camp and Research was disabled with missing 1 Coin/8 logs/8 cobblestone. No purchase success or exact-once payment claim yet. Screenshots native-banner-place2.png, native-banner-ui.png, native-settlers.png, native-buildings.png, native-storage.png, native-journey.png, native-tech-open.png.
+Visual observation to investigate: Settlers list renders Unassigned almost touching status circle/Idle at automatic GUI scale in 1920x1080; do not classify as confirmed overlapping text until measured. Vanilla tutorial toast obscures upper-right portions; this is not a Bannerhold layout defect. native-tech.png was still Journey overlay (outside click), not Tech Tree evidence; use native-tech-open.png.
+## Native research transaction and world reload — 15:32 Oslo
+PASS for this single-client scenario only: command-provided inventory2 gold_coin/16 oak_log/16 cobblestone; Lumber Camp ready. First Research click shows Confirm and coin count stays2. Confirmation expires if waiting; a prompt second click learns Lumber Camp, craft count1/17, inventory remaining1 Coin/8 oak_log/8 cobblestone. No Banner/Warehouse goods involved. Used Save and Quit to Title, selected same disposable world, reopened Banner/Tech Tree. Settlement still4 residents; research remains learned and inventory1/8/8 persists. This is an integrated-server world unload/reload, not a full client-process restart or dedicated-server/co-op proof.
+Evidence: native-tech-funded.png, native-tech-confirm.png, native-tech-learned.png, native-after-inventory.png, native-saved-menu.png, native-world-select.png, native-reload.png, native-reload-tech.png, native-reload-learned.png.
+QA-UI-01(P3): confirmation button text visibly clipped at1920x1080, guiScale=0: Confirm -1 Coins +8 An...; does not expose full cost inside button, though separate cost panel is visible. Sent cloud Claude on PR3 comment5846669267. Suggest concise Confirm label plus full cost tooltip/panel; no broad redesign. Note native-tech-purchased.png is only a renewed confirmation after timeout, NOT purchase proof; native-tech-learned.png is actual purchase proof.
+Cloud config correction da67b842ca143246e9f5e7951dccf99edfac6cd5 reviewed: List.of replaced by Arrays.asList at healthCounter definition;4 JUnit empty client/server, invalid, valid-off cases added. Native empty-config acceptance still pending. No shared code changed.
+## 2026-09-26 15:35 — codex — QA-CLIENT-01 native acceptance PASS
+Evidence: Compiled + Seen in game (empty-config client startup). Claude commit da67b842ca143246e9f5e7951dccf99edfac6cd5 replaces List.of with null-safe Arrays.asList in HearthsteadClientConfig. Independently compiled ONLY that source (SHA256 efc4bddef15c0bb782390b804d1ad9117ecf91d7b28eb967ec30160c7798006f) against frozen current-verification dependencies using Java21; copied baseline compiled tree and compared hashes: only config main/enum class differs. New entirely empty game directory /root/codex-bannerhold-native-20260926/configfix-da67b84/game, no seeded config: rendered Welcome and main menu, generated hud.healthCounter="lookAt". Launch script, full command/identity, log and screenshots in build-codex/configfix-native. Baseline empty-config NPE and seeded-key control previously retained. Shared source not integrated. Native acceptance passed for this defect only. GitHub PR5 comment5846696266 delivered to cloud Claude.
