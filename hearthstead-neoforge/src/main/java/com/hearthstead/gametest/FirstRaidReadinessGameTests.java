@@ -749,18 +749,18 @@ public final class FirstRaidReadinessGameTests {
                     == RaidDirector.FIRST_RAID_BAND_SIZE
                 && f.settlement.raidLifecycle.participantRoster().stream()
                     .filter(RaidParticipantRecord::captain).count() == 1L
+                // 26 Sep escalation curve: every first-raid slot is a bandit
+                // (RaidDirector.firstRaidVariantFor), the captain included.
                 && f.settlement.raidLifecycle.participantRoster().stream()
                     .filter(record -> !record.captain()
-                        && record.build() == RaidParticipantRecord.Build.BRUTE)
-                    .count() == 1L
+                        && record.build() == RaidParticipantRecord.Build.BANDIT)
+                    .count() == RaidDirector.FIRST_RAID_BAND_SIZE - 1L
                 && f.settlement.raidLifecycle.participantRoster().stream()
-                    .filter(record -> !record.captain()
-                        && record.build()
-                            == RaidParticipantRecord.Build.SKIRMISHER)
-                    .count() == 3L
+                    .allMatch(record -> record.build() == RaidParticipantRecord.Build.BANDIT)
                 && band.stream().allMatch(raider -> f.settlement.raidLifecycle
                     .participants().contains(raider.getUUID())),
-            "the sealed lifecycle and role ledgers must match all five accepted actors exactly");
+            "the sealed lifecycle and role ledgers must match all "
+                + RaidDirector.FIRST_RAID_BAND_SIZE + " accepted actors exactly");
         for (RaiderEntity raider : band) {
             helper.assertTrue(f.settlement.raidLifecycle
                     .recordTerminalParticipant(raider.getUUID()),
