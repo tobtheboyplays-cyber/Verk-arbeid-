@@ -1407,14 +1407,19 @@ public class TechTreeScreen extends Screen {
         int w = Math.min(viewW - 20, font.width(toast) + 16);
         int x = viewX + (viewW - w) / 2;
         int y = viewY + 8;
+        // QA-UI-04: every wrapped line, not just the first (a long refusal lost its end).
+        List<FormattedCharSequence> lines = font.split(toast, w - 12);
+        int h = 6 + Math.max(1, lines.size()) * (font.lineHeight + 1); // one line: 16, as before
         g.pose().pushPose();
         g.pose().translate(0, 0, 320);
-        g.fill(x - 1, y - 1, x + w + 1, y + 17, toastColor);
-        g.fill(x, y, x + w, y + 16, Ui2Palette.FRAME_INNER);
-        g.fill(x, y, x + 2, y + 16, toastColor);
-        FormattedCharSequence line = font.split(toast, w - 12).isEmpty() ? FormattedCharSequence.EMPTY
-            : font.split(toast, w - 12).get(0);
-        g.drawString(font, line, x + 8, y + 4, toastColor, false);
+        g.fill(x - 1, y - 1, x + w + 1, y + h + 1, toastColor);
+        g.fill(x, y, x + w, y + h, Ui2Palette.FRAME_INNER);
+        g.fill(x, y, x + 2, y + h, toastColor);
+        int ly = y + 4;
+        for (FormattedCharSequence line : lines) {
+            g.drawString(font, line, x + 8, ly, toastColor, false);
+            ly += font.lineHeight + 1;
+        }
         g.pose().popPose();
     }
 
