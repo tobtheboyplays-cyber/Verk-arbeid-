@@ -2,6 +2,7 @@ package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.menu.HearthMenu;
 import com.hearthstead.network.TechTreeNetwork;
 import com.hearthstead.network.TechTreeSnapshotPayload;
 import com.hearthstead.registry.ModBlocks;
@@ -17,6 +18,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -89,6 +91,69 @@ public class TechTreeRefreshGameTests {
         helper.runAtTickTime(110L, () -> {
             helper.assertTrue(TechTreeNetwork.refreshesForTests() == before + 1,
                 "no further refresh without a further change");
+            TechTreeNetwork.forget(viewer.getUUID());
+            SettlementSavedData.get(helper.getLevel()).settlements.remove(settlement.id);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Codex review of f9195e0: a partial shift-click withdrawal changes the Banner's stack in
+     * place (HearthMenu.quickMoveStack -> moveItemStackTo, then only Slot.setChanged), which the
+     * item handler never saw, so the other viewer stayed stale. Real menu, real quickMoveStack,
+     * a taker with room for only part of the stack; nothing is gained or lost.
+     */
+    @SuppressWarnings("removal")
+    @GameTest(template = "empty16", timeoutTicks = 120, batch = "techtree_banner_refresh_take")
+    public void aPartialShiftClickWithdrawalRefreshesTheOtherViewer(GameTestHelper helper) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE_BRICKS);
+            }
+        }
+        BlockPos rel = new BlockPos(3, 1, 3);
+        helper.setBlock(rel, ModBlocks.HEARTH.get());
+        BlockPos abs = helper.absolutePos(rel);
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel().getBlockEntity(abs);
+        Settlement settlement = new Settlement(UUID.randomUUID(), "Takeby", abs);
+        SettlementSavedData.get(helper.getLevel()).settlements.put(settlement.id, settlement);
+        hearth.bindSettlement(settlement.id);
+        Development.of(helper.getLevel(), settlement);
+        hearth.getInventory().insertItem(0, new ItemStack(Items.OAK_LOG, 16), false);
+
+        ServerPlayer viewer = helper.makeMockServerPlayerInLevel();
+        NetworkRegistry.configureMockConnection(viewer.connection.getConnection());
+        viewer.setPos(abs.getX() + 2.5D, abs.getY(), abs.getZ() + 0.5D);
+        TechTreeNetwork.open(viewer, settlement, hearth);
+
+        // The taker has room for only 4 logs: 35 full slots and one 60-log stack.
+        ServerPlayer taker = helper.makeMockServerPlayerInLevel();
+        NetworkRegistry.configureMockConnection(taker.connection.getConnection());
+        taker.setPos(abs.getX() - 1.5D, abs.getY(), abs.getZ() + 0.5D);
+        taker.getInventory().clearContent();
+        for (int i = 0; i < 36; i++) {
+            taker.getInventory().setItem(i, i == 0 ? new ItemStack(Items.OAK_LOG, 60) : new ItemStack(Items.DIRT, 64));
+        }
+        taker.openMenu(hearth, buf -> {
+            buf.writeBlockPos(abs);
+            buf.writeUUID(settlement.id);
+            buf.writeUtf(settlement.name);
+        });
+        int[] before = {0};
+        helper.runAtTickTime(45L, () -> {
+            helper.assertTrue(taker.containerMenu instanceof HearthMenu, "fixture: the taker has the Banner open");
+            before[0] = TechTreeNetwork.refreshesForTests(); // the fixture's own deposit has settled
+            taker.containerMenu.quickMoveStack(taker, 0);
+            helper.assertTrue(hearth.getInventory().getStackInSlot(0).getCount() == 12,
+                "a partial take: 4 of 16 logs moved, got " + hearth.getInventory().getStackInSlot(0).getCount());
+        });
+        helper.runAtTickTime(75L, () -> {
+            helper.assertTrue(TechTreeNetwork.refreshesForTests() == before[0] + 1,
+                "the partial take refreshed the other viewer, got " + (TechTreeNetwork.refreshesForTests() - before[0]));
+            int banner = hearth.getInventory().getStackInSlot(0).getCount();
+            int pack = taker.getInventory().countItem(Items.OAK_LOG);
+            helper.assertTrue(banner + pack == 76, "logs conserved: banner " + banner + " + pack " + pack);
+            taker.closeContainer();
             TechTreeNetwork.forget(viewer.getUUID());
             SettlementSavedData.get(helper.getLevel()).settlements.remove(settlement.id);
             helper.succeed();

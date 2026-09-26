@@ -38,10 +38,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     private final ItemStackHandler inventory = new ItemStackHandler(INVENTORY_SIZE) {
         @Override
         protected void onContentsChanged(int slot) {
-            assessmentCacheTick = Long.MIN_VALUE;
-            assessmentCache = null;
-            treasuryChanged = true;
-            setChanged();
+            noteContentsChanged();
         }
     };
 
@@ -139,6 +136,18 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     public UUID getSettlementId() {
         return settlementId;
+    }
+
+    /**
+     * The stock changed: drop the cached assessment and flag open Tech Trees for a refresh
+     * (QA-UI-05). The handler calls it on set/insert/extract; the menu's slots call it too,
+     * because a merge or a partial shift-click changes the live stack in place.
+     */
+    public void noteContentsChanged() {
+        assessmentCacheTick = Long.MIN_VALUE;
+        assessmentCache = null;
+        treasuryChanged = true;
+        setChanged();
     }
 
     /**
