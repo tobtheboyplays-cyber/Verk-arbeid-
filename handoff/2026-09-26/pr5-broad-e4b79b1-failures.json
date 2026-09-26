@@ -1,0 +1,47 @@
+[
+  {
+    "test": "halberdspecialsfireandcooldown",
+    "position": "-853742, -60, -8224614",
+    "reason": "HOOK_PULL: holds the HALBERD kit"
+  },
+  {
+    "test": "afreshtownwinsraidone",
+    "position": "-853699, -60, -8224592",
+    "reason": "raid 1 must be winnable without deaths: defenders 1, civilians 0"
+  },
+  {
+    "test": "afisherfiftyblocksfromtheshorewalksthereandfishes",
+    "position": "-853805, -60, -8221419",
+    "reason": "a far fisher must walk to the shore and fish; act=TRAVELING at BlockPos{x=-59, y=1, z=-37} route=fisher_chair_unreachable@80486 stop=NO_PATH"
+  },
+  {
+    "test": "asettleronthebalconycornerclimbsdowntheladder",
+    "position": "-853689, -60, -8221419",
+    "reason": "the settler must get off the balcony, at BlockPos{x=-4, y=6, z=-5} route=nav:stuck@-853685, -54, -8221414->-853679, -57, -8221408@82234"
+  },
+  {
+    "test": "cottageregistersitselfthroughitsplaquewhendone",
+    "position": "-853789, -60, -8221327",
+    "reason": "cottage completes, nothing skipped: SKIPPED [1] done 84/85 skipped 1 [-853778,-58,-8221318 minecraft:oak_door interior unreachable from -853778,-58,-8221317 cells=25 path=ok; ]"
+  },
+  {
+    "test": "wedgedfirstmerchantstillreachesthebanner",
+    "position": "-853868, -60, -8219683",
+    "reason": "the first merchant is published"
+  },
+  {
+    "test": "alelevelsslowciviliansbutneverthewatch",
+    "position": "-853868, -60, -8218903",
+    "reason": "one ale is a tipsy glow"
+  },
+  {
+    "test": "freshwarehouseisexactandcropwaitreplayconservesitems",
+    "position": "-853641, -60, -8218299",
+    "reason": "the route proof must keep the controlled raid gate sealed and use its separate visitor door"
+  },
+  {
+    "test": "abuilderbuildsthefisheryondrylandandafisherworksit",
+    "position": "-853673, -60, -8217505",
+    "reason": "the Builder finishes and the fishery registers: ACTIVE FETCHING [] done 54/562 skipped  | plaque no plaque yet | grounds Result[waterCount=0, shorePosition=null, direction=null, ready=false, loadedComplete=true, blocker=fisher_needs_connected_water]"
+  }
+]

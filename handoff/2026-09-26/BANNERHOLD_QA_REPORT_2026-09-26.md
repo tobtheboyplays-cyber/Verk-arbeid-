@@ -1,23 +1,22 @@
 # Bannerhold broad QA — working report
-## Current reading guide — 15:55 Oslo (interim)
+## Current reading guide — 16:18 Oslo (interim)
 
-This section supersedes older statuses in the chronological evidence below. Broad QA is still in progress; this is not release approval. No shared production code or real saves were changed.
+This guide supersedes older statuses in the chronological evidence below. No release approval or shared production integration. Large navigation/building/design changes remain main-Claude scope.
 
-| Area | Latest independently obtained evidence | Remaining limitation |
+| Area | Latest independent evidence | Limitation |
 |---|---|---|
-| Baseline identity | Current4126-file manifest SHA2565b91dbe0bd7c1f622a7bd008b99b753cf0497d429a888c829e15b993b1fbbbc3 | Frozen copy, not automatically latest shared source |
-| Candidate41eeffc | Compiled PASS; JUnit1161/1159pass/2fail/0errors/skips | Naming guard and old fixed-price prose contract remain unresolved |
-| Candidate focused GameTests |36/36 required PASS: Builder5,craft14,finisher3,parley13,first-raid1 | These do not replace a full-suite run on this candidate |
-| Broad baseline server suite | Old2091/208required failures; current1902/17 excluding194generated builds | Different snapshots/denominators, do not subtract as improvement |
-| Generated construction | Production62ca318:194completed,192required failures,2non-failing,37.78min | General construction remains unreliable; failures are not192distinct root causes |
-| Startup QA-CLIENT-01 P1 | Empty config failed on baseline; da67b84-only correction reached actual main menu with new empty game directory | Independent native acceptance of the fix, not full PR deployment |
-| Native single client | Fresh world/Banner, handbook paging/search, core navigation, research confirm/payment and world reload checked | All screens/actions and long survival not covered |
-| Native co-op | Two real non-op clients; concurrent research charged once with stale rejection; non-founder research charged only buyer and shared knowledge visible | Creative/Peaceful disposable server; combat, storage races, reconnect persistence and full co-op not yet covered |
-| Small patches | Claude owns config, handbook and fixture patches; independent41eeffc checks above pass for affected cases | Generator source must also preserve option:hud; further departure/UI patches pending |
-| Other confirmed findings | Fisher far approach P2, balcony escape P2, research confirmation cost clipping P3 | Reproductions below; wider navigation/design changes deferred to main Claude |
-| Assets |584OGG/275events decoded/referenced;97animation definitions/733channels structural check | Null audio backend: not listened to; no blanket animation quality approval |
+| Candidate e4b79b1 broad GameTests | 1907 completed, 9 required failures, 1898 non-failing; fresh world, 3.257 minutes | Excludes 194 generated construction scenarios; different snapshots must not be subtracted as improvement |
+| Candidate ced4d77 | Compiled PASS; JUnit 1161 tests, 1159 pass, 2 fail | Naming guard and fixed-price prose contract remain; Captain21 + drunkenness4 = 25/25 required GameTests PASS |
+| Earlier focused acceptance | 41eeffc 36/36; 4e7e075 departure 10/10 | Narrow acceptance, not all mechanics |
+| Generated construction | 62ca318 194 completed, 192 required failures, 2 non-failing, 37.78 min | Not 192 independent root causes; general construction remains unreliable |
+| Native fixes | Empty-config startup da67b84 PASS; research confirmation e4b79b1 PASS for label/tooltip/timeout/exact payment | Isolated candidate, not installed on owner's server |
+| Native co-op | Two non-op clients: research race charges once; non-founder purchase shared; graceful restart preserves knowledge/inventories; simultaneous shared-storage withdrawal conserves items | Creative/Peaceful disposable server; combat/crash recovery/full survival not covered |
+| New QA-UI-03 P2 | Immediate opening after Banner placement retains null settlement identity; twice reproduced, close/reopen fixes; sent Claude | Patch requested, not fixed yet |
+| Confirmed open | Far-shore Fisher NO_PATH; balcony escape; general construction; nine broad failure signals listed below | Some suite signals unstable or fixture-related, not all confirmed product defects |
+| Small new patches | ced4d77 charge-reset, voice cleanup, drunk-test isolation independently read-only reviewed | No native audio listening; focused 25/25 GameTests PASS |
+| Assets | 584 OGG / 275 events decoded/referenced; 97 animation definitions / 733 channels structural check | Null audio backend; no blanket animation appearance approval |
 
-Candidate source: original PR5 manifest pr5-source-identity.json at62ca318 plus exact12-file delta to41eeffc43febdfc369c5e2d81f6ef9137612b207 in pr5-fixes-41eeffc-diff.json and pr5-fixes-41eeffc-files.json. Logs pr5-fixes-41eeffc-junit.log, pr5-fixes-41eeffc-gametest.log and pr5-blueprints.log. Detailed commands below. GitHub delivery remains interim until final sync.
+Current baseline manifest SHA256 5b91dbe0bd7c1f622a7bd008b99b753cf0497d429a888c829e15b993b1fbbbc3. Exact patch deltas and logs are retained separately. Cloud Claude explicitly acknowledged the full routing ledger in the PR3 routing reply of14:02:18UTC. Source review findings and native failures remain distinct. Final delivery due17:17.
 Status: IN PROGRESS. Owner requested testing through 17:17 Europe/Oslo on 26 September 2026 and delivery to Claude. This is a snapshot report, not a release approval.
 
 ## Scope and isolation
@@ -120,7 +119,7 @@ Manifest SHA-256: `495c45a0da63491b742f06cb41bca60d80272e99d753779926005276357e4
 - Trigger/result: `switchedOffRefusesTheRequest` fails fixture setup before exercising the disabled switch.
 - Classification: confirmed test fixture out of date. Set eligible low health before opening; preserve separate full-health rejection coverage. Not proof disabled finishers execute.
 
-### QA-UI-01 — Already-selected options remain clickable with empty action
+### QA-UI-02 — Already-selected options remain clickable with empty action
 - Locations: `client/builder/BuilderPlanScreen.java:267-268`, `client/captain/CaptainScreen.java:72-73`.
 - Trigger: click selected preset/loadout. Button is visually active but action is empty. Other options have real handlers.
 - Severity: minor UX/accessibility; prefer disabled/selected semantics. Not broken selection mechanics.
@@ -361,3 +360,23 @@ GameTest: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/
 Init uses own pr5-fixes-41eeffc-world and batchPrefix builder_load,techtree_craft,scenario_finisher,scenario_parley,first_raid_readiness_real_journey. Result sent PR5. Claude owns subsequent departure fixture and UI small fixes; Codex did not duplicate patches. Handbook generator source still needs hud row preserved on integration. Larger pathing/building work remains deferred, no shared code integration.
 ## 2026-09-26 15:55 — Native non-founder shared research
 CodexQB, a non-op non-founder, bought Houses & Lodging through actual UI. Server committed techtree:home at revision1→2, item cost21 conserved. QB changed2coins/16logs/16cobble→1/4/8. QA remained1/8/8. QA reopened Tech Tree and saw Houses & Lodging Learned, Commons1/21. This proves shared access/payment/knowledge for this case, not continuous-open-screen push synchronisation. Screenshots coop-house-ready.png, coop-house-purchased-b.png, coop-house-shared-a.png; exact inventory and commit lines in native server-controlled.log. Server5080, clients777/4296, private25587, no ops.
+
+## 16:00 — Co-op restart persistence and consolidated routing
+Own dedicated server5080 stopped normally and saved all dimensions; same world restarted as7063. Both actual clients rejoined. Inventories unchanged: QA1coin8logs8cobble; QB1coin4logs8cobble, each one handbook. QB reopened Tech Tree: Houses & Lodging Learned, Commons1/21 and Craft1/17 retained. Evidence coop-restarted-learned-b.png and server-controlled.log; script coop-persistence-restart.py. This is graceful server-process restart, not crash recovery.
+All currently known QA and outstanding T30/T31/T32 findings routed together on PR3 comment5846855198 and COORD/to-claude.md. Local ledger QA_ACTION_LEDGER_2026-09-26.md. Corrected duplicate UI ticket id: old no-op selection observation is QA-UI-02; native cost clipping remains QA-UI-01.
+
+## 2026-09-26 16:02 — Native shared storage race
+Both clients viewed the same8cobblestone in Banner slot0. QB deposited via actual shift-click first; block NBT confirmed8. Concurrent shift-clicks issued2.172202ms apart by coop-storage-clicks.py. After: Banner Items empty; QA kept its original8cobble; QB received8 in hotbar slot8. Sum16 acrossplayers+Banner conserved, no doubled stack. Both UI views showed empty Banner. Narrow one-run PASS, not all container actions proved. Screenshots storage-before-a.png,storage-after-a.png,storage-after-b.png;click trace coop-storage-clicks.json;console log copied to coop-server-evidence.log. Native results appended to co-op/persistence matrices without claiming all discovered cases executed.
+## 2026-09-26 16:03 — Independent departure patch acceptance
+4e7e075 WorldEventGameTests.java SHA256CBAE4C4AAF7206C2A78254939958A8888D9CD5BB08FD6804C71E0EDEFE305008 atop41eeffc private candidate. Command ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-departure-4e7e075.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build. Own new pr5-departure-4e7e075-world;event_departure_ filter kept10/2101;10/10required PASS10.51s,CompiledPASS. Log pr5-departure-4e7e075.log. Sent PR5 comment5846880474. This is fixture-only acceptance, not proof all departure gameplay correct. Terrain extends40blocks outside arena; full-suite neighbour isolation remains to verify. dd90575 contains generator-source handoff patch; reviewed only, not integrated/regenerated locally.
+## 2026-09-26 16:10 — Broad candidate and native UI acceptance
+Candidate module through e4b79b1:1907GameTests completed in3.257min,9required failures,1898non-failing. Generated194excluded via skipBlueprintBuilds=true because earlier long construction run retained separately. New isolatedworld pr5-broad-e4b79b1-world. Exact command: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-broad-e4b79b1.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build. Terminal16:07:48. Failure artifact pr5-broad-e4b79b1-failures.json,log pr5-broad-e4b79b1.log. Failed: halberdkit,raiddefenderdeath,farFisher,balcony,cottage-door,wedgedmerchant,drunksharedoverride,RaidQaFixturesealedgate,fisheryBuilder54/562. Departure10 and prior fixedcraft/finisher/miner/duel show no failure in this run. Different snapshots/order: no simple improvement attribution from17→9.
+QA-UI-01 Native accepted: baselineconfigfix plus e4b79b1 TechTreeScreen sourceSHA256c46f63d4786b4862df9f42535af3953eaa17d8712b910112e80c2a80777ceadb,only3TechTreeScreen classfiles differ. ClientCodexQC8783 display94 ownui-e4b79b1/game joinsprivate25587. Fresh secondsettlement2000,1. Actual1920x1080autoGUI: intact Confirm-Cost Above,fullpricehover,timeoutResearch+normaltooltip restored,confirmedLumberCamp consumes2/16/16→1/8/8once. Evidence ui-fix-confirm-tooltip.png,ui-fix-timeout.png,ui-fix-purchased.png andnativeidentity. NofullPRnativeapproval.
+Potential separatefoundingUIissue: openedBanner~0.5safterplacement;SurveyingtheRealm persisted andTechTreeclick rejected invalid_open_menu_authority;close/reopenresolved. Observedonce,needsreproduction/sourcecheck;notyetconfirmedbug.
+## 2026-09-26 16:17 — QA-UI-03 P2: immediate founding menu keeps null identity (native confirmed)
+Two fresh settlements reproduced on private dedicated server7063/port25587, clientQC8783/display94 (configfix + e4b79b1 UI). Place Banner, open about200ms later, leave open past founding. UI stays Settlement/Surveying the realm; TechTree requests rejected. Second case at4000,-60,1: FOUNDING_COMMITTED tick42656, invalid_open_menu_authority tick43009. Closing/reopening succeeds immediately. Screenshots founding-race-open.png, founding-race-denied.png, founding-race-reopen.png. Server log coop-server-evidence.log.
+Source: HearthBlockEntity.serverTick lines63-83 only founds every20ticks; HearthBlock.useWithoutItem lines189-211 opens even while idnull; HearthMenu final settlementId at77/96/106 retains NO_SETTLEMENT. HearthNetwork.settlementOfExactOpenMenu781+ correctly rejects old authority. Fix must ensure valid identity at menu open/reopen; do not weaken authority checks. Sent cloudClaude PR5 comment5846974119. Production unchanged.
+
+New cloud patches ced4d77: exact five files downloaded to private verification only. Separate read-only review found no concrete defects in bounded diff (charge lifecycle, stop voice by stored id, batch-scoped drunk override). Compilation/JUnit/targeted GameTests in progress; no native sound acceptance claimed.
+## 16:19 — ced4d77 independent acceptance
+Compiled PASS. Full JUnit1161/1159pass/2knownfail. Fresh-world captain_,tavern_drunk GameTests25/25requiredPASS (21Captain+4drunk),3.688s. Separate read-only reviewer found no concrete defect in exactfivefilepatch. Voice cleanup source-reviewed/compiled, NOT heard in game. Logs pr5-ced4d77-targeted.log and pr5-ced4d77-gametest.log. No Gradle process remains. Sent to PR5.
