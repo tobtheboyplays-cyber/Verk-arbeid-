@@ -13,6 +13,12 @@ Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $script:LogFile = $null
+# One log line of the dedicated server's console, NeoForge or vanilla format:
+#   [18:12:54] [Server thread/INFO] [minecraft/MinecraftServer]: Saved the game
+#   [18:12:54] [Server thread/INFO]: Saved the game
+# The whole message must be the expected text. Chat is always logged as "<name> ...",
+# "[Not Secure] <name> ...", "[Rcon: ...]" or "[name: ...]", so it can never match.
+$script:ConsolePrefix = '^\[[^\]]+\] \[Server thread/INFO\](?: \[[^\]\s]+\])?: '
 $script:AnsiEscape = New-Object System.Text.RegularExpressions.Regex (([string][char]27) + '\[[0-9;?]*[A-Za-z]')
 
 # ---------------------------------------------------------------- logging
@@ -61,6 +67,46 @@ function Test-BhPathInside {
     return $c.StartsWith($p, $cmp)
 }
 
+# The path itself or the nearest existing ancestor that is a junction, symbolic link or
+# mount point, or $null. Lexical containment checks only mean something without them.
+function Get-BhReparsePoint {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $p = Resolve-BhFullPath $Path
+    while ($p) {
+        if (Test-Path -LiteralPath $p) {
+            if ([System.IO.File]::GetAttributes($p) -band [System.IO.FileAttributes]::ReparsePoint) { return $p }
+        }
+        $parent = [System.IO.Path]::GetDirectoryName($p)
+        if (-not $parent -or $parent -eq $p) { break }
+        $p = $parent
+    }
+    return $null
+}
+
+function Assert-BhPlainPath {
+    param([Parameter(Mandatory = $true)][string]$Path, [string]$What = 'the path')
+    $rp = Get-BhReparsePoint $Path
+    if ($rp) { throw "$What goes through a junction or symbolic link ($rp); refusing. Use a plain folder." }
+}
+
+# Every file below $Root. Refuses junctions and links inside it, so nothing outside can be archived.
+function Get-BhWorldFiles {
+    param([Parameter(Mandatory = $true)][string]$Root)
+    $files = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+    $dirs = New-Object System.Collections.Generic.Stack[string]
+    $dirs.Push($Root)
+    while ($dirs.Count -gt 0) {
+        $dir = New-Object System.IO.DirectoryInfo ($dirs.Pop())
+        foreach ($entry in $dir.GetFileSystemInfos()) {
+            if ($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                throw "the world contains a junction or symbolic link ($($entry.FullName)); refusing to back it up"
+            }
+            if ($entry -is [System.IO.DirectoryInfo]) { $dirs.Push($entry.FullName) } else { $files.Add($entry) }
+        }
+    }
+    return , ($files.ToArray())
+}
+
 function Read-BhServerProperties {
     param([Parameter(Mandatory = $true)][string]$ServerDir)
     $props = @{}
@@ -83,6 +129,7 @@ function Get-BhWorldDir {
     if (-not (Test-BhPathInside $world $server) -or (Test-BhPathInside $server $world)) {
         throw "level-name '$name' does not point to a folder inside $server; refusing."
     }
+    Assert-BhPlainPath $world 'the world folder'
     return $world
 }
 
@@ -267,6 +314,14 @@ function Start-BhServerProcess {
     return @{ Process = $proc; Input = $writer; Queue = $queue; Readers = $readers; Ready = $false }
 }
 
+# The message of a server log line if the whole message matches $Pattern, else $null.
+function Test-BhConsoleLine {
+    param([string]$Line, [string]$Pattern)
+    $m = [regex]::Match($Line.TrimEnd(), $script:ConsolePrefix + '(?<msg>' + $Pattern + ')$')
+    if ($m.Success) { return $m.Groups['msg'].Value }
+    return $null
+}
+
 # Prints everything the server wrote since the last call and returns those lines (ANSI stripped).
 function Receive-BhConsole {
     param($Console)
@@ -275,7 +330,7 @@ function Receive-BhConsole {
     while ($Console.Queue.TryDequeue([ref]$line)) {
         Write-Host $line
         $clean = $script:AnsiEscape.Replace($line, '')
-        if (-not $Console.Ready -and $clean -match '\]: Done \(') { $Console.Ready = $true }
+        if (-not $Console.Ready -and (Test-BhConsoleLine $clean 'Done \(\d+(?:[.,]\d+)?s\)! For help, type "help"')) { $Console.Ready = $true }
         $new.Add($clean)
     }
     return , ($new.ToArray())
@@ -347,11 +402,10 @@ function Invoke-BhChannelCommand {
     Write-BhLog "console> $Command"
     if (-not (Send-BhConsoleLine $console $Command)) { return $null }
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    # Only a log line straight after the logger prefix counts, never a player's chat line.
-    $rx = '\]: (?:' + $Pattern + ')'
     while ((Get-Date) -lt $deadline) {
         foreach ($line in (Receive-BhConsole $console)) {
-            if ($line -match $rx) { return $Matches[0].Substring(3) }
+            $msg = Test-BhConsoleLine $line $Pattern
+            if ($msg) { return $msg }
         }
         if ($console.Process.HasExited -and (Test-BhConsoleOutputDone $console)) { return $null }
         Start-Sleep -Milliseconds 100
@@ -374,8 +428,10 @@ function New-BhWorldArchive {
     $partial = $final + '.partial'
     if (Test-Path -LiteralPath $final) { throw "a backup named $final already exists" }
     $root = $WorldDir.TrimEnd('\', '/')
-    $files = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force)
+    $files = Get-BhWorldFiles $root
     $expected = @{}
+    $hashes = @{}
+    $buffer = New-Object byte[] 81920
     $fs = $null
     $zip = $null
     $ok = $false
@@ -402,7 +458,18 @@ function New-BhWorldArchive {
                 $entry = $zip.CreateEntry($name, [System.IO.Compression.CompressionLevel]::Optimal)
                 try { $entry.LastWriteTime = New-Object System.DateTimeOffset($file.LastWriteTime) } catch { }
                 $out = $entry.Open()
-                try { $in.CopyTo($out) } finally { $out.Dispose() }
+                $sha = [System.Security.Cryptography.SHA256]::Create()
+                try {
+                    while (($n = $in.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                        [void]$sha.TransformBlock($buffer, 0, $n, $null, 0)
+                        $out.Write($buffer, 0, $n)
+                    }
+                    [void]$sha.TransformFinalBlock($buffer, 0, 0)
+                    $hashes[$name] = [System.BitConverter]::ToString($sha.Hash)
+                } finally {
+                    $out.Dispose()
+                    $sha.Dispose()
+                }
                 $expected[$name] = $in.Position
             } finally {
                 $in.Dispose()
@@ -427,21 +494,31 @@ function New-BhWorldArchive {
         if ($fs) { try { $fs.Dispose() } catch { } }
         if (-not $ok -and (Test-Path -LiteralPath $partial)) { Remove-Item -LiteralPath $partial -Force -ErrorAction SilentlyContinue }
     }
-    return @{ Partial = $partial; Final = $final; Files = $expected.Count }
+    return @{ Partial = $partial; Final = $final; Files = $expected.Count; Hashes = $hashes }
 }
 
-# Decompresses every entry (CRC and length check), then renames .partial to .zip.
+# Decompresses every entry and compares its SHA-256 with the bytes read from the world
+# (.NET Framework does not check ZIP CRCs), then renames .partial to .zip.
 function Complete-BhWorldArchive {
     param($Archive)
     try {
         $check = [System.IO.Compression.ZipFile]::OpenRead($Archive.Partial)
         try {
+            if ($check.Entries.Count -ne $Archive.Hashes.Count) { throw "archive has $($check.Entries.Count) entries, expected $($Archive.Hashes.Count)" }
             $buffer = New-Object byte[] 81920
             foreach ($e in $check.Entries) {
+                if (-not $Archive.Hashes.ContainsKey($e.FullName)) { throw "unexpected archive entry $($e.FullName)" }
                 $s = $e.Open()
-                [long]$total = 0
-                try { while (($n = $s.Read($buffer, 0, $buffer.Length)) -gt 0) { $total += $n } } finally { $s.Dispose() }
-                if ($total -ne $e.Length) { throw "entry $($e.FullName) is truncated" }
+                $sha = [System.Security.Cryptography.SHA256]::Create()
+                try {
+                    while (($n = $s.Read($buffer, 0, $buffer.Length)) -gt 0) { [void]$sha.TransformBlock($buffer, 0, $n, $null, 0) }
+                    [void]$sha.TransformFinalBlock($buffer, 0, 0)
+                    $actual = [System.BitConverter]::ToString($sha.Hash)
+                } finally {
+                    $s.Dispose()
+                    $sha.Dispose()
+                }
+                if ($actual -ne $Archive.Hashes[$e.FullName]) { throw "archive entry $($e.FullName) is damaged (content hash differs)" }
             }
         } finally {
             $check.Dispose()
@@ -459,7 +536,7 @@ function Complete-BhWorldArchive {
 function Remove-BhOldBackups {
     param([string]$BackupDir, [string]$Prefix, [int]$Keep)
     $rx = Get-BhBackupPattern $Prefix
-    $all = @(Get-ChildItem -LiteralPath $BackupDir -File -Force | Where-Object { $_.Name -match $rx } | Sort-Object Name -Descending)
+    $all = @(Get-ChildItem -LiteralPath $BackupDir -File -Force | Where-Object { $_.Name -match $rx -and -not ($_.Attributes -band [System.IO.FileAttributes]::ReparsePoint) } | Sort-Object Name -Descending)
     $removed = @()
     if ($all.Count -gt $Keep) {
         foreach ($old in $all[$Keep..($all.Count - 1)]) {
@@ -484,8 +561,13 @@ function Invoke-BhBackup {
         $WorldDir = Resolve-BhFullPath $WorldDir
         $BackupDir = Resolve-BhFullPath $BackupDir
         if (-not (Test-Path -LiteralPath (Join-Path $WorldDir 'level.dat'))) { throw "no level.dat in $WorldDir; is this the world folder?" }
+        Assert-BhPlainPath $WorldDir 'the world folder'
+        Assert-BhPlainPath $BackupDir 'the backup folder'
         if ((Test-BhPathInside $BackupDir $WorldDir) -or (Test-BhPathInside $WorldDir $BackupDir)) { throw 'the backup folder and the world folder must not contain each other' }
         [void][System.IO.Directory]::CreateDirectory($BackupDir)
+        Assert-BhPlainPath $BackupDir 'the backup folder'
+        # Finds links inside the world before anything is sent to the server.
+        $worldFiles = Get-BhWorldFiles $WorldDir
     } catch {
         $result.Refused = $true
         $result.Message = $_.Exception.Message
@@ -511,7 +593,7 @@ function Invoke-BhBackup {
         }
 
         try {
-            [long]$worldBytes = (Get-ChildItem -LiteralPath $WorldDir -Recurse -File -Force | Measure-Object -Property Length -Sum).Sum
+            [long]$worldBytes = ($worldFiles | Measure-Object -Property Length -Sum).Sum
             $drive = New-Object System.IO.DriveInfo ([System.IO.Path]::GetPathRoot($BackupDir))
             if ($drive.AvailableFreeSpace -lt $worldBytes) {
                 $result.Refused = $true
@@ -535,9 +617,10 @@ function Invoke-BhBackup {
         $attemptedOff = $false
         $archive = $null
         $cleanSaveOn = $false
+        $shortTimeout = [Math]::Min(30, $TimeoutSeconds)
         try {
             $attemptedOff = $true
-            $ack = Invoke-BhChannelCommand $Channel 'save-off' '(Automatic saving is now disabled|Saving is already turned off)' 30
+            $ack = Invoke-BhChannelCommand $Channel 'save-off' '(Automatic saving is now disabled|Saving is already turned off)' $shortTimeout
             if (-not $ack) { throw 'save-off was not acknowledged' }
             if ($ack -like 'Saving is already*') { Write-BhLog 'saving was already off before this backup; it will be turned back on afterwards' WARN }
             $ack = Invoke-BhChannelCommand $Channel 'save-all flush' '(Saved the game|Unable to save the game.*)' $TimeoutSeconds
@@ -550,8 +633,8 @@ function Invoke-BhBackup {
             if ($attemptedOff) {
                 $on = $null
                 for ($i = 1; $i -le 3 -and -not $on; $i++) {
-                    $on = Invoke-BhChannelCommand $Channel 'save-on' '(Automatic saving is now enabled|Saving is already turned on)' 30
-                    if (-not $on -and $i -lt 3) { Start-Sleep -Seconds 5 }
+                    $on = Invoke-BhChannelCommand $Channel 'save-on' '(Automatic saving is now enabled|Saving is already turned on)' $shortTimeout
+                    if (-not $on -and $i -lt 3) { Start-Sleep -Seconds ([Math]::Min(5, $shortTimeout)) }
                 }
                 if (-not $on) {
                     $result.SavingRestored = $false

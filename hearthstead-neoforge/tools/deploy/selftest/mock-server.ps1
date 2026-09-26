@@ -2,7 +2,7 @@
 # Prints log lines in the dedicated server's format and answers save-off,
 # save-all flush, save-on and stop the way Minecraft 1.21.1 does.
 param(
-    [ValidateSet('normal', 'flushfail-spoof', 'saveon-already', 'hang-on-stop', 'crash-once', 'crash-always', 'exit1-once')][string]$Mode = 'normal',
+    [ValidateSet('normal', 'flushfail-spoof', 'flush-slow', 'flush-too-slow', 'saveon-spoof', 'saveon-already', 'hang-on-stop', 'crash-once', 'crash-always', 'exit1-once')][string]$Mode = 'normal',
     [Parameter(Mandatory = $true)][string]$StateDir
 )
 $ErrorActionPreference = 'Stop'
@@ -51,8 +51,11 @@ while ($true) {
             if ($Mode -eq 'flushfail-spoof') {
                 # A player's chat line must never count as the acknowledgement.
                 Out '[Not Secure] <Mallory> Saved the game'
+                Out '<Mallory> ]: Saved the game'
                 Out 'Unable to save the game (is there enough disk space?)'
             } else {
+                if ($Mode -eq 'flush-slow') { Start-Sleep -Seconds 2 }
+                if ($Mode -eq 'flush-too-slow') { Start-Sleep -Seconds 8 }
                 Out 'Saved the game'
             }
             if ($Mode -eq 'saveon-already') {
@@ -61,6 +64,12 @@ while ($true) {
             }
         }
         'save-on' {
+            if ($Mode -eq 'saveon-spoof') {
+                # Only a chat line; saving really stays off.
+                Out '<Mallory> ]: Automatic saving is now enabled'
+                Out '[Not Secure] <Mallory> Automatic saving is now enabled'
+                continue
+            }
             if (-not $saving) { $saving = $true; Set-Content -LiteralPath $stateFile -Value 'on'; Out 'Automatic saving is now enabled' }
             else { Out 'Saving is already turned on' }
         }

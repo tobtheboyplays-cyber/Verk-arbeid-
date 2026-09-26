@@ -43,6 +43,8 @@ param(
     [ValidateSet('Console', 'Rcon', 'None')][string]$Backup = 'Console',
     [ValidateRange(0.01, 10080.0)][double]$BackupIntervalMinutes = 60,
     [ValidateRange(1, 1000)][int]$BackupKeep = 12,
+    # How long save-all flush may take before a backup is abandoned (save-off/save-on wait at most 30 s).
+    [ValidateRange(5, 3600)][int]$BackupTimeoutSeconds = 120,
     [string]$BackupDir,
     [System.Security.SecureString]$RconPassword,
     [ValidateRange(1, 100)][int]$MaxRestarts = 3,
@@ -79,6 +81,7 @@ function Stop-WithCode([int]$Code, [string]$Message) {
 try {
     $ServerDir = Resolve-BhFullPath $ServerDir
     if (-not (Test-Path -LiteralPath $ServerDir -PathType Container)) { throw "server folder not found: $ServerDir" }
+    Assert-BhPlainPath $ServerDir 'the server folder'
 } catch {
     Stop-WithCode 3 "refused: $($_.Exception.Message)"
 }
@@ -146,12 +149,12 @@ function Get-CrashReports {
 # A failed backup is logged and never takes the wrapper (and its console) down.
 function Invoke-WrapperBackup($Console) {
     if ($Backup -eq 'Rcon') {
-        $channel = New-BhRconChannel '127.0.0.1' $rconPort $RconPassword 120
+        $channel = New-BhRconChannel '127.0.0.1' $rconPort $RconPassword $BackupTimeoutSeconds
     } else {
         $channel = New-BhConsoleChannel $Console
     }
     try {
-        [void](Invoke-BhBackup -Channel $channel -WorldDir $worldDir -BackupDir $BackupDir -Keep $BackupKeep)
+        [void](Invoke-BhBackup -Channel $channel -WorldDir $worldDir -BackupDir $BackupDir -Keep $BackupKeep -TimeoutSeconds $BackupTimeoutSeconds)
     } catch {
         Write-BhLog "backup FAILED with an unexpected error: $($_.Exception.Message)" ERROR
     } finally {

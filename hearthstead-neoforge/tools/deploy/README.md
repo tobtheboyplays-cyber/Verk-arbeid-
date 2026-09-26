@@ -32,17 +32,17 @@ powershell -ExecutionPolicy Bypass -File .\start-server.ps1 -ServerDir 'D:\Banne
 
 - **Backup order.**
   1. `save-off`.
-  2. `save-all flush`, waiting until the server really prints `Saved the game`. A player's chat line does not count.
+  2. `save-all flush`, waiting until the server really prints `Saved the game`. Only a whole server log line counts (`[time] [Server thread/INFO] [logger]: Saved the game`); a player's chat line, whatever it contains, never does.
   3. The world is zipped to a `.zip.partial` file.
   4. `save-on`. This always runs, also after any failure; it is tried 3 times and prints `SAVING IS STILL OFF` if it never succeeds.
      Unless the server answers exactly `Automatic saving is now enabled`, the zip is thrown away: the server may have written the world while it was being zipped (a stop, a crash, or someone typing `save-on`).
-  5. Every file in the zip is read back and checked.
+  5. Every file in the zip is read back and its SHA-256 compared with the bytes read from the world (Windows' .NET does not check ZIP CRCs itself).
   6. The file is renamed to `.zip`.
   7. The oldest backups beyond 12 are deleted.
 - **Failure safety.**
   - A failed or incomplete backup leaves no file behind and never deletes an older one.
   - Only files named exactly `world-yyyyMMdd-HHmmss.zip`, directly in the backup folder, are ever deleted.
-  - Refused before anything is touched: a world folder outside the server folder, or a backup folder inside the world.
+  - Refused before anything is touched: a world folder outside the server folder, a backup folder inside the world, and any junction or symbolic link on the server, world or backup path or inside the world. Keep the server in a plain folder (not OneDrive).
 - **Restarts.**
   - A new file in `crash-reports\`, or a non-zero exit code, means a crash. The server restarts after 15 s.
   - A real Minecraft crash exits with code 0, so the crash report is what gives it away.
@@ -154,13 +154,15 @@ The JVM flags in `start-server.ps1` are Aikar's G1GC set for heaps below 12 GB, 
 powershell -ExecutionPolicy Bypass -File .\selftest\run-selftest.ps1
 ```
 
-It runs 73 checks with a mock server and a mock RCON in a temp folder:
+It runs 120 checks with a mock server and a mock RCON in a temp folder:
 - backup success and retention;
-- flush failure (including a spoofed chat line);
+- log-line matching against real NeoForge and vanilla lines and spoofed chat lines;
+- a damaged archive of the same length (never promoted);
+- flush failure (including spoofed chat lines), slow and too-slow flush, spoofed save-on;
 - a locked world file;
 - save-on recovery, and discarding a zip when saving did not stay off;
 - a server that hangs after `stop`;
 - crash and watchdog restarts, and the crash-loop limit;
 - intentional stop and duplicate-instance refusal;
-- paths with spaces and path-safety refusals;
+- paths with spaces, path-safety refusals, and junctions or symbolic links;
 - RCON login failure.
