@@ -1046,4 +1046,39 @@ public final class WorkerProvenanceGameTests {
 
     private record PreparedLog(UUID action, int bagSlot) {
     }
+
+    /** Save-review CLOUD-03: every planted seed leaves one committed FARM_PLANT
+     *  row with no output. Those rows must not fill the 512-row table for good
+     *  -- at the cap a new plant, harvest or lumber action could never open. */
+    @GameTest(template = "empty16", timeoutTicks = 100, batch = "worker_provenance")
+    public void spentPlantRowsNeverFillTheActionTable(GameTestHelper helper) {
+        Fixture f = fixture(helper, BuildingType.FARMHOUSE, Profession.FARMER, Items.IRON_HOE);
+        WorkZone zone = f.building().workZone().orElseThrow();
+        BlockPos target = null;
+        for (int x = 0; x < 16 && target == null; x++) {
+            for (int z = 0; z < 16 && target == null; z++) {
+                for (int y = 0; y < 4 && target == null; y++) {
+                    BlockPos pos = helper.absolutePos(new BlockPos(x, y, z));
+                    if (zone.contains(pos)) target = pos;
+                }
+            }
+        }
+        helper.assertTrue(target != null, "fixture farm zone must contain a plot");
+        // A standalone table: the level's own per-dimension table stays untouched.
+        WorkerProvenanceSavedData data = new WorkerProvenanceSavedData();
+        ResourceLocation seeds = ResourceLocation.withDefaultNamespace("wheat_seeds");
+        for (int i = 0; i <= WorkerProvenanceSavedData.MAX_ACTIONS; i++) {
+            var planted = new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+                WorkerProvenanceSavedData.Kind.FARM_PLANT, Phase.WORK_COMMITTED,
+                f.worker().getUUID(), zone, target, List.of(target), i);
+            planted.resolved.add(target);
+            planted.appliedToolDamage = 1;
+            planted.inputItem = seeds;
+            planted.inputCount = 1;
+            helper.assertTrue(data.add(planted), "planted seed " + (i + 1)
+                + " must still get an action row (cap " + WorkerProvenanceSavedData.MAX_ACTIONS
+                + "); spent plant rows must be pruned, not block all farm and lumber work");
+        }
+        helper.succeed();
+    }
 }
