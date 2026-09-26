@@ -131,7 +131,10 @@ public final class HearthsteadClientConfig {
         HEALTH_COUNTER = builder
             .comment("Health counter above the hotbar for the settler, visitor, raider or mob you look at",
                 "(also 3 s after you hit something). lookAt = on, off = never.")
-            .defineInList("healthCounter", "lookAt", java.util.List.of("lookAt", "off"));
+            // Arrays.asList, not List.of: a fresh config's correction tests the
+            // missing value with null, and List.of(...).contains(null) throws
+            // (QA-CLIENT-01: a brand-new client died loading mods).
+            .defineInList("healthCounter", "lookAt", java.util.Arrays.asList("lookAt", "off"));
         builder.pop();
         SPEC = builder.build();
     }
