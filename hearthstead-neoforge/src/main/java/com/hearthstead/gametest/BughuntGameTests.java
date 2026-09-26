@@ -832,4 +832,32 @@ public final class BughuntGameTests {
             "control: bread is a meal");
         h.succeed();
     }
+
+    /**
+     * Save-review CLOUD-03: removing the Banner disbands its whole settlement
+     * (HearthBlock#onRemove), so a creeper or TNT going off beside it must not
+     * be able to remove it. Players still break it deliberately.
+     */
+    @GameTest(template = ARENA, batch = "bughunt_banner_blast", timeoutTicks = 60)
+    public void anExplosionBesideTheBannerDoesNotDisbandTheSettlement(GameTestHelper h) {
+        BlockPos rel = new BlockPos(32, 2, 32);
+        h.setBlock(rel.below(), net.minecraft.world.level.block.Blocks.STONE);
+        h.setBlock(rel, com.hearthstead.registry.ModBlocks.HEARTH.get());
+        BlockPos banner = h.absolutePos(rel);
+        SettlementSavedData data = SettlementSavedData.get(h.getLevel());
+        Settlement s = new Settlement(UUID.randomUUID(), "Blastholm", banner);
+        s.radius = 16;
+        data.settlements.put(s.id, s);
+        try {
+            h.getLevel().explode(null, banner.getX() + 1.5, banner.getY() + 0.5,
+                banner.getZ() + 0.5, 4.0F, net.minecraft.world.level.Level.ExplosionInteraction.TNT);
+            h.assertTrue(h.getLevel().getBlockState(banner).is(com.hearthstead.registry.ModBlocks.HEARTH.get()),
+                "the Banner must survive a TNT-strength blast one block away");
+            h.assertTrue(data.settlements.containsKey(s.id),
+                "and its settlement must not be disbanded by the blast");
+        } finally {
+            data.settlements.remove(s.id);
+        }
+        h.succeed();
+    }
 }
