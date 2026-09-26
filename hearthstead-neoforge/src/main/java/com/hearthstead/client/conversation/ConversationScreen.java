@@ -158,9 +158,11 @@ public final class ConversationScreen extends Screen {
         Entity npc = speaker();
         if (npc != null) {
             MotionOverrides.stopOverlay(npc.getId(), npc.tickCount);
-            ConversationVoice.stop(npc);
-            ConversationVoice.end(npc.getId());
         }
+        // By the stored id, even when the speaker died or unloaded first (T32): its
+        // playing clip and Voice must never outlive the screen.
+        ConversationVoice.stop(state.npcId());
+        ConversationVoice.end(state.npcId());
         super.removed();
     }
 
@@ -233,8 +235,7 @@ public final class ConversationScreen extends Screen {
 
     private void skipTyping() {
         typingSkipped = true;
-        Entity npc = speaker();
-        if (npc != null) ConversationVoice.stop(npc);
+        ConversationVoice.stop(state.npcId());
     }
 
     // ------------------------------------------------------------- layout ---
