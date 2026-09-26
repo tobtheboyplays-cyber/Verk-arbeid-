@@ -279,6 +279,8 @@ public class TechTreeScreen extends Screen {
             armedId = null;
             if (researchButton != null) {
                 researchButton.setMessage(Component.translatableWithFallback("hearthstead.techtree.research", "Research"));
+                com.hearthstead.client.ui2.Ui2Tips.tip(researchButton, Component.translatableWithFallback(
+                    "hearthstead.techtree.research_tip", "Pay the cost from the Banner, your pack and the Warehouse"));
             }
         }
         glow.replaceAll((id, v) -> Math.max(0.0F, v - dt));
@@ -2123,8 +2125,11 @@ public class TechTreeScreen extends Screen {
             TechNodeDef def = data.node(selected);
             Component label = Component.translatableWithFallback("hearthstead.techtree.confirm", "Confirm \u2013 %s",
                 def == null ? Component.empty() : costSummary(def));
-            researchButton.setMessage(Component.literal(font.plainSubstrByWidth(label.getString(),
-                researchButton.getWidth() - 12)));
+            // QA-UI-01: never cut the price mid-word ("Confirm \u2013 1 Coins + 8 An\u2026"). A price
+            // that does not fit says so, the cost panel above shows it, and the tooltip has it all.
+            researchButton.setMessage(font.width(label) <= researchButton.getWidth() - 12 ? label
+                : Component.translatableWithFallback("hearthstead.techtree.confirm_short", "Confirm \u2013 cost above"));
+            com.hearthstead.client.ui2.Ui2Tips.tip(researchButton, label);
             HsUi.playConfirmSound();
             return;
         }
