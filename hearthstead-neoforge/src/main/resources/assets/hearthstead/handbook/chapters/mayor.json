@@ -1,0 +1,33 @@
+{
+  "id": "mayor",
+  "title": "hearthstead.guide.mayor.title",
+  "icon": "minecraft:bell",
+  "pages": [
+    {
+      "id": "mayor.p1",
+      "title": "hearthstead.guide.mayor.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/mayor_shop.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.mayor.p1.b1",
+        "hearthstead.guide.mayor.p1.b2",
+        "hearthstead.guide.mayor.p1.b3",
+        "hearthstead.guide.mayor.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.mayor.p1.k1"
+        }
+      ],
+      "tip": "hearthstead.guide.mayor.p1.tip",
+      "text": [
+        "hearthstead.guide.mayor.body"
+      ]
+    }
+  ]
+}

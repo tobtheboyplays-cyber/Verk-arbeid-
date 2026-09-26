@@ -1,0 +1,18 @@
+{
+  "id": "conversation",
+  "title": "hearthstead.guide.conversation.title",
+  "icon": "minecraft:emerald",
+  "pages": [
+    {
+      "id": "conversation.talk",
+      "title": "hearthstead.guide.conversation.talk.title",
+      "bullets": [
+        "hearthstead.guide.conversation.talk.b1",
+        "hearthstead.guide.conversation.talk.b2",
+        "hearthstead.guide.conversation.talk.b3"
+      ],
+      "tip": "hearthstead.guide.conversation.talk.tip",
+      "image_wanted": "Conversation choices beside a barter offer showing both sides of the exchange."
+    }
+  ]
+}

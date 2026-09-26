@@ -1,0 +1,18 @@
+{
+  "id": "realm_map",
+  "title": "hearthstead.guide.realm_map.title",
+  "icon": "minecraft:map",
+  "pages": [
+    {
+      "id": "realm_map.locate",
+      "title": "hearthstead.guide.realm_map.locate.title",
+      "bullets": [
+        "hearthstead.guide.realm_map.locate.b1",
+        "hearthstead.guide.realm_map.locate.b2",
+        "hearthstead.guide.realm_map.locate.b3"
+      ],
+      "tip": "hearthstead.guide.realm_map.locate.tip",
+      "image_wanted": "Realm map with one settler selected, Summon visible and an event ! marker."
+    }
+  ]
+}

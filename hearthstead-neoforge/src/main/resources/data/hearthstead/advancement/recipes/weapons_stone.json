@@ -1,0 +1,29 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_material": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "tag": "minecraft:stone_tool_materials"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_material"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "hearthstead:stone_double_axe",
+      "hearthstead:stone_halberd",
+      "hearthstead:stone_longsword",
+      "hearthstead:stone_short_sword",
+      "hearthstead:stone_warhammer"
+    ]
+  }
+}

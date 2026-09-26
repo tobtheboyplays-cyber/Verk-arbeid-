@@ -1,0 +1,60 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "another_furniture:oak_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:spruce_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:birch_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:jungle_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:acacia_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:dark_oak_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:mangrove_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:cherry_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:bamboo_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:crimson_table",
+      "required": false
+    },
+    {
+      "id": "another_furniture:warped_table",
+      "required": false
+    },
+    "minecraft:oak_pressure_plate",
+    "minecraft:spruce_pressure_plate",
+    "minecraft:birch_pressure_plate",
+    "minecraft:jungle_pressure_plate",
+    "minecraft:acacia_pressure_plate",
+    "minecraft:dark_oak_pressure_plate",
+    "minecraft:mangrove_pressure_plate",
+    "minecraft:cherry_pressure_plate",
+    "minecraft:bamboo_pressure_plate",
+    "minecraft:crimson_pressure_plate",
+    "minecraft:warped_pressure_plate"
+  ]
+}

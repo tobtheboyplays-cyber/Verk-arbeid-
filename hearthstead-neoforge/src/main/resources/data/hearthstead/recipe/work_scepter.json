@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    " AC",
+    " SA",
+    "S  "
+  ],
+  "key": {
+    "A": {
+      "item": "minecraft:flint"
+    },
+    "C": {
+      "item": "minecraft:copper_ingot"
+    },
+    "S": {
+      "item": "minecraft:stick"
+    }
+  },
+  "result": {
+    "id": "hearthstead:work_scepter",
+    "count": 1
+  }
+}

@@ -1,0 +1,450 @@
+{
+  "name": "settler_screen_nb",
+  "width": 256,
+  "height": 416,
+  "elements": [
+    {
+      "t": "window",
+      "x": 0,
+      "y": 0,
+      "w": 256,
+      "h": 416
+    },
+    {
+      "t": "inset",
+      "x": 8,
+      "y": 8,
+      "w": 50,
+      "h": 56
+    },
+    {
+      "t": "fill",
+      "x": 208,
+      "y": 8,
+      "w": 40,
+      "h": 10,
+      "colour": "#b8912f"
+    },
+    {
+      "t": "fill",
+      "x": 209,
+      "y": 9,
+      "w": 38,
+      "h": 8,
+      "colour": "#5c471b"
+    },
+    {
+      "t": "label",
+      "x": 211,
+      "y": 9,
+      "text": "Ordfører",
+      "tone": "#b8912f",
+      "box": 34,
+      "id": "mayor_mark"
+    },
+    {
+      "t": "label",
+      "x": 66,
+      "y": 8,
+      "text": "Gislebert den Yngre",
+      "tone": "text_strong",
+      "box": 138,
+      "id": "name"
+    },
+    {
+      "t": "fill",
+      "x": 66,
+      "y": 20,
+      "w": 27,
+      "h": 10,
+      "colour": "#57575e"
+    },
+    {
+      "t": "fill",
+      "x": 67,
+      "y": 21,
+      "w": 25,
+      "h": 8,
+      "colour": "#37312c"
+    },
+    {
+      "t": "label",
+      "x": 69,
+      "y": 21,
+      "text": "Vakt",
+      "tone": "#57575e",
+      "box": 21,
+      "id": "profession"
+    },
+    {
+      "t": "label",
+      "x": 66,
+      "y": 32,
+      "text": "Nå: På vakt ved palisaden",
+      "tone": "text_muted",
+      "box": 182,
+      "id": "activity"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 68,
+      "w": 240,
+      "h": 14
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 70,
+      "text": "Ordfører — Godt råd (setter seg inn)",
+      "tone": "accent",
+      "box": 232,
+      "id": "mayor_badge"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 86,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 92,
+      "text": "Sult",
+      "box": 44,
+      "id": "need[0]"
+    },
+    {
+      "t": "bar",
+      "x": 52,
+      "y": 92,
+      "w": 166,
+      "h": 6,
+      "value": 0.42,
+      "tone": "warn"
+    },
+    {
+      "t": "label",
+      "x": 248,
+      "y": 92,
+      "text": "42",
+      "tone": "text_muted",
+      "box": 26,
+      "align": "right",
+      "id": "need_val[0]"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 104,
+      "text": "Energi",
+      "box": 44,
+      "id": "need[1]"
+    },
+    {
+      "t": "bar",
+      "x": 52,
+      "y": 104,
+      "w": 166,
+      "h": 6,
+      "value": 0.42,
+      "tone": "warn"
+    },
+    {
+      "t": "label",
+      "x": 248,
+      "y": 104,
+      "text": "42",
+      "tone": "text_muted",
+      "box": 26,
+      "align": "right",
+      "id": "need_val[1]"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 116,
+      "text": "Pågangsmot",
+      "box": 44,
+      "id": "need[2]"
+    },
+    {
+      "t": "bar",
+      "x": 52,
+      "y": 116,
+      "w": 166,
+      "h": 6,
+      "value": 0.42,
+      "tone": "warn"
+    },
+    {
+      "t": "label",
+      "x": 248,
+      "y": 116,
+      "text": "42",
+      "tone": "text_muted",
+      "box": 26,
+      "align": "right",
+      "id": "need_val[2]"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 132,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 138,
+      "text": "Håndlag (naturlig lag)",
+      "tone": "accent",
+      "box": 140,
+      "id": "attr[0]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 139,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 150,
+      "text": "Styrke",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[1]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 151,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 162,
+      "text": "Utholdenhet",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[2]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 163,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 174,
+      "text": "Klokskap",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[3]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 175,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 186,
+      "text": "Gemytt",
+      "tone": "text",
+      "box": 140,
+      "id": "attr[4]"
+    },
+    {
+      "t": "pips",
+      "x": 152,
+      "y": 187,
+      "n": 3,
+      "of": 5
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 202,
+      "w": 240
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 208,
+      "w": 240,
+      "h": 26
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 212,
+      "text": "Støtt",
+      "tone": "text_strong",
+      "box": 232,
+      "id": "trait[0].name"
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 223,
+      "text": "-30% pågangsmot tapt på dårlige dager",
+      "tone": "good",
+      "box": 200,
+      "id": "trait[0].chip[0]"
+    },
+    {
+      "t": "card",
+      "x": 8,
+      "y": 238,
+      "w": 240,
+      "h": 26
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 242,
+      "text": "Sterk rygg",
+      "tone": "text_strong",
+      "box": 232,
+      "id": "trait[1].name"
+    },
+    {
+      "t": "label",
+      "x": 12,
+      "y": 253,
+      "text": "Bærer en fjerdedel mer, og går saktere for det",
+      "tone": "text_muted",
+      "box": 232,
+      "id": "trait[1].flavor"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 268,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 274,
+      "text": "Ansatt ved Vaktårn — Nattevakt",
+      "box": 240,
+      "id": "employment"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 290,
+      "text": "Bosetningen er i sorg og vil ikke",
+      "tone": "warn",
+      "box": 240,
+      "id": "refusal_line[0]"
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 301,
+      "text": "utpeke noen",
+      "tone": "warn",
+      "box": 240,
+      "id": "refusal_line[1]"
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 318,
+      "w": 240
+    },
+    {
+      "t": "label",
+      "x": 8,
+      "y": 324,
+      "text": "Sekk",
+      "box": 240,
+      "id": "bag_label"
+    },
+    {
+      "t": "slot",
+      "x": 8,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 28,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 48,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 68,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 88,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 108,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 128,
+      "y": 336
+    },
+    {
+      "t": "slot",
+      "x": 148,
+      "y": 336
+    },
+    {
+      "t": "divider",
+      "x": 8,
+      "y": 358,
+      "w": 240
+    },
+    {
+      "t": "button",
+      "x": 8,
+      "y": 364,
+      "w": 240,
+      "h": 20,
+      "text": "Utpek som ordfører"
+    },
+    {
+      "t": "button",
+      "x": 8,
+      "y": 388,
+      "w": 64,
+      "h": 20,
+      "text": "Si opp"
+    },
+    {
+      "t": "button",
+      "x": 184,
+      "y": 388,
+      "w": 64,
+      "h": 20,
+      "text": "Lukk"
+    }
+  ]
+}

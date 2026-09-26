@@ -1,0 +1,21 @@
+{
+  "id": "day",
+  "title": "hearthstead.guide.day.title",
+  "icon": "minecraft:clock",
+  "pages": [
+    {
+      "id": "day.p1",
+      "title": "hearthstead.guide.day.p1.title",
+      "bullets": [
+        "hearthstead.guide.day.p1.b1",
+        "hearthstead.guide.day.p1.b2",
+        "hearthstead.guide.day.p1.b3",
+        "hearthstead.guide.day.p1.b4"
+      ],
+      "tip": "hearthstead.guide.day.p1.tip",
+      "text": [
+        "hearthstead.guide.day.body"
+      ]
+    }
+  ]
+}

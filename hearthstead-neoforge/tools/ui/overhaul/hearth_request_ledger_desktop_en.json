@@ -1,0 +1,78 @@
+{
+  "name": "Hearth Request Ledger — Courier Priority Queue",
+  "width": 512,
+  "height": 274,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 512, "h": 274},
+    {"t": "title", "x": 16, "y": 10, "text": "Oakmere Hearth", "box": 220, "id": "settlement_identity"},
+    {"t": "label", "x": 16, "y": 24, "text": "COURIER REQUEST QUEUE • DELIVERY PRIORITY", "tone": "accent", "box": 260, "id": "screen_context"},
+    {"t": "label", "x": 16, "y": 36, "text": "Drag a ticket to propose priority • the server confirms every revision", "tone": "text_muted", "box": 360, "id": "queue_authority_summary"},
+    {"t": "button", "x": 408, "y": 12, "w": 96, "h": 24, "text": "Refresh Queue", "state": "hover"},
+    {"t": "divider", "x": 8, "y": 44, "w": 496},
+
+    {"t": "tab", "x": 12, "y": 48, "w": 96, "h": 20, "text": "Settlement", "selected": false},
+    {"t": "tab", "x": 112, "y": 48, "w": 60, "h": 20, "text": "Mayor", "selected": false},
+    {"t": "tab", "x": 176, "y": 48, "w": 80, "h": 20, "text": "Journey 7", "selected": false},
+    {"t": "tab", "x": 260, "y": 48, "w": 92, "h": 20, "text": "Requests 3", "selected": true},
+    {"t": "tab", "x": 356, "y": 48, "w": 144, "h": 20, "text": "Development", "selected": false},
+
+    {"t": "frame", "x": 8, "y": 76, "w": 312, "h": 160, "surface": "inset", "tone": "accent", "inner_alpha": 42},
+    {"t": "section", "x": 20, "y": 84, "w": 208, "text": "SORTED QUEUE • 3 ACTIVE • 1 BLOCKED", "tone": "accent", "id": "queue_heading"},
+    {"t": "badge", "x": 236, "y": 82, "w": 72, "h": 16, "text": "REV. 42 / 17", "tone": "accent", "id": "queue_revision"},
+
+    {"t": "soft_panel", "x": 20, "y": 102, "w": 292, "h": 48, "tone": "bad", "alpha": 22, "stroke_alpha": 205},
+    {"t": "badge", "x": 28, "y": 110, "w": 28, "h": 18, "text": "01", "tone": "bad", "id": "request_one_priority"},
+    {"t": "slot", "x": 62, "y": 110},
+    {"t": "item", "x": 63, "y": 111, "text": "A"},
+    {"t": "label", "x": 86, "y": 106, "text": "Iron Axe ×1 • Runa", "tone": "text_strong", "box": 134, "id": "request_one_headline"},
+    {"t": "label", "x": 86, "y": 122, "text": "Warehouse → Lumber Camp", "tone": "text_muted", "box": 194, "id": "request_one_route"},
+    {"t": "label", "x": 86, "y": 136, "text": "Stop: Destination is full", "tone": "bad", "box": 194, "id": "request_one_blocker"},
+    {"t": "badge", "x": 224, "y": 104, "w": 60, "h": 16, "text": "BLOCKED", "tone": "bad", "id": "request_one_state"},
+    {"t": "badge", "x": 288, "y": 108, "w": 16, "h": 34, "text": "≡", "tone": "iron", "text_tone": "text_muted", "id": "request_one_drag"},
+
+    {"t": "soft_panel", "x": 20, "y": 154, "w": 292, "h": 36, "tone": "accent", "alpha": 14, "stroke_alpha": 145},
+    {"t": "badge", "x": 28, "y": 164, "w": 28, "h": 16, "text": "02", "tone": "accent", "id": "request_two_priority"},
+    {"t": "slot", "x": 62, "y": 162},
+    {"t": "icon", "x": 63, "y": 163, "size": 16, "asset": "item/timber_beam.png"},
+    {"t": "label", "x": 86, "y": 158, "text": "Oak Log ×8 • Lumber Camp", "tone": "text_strong", "box": 132, "id": "request_two_headline"},
+    {"t": "label", "x": 86, "y": 174, "text": "Lumber Camp → Warehouse • Einar", "tone": "text_muted", "box": 194, "id": "request_two_route"},
+    {"t": "badge", "x": 218, "y": 156, "w": 66, "h": 16, "text": "IN TRANSIT", "tone": "accent", "id": "request_two_state"},
+    {"t": "badge", "x": 288, "y": 158, "w": 16, "h": 28, "text": "≡", "tone": "iron", "text_tone": "text_muted", "id": "request_two_drag"},
+
+    {"t": "soft_panel", "x": 20, "y": 194, "w": 292, "h": 36, "tone": "good", "alpha": 14, "stroke_alpha": 145},
+    {"t": "badge", "x": 28, "y": 204, "w": 28, "h": 16, "text": "03", "tone": "good", "id": "request_three_priority"},
+    {"t": "slot", "x": 62, "y": 202},
+    {"t": "item", "x": 63, "y": 203, "text": "S"},
+    {"t": "label", "x": 86, "y": 198, "text": "Wheat Seeds ×12 • Farmhouse", "tone": "text_strong", "box": 150, "id": "request_three_headline"},
+    {"t": "label", "x": 86, "y": 214, "text": "Warehouse → Farmhouse • unassigned", "tone": "text_muted", "box": 194, "id": "request_three_route"},
+    {"t": "badge", "x": 236, "y": 196, "w": 48, "h": 16, "text": "OPEN", "tone": "good", "id": "request_three_state"},
+    {"t": "badge", "x": 288, "y": 198, "w": 16, "h": 28, "text": "≡", "tone": "iron", "text_tone": "text_muted", "id": "request_three_drag"},
+
+    {"t": "frame", "x": 324, "y": 76, "w": 180, "h": 160, "surface": "window", "tone": "warn", "inner_alpha": 55},
+    {"t": "section", "x": 336, "y": 84, "w": 156, "text": "SELECTED TICKET", "tone": "warn", "id": "inspector_heading"},
+    {"t": "soft_panel", "x": 332, "y": 102, "w": 164, "h": 42, "tone": "bad", "alpha": 20, "stroke_alpha": 185},
+    {"t": "badge", "x": 340, "y": 108, "w": 30, "h": 18, "text": "#01", "tone": "bad", "id": "selected_priority"},
+    {"t": "slot", "x": 378, "y": 108},
+    {"t": "item", "x": 379, "y": 109, "text": "A"},
+    {"t": "label", "x": 404, "y": 106, "text": "Iron Axe ×1", "tone": "text_strong", "box": 84, "id": "selected_item"},
+    {"t": "label", "x": 404, "y": 120, "text": "Runa • Lumberer", "tone": "text_muted", "box": 84, "id": "selected_requester"},
+    {"t": "label", "x": 340, "y": 134, "text": "Warehouse → Lumber Camp", "tone": "text", "box": 148, "id": "selected_route"},
+
+    {"t": "soft_panel", "x": 332, "y": 150, "w": 164, "h": 58, "tone": "warn", "alpha": 18, "stroke_alpha": 165},
+    {"t": "label", "x": 340, "y": 154, "text": "Priority", "tone": "text_muted", "box": 60},
+    {"t": "label", "x": 488, "y": 154, "text": "01 • High", "align": "right", "tone": "warn", "box": 72, "id": "selected_priority_value"},
+    {"t": "label", "x": 340, "y": 168, "text": "Courier", "tone": "text_muted", "box": 60},
+    {"t": "label", "x": 488, "y": 168, "text": "unassigned", "align": "right", "tone": "warn", "box": 72, "id": "selected_courier"},
+    {"t": "label", "x": 340, "y": 182, "text": "Owner", "tone": "text_muted", "box": 60},
+    {"t": "label", "x": 488, "y": 182, "text": "source storage", "align": "right", "tone": "text_strong", "box": 84, "id": "selected_owner"},
+    {"t": "label", "x": 340, "y": 196, "text": "Stop", "tone": "text_muted", "box": 60},
+    {"t": "label", "x": 488, "y": 196, "text": "Destination is full", "align": "right", "tone": "bad", "box": 112, "id": "selected_blocker"},
+
+    {"t": "section", "x": 336, "y": 214, "w": 152, "text": "NEXT STEP", "tone": "warn"},
+    {"t": "label", "x": 336, "y": 226, "text": "Free one destination slot.", "tone": "text", "box": 152, "id": "selected_resolution"},
+
+    {"t": "divider", "x": 8, "y": 240, "w": 496},
+    {"t": "label", "x": 12, "y": 252, "text": "Drag ≡ to reprioritize • server confirms order • physical owner shown", "tone": "text_muted", "box": 416, "id": "authority_footer"},
+    {"t": "button", "x": 448, "y": 248, "w": 56, "h": 20, "text": "Close"}
+  ]
+}

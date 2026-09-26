@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:wooden_double_axe",
+    "hearthstead:stone_double_axe",
+    "hearthstead:iron_double_axe",
+    "hearthstead:golden_double_axe",
+    "hearthstead:diamond_double_axe",
+    "hearthstead:netherite_double_axe"
+  ]
+}

@@ -1,0 +1,178 @@
+{
+  "id": "market_stone",
+  "name": "Guild Market (Stone Hall)",
+  "category": "common",
+  "kind": "building",
+  "building_type": "market",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall",
+  "requires": "builders_hut",
+  "group": "market",
+  "size": [
+    23,
+    12,
+    12
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      12,
+      2,
+      8
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      6,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        11,
+        1,
+        5
+      ],
+      "to": "another_furniture:dark_oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        11,
+        2,
+        5
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        10,
+        1,
+        5
+      ],
+      "to": "another_furniture:dark_oak_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        12,
+        1,
+        5
+      ],
+      "to": "another_furniture:dark_oak_chair[facing=west,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 161
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 158
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 107
+    },
+    {
+      "item": "minecraft:dark_oak_planks",
+      "count": 77
+    },
+    {
+      "item": "minecraft:dark_oak_log",
+      "count": 41
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 40
+    },
+    {
+      "item": "minecraft:dark_oak_slab",
+      "count": 21
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 17
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 16
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 16
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 10
+    },
+    {
+      "item": "minecraft:red_wool",
+      "count": 8
+    },
+    {
+      "item": "minecraft:blue_wool",
+      "count": 8
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 6
+    },
+    {
+      "item": "minecraft:dark_oak_fence",
+      "count": 5
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 2
+    },
+    {
+      "item": "minecraft:dark_oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dark_oak_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 705,
+  "cells": 1146
+}

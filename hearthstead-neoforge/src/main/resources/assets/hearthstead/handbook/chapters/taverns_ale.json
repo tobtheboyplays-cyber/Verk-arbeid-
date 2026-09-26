@@ -1,0 +1,33 @@
+{
+  "id": "taverns_ale",
+  "title": "hearthstead.guide.taverns_ale.title",
+  "icon": "hearthstead:ale",
+  "pages": [
+    {
+      "id": "taverns_ale.levels",
+      "title": "hearthstead.guide.taverns_ale.levels.title",
+      "bullets": [
+        "hearthstead.guide.taverns_ale.levels.b1",
+        "hearthstead.guide.taverns_ale.levels.b2",
+        "hearthstead.guide.taverns_ale.levels.b3"
+      ],
+      "tip": "hearthstead.guide.taverns_ale.levels.tip",
+      "text": [
+        "hearthstead.guide.taverns_ale.levels.more"
+      ]
+    },
+    {
+      "id": "taverns_ale.recovery",
+      "title": "hearthstead.guide.taverns_ale.recovery.title",
+      "bullets": [
+        "hearthstead.guide.taverns_ale.recovery.b1",
+        "hearthstead.guide.taverns_ale.recovery.b2",
+        "hearthstead.guide.taverns_ale.recovery.b3"
+      ],
+      "tip": "hearthstead.guide.taverns_ale.recovery.tip",
+      "text": [
+        "hearthstead.guide.taverns_ale.recovery.more"
+      ]
+    }
+  ]
+}

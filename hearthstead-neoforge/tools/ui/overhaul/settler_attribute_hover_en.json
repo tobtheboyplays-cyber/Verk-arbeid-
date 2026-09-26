@@ -1,0 +1,47 @@
+{
+  "name": "settler_attribute_hover_en",
+  "width": 376,
+  "height": 248,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 376, "h": 248},
+    {"t": "inset", "x": 12, "y": 8, "w": 40, "h": 40},
+    {"t": "item", "x": 24, "y": 20, "text": "A"},
+    {"t": "title", "x": 60, "y": 8, "text": "Aldith of Northwatch", "box": 220, "id": "settler_name"},
+    {"t": "label", "x": 364, "y": 8, "align": "right", "text": "MAYOR", "tone": "accent", "box": 48, "id": "mayor_badge"},
+    {"t": "label", "x": 60, "y": 24, "text": "Guard • Sergeant • Stand Post", "tone": "text_strong", "box": 304, "id": "role_activity"},
+    {"t": "label", "x": 60, "y": 36, "text": "Hovering Strength", "tone": "text_muted", "box": 304, "id": "hover_state"},
+    {"t": "divider", "x": 12, "y": 52, "w": 352},
+
+    {"t": "card", "x": 12, "y": 60, "w": 148, "h": 140},
+    {"t": "label", "x": 20, "y": 64, "text": "Attributes", "tone": "text_strong", "box": 132, "id": "attributes_title"},
+    {"t": "label", "x": 20, "y": 76, "text": "Exact values • tier colour", "tone": "text_muted", "box": 132, "id": "attributes_rule"},
+    {"t": "card_hover", "x": 20, "y": 88, "w": 132, "h": 20},
+    {"t": "label", "x": 24, "y": 94, "text": "Strength", "tone": "text_strong", "box": 72},
+    {"t": "label", "x": 148, "y": 94, "align": "right", "text": "72 / 100", "tone": "good", "box": 52, "id": "strength_value"},
+    {"t": "label", "x": 24, "y": 116, "text": "Dexterity", "box": 72},
+    {"t": "label", "x": 148, "y": 116, "align": "right", "text": "58 / 100", "tone": "good", "box": 52, "id": "dexterity_value"},
+    {"t": "label", "x": 24, "y": 136, "text": "Stamina", "box": 72},
+    {"t": "label", "x": 148, "y": 136, "align": "right", "text": "76 / 100", "tone": "accent", "box": 52, "id": "stamina_value"},
+    {"t": "label", "x": 24, "y": 156, "text": "Wits", "box": 72},
+    {"t": "label", "x": 148, "y": 156, "align": "right", "text": "39 / 100", "tone": "warn", "box": 52, "id": "wits_value"},
+    {"t": "label", "x": 24, "y": 176, "text": "Spirit", "box": 72},
+    {"t": "label", "x": 148, "y": 176, "align": "right", "text": "18 / 100", "tone": "bad", "box": 52, "id": "spirit_value"},
+
+    {"t": "card_hover", "x": 168, "y": 60, "w": 196, "h": 140},
+    {"t": "label", "x": 176, "y": 64, "text": "Strength 72 / 100", "tone": "good", "box": 180, "id": "tooltip_title"},
+    {"t": "label", "x": 176, "y": 76, "text": "Tier: Good • 50–74", "tone": "good", "box": 180, "id": "tooltip_tier"},
+    {"t": "divider", "x": 176, "y": 88, "w": 180},
+    {"t": "label", "x": 176, "y": 96, "text": "CURRENT GUARD EFFECTS", "tone": "accent", "box": 180, "id": "tooltip_effects_title"},
+    {"t": "label", "x": 176, "y": 108, "text": "Sergeant rank unlocked", "tone": "text_strong", "box": 180},
+    {"t": "label", "x": 176, "y": 120, "text": "+1.5 melee damage edge", "tone": "good", "box": 180, "id": "positive_effect"},
+    {"t": "label", "x": 176, "y": 132, "text": "Ability: Leap Strike", "tone": "good", "box": 180},
+    {"t": "label", "x": 176, "y": 148, "text": "Next: Captain at 80", "tone": "accent", "box": 180, "id": "next_threshold"},
+    {"t": "label", "x": 176, "y": 160, "text": "8 points to Rally", "tone": "warn", "box": 180},
+    {"t": "label", "x": 176, "y": 176, "text": "Armour still needs physical stock", "tone": "bad", "box": 180, "id": "equipment_condition"},
+    {"t": "label", "x": 176, "y": 188, "text": "Trained by patrols and landed hits", "tone": "text_muted", "box": 180},
+
+    {"t": "card", "x": 12, "y": 208, "w": 352, "h": 28},
+    {"t": "label", "x": 20, "y": 212, "text": "Every row must explain a concrete gameplay effect.", "tone": "text_strong", "box": 336, "id": "non_decorative_rule"},
+    {"t": "label", "x": 20, "y": 224, "text": "Colour supports numbers and tiers; text carries meaning.", "tone": "text_muted", "box": 336, "id": "colour_rule"}
+  ]
+}

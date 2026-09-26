@@ -1,0 +1,1 @@
+Private diagnostic harness, NOT production source. Place in the corresponding Java package only in an isolated QA copy. Requires an empty32 structure under data/codex_diagnostics/structure and enabled GameTest namespace codex_diagnostics. See QA-BUILD-01 in the report for fixture validation, exact failure and limits. Do not copy into the shared worktree without ownership.

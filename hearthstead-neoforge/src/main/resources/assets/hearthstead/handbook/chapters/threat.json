@@ -1,0 +1,42 @@
+{
+  "id": "threat",
+  "title": "hearthstead.guide.threat.title",
+  "icon": "minecraft:crossbow",
+  "pages": [
+    {
+      "id": "threat.p1",
+      "title": "hearthstead.guide.threat.p1.title",
+      "bullets": [
+        "hearthstead.guide.threat.p1.b1",
+        "hearthstead.guide.threat.p1.b2",
+        "hearthstead.guide.threat.p1.b3",
+        "hearthstead.guide.threat.p1.b4"
+      ],
+      "tip": "hearthstead.guide.threat.p1.tip",
+      "text": [
+        "hearthstead.guide.threat.body"
+      ],
+      "journey": [
+        "fj_560_declare_raid_ready",
+        "fj_600_receive_first_warning"
+      ]
+    },
+    {
+      "id": "threat.p2",
+      "title": "hearthstead.guide.threat.p2.title",
+      "bullets": [
+        "hearthstead.guide.threat.p2.b1",
+        "hearthstead.guide.threat.p2.b2",
+        "hearthstead.guide.threat.p2.b3"
+      ],
+      "tip": "hearthstead.guide.threat.p2.tip",
+      "text": [
+        "hearthstead.guide.threat.body2"
+      ],
+      "journey": [
+        "fj_610_first_raid_resolved",
+        "fj_620_review_aftermath"
+      ]
+    }
+  ]
+}

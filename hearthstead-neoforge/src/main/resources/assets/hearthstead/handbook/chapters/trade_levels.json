@@ -1,0 +1,33 @@
+{
+  "id": "trade_levels",
+  "title": "hearthstead.guide.trade_levels.title",
+  "icon": "minecraft:iron_pickaxe",
+  "pages": [
+    {
+      "id": "trade_levels.p1",
+      "title": "hearthstead.guide.trade_levels.p1.title",
+      "bullets": [
+        "hearthstead.guide.trade_levels.p1.b1",
+        "hearthstead.guide.trade_levels.p1.b2",
+        "hearthstead.guide.trade_levels.p1.b3"
+      ],
+      "tip": "hearthstead.guide.trade_levels.p1.tip",
+      "text": [
+        "hearthstead.guide.trade_levels.body"
+      ]
+    },
+    {
+      "id": "trade_levels.p2",
+      "title": "hearthstead.guide.trade_levels.p2.title",
+      "bullets": [
+        "hearthstead.guide.trade_levels.p2.b1",
+        "hearthstead.guide.trade_levels.p2.b2",
+        "hearthstead.guide.trade_levels.p2.b3"
+      ],
+      "tip": "hearthstead.guide.trade_levels.p2.tip",
+      "text": [
+        "hearthstead.guide.trade_levels.body2"
+      ]
+    }
+  ]
+}

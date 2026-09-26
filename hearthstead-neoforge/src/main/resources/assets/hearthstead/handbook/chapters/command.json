@@ -1,0 +1,70 @@
+{
+  "id": "command",
+  "title": "hearthstead.guide.command.title",
+  "icon": "minecraft:shield",
+  "pages": [
+    {
+      "id": "command.roles",
+      "title": "hearthstead.guide.command.roles.title",
+      "bullets": [
+        "hearthstead.guide.command.roles.b1",
+        "hearthstead.guide.command.roles.b2",
+        "hearthstead.guide.command.roles.b3"
+      ],
+      "tip": "hearthstead.guide.command.roles.tip",
+      "image_wanted": "Player aiming at a line of formation dots in front of guards.",
+      "keys": [
+        {
+          "key": "key.hearthstead.command_knights",
+          "action": "hearthstead.guide.command.roles.k1"
+        },
+        {
+          "key": "key.hearthstead.command_archers",
+          "action": "hearthstead.guide.command.roles.k2"
+        },
+        {
+          "key": "key.hearthstead.command_spearmen",
+          "action": "hearthstead.guide.command.roles.k3"
+        },
+        {
+          "key": "key.hearthstead.command_longswordsmen",
+          "action": "hearthstead.guide.command.roles.k4"
+        },
+        {
+          "key": "key.hearthstead.command_mages",
+          "action": "hearthstead.guide.command.roles.k5"
+        },
+        {
+          "key": "key.hearthstead.command_healers",
+          "action": "hearthstead.guide.command.roles.k6"
+        }
+      ]
+    },
+    {
+      "id": "command.recall",
+      "title": "hearthstead.guide.command.recall.title",
+      "bullets": [
+        "hearthstead.guide.command.recall.b1",
+        "hearthstead.guide.command.recall.b2",
+        "hearthstead.guide.command.recall.b3"
+      ],
+      "tip": "hearthstead.guide.command.recall.tip",
+      "image_wanted": "Order strip open with defenders returning to their posts.",
+      "keys": [
+        {
+          "key": "key.hearthstead.command_knights",
+          "action": "hearthstead.guide.command.recall.k1",
+          "modifier": "key.sneak"
+        },
+        {
+          "key": "key.hearthstead.command_menu",
+          "action": "hearthstead.guide.command.recall.k2"
+        },
+        {
+          "key": "key.hearthstead.summon",
+          "action": "hearthstead.guide.command.recall.k3"
+        }
+      ]
+    }
+  ]
+}

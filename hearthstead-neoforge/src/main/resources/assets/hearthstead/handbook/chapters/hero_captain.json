@@ -1,0 +1,34 @@
+{
+  "id": "hero_captain",
+  "title": "hearthstead.guide.hero_captain.title",
+  "icon": "minecraft:iron_sword",
+  "pages": [
+    {
+      "id": "hero_captain.hero",
+      "title": "hearthstead.guide.hero_captain.hero.title",
+      "bullets": [
+        "hearthstead.guide.hero_captain.hero.b1",
+        "hearthstead.guide.hero_captain.hero.b2",
+        "hearthstead.guide.hero_captain.hero.b3"
+      ],
+      "tip": "hearthstead.guide.hero_captain.hero.tip",
+      "text": [
+        "hearthstead.guide.hero_captain.hero.more"
+      ]
+    },
+    {
+      "id": "hero_captain.specials",
+      "title": "hearthstead.guide.hero_captain.specials.title",
+      "bullets": [
+        "hearthstead.guide.hero_captain.specials.b1",
+        "hearthstead.guide.hero_captain.specials.b2",
+        "hearthstead.guide.hero_captain.specials.b3",
+        "hearthstead.guide.hero_captain.specials.b4"
+      ],
+      "tip": "hearthstead.guide.hero_captain.specials.tip",
+      "text": [
+        "hearthstead.guide.hero_captain.specials.more"
+      ]
+    }
+  ]
+}

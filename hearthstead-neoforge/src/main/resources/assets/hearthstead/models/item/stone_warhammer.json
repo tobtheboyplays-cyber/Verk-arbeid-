@@ -1,0 +1,17 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "base": {
+    "parent": "hearthstead:item/stone_warhammer_held"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "hearthstead:item/stone_warhammer_icon"
+    },
+    "ground": {
+      "parent": "hearthstead:item/stone_warhammer_icon"
+    },
+    "fixed": {
+      "parent": "hearthstead:item/stone_warhammer_icon"
+    }
+  }
+}

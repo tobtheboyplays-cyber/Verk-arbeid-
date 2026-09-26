@@ -1,0 +1,378 @@
+import java.nio.charset.StandardCharsets
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.security.MessageDigest
+import java.util.Locale
+import java.io.ByteArrayOutputStream
+
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.144'
+}
+
+group = 'com.hearthstead'
+version = mod_version
+
+if (mod_id.toString() != 'hearthstead'
+        || !(mod_version.toString() ==~ /[A-Za-z0-9._-]+/)) {
+    throw new GradleException('mod_id must be hearthstead and mod_version must be a safe artifact-name component')
+}
+
+// Give every built JAR an identity that can be traced back to one exact
+// module input snapshot. A commit alone is insufficient: two dirty worktrees
+// at the same HEAD used to both produce hearthstead-0.2.0.jar. Git supplies
+// the complete tracked + non-ignored-untracked module file set, while this
+// build reads and hashes the working-tree bytes that Gradle actually compiles.
+// Do not fall back to a generic "dirty" suffix: inability to enumerate or
+// read an input is a build failure, never a potentially stale artifact name.
+def gitRequired = { String... arguments ->
+    try {
+        def command = ['git'] + arguments.toList()
+        def process = new ProcessBuilder(command)
+            .directory(rootDir)
+            .start()
+        def stdout = new ByteArrayOutputStream()
+        def stderr = new ByteArrayOutputStream()
+        // waitForProcessOutput joins the stream copiers; consumeProcessOutput +
+        // waitFor() could read stdout before it was fully copied, which made
+        // builds fail at random with an empty root, invalid HEAD or truncated path.
+        process.waitForProcessOutput(stdout, stderr)
+        if (process.exitValue() != 0) {
+            throw new GradleException("Git identity command failed: ${arguments.join(' ')}: "
+                + new String(stderr.toByteArray(), StandardCharsets.UTF_8).take(400))
+        }
+        return stdout.toByteArray()
+    } catch (GradleException failure) {
+        throw failure
+    } catch (Exception failure) {
+        throw new GradleException("Git identity command could not run: ${arguments.join(' ')}", failure)
+    }
+}
+
+def decodeGitUtf8 = { byte[] bytes, String label ->
+    try {
+        return StandardCharsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+            .decode(ByteBuffer.wrap(bytes))
+            .toString()
+    } catch (Exception failure) {
+        throw new GradleException("Git identity ${label} is not valid UTF-8", failure)
+    }
+}
+
+def normalizeGitPath = { String path ->
+    // Git's -z format makes every byte except NUL legal on POSIX. This
+    // project is built on Windows/WSL, where a backslash cannot be a physical
+    // filename component; replacing it would collapse two identities. Reject
+    // it rather than normalising an ambiguous path.
+    if (path.indexOf('\\') >= 0) {
+        throw new GradleException("Git identity path contains an unsafe backslash: ${path}")
+    }
+    return path
+}
+
+def hearthsteadGitCommit = decodeGitUtf8(
+    gitRequired('rev-parse', '--verify', 'HEAD'), 'HEAD').trim()
+if (!(hearthsteadGitCommit ==~ /[0-9a-f]{40,64}/)) {
+    throw new GradleException('Git identity command returned an invalid HEAD')
+}
+def hearthsteadModulePrefix = 'hearthstead-neoforge/'
+def hearthsteadIdentityPathspecs = [
+    ':(top)hearthstead-neoforge/build.gradle',
+    ':(top)hearthstead-neoforge/gradle.properties',
+    ':(top)hearthstead-neoforge/settings.gradle',
+    ':(top)hearthstead-neoforge/gradlew',
+    ':(top)hearthstead-neoforge/gradlew.bat',
+    ':(top)hearthstead-neoforge/gradle/wrapper',
+    ':(top)hearthstead-neoforge/src'
+]
+def hearthsteadRepositoryRootText = decodeGitUtf8(
+    gitRequired('rev-parse', '--show-toplevel'), 'repository root').trim()
+if (hearthsteadRepositoryRootText.isEmpty()) {
+    throw new GradleException('Git identity command returned an empty repository root')
+}
+def hearthsteadRepositoryRoot
+def hearthsteadModuleRoot
+try {
+    hearthsteadRepositoryRoot = file(hearthsteadRepositoryRootText).toPath().toRealPath()
+    hearthsteadModuleRoot = hearthsteadRepositoryRoot.resolve('hearthstead-neoforge').toRealPath()
+    if (rootDir.toPath().toRealPath() != hearthsteadModuleRoot) {
+        throw new GradleException('Gradle root is not the canonical Hearthstead module directory')
+    }
+} catch (GradleException failure) {
+    throw failure
+} catch (Exception failure) {
+    throw new GradleException('Could not prove the canonical Hearthstead module directory', failure)
+}
+def hearthsteadIdentitySecretLike = { String relative ->
+    def lower = relative.toLowerCase(Locale.ROOT)
+    lower == "${hearthsteadModulePrefix}.env" \
+        || lower.startsWith("${hearthsteadModulePrefix}.env.") \
+        || lower ==~ /.*\.(pem|key|p12|pfx|jks)$/
+}
+def hearthsteadIdentityExcluded = { String relative ->
+    // Build/run/reports are generated state, never module inputs.
+    relative.startsWith("${hearthsteadModulePrefix}build/") \
+        || relative.startsWith("${hearthsteadModulePrefix}build-") \
+        || relative.startsWith("${hearthsteadModulePrefix}run/") \
+        || relative.startsWith("${hearthsteadModulePrefix}runs/") \
+        || relative.startsWith("${hearthsteadModulePrefix}reports/") \
+        || relative.startsWith("${hearthsteadModulePrefix}qa/reports/") \
+        || relative.startsWith("${hearthsteadModulePrefix}.gradle/") \
+        || relative.startsWith("${hearthsteadModulePrefix}.gradle-")
+}
+def hearthsteadEnumeratedPaths = decodeGitUtf8(gitRequired(
+    'ls-files', '--full-name', '-z', '--cached', '--others', '--exclude-standard', '--',
+    *hearthsteadIdentityPathspecs
+), 'module file list').split(String.valueOf((char) 0), -1)
+    .findAll { !it.isEmpty() }
+    .collect { normalizeGitPath(it) }
+    .findAll { it.startsWith(hearthsteadModulePrefix) }
+    .unique()
+    .sort()
+// `ls-files --cached` deliberately includes a tracked path deleted from the
+// working tree. Absence is a valid current snapshot (and must affect dirty
+// metadata), not an unreadable input that should make every deletion
+// unbuildable. Remove only paths Git proves deleted; every remaining listed
+// input must still be a physical regular file below.
+def hearthsteadDeletedPaths = decodeGitUtf8(gitRequired(
+    'ls-files', '--full-name', '-z', '--deleted', '--',
+    *hearthsteadIdentityPathspecs
+), 'deleted module file list').split(String.valueOf((char) 0), -1)
+    .findAll { !it.isEmpty() }
+    .collect { normalizeGitPath(it) }
+    .toSet()
+hearthsteadEnumeratedPaths = hearthsteadEnumeratedPaths.findAll {
+    !hearthsteadDeletedPaths.contains(it)
+}
+def hearthsteadSecretInputs = hearthsteadEnumeratedPaths.findAll {
+    hearthsteadIdentitySecretLike(it)
+}
+if (!hearthsteadSecretInputs.isEmpty()) {
+    throw new GradleException('Refusing to build with secret-like module inputs: '
+        + hearthsteadSecretInputs.join(', '))
+}
+def hearthsteadInputPaths = hearthsteadEnumeratedPaths.findAll {
+    !hearthsteadIdentityExcluded(it)
+}
+if (hearthsteadInputPaths.isEmpty()) {
+    throw new GradleException('No fingerprintable Hearthstead module inputs were found')
+}
+def hearthsteadDigest = MessageDigest.getInstance('SHA-256')
+def hearthsteadDigestPart = { byte[] bytes ->
+    hearthsteadDigest.update(Integer.toString(bytes.length).getBytes(StandardCharsets.UTF_8))
+    hearthsteadDigest.update((byte) ':')
+    hearthsteadDigest.update(bytes)
+    hearthsteadDigest.update((byte) 0)
+}
+hearthsteadDigestPart('hearthstead-module-input-v1'.getBytes(StandardCharsets.UTF_8))
+for (String relative : hearthsteadInputPaths) {
+    def input = hearthsteadRepositoryRoot.resolve(relative).normalize().toAbsolutePath()
+    try {
+        def attributes = Files.readAttributes(
+            input, BasicFileAttributes, LinkOption.NOFOLLOW_LINKS)
+        if (!input.startsWith(hearthsteadModuleRoot)
+                || !attributes.isRegularFile()
+                || attributes.isSymbolicLink()) {
+            throw new GradleException("Unsafe or missing Hearthstead module identity input: ${relative}")
+        }
+    } catch (GradleException failure) {
+        throw failure
+    } catch (Exception failure) {
+        throw new GradleException("Could not resolve Hearthstead module identity input: ${relative}", failure)
+    }
+    hearthsteadDigestPart(relative.getBytes(StandardCharsets.UTF_8))
+    hearthsteadDigestPart(Files.readAllBytes(input))
+}
+def hearthsteadInputHash = hearthsteadDigest.digest().collect { String.format('%02x', it & 0xff) }.join()
+if (!(hearthsteadInputHash ==~ /[0-9a-f]{64}/)) {
+    throw new GradleException('Could not derive a valid Hearthstead module input hash')
+}
+def hearthsteadChangedPaths = decodeGitUtf8(gitRequired(
+    'diff', '--name-only', '--no-ext-diff', '-z', 'HEAD', '--',
+    *hearthsteadIdentityPathspecs
+), 'changed module file list').split(String.valueOf((char) 0), -1)
+    .findAll { !it.isEmpty() }
+    .collect { normalizeGitPath(it) }
+def hearthsteadUntrackedPaths = decodeGitUtf8(gitRequired(
+    'ls-files', '--full-name', '-z', '--others', '--exclude-standard', '--',
+    *hearthsteadIdentityPathspecs
+), 'untracked module file list').split(String.valueOf((char) 0), -1)
+    .findAll { !it.isEmpty() }
+    .collect { normalizeGitPath(it) }
+def hearthsteadGitDirty = (hearthsteadChangedPaths + hearthsteadUntrackedPaths).any {
+    it.startsWith(hearthsteadModulePrefix)
+        && !hearthsteadIdentityExcluded(it)
+        && !hearthsteadIdentitySecretLike(it)
+}
+def hearthsteadShortCommit = hearthsteadGitCommit.take(12)
+def hearthsteadShortInputHash = hearthsteadInputHash.take(20)
+def hearthsteadBuildIdentity = "${mod_version}+g${hearthsteadShortCommit}.i${hearthsteadShortInputHash}"
+def hearthsteadArtifactFileName = "${mod_id}-${mod_version}-g${hearthsteadShortCommit}-i${hearthsteadShortInputHash}.jar"
+def generatedBuildInfoDir = layout.buildDirectory.dir('generated/resources/hearthsteadBuildInfo')
+def hearthsteadArtifactInfoFile = layout.buildDirectory.file('hearthstead-artifact.properties')
+
+def generateHearthsteadBuildInfo = tasks.register('generateHearthsteadBuildInfo') {
+    def outputFile = generatedBuildInfoDir.map { it.file('hearthstead-build.properties') }
+    inputs.property('version', mod_version)
+    inputs.property('gitCommit', hearthsteadGitCommit)
+    inputs.property('gitDirty', hearthsteadGitDirty)
+    inputs.property('inputHash', hearthsteadInputHash)
+    inputs.property('buildIdentity', hearthsteadBuildIdentity)
+    inputs.property('artifactFileName', hearthsteadArtifactFileName)
+    outputs.files(outputFile, hearthsteadArtifactInfoFile)
+    doLast {
+        def target = outputFile.get().asFile
+        target.parentFile.mkdirs()
+        target.setText(
+            "version=${mod_version}\n" +
+            "gitCommit=${hearthsteadGitCommit}\n" +
+            "gitDirty=${hearthsteadGitDirty}\n" +
+            "inputHash=${hearthsteadInputHash}\n" +
+            "artifactFileName=${hearthsteadArtifactFileName}\n" +
+            "buildIdentity=${hearthsteadBuildIdentity}\n",
+            'UTF-8')
+        def artifactTarget = hearthsteadArtifactInfoFile.get().asFile
+        artifactTarget.parentFile.mkdirs()
+        artifactTarget.setText(
+            "jarFileName=${hearthsteadArtifactFileName}\n" +
+            "gitCommit=${hearthsteadGitCommit}\n" +
+            "gitDirty=${hearthsteadGitDirty}\n" +
+            "inputHash=${hearthsteadInputHash}\n" +
+            "buildIdentity=${hearthsteadBuildIdentity}\n",
+            'UTF-8')
+    }
+}
+
+sourceSets.main.resources.srcDir(generatedBuildInfoDir)
+tasks.named('processResources').configure {
+    dependsOn(generateHearthsteadBuildInfo)
+}
+
+// Parallel QA lanes must never contend for or erase another lane's reports.
+// Pass -PhearthsteadBuildDir=<folder> to give a lane its own disposable
+// build tree; ordinary developer builds keep Gradle's default `build/`.
+if (project.hasProperty('hearthsteadBuildDir')) {
+    layout.buildDirectory = file(project.property('hearthsteadBuildDir'))
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+neoForge {
+    version = project.neoforge_version
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            def requestedNamespace = System.getenv('HSQA_GAMETEST_NAMESPACE')
+            def enabledNamespace = requestedNamespace ?: project.mod_id
+            def allowedNamespaces = [project.mod_id.toString(),
+                                     'hearthstead_active_perf']
+            if (!allowedNamespaces.contains(enabledNamespace.toString())) {
+                throw new GradleException('HSQA_GAMETEST_NAMESPACE must be exactly '
+                    + allowedNamespaces.join(' or ') + ', got '
+                    + enabledNamespace)
+            }
+            systemProperty 'neoforge.enabledGameTestNamespaces', enabledNamespace
+            // Decision tracing for the QA behaviour suite. The game runs in a
+            // forked JVM, so a -D on the Gradle command line never reaches it;
+            // it has to be declared on the run itself. Off unless the QA
+            // controller asks for it, and the trace path is passed explicitly
+            // so the controller never has to guess the run directory.
+            systemProperty 'hearthstead.qa.trace',
+                System.getenv('HSQA_TRACE') ? 'true' : 'false'
+            if (System.getenv('HSQA_TRACE_FILE')) {
+                systemProperty 'hearthstead.qa.traceFile', System.getenv('HSQA_TRACE_FILE')
+            }
+        }
+        configureEach {
+            logLevel = org.slf4j.event.Level.INFO
+        }
+        // QA playtest: jump the client straight into a prepared save instead
+        // of driving the world-creation menus with synthetic clicks.
+        client {
+            // Local copy-only convenience: open a named singleplayer save directly.
+            if (System.getenv('HSQA_SP')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument System.getenv('HSQA_SP')
+            }
+            if (System.getenv('HSQA_JOIN')) {
+                programArgument '--quickPlayMultiplayer'
+                programArgument System.getenv('HSQA_JOIN')
+            }
+            // The QA harness defaults to 1280x720 and may explicitly request
+            // its validated 1920x1080 profile for a real effective GUI scale
+            // 4 capture. options.txt's
+            // overrideWidth/overrideHeight do NOT control the initial GLFW
+            // window size on this launch path — the window still opened at
+            // vanilla's hardcoded 854x480 default even with those options
+            // set, which is what --width/--height (read directly by
+            // Main.java) actually control.
+            programArgument '--width'
+            programArgument(System.getenv('HSQA_DISPLAY_WIDTH') ?: '1280')
+            programArgument '--height'
+            programArgument(System.getenv('HSQA_DISPLAY_HEIGHT') ?: '720')
+        }
+    }
+
+    mods {
+        hearthstead {
+            sourceSet sourceSets.main
+        }
+    }
+
+    unitTest {
+        enable()
+        testedMod = mods.hearthstead
+    }
+}
+
+dependencies {
+    testImplementation(enforcedPlatform('org.junit:junit-bom:5.10.3'))
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.withType(org.gradle.api.tasks.bundling.AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+test {
+    useJUnitPlatform()
+}
+
+jar {
+    dependsOn(generateHearthsteadBuildInfo)
+    archiveFileName.set(hearthsteadArtifactFileName)
+    manifest {
+        attributes(
+            'Specification-Title'   : 'hearthstead',
+            'Specification-Vendor'  : 'Hearthstead',
+            'Specification-Version' : '1',
+            'Implementation-Title'  : 'Hearthstead',
+            'Implementation-Version': hearthsteadBuildIdentity,
+            'Implementation-Vendor' : 'Hearthstead',
+            'Hearthstead-Git-Commit': hearthsteadGitCommit,
+            'Hearthstead-Git-Dirty' : hearthsteadGitDirty.toString(),
+            'Hearthstead-Input-Hash' : hearthsteadInputHash,
+            'Hearthstead-Artifact-File': hearthsteadArtifactFileName,
+            'Hearthstead-Build-Identity': hearthsteadBuildIdentity
+        )
+    }
+}

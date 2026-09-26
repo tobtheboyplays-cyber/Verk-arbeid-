@@ -1,0 +1,94 @@
+[
+  {
+    "terminal_lines": [
+      "[16:07:48] [Server thread/INFO] [minecraft/GameTestServer]: ========= 1907 GAME TESTS COMPLETE IN 3.257 min ======================",
+      "[16:07:48] [Server thread/INFO] [minecraft/GameTestServer]: 9 required tests failed :(",
+      "FAILURE: Build failed with an exception.",
+      "BUILD FAILED in 3m 45s"
+    ],
+    "selection": "Terminal summaries plus first12 failure lines. Full local log identified by SHA; generated progress CSV has all188 ratio failures.",
+    "sha256": "36F42069FF4C42C8C57B4CF0693AD4AE0C4FCFEFDF21F498CD6195312E60EFF2",
+    "file": "pr5-broad-e4b79b1.log",
+    "bytes": 26990545,
+    "failure_examples": [
+      "[16:04:53] [Server thread/ERROR] [minecraft/LogTestReporter]: halberdspecialsfireandcooldown failed at -853742, -60, -8224614! HOOK_PULL: holds the HALBERD kit",
+      "[16:04:54] [Server thread/ERROR] [minecraft/LogTestReporter]: afreshtownwinsraidone failed at -853699, -60, -8224592! raid 1 must be winnable without deaths: defenders 1, civilians 0",
+      "[16:05:44] [Server thread/ERROR] [minecraft/LogTestReporter]: afisherfiftyblocksfromtheshorewalksthereandfishes failed at -853805, -60, -8221419! a far fisher must walk to the shore and fish; act=TRAVELING at BlockPos{x=-59, y=1, z=-37} route=fisher_chair_unreachable@80486 stop=NO_PATH",
+      "[16:05:44] [Server thread/ERROR] [minecraft/LogTestReporter]: asettleronthebalconycornerclimbsdowntheladder failed at -853689, -60, -8221419! the settler must get off the balcony, at BlockPos{x=-4, y=6, z=-5} route=nav:stuck@-853685, -54, -8221414->-853679, -57, -8221408@82234",
+      "[16:05:48] [Server thread/ERROR] [minecraft/LogTestReporter]: cottageregistersitselfthroughitsplaquewhendone failed at -853789, -60, -8221327! cottage completes, nothing skipped: SKIPPED [1] done 84/85 skipped 1 [-853778,-58,-8221318 minecraft:oak_door interior unreachable from -853778,-58,-8221317 cells=25 path=ok; ]",
+      "[16:06:11] [Server thread/ERROR] [minecraft/LogTestReporter]: wedgedfirstmerchantstillreachesthebanner failed at -853868, -60, -8219683! the first merchant is published",
+      "[16:06:26] [Server thread/ERROR] [minecraft/LogTestReporter]: alelevelsslowciviliansbutneverthewatch failed at -853868, -60, -8218903! one ale is a tipsy glow",
+      "[16:06:35] [Server thread/ERROR] [minecraft/LogTestReporter]: freshwarehouseisexactandcropwaitreplayconservesitems failed at -853641, -60, -8218299! the route proof must keep the controlled raid gate sealed and use its separate visitor door",
+      "[16:07:24] [Server thread/ERROR] [minecraft/LogTestReporter]: abuilderbuildsthefisheryondrylandandafisherworksit failed at -853673, -60, -8217505! the Builder finishes and the fishery registers: ACTIVE FETCHING [] done 54/562 skipped  | plaque no plaque yet | grounds Result[waterCount=0, shorePosition=null, direction=null, ready=false, loadedComplete=true, blocker=fisher_needs_connected_water]",
+      "[16:07:48] [Server thread/INFO] [minecraft/GameTestServer]: 9 required tests failed :(",
+      "FAILURE: Build failed with an exception.",
+      "BUILD FAILED in 3m 45s"
+    ]
+  },
+  {
+    "terminal_lines": [
+      "[15:47:18] [Server thread/INFO] [minecraft/GameTestServer]: ========= 194 GAME TESTS COMPLETE IN 37.78 min ======================",
+      "[15:47:18] [Server thread/INFO] [minecraft/GameTestServer]: 192 required tests failed :(",
+      "FAILURE: Build failed with an exception.",
+      "BUILD FAILED in 38m 1s"
+    ],
+    "selection": "Terminal summaries plus first12 failure lines. Full local log identified by SHA; generated progress CSV has all188 ratio failures.",
+    "sha256": "AFCC17290A9E675EBCF8FF357A66010EA0DA4D1A90A322DC4CEFF2D059CDDC21",
+    "file": "pr5-blueprints.log",
+    "bytes": 2138291,
+    "failure_examples": [
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_architects_study_large failed at 1832604, -60, -4808936! architects_study_large completes: ACTIVE FETCHING [] done 60/663",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_architects_study_rustic failed at 1832641, -60, -4808936! architects_study_rustic completes: ACTIVE FETCHING [] done 104/384",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_architects_study_small failed at 1832678, -60, -4808936! architects_study_small completes: ACTIVE FETCHING [] done 104/375",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_architects_study_stone failed at 1832715, -60, -4808936! architects_study_stone completes: ACTIVE FETCHING [] done 164/663",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_architects_study_timber failed at 1832752, -60, -4808936! architects_study_timber completes: ACTIVE FETCHING [] done 104/375",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_armoury_large failed at 1832789, -60, -4808936! armoury_large completes: ACTIVE FETCHING [] done 98/497",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_armoury_rustic failed at 1832826, -60, -4808936! armoury_rustic completes: ACTIVE FETCHING [] done 111/396",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_armoury_small failed at 1832863, -60, -4808936! armoury_small completes: ACTIVE FETCHING [] done 106/396",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_armoury_stone failed at 1832604, -60, -4808898! armoury_stone completes: ACTIVE FETCHING [] done 85/497",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_armoury_timber failed at 1832641, -60, -4808898! armoury_timber completes: ACTIVE FETCHING [] done 111/396",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_bakery_large failed at 1832678, -60, -4808898! bakery_large completes: ACTIVE FETCHING [] done 101/651",
+      "[15:16:59] [Server thread/ERROR] [minecraft/LogTestReporter]: scenario_blueprint_build_bakery_rustic failed at 1832715, -60, -4808898! bakery_rustic completes: ACTIVE FETCHING [] done 113/376"
+    ]
+  },
+  {
+    "terminal_lines": [
+      "1161 tests completed, 2 failed",
+      "FAILURE: Build failed with an exception.",
+      "BUILD FAILED in 37s"
+    ],
+    "selection": "Terminal summaries plus first12 failure lines. Full local log identified by SHA; generated progress CSV has all188 ratio failures.",
+    "sha256": "C9D6F48F924173F447B11365EDC0FAC1EE902E982FF2D2C6B3394FCF600E1BF2",
+    "file": "pr5-ced4d77-targeted.log",
+    "bytes": 1517,
+    "failure_examples": [
+      "1161 tests completed, 2 failed",
+      "FAILURE: Build failed with an exception.",
+      "BUILD FAILED in 37s"
+    ]
+  },
+  {
+    "terminal_lines": [
+      "[16:17:48] [Server thread/INFO] [minecraft/GameTestServer]: ========= 25 GAME TESTS COMPLETE IN 3.688 s ======================",
+      "[16:17:48] [Server thread/INFO] [minecraft/GameTestServer]: All 25 required tests passed :)",
+      "BUILD SUCCESSFUL in 30s"
+    ],
+    "selection": "Terminal summaries plus first12 failure lines. Full local log identified by SHA; generated progress CSV has all188 ratio failures.",
+    "sha256": "88B428E9001B4336348057ACF4FB99E76F0F9447A077BA2464BCA79EDBF2D639",
+    "file": "pr5-ced4d77-gametest.log",
+    "bytes": 31043,
+    "failure_examples": []
+  },
+  {
+    "terminal_lines": [
+      "[16:28:09] [Server thread/INFO] [minecraft/GameTestServer]: ========= 112 GAME TESTS COMPLETE IN 12.70 s ======================",
+      "[16:28:09] [Server thread/INFO] [minecraft/GameTestServer]: All 112 required tests passed :)",
+      "BUILD SUCCESSFUL in 52s"
+    ],
+    "selection": "Terminal summaries plus first12 failure lines. Full local log identified by SHA; generated progress CSV has all188 ratio failures.",
+    "sha256": "31F4912639DDDCFA1B2631AAD5C59BE63C0AA5F722B58646C643177A3B4F4347",
+    "file": "pr5-ui03-gametest.log",
+    "bytes": 240814,
+    "failure_examples": []
+  }
+]

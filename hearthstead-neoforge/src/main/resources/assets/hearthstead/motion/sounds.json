@@ -1,0 +1,5 @@
+{
+  "settler/guard_attention_snap": [
+    {"t": 0.28, "sound": "minecraft:block.wood.step", "volume": 0.35, "pitch_jitter": 0.04}
+  ]
+}

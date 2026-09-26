@@ -1,0 +1,5 @@
+Diagnostic excerpt, not full log. Original: duel-ticked.log
+[15:04:30] [Server thread/INFO] [hearthstead/]: CODEX_DUEL before tick=0 invulnerable=false ability=false alive=true duel=true
+[15:04:30] [Server thread/INFO] [hearthstead/]: CODEX_DUEL after hit=true hp=20.0 outcomes=[false]
+[15:04:30] [Server thread/INFO] [minecraft/GameTestServer]: All 1 required tests passed :)
+BUILD SUCCESSFUL in 16s

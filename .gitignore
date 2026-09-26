@@ -3,3 +3,12 @@ node_modules/
 server/users.json
 *.log
 .DS_Store
+
+# Isolated Minecraft build/runtime outputs
+**/.gradle*/
+**/build/
+/hearthstead-neoforge/run/
+/hearthstead-neoforge/world/
+/hearthstead-neoforge/logs/
+**/__pycache__/
+**/.venv/

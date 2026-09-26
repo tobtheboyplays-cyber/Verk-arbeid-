@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:wooden_short_sword",
+    "hearthstead:stone_short_sword",
+    "hearthstead:iron_short_sword",
+    "hearthstead:golden_short_sword",
+    "hearthstead:diamond_short_sword",
+    "hearthstead:netherite_short_sword"
+  ]
+}

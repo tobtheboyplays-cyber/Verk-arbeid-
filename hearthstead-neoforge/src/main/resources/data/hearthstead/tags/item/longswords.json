@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:iron_longsword",
+    "hearthstead:diamond_longsword",
+    "hearthstead:wooden_longsword",
+    "hearthstead:stone_longsword",
+    "hearthstead:golden_longsword",
+    "hearthstead:netherite_longsword"
+  ]
+}

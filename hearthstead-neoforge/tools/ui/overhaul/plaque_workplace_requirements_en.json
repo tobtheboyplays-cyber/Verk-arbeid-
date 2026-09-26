@@ -1,0 +1,74 @@
+{
+  "name": "Plaque — Lumber Camp requirements blocked",
+  "width": 640,
+  "height": 388,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 640, "h": 388},
+    {"t": "medallion", "x": 38, "y": 27, "radius": 20, "tone": "warn", "asset": "item/building_plaque.png", "icon_size": 20},
+    {"t": "title", "x": 70, "y": 10, "text": "Westwood Lumber Camp", "box": 260, "id": "title"},
+    {"t": "label", "x": 70, "y": 27, "text": "Building Plaque • workplace survey", "tone": "text_muted", "box": 270, "id": "screen_context"},
+    {"t": "badge", "x": 486, "y": 12, "w": 136, "h": 22, "text": "BLOCKED • 1 FIX", "tone": "warn", "id": "building_state"},
+    {"t": "divider", "x": 12, "y": 48, "w": 616},
+
+    {"t": "tab", "x": 12, "y": 54, "w": 192, "h": 22, "text": "Requirements", "selected": true},
+    {"t": "tab", "x": 208, "y": 54, "w": 150, "h": 22, "text": "Staff  1 / 2", "selected": false},
+
+    {"t": "frame", "x": 12, "y": 84, "w": 398, "h": 256, "surface": "inset", "tone": "warn", "inner_alpha": 44},
+    {"t": "section", "x": 28, "y": 98, "w": 366, "text": "WORKPLACE REQUIREMENTS • 4 / 5 READY", "tone": "warn", "id": "requirements_heading"},
+    {"t": "label", "x": 28, "y": 114, "text": "Every fixture has a real job in this workplace.", "tone": "text_muted", "box": 350, "id": "requirements_truth"},
+
+    {"t": "soft_panel", "x": 28, "y": 134, "w": 366, "h": 34, "tone": "good", "alpha": 14, "stroke_alpha": 125},
+    {"t": "vanilla_icon", "x": 36, "y": 141, "size": 20, "resource": "textures/block/crafting_table_front.png"},
+    {"t": "label", "x": 64, "y": 138, "text": "Crafting Table", "tone": "text_strong", "box": 108, "id": "workbench_name"},
+    {"t": "label", "x": 174, "y": 138, "text": "Emergency Wooden Axe crafting", "tone": "good", "box": 172, "id": "workbench_purpose"},
+    {"t": "badge", "x": 348, "y": 142, "w": 38, "h": 18, "text": "1 / 1", "tone": "good", "id": "workbench_count"},
+    {"t": "label", "x": 64, "y": 154, "text": "Uses stored planks + sticks when the axe is gone.", "tone": "text_muted", "box": 276, "id": "workbench_detail"},
+
+    {"t": "soft_panel", "x": 28, "y": 172, "w": 366, "h": 38, "tone": "bad", "alpha": 24, "stroke_alpha": 205},
+    {"t": "vanilla_icon", "x": 36, "y": 181, "size": 20, "resource": "textures/block/barrel_side.png"},
+    {"t": "label", "x": 64, "y": 176, "text": "Storage", "tone": "text_strong", "box": 108, "id": "storage_name"},
+    {"t": "label", "x": 174, "y": 176, "text": "Worker deposit • Courier pickup", "tone": "bad", "box": 172, "id": "storage_purpose"},
+    {"t": "badge", "x": 340, "y": 180, "w": 46, "h": 18, "text": "0 / 1", "tone": "bad", "id": "storage_count"},
+    {"t": "label", "x": 64, "y": 192, "text": "Missing: place one Chest or Barrel inside the room.", "tone": "warn", "box": 304, "id": "storage_detail"},
+
+    {"t": "soft_panel", "x": 28, "y": 214, "w": 366, "h": 30, "tone": "good", "alpha": 10, "stroke_alpha": 105},
+    {"t": "vanilla_icon", "x": 36, "y": 219, "size": 20, "resource": "textures/block/oak_door_bottom.png"},
+    {"t": "label", "x": 64, "y": 218, "text": "Door", "tone": "text_strong", "box": 108, "id": "door_name"},
+    {"t": "label", "x": 174, "y": 218, "text": "Reliable worker + Courier access", "tone": "text_muted", "box": 172, "id": "door_purpose"},
+    {"t": "badge", "x": 348, "y": 220, "w": 38, "h": 18, "text": "1 / 1", "tone": "good", "id": "door_count"},
+
+    {"t": "soft_panel", "x": 28, "y": 248, "w": 366, "h": 30, "tone": "good", "alpha": 10, "stroke_alpha": 105},
+    {"t": "vanilla_icon", "x": 36, "y": 253, "size": 20, "resource": "textures/block/lantern.png"},
+    {"t": "label", "x": 64, "y": 252, "text": "Light", "tone": "text_strong", "box": 108, "id": "light_name"},
+    {"t": "label", "x": 174, "y": 252, "text": "Required light for safe night work", "tone": "text_muted", "box": 172, "id": "light_purpose"},
+    {"t": "badge", "x": 348, "y": 254, "w": 38, "h": 18, "text": "1 / 1", "tone": "good", "id": "light_count"},
+
+    {"t": "soft_panel", "x": 28, "y": 282, "w": 366, "h": 42, "tone": "good", "alpha": 10, "stroke_alpha": 105},
+    {"t": "vanilla_icon", "x": 36, "y": 292, "size": 20, "resource": "textures/block/oak_planks.png"},
+    {"t": "label", "x": 64, "y": 286, "text": "Work floor", "tone": "text_strong", "box": 108, "id": "floor_name"},
+    {"t": "label", "x": 174, "y": 286, "text": "Room to work, stow and unload", "tone": "text_muted", "box": 172, "id": "floor_purpose"},
+    {"t": "badge", "x": 340, "y": 290, "w": 46, "h": 18, "text": "16 / 16", "tone": "good", "id": "floor_count"},
+    {"t": "label", "x": 64, "y": 304, "text": "Enclosed and roofed • bounded room confirmed", "tone": "good", "box": 284, "id": "room_shell_state"},
+
+    {"t": "frame", "x": 418, "y": 84, "w": 210, "h": 256, "surface": "window", "tone": "warn", "stroke": 2, "inner_alpha": 80},
+    {"t": "medallion", "x": 454, "y": 122, "radius": 24, "tone": "warn", "asset": "item/lumberer_emblem.png", "icon_size": 24},
+    {"t": "label", "x": 490, "y": 98, "text": "Lumber Camp", "tone": "text_strong", "box": 122, "id": "building_identity"},
+    {"t": "label", "x": 490, "y": 116, "text": "Linked • survey current", "tone": "text_muted", "box": 122, "id": "survey_state"},
+    {"t": "badge", "x": 490, "y": 136, "w": 118, "h": 18, "text": "REGISTRATION HELD", "tone": "warn", "id": "registration_state"},
+
+    {"t": "section", "x": 434, "y": 164, "w": 178, "text": "EXACT BLOCKER", "tone": "bad", "id": "blocker_heading"},
+    {"t": "soft_panel", "x": 434, "y": 182, "w": 178, "h": 58, "tone": "bad", "alpha": 20, "stroke_alpha": 180},
+    {"t": "label", "x": 446, "y": 190, "text": "Storage missing • 0 / 1", "tone": "bad", "box": 154, "id": "exact_blocker"},
+    {"t": "paragraph", "x": 446, "y": 208, "w": 154, "h": 24, "box": 154, "lines": 2, "text": "Place one Chest or Barrel inside this surveyed room.", "tone": "text", "id": "blocker_resolution"},
+
+    {"t": "section", "x": 434, "y": 246, "w": 178, "text": "REQUIRED ROLE", "tone": "accent", "id": "role_heading"},
+    {"t": "label", "x": 434, "y": 262, "text": "Lumberer • 1 / 2 posts filled", "tone": "text_strong", "box": 178, "id": "required_role"},
+    {"t": "paragraph", "x": 434, "y": 278, "w": 178, "h": 34, "box": 178, "lines": 3, "text": "Buy the Emblem from the Mayor. Use it on the settler you choose.", "tone": "text_muted", "id": "emblem_instruction"},
+
+    {"t": "button", "x": 434, "y": 312, "w": 178, "h": 24, "text": "Resurvey After Fix", "state": "hover"},
+
+    {"t": "divider", "x": 12, "y": 348, "w": 616},
+    {"t": "label", "x": 16, "y": 360, "text": "The Plaque reads physical blocks; no requirement is decorative.", "tone": "text_muted", "box": 454, "id": "authority_footer"},
+    {"t": "button", "x": 568, "y": 354, "w": 60, "h": 22, "text": "Close"}
+  ]
+}

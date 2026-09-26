@@ -1,0 +1,25 @@
+{
+  "id": "work_yards",
+  "title": "hearthstead.guide.work_yards.title",
+  "icon": "minecraft:oak_fence",
+  "pages": [
+    {
+      "id": "work_yards.setup",
+      "title": "hearthstead.guide.work_yards.setup.title",
+      "bullets": [
+        "hearthstead.guide.work_yards.setup.b1",
+        "hearthstead.guide.work_yards.setup.b2",
+        "hearthstead.guide.work_yards.setup.b3"
+      ],
+      "tip": "hearthstead.guide.work_yards.setup.tip",
+      "text": [
+        "hearthstead.guide.work_yards.setup.more"
+      ],
+      "items": [
+        "minecraft:oak_fence",
+        "minecraft:oak_fence_gate",
+        "hearthstead:plaque"
+      ]
+    }
+  ]
+}

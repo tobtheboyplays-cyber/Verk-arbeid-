@@ -1,0 +1,1082 @@
+[
+  {
+    "id": "time.dayLengthMultiplier",
+    "side": "server",
+    "section": "time",
+    "default": "2.0",
+    "does": "How many times longer a day lasts than vanilla (2 = 40 real minutes).",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "debug.workerWatchdog",
+    "side": "server",
+    "section": "debug",
+    "default": "false",
+    "does": "Logs stuck or idle workers for debugging; never changes gameplay.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.huntingGrounds",
+    "side": "server",
+    "section": "hunting",
+    "default": "true",
+    "does": "While a Hunter works, wild game slowly returns around the Lodge.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.gameCap",
+    "side": "server",
+    "section": "hunting",
+    "default": "8",
+    "does": "Hunting grounds stop spawning once this many wild animals live near a Lodge.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.spawnIntervalSeconds",
+    "side": "server",
+    "section": "hunting",
+    "default": "150",
+    "does": "At most one animal returns per Lodge in this many seconds.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.minPlayerDistance",
+    "side": "server",
+    "section": "hunting",
+    "default": "24",
+    "does": "Game never appears closer than this many blocks to a player.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.villageCoreRadius",
+    "side": "server",
+    "section": "hunting",
+    "default": "16",
+    "does": "No game spawns within this many blocks of the Banner.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.butcherTableSeconds",
+    "side": "server",
+    "section": "hunting",
+    "default": "5",
+    "does": "Seconds a new Hunter needs to butcher a carcass at a Butchering Table.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "hunting.fieldDressingSeconds",
+    "side": "server",
+    "section": "hunting",
+    "default": "12",
+    "does": "Seconds to butcher on the Lodge floor without a Butchering Table.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "raids.recurringRaidMinDays",
+    "side": "server",
+    "section": "raids",
+    "default": "3",
+    "does": "Fewest in-game days between one raid and the next.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "raids.recurringRaidMaxDays",
+    "side": "server",
+    "section": "raids",
+    "default": "4",
+    "does": "Most in-game days between one raid and the next.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "raids.skirmisherBaseHealth",
+    "side": "server",
+    "section": "raids",
+    "default": "28.0",
+    "does": "Health of an ordinary raid Skirmisher.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "raids.bruteBaseHealth",
+    "side": "server",
+    "section": "raids",
+    "default": "70.0",
+    "does": "Health of an ordinary raid Brute.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "raids.goblinThiefBaseHealth",
+    "side": "server",
+    "section": "raids",
+    "default": "20.0",
+    "does": "Health of a Goblin Thief.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "raids.enemyHealthMultiplier",
+    "side": "server",
+    "section": "raids",
+    "default": "1.0",
+    "does": "Multiplies every raider's health: 0.5 halves fight length, 2 doubles it.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardLightDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "1.0",
+    "does": "Damage of a Guard's light slash and combo links.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardHeavyDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "1.8",
+    "does": "Damage of a Guard's heavy overhead chop (it also staggers).",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardFinisherDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "1.5",
+    "does": "Damage of the third hit of a Guard's combo.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardShieldBashDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "0.35",
+    "does": "Damage of a Guard's shield bash (mostly an interrupt).",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardHeavyWindupTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "11",
+    "does": "Ticks from the start of a Guard heavy to its hit (20 ticks = 1 second).",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardLightCooldownTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "10",
+    "does": "Rest after a Guard's single light slash.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardHeavyCooldownTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "14",
+    "does": "Rest after a Guard's heavy.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardFinisherCooldownTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "20",
+    "does": "Rest after a Guard's combo finisher.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardShieldBashCooldownTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "80",
+    "does": "Ticks between two shield bashes by the same Guard.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.guardComboWindowTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "6",
+    "does": "Time a Guard has to reach the target again before a combo breaks.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.raiderLightDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "1.0",
+    "does": "Damage of a raider's light jab.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.raiderHeavyDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "2.4",
+    "does": "Damage of a raider's heavy smash, which staggers Guards.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.raiderHeavyWindupTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "18",
+    "does": "Ticks from the start of a raider heavy to its hit.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.raiderHeavyCooldownTicks",
+    "side": "server",
+    "section": "combat",
+    "default": "12",
+    "does": "Rest after a raider heavy.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.bruteHeavyChance",
+    "side": "server",
+    "section": "combat",
+    "default": "0.70",
+    "does": "Chance a Brute swings its heavy instead of its quick club.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.bruteClubDamageMultiplier",
+    "side": "server",
+    "section": "combat",
+    "default": "1.4",
+    "does": "Damage of a Brute's club slam.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "combat.bruteSlamRadiusScale",
+    "side": "server",
+    "section": "combat",
+    "default": "1.0",
+    "does": "Size of the shockwave when a Brute slams the ground.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "logistics.handCartPercent",
+    "side": "server",
+    "section": "logistics",
+    "default": "200",
+    "does": "Extra Courier load from the Hand Cart, in percent of the base trip.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "logistics.handCartRoughPercent",
+    "side": "server",
+    "section": "logistics",
+    "default": "15",
+    "does": "How much a hitched Hand Cart slows a Courier off-road, in percent.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "logistics.pavedRoadsPercent",
+    "side": "server",
+    "section": "logistics",
+    "default": "15",
+    "does": "Walking speed bonus on road blocks with Paved Roads, in percent.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.enabled",
+    "side": "server",
+    "section": "revive",
+    "default": "true",
+    "does": "In a raid at your settlement a lethal hit knocks you down; a teammate can revive you.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.soloDowned",
+    "side": "server",
+    "section": "revive",
+    "default": "false",
+    "does": "Also go down when no other player is near. Off: solo players die normally.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.bleedOutSeconds",
+    "side": "server",
+    "section": "revive",
+    "default": "50",
+    "does": "Seconds a downed player lasts before bleeding out.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.reviveSeconds",
+    "side": "server",
+    "section": "revive",
+    "default": "3.0",
+    "does": "Seconds a teammate holds use on you to revive you.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.reviveHealthPercent",
+    "side": "server",
+    "section": "revive",
+    "default": "30",
+    "does": "Health you get up with after a revive, in percent.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.postRaidGraceSeconds",
+    "side": "server",
+    "section": "revive",
+    "default": "60",
+    "does": "Seconds after a raid in which players still go down instead of dying.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "revive.raiderFinisherChance",
+    "side": "server",
+    "section": "revive",
+    "default": "0.12",
+    "does": "Chance a nearby raider breaks off to finish a downed player.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "finisher.enabled",
+    "side": "server",
+    "section": "finisher",
+    "default": "true",
+    "does": "Executions: finish a glowing, staggered enemy with the Command Knights key (R).",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "finisher.guardFinisherChance",
+    "side": "server",
+    "section": "finisher",
+    "default": "0.35",
+    "does": "Chance a Guard's finishing blow becomes a full execution.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "finisher.reach",
+    "side": "server",
+    "section": "finisher",
+    "default": "3.0",
+    "does": "How close you must be to start an execution, in blocks.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.builder",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: Builders, build orders and the Builder's Plan stop working.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.worldEvents",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: no world events (peddler, refugees, wolves and the rest) start.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.battleRoles",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: Spearmen, Longswordsmen, Healers and Rune Mages cannot be hired or fight.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.guardCommands",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: the command keys and summoning settlers stop working.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.warehouseLevels",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: no Warehouse levels, sorting or warehouse index.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.gearTiers",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: no settler gear tiers or tiered armour looks.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.characterSkins",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: settlers, visitors and raiders use the old plain skins.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.logisticsUpgrades",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: no sack tiers, hand carts or road speed bonus.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.conversations",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: no talk screens; visitors answer in chat and raids never parley.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.extendedTrades",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: hides the 4 specialization nodes and 15 trade emblems. Existing workers keep going.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.livingVillage",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: settlers stop greeting, barking lines, sheltering from rain and cheering.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.patrolRoutes",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: Guard squads walk ordinary rounds instead of your Patrol Map routes.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "features.captainWeapons",
+    "side": "server",
+    "section": "features",
+    "default": "true",
+    "does": "Off: short sword, double axe, halberd and warhammer lose their special traits.",
+    "file": "hearthstead-server.toml",
+    "source": "HearthsteadServerConfig.java"
+  },
+  {
+    "id": "events.frequency",
+    "side": "server",
+    "section": "events",
+    "default": "1.0",
+    "does": "How often small events happen (1 = about every other day, 0 = never).",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.peddler",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the peddler event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.refugees",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the refugees event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.minstrels",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the minstrels event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.field_fox",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the field fox event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.wolf_pack",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the wolf pack event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.wild_boar",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the wild boar event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.tavern_brawl",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the tavern brawl event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.brute_toll",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the brute toll event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.stray_dog",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the stray dog event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.caravan",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the caravan event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "events.rival_envoy",
+    "side": "server",
+    "section": "events",
+    "default": "true",
+    "does": "Off: the rival envoy event never happens.",
+    "file": "hearthstead-server.toml",
+    "source": "event/worldevent/WorldEventConfig.java"
+  },
+  {
+    "id": "captain.enabled",
+    "side": "server",
+    "section": "captain",
+    "default": "true",
+    "does": "Off: no hero Captain kit or specials (the title stays).",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "captain.renderScale",
+    "side": "server",
+    "section": "captain",
+    "default": "1.13",
+    "does": "How big the Captain is drawn; the hitbox stays normal.",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "captain.healthBonus",
+    "side": "server",
+    "section": "captain",
+    "default": "16.0",
+    "does": "Extra max health for the Captain.",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "captain.armorBonus",
+    "side": "server",
+    "section": "captain",
+    "default": "4.0",
+    "does": "Extra armour points for the Captain.",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "captain.damageBonus",
+    "side": "server",
+    "section": "captain",
+    "default": "2.0",
+    "does": "Extra attack damage for the Captain.",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "captain.knockbackResistance",
+    "side": "server",
+    "section": "captain",
+    "default": "0.5",
+    "does": "How well the Captain resists knockback (0 to 1).",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "captain.extraLoadouts",
+    "side": "server",
+    "section": "captain",
+    "default": "false",
+    "does": "Halberd and Warhammer loadouts for the Captain (hidden by default).",
+    "file": "hearthstead-server.toml",
+    "source": "entity/combat/captain/CaptainConfig.java"
+  },
+  {
+    "id": "conversations.raidParley",
+    "side": "server",
+    "section": "conversations",
+    "default": "true",
+    "does": "Raid captains halt before the charge so you can talk, pay, duel or refuse.",
+    "file": "hearthstead-server.toml",
+    "source": "conversation/ConversationConfig.java"
+  },
+  {
+    "id": "conversations.parleySeconds",
+    "side": "server",
+    "section": "conversations",
+    "default": "45",
+    "does": "Seconds a raid captain waits for someone to talk before charging.",
+    "file": "hearthstead-server.toml",
+    "source": "conversation/ConversationConfig.java"
+  },
+  {
+    "id": "conversations.talkTimeoutSeconds",
+    "side": "server",
+    "section": "conversations",
+    "default": "120",
+    "does": "An open conversation with no reply closes after this many seconds.",
+    "file": "hearthstead-server.toml",
+    "source": "conversation/ConversationConfig.java"
+  },
+  {
+    "id": "conversations.encounters",
+    "side": "server",
+    "section": "conversations",
+    "default": "true",
+    "does": "Walking up to a visitor pulls you into the talk. Off: right-click to talk.",
+    "file": "hearthstead-server.toml",
+    "source": "conversation/ConversationConfig.java"
+  },
+  {
+    "id": "economy.craftTimeMultiplier",
+    "side": "server",
+    "section": "economy",
+    "default": "3.0",
+    "does": "Every crafting batch takes this many times its base time.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.selfFetch",
+    "side": "server",
+    "section": "economy",
+    "default": "true",
+    "does": "A crafter with an empty bench walks to the Warehouse to fetch its own inputs.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.selfFetchAfterSeconds",
+    "side": "server",
+    "section": "economy",
+    "default": "20",
+    "does": "How long a bench stands empty before its crafter fetches for itself.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.selfFetchRadius",
+    "side": "server",
+    "section": "economy",
+    "default": "64",
+    "does": "A crafter only fetches from a Warehouse within this many blocks.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.selfFetchMaxItems",
+    "side": "server",
+    "section": "economy",
+    "default": "16",
+    "does": "Most items a crafter carries back in one fetch trip.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.workshopUpkeep",
+    "side": "server",
+    "section": "economy",
+    "default": "true",
+    "does": "Idle crafters tidy, mend tools and study their trade instead of wandering.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.upkeepSeconds",
+    "side": "server",
+    "section": "economy",
+    "default": "30",
+    "does": "Length of one upkeep session (gives 1 trade XP).",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.starvingWorkshopsFirst",
+    "side": "server",
+    "section": "economy",
+    "default": "true",
+    "does": "Couriers restock workshops that cannot work at all before the rest.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.courierDepositBundle",
+    "side": "server",
+    "section": "economy",
+    "default": "4",
+    "does": "Items a Courier puts into a chest per stow motion.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.hungerDrainMultiplier",
+    "side": "server",
+    "section": "economy",
+    "default": "0.75",
+    "does": "How fast settlers get hungry. Lower it if your village starves.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.merchantBuysCrafted",
+    "side": "server",
+    "section": "economy",
+    "default": "true",
+    "does": "The visiting merchant also buys crafted goods (bread, leather, ale, tools...).",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.merchantPurseBase",
+    "side": "server",
+    "section": "economy",
+    "default": "12",
+    "does": "Coins the merchant brings each visit before the village-size bonus.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.merchantPursePerFiveSettlers",
+    "side": "server",
+    "section": "economy",
+    "default": "2",
+    "does": "Extra Coins in the merchant's purse for every 5 settlers.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "economy.merchantPurseCap",
+    "side": "server",
+    "section": "economy",
+    "default": "40",
+    "does": "Most Coins the merchant ever brings on one visit.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/EconomyConfig.java"
+  },
+  {
+    "id": "quality.craftedQuality",
+    "side": "server",
+    "section": "quality",
+    "default": "true",
+    "does": "Crafted goods roll a grade from Basic to Legendary. Off: everything is Basic.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/QualityConfig.java"
+  },
+  {
+    "id": "quality.statBonuses",
+    "side": "server",
+    "section": "quality",
+    "default": "true",
+    "does": "Better grades give more durability, damage, toughness and saturation.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/QualityConfig.java"
+  },
+  {
+    "id": "quality.merchantPremiums",
+    "side": "server",
+    "section": "quality",
+    "default": "true",
+    "does": "The merchant pays more for higher-grade goods (up to 5 Coins a sale).",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/economy/QualityConfig.java"
+  },
+  {
+    "id": "techtree.enabled",
+    "side": "server",
+    "section": "techtree",
+    "default": "true",
+    "does": "The v3 tech tree at the Banner. Off: the old Development screen; learned nodes stay.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/techtree/TechTreeConfig.java"
+  },
+  {
+    "id": "techtree.studyTimeScale",
+    "side": "server",
+    "section": "techtree",
+    "default": "1.0",
+    "does": "Multiplier on study time for Town+ nodes (0 = learning is instant).",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/techtree/TechTreeConfig.java"
+  },
+  {
+    "id": "techtree.gateCrafting",
+    "side": "server",
+    "section": "techtree",
+    "default": "true",
+    "does": "Recipes listed by a tech node cannot be crafted until you learn it.",
+    "file": "hearthstead-server.toml",
+    "source": "settlement/techtree/TechTreeConfig.java"
+  },
+  {
+    "id": "attributes.effectStrength",
+    "side": "server",
+    "section": "attributes",
+    "default": "1.0",
+    "does": "How strongly settler attributes act in play (0 = off, 1 = as designed, max 2).",
+    "file": "hearthstead-server.toml",
+    "source": "entity/AttributeConfig.java"
+  },
+  {
+    "id": "pickupNotices.enabled",
+    "side": "client",
+    "section": "pickupNotices",
+    "default": "true",
+    "does": "Show a short \"+12 Oak Log\" notice when items enter your inventory.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "pickupNotices.maxRows",
+    "side": "client",
+    "section": "pickupNotices",
+    "default": "6",
+    "does": "Most pickup notice rows shown at once.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "pickupNotices.displaySeconds",
+    "side": "client",
+    "section": "pickupNotices",
+    "default": "4.0",
+    "does": "Seconds a pickup notice stays before fading.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "pickupNotices.position",
+    "side": "client",
+    "section": "pickupNotices",
+    "default": "BOTTOM_LEFT",
+    "does": "Screen corner the pickup notices stack from.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "motion.enabled",
+    "side": "client",
+    "section": "motion",
+    "default": "true",
+    "does": "Smoother settler animation. Off plays the original keyframes.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "motion.secondaryMotion",
+    "side": "client",
+    "section": "motion",
+    "default": "true",
+    "does": "Small follow-through: knees, elbows, turn lean, bag and tool lag.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "combat.cameraShake",
+    "side": "client",
+    "section": "combat",
+    "default": "true",
+    "does": "A short camera shake when a Brute slams the ground near you.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "finisher.glowParticles",
+    "side": "client",
+    "section": "finisher",
+    "default": "true",
+    "does": "Red sparks drift off a finishable enemy's glowing torso.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "finisher.firstPersonArms",
+    "side": "client",
+    "section": "finisher",
+    "default": "true",
+    "does": "In first person, your weapon follows the execution move.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "conversations.cameraFocus",
+    "side": "client",
+    "section": "conversations",
+    "default": "true",
+    "does": "Ease the camera onto the person you talk to.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "conversations.encounterCinematics",
+    "side": "client",
+    "section": "conversations",
+    "default": "true",
+    "does": "A short, skippable camera swoop and name card when you walk up to a visitor.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "ambient.barks",
+    "side": "client",
+    "section": "ambient",
+    "default": "true",
+    "does": "Short lines over settlers' heads (greetings, weather, work, a won raid).",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "ambient.gestures",
+    "side": "client",
+    "section": "ambient",
+    "default": "true",
+    "does": "Small gestures: waves, nods, cheers, shivers.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "ambient.worldLife",
+    "side": "client",
+    "section": "ambient",
+    "default": "true",
+    "does": "Chimney smoke, butterflies and birdsong around the village.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "particles.enabled",
+    "side": "client",
+    "section": "particles",
+    "default": "true",
+    "does": "Show Bannerhold's own particles.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "particles.intensity",
+    "side": "client",
+    "section": "particles",
+    "default": "1",
+    "does": "Particle amount: 0 subtle, 1 normal, 2 rich.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "audio.voiceVolume",
+    "side": "client",
+    "section": "audio",
+    "default": "1.0",
+    "does": "Volume of the gibberish character voices (0 = silent).",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "audio.ambienceBeds",
+    "side": "client",
+    "section": "audio",
+    "default": "true",
+    "does": "Quiet looping village ambience around your settlement.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  }
+]

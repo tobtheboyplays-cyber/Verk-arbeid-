@@ -1,0 +1,44 @@
+{
+  "name": "Plaque — Lodging move-in narrow worst case",
+  "width": 320,
+  "height": 404,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 320, "h": 404},
+    {"t": "medallion", "x": 32, "y": 27, "radius": 18, "tone": "good", "asset": "item/building_plaque.png", "icon_size": 18},
+    {"t": "title", "x": 60, "y": 10, "text": "Northwatch Riverside Lodging", "box": 202, "id": "title"},
+    {"t": "label", "x": 60, "y": 27, "text": "Housing Plaque • 4 / 5 beds used", "tone": "text_muted", "box": 226, "id": "building_state"},
+    {"t": "badge", "x": 252, "y": 10, "w": 56, "h": 18, "text": "1 FREE", "tone": "good", "id": "capacity_badge"},
+    {"t": "divider", "x": 12, "y": 48, "w": 296},
+
+    {"t": "tab", "x": 12, "y": 54, "w": 104, "h": 22, "text": "Residents  4", "selected": false},
+    {"t": "tab", "x": 120, "y": 54, "w": 92, "h": 22, "text": "Move In", "selected": true},
+    {"t": "tab", "x": 216, "y": 54, "w": 92, "h": 22, "text": "Requirements", "selected": false},
+
+    {"t": "frame", "x": 12, "y": 84, "w": 296, "h": 272, "surface": "inset", "tone": "accent", "inner_alpha": 46},
+    {"t": "section", "x": 28, "y": 98, "w": 264, "text": "CHOOSE WHO MOVES INTO BED 5", "tone": "accent", "id": "move_in_heading"},
+    {"t": "label", "x": 28, "y": 114, "text": "Home assignment never changes a settler's job.", "tone": "text_muted", "box": 264, "id": "housing_contract"},
+
+    {"t": "soft_panel", "x": 28, "y": 136, "w": 264, "h": 92, "tone": "good", "alpha": 20, "stroke_alpha": 185},
+    {"t": "medallion", "x": 56, "y": 170, "radius": 18, "tone": "good", "text": "AN", "text_tone": "text"},
+    {"t": "label", "x": 84, "y": 144, "text": "Aldith of Northwatch", "tone": "text_strong", "box": 188, "id": "candidate_1_name"},
+    {"t": "badge", "x": 220, "y": 162, "w": 58, "h": 18, "text": "READY", "tone": "good", "id": "candidate_1_state"},
+    {"t": "label", "x": 84, "y": 164, "text": "Sleeping at the Hearth", "tone": "warn", "box": 132, "id": "candidate_1_home"},
+    {"t": "label", "x": 40, "y": 190, "text": "Bed 5 is free and reachable.", "tone": "text_muted", "box": 238, "id": "candidate_1_detail"},
+    {"t": "button", "x": 40, "y": 202, "w": 238, "h": 22, "text": "Assign Aldith to Bed 5", "state": "hover"},
+
+    {"t": "soft_panel", "x": 28, "y": 236, "w": 264, "h": 78, "tone": "bad", "alpha": 16, "stroke_alpha": 150},
+    {"t": "medallion", "x": 56, "y": 270, "radius": 18, "tone": "warn", "text": "GY", "text_tone": "text"},
+    {"t": "label", "x": 84, "y": 244, "text": "Gislebert the Younger", "tone": "text_strong", "box": 188, "id": "candidate_2_name"},
+    {"t": "badge", "x": 210, "y": 264, "w": 68, "h": 18, "text": "BLOCKED", "tone": "bad", "id": "candidate_2_state"},
+    {"t": "label", "x": 84, "y": 264, "text": "Lives in another home", "tone": "text_muted", "box": 122, "id": "candidate_2_home"},
+    {"t": "label", "x": 40, "y": 292, "text": "Blocked: current Bed 2 is still occupied.", "tone": "bad", "box": 238, "id": "candidate_2_blocker"},
+
+    {"t": "section", "x": 28, "y": 324, "w": 264, "text": "BED CHECK", "tone": "good", "id": "bed_check_heading"},
+    {"t": "vanilla_icon", "x": 36, "y": 334, "size": 16, "resource": "textures/entity/bed/red.png"},
+    {"t": "label", "x": 60, "y": 336, "text": "Bed 5 • physical • unclaimed • reachable", "tone": "good", "box": 230, "id": "bed_check"},
+
+    {"t": "divider", "x": 12, "y": 364, "w": 296},
+    {"t": "label", "x": 16, "y": 376, "text": "Home only • employment stays.", "tone": "text_muted", "box": 218, "id": "housing_footer"},
+    {"t": "button", "x": 248, "y": 370, "w": 60, "h": 22, "text": "Close"}
+  ]
+}

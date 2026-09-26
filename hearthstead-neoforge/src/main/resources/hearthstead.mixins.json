@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.hearthstead.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CraftingMenuMixin",
+    "CrafterBlockMixin",
+    "CrafterMenuMixin",
+    "SlotMixin",
+    "SmithingMenuMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

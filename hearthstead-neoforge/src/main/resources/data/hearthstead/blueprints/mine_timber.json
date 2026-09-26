@@ -1,0 +1,124 @@
+{
+  "id": "mine_timber",
+  "name": "Mine Headframe (Whitewashed Timber)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mine",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber",
+  "requires": "builders_hut",
+  "group": "mine",
+  "size": [
+    13,
+    16,
+    13
+  ],
+  "ground_level": 5,
+  "eave_y": 9,
+  "plaque": {
+    "pos": [
+      10,
+      7,
+      1
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      5,
+      6,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 149
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 87
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 52
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 45
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 42
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 18
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 18
+    },
+    {
+      "item": "minecraft:white_concrete",
+      "count": 14
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 6
+    },
+    {
+      "item": "minecraft:rail",
+      "count": 6
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 6
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 6
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 5
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 5
+    },
+    {
+      "item": "minecraft:stripped_oak_log",
+      "count": 4
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:hopper",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 470,
+  "cells": 496
+}

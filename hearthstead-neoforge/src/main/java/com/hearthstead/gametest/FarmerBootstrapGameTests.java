@@ -1,0 +1,708 @@
+package com.hearthstead.gametest;
+
+import com.hearthstead.Hearthstead;
+import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.SettlerActivity;
+import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.registry.ModEntities;
+import com.hearthstead.registry.ModBlocks;
+import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.work.ContainerApproach;
+import com.hearthstead.settlement.workzone.WorkZone;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FarmBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
+
+/**
+ * The farmer's bootstrap (farmer audit 2026-08-25). Every pre-existing
+ * farmer test seeds its arena with a mature crop first, which is exactly
+ * the hole the audit found: with no crop anywhere, the old goal had no
+ * plant path at all -- the only setBlock-plant was the replant on a
+ * just-harvested tile, and tilling was gated on a crop that could only
+ * ever come from a harvest. These tests start from the empty state the
+ * player actually starts from: a valid farmhouse, seeds in its chest, and
+ * bare ground.
+ */
+@GameTestHolder(Hearthstead.MODID)
+@PrefixGameTestTemplate(false)
+public class FarmerBootstrapGameTests {
+
+    /** Same arena idiom as EffortGameTests: guaranteed-flat floor, cleared
+     *  air, 2-high perimeter wall (structure templates only reserve bounds;
+     *  their contents cannot be trusted). */
+    private static void buildArena(GameTestHelper helper, int size) {
+        for (int x = 0; x < size; x++) {
+            for (int z = 0; z < size; z++) {
+                boolean rim = x == 0 || z == 0 || x == size - 1 || z == size - 1;
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE_BRICKS);
+                for (int y = 1; y <= 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z),
+                        rim && y <= 2 ? Blocks.STONE_BRICKS.defaultBlockState()
+                                      : Blocks.AIR.defaultBlockState());
+                }
+            }
+        }
+    }
+
+    /** Registered with SettlementSavedData so settler.settlement() resolves
+     *  through the manager. Radius 6, small on purpose. */
+    private static Settlement settlement(GameTestHelper helper) {
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        Settlement s = new Settlement(UUID.randomUUID(), "Testholm",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        s.radius = 6;
+        data.settlements.put(s.id, s);
+        data.setDirty();
+        return s;
+    }
+
+    private static Building farmhouse(GameTestHelper helper, Settlement s, int x, int z) {
+        // Delegates to the one place that places the plaque a building
+        // needs to survive BuildingManager's sweep -- see GameTestFixtures
+        // (KF-021 / FLAKE-2, 2026-08-26).
+        return GameTestFixtures.register(helper, s, BuildingType.FARMHOUSE, x, z);
+    }
+
+    private static SettlerEntity farmer(GameTestHelper helper, Settlement s,
+                                        Building farmhouse, int x, int z) {
+        SettlerEntity settler = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(x, 1, z));
+        settler.setSettlerName("Astrid");
+        settler.bindTo(s.id, s.center);
+        s.putRecord(settler.getUUID(), "Astrid", Profession.NONE);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, farmhouse, settler).ok(),
+            "setup: the farmhouse must take its first farmer");
+        return settler;
+    }
+
+    private static Container chestAt(GameTestHelper helper, int x, int z) {
+        helper.setBlock(new BlockPos(x, 1, z), Blocks.CHEST);
+        return (Container) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(new BlockPos(x, 1, z)));
+    }
+
+    private static int countIn(Container container, net.minecraft.world.item.Item item) {
+        int total = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    private static int bagSeeds(SettlerEntity settler) {
+        int total = 0;
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.is(Items.WHEAT_SEEDS)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    private static int bagCount(SettlerEntity settler,
+                                net.minecraft.world.item.Item item) {
+        int total = 0;
+        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (stack.is(item)) {
+                total += stack.getCount();
+            }
+        }
+        return total;
+    }
+
+    // ---------------------------------------------------- the bootstrap ---
+
+    /**
+     * The headline: a fully valid farmhouse, seeds in the building's own
+     * chest, and NO crop anywhere in the world. The farmer must fetch
+     * seeds, till the tended plot without any pre-existing crop anchor,
+     * and give a fresh tile its first planting -- through WORK_PLANT, the
+     * first-planting clip, not the replant's WORK_SOW. Items are conserved
+     * exactly: every seed is in the chest, in the bag, or standing in the
+     * plot as a crop.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "farmer_bootstrap_day")
+    public void farmerBootstrapsABrandNewPlotFromChestSeeds(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        // The fresh farmer's 3x3 tended plot spans anchor +-1: rel 7..9.
+        // Dirt there, and NOTHING planted anywhere -- the exact state every
+        // older farmer test papered over with a pre-placed mature crop.
+        for (int x = 7; x <= 9; x++) {
+            for (int z = 7; z <= 9; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.DIRT);
+            }
+        }
+        // The farmhouse's own chest: inside the building bounds (anchor +0..3),
+        // outside the plot, holding the starter seeds a player would stock.
+        Container chest = chestAt(helper, 10, 10);
+        chest.setItem(0, new ItemStack(Items.WHEAT_SEEDS, 16));
+        chest.setItem(1, new ItemStack(Items.IRON_HOE));
+        SettlerEntity astrid = farmer(helper, s, house, 8, 8);
+        // FLAKE-1 (2026-08-26): DEXTERITY is rolled from the entity's own
+        // unseeded RandomSource, so it differs every run. This test's "3x3
+        // plot spans anchor +-1: rel 7..9" comment above is only true below
+        // the tended-plot formula's first widening threshold (20 DEXTERITY;
+        // see FarmerWorkGoal#tendedHalfSide) -- a fresh roll is capped under
+        // that today (SettlerAttributes.START_CAP=15), but this test is
+        // about the bootstrap, not about what regime a fresh roll happens to
+        // land in, so it pins the one number it actually depends on instead
+        // of inheriting that invariant implicitly from a constant it does
+        // not otherwise reference.
+        astrid.attributes().pinForTest(com.hearthstead.entity.Attribute.DEXTERITY, 10);
+
+        final boolean[] sawFirstPlantClip = {false};
+        helper.succeedWhen(() -> {
+            if (astrid.getActivity() == SettlerActivity.WORK_PLANT) {
+                sawFirstPlantClip[0] = true;
+            }
+            boolean tilled = false;
+            int crops = 0;
+            for (int x = 7; x <= 9; x++) {
+                for (int z = 7; z <= 9; z++) {
+                    if (helper.getBlockState(new BlockPos(x, 0, z)).is(Blocks.FARMLAND)) {
+                        tilled = true;
+                    }
+                    if (helper.getBlockState(new BlockPos(x, 1, z))
+                        .getBlock() instanceof CropBlock) {
+                        crops++;
+                    }
+                }
+            }
+            String diag = " [act=" + astrid.getActivity() + " pos=" + astrid.blockPosition()
+                + " bagSeeds=" + bagSeeds(astrid)
+                + " chestSeeds=" + countIn(chest, Items.WHEAT_SEEDS) + "]";
+            helper.assertTrue(tilled,
+                "a farmer with chest seeds must till the bare tended plot" + diag);
+            helper.assertTrue(crops >= 1,
+                "the freshly tilled plot must receive its FIRST planting -- a crop "
+                    + "must stand where there was never one before" + diag);
+            helper.assertTrue(sawFirstPlantClip[0],
+                "first planting must run through WORK_PLANT (FARM_PLANT clip), "
+                    + "not the replant's WORK_SOW" + diag);
+            // Chest truth: 16 seeds went in; every one is accounted for.
+            int accounted = countIn(chest, Items.WHEAT_SEEDS) + bagSeeds(astrid) + crops;
+            helper.assertTrue(accounted == 16,
+                "seeds must be conserved exactly (chest + bag + planted == 16), got "
+                    + accounted + diag);
+        });
+    }
+
+    // ------------------------------------------------------ the reserve ---
+
+    /**
+     * A full harvest-replant-deposit cycle must leave future seed in the
+     * exact linked Farmhouse storage. Loose, untagged bag seeds are ordinary
+     * output under the strict worker provenance contract; banking them and
+     * withdrawing one exact action-tagged planting input is the authority
+     * boundary this regression now pins.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "farmer_bootstrap_day")
+    public void depositHoldsBackTheSeedReserve(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+        // ONE mature crop inside the plot, on real farmland, so the cycle is
+        // deterministic: harvest, replant (one seed spent), then a deposit
+        // trip with wheat in the bag. Moisture 7 keeps watering out of it.
+        BlockPos cropRel = new BlockPos(9, 1, 8);
+        helper.setBlock(new BlockPos(9, 0, 8), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
+        SettlerEntity astrid = farmer(helper, s, house, 7, 7);
+        // Four loose seeds are deliberately ordinary physical stock. The
+        // Farmer must bank them, then withdraw only the exact planting input.
+        astrid.bag.addItem(new ItemStack(Items.WHEAT_SEEDS, 4));
+
+        helper.succeedWhen(() -> {
+            boolean hasWheat = countIn(storage, Items.WHEAT) > 0;
+            int storedSeeds = countIn(storage, Items.WHEAT_SEEDS);
+            BlockState replanted = helper.getBlockState(cropRel);
+            String diag = " [act=" + astrid.getActivity() + " pos=" + astrid.blockPosition()
+                + " bagSeeds=" + bagSeeds(astrid) + " storedSeeds=" + storedSeeds
+                + " crop=" + replanted + "]";
+            helper.assertTrue(hasWheat,
+                "the harvest must reach the farmhouse storage (the deposit cycle must complete)"
+                    + diag);
+            helper.assertTrue(replanted.is(Blocks.WHEAT)
+                    && replanted.getValue(CropBlock.AGE) < 7,
+                "the harvested tile must be replanted" + diag);
+            helper.assertTrue(storedSeeds >= 1,
+                "the exact Farmhouse must retain a future seed reserve after "
+                    + "banking loose output and consuming one planting input" + diag);
+        });
+    }
+
+    /**
+     * Regression for the old whole-settlement volume scan. The Hearth is in
+     * one corner while the farmhouse and its ripe outer field tile are far
+     * away. A field-scoped survey must notice the crop promptly; the former
+     * 84,681-offset cursor could leave this visible worker idle for tens of
+     * seconds even though the crop stood inside their own tended plot.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "farmer_bootstrap_day")
+    public void remoteFarmhouseCropIsNoticedPromptly(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+
+        BlockPos hearthRel = new BlockPos(1, 1, 1);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        BlockPos hearthAbs = helper.absolutePos(hearthRel);
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        Settlement settlement = new Settlement(UUID.randomUUID(),
+            "Langaker", hearthAbs);
+        settlement.radius = 20;
+        data.settlements.put(settlement.id, settlement);
+        data.setDirty();
+        if (helper.getLevel().getBlockEntity(hearthAbs)
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(settlement.id);
+        }
+
+        Building house = farmhouse(helper, settlement, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+        BlockPos cropRel = new BlockPos(13, 1, 13);
+        helper.setBlock(cropRel.below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        SettlerEntity astrid = farmer(helper, settlement, house, 9, 9);
+        astrid.attributes().pinForTest(
+            com.hearthstead.entity.Attribute.DEXTERITY, 100);
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "a farmer must notice a ripe crop in their remote tended field "
+                    + "within ten seconds (activity=" + astrid.getActivity()
+                    + ", pos=" + astrid.blockPosition()
+                    + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * A Farm Zone's height is real authority/headroom, but it must never make
+     * a distant crop wait behind hundreds of empty vertical voxels.  The crop
+     * at (14, 1, 14) is behind more than the old 512 nearest-first 3D samples
+     * of this 16x16x64 confirmed zone; the new floor/crop-column cursor must
+     * still reach it promptly. This focused scanner contract supplies one
+     * explicit serviceable tool so its strict deadline measures only column
+     * discovery and the absence of a per-batch idle cooldown. The separate
+     * integration test below retains the no-starting-tools acquisition path.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 20,
+        batch = "farmer_bootstrap_day")
+    public void tallConfirmedFarmFindsFarFloorCropWithoutIdleCooldown(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        s.radius = 20;
+        Building house = farmhouse(helper, s, 8, 8);
+        WorkZone tall = WorkZone.between(s.id, house.id, WorkZone.Type.FARM,
+            helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(0, 0, 0)),
+            helper.absolutePos(new BlockPos(15, 63, 15)), 2);
+        helper.assertTrue(house.commitWorkZone(1, tall),
+            "fixture: the tall confirmed Farm Zone must replace the default zone");
+
+        BlockPos cropRel = new BlockPos(14, 1, 14);
+        helper.setBlock(cropRel.below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        // Start beside the crop so this deadline isolates field discovery,
+        // rather than making normal path length part of a scan regression.
+        // The crop remains distant from the farmhouse scan origin.
+        SettlerEntity astrid = farmer(helper, s, house, 14, 14);
+        astrid.attributes().pinForTest(
+            com.hearthstead.entity.Attribute.DEXTERITY, 100);
+        astrid.setItemSlot(EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_HOE));
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue((astrid.getActivity() == SettlerActivity.SORTING
+                        && astrid.getPersistentData().getCompound("HearthsteadGroundedFieldBag").getLong("Crop")
+                            == helper.absolutePos(cropRel).asLong())
+                    || astrid.getActivity() == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "the far crop in a tall confirmed zone must be selected without "
+                    + "per-batch idle cooldown (activity=" + astrid.getActivity()
+                    + ", stop=" + astrid.logisticsStopReason()
+                    + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * Regression for the live "nothing workable" failure on terraced farms.
+     * WorkZone validation has always accepted a crop/soil pair at any height
+     * inside the confirmed volume, so the worker scanner must use the same 3D
+     * authority. The ripe wheat deliberately stands on a higher soil layer
+     * after the first scan batch; a min-Y-only or early-maintenance scan
+     * cannot see it.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "farmer_bootstrap_day")
+    public void confirmedFarmFindsMatureCropOnRaisedTerrace(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        s.radius = 20;
+        Building house = farmhouse(helper, s, 8, 8);
+        WorkZone terraced = WorkZone.between(s.id, house.id,
+            WorkZone.Type.FARM, helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(1, 0, 1)),
+            helper.absolutePos(new BlockPos(14, 4, 14)), 2);
+        helper.assertTrue(house.commitWorkZone(1, terraced),
+            "fixture: the raised confirmed Farm Zone must be valid");
+
+        // One low dirt tile deliberately enters the maintenance queue in the
+        // first 512-cell batch. The high-priority ripe crop starts after that
+        // batch (14*14*2 + column 134 = cursor 526), proving lower-priority
+        // work cannot stop the resumable height scan early.
+        helper.setBlock(new BlockPos(2, 0, 2), Blocks.DIRT);
+        // GameTestFixtures.register() keeps the Farmhouse live through its
+        // plaque at (8,2,8) and its south support at (8,2,9). This raised
+        // terrace deliberately begins at x=9 so it cannot replace either
+        // fixture authority block while still supporting the crop and stand.
+        for (int x = 9; x <= 11; x++) {
+            for (int z = 8; z <= 10; z++) {
+                helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE_BRICKS);
+            }
+        }
+        helper.assertBlockPresent(ModBlocks.PLAQUE.get(), new BlockPos(8, 2, 8));
+        BlockPos cropRel = new BlockPos(10, 3, 9);
+        helper.setBlock(cropRel.below(),
+            Blocks.FARMLAND.defaultBlockState()
+                .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        SettlerEntity astrid = farmer(helper, s, house, 9, 9);
+        BlockPos terraceStand = helper.absolutePos(new BlockPos(9, 3, 9));
+        astrid.setPos(terraceStand.getX() + 0.5D, terraceStand.getY(),
+            terraceStand.getZ() + 0.5D);
+        astrid.setItemSlot(EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_HOE));
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(astrid.getActivity()
+                    == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "a mature crop on any authorised zone height must be selected "
+                    + "instead of reporting no workable target (activity="
+                    + astrid.getActivity() + ", stop="
+                    + astrid.logisticsStopReason() + ", route="
+                    + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * Full no-starting-tools companion to the strict scan test above. The
+     * Farmer begins empty-handed, walks to the linked Farmhouse chest, performs
+     * the ordinary physical pickup, and only then discovers the same distant
+     * crop in the tall zone. A first-mutation latch prevents later proximity
+     * from masking a remote tool transfer.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 240,
+        batch = "farmer_bootstrap_day")
+    public void tallConfirmedFarmFetchesToolThenFindsFarFloorCrop(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        s.radius = 20;
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+
+        WorkZone tall = WorkZone.between(s.id, house.id, WorkZone.Type.FARM,
+            helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(0, 0, 0)),
+            helper.absolutePos(new BlockPos(15, 63, 15)), 2);
+        helper.assertTrue(house.commitWorkZone(1, tall),
+            "fixture: the tall confirmed Farm Zone must replace the default zone");
+
+        BlockPos cropRel = new BlockPos(14, 1, 14);
+        helper.setBlock(cropRel.below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+        SettlerEntity astrid = farmer(helper, s, house, 14, 14);
+        astrid.attributes().pinForTest(
+            com.hearthstead.entity.Attribute.DEXTERITY, 100);
+        helper.assertTrue(astrid.getMainHandItem().isEmpty(),
+            "no-starting-tools integration fixture must begin empty-handed");
+
+        BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
+        boolean[] firstToolMutationSeen = {false};
+        boolean[] firstToolPickupHadContact = {false};
+        helper.onEachTick(() -> {
+            if (!firstToolMutationSeen[0]
+                && astrid.getMainHandItem().is(Items.IRON_HOE)) {
+                firstToolMutationSeen[0] = true;
+                firstToolPickupHadContact[0] = ContainerApproach.inspect(
+                    helper.getLevel(), astrid, chest).canInteract();
+            }
+        });
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(firstToolMutationSeen[0]
+                    && firstToolPickupHadContact[0],
+                "the first hoe mutation must occur at physical Farmhouse "
+                    + "storage contact");
+            helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "after physical tool pickup, the far crop in the tall zone must "
+                    + "be selected without idle cooldown (activity="
+                    + astrid.getActivity() + ", route="
+                    + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * A full farmhouse may bounce a partial load back into the bag. That load
+     * can be smaller than the normal eight-item departure threshold, but it is
+     * still real produce and must remain a recoverable logistics obligation.
+     * The retry is deliberately delayed: a full chest must not make the goal
+     * rescan and reinsert every server tick.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 640,
+        batch = "farmer_storage_recovery")
+    public void partialProduceRecoversAfterFullStorageClears(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        for (int slot = 0; slot < storage.getContainerSize(); slot++) {
+            storage.setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+
+        SettlerEntity astrid = farmer(helper, s, house, 10, 9);
+        astrid.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_HOE));
+        astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
+
+        final String[] firstBlockedTrace = {null};
+        final long[] blockedAt = {-1};
+        final boolean[] capacityOpened = {false};
+        helper.onEachTick(() -> {
+            helper.assertTrue(countIn(storage,Items.WHEAT)+bagCount(astrid,Items.WHEAT)==3,
+                "full-target wait and retry must conserve every original wheat");
+            if(firstBlockedTrace[0]==null && astrid.routeFailureNote().startsWith("farmhouse_storage_full_or_changed@")) {
+                firstBlockedTrace[0]=astrid.routeFailureNote();blockedAt[0]=helper.getLevel().getGameTime();
+                helper.assertTrue(astrid.bagTransferPresentation().clock()==47
+                        && !astrid.bagTransferPresentation().committed(), "actual full target refuses before contact48");
+            }
+            if(blockedAt[0]>=0 && !capacityOpened[0]
+                    && helper.getLevel().getGameTime()-blockedAt[0]>=60) {
+                helper.assertTrue(firstBlockedTrace[0].equals(astrid.routeFailureNote()),
+                    "existing retry cooldown must not rewrite a full-target failure each tick: first="
+                        + firstBlockedTrace[0] + ", current=" + astrid.routeFailureNote());
+                // Model a real interruption moving the actor to another valid
+                // chest face. The sack and its uncommitted clock stay put.
+                BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
+                BlockPos anchor = astrid.bagTransferPresentation().bagAnchor();
+                BlockPos opposite = chest.north();
+                for (Direction direction : Direction.Plane.HORIZONTAL) {
+                    BlockPos face = chest.relative(direction);
+                    if (face.distSqr(anchor) > opposite.distSqr(anchor)) opposite = face;
+                }
+                astrid.setPos(opposite.getX() + 0.5D, opposite.getY(), opposite.getZ() + 0.5D);
+                helper.assertTrue(ContainerApproach.inspect(helper.getLevel(), astrid, chest).canInteract()
+                        && astrid.position().distanceToSqr(
+                            net.minecraft.world.phys.Vec3.atBottomCenterOf(anchor)) > 2.25D,
+                    "retry fixture must expose chest contact without contact with the retained sack");
+                helper.assertTrue(astrid.bagTransferPresentation().clock() == 47
+                        && !astrid.bagTransferPresentation().committed(),
+                    "interruption must preserve the original refused contact, not restart or prepay it");
+                storage.setItem(0,ItemStack.EMPTY);storage.setChanged();capacityOpened[0]=true;
+            }
+        });
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(capacityOpened[0] && firstBlockedTrace[0] != null && countIn(storage, Items.WHEAT) == 3
+                    && bagCount(astrid, Items.WHEAT) == 0,
+                "the sub-threshold remainder must retry after capacity returns "
+                    + "without duplication or loss (chest="
+                    + countIn(storage, Items.WHEAT) + ", bag="
+                    + bagCount(astrid, Items.WHEAT) + ", route="
+                    + astrid.routeFailureNote() + ", pos=" + astrid.position()
+                    + ", bagAnchor=" + astrid.bagTransferPresentation().bagAnchor()
+                    + ", clock=" + astrid.bagTransferPresentation().clock()
+                    + ", committed=" + astrid.bagTransferPresentation().committed()
+                    + ", opened=" + capacityOpened[0] + ")");
+            helper.assertTrue(countIn(storage, Items.COBBLESTONE) == (storage.getContainerSize() - 1) * 64,
+                "retry must preserve every unrelated stack after the one explicit capacity opening");
+        });
+    }
+
+    /**
+     * Regression for the live Farmhouse shape: the only storage is in a
+     * closed one-door room and flush with an interior corner. A carried load
+     * must make the farmer open the door, stand at a real exposed chest face
+     * and conserve the exact load instead of depositing through the wall or
+     * abandoning it as "unreachable".
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1600,
+        batch = "farmer_storage_fallback")
+    public void carriedProduceTriesAnotherChestAfterBlockedStorage(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        BlockPos lower = helper.absolutePos(new BlockPos(8, 1, 8));
+        BlockPos upper = helper.absolutePos(new BlockPos(14, 3, 14));
+        house.bounds = new net.minecraft.world.level.levelgen.structure.BoundingBox(
+            lower.getX(), lower.getY(), lower.getZ(), upper.getX(), upper.getY(), upper.getZ());
+        Container sealed = chestAt(helper, 9, 9);
+        Container reachable = chestAt(helper, 13, 13);
+        for (int x = 8; x <= 10; x++) for (int z = 8; z <= 10; z++) {
+            for (int y = 1; y <= 3; y++) {
+                if (x == 9 && z == 9 && y < 3) continue;
+                if (x == 8 && z == 8) continue; // retain the fixture's real plaque
+                helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+            }
+        }
+        SettlerEntity astrid = farmer(helper, s, house, 6, 9);
+        astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
+        boolean[] failedFirst = {false};
+        BlockPos openChest = helper.absolutePos(new BlockPos(13, 1, 13));
+        helper.onEachTick(() -> {
+            failedFirst[0] |= astrid.routeFailureNote().startsWith("farmhouse_storage_unreachable:");
+            helper.assertTrue(countIn(sealed, Items.WHEAT) == 0,
+                "an unreachable chest must never receive remote deposits");
+            helper.assertTrue(countIn(reachable, Items.WHEAT) + bagCount(astrid, Items.WHEAT) == 3,
+                "retrying another storage target must conserve the carried crop");
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(failedFirst[0], "the nearest sealed chest must exhaust its route first");
+            helper.assertTrue(countIn(reachable, Items.WHEAT) == 3 && bagCount(astrid, Items.WHEAT) == 0,
+                "the farmer must finish at the reachable alternative after a bounded retry");
+            var witness = astrid.lastStorageMutationWitness().orElse(null);
+            helper.assertTrue(witness != null && witness.target().equals(openChest)
+                    && witness.directContactCommit(),
+                "the alternative must be filled through actual same-tick physical contact");
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 500,
+        batch = "farmer_storage_recovery")
+    public void carriedProduceCrossesClosedDoorToFarmhouseStorage(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+
+        // 4x4 shell matching the fixture building bounds. The west-side oak
+        // door is the only opening; GameTestFixtures replaces the north-west
+        // upper wall block with the required real Plaque afterwards.
+        for (int x = 8; x <= 11; x++) {
+            for (int z = 8; z <= 11; z++) {
+                if (x != 8 && x != 11 && z != 8 && z != 11) {
+                    continue;
+                }
+                for (int y = 1; y <= 2; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                }
+            }
+        }
+        var lower = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.WEST)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        helper.setBlock(new BlockPos(8, 1, 10), lower);
+        helper.setBlock(new BlockPos(8, 2, 10), lower
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+
+        Building house = farmhouse(helper, s, 8, 8);
+        Container storage = chestAt(helper, 10, 10);
+        SettlerEntity astrid = farmer(helper, s, house, 6, 10);
+        astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
+
+        BlockPos door = helper.absolutePos(new BlockPos(8, 1, 10));
+        BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
+        boolean[] sawOpen = {false};
+        SettlerEntity.StorageMutationWitness[] firstMutation = {null};
+        helper.onEachTick(() -> {
+            BlockState doorState = helper.getLevel().getBlockState(door);
+            if (doorState.is(Blocks.OAK_DOOR)
+                && doorState.getValue(DoorBlock.OPEN)) {
+                sawOpen[0] = true;
+            }
+            if (firstMutation[0] == null) {
+                firstMutation[0] = astrid.lastStorageMutationWitness()
+                    .orElse(null);
+            }
+        });
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(sawOpen[0],
+                "the farmer must visibly open the only Farmhouse door");
+            SettlerEntity.StorageMutationWitness witness = firstMutation[0];
+            helper.assertTrue(witness != null
+                    && witness.target().equals(chest)
+                    && witness.directContactCommit()
+                    && witness.destinationBefore() == 0
+                    && witness.destinationAfter() == 1,
+                "the first authoritative chest mutation must carry the exact "
+                    + "same-tick CONTACT witness (witness=" + witness
+                    + ", contactNow=" + ContainerApproach.inspect(
+                        helper.getLevel(), astrid, chest).state()
+                    + ", pos=" + astrid.blockPosition()
+                    + ", chest=" + countIn(storage, Items.WHEAT)
+                    + ", bag=" + bagCount(astrid, Items.WHEAT)
+                    + ", route=" + astrid.routeFailureNote() + ")");
+            helper.assertTrue(countIn(storage, Items.WHEAT) == 3
+                    && bagCount(astrid, Items.WHEAT) == 0,
+                "the closed-door deposit must conserve all three wheat "
+                    + "(chest=" + countIn(storage, Items.WHEAT)
+                    + ", bag=" + bagCount(astrid, Items.WHEAT)
+                    + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+}

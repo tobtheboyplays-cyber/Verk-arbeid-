@@ -1,0 +1,834 @@
+[
+  {
+    "test": "duellosttothecaptainsblowreleasestheband",
+    "reason": "the captain's blow takes the player to the yield line: [] player hp 20.0"
+  },
+  {
+    "test": "craftingtableisgatedandcoopplayertwoshares",
+    "reason": "a wooden spear needs Spearmen on the crafting table too"
+  },
+  {
+    "test": "switchedoffrefusestherequest",
+    "reason": "fixture: window opens on stagger"
+  },
+  {
+    "test": "realauthoritativejourneyunlocksoneexactfirstraid",
+    "reason": "restoring follower footing must retry the same warned plan and seal one named captain, one BRUTE and three SKIRMISHER followers"
+  },
+  {
+    "test": "boartrotsbackintothewoodsunseen",
+    "reason": "wild boar: still walking out (entity.hearthstead.wild_boar at BlockPos{x=7233645, y=-50, z=-10211570})"
+  },
+  {
+    "test": "afisherfiftyblocksfromtheshorewalksthereandfishes",
+    "reason": "a far fisher must walk to the shore and fish; act=IDLE at BlockPos{x=-56, y=1, z=-38} route=fisher_chair_unreachable@79320 stop=NO_PATH"
+  },
+  {
+    "test": "asettleronthebalconycornerclimbsdowntheladder",
+    "reason": "the settler must get off the balcony, at BlockPos{x=-4, y=6, z=-5} route=nav:stuck@7233601, -54, -10210226->7233607, -57, -10210220@81252"
+  },
+  {
+    "test": "cottageregistersitselfthroughitsplaquewhendone",
+    "reason": "cottage completes, nothing skipped: SKIPPED [1] done 84/85 skipped 1 [7233724,-58,-10210184 minecraft:oak_door interior unreachable from 7233724,-58,-10210183 cells=25 path=ok; ]"
+  },
+  {
+    "test": "wedgedfirstmerchantstillreachesthebanner",
+    "reason": "the first merchant is published"
+  },
+  {
+    "test": "scenario_blueprint_build_architects_study_large",
+    "reason": "architects_study_large completes: ACTIVE FETCHING [] done 168/663"
+  },
+  {
+    "test": "scenario_blueprint_build_architects_study_rustic",
+    "reason": "architects_study_rustic completes: ACTIVE FETCHING [] done 106/384"
+  },
+  {
+    "test": "scenario_blueprint_build_architects_study_small",
+    "reason": "architects_study_small completes: ACTIVE FETCHING [] done 106/375"
+  },
+  {
+    "test": "scenario_blueprint_build_architects_study_stone",
+    "reason": "architects_study_stone completes: ACTIVE FETCHING [] done 66/663"
+  },
+  {
+    "test": "scenario_blueprint_build_architects_study_timber",
+    "reason": "architects_study_timber completes: ACTIVE FETCHING [] done 106/375"
+  },
+  {
+    "test": "scenario_blueprint_build_armoury_large",
+    "reason": "armoury_large completes: ACTIVE FETCHING [] done 85/497"
+  },
+  {
+    "test": "scenario_blueprint_build_armoury_rustic",
+    "reason": "armoury_rustic completes: ACTIVE FETCHING [] done 137/396"
+  },
+  {
+    "test": "scenario_blueprint_build_armoury_small",
+    "reason": "armoury_small completes: ACTIVE FETCHING [] done 118/396"
+  },
+  {
+    "test": "scenario_blueprint_build_armoury_stone",
+    "reason": "armoury_stone completes: ACTIVE FETCHING [] done 85/497"
+  },
+  {
+    "test": "scenario_blueprint_build_armoury_timber",
+    "reason": "armoury_timber completes: ACTIVE FETCHING [] done 99/396"
+  },
+  {
+    "test": "scenario_blueprint_build_bakery_large",
+    "reason": "bakery_large completes: ACTIVE FETCHING [] done 96/651"
+  },
+  {
+    "test": "scenario_blueprint_build_bakery_rustic",
+    "reason": "bakery_rustic completes: ACTIVE FETCHING [] done 108/376"
+  },
+  {
+    "test": "scenario_blueprint_build_bakery_small",
+    "reason": "bakery_small completes: ACTIVE FETCHING [] done 108/367"
+  },
+  {
+    "test": "scenario_blueprint_build_bakery_stone",
+    "reason": "bakery_stone completes: ACTIVE FETCHING [] done 125/651"
+  },
+  {
+    "test": "scenario_blueprint_build_bakery_timber",
+    "reason": "bakery_timber completes: ACTIVE FETCHING [] done 108/367"
+  },
+  {
+    "test": "scenario_blueprint_build_barracks_large",
+    "reason": "barracks_large completes: ACTIVE FETCHING [] done 111/1051"
+  },
+  {
+    "test": "scenario_blueprint_build_barracks_rustic",
+    "reason": "barracks_rustic completes: ACTIVE FETCHING [] done 84/583"
+  },
+  {
+    "test": "scenario_blueprint_build_barracks_small",
+    "reason": "barracks_small completes: ACTIVE FETCHING [] done 104/572"
+  },
+  {
+    "test": "scenario_blueprint_build_barracks_stone",
+    "reason": "barracks_stone completes: ACTIVE FETCHING [] done 111/1051"
+  },
+  {
+    "test": "scenario_blueprint_build_barracks_timber",
+    "reason": "barracks_timber completes: ACTIVE FETCHING [] done 125/572"
+  },
+  {
+    "test": "scenario_blueprint_build_brewery_large",
+    "reason": "brewery_large completes: ACTIVE FETCHING [] done 39/631"
+  },
+  {
+    "test": "scenario_blueprint_build_brewery_rustic",
+    "reason": "brewery_rustic completes: ACTIVE FETCHING [] done 118/398"
+  },
+  {
+    "test": "scenario_blueprint_build_brewery_small",
+    "reason": "brewery_small completes: ACTIVE FETCHING [] done 84/390"
+  },
+  {
+    "test": "scenario_blueprint_build_brewery_stone",
+    "reason": "brewery_stone completes: ACTIVE FETCHING [] done 106/631"
+  },
+  {
+    "test": "scenario_blueprint_build_brewery_timber",
+    "reason": "brewery_timber completes: ACTIVE FETCHING [] done 118/390"
+  },
+  {
+    "test": "scenario_blueprint_build_builders_hut_rustic",
+    "reason": "builders_hut_rustic completes: ACTIVE FETCHING [] done 124/331"
+  },
+  {
+    "test": "scenario_blueprint_build_builders_hut_small",
+    "reason": "builders_hut_small completes: ACTIVE FETCHING [] done 123/322"
+  },
+  {
+    "test": "scenario_blueprint_build_builders_hut_stone",
+    "reason": "builders_hut_stone completes: ACTIVE FETCHING [] done 23/512"
+  },
+  {
+    "test": "scenario_blueprint_build_builders_hut_timber",
+    "reason": "builders_hut_timber completes: ACTIVE FETCHING [] done 114/322"
+  },
+  {
+    "test": "scenario_blueprint_build_builders_hut_yard",
+    "reason": "builders_hut_yard completes: ACTIVE FETCHING [] done 31/512"
+  },
+  {
+    "test": "scenario_blueprint_build_butcher_large",
+    "reason": "butcher_large completes: ACTIVE FETCHING [] done 101/488"
+  },
+  {
+    "test": "scenario_blueprint_build_butcher_rustic",
+    "reason": "butcher_rustic completes: ACTIVE FETCHING [] done 63/379"
+  },
+  {
+    "test": "scenario_blueprint_build_butcher_small",
+    "reason": "butcher_small completes: ACTIVE FETCHING [] done 62/360"
+  },
+  {
+    "test": "scenario_blueprint_build_butcher_stone",
+    "reason": "butcher_stone completes: ACTIVE FETCHING [] done 54/488"
+  },
+  {
+    "test": "scenario_blueprint_build_butcher_timber",
+    "reason": "butcher_timber completes: ACTIVE FETCHING [] done 63/360"
+  },
+  {
+    "test": "scenario_blueprint_build_carpenter_large",
+    "reason": "carpenter_large completes: ACTIVE FETCHING [] done 116/435"
+  },
+  {
+    "test": "scenario_blueprint_build_carpenter_rustic",
+    "reason": "carpenter_rustic completes: ACTIVE FETCHING [] done 124/368"
+  },
+  {
+    "test": "scenario_blueprint_build_carpenter_small",
+    "reason": "carpenter_small completes: ACTIVE FETCHING [] done 124/359"
+  },
+  {
+    "test": "scenario_blueprint_build_carpenter_stone",
+    "reason": "carpenter_stone completes: ACTIVE FETCHING [] done 116/435"
+  },
+  {
+    "test": "scenario_blueprint_build_carpenter_timber",
+    "reason": "carpenter_timber completes: ACTIVE FETCHING [] done 124/359"
+  },
+  {
+    "test": "scenario_blueprint_build_dining_hall_large",
+    "reason": "dining_hall_large completes: ACTIVE FETCHING [] done 111/560"
+  },
+  {
+    "test": "scenario_blueprint_build_dining_hall_rustic",
+    "reason": "dining_hall_rustic completes: ACTIVE FETCHING [] done 200/400"
+  },
+  {
+    "test": "scenario_blueprint_build_dining_hall_small",
+    "reason": "dining_hall_small completes: ACTIVE FETCHING [] done 60/391"
+  },
+  {
+    "test": "scenario_blueprint_build_dining_hall_stone",
+    "reason": "dining_hall_stone completes: ACTIVE FETCHING [] done 23/560"
+  },
+  {
+    "test": "scenario_blueprint_build_dining_hall_timber",
+    "reason": "dining_hall_timber completes: ACTIVE FETCHING [] done 124/391"
+  },
+  {
+    "test": "scenario_blueprint_build_farmhouse_large",
+    "reason": "farmhouse_large completes: ACTIVE FETCHING [] done 59/732"
+  },
+  {
+    "test": "scenario_blueprint_build_farmhouse_rustic",
+    "reason": "farmhouse_rustic completes: ACTIVE FETCHING [] done 102/408"
+  },
+  {
+    "test": "scenario_blueprint_build_farmhouse_small",
+    "reason": "farmhouse_small completes: ACTIVE FETCHING [] done 102/401"
+  },
+  {
+    "test": "scenario_blueprint_build_farmhouse_stone",
+    "reason": "farmhouse_stone completes: ACTIVE FETCHING [] done 82/732"
+  },
+  {
+    "test": "scenario_blueprint_build_farmhouse_timber",
+    "reason": "farmhouse_timber completes: ACTIVE FETCHING [] done 99/401"
+  },
+  {
+    "test": "scenario_blueprint_build_fishery_large",
+    "reason": "fishery_large completes: ACTIVE FETCHING [] done 53/580"
+  },
+  {
+    "test": "scenario_blueprint_build_fishery_rustic",
+    "reason": "fishery_rustic completes: ACTIVE FETCHING [] done 54/570"
+  },
+  {
+    "test": "scenario_blueprint_build_fishery_small",
+    "reason": "fishery_small completes: ACTIVE FETCHING [] done 54/562"
+  },
+  {
+    "test": "scenario_blueprint_build_fishery_stone",
+    "reason": "fishery_stone completes: ACTIVE FETCHING [] done 53/580"
+  },
+  {
+    "test": "scenario_blueprint_build_fishery_timber",
+    "reason": "fishery_timber completes: ACTIVE FETCHING [] done 54/562"
+  },
+  {
+    "test": "scenario_blueprint_build_fletcher_large",
+    "reason": "fletcher_large completes: ACTIVE FETCHING [] done 97/494"
+  },
+  {
+    "test": "scenario_blueprint_build_fletcher_rustic",
+    "reason": "fletcher_rustic completes: ACTIVE FETCHING [] done 97/402"
+  },
+  {
+    "test": "scenario_blueprint_build_fletcher_small",
+    "reason": "fletcher_small completes: ACTIVE FETCHING [] done 96/393"
+  },
+  {
+    "test": "scenario_blueprint_build_fletcher_stone",
+    "reason": "fletcher_stone completes: ACTIVE FETCHING [] done 22/494"
+  },
+  {
+    "test": "scenario_blueprint_build_fletcher_timber",
+    "reason": "fletcher_timber completes: ACTIVE FETCHING [] done 101/393"
+  },
+  {
+    "test": "scenario_blueprint_build_house_cottage",
+    "reason": "house_cottage completes: ACTIVE FETCHING [] done 98/405"
+  },
+  {
+    "test": "scenario_blueprint_build_house_rustic",
+    "reason": "house_rustic completes: ACTIVE FETCHING [] done 72/413"
+  },
+  {
+    "test": "scenario_blueprint_build_house_stone",
+    "reason": "house_stone completes: ACTIVE FETCHING [] done 35/617"
+  },
+  {
+    "test": "scenario_blueprint_build_house_timber",
+    "reason": "house_timber completes: ACTIVE FETCHING [] done 97/405"
+  },
+  {
+    "test": "scenario_blueprint_build_house_two_storey",
+    "reason": "house_two_storey completes: ACTIVE FETCHING [] done 35/617"
+  },
+  {
+    "test": "scenario_blueprint_build_hunters_lodge_large",
+    "reason": "hunters_lodge_large completes: ACTIVE FETCHING [] done 125/427"
+  },
+  {
+    "test": "scenario_blueprint_build_hunters_lodge_rustic",
+    "reason": "hunters_lodge_rustic completes: ACTIVE FETCHING [] done 116/380"
+  },
+  {
+    "test": "scenario_blueprint_build_hunters_lodge_small",
+    "reason": "hunters_lodge_small completes: ACTIVE FETCHING [] done 116/372"
+  },
+  {
+    "test": "scenario_blueprint_build_hunters_lodge_stone",
+    "reason": "hunters_lodge_stone completes: ACTIVE FETCHING [] done 61/427"
+  },
+  {
+    "test": "scenario_blueprint_build_hunters_lodge_timber",
+    "reason": "hunters_lodge_timber completes: ACTIVE FETCHING [] done 116/372"
+  },
+  {
+    "test": "scenario_blueprint_build_infirmary_large",
+    "reason": "infirmary_large completes: ACTIVE FETCHING [] done 123/749"
+  },
+  {
+    "test": "scenario_blueprint_build_infirmary_rustic",
+    "reason": "infirmary_rustic completes: ACTIVE FETCHING [] done 118/430"
+  },
+  {
+    "test": "scenario_blueprint_build_infirmary_small",
+    "reason": "infirmary_small completes: ACTIVE FETCHING [] done 132/422"
+  },
+  {
+    "test": "scenario_blueprint_build_infirmary_stone",
+    "reason": "infirmary_stone completes: ACTIVE FETCHING [] done 23/749"
+  },
+  {
+    "test": "scenario_blueprint_build_infirmary_timber",
+    "reason": "infirmary_timber completes: ACTIVE FETCHING [] done 132/422"
+  },
+  {
+    "test": "scenario_blueprint_build_kitchen_large",
+    "reason": "kitchen_large completes: ACTIVE FETCHING [] done 109/421"
+  },
+  {
+    "test": "scenario_blueprint_build_kitchen_rustic",
+    "reason": "kitchen_rustic completes: ACTIVE FETCHING [] done 22/410"
+  },
+  {
+    "test": "scenario_blueprint_build_kitchen_small",
+    "reason": "kitchen_small completes: ACTIVE FETCHING [] done 23/403"
+  },
+  {
+    "test": "scenario_blueprint_build_kitchen_stone",
+    "reason": "kitchen_stone completes: ACTIVE FETCHING [] done 116/421"
+  },
+  {
+    "test": "scenario_blueprint_build_kitchen_timber",
+    "reason": "kitchen_timber completes: ACTIVE FETCHING [] done 23/403"
+  },
+  {
+    "test": "scenario_blueprint_build_library_large",
+    "reason": "library_large completes: ACTIVE FETCHING [] done 102/730"
+  },
+  {
+    "test": "scenario_blueprint_build_library_rustic",
+    "reason": "library_rustic completes: ACTIVE FETCHING [] done 111/412"
+  },
+  {
+    "test": "scenario_blueprint_build_library_small",
+    "reason": "library_small completes: ACTIVE FETCHING [] done 23/403"
+  },
+  {
+    "test": "scenario_blueprint_build_library_stone",
+    "reason": "library_stone completes: ACTIVE FETCHING [] done 39/730"
+  },
+  {
+    "test": "scenario_blueprint_build_library_timber",
+    "reason": "library_timber completes: ACTIVE FETCHING [] done 110/403"
+  },
+  {
+    "test": "scenario_blueprint_build_lodging_hall",
+    "reason": "lodging_hall completes: ACTIVE FETCHING [] done 152/682"
+  },
+  {
+    "test": "scenario_blueprint_build_lodging_rustic",
+    "reason": "lodging_rustic completes: ACTIVE FETCHING [] done 108/435"
+  },
+  {
+    "test": "scenario_blueprint_build_lodging_small",
+    "reason": "lodging_small completes: ACTIVE FETCHING [] done 117/426"
+  },
+  {
+    "test": "scenario_blueprint_build_lodging_stone",
+    "reason": "lodging_stone completes: ACTIVE FETCHING [] done 79/682"
+  },
+  {
+    "test": "scenario_blueprint_build_lodging_timber",
+    "reason": "lodging_timber completes: ACTIVE FETCHING [] done 126/426"
+  },
+  {
+    "test": "scenario_blueprint_build_lumber_camp_large",
+    "reason": "lumber_camp_large completes: ACTIVE FETCHING [] done 77/537"
+  },
+  {
+    "test": "scenario_blueprint_build_lumber_camp_rustic",
+    "reason": "lumber_camp_rustic completes: ACTIVE FETCHING [] done 60/344"
+  },
+  {
+    "test": "scenario_blueprint_build_lumber_camp_small",
+    "reason": "lumber_camp_small completes: ACTIVE FETCHING [] done 117/324"
+  },
+  {
+    "test": "scenario_blueprint_build_lumber_camp_stone",
+    "reason": "lumber_camp_stone completes: ACTIVE FETCHING [] done 76/537"
+  },
+  {
+    "test": "scenario_blueprint_build_lumber_camp_timber",
+    "reason": "lumber_camp_timber completes: ACTIVE FETCHING [] done 124/324"
+  },
+  {
+    "test": "scenario_blueprint_build_market_large",
+    "reason": "market_large completes: ACTIVE FETCHING [] done 112/705"
+  },
+  {
+    "test": "scenario_blueprint_build_market_rustic",
+    "reason": "market_rustic completes: ACTIVE FETCHING [] done 116/293"
+  },
+  {
+    "test": "scenario_blueprint_build_market_small",
+    "reason": "market_small completes: ACTIVE FETCHING [] done 126/293"
+  },
+  {
+    "test": "scenario_blueprint_build_market_stone",
+    "reason": "market_stone completes: ACTIVE FETCHING [] done 112/705"
+  },
+  {
+    "test": "scenario_blueprint_build_market_timber",
+    "reason": "market_timber completes: ACTIVE FETCHING [] done 126/293"
+  },
+  {
+    "test": "scenario_blueprint_build_mason_large",
+    "reason": "mason_large completes: ACTIVE FETCHING [] done 113/419"
+  },
+  {
+    "test": "scenario_blueprint_build_mason_rustic",
+    "reason": "mason_rustic completes: ACTIVE FETCHING [] done 105/313"
+  },
+  {
+    "test": "scenario_blueprint_build_mason_small",
+    "reason": "mason_small completes: ACTIVE FETCHING [] done 120/295"
+  },
+  {
+    "test": "scenario_blueprint_build_mason_stone",
+    "reason": "mason_stone completes: ACTIVE FETCHING [] done 118/419"
+  },
+  {
+    "test": "scenario_blueprint_build_mason_timber",
+    "reason": "mason_timber completes: ACTIVE FETCHING [] done 120/295"
+  },
+  {
+    "test": "scenario_blueprint_build_mill_large",
+    "reason": "mill_large completes: ACTIVE FETCHING [] done 62/584"
+  },
+  {
+    "test": "scenario_blueprint_build_mill_rustic",
+    "reason": "mill_rustic completes: ACTIVE FETCHING [] done 108/485"
+  },
+  {
+    "test": "scenario_blueprint_build_mill_small",
+    "reason": "mill_small completes: ACTIVE FETCHING [] done 108/465"
+  },
+  {
+    "test": "scenario_blueprint_build_mill_stone",
+    "reason": "mill_stone completes: ACTIVE FETCHING [] done 111/584"
+  },
+  {
+    "test": "scenario_blueprint_build_mill_timber",
+    "reason": "mill_timber completes: ACTIVE FETCHING [] done 108/465"
+  },
+  {
+    "test": "scenario_blueprint_build_mine_large",
+    "reason": "mine_large completes: ACTIVE FETCHING [] done 126/496"
+  },
+  {
+    "test": "scenario_blueprint_build_mine_rustic",
+    "reason": "mine_rustic completes: ACTIVE FETCHING [] done 63/492"
+  },
+  {
+    "test": "scenario_blueprint_build_mine_small",
+    "reason": "mine_small completes: ACTIVE FETCHING [] done 64/471"
+  },
+  {
+    "test": "scenario_blueprint_build_mine_stone",
+    "reason": "mine_stone completes: ACTIVE FETCHING [] done 128/496"
+  },
+  {
+    "test": "scenario_blueprint_build_mine_timber",
+    "reason": "mine_timber completes: ACTIVE FETCHING [] done 64/471"
+  },
+  {
+    "test": "scenario_blueprint_build_palisade_gate",
+    "reason": "palisade_gate skipped nothing: 7233745,-56,-10207734 minecraft:lantern interior defer; "
+  },
+  {
+    "test": "scenario_blueprint_build_palisade_segment",
+    "reason": "palisade_segment registers its palisade segment for the raid lane"
+  },
+  {
+    "test": "scenario_blueprint_build_pasture_large",
+    "reason": "pasture_large completes: ACTIVE FETCHING [] done 60/709"
+  },
+  {
+    "test": "scenario_blueprint_build_pasture_rustic",
+    "reason": "pasture_rustic completes: ACTIVE FETCHING [] done 93/892"
+  },
+  {
+    "test": "scenario_blueprint_build_pasture_small",
+    "reason": "pasture_small completes: ACTIVE FETCHING [] done 109/876"
+  },
+  {
+    "test": "scenario_blueprint_build_pasture_stone",
+    "reason": "pasture_stone completes: ACTIVE FETCHING [] done 81/709"
+  },
+  {
+    "test": "scenario_blueprint_build_pasture_timber",
+    "reason": "pasture_timber completes: ACTIVE FETCHING [] done 109/876"
+  },
+  {
+    "test": "scenario_blueprint_build_pike_yard_large",
+    "reason": "pike_yard_large completes: ACTIVE FETCHING [] done 89/1056"
+  },
+  {
+    "test": "scenario_blueprint_build_pike_yard_rustic",
+    "reason": "pike_yard_rustic completes: ACTIVE FETCHING [] done 125/557"
+  },
+  {
+    "test": "scenario_blueprint_build_pike_yard_small",
+    "reason": "pike_yard_small completes: ACTIVE FETCHING [] done 125/546"
+  },
+  {
+    "test": "scenario_blueprint_build_pike_yard_stone",
+    "reason": "pike_yard_stone completes: ACTIVE FETCHING [] done 89/1056"
+  },
+  {
+    "test": "scenario_blueprint_build_pike_yard_timber",
+    "reason": "pike_yard_timber completes: ACTIVE FETCHING [] done 125/546"
+  },
+  {
+    "test": "scenario_blueprint_build_rune_hall_large",
+    "reason": "rune_hall_large completes: ACTIVE FETCHING [] done 124/473"
+  },
+  {
+    "test": "scenario_blueprint_build_rune_hall_rustic",
+    "reason": "rune_hall_rustic completes: ACTIVE FETCHING [] done 117/397"
+  },
+  {
+    "test": "scenario_blueprint_build_rune_hall_small",
+    "reason": "rune_hall_small completes: ACTIVE FETCHING [] done 123/397"
+  },
+  {
+    "test": "scenario_blueprint_build_rune_hall_stone",
+    "reason": "rune_hall_stone completes: ACTIVE FETCHING [] done 126/473"
+  },
+  {
+    "test": "scenario_blueprint_build_rune_hall_timber",
+    "reason": "rune_hall_timber completes: ACTIVE FETCHING [] done 124/397"
+  },
+  {
+    "test": "scenario_blueprint_build_sawmill_large",
+    "reason": "sawmill_large completes: ACTIVE FETCHING [] done 93/443"
+  },
+  {
+    "test": "scenario_blueprint_build_sawmill_rustic",
+    "reason": "sawmill_rustic completes: ACTIVE FETCHING [] done 128/331"
+  },
+  {
+    "test": "scenario_blueprint_build_sawmill_small",
+    "reason": "sawmill_small completes: ACTIVE FETCHING [] done 64/331"
+  },
+  {
+    "test": "scenario_blueprint_build_sawmill_stone",
+    "reason": "sawmill_stone completes: ACTIVE FETCHING [] done 115/443"
+  },
+  {
+    "test": "scenario_blueprint_build_sawmill_timber",
+    "reason": "sawmill_timber completes: ACTIVE FETCHING [] done 64/331"
+  },
+  {
+    "test": "scenario_blueprint_build_school_large",
+    "reason": "school_large completes: ACTIVE FETCHING [] done 104/584"
+  },
+  {
+    "test": "scenario_blueprint_build_school_rustic",
+    "reason": "school_rustic completes: ACTIVE FETCHING [] done 84/541"
+  },
+  {
+    "test": "scenario_blueprint_build_school_small",
+    "reason": "school_small completes: ACTIVE FETCHING [] done 119/532"
+  },
+  {
+    "test": "scenario_blueprint_build_school_stone",
+    "reason": "school_stone completes: ACTIVE FETCHING [] done 64/584"
+  },
+  {
+    "test": "scenario_blueprint_build_smelter_large",
+    "reason": "smelter_large completes: ACTIVE FETCHING [] done 62/410"
+  },
+  {
+    "test": "scenario_blueprint_build_smelter_rustic",
+    "reason": "smelter_rustic completes: ACTIVE FETCHING [] done 120/324"
+  },
+  {
+    "test": "scenario_blueprint_build_smelter_small",
+    "reason": "smelter_small completes: ACTIVE FETCHING [] done 61/305"
+  },
+  {
+    "test": "scenario_blueprint_build_smelter_stone",
+    "reason": "smelter_stone completes: ACTIVE FETCHING [] done 70/410"
+  },
+  {
+    "test": "scenario_blueprint_build_smelter_timber",
+    "reason": "smelter_timber completes: ACTIVE FETCHING [] done 122/305"
+  },
+  {
+    "test": "scenario_blueprint_build_school_timber",
+    "reason": "school_timber completes: ACTIVE FETCHING [] done 137/532"
+  },
+  {
+    "test": "scenario_blueprint_build_smithy_large",
+    "reason": "smithy_large completes: ACTIVE FETCHING [] done 126/520"
+  },
+  {
+    "test": "scenario_blueprint_build_smithy_rustic",
+    "reason": "smithy_rustic completes: ACTIVE FETCHING [] done 123/416"
+  },
+  {
+    "test": "scenario_blueprint_build_smithy_small",
+    "reason": "smithy_small completes: ACTIVE FETCHING [] done 128/403"
+  },
+  {
+    "test": "scenario_blueprint_build_smithy_stone",
+    "reason": "smithy_stone completes: ACTIVE FETCHING [] done 125/520"
+  },
+  {
+    "test": "scenario_blueprint_build_smithy_timber",
+    "reason": "smithy_timber completes: ACTIVE FETCHING [] done 128/403"
+  },
+  {
+    "test": "scenario_blueprint_build_stone_gatehouse",
+    "reason": "stone_gatehouse completes: ACTIVE FETCHING [] done 110/432"
+  },
+  {
+    "test": "scenario_blueprint_build_stone_wall_gate",
+    "reason": "stone_wall_gate registers its gate segment for the raid lane"
+  },
+  {
+    "test": "scenario_blueprint_build_stone_wall_segment",
+    "reason": "stone_wall_segment registers its stone segment for the raid lane"
+  },
+  {
+    "test": "scenario_blueprint_build_sword_hall_large",
+    "reason": "sword_hall_large completes: ACTIVE FETCHING [] done 111/1052"
+  },
+  {
+    "test": "scenario_blueprint_build_sword_hall_rustic",
+    "reason": "sword_hall_rustic completes: ACTIVE FETCHING [] done 118/522"
+  },
+  {
+    "test": "scenario_blueprint_build_sword_hall_small",
+    "reason": "sword_hall_small completes: ACTIVE FETCHING [] done 119/506"
+  },
+  {
+    "test": "scenario_blueprint_build_sword_hall_stone",
+    "reason": "sword_hall_stone completes: ACTIVE FETCHING [] done 111/1052"
+  },
+  {
+    "test": "scenario_blueprint_build_sword_hall_timber",
+    "reason": "sword_hall_timber completes: ACTIVE FETCHING [] done 102/506"
+  },
+  {
+    "test": "scenario_blueprint_build_tannery_large",
+    "reason": "tannery_large completes: ACTIVE FETCHING [] done 123/462"
+  },
+  {
+    "test": "scenario_blueprint_build_tannery_rustic",
+    "reason": "tannery_rustic completes: ACTIVE FETCHING [] done 77/320"
+  },
+  {
+    "test": "scenario_blueprint_build_tannery_small",
+    "reason": "tannery_small completes: ACTIVE FETCHING [] done 66/301"
+  },
+  {
+    "test": "scenario_blueprint_build_tannery_stone",
+    "reason": "tannery_stone completes: ACTIVE FETCHING [] done 125/462"
+  },
+  {
+    "test": "scenario_blueprint_build_tannery_timber",
+    "reason": "tannery_timber completes: ACTIVE FETCHING [] done 59/301"
+  },
+  {
+    "test": "scenario_blueprint_build_tavern_inn",
+    "reason": "tavern_inn completes: ACTIVE FETCHING [] done 120/957"
+  },
+  {
+    "test": "scenario_blueprint_build_tavern_rustic",
+    "reason": "tavern_rustic completes: ACTIVE FETCHING [] done 93/566"
+  },
+  {
+    "test": "scenario_blueprint_build_tavern_small",
+    "reason": "tavern_small completes: ACTIVE FETCHING [] done 99/556"
+  },
+  {
+    "test": "scenario_blueprint_build_tavern_stone",
+    "reason": "tavern_stone completes: ACTIVE FETCHING [] done 23/957"
+  },
+  {
+    "test": "scenario_blueprint_build_tavern_timber",
+    "reason": "tavern_timber completes: ACTIVE FETCHING [] done 111/556"
+  },
+  {
+    "test": "scenario_blueprint_build_trading_post_large",
+    "reason": "trading_post_large completes: ACTIVE FETCHING [] done 111/616"
+  },
+  {
+    "test": "scenario_blueprint_build_trading_post_rustic",
+    "reason": "trading_post_rustic completes: ACTIVE FETCHING [] done 99/315"
+  },
+  {
+    "test": "scenario_blueprint_build_trading_post_small",
+    "reason": "trading_post_small completes: ACTIVE FETCHING [] done 110/306"
+  },
+  {
+    "test": "scenario_blueprint_build_trading_post_stone",
+    "reason": "trading_post_stone completes: ACTIVE FETCHING [] done 81/616"
+  },
+  {
+    "test": "scenario_blueprint_build_trading_post_timber",
+    "reason": "trading_post_timber completes: ACTIVE FETCHING [] done 110/306"
+  },
+  {
+    "test": "scenario_blueprint_build_warehouse_large",
+    "reason": "warehouse_large completes: ACTIVE FETCHING [] done 58/831"
+  },
+  {
+    "test": "scenario_blueprint_build_warehouse_rustic",
+    "reason": "warehouse_rustic completes: ACTIVE FETCHING [] done 88/393"
+  },
+  {
+    "test": "scenario_blueprint_build_warehouse_small",
+    "reason": "warehouse_small completes: ACTIVE FETCHING [] done 104/384"
+  },
+  {
+    "test": "scenario_blueprint_build_warehouse_stone",
+    "reason": "warehouse_stone completes: ACTIVE FETCHING [] done 90/831"
+  },
+  {
+    "test": "scenario_blueprint_build_warehouse_timber",
+    "reason": "warehouse_timber completes: ACTIVE FETCHING [] done 98/384"
+  },
+  {
+    "test": "scenario_blueprint_build_watchtower_stone",
+    "reason": "watchtower_stone completes: ACTIVE FETCHING [] done 64/375"
+  },
+  {
+    "test": "scenario_blueprint_build_weaver_large",
+    "reason": "weaver_large completes: ACTIVE FETCHING [] done 85/651"
+  },
+  {
+    "test": "scenario_blueprint_build_weaver_rustic",
+    "reason": "weaver_rustic completes: ACTIVE FETCHING [] done 111/421"
+  },
+  {
+    "test": "scenario_blueprint_build_weaver_small",
+    "reason": "weaver_small completes: ACTIVE FETCHING [] done 92/412"
+  },
+  {
+    "test": "scenario_blueprint_build_weaver_stone",
+    "reason": "weaver_stone completes: ACTIVE FETCHING [] done 84/651"
+  },
+  {
+    "test": "scenario_blueprint_build_watchtower_timber",
+    "reason": "watchtower_timber completes: ACTIVE FETCHING [] done 64/375"
+  },
+  {
+    "test": "scenario_blueprint_build_weaver_timber",
+    "reason": "weaver_timber completes: ACTIVE FETCHING [] done 111/412"
+  },
+  {
+    "test": "scenario_blueprint_build_well_large",
+    "reason": "well_large completes: ACTIVE FETCHING [] done 91/371"
+  },
+  {
+    "test": "scenario_blueprint_build_well_rustic",
+    "reason": "well_rustic completes: ACTIVE FETCHING [] done 100/207"
+  },
+  {
+    "test": "scenario_blueprint_build_well_small",
+    "reason": "well_small completes: ACTIVE FETCHING [] done 104/207"
+  },
+  {
+    "test": "scenario_blueprint_build_well_stone",
+    "reason": "well_stone completes: ACTIVE FETCHING [] done 84/371"
+  },
+  {
+    "test": "scenario_blueprint_build_well_timber",
+    "reason": "well_timber completes: ACTIVE FETCHING [] done 104/207"
+  },
+  {
+    "test": "switchedoffmidmovetheexecutionstillfinishescleanly",
+    "reason": "fixture: window opens on stagger"
+  },
+  {
+    "test": "paidbruteswalkoffandvanishonlyunseen",
+    "reason": "brute toll: still walking out (entity.hearthstead.raider at BlockPos{x=7233781, y=-50, z=-10206833})"
+  },
+  {
+    "test": "alelevelsslowciviliansbutneverthewatch",
+    "reason": "three ales: very drunk, -40% speed"
+  },
+  {
+    "test": "freshwarehouseisexactandcropwaitreplayconservesitems",
+    "reason": "the route proof must keep the controlled raid gate sealed and use its separate visitor door"
+  },
+  {
+    "test": "abuilderbuildsthefisheryondrylandandafisherworksit",
+    "reason": "the Builder finishes and the fishery registers: job com.hearthstead.settlement.builder.BuildJob@5ad3c0cd"
+  },
+  {
+    "test": "arealminercutsfasterwithminesmeltersmithy",
+    "reason": "the Miner with Mine, Smelter & Smithy and a diamond pick is faster: 1053 vs 1052 ticks for 8 blocks"
+  },
+  {
+    "test": "tributetheplayercannotaffordchangesnothing",
+    "reason": "a fresh raid with a player near halts for a parley"
+  }
+]

@@ -1,0 +1,43 @@
+{
+  "id": "raids",
+  "title": "hearthstead.guide.raids.title",
+  "icon": "minecraft:bell",
+  "pages": [
+    {
+      "id": "raids.p1",
+      "title": "hearthstead.guide.raids.p1.title",
+      "bullets": [
+        "hearthstead.guide.raids.p1.b1",
+        "hearthstead.guide.raids.p1.b2",
+        "hearthstead.guide.raids.p1.b3",
+        "hearthstead.guide.raids.p1.b4"
+      ],
+      "tip": "hearthstead.guide.raids.p1.tip",
+      "text": [
+        "hearthstead.guide.raids.body"
+      ]
+    },
+    {
+      "id": "raids.p2",
+      "title": "hearthstead.guide.raids.p2.title",
+      "bullets": [
+        "hearthstead.guide.raids.p2.b1",
+        "hearthstead.guide.raids.p2.b2",
+        "hearthstead.guide.raids.p2.b3"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.raids.p2.k1"
+        }
+      ],
+      "items": [
+        "minecraft:bell"
+      ],
+      "tip": "hearthstead.guide.raids.p2.tip",
+      "text": [
+        "hearthstead.guide.raids.body2"
+      ]
+    }
+  ]
+}

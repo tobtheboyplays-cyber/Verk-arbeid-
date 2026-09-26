@@ -1,0 +1,15 @@
+{
+  "commit": "1f01db1f3bf877d8baf66961f62575e04d7838df",
+  "source_sha256": {
+    "HearthBlock.java": "5db191239abace9abbb45f78f7a37dde1df6df317e742e3ebe73692193d484a8",
+    "HearthBlockEntity.java": "142dda69f2ea8d538bd0d25bbb1a5d4cba5ed79f9fce07aaf282390ef1385c3b"
+  },
+  "changed_classes": [
+    "com/hearthstead/block/HearthBlock.class",
+    "com/hearthstead/block/HearthBlockEntity.class",
+    "com/hearthstead/block/HearthBlock$1.class",
+    "com/hearthstead/block/HearthBlockEntity$2.class",
+    "com/hearthstead/block/HearthBlockEntity$1.class"
+  ],
+  "baseline": "configfix-da67b84"
+}

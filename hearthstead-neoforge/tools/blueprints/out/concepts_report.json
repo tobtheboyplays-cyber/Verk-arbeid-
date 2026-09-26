@@ -1,0 +1,322 @@
+[
+ {
+  "id": "lumber_camp_yard",
+  "type": "lumber_camp",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "YARD bounded=True area=62 covered=13 gates=1",
+   "doors 1/1",
+   "lights 3/1",
+   "floorSpace 62/16",
+   "workbench 1/1",
+   "storage 3/1"
+  ],
+  "walk": "OK",
+  "walk_missing": [],
+  "size": [
+   13,
+   6,
+   11
+  ],
+  "blocks": 195,
+  "name": "Woodcutter's Camp",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Forester: log piles and a sawbuck say \"lumber\" from afar",
+  "validation": "yard"
+ },
+ {
+  "id": "mine_headframe",
+  "type": "mine",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "YARD bounded=True area=95 covered=9 gates=1",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 95/20",
+   "ladder 6/3",
+   "storage 2/2"
+  ],
+  "walk": "OK",
+  "walk_missing": [],
+  "size": [
+   13,
+   16,
+   13
+  ],
+  "blocks": 327,
+  "name": "Mine Headframe",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Miner: the hut is a shaft head; the ladder going down is the identity",
+  "validation": "yard"
+ },
+ {
+  "id": "fishery_dock",
+  "type": "fishery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=349",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 349/16",
+   "fishing_water 24/20",
+   "rod_barrel 1/1",
+   "fishing_chair 1/1",
+   "fish_rack 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   11,
+   12
+  ],
+  "blocks": 508,
+  "name": "Fishing Dock",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Fisher: a hut on a dock over open water",
+  "validation": "room"
+ },
+ {
+  "id": "smithy_forge",
+  "type": "smithy",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "YARD bounded=True area=52 covered=17 gates=1",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 52/20",
+   "anvil 1/1",
+   "smithing_table 1/1",
+   "forge 2/1",
+   "storage 4/2"
+  ],
+  "walk": "OK",
+  "walk_missing": [],
+  "size": [
+   11,
+   13,
+   12
+  ],
+  "blocks": 324,
+  "name": "Open Forge",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Blacksmith: an open forge with a chimney you can see from the square",
+  "validation": "yard"
+ },
+ {
+  "id": "pasture_barn",
+  "type": "pasture",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=281",
+   "doors 2/1",
+   "lights 2/1",
+   "floorSpace 281/25",
+   "hay 5/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   20,
+   12,
+   14
+  ],
+  "blocks": 711,
+  "name": "Barn & Paddock",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Farmer/Herder: a barn + yard read as \"animals\" at a glance",
+  "validation": "room"
+ },
+ {
+  "id": "mill_windmill",
+  "type": "mill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=95",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 95/16",
+   "grindstone 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   10,
+   15,
+   11
+  ],
+  "blocks": 408,
+  "name": "Windmill",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies-style signature silhouette: the sails ARE the building",
+  "validation": "room"
+ },
+ {
+  "id": "tannery_yard",
+  "type": "tannery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "YARD bounded=True area=83 covered=18 gates=1",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 83/16",
+   "cauldron 3/2",
+   "storage 4/2"
+  ],
+  "walk": "OK",
+  "walk_missing": [],
+  "size": [
+   13,
+   6,
+   11
+  ],
+  "blocks": 190,
+  "name": "Tanner's Yard",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies crafter huts: the yard props (vats, frames) show the trade",
+  "validation": "yard"
+ },
+ {
+  "id": "barracks_drill_yard",
+  "type": "barracks",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=246",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 246/36",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   17
+  ],
+  "blocks": 440,
+  "name": "Barracks & Drill Yard",
+  "category": "military",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Barracks/Guard tower: the training yard makes it military",
+  "validation": "room"
+ },
+ {
+  "id": "mason_yard",
+  "type": "mason",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "YARD bounded=True area=83 covered=15 gates=1",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 83/20",
+   "dressed_stone 73/8",
+   "storage 3/2"
+  ],
+  "walk": "OK",
+  "walk_missing": [],
+  "size": [
+   13,
+   10,
+   11
+  ],
+  "blocks": 256,
+  "name": "Masons' Yard",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Stonemason: a yard of cut blocks + a crane reads \"masonry\"",
+  "validation": "yard"
+ },
+ {
+  "id": "bakery_oven",
+  "type": "bakery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=105",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 105/16",
+   "oven 2/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   9
+  ],
+  "blocks": 306,
+  "name": "Bakehouse & Bread Oven",
+  "category": "work",
+  "variant": "concept",
+  "preset": "Elmfield (job concept)",
+  "style": "concept",
+  "inspired": "MineColonies Baker: the oven is the building's face",
+  "validation": "room"
+ }
+]

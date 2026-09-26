@@ -1,0 +1,53 @@
+{
+  "id": "coins",
+  "title": "hearthstead.guide.coins.title",
+  "icon": "hearthstead:gold_coin",
+  "pages": [
+    {
+      "id": "coins.p1",
+      "title": "hearthstead.guide.coins.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/merchant.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.coins.p1.b1",
+        "hearthstead.guide.coins.p1.b2",
+        "hearthstead.guide.coins.p1.b3",
+        "hearthstead.guide.coins.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.coins.p1.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:gold_coin",
+        "minecraft:oak_log",
+        "minecraft:iron_ingot",
+        "minecraft:cod",
+        "minecraft:wheat"
+      ],
+      "tip": "hearthstead.guide.coins.p1.tip",
+      "text": [
+        "hearthstead.guide.coins.body"
+      ]
+    },
+    {
+      "id": "coins.p2",
+      "title": "hearthstead.guide.coins.p2.title",
+      "bullets": [
+        "hearthstead.guide.coins.p2.b1",
+        "hearthstead.guide.coins.p2.b2",
+        "hearthstead.guide.coins.p2.b3"
+      ],
+      "tip": "hearthstead.guide.coins.p2.tip",
+      "text": [
+        "hearthstead.guide.coins.body2"
+      ]
+    }
+  ]
+}

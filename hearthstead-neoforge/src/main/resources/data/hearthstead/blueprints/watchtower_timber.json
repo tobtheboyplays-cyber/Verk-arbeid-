@@ -1,0 +1,107 @@
+{
+  "id": "watchtower_timber",
+  "name": "Timber Watchtower",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": "watchtower",
+  "variant": "timber",
+  "style": "timber",
+  "preset": "Timber",
+  "requires": "defense_plans",
+  "group": "watchtower",
+  "size": [
+    9,
+    16,
+    9
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      5,
+      2,
+      5
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      4,
+      9,
+      4
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 91
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 80
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 56
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 54
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 25
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 25
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 20
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 7
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 6
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    }
+  ],
+  "block_count": 375,
+  "cells": 568,
+  "notes": [
+    "Guards climb the ladder and open the hatch to the lookout; the lookout is outside the room."
+  ]
+}

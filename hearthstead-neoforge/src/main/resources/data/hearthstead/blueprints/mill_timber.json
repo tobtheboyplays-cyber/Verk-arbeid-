@@ -1,0 +1,120 @@
+{
+  "id": "mill_timber",
+  "name": "Windmill (Whitewashed Timber)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mill",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber",
+  "requires": "builders_hut",
+  "group": "mill",
+  "size": [
+    10,
+    15,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      5,
+      2,
+      7
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      4,
+      1,
+      5
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:white_concrete",
+      "count": 106
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 92
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 80
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 59
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 25
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 20
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 20
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 16
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 16
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 10
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 5
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 3
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 3
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:grindstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 1
+    }
+  ],
+  "block_count": 465,
+  "cells": 639
+}

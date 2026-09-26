@@ -1,0 +1,10 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": ["  P", " S ", "S  "],
+  "key": { "P": { "tag": "minecraft:planks" }, "S": { "item": "minecraft:stick" } },
+  "result": {
+    "id": "hearthstead:wooden_spear",
+    "count": 1
+  }
+}

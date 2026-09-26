@@ -1,0 +1,31 @@
+{
+  "policy": "Only unmodified CC0 raw foley is stored below cc0_raw. Finished Hearthstead sounds are original layered and processed renders; no audio from another mod is used.",
+  "downloaded_utc": "2026-08-27T21:40:00Z",
+  "sources": [
+    {
+      "id": "kenney_impact_sounds_1_0",
+      "creator": "Kenney",
+      "title": "Impact Sounds 1.0",
+      "project_page": "https://kenney.nl/assets/impact-sounds",
+      "archive_url": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+      "archive_sha256": "029d734af1582474edf3a694d1b0cebc97c1c152f2f39fa34d4c2bafc5de77f8",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_raw_directory": "cc0_raw/kenney_impact",
+      "local_license": "cc0_raw/kenney_impact/LICENSE_KENNEY_IMPACT_CC0.txt"
+    },
+    {
+      "id": "kenney_rpg_audio",
+      "creator": "Kenney Vleugels",
+      "title": "RPG Audio",
+      "project_page": "https://kenney.nl/assets/rpg-audio",
+      "archive_url": "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip",
+      "archive_sha256": "6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "local_raw_directory": "cc0_raw/kenney_rpg",
+      "local_license": "cc0_raw/kenney_rpg/LICENSE_KENNEY_RPG_CC0.txt"
+    }
+  ]
+}
+

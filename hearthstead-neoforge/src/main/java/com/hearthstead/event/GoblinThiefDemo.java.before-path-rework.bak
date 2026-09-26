@@ -1,0 +1,273 @@
+package com.hearthstead.event;
+
+import com.hearthstead.Hearthstead;
+import com.hearthstead.entity.RaiderEntity;
+import com.hearthstead.registry.ModEntities;
+import com.hearthstead.registry.ModItems;
+import com.hearthstead.settlement.work.ContainerApproach;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.Container;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.goal.FloatGoal;
+import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BarrelBlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+
+/** Opt-in thief demonstration; synced identity selects the dedicated goblin presentation. */
+@EventBusSubscriber(modid = Hearthstead.MODID)
+public final class GoblinThiefDemo {
+    private static final String TAG = "HearthsteadGoblinThiefDemo";
+    private static final Map<RaiderEntity, Boolean> INSTALLED = new WeakHashMap<>();
+    private GoblinThiefDemo() {}
+
+    @SubscribeEvent public static void commands(RegisterCommandsEvent event) {
+        event.getDispatcher().register(Commands.literal("hearthsteadthiefdemo")
+            .requires(source -> source.hasPermission(2))
+            .then(Commands.argument("container", BlockPosArgument.blockPos())
+                .then(Commands.argument("spawn", BlockPosArgument.blockPos()).executes(context -> {
+                    var source = context.getSource();
+                    var thief = spawn(source.getLevel(),
+                        BlockPosArgument.getLoadedBlockPos(context, "container"),
+                        BlockPosArgument.getLoadedBlockPos(context, "spawn"));
+                    if (thief == null) {
+                        source.sendFailure(Component.literal("Use a loaded chest/barrel with Coins and a clear spawn 8-40 blocks away."));
+                        return 0;
+                    }
+                    source.sendSuccess(() -> Component.literal("Goblin thief demo started. Protect your Coins."), false);
+                    return 1;
+                }))));
+    }
+
+    public static RaiderEntity spawn(ServerLevel level, BlockPos target, BlockPos start) {
+        return spawn(level,target,start,null);
+    }
+    public static RaiderEntity spawnNatural(ServerLevel level, BlockPos target, BlockPos start, java.util.UUID settlement) {
+        if (settlement == null || !GoblinTheftDirector.targetStillOwned(level,settlement,target)) return null;
+        return spawn(level,target,start,settlement);
+    }
+    private static RaiderEntity spawn(ServerLevel level, BlockPos target, BlockPos start, java.util.UUID settlement) {
+        if (!level.getServer().isSameThread() || !level.hasChunkAt(target) || !level.hasChunkAt(start)
+            || target.distSqr(start) < 64 || target.distSqr(start) > 1600
+            || !level.getWorldBorder().isWithinBounds(start) || coins(level, target) == null) return null;
+        // Keep manual demonstrations isolated: at most one tagged thief near this container.
+        if (!level.getEntitiesOfClass(RaiderEntity.class, new net.minecraft.world.phys.AABB(target).inflate(64),
+                actor -> actor.isAlive() && actor.getPersistentData().contains(TAG)).isEmpty()) return null;
+        RaiderEntity thief = ModEntities.RAIDER.get().create(level);
+        if (thief == null) return null;
+        if (thief.getAttribute(Attributes.SCALE) != null) thief.getAttribute(Attributes.SCALE).setBaseValue(.65);
+        thief.getAttribute(Attributes.MAX_HEALTH).setBaseValue(12);
+        thief.setHealth(12);
+        thief.setCustomName(Component.literal("Goblin Thief"));
+        thief.setCustomNameVisible(true);
+        thief.setCanPickUpLoot(false);
+        thief.setPersistenceRequired();
+        thief.moveTo(start.getX() + .5, start.getY(), start.getZ() + .5, 0, 0);
+        thief.setOnGround(true);
+        if (!level.noCollision(thief) || !level.getFluidState(start).isEmpty()
+            || !level.getBlockState(start.below()).isFaceSturdy(level, start.below(), net.minecraft.core.Direction.UP)) return null;
+        CompoundTag state = new CompoundTag();
+        state.putLong("Target", target.asLong());
+        state.putLong("Escape", start.asLong());
+        state.putInt("Stage", 0);
+        state.putLong("StageStartedAt", level.getGameTime());
+        if (settlement != null) {
+            state.putUUID("NaturalSettlement",settlement);
+            if (level.players().stream().anyMatch(player -> player.isAlive() && !player.isSpectator()
+                && (player.distanceToSqr(thief) < 16*16 || player.hasLineOfSight(thief)))) return null;
+            var approach = ContainerApproach.moveMobToContact(level,thief,target,.8);
+            var path = thief.getNavigation().getPath();
+            if (!approach.startedPath() || path == null || !path.canReach()) return null;
+            for(int i=0;i<path.getNodeCount();i++) {
+                BlockPos node=path.getNodePos(i);
+                if (!level.hasChunkAt(node) || !level.hasChunkAt(node.below())) return null;
+                boolean door=level.getBlockState(node).is(net.minecraft.tags.BlockTags.WOODEN_DOORS);
+                if (!level.hasChunkAt(node) || !level.getFluidState(node).isEmpty()
+                    || !level.getFluidState(node.below()).isEmpty()
+                    || !level.getBlockState(node.below()).isFaceSturdy(level,node.below(),net.minecraft.core.Direction.UP)
+                    || (!door && !level.noCollision(thief,thief.getBoundingBox().move(
+                        node.getX()+.5-thief.getX(),node.getY()-thief.getY(),node.getZ()+.5-thief.getZ())))) return null;
+            }
+        }
+        thief.getPersistentData().put(TAG, state);
+        install(thief);
+        return level.addFreshEntity(thief) ? thief : null;
+    }
+
+    private static Container coins(ServerLevel level, BlockPos pos) {
+        if (!level.hasChunkAt(pos)) return null;
+        var block = level.getBlockEntity(pos);
+        if (!(block instanceof ChestBlockEntity || block instanceof BarrelBlockEntity)
+            || !(block instanceof Container container)) return null;
+        for (int slot = 0; slot < container.getContainerSize(); slot++)
+            if (container.getItem(slot).is(ModItems.GOLD_COIN.get())) return container;
+        return null;
+    }
+
+    /** One server-thread move of real items, guarded by the persisted telegraph and contact. */
+    public static int trySteal(ServerLevel level, RaiderEntity thief) {
+        if (!level.getServer().isSameThread() || !thief.isAlive() || thief.level() != level
+            || level.getEntity(thief.getUUID()) != thief || !thief.getPersistentData().contains(TAG)) return 0;
+        CompoundTag state = thief.getPersistentData().getCompound(TAG);
+        BlockPos target = BlockPos.of(state.getLong("Target"));
+        if (state.getInt("Stage") != 1 || !state.contains("ReadyAt")
+            || level.getGameTime() < state.getLong("ReadyAt") || thief.lootCount() != 0
+            || !ContainerApproach.hasPhysicalContact(level, thief, target)) return 0;
+        if (state.hasUUID("NaturalSettlement")
+            && !GoblinTheftDirector.targetStillOwned(level,state.getUUID("NaturalSettlement"),target)) {
+            changeStage(thief,state,2); return 0;
+        }
+        Container source = coins(level, target);
+        if (source == null) { changeStage(thief,state,2); return 0; }
+        for (int slot = 0; slot < source.getContainerSize(); slot++) {
+            if (!source.getItem(slot).is(ModItems.GOLD_COIN.get())) continue;
+            ItemStack stolen = source.removeItem(slot, GoblinTheftDirector.theftLimit(GoblinTheftDirector.coinCount(level,target)));
+            thief.loot.setItem(0, stolen);
+            source.setChanged();
+            changeStage(thief,state,2);
+            level.playSound(null, thief.blockPosition(), net.minecraft.sounds.SoundEvents.EXPERIENCE_ORB_PICKUP,
+                net.minecraft.sounds.SoundSource.HOSTILE, .35F, 1.6F);
+            level.playSound(null, thief.blockPosition(), com.hearthstead.registry.ModSounds.GOBLIN_STEAL.get(),
+                net.minecraft.sounds.SoundSource.HOSTILE, .8F, 1F);
+            announce(level, thief, "The thief stole " + stolen.getCount() + " Coins! Stop him to recover them.");
+            return stolen.getCount();
+        }
+        return 0;
+    }
+
+    @SubscribeEvent public static void tick(EntityTickEvent.Pre event) {
+        if (!(event.getEntity() instanceof RaiderEntity thief)
+            || !(thief.level() instanceof ServerLevel level)
+            || !thief.getPersistentData().contains(TAG)) return;
+        install(thief);
+        CompoundTag state = thief.getPersistentData().getCompound(TAG);
+        thief.setGoblinThiefPresentation(true, state.getInt("Stage"), state.getLong("StageStartedAt"));
+        // Saved one-shot voice receipts prevent chatter repeating after reload.
+        if (thief.tickCount % 20 == 0 && state.getInt("Stage") == 0
+                && !state.getBoolean("ApproachVoice")) {
+            state.putBoolean("ApproachVoice", true);
+            level.playSound(null, thief.blockPosition(), com.hearthstead.registry.ModSounds.GOBLIN_SNEAK.get(),
+                net.minecraft.sounds.SoundSource.HOSTILE, .6F, 1F);
+        }
+        if (thief.tickCount % 20 == 0 && state.getInt("Stage") == 2
+                && level.getGameTime() - state.getLong("StageStartedAt") >= 100
+                && !state.getBoolean("FleeVoice")) {
+            state.putBoolean("FleeVoice", true);
+            level.playSound(null, thief.blockPosition(), com.hearthstead.registry.ModSounds.GOBLIN_FLEE.get(),
+                net.minecraft.sounds.SoundSource.HOSTILE, .65F, 1F);
+        }
+        // One saved surprised squeak, not a repeated combat alarm or raid roar.
+        if (thief.tickCount % 20 == 0 && !state.getBoolean("SpottedCue")) {
+            boolean noticed = thief.getLastHurtByMob() != null
+                || level.players().stream().anyMatch(player -> player.isAlive() && !player.isSpectator()
+                    && player.distanceToSqr(thief) <= 25 && thief.hasLineOfSight(player))
+                || !level.getEntitiesOfClass(com.hearthstead.entity.SettlerEntity.class,
+                    thief.getBoundingBox().inflate(7), guard -> guard.isAlive()
+                        && guard.getProfession().martial() && thief.hasLineOfSight(guard)).isEmpty();
+            if (noticed) {
+                state.putBoolean("SpottedCue", true);
+                changeStage(thief,state,2);
+                state.remove("ReadyAt");
+                thief.getNavigation().stop();
+                announce(level,thief,"A goblin thief has been spotted near your stores!");
+                level.playSound(null, thief.blockPosition(), com.hearthstead.registry.ModSounds.GOBLIN_SPOTTED.get(),
+                    net.minecraft.sounds.SoundSource.HOSTILE, .8F, 1F);
+            }
+        }
+    }
+
+    private static void install(RaiderEntity thief) {
+        CompoundTag state=thief.getPersistentData().getCompound(TAG);
+        if (!state.contains("StageStartedAt")) state.putLong("StageStartedAt",
+            state.getInt("Stage")==1 && state.contains("ReadyAt") ? Math.max(0,state.getLong("ReadyAt")-60) : thief.level().getGameTime());
+        thief.setGoblinThiefPresentation(true,state.getInt("Stage"),state.getLong("StageStartedAt"));
+        if (INSTALLED.putIfAbsent(thief, Boolean.TRUE) != null) return;
+        if (state.getInt("Stage") == 1) {
+            // Unloaded time is not continuous physical contact with the chest.
+            state.putLong("ReadyAt",thief.level().getGameTime()+60);
+            state.putLong("StageStartedAt",thief.level().getGameTime());
+            thief.setGoblinThiefPresentation(true,1,state.getLong("StageStartedAt"));
+        }
+        // Only tagged demo actors lose attack goals; ordinary raids remain untouched.
+        for (var goal : List.copyOf(thief.goalSelector.getAvailableGoals())) thief.goalSelector.removeGoal(goal.getGoal());
+        for (var goal : List.copyOf(thief.targetSelector.getAvailableGoals())) thief.targetSelector.removeGoal(goal.getGoal());
+        thief.setTarget(null);
+        thief.goalSelector.addGoal(0, new FloatGoal(thief));
+        thief.goalSelector.addGoal(0, new net.minecraft.world.entity.ai.goal.OpenDoorGoal(thief, true));
+        thief.goalSelector.addGoal(1, new TheftGoal(thief));
+    }
+
+    private static void changeStage(RaiderEntity thief, CompoundTag state, int stage) {
+        if (state.getInt("Stage") != stage) {
+            state.putInt("Stage",stage);
+            state.putLong("StageStartedAt",thief.level().getGameTime());
+        }
+        thief.setGoblinThiefPresentation(true,stage,state.getLong("StageStartedAt"));
+    }
+
+    private static void announce(ServerLevel level, RaiderEntity thief, String text) {
+        for (var player : level.players()) if (player.distanceToSqr(thief) <= 64 * 64)
+            player.displayClientMessage(Component.literal(text), false);
+    }
+
+    private static final class TheftGoal extends Goal {
+        private final RaiderEntity thief;
+        private long nextPath;
+        TheftGoal(RaiderEntity thief) { this.thief = thief; setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK)); }
+        @Override public boolean canUse() { return thief.isAlive(); }
+        @Override public boolean requiresUpdateEveryTick() { return true; }
+        @Override public void tick() {
+            ServerLevel level = (ServerLevel)thief.level();
+            CompoundTag state = thief.getPersistentData().getCompound(TAG);
+            BlockPos target = BlockPos.of(state.getLong("Target"));
+            if (thief.lootCount() > 0) changeStage(thief,state,2);
+            if (thief.lootCount() == 0) {
+                int emptyTicks = state.getInt("EmptyTicks") + 1;
+                state.putInt("EmptyTicks",emptyTicks);
+                if (emptyTicks >= 1200) changeStage(thief,state,2);
+                if (emptyTicks >= 1800) { thief.discard(); return; }
+            }
+            if (state.getInt("Stage") == 2) {
+                BlockPos escape = BlockPos.of(state.getLong("Escape"));
+                if (level.getGameTime() >= nextPath && level.hasChunkAt(escape)) {
+                    nextPath = level.getGameTime() + 40;
+                    thief.getNavigation().moveTo(escape.getX() + .5, escape.getY(), escape.getZ() + .5, 1.25);
+                }
+                // Stay recoverable at the escape point: never silently discard stolen loot.
+                return;
+            }
+            if (ContainerApproach.hasPhysicalContact(level, thief, target)) {
+                thief.getNavigation().stop();
+                thief.getLookControl().setLookAt(target.getX()+.5,target.getY()+.5,target.getZ()+.5);
+                if (state.getInt("Stage") == 0) {
+                    changeStage(thief,state,1);
+                    state.putLong("ReadyAt", level.getGameTime() + 60);
+                    announce(level, thief, "A thief is opening your coin chest! Guards!");
+                    level.playSound(null, target, net.minecraft.sounds.SoundEvents.CHEST_OPEN,
+                        net.minecraft.sounds.SoundSource.HOSTILE, .8F, 1.2F);
+                }
+                trySteal(level, thief);
+            } else {
+                changeStage(thief,state,0);
+                state.remove("ReadyAt");
+                if (level.getGameTime() >= nextPath) {
+                    nextPath = level.getGameTime() + 40;
+                    ContainerApproach.moveMobToContact(level, thief, target, .8);
+                }
+            }
+        }
+    }
+}

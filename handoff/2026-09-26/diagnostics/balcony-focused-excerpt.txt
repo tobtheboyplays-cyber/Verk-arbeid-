@@ -1,0 +1,5 @@
+Diagnostic excerpt, not full log. Original: balcony-focused.log
+[15:01:06] [Server thread/ERROR] [minecraft/LogTestReporter]: asettleronthebalconycornerclimbsdowntheladder failed at 9618277, -60, 9698110! the settler must get off the balcony, at BlockPos{x=-4, y=6, z=-5} route=nav:stuck@9618281, -54, 9698115->9618287, -57, 9698121@1575
+[15:01:06] [Server thread/INFO] [minecraft/GameTestServer]: 1 required tests failed :(
+FAILURE: Build failed with an exception.
+BUILD FAILED in 14s

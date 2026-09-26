@@ -1,0 +1,112 @@
+{
+  "id": "mill_windmill",
+  "name": "Windmill",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mill",
+  "variant": "concept",
+  "style": "elmfield",
+  "preset": "Elmfield (job concept)",
+  "requires": "builders_hut",
+  "group": "mill",
+  "size": [
+    10,
+    15,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      5,
+      2,
+      7
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      4,
+      1,
+      5
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 131
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 92
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 80
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 23
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 20
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 16
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 16
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 10
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 5
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 3
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 3
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:grindstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 1
+    }
+  ],
+  "block_count": 408,
+  "cells": 582
+}

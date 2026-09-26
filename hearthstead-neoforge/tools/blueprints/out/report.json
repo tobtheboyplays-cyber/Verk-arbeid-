@@ -1,0 +1,6503 @@
+[
+ {
+  "id": "house_cottage",
+  "type": "house",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "beds 1/1",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/9"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   12
+  ],
+  "blocks": 406,
+  "cells": 508,
+  "name": "Cottage",
+  "category": "homes",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "house_two_storey",
+  "type": "house",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=341",
+   "beds 2/1",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 341/9"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   15,
+   10
+  ],
+  "blocks": 619,
+  "cells": 953,
+  "name": "Two-Storey House",
+  "category": "homes",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "lodging_small",
+  "type": "lodging",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=251",
+   "beds 4/4",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 251/24"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   11
+  ],
+  "blocks": 430,
+  "cells": 670,
+  "name": "Bunkhouse",
+  "category": "homes",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "lodging_hall",
+  "type": "lodging",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=444",
+   "beds 6/4",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 444/24"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   15,
+   10
+  ],
+  "blocks": 688,
+  "cells": 1117,
+  "name": "Lodging Hall",
+  "category": "homes",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "builders_hut_small",
+  "type": "builders_hut",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/16",
+   "workbench 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   8,
+   9
+  ],
+  "blocks": 322,
+  "cells": 427,
+  "name": "Builder's Hut",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "builders_hut_yard",
+  "type": "builders_hut",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 141/16",
+   "workbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   10,
+   11
+  ],
+  "blocks": 512,
+  "cells": 651,
+  "name": "Builder's Yard",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "warehouse_small",
+  "type": "warehouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=189",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 189/25",
+   "storage 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   10
+  ],
+  "blocks": 384,
+  "cells": 570,
+  "name": "Storehouse",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "warehouse_large",
+  "type": "warehouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=354",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 354/25",
+   "storage 12/4"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   14,
+   12
+  ],
+  "blocks": 831,
+  "cells": 1299,
+  "name": "Great Warehouse",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "farmhouse_small",
+  "type": "farmhouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=108",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 108/16",
+   "composter 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   8,
+   10
+  ],
+  "blocks": 401,
+  "cells": 507,
+  "name": "Farmstead",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "farmhouse_large",
+  "type": "farmhouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=338",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 338/16",
+   "composter 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   22,
+   15,
+   10
+  ],
+  "blocks": 732,
+  "cells": 1067,
+  "name": "Farmhouse",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "mill_small",
+  "type": "mill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=95",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 95/16",
+   "grindstone 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   10,
+   15,
+   11
+  ],
+  "blocks": 465,
+  "cells": 639,
+  "name": "Windmill",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "mill_large",
+  "type": "mill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=291",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 291/16",
+   "grindstone 1/1",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   14,
+   10
+  ],
+  "blocks": 584,
+  "cells": 872,
+  "name": "Windmill",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "bakery_small",
+  "type": "bakery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=105",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 105/16",
+   "oven 2/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   9
+  ],
+  "blocks": 367,
+  "cells": 469,
+  "name": "Bakehouse & Bread Oven",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "bakery_large",
+  "type": "bakery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=335",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 335/16",
+   "oven 3/2",
+   "storage 5/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   15,
+   10
+  ],
+  "blocks": 651,
+  "cells": 983,
+  "name": "Bakery",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "kitchen_small",
+  "type": "kitchen",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 141/20",
+   "oven 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 403,
+  "cells": 541,
+  "name": "Cookhouse",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "kitchen_large",
+  "type": "kitchen",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=184",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 184/20",
+   "oven 2/1",
+   "cauldron 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   11,
+   10
+  ],
+  "blocks": 421,
+  "cells": 601,
+  "name": "Great Kitchen",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "dining_hall_small",
+  "type": "dining_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=195",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 195/36",
+   "hearth_fire 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   10,
+   11
+  ],
+  "blocks": 391,
+  "cells": 580,
+  "name": "Common Hall",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "dining_hall_large",
+  "type": "dining_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=442",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 442/36",
+   "hearth_fire 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   12,
+   12
+  ],
+  "blocks": 560,
+  "cells": 994,
+  "name": "Great Hall",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "pasture_small",
+  "type": "pasture",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=281",
+   "doors 2/1",
+   "lights 2/1",
+   "floorSpace 281/25",
+   "hay 5/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   20,
+   12,
+   14
+  ],
+  "blocks": 877,
+  "cells": 1441,
+  "name": "Barn & Paddock",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "pasture_large",
+  "type": "pasture",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=378",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 378/25",
+   "hay 6/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   20,
+   13,
+   10
+  ],
+  "blocks": 709,
+  "cells": 1085,
+  "name": "Great Barn",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "butcher_small",
+  "type": "butcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/16",
+   "smoker 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   10,
+   9
+  ],
+  "blocks": 360,
+  "cells": 465,
+  "name": "Butchery",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "butcher_large",
+  "type": "butcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=196",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 196/16",
+   "smoker 2/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   10,
+   11
+  ],
+  "blocks": 488,
+  "cells": 681,
+  "name": "Shambles",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "fishery_small",
+  "type": "fishery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=349",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 349/16",
+   "fishing_water 24/20",
+   "rod_barrel 1/1",
+   "fishing_chair 1/1",
+   "fish_rack 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   11,
+   12
+  ],
+  "blocks": 562,
+  "cells": 909,
+  "name": "Fishing Dock",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "fishery_large",
+  "type": "fishery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=391",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 391/16",
+   "fishing_water 24/20",
+   "rod_barrel 1/1",
+   "fishing_chair 1/1",
+   "fish_rack 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   19,
+   12,
+   11
+  ],
+  "blocks": 580,
+  "cells": 968,
+  "name": "Fisher's Hall",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "hunters_lodge_small",
+  "type": "hunters_lodge",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=108",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 108/16",
+   "fletching 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   9
+  ],
+  "blocks": 372,
+  "cells": 478,
+  "name": "Hunter's Cabin",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "hunters_lodge_large",
+  "type": "hunters_lodge",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 197/16",
+   "fletching 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   10,
+   10
+  ],
+  "blocks": 427,
+  "cells": 621,
+  "name": "Hunter's Lodge",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "brewery_small",
+  "type": "brewery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 141/16",
+   "brewing_stand 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 390,
+  "cells": 529,
+  "name": "Brewhouse",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "brewery_large",
+  "type": "brewery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=288",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 288/16",
+   "brewing_stand 1/1",
+   "cauldron 1/1",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   14,
+   10
+  ],
+  "blocks": 631,
+  "cells": 916,
+  "name": "Brewery",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "tavern_small",
+  "type": "tavern",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=385",
+   "aleTap 1/1",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 385/36",
+   "bell 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   13
+  ],
+  "blocks": 556,
+  "cells": 935,
+  "name": "Alehouse",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "tavern_inn",
+  "type": "tavern",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=377",
+   "aleTap 1/1",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 377/36",
+   "bell 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   16,
+   14
+  ],
+  "blocks": 960,
+  "cells": 1506,
+  "name": "Coaching Inn",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "well_small",
+  "type": "well",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=36",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 36/9",
+   "water 4/4"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   9,
+   8,
+   9
+  ],
+  "blocks": 206,
+  "cells": 206,
+  "name": "Village Well",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "well_large",
+  "type": "well",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=165",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 165/9",
+   "water 4/4"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 371,
+  "cells": 534,
+  "name": "Stone Well House",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "lumber_camp_small",
+  "type": "lumber_camp",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=62",
+   "doors 1/1",
+   "lights 3/1",
+   "floorSpace 62/16",
+   "workbench 1/1",
+   "storage 3/1"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   6,
+   11
+  ],
+  "blocks": 323,
+  "cells": 347,
+  "name": "Woodcutter's Camp",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "lumber_camp_large",
+  "type": "lumber_camp",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=198",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 198/16",
+   "workbench 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   10,
+   11
+  ],
+  "blocks": 537,
+  "cells": 732,
+  "name": "Lumber Camp",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "sawmill_small",
+  "type": "sawmill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=73",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 73/20",
+   "sawbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   7,
+   11
+  ],
+  "blocks": 330,
+  "cells": 372,
+  "name": "Saw Shed",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "sawmill_large",
+  "type": "sawmill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=198",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 198/20",
+   "sawbench 2/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   9,
+   10
+  ],
+  "blocks": 443,
+  "cells": 639,
+  "name": "Sawmill",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "carpenter_small",
+  "type": "carpenter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=131",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 131/20",
+   "workbench 2/2",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   10
+  ],
+  "blocks": 359,
+  "cells": 487,
+  "name": "Joiner's Shop",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "carpenter_large",
+  "type": "carpenter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=195",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 195/20",
+   "workbench 3/2",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   10,
+   10
+  ],
+  "blocks": 435,
+  "cells": 626,
+  "name": "Carpenter's Workshop",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "mine_small",
+  "type": "mine",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=95",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 95/20",
+   "ladder 6/3",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   16,
+   13
+  ],
+  "blocks": 470,
+  "cells": 496,
+  "name": "Mine Headframe",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "mine_large",
+  "type": "mine",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=208",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 208/20",
+   "ladder 8/3",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   -4,
+   -3,
+   -2,
+   -1,
+   0,
+   1,
+   2,
+   3,
+   4
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   15,
+   15
+  ],
+  "blocks": 496,
+  "cells": 691,
+  "name": "Mine Shaft House",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "smelter_small",
+  "type": "smelter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=75",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 75/20",
+   "forge 3/2",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   11
+  ],
+  "blocks": 304,
+  "cells": 316,
+  "name": "Bloomery",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "smelter_large",
+  "type": "smelter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 197/20",
+   "forge 3/2",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 410,
+  "cells": 605,
+  "name": "Smeltery",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "smithy_small",
+  "type": "smithy",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=52",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 52/20",
+   "anvil 1/1",
+   "smithing_table 1/1",
+   "forge 2/1",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   13,
+   12
+  ],
+  "blocks": 402,
+  "cells": 550,
+  "name": "Open Forge",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "smithy_large",
+  "type": "smithy",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=253",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 253/20",
+   "anvil 1/1",
+   "smithing_table 1/1",
+   "forge 2/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   14
+  ],
+  "blocks": 520,
+  "cells": 770,
+  "name": "Smithy",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "weaver_small",
+  "type": "weaver",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=131",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 131/16",
+   "loom 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   9,
+   10
+  ],
+  "blocks": 412,
+  "cells": 540,
+  "name": "Weaver's Cottage",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "weaver_large",
+  "type": "weaver",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=339",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 339/16",
+   "loom 2/1",
+   "cauldron 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   15,
+   10
+  ],
+  "blocks": 651,
+  "cells": 986,
+  "name": "Weaving Hall",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "infirmary_small",
+  "type": "infirmary",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=191",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 191/20",
+   "cauldron 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   11,
+   10
+  ],
+  "blocks": 424,
+  "cells": 608,
+  "name": "Healer's House",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "infirmary_large",
+  "type": "infirmary",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=441",
+   "beds 4/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 441/20",
+   "cauldron 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   15,
+   11
+  ],
+  "blocks": 753,
+  "cells": 1183,
+  "name": "Infirmary",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "barracks_small",
+  "type": "barracks",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=246",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 246/36",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   17
+  ],
+  "blocks": 574,
+  "cells": 812,
+  "name": "Barracks & Drill Yard",
+  "category": "military",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "barracks_large",
+  "type": "barracks",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=439",
+   "beds 6/2",
+   "doors 1/1",
+   "lights 4/2",
+   "floorSpace 439/36",
+   "storage 5/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   16,
+   18
+  ],
+  "blocks": 1057,
+  "cells": 1627,
+  "name": "Barracks",
+  "category": "military",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "tannery_small",
+  "type": "tannery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=83",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 83/16",
+   "cauldron 3/2",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   6,
+   11
+  ],
+  "blocks": 300,
+  "cells": 319,
+  "name": "Tanner's Yard",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "tannery_large",
+  "type": "tannery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 197/16",
+   "cauldron 3/2",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   9,
+   15
+  ],
+  "blocks": 462,
+  "cells": 657,
+  "name": "Tannery",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "fletcher_small",
+  "type": "fletcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 141/16",
+   "fletching 1/1",
+   "workbench 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   9,
+   10
+  ],
+  "blocks": 393,
+  "cells": 531,
+  "name": "Fletcher's Shop",
+  "category": "military",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "fletcher_large",
+  "type": "fletcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=196",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 196/16",
+   "fletching 1/1",
+   "workbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   19,
+   10,
+   10
+  ],
+  "blocks": 494,
+  "cells": 686,
+  "name": "Bowyer's Hall",
+  "category": "military",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "armoury_small",
+  "type": "armoury",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=188",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 188/25",
+   "smithing_table 1/1",
+   "storage 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   11
+  ],
+  "blocks": 396,
+  "cells": 581,
+  "name": "Arms Store",
+  "category": "military",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "armoury_large",
+  "type": "armoury",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=254",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 254/25",
+   "smithing_table 1/1",
+   "storage 6/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   10,
+   11
+  ],
+  "blocks": 497,
+  "cells": 748,
+  "name": "Armoury",
+  "category": "military",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "mason_small",
+  "type": "mason",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=83",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 83/20",
+   "dressed_stone 73/8",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   11
+  ],
+  "blocks": 294,
+  "cells": 313,
+  "name": "Masons' Yard",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "mason_large",
+  "type": "mason",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 197/20",
+   "dressed_stone 35/8",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   10,
+   13
+  ],
+  "blocks": 419,
+  "cells": 612,
+  "name": "Mason's Workshop",
+  "category": "work",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "library_small",
+  "type": "library",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=216",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 216/25",
+   "bookshelf 8/8",
+   "lectern 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   10
+  ],
+  "blocks": 403,
+  "cells": 614,
+  "name": "Reading Room",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "library_large",
+  "type": "library",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=427",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 427/25",
+   "bookshelf 14/8",
+   "lectern 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   15,
+   11
+  ],
+  "blocks": 730,
+  "cells": 1151,
+  "name": "Library",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "market_small",
+  "type": "market",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=80",
+   "doors 2/1",
+   "lights 4/2",
+   "floorSpace 80/36",
+   "stall 6/4",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   4,
+   11
+  ],
+  "blocks": 292,
+  "cells": 292,
+  "name": "Market Square",
+  "category": "work",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "market_large",
+  "type": "market",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=445",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 445/36",
+   "stall 6/4",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   23,
+   12,
+   12
+  ],
+  "blocks": 705,
+  "cells": 1146,
+  "name": "Guild Market",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "trading_post_small",
+  "type": "trading_post",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=103",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 103/16",
+   "counter 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   8,
+   9
+  ],
+  "blocks": 306,
+  "cells": 407,
+  "name": "Trading Post",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "trading_post_large",
+  "type": "trading_post",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=338",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 338/16",
+   "counter 1/1",
+   "storage 5/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   15,
+   10
+  ],
+  "blocks": 617,
+  "cells": 949,
+  "name": "Merchant House",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "architects_study_small",
+  "type": "architects_study",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=166",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 166/16",
+   "lectern 1/1",
+   "bookshelf 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 375,
+  "cells": 538,
+  "name": "Architect's Study",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "architects_study_large",
+  "type": "architects_study",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=335",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 335/16",
+   "lectern 1/1",
+   "bookshelf 6/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   15,
+   10
+  ],
+  "blocks": 663,
+  "cells": 993,
+  "name": "Drawing Office",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "school_small",
+  "type": "school",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=229",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 229/25",
+   "bookshelf 4/4",
+   "lectern 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   21,
+   10,
+   10
+  ],
+  "blocks": 532,
+  "cells": 757,
+  "name": "Schoolroom",
+  "category": "common",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "school_large",
+  "type": "school",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=284",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 284/25",
+   "bookshelf 4/4",
+   "lectern 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   23,
+   12,
+   10
+  ],
+  "blocks": 584,
+  "cells": 863,
+  "name": "School",
+  "category": "common",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "watchtower_timber",
+  "type": "watchtower",
+  "kind": "defense",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=53",
+   "doors 1/1",
+   "lights 4/4",
+   "floorSpace 53/9",
+   "ladder 7/4",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   9,
+   16,
+   9
+  ],
+  "blocks": 375,
+  "cells": 568,
+  "name": "Timber Watchtower",
+  "category": "defense",
+  "variant": "timber",
+  "style": "timber",
+  "preset": "Timber"
+ },
+ {
+  "id": "watchtower_stone",
+  "type": "watchtower",
+  "kind": "defense",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=53",
+   "doors 1/1",
+   "lights 4/4",
+   "floorSpace 53/9",
+   "ladder 7/4",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   9,
+   16,
+   9
+  ],
+  "blocks": 375,
+  "cells": 568,
+  "name": "Stone Watchtower",
+  "category": "defense",
+  "variant": "stone",
+  "style": "stone",
+  "preset": "Stone"
+ },
+ {
+  "id": "stone_gatehouse",
+  "type": "watchtower",
+  "kind": "defense",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=118",
+   "doors 1/1",
+   "lights 4/4",
+   "floorSpace 118/9",
+   "ladder 7/4",
+   "storage 3/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   9,
+   10,
+   8
+  ],
+  "blocks": 432,
+  "cells": 606,
+  "name": "Stone Gatehouse",
+  "category": "defense",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone"
+ },
+ {
+  "id": "palisade_segment",
+  "type": null,
+  "kind": "defense",
+  "l1": "n/a (no plaque)",
+  "size": [
+   5,
+   5,
+   2
+  ],
+  "blocks": 33,
+  "cells": 33,
+  "name": "Palisade (5)",
+  "category": "defense",
+  "variant": "segment",
+  "style": "timber",
+  "preset": "Timber"
+ },
+ {
+  "id": "palisade_gate",
+  "type": null,
+  "kind": "defense",
+  "l1": "n/a (no plaque)",
+  "size": [
+   5,
+   6,
+   2
+  ],
+  "blocks": 29,
+  "cells": 35,
+  "name": "Palisade Gate",
+  "category": "defense",
+  "variant": "gate",
+  "style": "timber",
+  "preset": "Timber"
+ },
+ {
+  "id": "stone_wall_segment",
+  "type": null,
+  "kind": "defense",
+  "l1": "n/a (no plaque)",
+  "size": [
+   5,
+   5,
+   2
+  ],
+  "blocks": 43,
+  "cells": 50,
+  "name": "Stone Wall (5)",
+  "category": "defense",
+  "variant": "segment",
+  "style": "stone",
+  "preset": "Stone"
+ },
+ {
+  "id": "stone_wall_gate",
+  "type": null,
+  "kind": "defense",
+  "l1": "n/a (no plaque)",
+  "size": [
+   5,
+   6,
+   2
+  ],
+  "blocks": 48,
+  "cells": 55,
+  "name": "Stone Wall Gate",
+  "category": "defense",
+  "variant": "gate",
+  "style": "stone",
+  "preset": "Stone"
+ },
+ {
+  "id": "barricade_3x1",
+  "type": null,
+  "kind": "barricade",
+  "l1": "n/a (no plaque)",
+  "size": [
+   3,
+   3,
+   1
+  ],
+  "blocks": 9,
+  "cells": 9,
+  "name": "Barricade",
+  "category": "defense",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Timber"
+ },
+ {
+  "id": "barricade_3x2",
+  "type": null,
+  "kind": "barricade",
+  "l1": "n/a (no plaque)",
+  "size": [
+   3,
+   4,
+   2
+  ],
+  "blocks": 18,
+  "cells": 18,
+  "name": "Heavy Barricade",
+  "category": "defense",
+  "variant": "large",
+  "style": "timber",
+  "preset": "Timber"
+ },
+ {
+  "id": "pike_yard_small",
+  "type": "pike_yard",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=248",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 248/30",
+   "drill_target 2/2",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   16
+  ],
+  "blocks": 548,
+  "cells": 789,
+  "name": "Pike Yard",
+  "category": "military",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "pike_yard_large",
+  "type": "pike_yard",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=442",
+   "beds 4/2",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 442/30",
+   "drill_target 3/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   14,
+   18
+  ],
+  "blocks": 1060,
+  "cells": 1667,
+  "name": "Pike Hall",
+  "category": "military",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "sword_hall_small",
+  "type": "sword_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=229",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 229/30",
+   "anvil 1/1",
+   "whetstone 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   15
+  ],
+  "blocks": 508,
+  "cells": 730,
+  "name": "Sword Hall",
+  "category": "military",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "sword_hall_large",
+  "type": "sword_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=443",
+   "beds 4/2",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 443/30",
+   "anvil 1/1",
+   "whetstone 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   14,
+   18
+  ],
+  "blocks": 1056,
+  "cells": 1664,
+  "name": "Hall of Blades",
+  "category": "military",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "rune_hall_small",
+  "type": "rune_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=233",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 233/25",
+   "rune_table 1/1",
+   "amethyst 4/4",
+   "bookshelf 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 397,
+  "cells": 626,
+  "name": "Rune Hall",
+  "category": "military",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "rune_hall_large",
+  "type": "rune_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=298",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 298/25",
+   "rune_table 1/1",
+   "amethyst 4/4",
+   "bookshelf 6/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   11,
+   10
+  ],
+  "blocks": 473,
+  "cells": 767,
+  "name": "Rune Sanctum",
+  "category": "military",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber"
+ },
+ {
+  "id": "house_timber",
+  "type": "house",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "beds 1/1",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/9"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   12
+  ],
+  "blocks": 406,
+  "cells": 508,
+  "name": "Cottage (Whitewashed Timber)",
+  "category": "homes",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "house_stone",
+  "type": "house",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=341",
+   "beds 2/1",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 341/9"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   15,
+   10
+  ],
+  "blocks": 619,
+  "cells": 953,
+  "name": "Two-Storey House (Stone Hall)",
+  "category": "homes",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "house_rustic",
+  "type": "house",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "beds 1/1",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/9"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   12
+  ],
+  "blocks": 414,
+  "cells": 516,
+  "name": "Cottage (Rustic Log)",
+  "category": "homes",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "lodging_timber",
+  "type": "lodging",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=251",
+   "beds 4/4",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 251/24"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   11
+  ],
+  "blocks": 430,
+  "cells": 670,
+  "name": "Bunkhouse (Whitewashed Timber)",
+  "category": "homes",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "lodging_stone",
+  "type": "lodging",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=444",
+   "beds 6/4",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 444/24"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   15,
+   10
+  ],
+  "blocks": 688,
+  "cells": 1117,
+  "name": "Lodging Hall (Stone Hall)",
+  "category": "homes",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "lodging_rustic",
+  "type": "lodging",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=251",
+   "beds 4/4",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 251/24"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   11
+  ],
+  "blocks": 439,
+  "cells": 679,
+  "name": "Bunkhouse (Rustic Log)",
+  "category": "homes",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "builders_hut_timber",
+  "type": "builders_hut",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/16",
+   "workbench 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   8,
+   9
+  ],
+  "blocks": 322,
+  "cells": 427,
+  "name": "Builder's Hut (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "builders_hut_stone",
+  "type": "builders_hut",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 141/16",
+   "workbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   10,
+   11
+  ],
+  "blocks": 512,
+  "cells": 651,
+  "name": "Builder's Yard (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "builders_hut_rustic",
+  "type": "builders_hut",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/16",
+   "workbench 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   8,
+   9
+  ],
+  "blocks": 331,
+  "cells": 436,
+  "name": "Builder's Hut (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "warehouse_timber",
+  "type": "warehouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=189",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 189/25",
+   "storage 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   10
+  ],
+  "blocks": 384,
+  "cells": 570,
+  "name": "Storehouse (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "warehouse_stone",
+  "type": "warehouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=354",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 354/25",
+   "storage 12/4"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   14,
+   12
+  ],
+  "blocks": 831,
+  "cells": 1299,
+  "name": "Great Warehouse (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "warehouse_rustic",
+  "type": "warehouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=189",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 189/25",
+   "storage 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   10
+  ],
+  "blocks": 393,
+  "cells": 579,
+  "name": "Storehouse (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "farmhouse_timber",
+  "type": "farmhouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=108",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 108/16",
+   "composter 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   8,
+   10
+  ],
+  "blocks": 401,
+  "cells": 507,
+  "name": "Farmstead (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "farmhouse_stone",
+  "type": "farmhouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=338",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 338/16",
+   "composter 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   22,
+   15,
+   10
+  ],
+  "blocks": 732,
+  "cells": 1067,
+  "name": "Farmhouse (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "farmhouse_rustic",
+  "type": "farmhouse",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=108",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 108/16",
+   "composter 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   8,
+   10
+  ],
+  "blocks": 408,
+  "cells": 514,
+  "name": "Farmstead (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "mill_timber",
+  "type": "mill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=95",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 95/16",
+   "grindstone 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   10,
+   15,
+   11
+  ],
+  "blocks": 465,
+  "cells": 639,
+  "name": "Windmill (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "mill_stone",
+  "type": "mill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=291",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 291/16",
+   "grindstone 1/1",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   14,
+   10
+  ],
+  "blocks": 584,
+  "cells": 872,
+  "name": "Windmill (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "mill_rustic",
+  "type": "mill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=95",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 95/16",
+   "grindstone 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   10,
+   15,
+   11
+  ],
+  "blocks": 485,
+  "cells": 659,
+  "name": "Windmill (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "bakery_timber",
+  "type": "bakery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=105",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 105/16",
+   "oven 2/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   9
+  ],
+  "blocks": 367,
+  "cells": 469,
+  "name": "Bakehouse & Bread Oven (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "bakery_stone",
+  "type": "bakery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=335",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 335/16",
+   "oven 3/2",
+   "storage 5/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   15,
+   10
+  ],
+  "blocks": 651,
+  "cells": 983,
+  "name": "Bakery (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "bakery_rustic",
+  "type": "bakery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=105",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 105/16",
+   "oven 2/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   9
+  ],
+  "blocks": 376,
+  "cells": 478,
+  "name": "Bakehouse & Bread Oven (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "kitchen_timber",
+  "type": "kitchen",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 141/20",
+   "oven 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 403,
+  "cells": 541,
+  "name": "Cookhouse (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "kitchen_stone",
+  "type": "kitchen",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=184",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 184/20",
+   "oven 2/1",
+   "cauldron 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   11,
+   10
+  ],
+  "blocks": 421,
+  "cells": 601,
+  "name": "Great Kitchen (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "kitchen_rustic",
+  "type": "kitchen",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 141/20",
+   "oven 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 410,
+  "cells": 548,
+  "name": "Cookhouse (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "dining_hall_timber",
+  "type": "dining_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=195",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 195/36",
+   "hearth_fire 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   10,
+   11
+  ],
+  "blocks": 391,
+  "cells": 580,
+  "name": "Common Hall (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "dining_hall_stone",
+  "type": "dining_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=442",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 442/36",
+   "hearth_fire 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   12,
+   12
+  ],
+  "blocks": 560,
+  "cells": 994,
+  "name": "Great Hall (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "dining_hall_rustic",
+  "type": "dining_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=195",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 195/36",
+   "hearth_fire 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   10,
+   11
+  ],
+  "blocks": 400,
+  "cells": 589,
+  "name": "Common Hall (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "pasture_timber",
+  "type": "pasture",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=281",
+   "doors 2/1",
+   "lights 2/1",
+   "floorSpace 281/25",
+   "hay 5/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   20,
+   12,
+   14
+  ],
+  "blocks": 877,
+  "cells": 1441,
+  "name": "Barn & Paddock (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "pasture_stone",
+  "type": "pasture",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=378",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 378/25",
+   "hay 6/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   20,
+   13,
+   10
+  ],
+  "blocks": 709,
+  "cells": 1085,
+  "name": "Great Barn (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "pasture_rustic",
+  "type": "pasture",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=281",
+   "doors 2/1",
+   "lights 2/1",
+   "floorSpace 281/25",
+   "hay 5/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   20,
+   12,
+   14
+  ],
+  "blocks": 893,
+  "cells": 1457,
+  "name": "Barn & Paddock (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "butcher_timber",
+  "type": "butcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/16",
+   "smoker 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   10,
+   9
+  ],
+  "blocks": 360,
+  "cells": 465,
+  "name": "Butchery (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "butcher_stone",
+  "type": "butcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=196",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 196/16",
+   "smoker 2/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   10,
+   11
+  ],
+  "blocks": 488,
+  "cells": 681,
+  "name": "Shambles (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "butcher_rustic",
+  "type": "butcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=107",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 107/16",
+   "smoker 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   9
+  ],
+  "blocks": 379,
+  "cells": 484,
+  "name": "Butchery (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "fishery_timber",
+  "type": "fishery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=349",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 349/16",
+   "fishing_water 24/20",
+   "rod_barrel 1/1",
+   "fishing_chair 1/1",
+   "fish_rack 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   11,
+   12
+  ],
+  "blocks": 562,
+  "cells": 909,
+  "name": "Fishing Dock (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "fishery_stone",
+  "type": "fishery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=391",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 391/16",
+   "fishing_water 24/20",
+   "rod_barrel 1/1",
+   "fishing_chair 1/1",
+   "fish_rack 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   19,
+   12,
+   11
+  ],
+  "blocks": 580,
+  "cells": 968,
+  "name": "Fisher's Hall (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "fishery_rustic",
+  "type": "fishery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=349",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 349/16",
+   "fishing_water 24/20",
+   "rod_barrel 1/1",
+   "fishing_chair 1/1",
+   "fish_rack 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   11,
+   12
+  ],
+  "blocks": 570,
+  "cells": 917,
+  "name": "Fishing Dock (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "hunters_lodge_timber",
+  "type": "hunters_lodge",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=108",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 108/16",
+   "fletching 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   9
+  ],
+  "blocks": 372,
+  "cells": 478,
+  "name": "Hunter's Cabin (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "hunters_lodge_stone",
+  "type": "hunters_lodge",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 197/16",
+   "fletching 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   10,
+   10
+  ],
+  "blocks": 427,
+  "cells": 621,
+  "name": "Hunter's Lodge (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "hunters_lodge_rustic",
+  "type": "hunters_lodge",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=108",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 108/16",
+   "fletching 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   9
+  ],
+  "blocks": 380,
+  "cells": 486,
+  "name": "Hunter's Cabin (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "brewery_timber",
+  "type": "brewery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 141/16",
+   "brewing_stand 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 390,
+  "cells": 529,
+  "name": "Brewhouse (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "brewery_stone",
+  "type": "brewery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=288",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 288/16",
+   "brewing_stand 1/1",
+   "cauldron 1/1",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   14,
+   10
+  ],
+  "blocks": 631,
+  "cells": 916,
+  "name": "Brewery (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "brewery_rustic",
+  "type": "brewery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 141/16",
+   "brewing_stand 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 398,
+  "cells": 537,
+  "name": "Brewhouse (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "tavern_timber",
+  "type": "tavern",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=385",
+   "aleTap 1/1",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 385/36",
+   "bell 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   13
+  ],
+  "blocks": 556,
+  "cells": 935,
+  "name": "Alehouse (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "tavern_stone",
+  "type": "tavern",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=377",
+   "aleTap 1/1",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 377/36",
+   "bell 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   16,
+   14
+  ],
+  "blocks": 960,
+  "cells": 1506,
+  "name": "Coaching Inn (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "tavern_rustic",
+  "type": "tavern",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=385",
+   "aleTap 1/1",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 385/36",
+   "bell 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   13
+  ],
+  "blocks": 566,
+  "cells": 945,
+  "name": "Alehouse (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "well_timber",
+  "type": "well",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=36",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 36/9",
+   "water 4/4"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   9,
+   8,
+   9
+  ],
+  "blocks": 206,
+  "cells": 206,
+  "name": "Village Well (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "well_stone",
+  "type": "well",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=165",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 165/9",
+   "water 4/4"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 371,
+  "cells": 534,
+  "name": "Stone Well House (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "well_rustic",
+  "type": "well",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=36",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 36/9",
+   "water 4/4"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   9,
+   8,
+   9
+  ],
+  "blocks": 206,
+  "cells": 206,
+  "name": "Village Well (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "lumber_camp_timber",
+  "type": "lumber_camp",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=62",
+   "doors 1/1",
+   "lights 3/1",
+   "floorSpace 62/16",
+   "workbench 1/1",
+   "storage 3/1"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   6,
+   11
+  ],
+  "blocks": 323,
+  "cells": 347,
+  "name": "Woodcutter's Camp (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "lumber_camp_stone",
+  "type": "lumber_camp",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=198",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 198/16",
+   "workbench 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   10,
+   11
+  ],
+  "blocks": 537,
+  "cells": 732,
+  "name": "Lumber Camp (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "lumber_camp_rustic",
+  "type": "lumber_camp",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=62",
+   "doors 1/1",
+   "lights 3/1",
+   "floorSpace 62/16",
+   "workbench 1/1",
+   "storage 3/1"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   6,
+   12
+  ],
+  "blocks": 343,
+  "cells": 367,
+  "name": "Woodcutter's Camp (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "sawmill_timber",
+  "type": "sawmill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=73",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 73/20",
+   "sawbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   7,
+   11
+  ],
+  "blocks": 330,
+  "cells": 372,
+  "name": "Saw Shed (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "sawmill_stone",
+  "type": "sawmill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=198",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 198/20",
+   "sawbench 2/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   9,
+   10
+  ],
+  "blocks": 443,
+  "cells": 639,
+  "name": "Sawmill (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "sawmill_rustic",
+  "type": "sawmill",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=73",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 73/20",
+   "sawbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   7,
+   11
+  ],
+  "blocks": 330,
+  "cells": 372,
+  "name": "Saw Shed (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "carpenter_timber",
+  "type": "carpenter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=131",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 131/20",
+   "workbench 2/2",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   10
+  ],
+  "blocks": 359,
+  "cells": 487,
+  "name": "Joiner's Shop (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "carpenter_stone",
+  "type": "carpenter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=195",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 195/20",
+   "workbench 3/2",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   10,
+   10
+  ],
+  "blocks": 435,
+  "cells": 626,
+  "name": "Carpenter's Workshop (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "carpenter_rustic",
+  "type": "carpenter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=131",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 131/20",
+   "workbench 2/2",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   10
+  ],
+  "blocks": 368,
+  "cells": 496,
+  "name": "Joiner's Shop (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "mine_timber",
+  "type": "mine",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=95",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 95/20",
+   "ladder 6/3",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   16,
+   13
+  ],
+  "blocks": 470,
+  "cells": 496,
+  "name": "Mine Headframe (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "mine_stone",
+  "type": "mine",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=208",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 208/20",
+   "ladder 8/3",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   -4,
+   -3,
+   -2,
+   -1,
+   0,
+   1,
+   2,
+   3,
+   4
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   15,
+   15
+  ],
+  "blocks": 496,
+  "cells": 691,
+  "name": "Mine Shaft House (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "mine_rustic",
+  "type": "mine",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=93",
+   "doors 1/1",
+   "lights 4/3",
+   "floorSpace 93/20",
+   "ladder 6/3",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   16,
+   14
+  ],
+  "blocks": 491,
+  "cells": 517,
+  "name": "Mine Headframe (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "smelter_timber",
+  "type": "smelter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=75",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 75/20",
+   "forge 3/2",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   11
+  ],
+  "blocks": 304,
+  "cells": 316,
+  "name": "Bloomery (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "smelter_stone",
+  "type": "smelter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 197/20",
+   "forge 3/2",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   10,
+   10
+  ],
+  "blocks": 410,
+  "cells": 605,
+  "name": "Smeltery (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "smelter_rustic",
+  "type": "smelter",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=75",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 75/20",
+   "forge 3/2",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   12
+  ],
+  "blocks": 323,
+  "cells": 335,
+  "name": "Bloomery (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "smithy_timber",
+  "type": "smithy",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=52",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 52/20",
+   "anvil 1/1",
+   "smithing_table 1/1",
+   "forge 2/1",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   13,
+   12
+  ],
+  "blocks": 402,
+  "cells": 550,
+  "name": "Open Forge (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "smithy_stone",
+  "type": "smithy",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=253",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 253/20",
+   "anvil 1/1",
+   "smithing_table 1/1",
+   "forge 2/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   14
+  ],
+  "blocks": 520,
+  "cells": 770,
+  "name": "Smithy (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "smithy_rustic",
+  "type": "smithy",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=52",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 52/20",
+   "anvil 1/1",
+   "smithing_table 1/1",
+   "forge 2/1",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   13,
+   12
+  ],
+  "blocks": 415,
+  "cells": 563,
+  "name": "Open Forge (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "weaver_timber",
+  "type": "weaver",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=131",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 131/16",
+   "loom 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   9,
+   10
+  ],
+  "blocks": 412,
+  "cells": 540,
+  "name": "Weaver's Cottage (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "weaver_stone",
+  "type": "weaver",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=339",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 339/16",
+   "loom 2/1",
+   "cauldron 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   15,
+   10
+  ],
+  "blocks": 651,
+  "cells": 986,
+  "name": "Weaving Hall (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "weaver_rustic",
+  "type": "weaver",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=131",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 131/16",
+   "loom 1/1",
+   "cauldron 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   18,
+   9,
+   10
+  ],
+  "blocks": 421,
+  "cells": 549,
+  "name": "Weaver's Cottage (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "infirmary_timber",
+  "type": "infirmary",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=191",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 191/20",
+   "cauldron 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   11,
+   10
+  ],
+  "blocks": 424,
+  "cells": 608,
+  "name": "Healer's House (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "infirmary_stone",
+  "type": "infirmary",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=441",
+   "beds 4/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 441/20",
+   "cauldron 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   15,
+   11
+  ],
+  "blocks": 753,
+  "cells": 1183,
+  "name": "Infirmary (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "infirmary_rustic",
+  "type": "infirmary",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=191",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 191/20",
+   "cauldron 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   11,
+   10
+  ],
+  "blocks": 432,
+  "cells": 616,
+  "name": "Healer's House (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "barracks_timber",
+  "type": "barracks",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=246",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 246/36",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   17
+  ],
+  "blocks": 574,
+  "cells": 812,
+  "name": "Barracks & Drill Yard (Whitewashed Timber)",
+  "category": "military",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "barracks_stone",
+  "type": "barracks",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=439",
+   "beds 6/2",
+   "doors 1/1",
+   "lights 4/2",
+   "floorSpace 439/36",
+   "storage 5/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   16,
+   18
+  ],
+  "blocks": 1057,
+  "cells": 1627,
+  "name": "Barracks (Stone Hall)",
+  "category": "military",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "barracks_rustic",
+  "type": "barracks",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=246",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 246/36",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   17
+  ],
+  "blocks": 585,
+  "cells": 823,
+  "name": "Barracks & Drill Yard (Rustic Log)",
+  "category": "military",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "tannery_timber",
+  "type": "tannery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=83",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 83/16",
+   "cauldron 3/2",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   6,
+   11
+  ],
+  "blocks": 300,
+  "cells": 319,
+  "name": "Tanner's Yard (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "tannery_stone",
+  "type": "tannery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 197/16",
+   "cauldron 3/2",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   9,
+   15
+  ],
+  "blocks": 462,
+  "cells": 657,
+  "name": "Tannery (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "tannery_rustic",
+  "type": "tannery",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=83",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 83/16",
+   "cauldron 3/2",
+   "storage 4/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   6,
+   12
+  ],
+  "blocks": 319,
+  "cells": 338,
+  "name": "Tanner's Yard (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "fletcher_timber",
+  "type": "fletcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 141/16",
+   "fletching 1/1",
+   "workbench 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   9,
+   10
+  ],
+  "blocks": 393,
+  "cells": 531,
+  "name": "Fletcher's Shop (Whitewashed Timber)",
+  "category": "military",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "fletcher_stone",
+  "type": "fletcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=196",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 196/16",
+   "fletching 1/1",
+   "workbench 1/1",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   19,
+   10,
+   10
+  ],
+  "blocks": 494,
+  "cells": 686,
+  "name": "Bowyer's Hall (Stone Hall)",
+  "category": "military",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "fletcher_rustic",
+  "type": "fletcher",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=141",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 141/16",
+   "fletching 1/1",
+   "workbench 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   9,
+   10
+  ],
+  "blocks": 402,
+  "cells": 540,
+  "name": "Fletcher's Shop (Rustic Log)",
+  "category": "military",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "armoury_timber",
+  "type": "armoury",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=188",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 188/25",
+   "smithing_table 1/1",
+   "storage 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   11
+  ],
+  "blocks": 396,
+  "cells": 581,
+  "name": "Arms Store (Whitewashed Timber)",
+  "category": "military",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "armoury_stone",
+  "type": "armoury",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=254",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 254/25",
+   "smithing_table 1/1",
+   "storage 6/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   10,
+   11
+  ],
+  "blocks": 497,
+  "cells": 748,
+  "name": "Armoury (Stone Hall)",
+  "category": "military",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "armoury_rustic",
+  "type": "armoury",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=188",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 188/25",
+   "smithing_table 1/1",
+   "storage 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   9,
+   11
+  ],
+  "blocks": 396,
+  "cells": 581,
+  "name": "Arms Store (Rustic Log)",
+  "category": "military",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "mason_timber",
+  "type": "mason",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=83",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 83/20",
+   "dressed_stone 73/8",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   11
+  ],
+  "blocks": 294,
+  "cells": 313,
+  "name": "Masons' Yard (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "mason_stone",
+  "type": "mason",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=197",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 197/20",
+   "dressed_stone 58/8",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   11,
+   10,
+   13
+  ],
+  "blocks": 419,
+  "cells": 612,
+  "name": "Mason's Workshop (Stone Hall)",
+  "category": "work",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "mason_rustic",
+  "type": "mason",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=83",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 83/20",
+   "dressed_stone 73/8",
+   "storage 3/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   12
+  ],
+  "blocks": 312,
+  "cells": 331,
+  "name": "Masons' Yard (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "library_timber",
+  "type": "library",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=216",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 216/25",
+   "bookshelf 8/8",
+   "lectern 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   10
+  ],
+  "blocks": 403,
+  "cells": 614,
+  "name": "Reading Room (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "library_stone",
+  "type": "library",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=427",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 427/25",
+   "bookshelf 14/8",
+   "lectern 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   16,
+   15,
+   11
+  ],
+  "blocks": 730,
+  "cells": 1151,
+  "name": "Library (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "library_rustic",
+  "type": "library",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=216",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 216/25",
+   "bookshelf 8/8",
+   "lectern 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   10
+  ],
+  "blocks": 412,
+  "cells": 623,
+  "name": "Reading Room (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "market_timber",
+  "type": "market",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=80",
+   "doors 2/1",
+   "lights 4/2",
+   "floorSpace 80/36",
+   "stall 6/4",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   4,
+   11
+  ],
+  "blocks": 292,
+  "cells": 292,
+  "name": "Market Square (Whitewashed Timber)",
+  "category": "work",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "market_stone",
+  "type": "market",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=445",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 445/36",
+   "stall 6/4",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   23,
+   12,
+   12
+  ],
+  "blocks": 705,
+  "cells": 1146,
+  "name": "Guild Market (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "market_rustic",
+  "type": "market",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=80",
+   "doors 2/1",
+   "lights 4/2",
+   "floorSpace 80/36",
+   "stall 6/4",
+   "storage 8/2"
+  ],
+  "walk_levels": [
+   1
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   4,
+   11
+  ],
+  "blocks": 292,
+  "cells": 292,
+  "name": "Market Square (Rustic Log)",
+  "category": "work",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "trading_post_timber",
+  "type": "trading_post",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=103",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 103/16",
+   "counter 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   8,
+   9
+  ],
+  "blocks": 306,
+  "cells": 407,
+  "name": "Trading Post (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "trading_post_stone",
+  "type": "trading_post",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=338",
+   "doors 1/1",
+   "lights 2/1",
+   "floorSpace 338/16",
+   "counter 1/1",
+   "storage 5/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   15,
+   10
+  ],
+  "blocks": 617,
+  "cells": 949,
+  "name": "Merchant House (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "trading_post_rustic",
+  "type": "trading_post",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=103",
+   "doors 1/1",
+   "lights 1/1",
+   "floorSpace 103/16",
+   "counter 1/1",
+   "storage 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   8,
+   9
+  ],
+  "blocks": 315,
+  "cells": 416,
+  "name": "Trading Post (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "architects_study_timber",
+  "type": "architects_study",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=166",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 166/16",
+   "lectern 1/1",
+   "bookshelf 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 375,
+  "cells": 538,
+  "name": "Architect's Study (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "architects_study_stone",
+  "type": "architects_study",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=335",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 335/16",
+   "lectern 1/1",
+   "bookshelf 6/2"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   17,
+   15,
+   10
+  ],
+  "blocks": 663,
+  "cells": 993,
+  "name": "Drawing Office (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "architects_study_rustic",
+  "type": "architects_study",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=166",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 166/16",
+   "lectern 1/1",
+   "bookshelf 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 384,
+  "cells": 547,
+  "name": "Architect's Study (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "school_timber",
+  "type": "school",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=229",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 229/25",
+   "bookshelf 4/4",
+   "lectern 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   21,
+   10,
+   10
+  ],
+  "blocks": 532,
+  "cells": 757,
+  "name": "Schoolroom (Whitewashed Timber)",
+  "category": "common",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "school_stone",
+  "type": "school",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=284",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 284/25",
+   "bookshelf 4/4",
+   "lectern 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   23,
+   12,
+   10
+  ],
+  "blocks": 584,
+  "cells": 863,
+  "name": "School (Stone Hall)",
+  "category": "common",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "school_rustic",
+  "type": "school",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=229",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 229/25",
+   "bookshelf 4/4",
+   "lectern 2/2"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   21,
+   10,
+   10
+  ],
+  "blocks": 541,
+  "cells": 766,
+  "name": "Schoolroom (Rustic Log)",
+  "category": "common",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "pike_yard_timber",
+  "type": "pike_yard",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=248",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 248/30",
+   "drill_target 2/2",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   16
+  ],
+  "blocks": 548,
+  "cells": 789,
+  "name": "Pike Yard (Whitewashed Timber)",
+  "category": "military",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "pike_yard_stone",
+  "type": "pike_yard",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=442",
+   "beds 4/2",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 442/30",
+   "drill_target 3/2",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   14,
+   18
+  ],
+  "blocks": 1060,
+  "cells": 1667,
+  "name": "Pike Hall (Stone Hall)",
+  "category": "military",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "pike_yard_rustic",
+  "type": "pike_yard",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=248",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 248/30",
+   "drill_target 70/2",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   11,
+   16
+  ],
+  "blocks": 559,
+  "cells": 800,
+  "name": "Pike Yard (Rustic Log)",
+  "category": "military",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "sword_hall_timber",
+  "type": "sword_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=229",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 229/30",
+   "anvil 1/1",
+   "whetstone 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   15
+  ],
+  "blocks": 508,
+  "cells": 730,
+  "name": "Sword Hall (Whitewashed Timber)",
+  "category": "military",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "sword_hall_stone",
+  "type": "sword_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=443",
+   "beds 4/2",
+   "doors 1/1",
+   "lights 3/2",
+   "floorSpace 443/30",
+   "anvil 1/1",
+   "whetstone 1/1",
+   "storage 2/1"
+  ],
+  "walk_levels": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   15,
+   14,
+   18
+  ],
+  "blocks": 1056,
+  "cells": 1664,
+  "name": "Hall of Blades (Stone Hall)",
+  "category": "military",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "sword_hall_rustic",
+  "type": "sword_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=229",
+   "beds 2/2",
+   "doors 1/1",
+   "lights 2/2",
+   "floorSpace 229/30",
+   "anvil 1/1",
+   "whetstone 1/1",
+   "storage 1/1"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   13,
+   10,
+   15
+  ],
+  "blocks": 524,
+  "cells": 746,
+  "name": "Sword Hall (Rustic Log)",
+  "category": "military",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ },
+ {
+  "id": "rune_hall_timber",
+  "type": "rune_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=233",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 233/25",
+   "rune_table 1/1",
+   "amethyst 4/4",
+   "bookshelf 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 397,
+  "cells": 626,
+  "name": "Rune Hall (Whitewashed Timber)",
+  "category": "military",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber"
+ },
+ {
+  "id": "rune_hall_stone",
+  "type": "rune_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=298",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 298/25",
+   "rune_table 1/1",
+   "amethyst 4/4",
+   "bookshelf 6/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   14,
+   11,
+   10
+  ],
+  "blocks": 473,
+  "cells": 767,
+  "name": "Rune Sanctum (Stone Hall)",
+  "category": "military",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall"
+ },
+ {
+  "id": "rune_hall_rustic",
+  "type": "rune_hall",
+  "kind": "building",
+  "l1": "PASS",
+  "survey": [
+   "enclosed=True roofed=True volume=233",
+   "doors 1/1",
+   "lights 3/3",
+   "floorSpace 233/25",
+   "rune_table 1/1",
+   "amethyst 4/4",
+   "bookshelf 4/4"
+  ],
+  "walk_levels": [
+   1,
+   2
+  ],
+  "door": "OK",
+  "walk_missing": [],
+  "walk": "OK",
+  "size": [
+   12,
+   10,
+   10
+  ],
+  "blocks": 397,
+  "cells": 626,
+  "name": "Rune Hall (Rustic Log)",
+  "category": "military",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log"
+ }
+]

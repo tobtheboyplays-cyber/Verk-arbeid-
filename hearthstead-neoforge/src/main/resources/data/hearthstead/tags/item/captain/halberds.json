@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:wooden_halberd",
+    "hearthstead:stone_halberd",
+    "hearthstead:iron_halberd",
+    "hearthstead:golden_halberd",
+    "hearthstead:diamond_halberd",
+    "hearthstead:netherite_halberd"
+  ]
+}

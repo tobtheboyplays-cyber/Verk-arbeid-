@@ -1,0 +1,246 @@
+[
+  {
+    "id": "peddler",
+    "enum": "PEDDLER",
+    "category": "event",
+    "name": "Wandering Peddler",
+    "what": "A colourful peddler with a pack llama sells rare goods for Coins by the Banner.",
+    "you": "Talk to him and buy what you need; he only takes Coins and stays about a day.",
+    "needs": "1+ settlers",
+    "hostile": false,
+    "min_gap_days": 3,
+    "enabled_by": "features.worldEvents + events.peddler"
+  },
+  {
+    "id": "refugees",
+    "enum": "REFUGEES",
+    "category": "event",
+    "name": "Refugees",
+    "what": "A family of three waits at the Banner and asks for shelter.",
+    "you": "Take them in as settlers, give food, ask them to work, or send them away.",
+    "needs": "2+ settlers",
+    "hostile": false,
+    "min_gap_days": 4,
+    "enabled_by": "features.worldEvents + events.refugees"
+  },
+  {
+    "id": "minstrels",
+    "enum": "MINSTRELS",
+    "category": "event",
+    "name": "Travelling Minstrels",
+    "what": "Three minstrels arrive at the Tavern at dusk.",
+    "you": "Host a feast for a full set (costs Coins) or let them play for tips; listeners wake happier.",
+    "needs": "a Tavern and 2+ settlers",
+    "hostile": false,
+    "min_gap_days": 3,
+    "enabled_by": "features.worldEvents + events.minstrels"
+  },
+  {
+    "id": "field_fox",
+    "enum": "FIELD_FOX",
+    "category": "event",
+    "name": "Fox in the Fields",
+    "what": "A fox sneaks into your fields and steals ripe crops.",
+    "you": "Chase it off; your Farmer runs out and a Hunter can shoot it to drop the crop.",
+    "needs": "crop fields",
+    "hostile": false,
+    "min_gap_days": 2,
+    "enabled_by": "features.worldEvents + events.field_fox"
+  },
+  {
+    "id": "wolf_pack",
+    "enum": "WOLF_PACK",
+    "category": "event",
+    "name": "Wolf Pack",
+    "what": "Three wolves come for your livestock at night.",
+    "you": "Guards fight them; the pack leaves after one kill or two losses and is gone by dawn.",
+    "needs": "2+ livestock animals",
+    "hostile": true,
+    "min_gap_days": 3,
+    "enabled_by": "features.worldEvents + events.wolf_pack; not on Peaceful"
+  },
+  {
+    "id": "wild_boar",
+    "enum": "WILD_BOAR",
+    "category": "event",
+    "name": "Wild Boar",
+    "what": "A bad-tempered boar roots up crops in your fields.",
+    "you": "Let Guards fight it or have a Hunter shoot it for extra meat.",
+    "needs": "crop fields",
+    "hostile": true,
+    "min_gap_days": 3,
+    "enabled_by": "features.worldEvents + events.wild_boar; not on Peaceful"
+  },
+  {
+    "id": "tavern_brawl",
+    "enum": "TAVERN_BRAWL",
+    "category": "event",
+    "name": "Tavern Brawl",
+    "what": "Two settlers fall out over ale and come to blows (no real damage).",
+    "you": "Right-click a brawler to break it up, or a Guard will; each ending costs a little morale.",
+    "needs": "a Tavern and 2 civilians near it",
+    "hostile": false,
+    "min_gap_days": 3,
+    "enabled_by": "features.worldEvents + events.tavern_brawl"
+  },
+  {
+    "id": "brute_toll",
+    "enum": "BRUTE_TOLL",
+    "category": "event",
+    "name": "Brute Toll",
+    "what": "Three brutes walk up to the Banner and demand food.",
+    "you": "Pay food or 10 Coins, talk them down, refuse or attack; answer within about 2 hours.",
+    "needs": "4+ settlers",
+    "hostile": true,
+    "min_gap_days": 4,
+    "enabled_by": "features.worldEvents + events.brute_toll; not on Peaceful"
+  },
+  {
+    "id": "stray_dog",
+    "enum": "STRAY_DOG",
+    "category": "event",
+    "name": "Stray Dog",
+    "what": "A scruffy dog hangs around the Banner.",
+    "you": "Feed it and it becomes the village dog for good, or shoo it away.",
+    "needs": "2+ settlers and no village dog yet",
+    "hostile": false,
+    "min_gap_days": 6,
+    "enabled_by": "features.worldEvents + events.stray_dog"
+  },
+  {
+    "id": "caravan",
+    "enum": "CARAVAN",
+    "category": "event",
+    "name": "Passing Caravan",
+    "what": "A trade caravan stops on the road near town.",
+    "you": "Barter in bulk, escort it to its far waypoint for Coins and goods, or wave it on.",
+    "needs": "3+ settlers",
+    "hostile": false,
+    "min_gap_days": 4,
+    "enabled_by": "features.worldEvents + events.caravan"
+  },
+  {
+    "id": "rival_envoy",
+    "enum": "RIVAL_ENVOY",
+    "category": "event",
+    "name": "Rival Envoy",
+    "what": "An envoy of a neighbouring lord comes to the Banner.",
+    "you": "Negotiate a trade pact, send a gift, insult him or dismiss him; the lord remembers.",
+    "needs": "4+ settlers",
+    "hostile": false,
+    "min_gap_days": 5,
+    "enabled_by": "features.worldEvents + events.rival_envoy"
+  },
+  {
+    "id": "hearthstead:barter_only",
+    "category": "conversation",
+    "name": "Barter Table",
+    "what": "A bare barter screen opened directly on an NPC with trade stock.",
+    "you": "Pick goods on both sides and accept the deal, or leave.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:brute_toll",
+    "category": "conversation",
+    "name": "Brute Toll (talk)",
+    "what": "The brute chief demands a toll of food.",
+    "you": "Pay food or Coins, try to talk them down (Intimidation), refuse, or attack.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:caravan",
+    "category": "conversation",
+    "name": "Caravan (talk)",
+    "what": "The caravan master offers trade or asks for an escort.",
+    "you": "Barter, agree to escort them past the woods, or let them pass.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:demo_peddler",
+    "category": "conversation",
+    "name": "Demo Peddler",
+    "what": "A test peddler conversation for admins.",
+    "you": "Only spawned by the /hstalk admin command; not part of normal play.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:minstrels",
+    "category": "conversation",
+    "name": "Minstrels (talk)",
+    "what": "The minstrel troupe offers to play at your Tavern.",
+    "you": "Host the feast for Coins, let them play for tips, or send them away.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:peddler",
+    "category": "conversation",
+    "name": "Peddler (talk)",
+    "what": "The peddler greets you and opens his wares.",
+    "you": "Choose Trade to open the barter table, or leave.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:raid_parley",
+    "category": "conversation",
+    "name": "Raid Parley",
+    "what": "Before a recurring raid charges, its captain halts at the edge and waits to talk.",
+    "you": "Pay tribute, persuade a truce, duel the captain alone, or refuse and fight.",
+    "enabled_by": "features.conversations + conversations.raidParley"
+  },
+  {
+    "id": "hearthstead:refugees",
+    "category": "conversation",
+    "name": "Refugees (talk)",
+    "what": "The refugee family asks to be taken in.",
+    "you": "Accept, ask them to work (a Charisma roll), give food, or decline.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:rival_envoy",
+    "category": "conversation",
+    "name": "Rival Envoy (talk)",
+    "what": "The rival lord's envoy states his master's business.",
+    "you": "Negotiate a pact (a trade roll), befriend with a gift, insult, or dismiss.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:stray_dog",
+    "category": "conversation",
+    "name": "Stray Dog (talk)",
+    "what": "The stray dog looks up at you hopefully.",
+    "you": "Feed it to adopt it, or shoo it away.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "hearthstead:traveller",
+    "category": "conversation",
+    "name": "Wandering Traveller",
+    "what": "A data-driven sample talk: a traveller trades news for bread.",
+    "you": "Only spawned by the admin command /hstalk traveller; not part of normal play.",
+    "enabled_by": "features.conversations"
+  },
+  {
+    "id": "RaidDirector",
+    "category": "other",
+    "name": "Raids",
+    "what": "After the first raid, a raid comes every 3-4 in-game days; the warning sounds at dusk the evening before.",
+    "you": "Arm and post your Guards and Archers, keep the Banner stocked, and fight beside them.",
+    "enabled_by": "raids.recurringRaidMinDays / raids.recurringRaidMaxDays"
+  },
+  {
+    "id": "GoblinTheftDirector",
+    "category": "other",
+    "name": "Goblin Thief",
+    "what": "Now and then a Goblin Thief sneaks in to pickpocket, then runs rather than fights.",
+    "you": "Chase it down before it escapes; it sometimes drops goblin loot.",
+    "enabled_by": "(always on; health via raids.goblinThiefBaseHealth)"
+  },
+  {
+    "id": "EarlyCoinMerchant",
+    "category": "other",
+    "name": "Traveling Merchant",
+    "what": "A merchant regularly walks to the Banner and buys your goods for Coins from a limited purse.",
+    "you": "Sell goods to earn the Coins you spend on tech nodes, emblems and recruits.",
+    "enabled_by": "economy.merchantPurseBase / merchantBuysCrafted"
+  }
+]

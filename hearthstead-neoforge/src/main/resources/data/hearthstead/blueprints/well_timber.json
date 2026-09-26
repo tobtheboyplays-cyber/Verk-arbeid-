@@ -1,0 +1,110 @@
+{
+  "id": "well_timber",
+  "name": "Village Well (Whitewashed Timber)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "well",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber",
+  "requires": "builders_hut",
+  "group": "well",
+  "size": [
+    9,
+    8,
+    9
+  ],
+  "ground_level": 1,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      2,
+      3,
+      2
+    ],
+    "facing": "south"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        6,
+        2,
+        1
+      ],
+      "to": "another_furniture:spruce_chair[facing=south,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        1,
+        2,
+        6
+      ],
+      "to": "another_furniture:spruce_chair[facing=east,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:cobblestone",
+      "count": 89
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 38
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 27
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 8
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 6
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 6
+    },
+    {
+      "item": "minecraft:stone_brick_slab",
+      "count": 4
+    },
+    {
+      "item": "minecraft:white_concrete",
+      "count": 4
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 1
+    }
+  ],
+  "block_count": 206,
+  "cells": 206,
+  "notes": [
+    "The Builder pours the 2x2 well with 2 water buckets."
+  ]
+}

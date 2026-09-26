@@ -1,0 +1,26 @@
+{
+  "start": "start",
+  "encounter": {"approach": true, "radius": 6, "style": "eye", "intro": "conversation.hearthstead.traveller.intro"},
+  "nodes": {
+    "start": {
+      "lines": ["conversation.hearthstead.traveller.greet"],
+      "options": [
+        {"id": "bread", "text": "conversation.hearthstead.traveller.bread",
+         "costs": [{"item": "minecraft:bread", "count": 2}],
+         "relation": 8, "reputation": 1, "memory": "conversation.hearthstead.traveller.memory.bread",
+         "reply": "conversation.hearthstead.traveller.thanks", "next": "news"},
+        {"id": "news", "text": "conversation.hearthstead.traveller.ask",
+         "persuade": {"base": 45, "skill": "charisma"},
+         "relation": 2, "next": "news",
+         "failure": {"relation": -3, "reply": "conversation.hearthstead.traveller.shrug"}},
+        {"id": "leave", "text": "conversation.hearthstead.leave"}
+      ]
+    },
+    "news": {
+      "lines": ["conversation.hearthstead.traveller.news"],
+      "options": [
+        {"id": "leave", "text": "conversation.hearthstead.traveller.farewell", "reply": "conversation.hearthstead.traveller.bye"}
+      ]
+    }
+  }
+}

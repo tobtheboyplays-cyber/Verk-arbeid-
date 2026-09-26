@@ -1,0 +1,140 @@
+{
+  "id": "fishery_small",
+  "name": "Fishing Dock",
+  "category": "work",
+  "kind": "building",
+  "building_type": "fishery",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "fishery",
+  "size": [
+    18,
+    11,
+    12
+  ],
+  "ground_level": 1,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      9,
+      3,
+      8
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      7,
+      2,
+      4
+    ],
+    [
+      8,
+      2,
+      2
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 120
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 112
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 89
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 80
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 54
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 21
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 21
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 14
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 4
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 2
+    },
+    {
+      "item": "hearthstead:fishers_chair",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 2
+    },
+    {
+      "item": "hearthstead:fish_rack",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cobweb",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 1
+    }
+  ],
+  "block_count": 562,
+  "cells": 909,
+  "notes": [
+    "The Builder never places fluids: pour two water buckets into the indoor slip (needs 20+ connected surface water; the slip holds 24)."
+  ]
+}

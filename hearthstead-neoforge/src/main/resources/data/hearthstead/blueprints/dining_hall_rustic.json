@@ -1,0 +1,231 @@
+{
+  "id": "dining_hall_rustic",
+  "name": "Common Hall (Rustic Log)",
+  "category": "common",
+  "kind": "building",
+  "building_type": "dining_hall",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "dining_hall",
+  "size": [
+    11,
+    10,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      6,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      3,
+      1,
+      2
+    ]
+  ],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        5,
+        1,
+        4
+      ],
+      "to": "another_furniture:spruce_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        5,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        4,
+        1,
+        4
+      ],
+      "to": "another_furniture:spruce_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        4
+      ],
+      "to": "another_furniture:spruce_chair[facing=west,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        5
+      ],
+      "to": "another_furniture:spruce_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        6,
+        2,
+        5
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        7,
+        1,
+        5
+      ],
+      "to": "another_furniture:spruce_chair[facing=west,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        6
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        2,
+        1,
+        9
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        3,
+        1,
+        9
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        7,
+        1,
+        9
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        8,
+        1,
+        9
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:spruce_log",
+      "count": 90
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 57
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 54
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 46
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 35
+    },
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 33
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 22
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 15
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 12
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 5
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 3
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 3
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_pressure_plate",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:yellow_banner",
+      "count": 1
+    }
+  ],
+  "block_count": 400,
+  "cells": 589
+}

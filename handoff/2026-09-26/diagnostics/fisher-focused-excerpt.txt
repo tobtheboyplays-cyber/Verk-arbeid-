@@ -1,0 +1,5 @@
+Diagnostic excerpt, not full log. Original: fisher-focused.log
+[14:58:14] [Server thread/ERROR] [minecraft/LogTestReporter]: afisherfiftyblocksfromtheshorewalksthereandfishes failed at -11894063, -60, 6851900! a far fisher must walk to the shore and fish; act=TRAVELING at BlockPos{x=-55, y=1, z=-41} route=fisher_chair_unreachable@2449 stop=NO_PATH
+[14:58:14] [Server thread/INFO] [minecraft/GameTestServer]: 1 required tests failed :(
+FAILURE: Build failed with an exception.
+BUILD FAILED in 15s

@@ -1,0 +1,17 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "base": {
+    "parent": "hearthstead:item/wooden_double_axe_held"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "hearthstead:item/wooden_double_axe_icon"
+    },
+    "ground": {
+      "parent": "hearthstead:item/wooden_double_axe_icon"
+    },
+    "fixed": {
+      "parent": "hearthstead:item/wooden_double_axe_icon"
+    }
+  }
+}

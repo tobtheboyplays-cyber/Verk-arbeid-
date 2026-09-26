@@ -1,0 +1,124 @@
+{
+  "id": "smithy_rustic",
+  "name": "Open Forge (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "smithy",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "smithy",
+  "size": [
+    12,
+    13,
+    12
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      3
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      6,
+      1,
+      5
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 95
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 78
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 64
+    },
+    {
+      "item": "minecraft:bricks",
+      "count": 50
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 42
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 37
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 20
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 11
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2
+    },
+    {
+      "item": "minecraft:blast_furnace",
+      "count": 1
+    },
+    {
+      "item": "minecraft:furnace",
+      "count": 1
+    },
+    {
+      "item": "minecraft:smithing_table",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 1
+    },
+    {
+      "item": "minecraft:grindstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:anvil",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:coal_block",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 415,
+  "cells": 563
+}

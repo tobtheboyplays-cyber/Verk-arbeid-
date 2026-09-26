@@ -1,0 +1,90 @@
+[
+  {
+    "id": "key.hearthstead.command_knights",
+    "name": "Command Knights",
+    "default": "R",
+    "does": "Order your Guards: tap = order at what you look at, hold = draw a line, Shift + key = back to posts.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_archers",
+    "name": "Command Archers",
+    "default": "G",
+    "does": "Order your Archers: tap = target or spot, hold = draw a line, Shift + key = back to posts.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_spearmen",
+    "name": "Command Spearmen",
+    "default": "J",
+    "does": "Order your Spearmen: tap = target or spot, hold = draw a line, Shift + key = back to posts.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_longswordsmen",
+    "name": "Command Longswordsmen",
+    "default": "K",
+    "does": "Order your Longswordsmen: tap, hold to draw a line, Shift + key to send them back.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_mages",
+    "name": "Command Rune Mages",
+    "default": "N",
+    "does": "Order your Rune Mages: tap, hold to draw a line, Shift + key to send them back.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_healers",
+    "name": "Command Healers",
+    "default": "H",
+    "does": "Order your Healers: tap, hold to draw a line, Shift + key to send them back.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_all",
+    "name": "Command all soldiers",
+    "default": "unbound",
+    "does": "Order every soldier at once, the same way as the role keys.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.command_menu",
+    "name": "Orders strip (hold fire, follow, back to posts)",
+    "default": "B",
+    "does": "Open the orders strip: hold fire / fire at will, all follow me, all back to posts (keys 1-3).",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.summon",
+    "name": "Summon the settler you look at",
+    "default": "O",
+    "does": "Look at any settler and press to call them to you.",
+    "category": "Bannerhold",
+    "source": "client/command/CommandKeys.java"
+  },
+  {
+    "id": "key.hearthstead.finisher",
+    "name": "Finish (separate key; unbound uses Command Knights)",
+    "default": "unbound",
+    "does": "Execute a glowing, staggered enemy. While unbound, the Command Knights key (R) does it.",
+    "category": "Bannerhold",
+    "source": "client/finisher/FinisherClientSetup.java"
+  },
+  {
+    "id": "key.hearthstead.handbook",
+    "name": "Open the Handbook",
+    "default": "Y",
+    "does": "Open the Handbook at the page a recent hint pointed to, or the last page you read.",
+    "category": "Bannerhold",
+    "source": "client/ui2/handbook/HandbookHints.java"
+  }
+]

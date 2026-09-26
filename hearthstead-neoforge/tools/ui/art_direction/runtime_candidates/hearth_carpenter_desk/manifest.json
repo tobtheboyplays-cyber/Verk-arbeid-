@@ -1,0 +1,11 @@
+{
+  "status": "runtime candidate only; no Java integration",
+  "light": "top-left",
+  "protected_corner": 4,
+  "parts": {
+    "desk_frame_320x220.png": "static main plane",
+    "desk_insets_320x220.png": "static recess plane",
+    "desk_hardware_320x220.png": "static foreground plane",
+    "nine_slice_parts.png": "idle leather, paper, slot, brass"
+  }
+}

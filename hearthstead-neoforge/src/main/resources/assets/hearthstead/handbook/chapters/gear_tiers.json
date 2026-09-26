@@ -1,0 +1,18 @@
+{
+  "id": "gear_tiers",
+  "title": "hearthstead.guide.gear_tiers.title",
+  "icon": "minecraft:iron_chestplate",
+  "pages": [
+    {
+      "id": "gear_tiers.access",
+      "title": "hearthstead.guide.gear_tiers.access.title",
+      "bullets": [
+        "hearthstead.guide.gear_tiers.access.b1",
+        "hearthstead.guide.gear_tiers.access.b2",
+        "hearthstead.guide.gear_tiers.access.b3"
+      ],
+      "tip": "hearthstead.guide.gear_tiers.access.tip",
+      "image_wanted": "Equipment panel with a refused item and its precise unmet requirements."
+    }
+  ]
+}

@@ -1,0 +1,264 @@
+{
+ "format_version": "1.8.0",
+ "animations": {
+  "animation.settler.serve_carry": {
+   "loop": true,
+   "animation_length": 2.0,
+   "bones": {
+    "torso": {
+     "rotation": {
+      "0.0": {
+       "post": [
+        -4.0,
+        0.0,
+        1.2
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.25": {
+       "post": [
+        -3.2,
+        -1.375,
+        0.825
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.5": {
+       "post": [
+        -4.0,
+        -2.0,
+        0.0
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.75": {
+       "post": [
+        -3.2,
+        -1.375,
+        -0.825
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.0": {
+       "post": [
+        -4.0,
+        0.0,
+        -1.2
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.25": {
+       "post": [
+        -3.2,
+        1.375,
+        -0.825
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.5167": {
+       "post": [
+        -3.99,
+        1.997,
+        0.06
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.75": {
+       "post": [
+        -3.2,
+        1.375,
+        0.825
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "2.0": {
+       "post": [
+        -4.0,
+        0.0,
+        1.2
+       ],
+       "lerp_mode": "catmullrom"
+      }
+     }
+    },
+    "head": {
+     "rotation": {
+      "0.0": {
+       "post": [
+        7.0,
+        0.0,
+        -1.5
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.1667": {
+       "post": [
+        6.741,
+        1.059,
+        -1.278
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.5": {
+       "post": [
+        6.0,
+        2.2,
+        0.0
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.8": {
+       "post": [
+        6.648,
+        1.25,
+        1.188
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.0": {
+       "post": [
+        7.0,
+        0.0,
+        1.5
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.2333": {
+       "post": [
+        6.55,
+        -1.428,
+        1.086
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.5167": {
+       "post": [
+        6.003,
+        -2.196,
+        -0.075
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.85": {
+       "post": [
+        6.784,
+        -0.96,
+        -1.318
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "2.0": {
+       "post": [
+        7.0,
+        0.0,
+        -1.5
+       ],
+       "lerp_mode": "catmullrom"
+      }
+     }
+    },
+    "cloak": {
+     "rotation": {
+      "0.0": {
+       "post": [
+        0.411,
+        0.0,
+        0.592
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.1833": {
+       "post": [
+        -0.575,
+        0.0,
+        0.562
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.4167": {
+       "post": [
+        0.565,
+        0.0,
+        0.292
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.6667": {
+       "post": [
+        -0.565,
+        0.0,
+        -0.232
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "0.9": {
+       "post": [
+        0.534,
+        0.0,
+        -0.54
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.2167": {
+       "post": [
+        -0.534,
+        0.0,
+        -0.54
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.45": {
+       "post": [
+        0.565,
+        0.0,
+        -0.232
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.6833": {
+       "post": [
+        -0.575,
+        0.0,
+        0.262
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "1.8667": {
+       "post": [
+        0.411,
+        0.0,
+        0.512
+       ],
+       "lerp_mode": "catmullrom"
+      },
+      "2.0": {
+       "post": [
+        0.411,
+        0.0,
+        0.592
+       ],
+       "lerp_mode": "catmullrom"
+      }
+     }
+    }
+   }
+  }
+ },
+ "hearthstead_meta": {
+  "source": "tools/blender/pipeline/clips/tavern/author_innkeeper.py (Blender 4.5.14 LTS)",
+  "lane": "tavern animation (26 Sep)",
+  "contract": "SERVE_CARRY 2.0 s loop, torso/head/cloak ONLY, layered over the walk while the host carries real service cargo: upright back, level careful gaze, a small counter-sway. The arms stay on TavernServingHandPose's real-cargo IK.",
+  "checks": {
+   "length": 2.0,
+   "loop": true,
+   "loop_seam": [
+    0.0,
+    1.0,
+    "torso.rot"
+   ],
+   "loop_seam_pose_deg": 0.0
+  },
+  "roundtrip_max_err": 0.1873,
+  "keys": 28
+ }
+}

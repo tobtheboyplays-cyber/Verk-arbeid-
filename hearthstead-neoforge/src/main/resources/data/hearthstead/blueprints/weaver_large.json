@@ -1,0 +1,156 @@
+{
+  "id": "weaver_large",
+  "name": "Weaving Hall",
+  "category": "work",
+  "kind": "building",
+  "building_type": "weaver",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "weaver",
+  "size": [
+    16,
+    15,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      11,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      12,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 165
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 145
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 116
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 96
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 37
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 25
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 20
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 8
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 5
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 3
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:loom",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:blue_wool",
+      "count": 2
+    },
+    {
+      "item": "minecraft:allium",
+      "count": 2
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:light_gray_wool",
+      "count": 1
+    },
+    {
+      "item": "minecraft:yellow_wool",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_wool",
+      "count": 1
+    },
+    {
+      "item": "minecraft:green_wool",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 651,
+  "cells": 986
+}

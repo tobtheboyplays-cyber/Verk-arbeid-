@@ -1,0 +1,66 @@
+{
+  "name": "Plaque — Lumber Camp staff blocked worst case",
+  "width": 640,
+  "height": 424,
+  "elements": [
+    {"t": "window", "x": 0, "y": 0, "w": 640, "h": 424},
+    {"t": "medallion", "x": 38, "y": 27, "radius": 20, "tone": "warn", "asset": "item/building_plaque.png", "icon_size": 20},
+    {"t": "title", "x": 70, "y": 10, "text": "Northwatch Riverside Lumber Camp", "box": 330, "id": "title"},
+    {"t": "label", "x": 70, "y": 27, "text": "Building Plaque • staff control", "tone": "text_muted", "box": 240, "id": "screen_context"},
+    {"t": "badge", "x": 470, "y": 12, "w": 152, "h": 22, "text": "1 WORKER BLOCKED", "tone": "warn", "id": "building_state"},
+    {"t": "divider", "x": 12, "y": 48, "w": 616},
+
+    {"t": "tab", "x": 12, "y": 54, "w": 192, "h": 22, "text": "Requirements  5 / 5", "selected": false},
+    {"t": "tab", "x": 208, "y": 54, "w": 150, "h": 22, "text": "Staff  1 / 2", "selected": true},
+
+    {"t": "frame", "x": 12, "y": 84, "w": 366, "h": 292, "surface": "inset", "tone": "warn", "inner_alpha": 46},
+    {"t": "section", "x": 28, "y": 98, "w": 334, "text": "STAFF • REQUIRED ROLE: LUMBERER", "tone": "warn", "id": "staff_heading"},
+
+    {"t": "soft_panel", "x": 28, "y": 118, "w": 334, "h": 112, "tone": "bad", "alpha": 22, "stroke_alpha": 195},
+    {"t": "medallion", "x": 60, "y": 154, "radius": 22, "tone": "warn", "asset": "item/lumberer_emblem.png", "icon_size": 22},
+    {"t": "label", "x": 94, "y": 126, "text": "Aldith the Far-Travelled", "tone": "text_strong", "box": 180, "id": "worker_name"},
+    {"t": "badge", "x": 280, "y": 124, "w": 68, "h": 18, "text": "BLOCKED", "tone": "bad", "id": "worker_status"},
+    {"t": "label", "x": 94, "y": 146, "text": "Lumberer • assigned post 1", "tone": "text_muted", "box": 226, "id": "worker_role"},
+    {"t": "label", "x": 94, "y": 164, "text": "Waiting at workplace storage", "tone": "warn", "box": 226, "id": "worker_activity"},
+    {"t": "section", "x": 40, "y": 188, "w": 306, "text": "EXACT BLOCKER", "tone": "bad", "id": "blocker_heading"},
+    {"t": "label", "x": 40, "y": 204, "text": "No serviceable axe in worker or workplace storage.", "tone": "bad", "box": 306, "id": "worker_blocker"},
+    {"t": "label", "x": 40, "y": 218, "text": "Next: place any axe with at least 8 uses in storage.", "tone": "text", "box": 306, "id": "worker_next_action"},
+
+    {"t": "soft_panel", "x": 28, "y": 238, "w": 334, "h": 78, "tone": "accent", "alpha": 12, "stroke_alpha": 125},
+    {"t": "badge", "x": 40, "y": 248, "w": 72, "h": 18, "text": "OPEN POST", "tone": "accent", "id": "open_post_badge"},
+    {"t": "label", "x": 122, "y": 250, "text": "Post 2 • no settler selected", "tone": "text_strong", "box": 220, "id": "open_post_state"},
+    {"t": "paragraph", "x": 40, "y": 274, "w": 306, "h": 34, "box": 306, "lines": 3, "text": "Buy a physical Lumberer Emblem from the Mayor. Hold it, then use it on the compatible settler you choose.", "tone": "text_muted", "id": "emblem_instruction"},
+
+    {"t": "label", "x": 28, "y": 328, "text": "The Plaque never recommends or auto-selects a settler.", "tone": "text_muted", "box": 318, "id": "player_choice_truth"},
+    {"t": "button", "x": 28, "y": 344, "w": 334, "h": 24, "text": "Open Workplace Storage", "state": "hover"},
+
+    {"t": "frame", "x": 386, "y": 84, "w": 242, "h": 292, "surface": "window", "tone": "accent", "stroke": 2, "inner_alpha": 82},
+    {"t": "section", "x": 402, "y": 98, "w": 210, "text": "BEST ATTRIBUTES FOR THIS JOB", "tone": "accent", "id": "fit_heading"},
+    {"t": "paragraph", "x": 402, "y": 116, "w": 210, "h": 24, "box": 210, "lines": 2, "text": "Aldith's real values are shown. The choice remains yours.", "tone": "text_muted", "id": "choice_truth"},
+
+    {"t": "soft_panel", "x": 402, "y": 148, "w": 210, "h": 52, "tone": "good", "alpha": 18, "stroke_alpha": 165},
+    {"t": "medallion", "x": 426, "y": 174, "radius": 15, "tone": "good", "text": "STR", "text_tone": "text"},
+    {"t": "label", "x": 452, "y": 154, "text": "Strength", "tone": "text_strong", "box": 72, "id": "strength_label"},
+    {"t": "label", "x": 600, "y": 154, "text": "72 / 100", "align": "right", "tone": "good", "box": 58, "id": "strength_value"},
+    {"t": "paragraph", "x": 452, "y": 174, "w": 148, "h": 22, "box": 148, "lines": 2, "text": "Fewer axe swings • carries more logs", "tone": "good", "id": "strength_effect"},
+
+    {"t": "soft_panel", "x": 402, "y": 206, "w": 210, "h": 52, "tone": "good", "alpha": 14, "stroke_alpha": 135},
+    {"t": "medallion", "x": 426, "y": 232, "radius": 15, "tone": "good", "text": "ST", "text_tone": "text"},
+    {"t": "label", "x": 452, "y": 212, "text": "Stamina", "tone": "text_strong", "box": 72, "id": "stamina_label"},
+    {"t": "label", "x": 600, "y": 212, "text": "76 / 100", "align": "right", "tone": "good", "box": 58, "id": "stamina_value"},
+    {"t": "paragraph", "x": 452, "y": 232, "w": 148, "h": 22, "box": 148, "lines": 2, "text": "Works longer • handles a heavy sack", "tone": "good", "id": "stamina_effect"},
+
+    {"t": "soft_panel", "x": 402, "y": 264, "w": 210, "h": 52, "tone": "warn", "alpha": 13, "stroke_alpha": 125},
+    {"t": "medallion", "x": 426, "y": 290, "radius": 15, "tone": "warn", "text": "W", "text_tone": "text"},
+    {"t": "label", "x": 452, "y": 270, "text": "Wits", "tone": "text_strong", "box": 72, "id": "wits_label"},
+    {"t": "label", "x": 600, "y": 270, "text": "39 / 100", "align": "right", "tone": "warn", "box": 58, "id": "wits_value"},
+    {"t": "label", "x": 452, "y": 290, "text": "Learns the trade faster", "tone": "warn", "box": 148, "id": "wits_effect"},
+
+    {"t": "badge", "x": 402, "y": 326, "w": 210, "h": 22, "text": "HOVER FOR FORMULA + NEXT STEP", "tone": "accent", "id": "hover_instruction"},
+    {"t": "label", "x": 402, "y": 356, "text": "Numbers inform; they never assign.", "tone": "text_muted", "box": 210, "id": "judgment_rule"},
+
+    {"t": "divider", "x": 12, "y": 384, "w": 616},
+    {"t": "label", "x": 16, "y": 396, "text": "Employment changes only through a physical Emblem used on a settler.", "tone": "text_muted", "box": 478, "id": "employment_footer"},
+    {"t": "button", "x": 568, "y": 390, "w": 60, "h": 22, "text": "Close"}
+  ]
+}
