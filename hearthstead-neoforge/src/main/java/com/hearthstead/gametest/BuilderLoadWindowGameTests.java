@@ -1,7 +1,9 @@
 package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.builder.Blueprint;
 import com.hearthstead.settlement.builder.BlueprintMeta;
 import com.hearthstead.settlement.builder.BuildJob;
@@ -11,6 +13,7 @@ import com.hearthstead.settlement.builder.BuilderStock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -28,7 +31,7 @@ import java.util.List;
  * Its material must come along on the load and must not be handed back at
  * the hut; before the fix a sack of prefix cobblestone looped FETCHING for
  * one plank forever. Every item stays accounted for: hut + sacks + ground +
- * placed blocks equals what was stocked.
+ * placed blocks equals what was stocked. One Builder per hut, as the game hires.
  */
 @GameTestHolder(Hearthstead.MODID)
 @PrefixGameTestTemplate(false)
@@ -80,9 +83,13 @@ public class BuilderLoadWindowGameTests {
         return n;
     }
 
-    /** Hut + sacks + ground + placed, per item: nothing conjured, nothing lost. */
-    private static void assertConserved(GameTestHelper helper, BuilderTestKit.Arena arena, List<SettlerEntity> builders,
+    /** Huts + sacks + ground + placed, per item: nothing conjured, nothing lost. */
+    private static void assertConserved(GameTestHelper helper, List<Container> huts, List<SettlerEntity> builders,
                                         List<BlockPos> sites, Item item, Block block, int stocked) {
+        int stored = 0;
+        for (Container hut : huts) {
+            stored += BuilderTestKit.count(hut, item);
+        }
         int bags = 0;
         for (SettlerEntity b : builders) {
             bags += BuilderStock.bagCount(b.bag, item);
@@ -91,8 +98,8 @@ public class BuilderLoadWindowGameTests {
         for (BlockPos site : sites) {
             built += placed(helper, site, block);
         }
-        int total = BuilderTestKit.count(arena.chest(), item) + bags + onGround(helper, item) + built;
-        helper.assertTrue(total == stocked, item + ": hut+sacks+ground+placed = " + total + ", stocked " + stocked);
+        int total = stored + bags + onGround(helper, item) + built;
+        helper.assertTrue(total == stocked, item + ": huts+sacks+ground+placed = " + total + ", stocked " + stocked);
     }
 
     private static void assertComplete(GameTestHelper helper, BuilderTestKit.Arena arena, BuildJob job, BlockPos site) {
@@ -113,8 +120,8 @@ public class BuilderLoadWindowGameTests {
         SettlerEntity builder = BuilderTestKit.hireBuilder(helper, arena, site.offset(8, 0, 8), "Ane");
         helper.succeedWhen(() -> {
             assertComplete(helper, arena, job, site);
-            assertConserved(helper, arena, List.of(builder), List.of(site), Items.COBBLESTONE, Blocks.COBBLESTONE, 64);
-            assertConserved(helper, arena, List.of(builder), List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1);
+            assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.COBBLESTONE, Blocks.COBBLESTONE, 64);
+            assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1);
         });
     }
 
@@ -130,29 +137,36 @@ public class BuilderLoadWindowGameTests {
         builder.bag.setChanged();
         helper.succeedWhen(() -> {
             assertComplete(helper, arena, job, site);
-            assertConserved(helper, arena, List.of(builder), List.of(site), Items.COBBLESTONE, Blocks.COBBLESTONE, 64);
-            assertConserved(helper, arena, List.of(builder), List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1);
+            assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.COBBLESTONE, Blocks.COBBLESTONE, 64);
+            assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1);
         });
     }
 
-    // Two Builders, two such sites, one hut stocked with the exact bill of both.
+    // Two Builders (one per hut), two such sites; every item across both huts is accounted for.
     @GameTest(template = "empty32", timeoutTicks = 4800, batch = "builder_load")
-    public void twoBuildersShareOneHutAndEveryItemIsAccountedFor(GameTestHelper helper) {
+    public void twoBuildersTwoSitesAndEveryItemIsAccountedFor(GameTestHelper helper) {
         BuilderTestKit.Arena arena = BuilderTestKit.arena(helper, 32, 4);
+        Building hutB = GameTestFixtures.register(helper, arena.settlement(), BuildingType.BUILDERS_HUT, 12, 2);
+        BlockPos chestB = new BlockPos(13, 1, 4);
+        helper.setBlock(chestB, Blocks.CHEST);
+        Container b = (Container) arena.level().getBlockEntity(helper.absolutePos(chestB));
         BlockPos siteA = new BlockPos(8, 1, 8);
         BlockPos siteB = new BlockPos(8, 1, 19);
         BuildJob jobA = commit(helper, arena, siteA, "test_load_two_a");
         BuildJob jobB = commit(helper, arena, siteB, "test_load_two_b");
-        BuilderTestKit.stock(arena.chest(), new ItemStack(Items.COBBLESTONE, 128), new ItemStack(Items.OAK_PLANKS, 2));
+        BuilderTestKit.stock(arena.chest(), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.OAK_PLANKS, 1));
+        BuilderTestKit.stock(b, new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.OAK_PLANKS, 1));
         SettlerEntity one = BuilderTestKit.hireBuilder(helper, arena, siteA.offset(8, 0, 8), "Cato");
-        SettlerEntity two = BuilderTestKit.hireBuilder(helper, arena, siteB.offset(8, 0, 8), "Dina");
+        SettlerEntity two = BuilderTestKit.hireBuilder(helper,
+            new BuilderTestKit.Arena(arena.level(), arena.settlement(), hutB, b), siteB.offset(8, 0, 8), "Dina");
+        List<Container> huts = List.of(arena.chest(), b);
         List<SettlerEntity> builders = List.of(one, two);
         List<BlockPos> sites = List.of(siteA, siteB);
         helper.succeedWhen(() -> {
             assertComplete(helper, arena, jobA, siteA);
             assertComplete(helper, arena, jobB, siteB);
-            assertConserved(helper, arena, builders, sites, Items.COBBLESTONE, Blocks.COBBLESTONE, 128);
-            assertConserved(helper, arena, builders, sites, Items.OAK_PLANKS, Blocks.OAK_PLANKS, 2);
+            assertConserved(helper, huts, builders, sites, Items.COBBLESTONE, Blocks.COBBLESTONE, 128);
+            assertConserved(helper, huts, builders, sites, Items.OAK_PLANKS, Blocks.OAK_PLANKS, 2);
         });
     }
 }
