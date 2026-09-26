@@ -374,7 +374,9 @@ public final class Research extends SavedData {
             }
             return out;
         }
-        if (level.getBlockEntity(settlement.center) instanceof HearthBlockEntity hearth) {
+        // hasChunkAt first: reading an unloaded Hearth would load its chunk.
+        if (level.hasChunkAt(settlement.center)
+            && level.getBlockEntity(settlement.center) instanceof HearthBlockEntity hearth) {
             out.add(hearth.getInventory());
         }
         return out;
