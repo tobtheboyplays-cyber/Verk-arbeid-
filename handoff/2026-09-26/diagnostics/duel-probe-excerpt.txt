@@ -1,0 +1,7 @@
+Diagnostic excerpt, not full log. Original: duel-probe.log
+[15:03:44] [Server thread/INFO] [hearthstead/]: CODEX_DUEL before tick=0 invulnerable=false ability=false alive=true duel=true
+[15:03:44] [Server thread/INFO] [hearthstead/]: CODEX_DUEL after hit=false hp=20.0 outcomes=[]
+[15:03:44] [Server thread/ERROR] [minecraft/LogTestReporter]: duellosttothecaptainsblowreleasestheband failed at 14173389, -60, -435863! the captain's blow takes the player to the yield line: [] player hp 20.0
+[15:03:44] [Server thread/INFO] [minecraft/GameTestServer]: 1 required tests failed :(
+FAILURE: Build failed with an exception.
+BUILD FAILED in 16s

@@ -1,0 +1,18 @@
+Diagnostic excerpt, not full log. Original: miner-corrected.log
+[14:49:47] [Server thread/ERROR] [minecraft/LogTestReporter]: craftingtableisgatedandcoopplayertwoshares failed at 4262426, -60, 767687! a wooden spear needs Spearmen on the crafting table too
+[14:49:47] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=0 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=IDLE slowAct=IDLE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=100 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=IDLE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=200 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=300 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=IDLE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=400 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=IDLE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=500 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=600 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=IDLE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=700 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=800 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=IDLE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=900 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=1000 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=1100 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=WORK_MINE slowAct=IDLE
+[14:49:48] [Server thread/INFO] [hearthstead/]: CODEX_MINER t=1200 fastTool=1 minecraft:diamond_pickaxe slowTool=1 minecraft:diamond_pickaxe fastNode=true slowNode=false fastTicks=48 slowTicks=60 fastAct=IDLE slowAct=WORK_MINE
+[14:49:48] [Server thread/INFO] [minecraft/GameTestServer]: 1 required tests failed :(
+FAILURE: Build failed with an exception.
+BUILD FAILED in 19s

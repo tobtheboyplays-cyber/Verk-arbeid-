@@ -230,3 +230,46 @@ Relevant source: Departure.walk -> moveOnGround uses MOTION_BLOCKING_NO_LEAVES h
 
 Extended only this test's floor at relative y0 from the64x64 arena to[-64,128) in x/z, clearing four blocks above, in private test fixture. Single brute test still FAILS at900 ticks, actors at y=-50; evidence departure-flat.log. This does not prove a flat arena at the actors' elevation: their actual support blocks/heights need inspection. Therefore the proposed arena-edge explanation remains unconfirmed. No production changes; do not count the experiment as a successful correction or ordinary-terrain validation.
 
+## QA-TEST-05 (P2 fixture reliability): paid-brute departure spawns/walks on GameTest barriers
+
+The ground probe identifies support=minecraft:barrier at y=-51 (actor feet y=-50), while relative zero is y=-60. Thus the earlier10-block discrepancy is the GameTest barrier enclosure, not just an unprepared outside floor. Extending the floor alone did not resolve it.
+
+Controlled follow-up kept the same extended floor, same production code,900-tick timeout, nearby-observer first100 ticks and minimum walk assertions. Removed ONLY Blocks.BARRIER at relative x/z[-2,65],y[1,12] before event start in this private single-case arena. Result: All1 required tests passed; BUILD SUCCESSFUL, exit0 at14:57:04. Logged actors now stand on minecraft:stone at y=-59. Evidence departure-ground.log (barriers, fail) and departure-no-barrier.log (stone, pass). Init departure-no-barrier.init.gradle; fresh departure-no-barrier-world, cwd drunk-single/hearthstead-neoforge, build drunk-single-build; otherwise same offline runGameTestServer command.
+
+Conclusion: confirmed fixture sensitivity to the artificial barrier enclosure. This passing comparison does not prove all departure terrain or multiplayer cases. Recommendation: use a supported open departure fixture or explicitly prepare a reachable departure corridor and assert spawn support is not BARRIER; preserve the unseen and travel checks. Do not ship blanket barrier deletion in gameplay code. Recheck fox/boar broad failures against their actual support before classifying them similarly.
+
+## Fisher far-shore isolated reproduction - 14:58:14 Oslo
+
+Existing fisher_far_shore batch, unchanged current-verification snapshot, fresh fisher-focused-world:1 test,1 required failure, exit1. At2400 ticks: act=TRAVELING, reported relative position(-55,1,-41), route=fisher_chair_unreachable@2449, stop=NO_PATH. Evidence fisher-focused.log. Command ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/fisher-focused.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/current-verification-build.
+
+This reproduces the broad failure without other GameTest batches. FisherFarShoreGameTests.java:38-85 checks only reaching WORK_FISH, not completed fish production; it validates shore before spawning, supplies rod and starts at(56,1,56). FisherWorkGoal.java:113-155 has explicit far-range partial-path fallback then switches to exact reachable aisle. Root cause remains unclassified; inspect actual world coordinates/chair facing and partial-path progress before changing arrival checks. Reported relative negative coordinates should not be interpreted as a verified position outside the arena until helper rotation/coordinate conversion is checked. No code changes in this reproduction.
+
+## QA-FISH-01 (P2): far-shore approach fails while near control works
+
+Private test-only position/path logging, production unchanged: fisher-probe.log reproduces failure on ordinary stone_bricks support at the same elevation as the chair. At t400 the chair is66.5 blocks away, navigation target is the shore aisle but pathEnd=null and done=true. Later samples repeatedly show null routes at52-57 blocks. This is distinct from the departure barrier defect.
+
+Control changed ONLY starting position in the instrumented fixture from(56,1,56) to(24,1,24), about20.6 blocks from chair(8,1,11). All1 required tests PASS, BUILD SUCCESSFUL at14:59:58; evidence fisher-near-control.log, fresh fisher-near-control-world. Command uses fisher-near-control.init.gradle with private drunk-single module/build. Near control is diagnostic evidence, NOT a replacement for the required far-shore regression.
+
+Relevant FisherWorkGoal.java:113-155: attempts exact path, then for distances>24 chooses a standable aisle, and asks navigation for a path all the way to that distant aisle. When createPath returns null, coordinate moveTo retries that same distant target rather than choosing a reachable intermediate destination. Observations support inadequate far-distance approach, but exact internal navigation cause is not yet independently established. Recommend investigate bounded reachable intermediate waypoints, retaining final exact-contact checks; verify far, near, blocked shore, change of job and unloading before integration. No production fix applied by Codex.
+
+## QA-PATH-01 (P2): Elmfield balcony escape fails in isolation
+
+Unchanged current-verification production and test source; elmfield_balcony batch, fresh balcony-focused-world:1 required test,1 failure at1600 ticks. Evidence balcony-focused.log, terminal15:01:06, exit1. Actor remains at balcony elevation y6, four blocks above ground; route note nav:stuck. Command ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/balcony-focused.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/current-verification-build.
+
+ElmfieldBalconyGameTests.java builds the historical corner geometry: top slab, fence posts, log beam, wall ladder and exhausted settler at an intentionally precise offset inside the corner cell. This independently reproduces broad failure without other batches. Root cause not yet classified (collision recovery vs ladder-entry route). Inspect RoadNodeEvaluator ladder neighbours and RoadNavigation stuck recovery; preserve fall safety.
+
+Coverage limit: the assertion only checks final feet elevation <=ground. Even a pass would not prove safe ladder descent; it could accept falling. A future correction should additionally establish safe descent/no injury and reaching the intended resting destination, while retaining exact problematic spawn position. Do not move the actor off the troublesome corner as the production fix.
+
+## Duel-loss isolated reproduction - 15:02:25 Oslo
+
+Existing scenario_parley_duel_lost batch, unchanged current-verification source; fresh duel-focused-world:1 required test,1 failure, exit1. Player health remains20 and outcome list is empty after the scheduled captain-source hurt call. Evidence duel-focused.log. Command ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/duel-focused.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/current-verification-build.
+
+ScenarioParleyGameTests.java:294-312 schedules damage65 ticks after setup, clears invulnerableTime, calls player.hurt(mobAttack(captain), health-2), then expects loss without death and band release. Player helper uses real ServerPlayer with embedded connection and vanilla placeNewPlayer, not makeMockServerPlayer. Therefore mock invulnerability cannot be assumed as the cause. Need inspect hurt return and incoming/yield hooks, spawn immunity and player tick progression. This is an isolated failed outcome, not yet a classified duel production defect.
+
+## QA-TEST-06 (P2): embedded duel player retains spawn damage protection
+
+Single-case diagnostic duel-probe.log: after65 scheduled world ticks player tickCount=0, isInvulnerableTo=false, abilities.invulnerable=false, alive=true, duel=true; hurt returnsfalse, health20,outcomes[]. Vanilla mapped ServerPlayer.hurt separately rejects damage while spawnInvulnerableTime>0; ServerPlayer.tick decrements that field (not the same counter as LivingEntity.invulnerableTime). Thus clearing invulnerableTime in ScenarioParleyGameTests:302 does not clear login protection.
+
+Private control only: explicitly invoke p.player().tick()65 times immediately before the same damage call; unchanged production. Result duel-ticked.log: hurt=true, health20,outcomes=[false]; All1 required tests passed, BUILD SUCCESSFUL at15:04:30. Health remaining20 is compatible with yield cancellation; outcome and band-release assertions pass. tickCount still0 because this ServerPlayer override and doTick serve different parts of the tick lifecycle; do not use tickCount alone as proof no server-side method ever ran.
+
+Command: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/duel-ticked.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/drunk-single-build ; cwd drunk-single/hearthstead-neoforge, fresh duel-ticked-world. Recommendation: proper embedded player connection/ticking lifecycle in the fixture and explicit damage-readiness precondition; do not remove production spawn protection. Diagnostic burst ticking is evidence, not necessarily the preferred permanent test fix. Real client duel behavior remains unverified by this experiment.
