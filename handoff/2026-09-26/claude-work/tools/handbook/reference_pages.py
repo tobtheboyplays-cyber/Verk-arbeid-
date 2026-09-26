@@ -12,6 +12,7 @@ PER_PAGE = 8
 EXTRA_SECTIONS = {
     "livingVillage": "Settler life around the village: chatter, idle visits and small daily habits.",
     "weapons": "Damage, speed and reach of the captain weapons per type and tier.",
+    "hud": "Client: the health counter above the hotbar for what you look at. lookAt = on (default), off = never.",
 }
 
 

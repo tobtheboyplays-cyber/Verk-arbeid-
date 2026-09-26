@@ -1078,5 +1078,23 @@
     "does": "Quiet looping village ambience around your settlement.",
     "file": "hearthstead-client.toml",
     "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "audio.bannerholdMusic",
+    "side": "client",
+    "section": "audio",
+    "default": "true",
+    "does": "Bannerhold's own soundtrack through the Music slider; off = vanilla music only.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
+  },
+  {
+    "id": "hud.healthCounter",
+    "side": "client",
+    "section": "hud",
+    "default": "\"lookAt\"",
+    "does": "Health counter above the hotbar for what you look at: lookAt = on, off = never.",
+    "file": "hearthstead-client.toml",
+    "source": "HearthsteadClientConfig.java"
   }
 ]
