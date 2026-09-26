@@ -1,0 +1,22 @@
+name: Import Bannerhold continuation snapshot
+on:
+  push:
+    branches: [codex/bannerhold-transfer-20260926]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify and import reviewed source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat transfer/bannerhold.part-* > /tmp/bannerhold.bundle
+          echo '9a7659b225e9d4b45b48b4260b3956764954101d1ceee867977537ba529ec720  /tmp/bannerhold.bundle' | sha256sum -c -
+          git bundle verify /tmp/bannerhold.bundle
+          git fetch /tmp/bannerhold.bundle HEAD
+          test "$(git rev-parse FETCH_HEAD)" = "1db9168b7dab4b1ea0b9c83e51aee7440c132499"
+          git push origin FETCH_HEAD:refs/heads/codex/bannerhold-qa-handoff-20260926
