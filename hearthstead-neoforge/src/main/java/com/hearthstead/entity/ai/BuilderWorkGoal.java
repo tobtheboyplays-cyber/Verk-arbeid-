@@ -882,9 +882,24 @@ public class BuilderWorkGoal extends Goal {
         settler.getNavigation().stop();
         depositUnneeded(level, job, hutStock);
         takeBatch(hutStock, batchNeeds(job));
+        restIfNotLoaded(job, stepCosts, now);
         stage = Stage.BUILD;
         lastReplan = 0L;
         stepSince = now;
+    }
+
+    /**
+     * The chosen block's material could not go into the sack (a full chest
+     * would not take the rest of the sack back): rest that block and set the
+     * ones the sack does cover first, then come back for it -- never a
+     * FETCHING loop at the chest.
+     */
+    private void restIfNotLoaded(BuildJob job, List<BuilderMaterials.ItemCount> stepCosts, long now) {
+        if (step >= 0 && !bagCovers(stepCosts)) {
+            job.noteWhy(step, "no room in sack");
+            job.deferStep(step, now + REQUEST_INTERVAL);
+            step = -1;
+        }
     }
 
     /**
@@ -1035,6 +1050,9 @@ public class BuilderWorkGoal extends Goal {
                 depositUnneeded(level, job, List.of(chest));
             }
             takeBatch(List.of(chest), batchNeeds(job == null ? null : job, batch));
+            if (job != null && step >= 0 && step < job.size()) {
+                restIfNotLoaded(job, BuilderMaterials.costsOfStep(job, step), now);
+            }
         }
         fetchFrom = null;
         stage = Stage.BUILD;

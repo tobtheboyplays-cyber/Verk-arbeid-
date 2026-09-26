@@ -142,6 +142,32 @@ public class BuilderLoadWindowGameTests {
         });
     }
 
+    // The hut chest is full, so the sack's prefix cobblestone cannot go back: he rests the plank,
+    // sets the cobblestone he carries first, and then has room for it (never a FETCHING loop).
+    @GameTest(template = "empty32", timeoutTicks = 3000, batch = "builder_load")
+    public void fullHutChestRestsTheChosenStepUntilTheSackHasRoom(GameTestHelper helper) {
+        BuilderTestKit.Arena arena = BuilderTestKit.arena(helper, 32, 4);
+        BlockPos site = new BlockPos(8, 1, 8);
+        BuildJob job = commit(helper, arena, site, "test_load_full_hut");
+        ItemStack[] fill = new ItemStack[arena.chest().getContainerSize()];
+        fill[0] = new ItemStack(Items.OAK_PLANKS, 1);
+        for (int i = 1; i < fill.length; i++) {
+            fill[i] = new ItemStack(Items.DIRT, 64);
+        }
+        BuilderTestKit.stock(arena.chest(), fill);
+        int dirt = BuilderTestKit.count(arena.chest(), Items.DIRT);
+        SettlerEntity builder = BuilderTestKit.hireBuilder(helper, arena, site.offset(8, 0, 8), "Eir");
+        builder.bag.setItem(0, new ItemStack(Items.COBBLESTONE, 64));
+        builder.bag.setChanged();
+        helper.succeedWhen(() -> {
+            assertComplete(helper, arena, job, site);
+            assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.COBBLESTONE, Blocks.COBBLESTONE, 64);
+            assertConserved(helper, List.of(arena.chest()), List.of(builder), List.of(site), Items.OAK_PLANKS, Blocks.OAK_PLANKS, 1);
+            helper.assertTrue(BuilderTestKit.count(arena.chest(), Items.DIRT) + BuilderStock.bagCount(builder.bag, Items.DIRT)
+                + onGround(helper, Items.DIRT) == dirt, "the chest's other goods are untouched");
+        });
+    }
+
     // Two Builders (one per hut), two such sites; every item across both huts is accounted for.
     @GameTest(template = "empty32", timeoutTicks = 4800, batch = "builder_load")
     public void twoBuildersTwoSitesAndEveryItemIsAccountedFor(GameTestHelper helper) {
@@ -157,12 +183,32 @@ public class BuilderLoadWindowGameTests {
         BuilderTestKit.stock(arena.chest(), new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.OAK_PLANKS, 1));
         BuilderTestKit.stock(b, new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.OAK_PLANKS, 1));
         SettlerEntity one = BuilderTestKit.hireBuilder(helper, arena, siteA.offset(8, 0, 8), "Cato");
-        SettlerEntity two = BuilderTestKit.hireBuilder(helper,
-            new BuilderTestKit.Arena(arena.level(), arena.settlement(), hutB, b), siteB.offset(8, 0, 8), "Dina");
+        // Dina is hired once Cato holds site A, so each Builder stands by the
+        // plank of his own site and both take the step beyond the prefix.
+        SettlerEntity[] two = {null};
+        java.util.Set<java.util.UUID> claimantsA = new java.util.HashSet<>();
+        java.util.Set<java.util.UUID> claimantsB = new java.util.HashSet<>();
+        helper.onEachTick(() -> {
+            BuildJob a = BuilderTestKit.job(arena.level(), arena.settlement(), jobA.id);
+            BuildJob bJob = BuilderTestKit.job(arena.level(), arena.settlement(), jobB.id);
+            if (a != null && a.claimant != null) {
+                claimantsA.add(a.claimant);
+            }
+            if (bJob != null && bJob.claimant != null) {
+                claimantsB.add(bJob.claimant);
+            }
+            if (two[0] == null && a != null && one.getUUID().equals(a.claimant)) {
+                two[0] = BuilderTestKit.hireBuilder(helper,
+                    new BuilderTestKit.Arena(arena.level(), arena.settlement(), hutB, b), siteB.offset(8, 0, 8), "Dina");
+            }
+        });
         List<Container> huts = List.of(arena.chest(), b);
-        List<SettlerEntity> builders = List.of(one, two);
         List<BlockPos> sites = List.of(siteA, siteB);
         helper.succeedWhen(() -> {
+            helper.assertTrue(two[0] != null, "Dina hired after Cato claimed site A");
+            List<SettlerEntity> builders = List.of(one, two[0]);
+            helper.assertTrue(claimantsA.equals(java.util.Set.of(one.getUUID()))
+                && claimantsB.equals(java.util.Set.of(two[0].getUUID())), "each Builder kept his own site");
             assertComplete(helper, arena, jobA, siteA);
             assertComplete(helper, arena, jobB, siteB);
             assertConserved(helper, huts, builders, sites, Items.COBBLESTONE, Blocks.COBBLESTONE, 128);
