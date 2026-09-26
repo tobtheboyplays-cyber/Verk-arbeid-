@@ -819,7 +819,8 @@ public class BuilderWorkGoal extends Goal {
                 continue;
             }
             firstMissing = cost.item();
-            firstShort = batch.getOrDefault(cost.item(), cost.count()) - inBag
+            // batchNeeds already takes the bag off: subtract only the hut here.
+            firstShort = batch.getOrDefault(cost.item(), cost.count() - inBag)
                 - BuilderStock.count(hutStock, cost.item());
             break;
         }
@@ -827,6 +828,12 @@ public class BuilderWorkGoal extends Goal {
         if (now >= nextRequest && pickup != BuildSiteSavedData.Pickup.FETCH_MYSELF) {
             nextRequest = now + REQUEST_INTERVAL;
             BuilderSupply.request(level, settlement, hut, job, settler.bag);
+            if (firstMissing != null) {
+                // QA-BUILD-01: the chosen step can lie beyond the ordered
+                // batch BuilderSupply asks for; ask for its item directly
+                // (requestItem refuses a second live row for the item).
+                BuilderSupply.requestItem(level, settlement, hut, firstMissing, Math.max(1, firstShort));
+            }
         }
         if (firstMissing != null) {
             boolean courier = BuilderSupply.courierAvailable(level, settlement);
@@ -934,27 +941,50 @@ public class BuilderWorkGoal extends Goal {
     /**
      * The whole of what the next load's worth of steps needs, bag or not --
      * the most of any item worth carrying right now (ladders for a column
-     * being hung included).
+     * being hung included). Both loading and what he keeps at the hut use it.
      */
     private Map<Item, Integer> windowNeeds(BuildJob job) {
         int capacity = Math.max(1, builderCapacity(settler));
+        // Ladders share the load with the materials (Codex T3b): a tall
+        // column is carried in trips, never a sack of ladders only.
+        int ladders = scaffoldNeed > 0 && column != null ? Math.min(scaffoldNeed, Math.max(1, capacity / 2)) : 0;
+        return loadWindow(job, step, ladders, capacity, settler.level().getGameTime());
+    }
+
+    /**
+     * The load window. The selected step comes first: {@link #nextStep} may
+     * choose any pending block of the layer within {@link #FRONT_SCAN}, far
+     * beyond the ordered prefix, and it keeps that block until it is set --
+     * so its material must be loaded and must never be handed back at the
+     * hut (QA-BUILD-01: a sack full of prefix cobblestone looped FETCHING
+     * for a plank forever). Then the column's ladders, then the pending
+     * steps in build order, clamped so the window never exceeds the load:
+     * what is kept at the hut then always leaves room for the chosen step.
+     */
+    public static Map<Item, Integer> loadWindow(BuildJob job, int selected, int ladders, int capacity, long now) {
         Map<Item, Integer> need = new LinkedHashMap<>();
         int units = 0;
-        if (scaffoldNeed > 0 && column != null) {
-            // Ladders share the load with the materials (Codex T3b): a tall
-            // column is carried in trips, never a sack of ladders only.
-            int ladders = Math.min(scaffoldNeed, Math.max(1, capacity / 2));
-            need.put(net.minecraft.world.item.Items.LADDER, ladders);
-            units = ladders;
+        if (selected >= 0 && selected < job.size() && pending(job, selected, now)) {
+            for (BuilderMaterials.ItemCount c : BuilderMaterials.costsOfStep(job, selected)) {
+                need.merge(c.item(), c.count(), Integer::sum);
+                units += c.count();
+            }
         }
-        long now = settler.level().getGameTime();
+        if (ladders > 0) {
+            need.merge(net.minecraft.world.item.Items.LADDER, ladders, Integer::sum);
+            units += ladders;
+        }
         for (int i = job.cursor(); i < job.size() && units < capacity; i++) {
-            if (job.isDone(i) || job.isSkipped(i) || job.isBlocked(i) || job.deferred(i, now)) {
+            if (i == selected || !pending(job, i, now)) {
                 continue;
             }
             for (BuilderMaterials.ItemCount c : BuilderMaterials.costsOfStep(job, i)) {
-                need.merge(c.item(), c.count(), Integer::sum);
-                units += c.count();
+                int take = Math.min(c.count(), capacity - units);
+                if (take <= 0) {
+                    break;
+                }
+                need.merge(c.item(), take, Integer::sum);
+                units += take;
             }
         }
         return need;
