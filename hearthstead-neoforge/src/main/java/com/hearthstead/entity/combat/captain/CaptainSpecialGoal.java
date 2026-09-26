@@ -137,6 +137,9 @@ public class CaptainSpecialGoal extends Goal {
 
     @Override
     public void start() {
+        // Once per charge, not once ever: an interrupted Shield Charge must not keep its
+        // victims' ids, or the next charge could never hit them (Codex T31).
+        hitThisPhase.clear();
         captain.setActivity(SettlerActivity.COMBAT);
         captain.getNavigation().stop();
         if (captain.level() instanceof ServerLevel level && active != null) {
@@ -153,6 +156,7 @@ public class CaptainSpecialGoal extends Goal {
             CaptainWorld.save(captain, cs);
         }
         active = null;
+        hitThisPhase.clear();
         done = true;
         captain.setActivity(SettlerActivity.IDLE);
     }

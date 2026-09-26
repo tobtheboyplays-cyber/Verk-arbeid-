@@ -64,8 +64,10 @@ public final class TechCraftGateGameTests {
         ServerPlayer two = playerAt(helper, f);
         CraftingMenu table = new CraftingMenu(1, two.getInventory(),
             ContainerLevelAccess.create(helper.getLevel(), f.hearth.getBlockPos()));
-        table.getSlot(1).set(new ItemStack(Items.OAK_PLANKS));
-        table.getSlot(4).set(new ItemStack(Items.STICK));
+        // The spear's diagonal (recipe wooden_spear: "  P", " S ", "S  "): grid
+        // slots 3, 5 and 7. A vertical 1/4/7 column is a vanilla wooden shovel.
+        table.getSlot(3).set(new ItemStack(Items.OAK_PLANKS));
+        table.getSlot(5).set(new ItemStack(Items.STICK));
         table.getSlot(7).set(new ItemStack(Items.STICK));
         helper.assertTrue(table.getSlot(0).getItem().isEmpty(),
             "a wooden spear needs Spearmen on the crafting table too");

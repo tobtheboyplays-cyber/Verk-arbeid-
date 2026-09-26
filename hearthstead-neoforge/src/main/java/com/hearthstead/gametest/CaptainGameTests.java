@@ -222,6 +222,67 @@ public class CaptainGameTests {
         });
     }
 
+    /**
+     * Codex T31: an interrupted Shield Charge kept its victims' ids, so the same goal's next
+     * charge could never hit them again. Charge 1 hits the brute and is broken off before its
+     * end; after the cooldown, charge 2 must hit the same brute.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 460, batch = "captain_special_rehit")
+    public void anInterruptedShieldChargeCanHitTheSameRaiderNextTime(GameTestHelper helper) {
+        Fixture f = arena(helper, true);
+        SettlerEntity cap = hero(helper, f, new ItemStack(Items.IRON_SWORD), new ItemStack(Items.SHIELD));
+        RaiderEntity brute = raider(helper, f, RaiderEntity.Variant.BRUTE, new BlockPos(7, 1, 8));
+        CaptainSpecialGoal goal = new CaptainSpecialGoal(cap);
+        BlockPos home = helper.absolutePos(new BlockPos(7, 1, 8));
+        BlockPos capHome = helper.absolutePos(new BlockPos(6, 1, 8));
+        int[] stage = {0};
+        Runnable arm = () -> {
+            brute.setPos(home.getX() + 0.5D, home.getY(), home.getZ() + 0.5D);
+            brute.setDeltaMovement(0.0D, 0.0D, 0.0D);
+            cap.setPos(capHome.getX() + 0.5D, capHome.getY(), capHome.getZ() + 0.5D);
+            brute.setHealth(200.0F);
+            cap.setTarget(brute);
+            goal.forceNext(CaptainSpecial.SHIELD_CHARGE);
+            helper.assertTrue(goal.canUse(), "Shield Charge can start (stage " + stage[0] + ")");
+            goal.start();
+        };
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            switch (stage[0]) {
+                case 0 -> {
+                    arm.run();
+                    stage[0] = 1;
+                }
+                case 1, 3 -> {
+                    if (brute.getHealth() < 200.0F) {
+                        if (stage[0] == 1) {
+                            goal.stop(); // broken off mid-charge, before its end phase
+                            stage[0] = 2;
+                        } else {
+                            stage[0] = 4;
+                        }
+                    } else if (goal.canContinueToUse()) {
+                        goal.tick();
+                    } else {
+                        helper.fail(stage[0] == 1 ? "charge 1 must hit the brute"
+                            : "charge 2 never hit the brute an interrupted charge had hit");
+                    }
+                }
+                case 2 -> {
+                    if (CaptainWorld.stateOf(cap).ready(CaptainSpecial.SHIELD_CHARGE, now)) {
+                        arm.run();
+                        stage[0] = 3;
+                    }
+                }
+                default -> { }
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(stage[0] == 4, "both charges hit the brute (stage " + stage[0] + ")");
+            CaptainStatus.commissionForTests(f.settlement().id, false);
+        });
+    }
+
     @GameTest(template = "empty16", timeoutTicks = 120, batch = "captain_friendly_fire")
     public void crowdSpecialsNeverHurtSettlersPlayersOrAnimals(GameTestHelper helper) {
         Fixture f = arena(helper, true);

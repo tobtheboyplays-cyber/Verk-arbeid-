@@ -92,9 +92,34 @@ public final class TechTreeNetwork {
         if (VIEWERS.isEmpty()) {
             return;
         }
-        if (!(level.getBlockEntity(settlement.center) instanceof HearthBlockEntity hearth)) {
-            return;
+        pushToViewers(level, settlement);
+    }
+
+    /** Snapshots pushed by {@link #refreshViewers} (GameTests read it). */
+    private static final java.util.concurrent.atomic.AtomicInteger REFRESHES = new java.util.concurrent.atomic.AtomicInteger();
+
+    public static int refreshesForTests() {
+        return REFRESHES.get();
+    }
+
+    /**
+     * QA-UI-05: the Banner's stock changed (another player deposited or took), so open trees
+     * of this settlement get a fresh snapshot and show current affordability. Snapshots only,
+     * no knowledge sync; a purchase still goes through {@link #handle} and TechTree.learn,
+     * which re-check the price. Called at most once a second per Banner, only after a change.
+     */
+    public static void refreshViewers(ServerLevel level, Settlement settlement) {
+        if (level != null && settlement != null && !VIEWERS.isEmpty()) {
+            REFRESHES.addAndGet(pushToViewers(level, settlement));
         }
+    }
+
+    /** Sends a feedback-free snapshot to every online viewer of this settlement; returns how many. */
+    private static int pushToViewers(ServerLevel level, Settlement settlement) {
+        if (!(level.getBlockEntity(settlement.center) instanceof HearthBlockEntity hearth)) {
+            return 0;
+        }
+        int sent = 0;
         for (Map.Entry<UUID, UUID> viewer : VIEWERS.entrySet()) {
             if (!settlement.id.equals(viewer.getValue())) {
                 continue;
@@ -106,7 +131,9 @@ public final class TechTreeNetwork {
                 continue;
             }
             PayloadSend.toPlayer(player, snapshot(player, settlement, hearth, "", "", false, false));
+            sent++;
         }
+        return sent;
     }
 
     /** The snapshot a player would get now (read-only; GameTests use it). */

@@ -296,9 +296,24 @@ public class ScenarioParleyGameTests {
         Parley p = arena(helper, "Duellost");
         talk(helper, p, "duel");
         helper.assertTrue(RaidParley.duelActiveForTests(p.settlement().id), "the duel is on");
+        // The band forms up outside the claim, beyond the test's entity-ticking area, so an
+        // embedded player standing there is never ticked and its 60-tick spawn protection
+        // never runs out (QA-TEST-06). Bring both duelists into the arena, 2 blocks apart
+        // as before; the login protection itself is untouched.
+        BlockPos ground = helper.absolutePos(new BlockPos(7, 1, 8));
+        p.captain().teleportTo(ground.getX() + 0.5D, ground.getY(), ground.getZ() + 0.5D);
+        p.player().teleportTo(helper.getLevel(), ground.getX() + 2.5D, ground.getY(), ground.getZ() + 0.5D, 0.0F, 0.0F);
         // Past the fresh player's 60-tick spawn protection, the captain lands a blow that
         // takes the player through the yield line (the real damage path, as in talk_parley_duel).
+        // The move itself decides nothing: the duel is still on, with no outcome, before the blow.
+        com.hearthstead.gametest.GameTestTicks.at(helper, 64, () -> helper.assertTrue(
+            RaidParley.duelActiveForTests(p.settlement().id)
+                && RaidParley.duelOutcomesForTests(p.settlement().id).isEmpty(),
+            "the duel is still undecided just before the blow: " + RaidParley.duelOutcomesForTests(p.settlement().id)));
         com.hearthstead.gametest.GameTestTicks.at(helper, 65, () -> {
+            helper.assertTrue(p.player().tickCount >= 60,
+                "fixture: the duelist is ticked, so its spawn protection has run out; tickCount="
+                    + p.player().tickCount);
             p.player().invulnerableTime = 0;
             p.player().hurt(p.player().damageSources().mobAttack(p.captain()), p.player().getHealth() - 2.0F);
         });

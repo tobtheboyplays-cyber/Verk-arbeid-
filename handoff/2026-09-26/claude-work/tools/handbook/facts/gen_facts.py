@@ -706,7 +706,7 @@ CFG_FILES = [('server', 'HearthsteadServerConfig.java'), ('server', 'event/world
              ('server', 'settlement/economy/EconomyConfig.java'), ('server', 'settlement/economy/QualityConfig.java'),
              ('server', 'settlement/techtree/TechTreeConfig.java'), ('server', 'entity/AttributeConfig.java'),
              ('client', 'HearthsteadClientConfig.java')]
-PAT = re.compile(r'\.push\("(\w+)"\)|\.pop\(\)|\.define(?:InRange|Enum)?\((\w+\.id\(\)|"\w+"),\s*([^,)]+)', re.S)
+PAT = re.compile(r'\.push\("(\w+)"\)|\.pop\(\)|\.define(?:InRange|Enum|InList)?\((\w+\.id\(\)|"\w+"),\s*([^,)]+)', re.S)
 
 
 def resolve(expr, consts):
@@ -837,6 +837,8 @@ OPT_DOES = {
     'particles.intensity': 'Particle amount: 0 subtle, 1 normal, 2 rich.',
     'audio.voiceVolume': 'Volume of the gibberish character voices (0 = silent).',
     'audio.ambienceBeds': 'Quiet looping village ambience around your settlement.',
+    'audio.bannerholdMusic': 'Bannerhold\'s own soundtrack through the Music slider; off = vanilla music only.',
+    'hud.healthCounter': 'Health counter above the hotbar for what you look at: lookAt = on, off = never.',
 }
 options = []
 we_types = [re.search(r'"(\w+)"', a).group(1) for n, a in WORLD_EVENTS]

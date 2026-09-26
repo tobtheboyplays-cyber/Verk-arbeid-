@@ -821,10 +821,10 @@ public final class RaidQaFixtureGameTests {
                 RaidQaFixtureService.start(level, actor);
             helper.assertTrue(started.outcome()
                     == RaidQaFixtureService.StartOutcome.STARTED
-                    && started.spawned() == 5
+                    && started.spawned() == RaidDirector.FIRST_RAID_BAND_SIZE
                     && settlement.raidLifecycle.firstState()
                         == FirstRaidState.ACTIVE
-                    && participants == 5
+                    && participants == RaidDirector.FIRST_RAID_BAND_SIZE
                     && startReplay.outcome()
                         == RaidQaFixtureService.StartOutcome.ALREADY_STARTED
                     && settlement.raidLifecycle.participants().size()
@@ -871,12 +871,12 @@ public final class RaidQaFixtureGameTests {
                         observedArcherId, raiders, origin, elapsed,
                         "archer_fired:" + shots, true);
                 }
-                if (elapsed == 20L) helper.assertTrue(raiders.size() == 5
+                if (elapsed == 20L) helper.assertTrue(raiders.size() == RaidDirector.FIRST_RAID_BAND_SIZE
                         && raiders.stream().allMatch(raider -> raider.isAlive()
                             && level.getEntity(raider.getUUID()) == raider
                             && raider.tickCount >= 5)
-                        && settlement.raidLifecycle.participants().size() == 5,
-                    "all five exact raid participants must survive and tick "
+                        && settlement.raidLifecycle.participants().size() == RaidDirector.FIRST_RAID_BAND_SIZE,
+                    "all " + RaidDirector.FIRST_RAID_BAND_SIZE + " exact raid participants must survive and tick "
                         + "before the route oracle; roster=" + raiders.stream()
                             .map(raider -> raider.getUUID() + ":alive="
                                 + raider.isAlive() + ":ticks=" + raider.tickCount)
@@ -931,7 +931,7 @@ public final class RaidQaFixtureGameTests {
                 // a real volley from the existing Watchtower arrows.
                 if (!postEntryObservationClipped[0]) {
                     helper.assertTrue(archerShotLatched[0],
-                        "the ordinary five-raider KORN route must reach one "
+                        "the ordinary first-raid KORN route must reach one "
                             + "eligible Watchtower shot without a forced target, "
                             + "teleport, leash change or combat cleanup victory");
                 } else {

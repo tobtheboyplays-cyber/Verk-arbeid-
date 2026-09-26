@@ -22,6 +22,9 @@ public final class ModBlocks {
             // the old hearth's light level 13 for anything that relies on it.
             .mapColor(MapColor.WOOD)
             .strength(3.5F)
+            // Removing the Banner disbands its settlement (HearthBlock#onRemove):
+            // a creeper or TNT must not be able to do that. Players still break it.
+            .explosionResistance(1200.0F)
             .requiresCorrectToolForDrops()
             .sound(SoundType.WOOD)
             .lightLevel(state -> 13)

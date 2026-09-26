@@ -545,7 +545,14 @@ public final class WorkerProvenanceSavedData extends SavedData {
         var iterator = actions.entrySet().iterator();
         while (actions.size() >= MAX_ACTIONS && iterator.hasNext()) {
             Action action = iterator.next().getValue();
-            if ((action.phase == Phase.OUTPUT_COMMITTED || action.phase == Phase.RETIRED)
+            // A committed planting produces nothing and owes nothing: every
+            // seed leaves one such row, so they must be prunable (oldest
+            // first) or 512 plantings would stop all farm and lumber work.
+            boolean spentPlanting = action.kind == Kind.FARM_PLANT
+                && action.phase == Phase.WORK_COMMITTED
+                && action.pendingOperation == null && action.produced.isEmpty();
+            if (spentPlanting
+                || (action.phase == Phase.OUTPUT_COMMITTED || action.phase == Phase.RETIRED)
                 && action.produced.entrySet().stream().allMatch(row ->
                     action.deposited.getOrDefault(row.getKey(), 0).equals(row.getValue()))) {
                 iterator.remove();

@@ -191,6 +191,9 @@ public class HearthBlock extends BaseEntityBlock {
         if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
             && level instanceof ServerLevel serverLevel
             && level.getBlockEntity(pos) instanceof HearthBlockEntity hearth) {
+            // A fresh Banner founds on first use, so its menu opens with the real identity
+            // rather than NO_SETTLEMENT, which the Tech Tree would refuse (QA-UI-03).
+            hearth.foundNow(serverLevel);
             Settlement settlement = hearth.getSettlementId() == null ? null
                 : SettlementManager.byId(serverLevel, hearth.getSettlementId());
             // A reward is a deliberate Hearth interaction, never a combat
@@ -201,15 +204,21 @@ public class HearthBlock extends BaseEntityBlock {
                 && BlessingNetwork.openFor(serverPlayer, settlement)) {
                 return InteractionResult.SUCCESS;
             }
-            serverPlayer.openMenu(hearth, buf -> {
-                buf.writeBlockPos(pos);
-                buf.writeUUID(hearth.getSettlementId() == null
-                    ? com.hearthstead.menu.HearthMenu.NO_SETTLEMENT
-                    : hearth.getSettlementId());
-                buf.writeUtf(hearth.settlementNameForMenu());
-            });
+            openMenu(serverPlayer, hearth);
         }
         return InteractionResult.sidedSuccess(level.isClientSide);
+    }
+
+    /** Opens the Banner menu with the Banner's current identity (also used to refresh a stale one). */
+    public static void openMenu(ServerPlayer player, HearthBlockEntity hearth) {
+        BlockPos pos = hearth.getBlockPos();
+        player.openMenu(hearth, buf -> {
+            buf.writeBlockPos(pos);
+            buf.writeUUID(hearth.getSettlementId() == null
+                ? com.hearthstead.menu.HearthMenu.NO_SETTLEMENT
+                : hearth.getSettlementId());
+            buf.writeUtf(hearth.settlementNameForMenu());
+        });
     }
 
     @Override

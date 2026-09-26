@@ -4008,6 +4008,27 @@ public class SettlerEntity extends PathfinderMob {
                 deathDrops.materialize(serverLevel, transfer);
             }
         }
+        // A member's hand items are real kit (EquipmentRequests' chest tools,
+        // GuardRank's armoury weapons, the captain's swap, a healer's taken
+        // stock). Vanilla drops them only on a player kill, at 8.5%, so they
+        // vanished with the corpse (CLOUD-03 S-04). A world-event visitor or a
+        // traveler holds display props that must never become real items.
+        if (settlementId != null && !isTraveler()
+            && !getPersistentData().contains(com.hearthstead.event.worldevent.WorldEventDirector.TAG)) {
+            for (EquipmentSlot hand : new EquipmentSlot[] {EquipmentSlot.MAINHAND, EquipmentSlot.OFFHAND}) {
+                ItemStack held = getItemBySlot(hand);
+                if (held.isEmpty()) {
+                    continue;
+                }
+                UUID transfer = deathDrops.queue(serverLevel, getX(), getY() + 0.3D, getZ(), held.copy());
+                if (transfer == null) {
+                    complete = false;
+                    continue;
+                }
+                setItemSlot(hand, ItemStack.EMPTY);
+                deathDrops.materialize(serverLevel, transfer);
+            }
+        }
         if (craftOutputEscrow != null && !craftOutputEscrow.output().isEmpty()) {
             UUID transfer = deathDrops.queue(serverLevel, getX(), getY() + 0.3D, getZ(),
                 craftOutputEscrow.output().copy());

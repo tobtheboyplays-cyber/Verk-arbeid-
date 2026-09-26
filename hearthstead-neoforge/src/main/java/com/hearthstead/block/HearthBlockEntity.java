@@ -38,9 +38,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     private final ItemStackHandler inventory = new ItemStackHandler(INVENTORY_SIZE) {
         @Override
         protected void onContentsChanged(int slot) {
-            assessmentCacheTick = Long.MIN_VALUE;
-            assessmentCache = null;
-            setChanged();
+            noteContentsChanged();
         }
     };
 
@@ -55,6 +53,8 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     private ItemStack heraldry = ItemStack.EMPTY;
     private int tickCount;
     private int foundingCooldown;
+    /** The stock changed since the last once-a-second tick (QA-UI-05: refresh open trees). */
+    private boolean treasuryChanged;
 
     public HearthBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.HEARTH.get(), pos, state);
@@ -75,13 +75,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 hearth.foundingCooldown--;
                 return;
             }
-            Settlement founded = SettlementManager.tryFound(serverLevel, pos);
-            if (founded != null) {
-                hearth.settlementId = founded.id;
-                hearth.setChanged();
-            } else {
-                hearth.foundingCooldown = 10; // seconds between retries
-            }
+            hearth.foundNow(serverLevel);
             return;
         }
 
@@ -95,6 +89,10 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
             com.hearthstead.settlement.work.FishMeals.prepareOne(hearth.inventory);
         }
         s.foodCache = hearth.countFoodUnits();
+        if (hearth.treasuryChanged) {
+            hearth.treasuryChanged = false;
+            com.hearthstead.network.TechTreeNetwork.refreshViewers(serverLevel, s);
+        }
         SettlementManager.tickRecruitment(serverLevel, s);
         // The hearth IS the settlement's heartbeat: no hearth, no settlement,
         // and nothing to raid. Idempotent per night, so this once-a-second
@@ -138,6 +136,50 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     public UUID getSettlementId() {
         return settlementId;
+    }
+
+    /**
+     * The stock changed: drop the cached assessment and flag open Tech Trees for a refresh
+     * (QA-UI-05). The handler calls it on set/insert/extract; the menu's slots call it too,
+     * because a merge or a partial shift-click changes the live stack in place.
+     */
+    public void noteContentsChanged() {
+        assessmentCacheTick = Long.MIN_VALUE;
+        assessmentCache = null;
+        treasuryChanged = true;
+        setChanged();
+    }
+
+    /**
+     * Founds the settlement now if this Banner has none and no retry is pending: the same
+     * attempt the once-a-second tick makes, also used when a player opens a fresh Banner so
+     * the menu gets the real identity instead of NO_SETTLEMENT (QA-UI-03). Returns whether
+     * the Banner is bound afterwards.
+     */
+    public boolean foundNow(ServerLevel level) {
+        if (settlementId != null) {
+            return true;
+        }
+        if (foundingCooldown > 0) {
+            return false;
+        }
+        Settlement founded = SettlementManager.tryFound(level, worldPosition);
+        if (founded == null) {
+            foundingCooldown = 10; // seconds between retries
+            return false;
+        }
+        settlementId = founded.id;
+        setChanged();
+        // Anyone who opened this Banner before it was founded holds a NO_SETTLEMENT menu
+        // that the server rightly refuses: reopen it with the real identity.
+        for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+            if (player.containerMenu instanceof HearthMenu menu && worldPosition.equals(menu.getHearthPos())
+                && HearthMenu.NO_SETTLEMENT.equals(menu.getSettlementId())) {
+                player.closeContainer();
+                com.hearthstead.block.HearthBlock.openMenu(player, this);
+            }
+        }
+        return true;
     }
 
     /** Direct binding for tests and admin tools; skips the founding flow. */

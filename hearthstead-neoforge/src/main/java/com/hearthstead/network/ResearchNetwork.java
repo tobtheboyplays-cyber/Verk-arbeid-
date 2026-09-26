@@ -43,6 +43,15 @@ public final class ResearchNetwork {
             return;
         }
         ServerLevel level = player.serverLevel();
+        // Reach and a loaded lectern first: a refused far-away request must not
+        // resolve a study, build a snapshot (which reads the settlement's chests)
+        // or load any chunk (CLOUD-02 P-02).
+        if (!level.isLoaded(action.pos())
+            || player.distanceToSqr(action.pos().getX() + 0.5, action.pos().getY() + 0.5,
+                action.pos().getZ() + 0.5) > REACH_SQUARED) {
+            deny(player, "hearthstead.research.too_far");
+            return;
+        }
         Settlement settlement = SettlementManager.at(level, action.pos());
         if (settlement == null) {
             return; // no settlement here any more; the screen closes itself
@@ -50,12 +59,6 @@ public final class ResearchNetwork {
         Building study = Research.studyAt(settlement, action.pos());
         if (study == null) {
             return; // the study is gone or was never registered here
-        }
-        if (player.distanceToSqr(action.pos().getX() + 0.5, action.pos().getY() + 0.5,
-            action.pos().getZ() + 0.5) > REACH_SQUARED) {
-            deny(player, "hearthstead.research.too_far");
-            send(player, snapshot(player, settlement, study, action.pos(), Optional.empty()));
-            return;
         }
         if (action.kind() != ResearchActionPayload.Kind.REFRESH
             && action.revision() != Research.revisionOf(level, settlement.id)) {

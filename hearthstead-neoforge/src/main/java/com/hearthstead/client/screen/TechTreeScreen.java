@@ -127,6 +127,8 @@ public class TechTreeScreen extends Screen {
     }
 
     public void update(TechTreeSnapshotPayload fresh) {
+        boolean passive = fresh.feedbackKey().isEmpty();
+        int keepScroll = panelScroll;
         accept(fresh);
         if (!fresh.feedbackKey().isEmpty()) {
             TechTreeSnapshotPayload.NodeState learned = states.get(fresh.feedbackArg());
@@ -142,6 +144,17 @@ public class TechTreeScreen extends Screen {
             }
         }
         rebuildPanel();
+        if (passive) {
+            // QA-UI-05: a passive refresh (a co-op player's deposit or learn) keeps the player's
+            // place: the panel scroll, and an armed Research while that node is still ready.
+            panelScroll = keepScroll;
+            if (armedId != null && armedId.equals(selected) && Util.getMillis() < armedUntil
+                && status(selected) == TechTree.Status.READY) {
+                showArmedLabel(data.node(selected));
+            } else {
+                armedId = null;
+            }
+        }
     }
 
     private void accept(TechTreeSnapshotPayload fresh) {
@@ -279,6 +292,8 @@ public class TechTreeScreen extends Screen {
             armedId = null;
             if (researchButton != null) {
                 researchButton.setMessage(Component.translatableWithFallback("hearthstead.techtree.research", "Research"));
+                com.hearthstead.client.ui2.Ui2Tips.tip(researchButton, Component.translatableWithFallback(
+                    "hearthstead.techtree.research_tip", "Pay the cost from the Banner, your pack and the Warehouse"));
             }
         }
         glow.replaceAll((id, v) -> Math.max(0.0F, v - dt));
@@ -1405,14 +1420,19 @@ public class TechTreeScreen extends Screen {
         int w = Math.min(viewW - 20, font.width(toast) + 16);
         int x = viewX + (viewW - w) / 2;
         int y = viewY + 8;
+        // QA-UI-04: every wrapped line, not just the first (a long refusal lost its end).
+        List<FormattedCharSequence> lines = font.split(toast, w - 12);
+        int h = 6 + Math.max(1, lines.size()) * (font.lineHeight + 1); // one line: 16, as before
         g.pose().pushPose();
         g.pose().translate(0, 0, 320);
-        g.fill(x - 1, y - 1, x + w + 1, y + 17, toastColor);
-        g.fill(x, y, x + w, y + 16, Ui2Palette.FRAME_INNER);
-        g.fill(x, y, x + 2, y + 16, toastColor);
-        FormattedCharSequence line = font.split(toast, w - 12).isEmpty() ? FormattedCharSequence.EMPTY
-            : font.split(toast, w - 12).get(0);
-        g.drawString(font, line, x + 8, y + 4, toastColor, false);
+        g.fill(x - 1, y - 1, x + w + 1, y + h + 1, toastColor);
+        g.fill(x, y, x + w, y + h, Ui2Palette.FRAME_INNER);
+        g.fill(x, y, x + 2, y + h, toastColor);
+        int ly = y + 4;
+        for (FormattedCharSequence line : lines) {
+            g.drawString(font, line, x + 8, ly, toastColor, false);
+            ly += font.lineHeight + 1;
+        }
         g.pose().popPose();
     }
 
@@ -2120,11 +2140,7 @@ public class TechTreeScreen extends Screen {
             // Survival QA U8: the first click only arms; the second (within 3 s) spends.
             armedId = selected;
             armedUntil = now + 3000L;
-            TechNodeDef def = data.node(selected);
-            Component label = Component.translatableWithFallback("hearthstead.techtree.confirm", "Confirm \u2013 %s",
-                def == null ? Component.empty() : costSummary(def));
-            researchButton.setMessage(Component.literal(font.plainSubstrByWidth(label.getString(),
-                researchButton.getWidth() - 12)));
+            showArmedLabel(data.node(selected));
             HsUi.playConfirmSound();
             return;
         }
@@ -2132,6 +2148,17 @@ public class TechTreeScreen extends Screen {
         PacketDistributor.sendToServer(new TechTreeActionPayload(snapshot.hearthPos(),
             snapshot.settlementId(), TechTreeActionPayload.LEARN, selected, snapshot.revision()));
         researchButton.active = false;
+    }
+
+    /** The armed Research label: "Confirm - <price>", shortened with the full price in the tooltip. */
+    private void showArmedLabel(@Nullable TechNodeDef def) {
+        Component label = Component.translatableWithFallback("hearthstead.techtree.confirm", "Confirm \u2013 %s",
+            def == null ? Component.empty() : costSummary(def));
+        // QA-UI-01: never cut the price mid-word ("Confirm \u2013 1 Coins + 8 An\u2026"). A price
+        // that does not fit says so, the cost panel above shows it, and the tooltip has it all.
+        researchButton.setMessage(font.width(label) <= researchButton.getWidth() - 12 ? label
+            : Component.translatableWithFallback("hearthstead.techtree.confirm_short", "Confirm \u2013 cost above"));
+        com.hearthstead.client.ui2.Ui2Tips.tip(researchButton, label);
     }
 
     private void showToast(Component text, int color) {

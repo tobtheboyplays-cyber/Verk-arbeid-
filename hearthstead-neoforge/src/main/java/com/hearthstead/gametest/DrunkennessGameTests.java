@@ -6,8 +6,11 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
 import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.AfterBatch;
+import net.minecraft.gametest.framework.BeforeBatch;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -17,6 +20,21 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 @GameTestHolder(Hearthstead.MODID)
 @PrefixGameTestTemplate(false)
 public class DrunkennessGameTests {
+
+    /**
+     * The drunkenness switch is one global for the whole batch (QA-TEST-03): the four
+     * tavern_drunk tests run at once, and a test that cleared it on finishing turned it off
+     * under a slower test still waiting on its speed modifier.
+     */
+    @BeforeBatch(batch = "tavern_drunk")
+    public static void drunkennessOn(ServerLevel level) {
+        Drunkenness.testOverride = true;
+    }
+
+    @AfterBatch(batch = "tavern_drunk")
+    public static void drunkennessOff(ServerLevel level) {
+        Drunkenness.testOverride = null;
+    }
 
     /** The empty16 template has no floor: lay a real stone floor (y=0) with air above. */
     private static void floor(GameTestHelper h) {
@@ -29,7 +47,6 @@ public class DrunkennessGameTests {
     /** 1 ale = no slowdown; 3 = -40%; a guard on duty never gets drunk at all. */
     @GameTest(batch = "tavern_drunk", template = "empty16", timeoutTicks = 120)
     public void aleLevelsSlowCiviliansButNeverTheWatch(GameTestHelper h) {
-        Drunkenness.testOverride = true;
         floor(h);
         SettlerEntity guest = h.spawn(ModEntities.SETTLER.get(), new BlockPos(4, 1, 4));
         SettlerEntity guard = h.spawn(ModEntities.SETTLER.get(), new BlockPos(8, 1, 8));
@@ -52,7 +69,6 @@ public class DrunkennessGameTests {
             var mod = guest.getAttribute(Attributes.MOVEMENT_SPEED).getModifier(Drunkenness.SPEED_ID);
             h.assertTrue(guest.drunkLevel() == Drunkenness.VERY && mod != null && Math.abs(mod.amount() + 0.40) < 1e-6,
                 "three ales: very drunk, -40% speed");
-            Drunkenness.testOverride = null;
             h.succeed();
         });
     }
@@ -60,7 +76,6 @@ public class DrunkennessGameTests {
     /** A raid alarm, a target or panic sobers the MOVEMENT on the settler's very next tick. */
     @GameTest(batch = "tavern_drunk", template = "empty16", timeoutTicks = 80)
     public void alarmRemovesTheDrunkSlowdownAtOnce(GameTestHelper h) {
-        Drunkenness.testOverride = true;
         floor(h);
         SettlerEntity guest = h.spawn(ModEntities.SETTLER.get(), new BlockPos(4, 1, 4));
         SettlerEntity other = h.spawn(ModEntities.SETTLER.get(), new BlockPos(8, 1, 8));
@@ -78,7 +93,6 @@ public class DrunkennessGameTests {
                 "the first tick after the alarm: full speed (not up to 19 ticks later)");
             h.assertTrue(guest.drunkLevel() == Drunkenness.VERY, "still drunk - only the movement is sobered");
             guest.setTarget(null);
-            Drunkenness.testOverride = null;
             h.succeed();
         });
     }
@@ -86,7 +100,6 @@ public class DrunkennessGameTests {
     /** Drunkenness survives a save/load with the elapsed wear-off; legacy saves load sober. */
     @GameTest(batch = "tavern_drunk", template = "empty16", timeoutTicks = 40)
     public void drunkennessSurvivesAReload(GameTestHelper h) {
-        Drunkenness.testOverride = true;
         floor(h);
         SettlerEntity guest = h.spawn(ModEntities.SETTLER.get(), new BlockPos(4, 1, 4));
         guest.setNoAi(true);
@@ -107,7 +120,6 @@ public class DrunkennessGameTests {
         h.assertTrue(legacy.drunkLevel() == Drunkenness.SOBER && legacy.drunkPoints() == 0.0, "legacy save: sober");
         copy.discard();
         legacy.discard();
-        Drunkenness.testOverride = null;
         h.succeed();
     }
 

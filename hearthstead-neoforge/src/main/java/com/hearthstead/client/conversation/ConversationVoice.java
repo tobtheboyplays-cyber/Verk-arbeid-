@@ -279,7 +279,12 @@ public final class ConversationVoice {
     }
 
     public static void stop(Entity speaker) {
-        Voice voice = VOICES.get(speaker.getId());
+        stop(speaker.getId());
+    }
+
+    /** By id: also works once the speaker has died or unloaded (T32). */
+    public static void stop(int entityId) {
+        Voice voice = VOICES.get(entityId);
         if (voice != null) {
             voice.nextSyllableNanos = Long.MAX_VALUE;
             stopClip(voice);

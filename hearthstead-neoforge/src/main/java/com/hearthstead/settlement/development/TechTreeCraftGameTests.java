@@ -207,6 +207,9 @@ public final class TechTreeCraftGameTests {
         village(state);
         state.unlock(DevelopmentNode.CRAFT_AND_INDUSTRY);
         village(Development.of(level, plain));
+        helper.assertTrue(Development.of(level, taught).unlocked(DevelopmentNode.CRAFT_AND_INDUSTRY)
+            && !Development.of(level, plain).unlocked(DevelopmentNode.CRAFT_AND_INDUSTRY),
+            "fixture: only the taught settlement has Craft & Industry before the race");
         SettlerEntity fast = liveMiner(helper, taught, 8, 9);
         SettlerEntity slow = liveMiner(helper, plain, 24, 25);
         BlockPos fastChest = new BlockPos(14, MINE_ROCK_TOP + 1, 14);
@@ -239,6 +242,10 @@ public final class TechTreeCraftGameTests {
         s.radius = 8;
         data.settlements.put(s.id, s);
         data.setDirty();
+        // Initialise Development BEFORE the Mine exists: a first Development.of
+        // grandfathers existing buildings, and a Mine maps to Craft & Industry,
+        // which would give the control settlement the node too (QA-TEST-04).
+        Development.of(helper.getLevel(), s);
         GameTestFixtures.registerWithBounds(helper, s, BuildingType.MINE,
             new BlockPos(ox + 8, MINE_ROCK_TOP + 1, oz + 8), new BlockPos(ox + 1, MINE_ROCK_TOP + 2, oz + 1),
             net.minecraft.world.level.levelgen.structure.BoundingBox.fromCorners(

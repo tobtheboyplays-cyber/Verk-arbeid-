@@ -561,4 +561,41 @@ public class ResearchGameTests {
                     + (wheatBefore - wheatLeft) + " for " + bread + " loaves");
         });
     }
+
+    // ------------------------------------------------------ remote access ---
+
+    /** CLOUD-02 P-02: a research packet naming a far-away study is refused
+     *  before anything is resolved -- no snapshot is built, so the far
+     *  settlement's Hearth chunk is never loaded by the request. */
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 60)
+    public void aFarAwayResearchRequestLoadsNoChunk(GameTestHelper helper) {
+        net.minecraft.server.level.ServerLevel level = helper.getLevel();
+        BlockPos farCenter = helper.absolutePos(new BlockPos(8, 1, 8)).offset(40_000, 0, 40_000);
+        BlockPos farLectern = farCenter.offset(2, 0, 0);
+        helper.assertTrue(!level.hasChunkAt(farCenter), "fixture: the far Hearth chunk starts unloaded");
+        com.hearthstead.settlement.SettlementSavedData data =
+            com.hearthstead.settlement.SettlementSavedData.get(level);
+        Settlement far = new Settlement(UUID.randomUUID(), "Farholm", farCenter);
+        far.radius = 16;
+        Building farStudy = new Building(UUID.randomUUID(), BuildingType.ARCHITECTS_STUDY,
+            farLectern, farLectern, BoundingBox.fromCorners(farLectern.offset(-3, -1, -3), farLectern.offset(3, 3, 3)));
+        farStudy.valid = true;
+        far.buildings.add(farStudy);
+        data.settlements.put(far.id, far);
+        try {
+            net.minecraft.server.level.ServerPlayer player = helper.makeMockServerPlayerInLevel();
+            for (com.hearthstead.network.ResearchActionPayload.Kind kind
+                    : com.hearthstead.network.ResearchActionPayload.Kind.values()) {
+                com.hearthstead.network.ResearchNetwork.handle(player,
+                    new com.hearthstead.network.ResearchActionPayload(farLectern, kind, 0, 0));
+            }
+            helper.assertTrue(!level.hasChunkAt(farCenter),
+                "a refused far-away research request must not load the far Hearth chunk");
+            helper.assertTrue(com.hearthstead.settlement.research.Research.of(level, far.id).active == null,
+                "and it starts nothing");
+        } finally {
+            data.settlements.remove(far.id);
+        }
+        helper.succeed();
+    }
 }

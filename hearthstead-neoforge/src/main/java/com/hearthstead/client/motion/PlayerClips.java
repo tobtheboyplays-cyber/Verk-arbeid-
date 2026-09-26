@@ -105,6 +105,12 @@ public final class PlayerClips {
         @Override
         public void setupAnim(AbstractClientPlayer player, float limbSwing, float limbSwingAmount,
                               float ageInTicks, float netHeadYaw, float headPitch) {
+            // Rest pose first, every frame (QA-ANIM-01). Clips are additive (+=) and vanilla
+            // re-sets only part of each bone (not head/body x and z, leg x or any scale), so
+            // a revive clip's offsets grew frame by frame and stayed after it ended. This
+            // renderer model is shared by every player of the same skin type, so leftovers
+            // would also bleed onto others. Vanilla then poses what it manages.
+            restPose();
             super.setupAnim(player, limbSwing, limbSwingAmount, ageInTicks, netHeadYaw, headPitch);
             // PlayerRenderer.renderHand calls setupAnim with all zeros: never pose first-person arms.
             if (PROVIDERS.isEmpty() || ageInTicks == 0.0F || player.level() == null) {
@@ -135,12 +141,7 @@ public final class PlayerClips {
                 seconds = request.loop() || clip.looping() ? seconds % clip.length() : Math.min(seconds, clip.length());
             }
             if (request.absolute()) {
-                head.resetPose();
-                body.resetPose();
-                rightArm.resetPose();
-                leftArm.resetPose();
-                rightLeg.resetPose();
-                leftLeg.resetPose();
+                restPose(); // discard vanilla's pose too: the clip is authored from rest
             }
             clip.apply(rig, seconds, 1.0F, null, scratch);
             hat.copyFrom(head);
@@ -149,6 +150,16 @@ public final class PlayerClips {
             rightSleeve.copyFrom(rightArm);
             leftPants.copyFrom(leftLeg);
             rightPants.copyFrom(rightLeg);
+        }
+
+        /** Head, body, arms and legs back to the baked rest pose (every field, scale included). */
+        void restPose() {
+            head.resetPose();
+            body.resetPose();
+            rightArm.resetPose();
+            leftArm.resetPose();
+            rightLeg.resetPose();
+            leftLeg.resetPose();
         }
     }
 }
