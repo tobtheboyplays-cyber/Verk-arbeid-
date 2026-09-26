@@ -1,0 +1,35 @@
+# Bannerhold co-op server, Sunday 27 Sep. Copy this file to <server folder>\server.properties.
+# The server rewrites the file on start and drops these comments; that is normal.
+# Never commit a filled-in copy: rcon.password must stay on the server machine.
+
+# --- requested settings (do not change without telling the group)
+difficulty=normal
+pvp=true
+simulation-distance=12
+view-distance=10
+spawn-protection=0
+allow-flight=false
+max-players=4
+# The owner picks the seed. Empty = random.
+level-seed=
+
+# --- added for a server reachable from the internet (review before Sunday)
+# Only players on the whitelist can join: whitelist add <name> in the console.
+online-mode=true
+white-list=true
+enforce-whitelist=true
+level-name=world
+server-port=25565
+# Leave empty (listen on every network card). Your router's port forward decides
+# what the internet can reach: forward TCP 25565 only.
+server-ip=
+hardcore=false
+gamemode=survival
+
+# --- RCON: only needed for backup-hourly.ps1 or start-server.ps1 -Backup Rcon.
+# start-server.ps1's default backups use the server console and need none of this.
+# If you turn it on: set a long random password here on the server machine only,
+# and NEVER forward port 25575 in your router.
+enable-rcon=false
+rcon.port=25575
+rcon.password=
