@@ -63,6 +63,29 @@ public final class WorldEventGameTests {
         return s;
     }
 
+    /** Stone ground laid around the 64-block arena, so walkers have somewhere to walk out to. */
+    private static final int DEPARTURE_GROUND = 40;
+
+    /**
+     * A village for the departure tests (QA-TEST-05). The GameTest runner encases every test
+     * in BARRIER walls and a ceiling, and outside the arena there is no ground, so leavers
+     * were planned onto the barrier top and could never walk MIN_WALK out of sight. Removes
+     * this test's own encasing and lays stone ground around the arena; the unseen rule and
+     * the walk-distance assertions are unchanged.
+     */
+    private static Settlement departureVillage(GameTestHelper h, String name, int extraRecords) {
+        Settlement s = village(h, name, extraRecords);
+        net.minecraft.gametest.framework.StructureUtils.removeBarriers(h.getBounds(), h.getLevel());
+        for (int x = -DEPARTURE_GROUND; x < 64 + DEPARTURE_GROUND; x++) {
+            for (int z = -DEPARTURE_GROUND; z < 64 + DEPARTURE_GROUND; z++) {
+                if (x >= 0 && x < 64 && z >= 0 && z < 64) continue;
+                h.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+                for (int y = 1; y <= 4; y++) h.setBlock(new BlockPos(x, y, z), Blocks.AIR);
+            }
+        }
+        return s;
+    }
+
     private static ServerPlayer player(GameTestHelper h, BlockPos rel) {
         ServerPlayer player = h.makeMockServerPlayerInLevel();
         player.setGameMode(GameType.SURVIVAL);
@@ -581,6 +604,8 @@ public final class WorldEventGameTests {
         for (Entity e : leavers) {
             h.assertTrue(!e.isRemoved() && WorldEventDeparture.isDeparting(e),
                 what + ": walking out, not a puff (" + e.getType() + ")");
+            h.assertTrue(!h.getLevel().getBlockState(e.blockPosition().below()).is(Blocks.BARRIER),
+                what + ": fixture: " + e.getType() + " must not stand on a test barrier at " + e.blockPosition());
         }
         java.util.Map<Entity, net.minecraft.world.phys.Vec3> start = new java.util.HashMap<>();
         java.util.Map<Entity, net.minecraft.world.phys.Vec3> last = new java.util.HashMap<>();
@@ -647,7 +672,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_brute_toll", timeoutTicks = 900)
     public void paidBrutesWalkOffAndVanishOnlyUnseen(GameTestHelper h) {
-        Settlement s = village(h, "Leaveby", 5);
+        Settlement s = departureVillage(h, "Leaveby", 5);
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.BRUTE_TOLL, true);
         WorldEventSavedData.Active a = active(h, s);
         RaiderEntity chief = chief(h, a);
@@ -662,7 +687,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_peddler", timeoutTicks = 900)
     public void peddlerRollsOutWithHisLlama(GameTestHelper h) {
-        Settlement s = village(h, "Leavebury", 3);
+        Settlement s = departureVillage(h, "Leavebury", 3);
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.PEDDLER, true);
         WorldEventSavedData.Active a = active(h, s);
         List<Entity> party = actors(h, a);
@@ -672,7 +697,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_rival_envoy", timeoutTicks = 900)
     public void envoyRidesHomeUnseen(GameTestHelper h) {
-        Settlement s = village(h, "Leavemoor", 5);
+        Settlement s = departureVillage(h, "Leavemoor", 5);
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.RIVAL_ENVOY, true);
         WorldEventSavedData.Active a = active(h, s);
         Entity envoy = WorldEventActors.actor(h.getLevel(), a, RivalEnvoyEvent.ROLE_ENVOY);
@@ -685,7 +710,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_caravan", timeoutTicks = 900)
     public void caravanRollsOnDownTheRoad(GameTestHelper h) {
-        Settlement s = village(h, "Leaveford", 3);
+        Settlement s = departureVillage(h, "Leaveford", 3);
         s.radius = 14;
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.CARAVAN, true);
         WorldEventSavedData.Active a = active(h, s);
@@ -699,7 +724,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_minstrels", timeoutTicks = 900)
     public void sentAwayMinstrelsWalkOut(GameTestHelper h) {
-        Settlement s = village(h, "Leavelute", 3);
+        Settlement s = departureVillage(h, "Leavelute", 3);
         tavern(h, s);
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.MINSTRELS, true);
         WorldEventSavedData.Active a = active(h, s);
@@ -713,7 +738,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_refugees", timeoutTicks = 900)
     public void declinedRefugeesWalkOn(GameTestHelper h) {
-        Settlement s = village(h, "Leavehome", 3);
+        Settlement s = departureVillage(h, "Leavehome", 3);
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.REFUGEES, true);
         WorldEventSavedData.Active a = active(h, s);
         Entity leader = WorldEventActors.actor(h.getLevel(), a, RefugeesEvent.ROLE_LEADER);
@@ -726,7 +751,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_stray_dog", timeoutTicks = 900)
     public void shooedStrayTrotsOff(GameTestHelper h) {
-        Settlement s = village(h, "Leavedog", 3);
+        Settlement s = departureVillage(h, "Leavedog", 3);
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.STRAY_DOG, true);
         WorldEventSavedData.Active a = active(h, s);
         List<Entity> dog = actors(h, a);
@@ -738,7 +763,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_wolf_pack", timeoutTicks = 900)
     public void retreatingWolvesSlinkOffUnseen(GameTestHelper h) {
-        Settlement s = village(h, "Leavewolf", 3);
+        Settlement s = departureVillage(h, "Leavewolf", 3);
         h.spawn(EntityType.COW, new BlockPos(30, 1, 30));
         h.spawn(EntityType.SHEEP, new BlockPos(34, 1, 30));
         ServerPlayer player = player(h, new BlockPos(32, 1, 40));
@@ -752,7 +777,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_field_fox", timeoutTicks = 900)
     public void leavingFoxSlinksOffUnseen(GameTestHelper h) {
-        Settlement s = village(h, "Leavefox", 3);
+        Settlement s = departureVillage(h, "Leavefox", 3);
         plantField(h, s);
         ServerPlayer near = player(h, new BlockPos(60, 1, 60));
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.FIELD_FOX, true);
@@ -764,7 +789,7 @@ public final class WorldEventGameTests {
 
     @GameTest(template = ARENA, batch = "event_departure_wild_boar", timeoutTicks = 900)
     public void boarTrotsBackIntoTheWoodsUnseen(GameTestHelper h) {
-        Settlement s = village(h, "Leaveboar", 3);
+        Settlement s = departureVillage(h, "Leaveboar", 3);
         plantField(h, s);
         ServerPlayer near = player(h, new BlockPos(60, 1, 60));
         WorldEventDirector.start(h.getLevel(), s, WorldEventType.WILD_BOAR, true);
