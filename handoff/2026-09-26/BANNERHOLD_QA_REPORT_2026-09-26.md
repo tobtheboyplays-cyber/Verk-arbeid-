@@ -176,3 +176,57 @@ Cause: all four tests share a JVM-global `Drunkenness.testOverride`. `drunkennes
 Locations: `gametest/DrunkennessGameTests.java` batch declarations and testOverride assignments; `entity/Drunkenness.java:230-233`; `entity/SettlerEntity.java:263-269`. Fix the fixture's switch lifetime: enable at batch start and reset after the entire batch, or give independently toggling cases separate batches. Do not weaken production drunkenness rules or remove assertions to make the suite green.
 
 Commands: `./gradlew.bat runGameTestServer --offline --max-workers=2 -I <private>/drunk-isolation.init.gradle -PhearthsteadBuildDir=<private>/current-verification-build` in current-verification/hearthstead-neoforge; then the same command with drunk-single.init.gradle and drunk-single-build in drunk-single/hearthstead-neoforge. Both init scripts set private fresh game directories and the existing batchPrefix filter. Evidence: drunk-isolation.log (4 cases,1 failure), drunk-single.log (1 case,BUILD SUCCESSFUL). This identifies test interference; it does not validate every native drunkenness animation or sound.
+
+
+## Historical in-game still review (Codex visual inspection)
+
+Inspected original 1920x1080 GUI-scale4 captures from Claude's survival session: hb-ingame-3-items-banner-recipe-gs4.png, hb-ingame-4-items-work-scepter-grid-gs4.png and s2-046-change-mayor.png. The first two show rendered recipe grids, readable item names and keyboard/mouse action chips, and scrollable page content. They are genuine historical render evidence, not evidence that every latest-state recipe grid or interaction passed.
+
+Visible issues in those captures: long handbook search placeholder reaches the sidebar edge; Banner recipe happens to show crimson logs/blackstone (cycling tag ingredients may mislead a beginner); Mayor header and mourning text are truncated. Claude's later transcript says the placeholder, resting tag choice and Mayor header were changed. Therefore these are historical findings awaiting a fresh screenshot, NOT newly confirmed current defects. Preserve the later fixes and recheck at GUI scales2/3/4 instead of reimplementing them blindly. No new controls were clicked in this review.
+
+
+## Current-source GameTest rerun — completed 14:38:21 Oslo
+
+1902 cases completed in 2.323 minutes;17 required failures,1885 non-failing cases. This snapshot registers2096 total cases; only194 generated blueprint construction cases were intentionally excluded by the existing skipBlueprintBuilds flag. This is NOT the same denominator as the earlier2091-case snapshot. Both source manifests are retained.
+
+Command: `./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/current-gametest-v2.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/current-verification-build`. Private cwd current-verification/hearthstead-neoforge, fresh current-gametest-world-v2. Evidence current-gametest-v2.log and current-gametest-failures.json. The earlier current-source attempt ended without a suite summary and is not counted.
+
+Notable unresolved runtime outcomes: civilian raid scenario lost4 of8 against its <=1 target; far-shore Fisher had NO_PATH; balcony descent stayed stuck; cottage skipped its final door; fishery construction remained FETCHING at54/562 before water/plaque; miner tech race showed1050 vs1047 ticks, failing the promised speed ordering; departing actors failed to leave; first-raid/merchant/duel scenarios have failing assertions. These are reproducible test outcomes on this run, not yet all classified root causes. The spade/spear and full-health finisher fixtures and shared drunkenness override are separately identified test defects.
+
+
+## Focused civilian-safety / Craft rerun
+
+`mechanics-focused.init.gradle` selects existing batch prefixes `raid_civilians_,techtree_craft`, fresh mechanics-focused-world, unchanged current-verification production source. Command: `./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/mechanics-focused.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/current-verification-build`.
+
+19 tests completed,17 pass,2 fail. Failures: known wrong spear fixture and Miner tech-speed comparison (1047 vs1046 ticks for8 blocks). The Miner comparison now fails in baseline, current broad and focused runs; root cause remains under investigation. Civilian-safety cases PASS in this focused run although the broad run lost4/8 civilians. Preserve both results: this is a stability/ordering/randomness concern, not proof the broad failure is fixed. Evidence mechanics-focused.log, terminal14:40:31.
+
+Owner design direction (not implemented): replace Mayor assignment with a separate role-selling NPC sitting at the Banner, avoiding consumption of a working settler. Existing bonuses/migration remain undecided. Shared with cloud Claude in PR3; kept outside Builder fix scope.
+
+## QA-TEST-04 (P2 test reliability): Miner comparison accidentally grants both settlements the bonus
+
+Confirmed 26 September 14:49 Oslo. Original broad and focused runs failed the miner speed comparison. Diagnostic miner-probe.log shows fastNode=true AND slowNode=true, both diamond picks and toolTicks=48. TechTreeCraftGameTests.mineArena registers a MINE before Development.of first initializes the settlement. Development.java:166-179 invokes grandfatherExistingBuildings; lines739-774 unlock the matching node and prerequisites. DevelopmentNode.java:161-164 associates MINE with CRAFT_AND_INDUSTRY. Thus the intended untreated control already has the treatment.
+
+Private diagnostic fix only: in mineArena, call Development.of(helper.getLevel(), s) before GameTestFixtures.registerWithBounds(...MINE...). No production source changed. Same techtree_craft batch, fresh miner-corrected-world; miner-corrected.log shows fastNode=true, slowNode=false, tool durations48 versus60, and the miner test passes. One remaining required batch failure is the separately documented wrong spear recipe fixture. Command: ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/miner-corrected.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/drunk-single-build ; cwd build-codex/drunk-single/hearthstead-neoforge. Exit1 is expected from that unrelated remaining failure, not an all-green suite claim.
+
+Recommendation: initialize new settlement state before fixture building registration, and assert the control lacks the tech before starting the timed race. Preserve legacy-save grandfathering. This experiment supports a fixture defect, not a gameplay speed regression or cross-settlement state leak. Evidence: miner-probe.log, miner-corrected.log, private modified TechTreeCraftGameTests.java.
+
+## Approved Guildmaster concept
+
+Owner approved visual NPC/UI concepts and selected Laugsmester / Guildmaster; screen title Yrker og emblemer / Professions & Emblems. Private concept package: design/guildmaster/DESIGN_BRIEF.md, guildmaster-reference-v1.png, professions-emblems-ui-v1.png. Generated labels saying merchant are superseded. No production implementation. Name decision sent in PR3 comment5846407524.
+
+## Focused departure rerun - 14:51:52 Oslo
+
+Selected existing batch prefixes event_departure_brute_toll,event_departure_field_fox,event_departure_wild_boar with unchanged current-verification production/test source and fresh departure-focused-world. Three cases; fox and boar pass, paid-brute departure still fails (raider at BlockPos{x=84157,y=-50,z=-2444290}, test origin84093,-60,-2444322). Command ./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/departure-focused.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/current-verification-build. Evidence departure-focused.log; exit1.
+
+Keep broad fox/boar failures as unstable outcomes, not fixed or independently confirmed production faults. watchDeparture follows the party for100 ticks, then moves its observer90 blocks away and forces nearby chunks. Tests require removal within900 ticks and at least19 blocks horizontal travel. DepartureRules has a2400-tick stuck fallback, so that fallback cannot rescue these tests. This mismatch alone does not explain the failure: the intended normal-path departure should still complete. Brute test needs path/progress and observer diagnostics before assigning root cause. No source change made in this run.
+
+## Paid-brute departure probe - 14:53:07 Oslo
+
+Private test-only logging in WorldEventGameTests.watchDeparture; production unchanged. Single event_departure_brute_toll case in fresh departure-probe-world, FAILED at900 ticks (departure-probe.log). All logged observers at t700-900 were108-201 blocks away, beyond DepartureRules.FAR=48. Therefore those observed stalls were NOT waiting for a nearby viewer. Leader remained at y=-50 while target columns repeatedly resolved to y=-60; navDone oscillated true/false. Horizontal displacement at t700 about19.96 blocks for leader and13.6/13.98 for followers; by t900 about15.79/17.95/16.26. The20-block departure threshold was not satisfied at these sampled instants. This supports terrain/path progress failure in this fixture, not a visibility-policy failure. The2400-tick fallback was not reached.
+
+Relevant source: Departure.walk -> moveOnGround uses MOTION_BLOCKING_NO_LEAVES height for target column; a10-block height discontinuity appears in this arena. Further reproduction on navigable flat terrain is needed before attributing this specific test failure to ordinary gameplay. Do not solve by removing the unseen condition or weakening the minimum walk assertion. Command uses departure-probe.init.gradle, private drunk-single module and drunk-single-build. Process terminal exit1; no active test process remains from this probe.
+
+### Terrain-extension experiment - 14:54:36
+
+Extended only this test's floor at relative y0 from the64x64 arena to[-64,128) in x/z, clearing four blocks above, in private test fixture. Single brute test still FAILS at900 ticks, actors at y=-50; evidence departure-flat.log. This does not prove a flat arena at the actors' elevation: their actual support blocks/heights need inspection. Therefore the proposed arena-edge explanation remains unconfirmed. No production changes; do not count the experiment as a successful correction or ordinary-terrain validation.
+
