@@ -40,6 +40,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         protected void onContentsChanged(int slot) {
             assessmentCacheTick = Long.MIN_VALUE;
             assessmentCache = null;
+            treasuryChanged = true;
             setChanged();
         }
     };
@@ -55,6 +56,8 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     private ItemStack heraldry = ItemStack.EMPTY;
     private int tickCount;
     private int foundingCooldown;
+    /** The stock changed since the last once-a-second tick (QA-UI-05: refresh open trees). */
+    private boolean treasuryChanged;
 
     public HearthBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.HEARTH.get(), pos, state);
@@ -89,6 +92,10 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
             com.hearthstead.settlement.work.FishMeals.prepareOne(hearth.inventory);
         }
         s.foodCache = hearth.countFoodUnits();
+        if (hearth.treasuryChanged) {
+            hearth.treasuryChanged = false;
+            com.hearthstead.network.TechTreeNetwork.refreshViewers(serverLevel, s);
+        }
         SettlementManager.tickRecruitment(serverLevel, s);
         // The hearth IS the settlement's heartbeat: no hearth, no settlement,
         // and nothing to raid. Idempotent per night, so this once-a-second
