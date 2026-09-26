@@ -1,5 +1,5 @@
 # Bannerhold broad QA — working report
-## Current reading guide — 16:32 Oslo (interim)
+## Current reading guide — 16:45 Oslo (interim)
 
 This guide supersedes older statuses in the chronological evidence below. No release approval or shared production integration. Large navigation/building/design changes remain main-Claude scope.
 
@@ -12,7 +12,9 @@ This guide supersedes older statuses in the chronological evidence below. No rel
 | Native fixes | Empty-config startup da67b84 PASS; research confirmation e4b79b1 PASS for label/tooltip/timeout/exact payment | Isolated candidate, not installed on owner's server |
 | Native co-op | Two non-op clients: research race charges once; non-founder purchase shared; graceful restart preserves knowledge/inventories; simultaneous shared-storage withdrawal conserves items | Creative/Peaceful disposable server; combat/crash recovery/full survival not covered |
 | QA-UI-03 P2 | Fixed in1f01db1;112/112 related GameTests and actual immediate-open native repro PASS | No shared deployment; multi-viewer delayed refresh not native-tested |
-| Confirmed open | Far-shore Fisher NO_PATH; balcony escape; general construction; co-op affordability stale UI05; toast truncation UI04; broad failure signals below | Some suite signals unstable or fixture-related, not all confirmed product defects |
+| Confirmed open | Far-shore Fisher NO_PATH; balcony escape; general construction; co-op affordability stale UI05; persistent malformed player after revive ANIM01; broad failure signals below | Some suite signals unstable or fixture-related, not all confirmed product defects |
+| QA-UI-04 P3 | Fixed in0bdbac4; native rejection toast fully visible, separate read-only review clear | Compile/native scoped acceptance; no full-suite rerun |
+| QA-ANIM-01 P2 | Native malformed player persists after forced-down/revive, walking and crouch | Open; pose reset hypothesis, not proven cause; raid lethal trigger not tested |
 | Small new patches | ced4d77 charge-reset, voice cleanup, drunk-test isolation independently read-only reviewed | No native audio listening; focused 25/25 GameTests PASS |
 | Assets | 584 OGG / 275 events decoded/referenced; 97 animation definitions / 733 channels structural check | Null audio backend; no blanket animation appearance approval |
 
@@ -422,3 +424,5 @@ Asset-validatortriage:415flags classify Lang1,Textures193,Sounds132,Recipes32,Ta
 ## 2026-09-26 16:43 — codex — QA-ANIM-01 and cloud follow-up
 Seen in game: two real clients in disposable world. Debug `hsrevive down CodexQC` (forced trigger, not raid lethal-flow proof); QB hold right-click1s ->33%, release1s -> progress cancelled, hold4s -> successful revive16:37:37. QC remains visually malformed after completion and minutes later: body rotated upward, legs disconnected. Walking0.4s also does not clear it. Screens coop-revive-progress.png, coop-revive-interrupted.png, coop-revive-complete-b.png, coop-revive-current.png, coop-revive-walk-control.png. Server12164 UI03-only patch; QB4296 configfix baseline; QC12973 UI04-only patch. PlayerClips unchanged. Suspected stale bone transforms: Model.setupAnim invokes vanilla before any reset and returns immediately for null provider; absolute reset only inside active clip. Root cause not yet proven by patch/control. P2 QA-ANIM-01 OPEN, cloud asked to inspect and propose narrow fix before animation-engine edits.
 QA-UI-05 bounded Banner-change refresh approved for isolated cloud branch; retains Warehouse/courier limitation, requires scroll/selection/confirmation preservation, authoritative payment, no idle polling scans. Both sent PR5 comment5847151642. No shared production edits/integration/deploy.
+16:45 QA-ANIM-01 control: normal walk and crouch/release do not restore torso. Screenshot coop-revive-after-crouch.png. Source DownedClient provider uses additive Request (absolute=false). Cause remains hypothesis. Current report guide corrected UI04 to accepted and ANIM01 to open.
+
