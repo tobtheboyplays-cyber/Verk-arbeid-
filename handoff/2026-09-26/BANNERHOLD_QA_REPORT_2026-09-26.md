@@ -1,5 +1,5 @@
 # Bannerhold broad QA — working report
-## Current reading guide — 16:18 Oslo (interim)
+## Current reading guide — 16:32 Oslo (interim)
 
 This guide supersedes older statuses in the chronological evidence below. No release approval or shared production integration. Large navigation/building/design changes remain main-Claude scope.
 
@@ -11,8 +11,8 @@ This guide supersedes older statuses in the chronological evidence below. No rel
 | Generated construction | 62ca318 194 completed, 192 required failures, 2 non-failing, 37.78 min | Not 192 independent root causes; general construction remains unreliable |
 | Native fixes | Empty-config startup da67b84 PASS; research confirmation e4b79b1 PASS for label/tooltip/timeout/exact payment | Isolated candidate, not installed on owner's server |
 | Native co-op | Two non-op clients: research race charges once; non-founder purchase shared; graceful restart preserves knowledge/inventories; simultaneous shared-storage withdrawal conserves items | Creative/Peaceful disposable server; combat/crash recovery/full survival not covered |
-| New QA-UI-03 P2 | Immediate opening after Banner placement retains null settlement identity; twice reproduced, close/reopen fixes; sent Claude | Patch requested, not fixed yet |
-| Confirmed open | Far-shore Fisher NO_PATH; balcony escape; general construction; nine broad failure signals listed below | Some suite signals unstable or fixture-related, not all confirmed product defects |
+| QA-UI-03 P2 | Fixed in1f01db1;112/112 related GameTests and actual immediate-open native repro PASS | No shared deployment; multi-viewer delayed refresh not native-tested |
+| Confirmed open | Far-shore Fisher NO_PATH; balcony escape; general construction; co-op affordability stale UI05; toast truncation UI04; broad failure signals below | Some suite signals unstable or fixture-related, not all confirmed product defects |
 | Small new patches | ced4d77 charge-reset, voice cleanup, drunk-test isolation independently read-only reviewed | No native audio listening; focused 25/25 GameTests PASS |
 | Assets | 584 OGG / 275 events decoded/referenced; 97 animation definitions / 733 channels structural check | Null audio backend; no blanket animation appearance approval |
 
@@ -39,18 +39,18 @@ Private cwd, read-only GIT_DIR pointing at shared repository metadata; GIT_WORK_
 4. `python anim_check.py` from private module tools.
 5. `python C:/Users/tobia/Hearthstead-Claude/build-codex/audio-audit.py`
 
-## Results so far
+## Historical initial snapshot results (superseded by current guide)
 
 | Layer | Result | Interpretation |
 |---|---|---|
 | Compile and JAR assembly | PASS | Full build overall FAIL due to tests below |
 | JUnit | 1144 executed; 1137 pass; 7 fail; 0 errors; 0 skipped | Exact XML saved |
-| GameTests | RUNNING | Do not infer final counts yet |
+| GameTests | Was running at initial report capture; later terminal2091/208failure | See dated current results; no GameTest is running as of16:32 |
 | Animation structural validator | PASS; 97 definitions, 733 channels; 3 warnings | Does not prove native animation quality; 39 catalogued clips missing/phased |
 | Asset validator with documentation copied | FAIL; 3723/4138 pass; 415 errors; 5 warnings | Substantial stale-validator assumptions; not 415 confirmed gameplay bugs |
 | Audio decode/reference audit | PASS; 584 OGG files, 275 sound events | No missing files, decode errors, silent files or nonfinite samples |
 | Dialog duration check | PASS | 34 recordings; none differ by over 200 ms from manifest |
-| Native visual/listening/co-op/performance | NOT VERIFIED | Automated output is insufficient |
+| Native visual/listening/co-op/performance | Not yet verified at initial capture | Later native checks documented below; audio listening still not verified |
 
 ## JUnit failures — exact messages
 
@@ -380,3 +380,45 @@ Source: HearthBlockEntity.serverTick lines63-83 only founds every20ticks; Hearth
 New cloud patches ced4d77: exact five files downloaded to private verification only. Separate read-only review found no concrete defects in bounded diff (charge lifecycle, stop voice by stored id, batch-scoped drunk override). Compilation/JUnit/targeted GameTests in progress; no native sound acceptance claimed.
 ## 16:19 — ced4d77 independent acceptance
 Compiled PASS. Full JUnit1161/1159pass/2knownfail. Fresh-world captain_,tavern_drunk GameTests25/25requiredPASS (21Captain+4drunk),3.688s. Separate read-only reviewer found no concrete defect in exactfivefilepatch. Voice cleanup source-reviewed/compiled, NOT heard in game. Logs pr5-ced4d77-targeted.log and pr5-ced4d77-gametest.log. No Gradle process remains. Sent to PR5.
+
+## 16:23 — native lifecycle and priority coverage audit
+- Actual QC8783/display94 resource reload F3+T completed. Client reloaded291 authored clips/83 voiced lines; Banner map, resident icons and text render after reload. ui-qc-resource-reload.log; native-resource-reload-banner.png. No audio listening or long-run texture-leak claim. The first follow-up aim missed the Banner; repositioned and re-opened successfully, not logged as product failure.
+- Open TechTree, teleport same non-op player50blocks away: menu closes automatically. native-range-before.png/native-range-after.png. One positive native range-lifecycle check; not a forged-packet security test.
+- Priority matrix audited3cases: manual equipment reorder checks exact revision, stale rejection and NBT persistence; snapshot checks urgent-first/cap/positions. ledgerServesHighPriorityFirst only asserts computed FOOD-before-RESTOCK ladder, not a live delivery competition. Thus names alone do not prove all priorities/action orders. Matrix records explicit limits.
+- Head62ca318 generated-build failure progress:188unique done-ratio rows total18,733/92,836steps (20.1786%);4additional lantern/raid-lane-registration failures. CSV pr5-blueprints-progress.csv. Sent requested aggregate toClaudePR5comment5847003314. Baseline18,248 figure is Claude-reported; same192failure count is not proof of same every-root-cause.
+## 16:25 — native research failure/recovery and co-op funding
+- Insufficient-material rejection PASS: QC had1coin/8logs/8cobble, opened LumberCamp in newWolfstead3430c563-f275-4f84-8a67-d6db2e4cc40c. Testconsole removed8logs while UI open. Six actual clicks led to materials rejection tick51918; coin1/cobble8 unchanged, no learning. Screenshots research-lowgoods-before/after.png.
+- QA-UI-04 P3 CONFIRMED: rejection toast truncates after 'Banner, your pack and'; Warehouse omitted. Tooltip contains full message. TechTreeScreen.renderToast1404-1417 selects only first font.split line. Suggested wrap sizedbox or shorten toast while preserving full detail. Screenshot research-lowgoods-after.png.
+- QA-UI-05 P2 CONFIRMED co-op affordability does not refresh: QB actually shiftclicked8logs into Banner4000,-60,1 while QC's TechTree stayed open/disabled. ServerNBT16:24:20 confirms8logs; QC still have0/disabled >15s later. Closing/reopening refreshes togreen8 and Research enabled. TechTreeNetwork sends snapshot on open/action and broadcasts from TechTree changes, not ordinary stock changes; TechTreeScreen retains snapshot. Suggested bounded refresh/explicit refresh affordance, preserve authority and avoid per-tick full scans. Screenshots coop-fund-deposited.png, coop-fund-stale.png, coop-fund-stale-later.png, coop-fund-reopened.png. Actual donor client93 and researcher94, ownserver25587.
+- Recovery purchase PASS afterreopen: sixrapidclicks, exactlyone techcommit tick54535; QC1coin+8cobble and Banner8logs consumed once, finalpack onlybook+2Banners and Bannerempty. coop-fund-purchased.png, coop-server-evidence.log. Sharedstock+personalpack payment covered, not Warehouse physicalstock.
+- Findings sent cloudClaude PR5comment5847039664; production unchanged. UI03 remains earlier separately reported startup identity race.
+## 16:30 — QA-UI-03 independently accepted, including native repro
+Exact commit1f01db1f3bf877d8baf66961f62575e04d7838df threefilediff pr5-ui03-diff.json. Separate read-only reviewer found no concrete defect. CompilePASS;112/112requiredGameTestsPASS,12.70s (banner_fresh_open plus hearth/founding/journey/blessing/first_raid/settlement), pr5-ui03-gametest.log/init.gradle/world. No new fullJUnit run sinceced4d77 (1161/2knownfail).
+Native ownserver7063 gracefully saved/stopped;12164 restarted same disposableworld/port25587 with only exact HearthBlock.java and HearthBlockEntity.java patch compiled onto frozenconfigfixbaseline;5compiledclasses differed. Native identity server-ui03-native-identity.json; SHA HearthBlock5db191239abace9abbb45f78f7a37dde1df6df317e742e3ebe73692193d484a8, HearthBlockEntity142dda69f2ea8d538bd0d25bbb1a5d4cba5ed79f9fce07aaf282390ef1385c3b. ClientQC8783/display94 unchanged e4b79b1UI.
+Actualplace Banner6000,-60,1 thenopen~200ms later: Oakholm/map/population4 immediately available; firstTechTreeclick works withoutreopen. Founding settlement8dad551d-2247-4b6e-bce6-60040e1ceea3 tick59485. Screens ui03-fixed-open.png/ui03-fixed-tech.png; earlierbaselinefailedtwice. DelayedrefreshGameTestpasses; multiple real stale viewers not exercised. Sharedsource/deployment untouched. SentClaudePR5.
+## Reproduction index — candidate verification through16:32
+All commands run from `C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-verification/hearthstead-neoforge` with `GIT_DIR=C:/Users/tobia/Hearthstead-Claude/Verk-arbeid-/.git`, `GIT_WORK_TREE=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-verification`, `GIT_OPTIONAL_LOCKS=0`. Shared Git metadata is read-only. This is a composed frozen copy, not a claim that shared HEAD equals tested source.
+
+Current private source manifest: `pr5-1f01db1-source-manifest.json`,4130srcfiles,SHA2569314f712615d1e9e441227136b34acc79f194e1903ca4263044c34b035f3adbc. Original candidate manifest `pr5-source-identity.json` identifies62ca318, followed by exact deltas41eeffc/4e7e075/e4b79b1/ced4d77/1f01db1. Logs have their own identity in `QA_TERMINAL_EVIDENCE_2026-09-26.json`; the manifest made now does not retroactively identify an older run.
+
+Common GameTest command:
+```
+./gradlew.bat runGameTestServer --offline --max-workers=2 -I C:/Users/tobia/Hearthstead-Claude/build-codex/<INIT>.init.gradle -PhearthsteadBuildDir=C:/Users/tobia/Hearthstead-Claude/build-codex/pr5-build
+```
+| INIT | Run identity | Filter | Terminal result |
+|---|---|---|---|
+| pr5-broad-e4b79b1 | accumulatede4b79b1 | skipBlueprintBuilds=true |1907total/9requiredfail |
+| pr5-ced4d77-targeted | accumulatedced4d77 |captain_,tavern_drunk |25/25requiredPASS |
+| pr5-ui03 | accumulated1f01db1 |banner_fresh_open,hearth,founding,journey,blessing,first_raid,settlement |112/112requiredPASS |
+Each init chooses its distinct private `<INIT>-world` directory, except ced4d77 uses `pr5-ced4d77-targeted-world`. Do not reuse an existing test world for a fresh run; choose a new directory in a copied init.
+The ced4d77 command first attempted `compileJava test runGameTestServer`; JUnit's2knownfailures stopped it before GameTest, so GameTest was run separately. FullJUnit1161/1159pass/2fail is real; no fullJUnit rerun on1f01db1 claimed.
+
+Native identity is separate from accumulatedGameTest identity: ownserver12164 carries frozenbaseline+da67b84config+onlytwoUI03productionfiles; QC8783 carries baseline+da67b84+onlyTechTreeScreene4b79b1. See `server-ui03-native-identity.json`, `ui-e4b79b1-native-identity.json`, ownprocesscommand in WSLcoop-server/identity.json. Native screenshot successes do not validate allPR5patches together.
+## 16:35 — QA-UI-04 native acceptance
+0bdbac44e0f737a55f372c6e0debca943d7a8abf exactTechTreeScreen SHA256c1f0a02ab16070001490eb686ae4514d470a064787bbd9ece0c6317962917414 compiled on priorUIbaseline; QC12973/display94. Same materialremoval-whileopen repro now showsboth toastlines includingWarehouse). Screenshotui04-full-refusal.png. Separate readonly reviewer no concretedefect. Native serverUI03-12164 unchanged; no fullsuite rerun claimed. Files launch-ui04-native.py,ui04-native-identity.json. UI05 affordability stillopen.
+
+Asset-validatortriage:415flags classify Lang1,Textures193,Sounds132,Recipes32,Tags52,Pipeline4,UI1. RaiderLook.java61 explicitly uses64x64, contradicting validator128x64 assumption for raiderlayers. WeaponregistrationsgeneratedbyWeaponType; ambient.market_bustle usedbyAmbienceBedsClient. Theseexamples demonstratefalsepositives, not blanketclearance of415flags. Pipeline4differences need ownerassetauthority; do not overwrite hand-authored assets by oldgenerators. Animation97definitionchecker is older scope than native291loadedclips; counts are not equivalent.
+
+## 2026-09-26 16:43 — codex — QA-ANIM-01 and cloud follow-up
+Seen in game: two real clients in disposable world. Debug `hsrevive down CodexQC` (forced trigger, not raid lethal-flow proof); QB hold right-click1s ->33%, release1s -> progress cancelled, hold4s -> successful revive16:37:37. QC remains visually malformed after completion and minutes later: body rotated upward, legs disconnected. Walking0.4s also does not clear it. Screens coop-revive-progress.png, coop-revive-interrupted.png, coop-revive-complete-b.png, coop-revive-current.png, coop-revive-walk-control.png. Server12164 UI03-only patch; QB4296 configfix baseline; QC12973 UI04-only patch. PlayerClips unchanged. Suspected stale bone transforms: Model.setupAnim invokes vanilla before any reset and returns immediately for null provider; absolute reset only inside active clip. Root cause not yet proven by patch/control. P2 QA-ANIM-01 OPEN, cloud asked to inspect and propose narrow fix before animation-engine edits.
+QA-UI-05 bounded Banner-change refresh approved for isolated cloud branch; retains Warehouse/courier limitation, requires scroll/selection/confirmation preservation, authoritative payment, no idle polling scans. Both sent PR5 comment5847151642. No shared production edits/integration/deploy.

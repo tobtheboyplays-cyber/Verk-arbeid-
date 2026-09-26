@@ -1,4 +1,4 @@
-﻿suite,case,batch,file,line,status,evidence,coverage_note
+suite,case,batch,file,line,status,evidence,coverage_note
 PlaqueBlessingCueGameTests,runtimeCuesAreClearedByReload,plaque_blessing_runtime_cues_are_cleared_by_reload,src/main/java/com/hearthstead/block/PlaqueBlessingCueGameTests.java,101,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 PlaqueSurveyPerformanceGameTests,diskReloadHydratesOccupancyAndRepairsTransientGlowOnce,plaque_reload_projection_hydrates_without_room_scan,src/main/java/com/hearthstead/block/PlaqueSurveyPerformanceGameTests.java,192,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 PlaqueSurveyPerformanceGameTests,diskReloadMissingBuildingDefersIdentityMutationToSurvey,plaque_reload_missing_building_defers_identity_transition,src/main/java/com/hearthstead/block/PlaqueSurveyPerformanceGameTests.java,363,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
@@ -147,3 +147,5 @@ WorkZoneGameTests,unloadedChunkFailureNeverForceLoads,work_zone_chunks,src/main/
 WorkZoneGameTests,liveRuntimeGuardRejectsUnloadedWithoutForceLoad,work_zone_chunks,src/main/java/com/hearthstead/settlement/workzone/WorkZoneGameTests.java,396,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 WorkZoneGameTests,movedPersistedDropOutsideZoneIsNeverRecoveredOrMutated,work_zone_ai,src/main/java/com/hearthstead/settlement/workzone/WorkZoneGameTests.java,477,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 WorkZoneGameTests,levelAwareLoadQuarantinesWrongDimensionBeforeWorkerUse,work_zone_persistence,src/main/java/com/hearthstead/settlement/workzone/WorkZoneGameTests.java,632,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
+"NativeCoop","gracefulDedicatedServerRestartResearchInventory","private25587","coop-server-evidence.log","","PASS narrow native","coop-persistence-restart.py;coop-restarted-learned-b.png","Both clients rejoin;QA1coin8logs8cobble QB1coin4logs8cobble retained;research retained;not crash recovery"
+

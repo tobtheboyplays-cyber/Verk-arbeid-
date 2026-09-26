@@ -1,4 +1,4 @@
-﻿suite,case,batch,file,line,status,evidence,coverage_note
+suite,case,batch,file,line,status,evidence,coverage_note
 ConversationGameTests,barterSwapsExactlyAndReplaysMoveNothing,talk_barter_exact,src/main/java/com/hearthstead/conversation/ConversationGameTests.java,154,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 ConversationGameTests,foreignStaleAndReopenedPacketsMoveNothing,talk_replay,src/main/java/com/hearthstead/conversation/ConversationGameTests.java,224,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 FinisherGameTests,twoPlayersWithinHalfASecondDoTheDoubleExecution,finisher_double,src/main/java/com/hearthstead/finisher/FinisherGameTests.java,245,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
@@ -42,3 +42,8 @@ RequestLedgerGameTests,staleZeroCargoOutputToReplacedWarehouseExpiresForFreshCla
 RequestLedgerGameTests,staleZeroCargoSourcePreviewExpiresAndClaimsFreshOutput,request_ledger_authority,src/main/java/com/hearthstead/settlement/request/RequestLedgerGameTests.java,613,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 WorkZoneGameTests,twoPlayersAtSameRevisionOnlyFirstCommitWins,work_zone_revision,src/main/java/com/hearthstead/settlement/workzone/WorkZoneGameTests.java,129,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
 WorkZoneGameTests,staleCandidateFailsWithoutMutation,work_zone_no_mutation,src/main/java/com/hearthstead/settlement/workzone/WorkZoneGameTests.java,202,PENDING FULL RUN,,Name-based discovery; inspect assertions before claiming coverage
+"NativeCoop","twoNonOpClientsRaceOneResearchPurchase","private25587","coop-server-evidence.log","","PASS narrow native","coop-research-clicks.json;coop-a-tech-after.png;coop-b-tech-after.png","Native PASS once; one payment and stale rejection; loopback Creative Peaceful"
+"NativeCoop","nonFounderResearchSharedWithFounder","private25587","coop-server-evidence.log","","PASS narrow native","coop-house-purchased-b.png;coop-house-shared-a.png","Native PASS; only buyer paid; founder saw learned on reopen"
+"NativeCoop","twoClientsShiftClickSameBannerStack","private25587","coop-server-evidence.log","","PASS narrow native","coop-storage-clicks.json;storage-after-a.png;storage-after-b.png","Native PASS once;8cobble withdrew only toQB;QA8 unchanged;Banner0;sum16 conserved"
+"NativeCoop","donorFundsResearchWhileMenuOpen","private25587","coop-server-evidence.log","","FAIL QA-UI-05","coop-fund-stale-later.png;coop-fund-reopened.png","Button remains disabled after actual second-player deposit; reopening recovers; payment then exact once"
+
