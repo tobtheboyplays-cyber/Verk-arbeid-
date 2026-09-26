@@ -75,13 +75,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 hearth.foundingCooldown--;
                 return;
             }
-            Settlement founded = SettlementManager.tryFound(serverLevel, pos);
-            if (founded != null) {
-                hearth.settlementId = founded.id;
-                hearth.setChanged();
-            } else {
-                hearth.foundingCooldown = 10; // seconds between retries
-            }
+            hearth.foundNow(serverLevel);
             return;
         }
 
@@ -138,6 +132,38 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     @Nullable
     public UUID getSettlementId() {
         return settlementId;
+    }
+
+    /**
+     * Founds the settlement now if this Banner has none and no retry is pending: the same
+     * attempt the once-a-second tick makes, also used when a player opens a fresh Banner so
+     * the menu gets the real identity instead of NO_SETTLEMENT (QA-UI-03). Returns whether
+     * the Banner is bound afterwards.
+     */
+    public boolean foundNow(ServerLevel level) {
+        if (settlementId != null) {
+            return true;
+        }
+        if (foundingCooldown > 0) {
+            return false;
+        }
+        Settlement founded = SettlementManager.tryFound(level, worldPosition);
+        if (founded == null) {
+            foundingCooldown = 10; // seconds between retries
+            return false;
+        }
+        settlementId = founded.id;
+        setChanged();
+        // Anyone who opened this Banner before it was founded holds a NO_SETTLEMENT menu
+        // that the server rightly refuses: reopen it with the real identity.
+        for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+            if (player.containerMenu instanceof HearthMenu menu && worldPosition.equals(menu.getHearthPos())
+                && HearthMenu.NO_SETTLEMENT.equals(menu.getSettlementId())) {
+                player.closeContainer();
+                com.hearthstead.block.HearthBlock.openMenu(player, this);
+            }
+        }
+        return true;
     }
 
     /** Direct binding for tests and admin tools; skips the founding flow. */
