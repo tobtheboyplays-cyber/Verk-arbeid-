@@ -446,10 +446,19 @@ $b = Start-BackupScript $f 1 'x'
 Check ((Wait-Exit $b) -eq 3) 'world folder is a link: backup script refuses'
 
 $f = New-Fixture 'linked backups'
+$target = Join-Path $f.World 'inside'
 $link = Join-Path $f.Dir 'backups-link'
-New-Link $link (Join-Path $f.World 'inside')
+New-Link $link $target
 $b = Start-BackupScript $f 1 'x' ('-BackupDir ' + (Quote $link))
-Check ((Wait-Exit $b) -eq 3) 'backup folder is a link into the world: refused'
+Check ((Wait-Exit $b) -eq 3) 'backup folder is a link into the world: backup script refuses'
+$b = Start-BackupScript $f 1 'x' ('-BackupDir ' + (Quote (Join-Path $link 'child')))
+Check ((Wait-Exit $b) -eq 3) 'not-yet-existing folder below that link: backup script refuses'
+$w = Start-Wrapper $f 'normal' ('-BackupDir ' + (Quote $link))
+Check ((Wait-Exit $w) -eq 3) 'backup folder is a link into the world: wrapper refuses'
+$w = Start-Wrapper $f 'normal' ('-BackupDir ' + (Quote (Join-Path $link 'child')))
+Check ((Wait-Exit $w) -eq 3) 'not-yet-existing folder below that link: wrapper refuses'
+Check (@(Get-ChildItem -LiteralPath $target -Force).Count -eq 0) 'link target received no folder, log or archive'
+Check (-not (Test-Path -LiteralPath (Join-Path $f.Dir 'mock-starts.log'))) 'no server was started'
 
 $f = New-Fixture 'link inside world' -OldBackups 1
 New-Link (Join-Path $f.World 'data/elsewhere') (Join-Path $root 'outside data')

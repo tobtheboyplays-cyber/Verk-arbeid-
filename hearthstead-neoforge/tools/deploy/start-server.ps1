@@ -102,6 +102,8 @@ try {
     $worldDir = Get-BhWorldDir $ServerDir
     if (-not $BackupDir) { $BackupDir = Join-Path $ServerDir 'backups' }
     $BackupDir = Resolve-BhFullPath $BackupDir
+    # Validate before the folder or a log file is created in it.
+    Assert-BhBackupTarget $worldDir $BackupDir
     [void][System.IO.Directory]::CreateDirectory($BackupDir)
     Set-BhLogFile (Join-Path $BackupDir 'server-wrapper.log')
 

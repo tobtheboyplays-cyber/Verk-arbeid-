@@ -89,6 +89,15 @@ function Assert-BhPlainPath {
     if ($rp) { throw "$What goes through a junction or symbolic link ($rp); refusing. Use a plain folder." }
 }
 
+# Refuses a world/backup pair that could escape its folders. Call it before creating
+# the backup folder or writing any log into it.
+function Assert-BhBackupTarget {
+    param([Parameter(Mandatory = $true)][string]$WorldDir, [Parameter(Mandatory = $true)][string]$BackupDir)
+    Assert-BhPlainPath $WorldDir 'the world folder'
+    Assert-BhPlainPath $BackupDir 'the backup folder'
+    if ((Test-BhPathInside $BackupDir $WorldDir) -or (Test-BhPathInside $WorldDir $BackupDir)) { throw 'the backup folder and the world folder must not contain each other' }
+}
+
 # Every file below $Root. Refuses junctions and links inside it, so nothing outside can be archived.
 function Get-BhWorldFiles {
     param([Parameter(Mandatory = $true)][string]$Root)
@@ -561,9 +570,7 @@ function Invoke-BhBackup {
         $WorldDir = Resolve-BhFullPath $WorldDir
         $BackupDir = Resolve-BhFullPath $BackupDir
         if (-not (Test-Path -LiteralPath (Join-Path $WorldDir 'level.dat'))) { throw "no level.dat in $WorldDir; is this the world folder?" }
-        Assert-BhPlainPath $WorldDir 'the world folder'
-        Assert-BhPlainPath $BackupDir 'the backup folder'
-        if ((Test-BhPathInside $BackupDir $WorldDir) -or (Test-BhPathInside $WorldDir $BackupDir)) { throw 'the backup folder and the world folder must not contain each other' }
+        Assert-BhBackupTarget $WorldDir $BackupDir
         [void][System.IO.Directory]::CreateDirectory($BackupDir)
         Assert-BhPlainPath $BackupDir 'the backup folder'
         # Finds links inside the world before anything is sent to the server.
