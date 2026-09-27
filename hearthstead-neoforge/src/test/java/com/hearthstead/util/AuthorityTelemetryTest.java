@@ -267,7 +267,7 @@ class AuthorityTelemetryTest {
 
         for (String reason : List.of("settlement_held", "settlement_hit",
                 "settlement_lost")) {
-            long pressureAfter = reason.equals("settlement_held") ? 22L : 2L;
+            long pressureAfter = reason.equals("settlement_held") ? 10L : 2L;
             String resolved = AuthorityTelemetry.format(
                 AuthorityTelemetry.Event.RAID_RESOLVED,
                 AuthorityTelemetry.Result.COMMITTED,
@@ -339,6 +339,21 @@ class AuthorityTelemetryTest {
                 AuthorityTelemetry.Fields.state(settlement,
                     "first_raid:42", 10, 2, 2, 0,
                     "settlement_held"), 704L));
+    }
+
+    @Test
+    void heldRaidRejectsObsoletePressureEscalation() {
+        assertThrows(IllegalArgumentException.class, () -> AuthorityTelemetry.format(
+            AuthorityTelemetry.Event.RAID_RESOLVED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.state(UUID.randomUUID(),
+                "first_raid:2", 10, 22, 5, 0, "settlement_held"), 705L));
+        String resolved = AuthorityTelemetry.format(
+            AuthorityTelemetry.Event.RAID_RESOLVED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.state(UUID.randomUUID(),
+                "first_raid:2", 0, 0, 5, 0, "settlement_held"), 706L);
+        assertTrue(AuthorityTelemetry.parse(resolved).isPresent());
     }
 
     @Test

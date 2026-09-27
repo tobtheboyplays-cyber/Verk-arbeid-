@@ -1,0 +1,1109 @@
+{
+  "branch": "watch",
+  "nodes": [
+    {
+      "id": "first_watch",
+      "tier": 1,
+      "type": "unlock",
+      "x": 0,
+      "y": -170,
+      "size": "-",
+      "coins": 4,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 1
+        }
+      ],
+      "gate_text": "1 Courier delivery",
+      "legacy": "node:first_watch",
+      "design_status": "existing",
+      "impl": "A",
+      "name": "Barracks & Guard",
+      "offers": "Build a Barracks and hire Guards who patrol, answer the alarm and fight beside you.",
+      "details": [
+        "Barracks plan (2 beds) + Guard emblem (3 Coins, 2 iron, 1 leather)",
+        "Every guard already uses the full moveset: light, telegraphed heavy, 3-hit combo and shield bash",
+        "Well-fed guards regenerate health"
+      ],
+      "flavor": "Every village needs someone awake at night.",
+      "depends_on": []
+    },
+    {
+      "id": "guard_drill",
+      "tier": 1,
+      "type": "bonus",
+      "x": -132,
+      "y": -229,
+      "size": "S",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "guard_equipment_deliveries",
+          "target": 1
+        }
+      ],
+      "gate_text": "1 weapon delivered to a Guard",
+      "legacy": "upgrade:guard_drill",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Guard Drill",
+      "offers": "Guards spar in pairs each morning after the night watch and earn +15% combat XP.",
+      "details": [
+        "Morning drill, 07:00-08:48: the Guards just off the night watch spar in pairs in front of the Barracks: combos, feints, parries and ripostes, circling and pressing footwork; practice blows only (no damage); an odd Guard shadow-drills",
+        "A day-watch Guard joins only to make a pair and never the last one on watch; any alarm or raid ends the drill at once; no drill in rain",
+        "Each morning of drill trains Strength (rank) and gives 4 combat XP, up to the Trained tier",
+        "+15% Guard combat XP from real kills (stacks with Shield Wall to +40%)"
+      ],
+      "flavor": "Sweat in the yard saves blood at the gate.",
+      "depends_on": [
+        "GuardDrillGoal: morning drill with its own practice clips (no damage)"
+      ]
+    },
+    {
+      "id": "arm_the_watch",
+      "tier": 1,
+      "type": "unlock",
+      "x": -46,
+      "y": -261,
+      "size": "-",
+      "coins": 0,
+      "goods": [],
+      "study_days": 0,
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "guard_equipment_deliveries",
+          "target": 1
+        }
+      ],
+      "gate_text": "1 Courier-delivered weapon to a Guard (a proof milestone, no Coins)",
+      "legacy": "node:arm_the_watch",
+      "design_status": "existing",
+      "impl": "A",
+      "name": "Watchtower & Archers",
+      "offers": "Build a Watchtower, hire Archers, and post Guards on the tower.",
+      "details": [
+        "Watchtower plan (banner, 4 ladders) + Archer emblem (3 Coins, 4 arrows, 1 leather)",
+        "Tower Post orders for Guards",
+        "Couriers keep tower archers stocked with real arrows"
+      ],
+      "flavor": "From the tower you see them before they see you.",
+      "depends_on": []
+    },
+    {
+      "id": "commanders_horn",
+      "tier": 1,
+      "type": "unlock",
+      "x": 46,
+      "y": -261,
+      "size": "M",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:copper_ingot"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Captain's Voice",
+      "offers": "Your captain's voice carries: orders reach soldiers up to 80 blocks away instead of 48, raid orders hold 60 seconds after the raid instead of 30, and every order sounds a horn that rallies the listeners (+10% speed for 10 seconds).",
+      "details": [
+        "The command keys stay free for everyone; this node makes them stronger",
+        "Earshot: 48 -> 80 blocks",
+        "Orders given during a raid or alarm hold 60 s after it ends (was 30 s)",
+        "Each order blows a horn (at most once every 3 s) and every soldier who heard it moves 10% faster for 10 s"
+      ],
+      "flavor": "One shout, and they turn as one.",
+      "depends_on": [
+        "Guard control (per-role keys) - being built now"
+      ]
+    },
+    {
+      "id": "barricades",
+      "tier": 1,
+      "type": "unlock",
+      "x": 133,
+      "y": -229,
+      "size": "M",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_watch",
+        "builders_hut"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Raise the Barricades",
+      "offers": "When a raid is spotted, every Builder drops other work to raise your marked barricades first, and barricade lines may be twice as long.",
+      "details": [
+        "Barricade lines: up to 10 blocks instead of 5",
+        "When a raid is spotted, a Builder working on anything else drops it and raises a waiting barricade first (one Builder per barricade site)",
+        "Rushed barricades are built at night too"
+      ],
+      "flavor": "Carts on their sides, stakes in the mud: it will do till morning.",
+      "depends_on": [
+        "Warning-time build order",
+        "Barricade block (Builder lane)"
+      ]
+    },
+    {
+      "id": "defense_plans",
+      "tier": 1,
+      "type": "unlock",
+      "x": 95,
+      "y": -141,
+      "size": "M",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:stick"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_watch"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:defense_plans",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Defense Plans",
+      "offers": "Draw a defense line on the ground and your Builder raises palisade walls, gates and a timber watchtower along it.",
+      "details": [
+        "Defense Plan line tool: mark a wall line; the Builder builds palisade segments along it from your stores",
+        "Palisade gates and a timber watchtower blueprint",
+        "Each wall block is tagged with its segment kind (palisade, stone, gate) so raids can find weak points",
+        "Stone versions need Masonry"
+      ],
+      "flavor": "A line in the dirt today, a wall by the next new moon.",
+      "depends_on": [
+        "Builder lane (being built now: PostRaidUpgrade wire 19)"
+      ]
+    },
+    {
+      "id": "shield_doctrine",
+      "tier": 2,
+      "type": "bonus",
+      "x": -241,
+      "y": -332,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "guard_drill"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "guard_xp_earned",
+          "target": 40
+        }
+      ],
+      "gate_text": "40 Guard combat XP earned (existing gate)",
+      "legacy": "node:shield_doctrine",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Shield Wall",
+      "offers": "Guards holding a line with a shield take 30% less damage from the front, and earn +25% combat XP.",
+      "details": [
+        "+25% Guard combat XP, which stacks with Guard Drill",
+        "Give the Knights a line order (look at the ground, R): a guard standing on his spot with a shield takes -30% damage from blows in front of him",
+        "Blows from the flank or back are not reduced",
+        "Spearmen and Longswords are now their own nodes; old worlds that owned this node get both for free"
+      ],
+      "flavor": "Lock shields. Nobody steps back.",
+      "depends_on": [
+        "Guard control (per-role keys) - being built now"
+      ]
+    },
+    {
+      "id": "spearmen",
+      "tier": 2,
+      "type": "unlock",
+      "x": -14,
+      "y": -410,
+      "size": "M",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:stick"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "first_watch"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "B",
+      "name": "Spearmen",
+      "offers": "A new battle role: Spearmen fight from the second rank with long reach and brace against charges.",
+      "details": [
+        "Pike Yard plan + Spearman emblem",
+        "Old worlds that owned Shield Wall get this node for free"
+      ],
+      "flavor": "Keep them at the end of your spear and they cannot reach you.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ]
+    },
+    {
+      "id": "guard_arms_iron",
+      "tier": 2,
+      "type": "bonus",
+      "x": -140,
+      "y": -385,
+      "size": "S",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 6,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "fortification"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:guard_arms_iron",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Iron Arms Drill",
+      "offers": "Veterans wear iron chest and legs, Sergeants full iron: one armour tier earlier.",
+      "details": [
+        "Existing effect: GuardArms dresses Veteran and above in the next rank's kit",
+        "Every piece is still taken from the Armoury, a Warehouse or the Banner stores, never conjured",
+        "Pairs with the Armoury, which forges the iron",
+        "Gear: opens Gear Tier 2 (Plate: iron armour, crossbows) for Veteran guards, Sharpshooters and level-5 workers; any one of Iron Arms Drill, Armoury or Mine, Smelter & Smithy counts"
+      ],
+      "flavor": "Iron on the shoulders of those who earned it.",
+      "depends_on": []
+    },
+    {
+      "id": "archer_longbow_drill",
+      "tier": 2,
+      "type": "choice",
+      "x": 140,
+      "y": -385,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:string"
+        },
+        {
+          "count": 12,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "arm_the_watch"
+      ],
+      "excludes": [
+        "crossbows"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:archer_longbow_drill",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Longbows",
+      "offers": "Archers shoot 2 blocks farther and draw their bows faster.",
+      "details": [
+        "Range 18 -> 20 blocks, draw 20 -> 16 ticks (existing ArcherDrill)",
+        "Pairs with the ranged command key (G): look at an enemy and tap it, and every archer in earshot looses at it (this order works with or without the drill)",
+        "Pick one: Longbows or Crossbows",
+        "Saves that already own the drill keep it, and Crossbows stay locked for them"
+      ],
+      "flavor": "Yew, patience, and forty arrows in the air at once.",
+      "depends_on": [
+        "Guard control (per-role keys) for the Volley"
+      ]
+    },
+    {
+      "id": "crossbows",
+      "tier": 2,
+      "type": "choice",
+      "x": 241,
+      "y": -332,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 6,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:string"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:tripwire_hook"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "arm_the_watch"
+      ],
+      "excludes": [
+        "archer_longbow_drill"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Crossbows",
+      "offers": "Archers switch to heavy bolts: each shot takes 50% longer to draw, but every hit does 40% more damage.",
+      "details": [
+        "Draw time x1.5 (a 20-tick draw becomes 30)",
+        "+40% damage on every arrow that hits",
+        "The shot sounds like a crossbow",
+        "Pick one: Longbow Drill or Crossbows"
+      ],
+      "flavor": "Any farmhand can learn it in a week. That is the point.",
+      "depends_on": [
+        "Crossbow branch in ArcherAttackGoal + animation"
+      ]
+    },
+    {
+      "id": "fortification",
+      "tier": 2,
+      "type": "unlock",
+      "x": -252,
+      "y": -437,
+      "size": "M",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 12,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "first_watch"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:fortification",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Armoury & Armourer",
+      "offers": "An Armourer forges armour and shields for your guards from village iron and leather.",
+      "details": [
+        "Armoury plan + Armourer emblem",
+        "Makes leather armour, iron armour and shields from stored goods (these Production recipes already exist)",
+        "Guards dress from the Armoury first, then the Warehouse",
+        "Gear can still be crafted by players or bought",
+        "Gear: opens Gear Tier 2 (Plate: iron armour, crossbows) for Veteran guards, Sharpshooters and level-5 workers; any one of Iron Arms Drill, Armoury or Mine, Smelter & Smithy counts"
+      ],
+      "flavor": "A guard is only as good as the steel the village gives him.",
+      "depends_on": [
+        "Armourer emblem entry + release GameTests"
+      ]
+    },
+    {
+      "id": "watchfires",
+      "tier": 2,
+      "type": "bonus",
+      "x": -88,
+      "y": -497,
+      "size": "S",
+      "coins": 5,
+      "goods": [
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:charcoal"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:copper_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "arm_the_watch"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Watchfires & Great Bell",
+      "offers": "When the alarm sounds, villagers run for shelter 25% faster.",
+      "details": [
+        "While the alarm is on, villagers run to shelter 25% faster"
+      ],
+      "flavor": "Smoke on the ridge - ring it, ring it now!",
+      "depends_on": [
+        "Scout-warning timer (owner decision: ~1 in-game hour, earlier with a better watch)"
+      ]
+    },
+    {
+      "id": "palisade",
+      "tier": 2,
+      "type": "choice",
+      "x": 88,
+      "y": -497,
+      "size": "L",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 64,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "defense_plans"
+      ],
+      "excludes": [
+        "earthworks"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Manned Palisade",
+      "offers": "Your palisade becomes a fighting wall: raiders need twice as many blows to break a palisade segment.",
+      "details": [
+        "A raider needs 12 blows instead of 6 to break a block of a palisade line your Builder raised",
+        "Gates are unchanged: they stay the way in",
+        "Pick one: Palisade or Ditch & Stakes"
+      ],
+      "flavor": "Sharpened oak, shoulder to shoulder, all the way round.",
+      "depends_on": [
+        "Walls & gates slice",
+        "Raider weak-point pathing"
+      ]
+    },
+    {
+      "id": "earthworks",
+      "tier": 2,
+      "type": "choice",
+      "x": 253,
+      "y": -437,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 24,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "defense_plans"
+      ],
+      "excludes": [
+        "palisade"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Ditch & Stakes",
+      "offers": "Raiders within 3 blocks of your built defense lines are slowed (Slowness II, 30% slower).",
+      "details": [
+        "Works along every defense line your Builder raised: palisade, stone and barricades",
+        "The slow is refreshed every second while a raider stays near the line",
+        "Pick one: Palisade or Ditch & Stakes"
+      ],
+      "flavor": "Let them come. Let them come slowly.",
+      "depends_on": [
+        "Work-zone dig task",
+        "Stake block (slow + damage)"
+      ]
+    },
+    {
+      "id": "stone_walls",
+      "tier": 3,
+      "type": "unlock",
+      "x": -264,
+      "y": -594,
+      "size": "L",
+      "coins": 16,
+      "goods": [
+        {
+          "count": 96,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 12,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "masonry"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "owns_any",
+          "nodes": [
+            "palisade",
+            "earthworks"
+          ]
+        }
+      ],
+      "gate_text": "Own Manned Palisade or Ditch & Stakes",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Stone Walls & Arrow Slits",
+      "offers": "Stone wall segments take three times as many blows to break.",
+      "details": [
+        "A raider needs 18 blows instead of 6 to break a block of a stone line your Builder raised",
+        "Gates are unchanged"
+      ],
+      "flavor": "What the axe cannot cut, the fire cannot eat.",
+      "depends_on": [
+        "Walls & gates slice",
+        "Mason job loop"
+      ]
+    },
+    {
+      "id": "veteran_techniques",
+      "tier": 3,
+      "type": "bonus",
+      "x": 264,
+      "y": -594,
+      "size": "M",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "shield_doctrine"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "existing_changed",
+      "impl": "C",
+      "name": "Veteran Techniques",
+      "offers": "Guards master their moveset: the shield bash is ready 30% sooner, the combo window is 4 ticks longer, and heavy strikes hit 30% harder.",
+      "details": [
+        "Shield bash cooldown 4 s -> 2.8 s",
+        "Combo window 6 -> 10 ticks",
+        "Heavy strike +30% damage"
+      ],
+      "flavor": "Watch the shoulder, not the blade.",
+      "depends_on": []
+    },
+    {
+      "id": "captains_commission",
+      "tier": 3,
+      "type": "unlock",
+      "x": 200,
+      "y": -619,
+      "size": "M",
+      "coins": 20,
+      "goods": [
+        {
+          "count": 1,
+          "tag": "minecraft:banners"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:gold_ingot"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "veteran_techniques"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Captain's Commission",
+      "offers": "Your highest-ranked guard is field-promoted to Sergeant and commissioned Captain: bigger and stronger, a chosen weapon loadout with special attacks, and your soldiers salute him.",
+      "details": [
+        "Learning it raises your top guard to at least Sergeant, once; with no guard yet, the first guard you hire gets the promotion",
+        "Later Captains must earn Sergeant the normal way",
+        "The Captain gets +16 health, +4 armour, +2 damage and resists knockback, and stands a little taller",
+        "Pick his weapon loadout; each loadout has its own special attacks",
+        "Guards salute their Captain"
+      ],
+      "flavor": "A banner, a title, and every eye on him when the horns sound.",
+      "depends_on": []
+    },
+    {
+      "id": "longswords",
+      "tier": 3,
+      "type": "unlock",
+      "x": 104,
+      "y": -738,
+      "size": "L",
+      "coins": 18,
+      "goods": [
+        {
+          "count": 2,
+          "item": "minecraft:iron_block"
+        },
+        {
+          "count": 6,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "spearmen"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "B",
+      "name": "Longswordsmen",
+      "offers": "A new battle role: two-handed longswordsmen who break shields and cut through crowds.",
+      "details": [
+        "Sword Hall plan + Longswordsman emblem",
+        "Old worlds that owned Shield Wall get this node for free"
+      ],
+      "flavor": "Two hands, one blade, and plenty of room around him.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ]
+    },
+    {
+      "id": "rune_mage",
+      "tier": 3,
+      "type": "unlock",
+      "x": 303,
+      "y": -681,
+      "size": "L",
+      "coins": 20,
+      "goods": [
+        {
+          "count": 16,
+          "item": "minecraft:lapis_lazuli"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:amethyst_shard"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "hearth_doctrine"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "B",
+      "name": "Rune Mage",
+      "offers": "A new battle role: a Rune Mage who spends rune charges on spells that turn a fight.",
+      "details": [
+        "Rune Hall plan + Rune Mage emblem",
+        "Spells cost rune charges; a Ward lasts 5 s",
+        "Mage cap: 1 (2 with High Runes)",
+        "Old worlds that owned the Scholar doctrine get this node for free"
+      ],
+      "flavor": "Old words, cut into stone, and the stone remembers them.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ]
+    },
+    {
+      "id": "master_armoury",
+      "tier": 4,
+      "type": "unlock",
+      "x": 0,
+      "y": -985,
+      "size": "M",
+      "coins": 30,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:diamond"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:iron_block"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "fortification"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Master Armoury",
+      "offers": "Your guards and archers may wear diamond (Gear Tier 3, with the Castle Charter) and netherite (Gear Tier 4, with the Kingdom Crown).",
+      "details": [
+        "Gear Tier 3 (Diamond) with the Castle Charter",
+        "Gear Tier 4 (Netherite) with the Kingdom Crown",
+        "Each soldier still needs the rank for the tier (rank AND village knowledge)",
+        "Unlocks the diamond and netherite weapon recipes (short sword, double axe, halberd, warhammer, longsword, spear)"
+      ],
+      "flavor": "Diamond is only a stone until a master knows where to strike it.",
+      "depends_on": [
+        "Gear tiers (GearTier/GearGate built by the gear agent; resolves node:master_armoury)"
+      ]
+    },
+    {
+      "id": "high_runes",
+      "tier": 4,
+      "type": "bonus",
+      "x": 432,
+      "y": -885,
+      "size": "M",
+      "coins": 30,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:amethyst_block"
+        },
+        {
+          "count": 1,
+          "item": "minecraft:diamond"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "rune_mage"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "High Runes",
+      "offers": "Your mages master the high runes: a second Rune Mage may be hired, and wards last 6 seconds instead of 5.",
+      "details": [
+        "Mage cap 1 -> 2",
+        "Ward lasts 6 s instead of 5 s"
+      ],
+      "flavor": "The high runes are not spoken. They are sung.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)"
+      ]
+    },
+    {
+      "id": "knights",
+      "tier": 4,
+      "type": "capstone",
+      "x": -215,
+      "y": -864,
+      "size": "L",
+      "coins": 30,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:iron_block"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:gold_ingot"
+        },
+        {
+          "count": 12,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "veteran_techniques"
+      ],
+      "excludes": [
+        "pike_square"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Order of Knights",
+      "offers": "Order of Knights: your Sergeants and Captains fight as knights, +25% damage and no knockback.",
+      "details": [
+        "Sergeant and Captain guards deal +25% melee damage",
+        "They cannot be knocked back",
+        "No horses yet",
+        "Pick one: Order of Knights or Pike Square"
+      ],
+      "flavor": "Hooves on the frost, lances down.",
+      "depends_on": []
+    },
+    {
+      "id": "pike_square",
+      "tier": 4,
+      "type": "capstone",
+      "x": 215,
+      "y": -864,
+      "size": "L",
+      "coins": 30,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:iron_block"
+        },
+        {
+          "count": 32,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "spearmen"
+      ],
+      "excludes": [
+        "knights"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Pike Square",
+      "offers": "Spearmen doctrine: braced Spearmen strike 50% harder and cannot be knocked back.",
+      "details": [
+        "The brace strike does +50% damage",
+        "A braced Spearman cannot be knocked back",
+        "Pick one: Order of Knights or Pike Square"
+      ],
+      "flavor": "Ash shafts, iron heads, and not one step back.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)",
+        "Square formation"
+      ]
+    },
+    {
+      "id": "masonry",
+      "tier": 2,
+      "type": "unlock",
+      "x": -505,
+      "y": 0,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 32,
+          "item": "minecraft:cobblestone"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:stone_bricks"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "defense_plans"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:masonry",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Masonry",
+      "offers": "Your Builder learns stone: stone wall segments, a stone gatehouse, a stone watchtower, and stone floors in Upgrade Orders.",
+      "details": [
+        "Builder can lay stone wall segments and a stone gatehouse along Defense Plan lines",
+        "Stone watchtower blueprint and stone variants of the starter blueprints",
+        "Upgrade Orders can lay stone or cobble floors (e.g. a Warehouse's 'solid floor'); plank floors work without Masonry",
+        "Unlocks no building level: levels stay checklist-only"
+      ],
+      "flavor": "Timber rots. Stone remembers.",
+      "depends_on": [
+        "Builder lane (being built now: PostRaidUpgrade wire 20)"
+      ]
+    },
+    {
+      "id": "battle_healer",
+      "tier": 2,
+      "type": "unlock",
+      "x": -325,
+      "y": 387,
+      "size": "M",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 6,
+          "item": "minecraft:paper"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:string"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "infirmary"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "B",
+      "name": "Battle Healers",
+      "offers": "Hire Healers: they tend wounded soldiers in a fight and revive downed players.",
+      "details": [
+        "Healer emblem",
+        "In a raid, Healers follow the line and tend the most wounded soldier nearby",
+        "A Healer near a downed player revives them"
+      ],
+      "flavor": "Hold still. You will live, and you will complain about it.",
+      "depends_on": [
+        "Battle roles lane (being built now; plan/BATTLE-ROLES.md)",
+        "Downed state (roadmap phase 3) for carrying the fallen"
+      ]
+    }
+  ]
+}

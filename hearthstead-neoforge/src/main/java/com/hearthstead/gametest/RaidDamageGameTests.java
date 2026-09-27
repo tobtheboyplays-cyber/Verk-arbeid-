@@ -4,6 +4,7 @@ import com.hearthstead.Hearthstead;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.ai.RaiderBreachGoal;
+import com.hearthstead.entity.ai.RaiderLootGoal;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
@@ -171,6 +172,12 @@ public class RaidDamageGameTests {
         return null;
     }
 
+    private static void placeContactBarrier(GameTestHelper helper) {
+        for (int y = 1; y <= 3; y++) {
+            helper.setBlock(new BlockPos(8, y, 9), Blocks.STONE_BRICKS);
+        }
+    }
+
     // --------------------------------------------------------------- (a) ---
 
     /**
@@ -323,6 +330,120 @@ public class RaidDamageGameTests {
         });
     }
 
+    // --------------------------------------------- (b contact authority) ---
+
+    /**
+     * A solid wall between a nearby raider and the real warehouse chest is
+     * not merely cosmetic: the old block-distance gate admitted LOOTING and
+     * pulled wheat through x=8. The wall remains intact for this short
+     * observation, so a zero carried count proves no remote withdrawal
+     * happened before the normal breach loop may resolve it.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "raid_damage_a_wall_blocks_nearby_store_theft")
+    public void aWallBlocksNearbyStoreTheft(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement settlement = makeSettlement(helper, new BlockPos(9, 1, 9));
+        ServerLevel level = helper.getLevel();
+        RaidCaptain captain = beginRaid(level, settlement, RaidObjective.KORN);
+        final int total = 20;
+        Container chest = installLootChest(helper, settlement, total);
+        BlockPos wallAbs = helper.absolutePos(new BlockPos(8, 1, 9));
+        placeContactBarrier(helper);
+
+        RaiderEntity thief = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(7, 1, 9));
+        thief.assign(captain.id(), settlement.id, RaidObjective.KORN, 1.0F, false);
+        thief.setObjectivePos(settlement.center);
+        thief.setNoAi(true);
+        RaiderLootGoal loot = new RaiderLootGoal(thief);
+
+        GameTestTicks.at(helper, 1, () -> {
+            helper.assertTrue(loot.canUse(), "the nearby real warehouse chest must select");
+            loot.start();
+            for (int tick = 0; tick <= RaiderLootGoal.GRAB_PERIOD; tick++) {
+                loot.tick();
+            }
+            helper.assertTrue(level.getBlockState(wallAbs).is(Blocks.STONE_BRICKS),
+                "the contact barrier must still exist during this observation");
+            helper.assertTrue(countOf(chest, Items.WHEAT) == total,
+                "a blocked raider must not remove wheat through the wall");
+            helper.assertTrue(thief.lootCount() == 0,
+                "a blocked raider must not carry remotely withdrawn wheat");
+            helper.succeed();
+        });
+    }
+
+    /** A reachable exposed chest keeps the normal physical theft loop. */
+    @GameTest(template = "empty16", timeoutTicks = 160,
+        batch = "raid_damage_a_visible_store_still_allows_theft")
+    public void aVisibleStoreStillAllowsTheft(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement settlement = makeSettlement(helper, new BlockPos(9, 1, 9));
+        ServerLevel level = helper.getLevel();
+        RaidCaptain captain = beginRaid(level, settlement, RaidObjective.KORN);
+        final int total = 20;
+        Container chest = installLootChest(helper, settlement, total);
+
+        RaiderEntity thief = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(7, 1, 9));
+        thief.assign(captain.id(), settlement.id, RaidObjective.KORN, 1.0F, false);
+        thief.setObjectivePos(settlement.center);
+        thief.setNoAi(true);
+        RaiderLootGoal loot = new RaiderLootGoal(thief);
+
+        GameTestTicks.at(helper, 1, () -> {
+            helper.assertTrue(loot.canUse(), "the exposed warehouse chest must select");
+            loot.start();
+            for (int tick = 0; tick <= RaiderLootGoal.GRAB_PERIOD; tick++) {
+                loot.tick();
+            }
+            int inChest = countOf(chest, Items.WHEAT);
+            helper.assertTrue(inChest < total,
+                "a visible store must still lose a real stack");
+            helper.assertTrue(thief.lootCount() == total - inChest,
+                "visible theft must conserve the chest and carried wheat");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Contact is re-read at the withdrawal tick. The raider first reaches a
+     * clear face, then a wall is inserted before its first 20-tick grab; the
+     * chest must remain whole even though LOOTING was already selected.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "raid_damage_lost_contact_before_grab_blocks_withdrawal")
+    public void lostContactBeforeGrabBlocksWithdrawal(GameTestHelper helper) {
+        buildArena(helper, 14);
+        Settlement settlement = makeSettlement(helper, new BlockPos(9, 1, 9));
+        ServerLevel level = helper.getLevel();
+        RaidCaptain captain = beginRaid(level, settlement, RaidObjective.KORN);
+        final int total = 20;
+        Container chest = installLootChest(helper, settlement, total);
+
+        RaiderEntity thief = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(7, 1, 9));
+        thief.assign(captain.id(), settlement.id, RaidObjective.KORN, 1.0F, false);
+        thief.setObjectivePos(settlement.center);
+        thief.setNoAi(true);
+        RaiderLootGoal loot = new RaiderLootGoal(thief);
+
+        GameTestTicks.at(helper, 1, () -> {
+            helper.assertTrue(loot.canUse(), "the exposed warehouse chest must select");
+            loot.start();
+            loot.tick();
+            helper.assertTrue("LOOTING".equals(loot.debugMode()),
+                "the real loot goal must enter LOOTING while the face is clear");
+            placeContactBarrier(helper);
+            for (int tick = 0; tick < RaiderLootGoal.GRAB_PERIOD; tick++) {
+                loot.tick();
+            }
+            helper.assertTrue(countOf(chest, Items.WHEAT) == total,
+                "losing the visible face before the grab must keep the chest whole");
+            helper.assertTrue(thief.lootCount() == 0,
+                "a cancelled grab must leave no hidden carried wheat");
+            helper.succeed();
+        });
+    }
+
     // --------------------------------------------------------------- (c) ---
 
     /**
@@ -343,7 +464,7 @@ public class RaidDamageGameTests {
         thief.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
         thief.setObjectivePos(s.center);
 
-        helper.runAtTickTime(300, () -> {
+        GameTestTicks.at(helper, 300, () -> {
             int carriedAtDeath = thief.lootCount();
             helper.assertTrue(carriedAtDeath > 0,
                 "the raider should have grabbed something well before now");
@@ -399,7 +520,7 @@ public class RaidDamageGameTests {
         raider.assign(captain.id(), s.id, RaidObjective.KORN, 1.0F, false);
         raider.setObjectivePos(s.center);
 
-        helper.runAtTickTime(1200, () -> {
+        GameTestTicks.at(helper, 1200, () -> {
             BlockState now = level.getBlockState(gateAbs);
             helper.assertTrue(level.getBlockEntity(gateAbs) instanceof Container,
                 "the chest must still be a real container, got " + now);

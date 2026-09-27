@@ -41,9 +41,9 @@ public class BlessingNetworkGameTests {
     @GameTest(template = "empty5", timeoutTicks = 100,
         batch = "blessing_network_protocol_generation")
     public void incompatibleActionLayoutsRequireCurrentProtocol(GameTestHelper helper) {
-        helper.assertTrue("11".equals(ModBusEvents.NETWORK_PROTOCOL),
-            "Work Zone actions add incompatible payload layouts, so peers "
-                + "must negotiate generation 11");
+        helper.assertTrue("20".equals(ModBusEvents.NETWORK_PROTOCOL),
+            "Current incompatible payload layouts require matching peers, so they "
+                + "must negotiate generation 20");
         helper.succeed();
     }
 
@@ -173,12 +173,12 @@ public class BlessingNetworkGameTests {
         NetworkRegistry.configureMockConnection(player.connection.getConnection());
         player.setPos(hearthPos.getX() + 0.5D, hearthPos.getY() + 0.5D,
             hearthPos.getZ() + 0.5D);
-        int revision = Objects.hash(settlement.mayorId, settlement.mayorSince,
-            settlement.mourningUntil);
+        // The Mayor office is retired, so authority is proven with the one
+        // remaining mutating kind: a deliberate Founding Journey skip.
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,
-            settlement.id, 0, HearthMayorAction.Kind.APPOINT,
-            candidate.getUUID(), revision));
-        helper.assertTrue(settlement.mayorId == null,
+            settlement.id, 0, HearthMayorAction.Kind.SKIP_JOURNEY,
+            HearthMayorAction.NO_ID, settlement.journeyState.revision()));
+        helper.assertTrue(settlement.journeyState.mode() == JourneyPresentationMode.ACTIVE,
             "standing near a Hearth without its exact open menu must grant no authority");
 
         player.openMenu(hearth, buf -> {
@@ -191,25 +191,27 @@ public class BlessingNetworkGameTests {
         HearthMenu menu = (HearthMenu) player.containerMenu;
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,
             settlement.id, menu.getContainerId() + 1,
-            HearthMayorAction.Kind.APPOINT, candidate.getUUID(), revision));
+            HearthMayorAction.Kind.SKIP_JOURNEY, HearthMayorAction.NO_ID,
+            settlement.journeyState.revision()));
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos.east(),
-            settlement.id, menu.getContainerId(), HearthMayorAction.Kind.APPOINT,
-            candidate.getUUID(), revision));
+            settlement.id, menu.getContainerId(), HearthMayorAction.Kind.SKIP_JOURNEY,
+            HearthMayorAction.NO_ID, settlement.journeyState.revision()));
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,
             UUID.randomUUID(), menu.getContainerId(),
-            HearthMayorAction.Kind.APPOINT, candidate.getUUID(), revision));
+            HearthMayorAction.Kind.SKIP_JOURNEY, HearthMayorAction.NO_ID,
+            settlement.journeyState.revision()));
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,
             settlement.id, menu.getContainerId(), HearthMayorAction.Kind.UNKNOWN,
-            candidate.getUUID(), revision));
-        helper.assertTrue(settlement.mayorId == null,
+            HearthMayorAction.NO_ID, settlement.journeyState.revision()));
+        helper.assertTrue(settlement.journeyState.mode() == JourneyPresentationMode.ACTIVE,
             "wrong menu, hearth, settlement and UNKNOWN kind must all be inert");
 
         int closedContainerId = menu.getContainerId();
         player.closeContainer();
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,
-            settlement.id, closedContainerId, HearthMayorAction.Kind.APPOINT,
-            candidate.getUUID(), revision));
-        helper.assertTrue(settlement.mayorId == null,
+            settlement.id, closedContainerId, HearthMayorAction.Kind.SKIP_JOURNEY,
+            HearthMayorAction.NO_ID, settlement.journeyState.revision()));
+        helper.assertTrue(settlement.journeyState.mode() == JourneyPresentationMode.ACTIVE,
             "a packet replayed after its exact HearthMenu closed must be inert");
 
         player.openMenu(hearth, buf -> {
@@ -224,9 +226,10 @@ public class BlessingNetworkGameTests {
             "a reopened HearthMenu must have a fresh server container id");
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,
             settlement.id, menu.getContainerId(), HearthMayorAction.Kind.APPOINT,
-            candidate.getUUID(), revision));
-        helper.assertTrue(candidate.getUUID().equals(settlement.mayorId),
-            "the exact current HearthMenu identity should authorize the valid appointment");
+            candidate.getUUID(), Objects.hash(settlement.mayorId, settlement.mayorSince,
+                settlement.mourningUntil)));
+        helper.assertTrue(settlement.mayorId == null,
+            "the Mayor office is retired: even the exact current menu must appoint nobody");
 
         int journeyRevision = settlement.journeyState.revision();
         HearthNetwork.handle(player, new HearthMayorAction(hearthPos,

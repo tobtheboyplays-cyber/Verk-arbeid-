@@ -1,0 +1,167 @@
+{
+  "id": "mine_stone",
+  "name": "Mine Shaft House (Stone Hall)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mine",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone Hall",
+  "requires": "builders_hut",
+  "group": "mine",
+  "size": [
+    11,
+    10,
+    15
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      6,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        5,
+        1,
+        4
+      ],
+      "to": "another_furniture:dark_oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        5,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        4,
+        1,
+        4
+      ],
+      "to": "another_furniture:dark_oak_chair[facing=east,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 101
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 95
+    },
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 88
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 33
+    },
+    {
+      "item": "minecraft:dark_oak_planks",
+      "count": 29
+    },
+    {
+      "item": "minecraft:dark_oak_log",
+      "count": 29
+    },
+    {
+      "item": "minecraft:dark_oak_slab",
+      "count": 14
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 11
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 6
+    },
+    {
+      "item": "minecraft:rail",
+      "count": 5
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 4
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 3
+    },
+    {
+      "item": "minecraft:dark_oak_fence",
+      "count": 3
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 3
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 2
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 2
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dark_oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:hopper",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dark_oak_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 441,
+  "cells": 631,
+  "notes": [
+    "No pre-dug shaft: the ladder at the shaft mouth marks where the Miner digs his own ladder shaft (MINE V2), so the Builder never stands in a hole."
+  ]
+}

@@ -1,0 +1,2935 @@
+{
+  "name": "BAG_TO_CHEST_UNLOAD_CANDIDATE",
+  "status": "Candidate \u2014 offline Blender checks only; native Minecraft pending",
+  "candidateHash": "2bf47cc9bbf3bd1a",
+  "evidenceRoot": "C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\Verk-arbeid-\\hearthstead-neoforge\\qa\\evidence\\blender\\bag_to_chest_v1\\2bf47cc9bbf3bd1a",
+  "fps": 20,
+  "durationTicks": 80,
+  "durationSeconds": 4.0,
+  "ownershipCommitTicks": {
+    "bagWorldAnchor": 12,
+    "bagToWorker": 30,
+    "chestOpen": 36,
+    "workerToChest": 48,
+    "chestClose": 64
+  },
+  "limits": {
+    "maxPalmGap": 0.12,
+    "minForwardLeanDegrees": 8.0,
+    "maxWorldBagDrift": 0.0001,
+    "maxGazeErrorDegrees": 35.0,
+    "maxWithdrawalStep": 0.15,
+    "maxOwnershipPositionStep": 0.24,
+    "maxMeshIntersection": 0.0001
+  },
+  "measurements": [
+    {
+      "tick": 12,
+      "palmGaps": {
+        "left_bag_rail": 0.0,
+        "right_bag_rail": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 10.0
+    },
+    {
+      "tick": 24,
+      "palmGaps": {
+        "left_bag_mouth": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 17.0
+    },
+    {
+      "tick": 30,
+      "palmGaps": {
+        "left_withdraw": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 19.0
+    },
+    {
+      "tick": 31,
+      "palmGaps": {
+        "right_lid_pull_closed": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 18.949
+    },
+    {
+      "tick": 48,
+      "palmGaps": {
+        "left_chest_cavity": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 17.0
+    }
+  ],
+  "setDownForwardLeanDegrees": 10.0,
+  "worldBagAnchorSamples": [
+    {
+      "tick": 12,
+      "drift": 0.0
+    },
+    {
+      "tick": 24,
+      "drift": 0.0
+    },
+    {
+      "tick": 30,
+      "drift": 0.0
+    },
+    {
+      "tick": 36,
+      "drift": 0.0
+    },
+    {
+      "tick": 48,
+      "drift": 0.0
+    },
+    {
+      "tick": 64,
+      "drift": 0.0
+    },
+    {
+      "tick": 80,
+      "drift": 0.0
+    }
+  ],
+  "gazeSamples": [
+    {
+      "tick": 0,
+      "target": [
+        0.0,
+        -1.1,
+        1.22
+      ],
+      "gazeErrorDegrees": 3.5256
+    },
+    {
+      "tick": 8,
+      "target": [
+        -0.62,
+        -0.36,
+        1.24
+      ],
+      "gazeErrorDegrees": 34.3251
+    },
+    {
+      "tick": 12,
+      "target": [
+        -0.62,
+        -0.39,
+        1.24
+      ],
+      "gazeErrorDegrees": 30.5724
+    },
+    {
+      "tick": 18,
+      "target": [
+        -0.62,
+        -0.39,
+        1.22
+      ],
+      "gazeErrorDegrees": 31.3786
+    },
+    {
+      "tick": 24,
+      "target": [
+        -0.62,
+        -0.39,
+        1.22
+      ],
+      "gazeErrorDegrees": 32.7286
+    },
+    {
+      "tick": 30,
+      "target": [
+        -0.62,
+        -0.39,
+        1.22
+      ],
+      "gazeErrorDegrees": 33.3082
+    },
+    {
+      "tick": 31,
+      "target": [
+        0.0,
+        -0.89,
+        1.2
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 36,
+      "target": [
+        0.0,
+        -1.09,
+        1.18
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 48,
+      "target": [
+        0.0,
+        -1.09,
+        1.18
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 56,
+      "target": [
+        0.0,
+        -1.09,
+        1.18
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 64,
+      "target": [
+        0.0,
+        -1.1,
+        1.12
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 80,
+      "target": [
+        0.0,
+        -1.1,
+        1.2
+      ],
+      "gazeErrorDegrees": 4.6157
+    }
+  ],
+  "withdrawalClearance": {
+    "samples": [
+      {
+        "tick": 30,
+        "location": [
+          -0.62,
+          -0.38,
+          0.69
+        ],
+        "rotation": [
+          1.0,
+          0.0,
+          0.0,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "tick": 31,
+        "location": [
+          -0.61,
+          -0.4,
+          0.75
+        ],
+        "rotation": [
+          1.0,
+          0.0,
+          0.0,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "tick": 32,
+        "location": [
+          -0.58,
+          -0.44,
+          0.83
+        ],
+        "rotation": [
+          1.0,
+          -0.0,
+          -0.0,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "tick": 33,
+        "location": [
+          -0.54,
+          -0.49,
+          0.91
+        ],
+        "rotation": [
+          1.0,
+          -0.0,
+          -0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "tick": 34,
+        "location": [
+          -0.48,
+          -0.55,
+          0.98
+        ],
+        "rotation": [
+          1.0,
+          -0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "tick": 35,
+        "location": [
+          -0.41,
+          -0.6,
+          1.04
+        ],
+        "rotation": [
+          1.0,
+          0.0,
+          0.0,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "tick": 36,
+        "location": [
+          -0.34,
+          -0.66,
+          1.08
+        ],
+        "rotation": [
+          1.0,
+          0.0,
+          -0.0,
+          -0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "fromTick": 30,
+        "toTick": 31,
+        "positionStep": 0.064031
+      },
+      {
+        "fromTick": 31,
+        "toTick": 32,
+        "positionStep": 0.09434
+      },
+      {
+        "fromTick": 32,
+        "toTick": 33,
+        "positionStep": 0.10247
+      },
+      {
+        "fromTick": 33,
+        "toTick": 34,
+        "positionStep": 0.11
+      },
+      {
+        "fromTick": 34,
+        "toTick": 35,
+        "positionStep": 0.104881
+      },
+      {
+        "fromTick": 35,
+        "toTick": 36,
+        "positionStep": 0.100499
+      }
+    ],
+    "maxStep": 0.11
+  },
+  "itemTransformContinuity": {
+    "ownershipTransforms": {
+      "30": {
+        "bag": {
+          "location": [
+            -0.62,
+            -0.38,
+            0.69
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "hand": {
+          "location": [
+            -0.62,
+            -0.38,
+            0.69
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            -0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "chest": {
+          "location": [
+            0.0,
+            -1.1,
+            0.78
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "47": {
+        "bag": {
+          "location": [
+            -0.62,
+            -0.38,
+            0.69
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "hand": {
+          "location": [
+            -0.04,
+            -0.91,
+            0.84
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            -0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "chest": {
+          "location": [
+            0.0,
+            -1.1,
+            0.78
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      },
+      "48": {
+        "bag": {
+          "location": [
+            -0.62,
+            -0.38,
+            0.69
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "hand": {
+          "location": [
+            -0.04,
+            -0.91,
+            0.84
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            -0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "chest": {
+          "location": [
+            0.0,
+            -1.1,
+            0.78
+          ],
+          "rotation": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        }
+      }
+    },
+    "bagToHandAt30": {
+      "position": 0.0,
+      "rotationDegrees": 0.0,
+      "scale": 0.0
+    },
+    "handToChestAt48": {
+      "position": 0.203224,
+      "rotationDegrees": 0.0,
+      "scale": 0.0
+    },
+    "approach47ToDeposit48": {
+      "position": 0.203224,
+      "rotationDegrees": 0.0,
+      "scale": 0.0
+    }
+  },
+  "meshClearance": [
+    {
+      "tick": 30,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.39955
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.58931
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.37662
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.284
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.884
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.354
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.84839
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.359
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.31498
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.50428
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.31362
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.19928
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.79928
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.26928
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.81667
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.27428
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.11524
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.40619
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.01619
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.41056
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.42241
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.01619
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": true,
+          "gap": 0.0
+        }
+      ]
+    },
+    {
+      "tick": 31,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.37916
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.569
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.4017
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.264
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.864
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.334
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.83107
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.339
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.31618
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.50598
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.36079
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.20098
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.80098
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.27098
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.80781
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.27598
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.03477
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.32075
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.32977
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.28284
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": true,
+          "gap": 0.0
+        }
+      ]
+    },
+    {
+      "tick": 32,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.339
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.529
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.43964
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.224
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.824
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.294
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.78791
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.30303
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.30021
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.49021
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.41982
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.18521
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.78521
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.25521
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.77427
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.26424
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.09765
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.28765
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.49578
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.10578
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.59218
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.59137
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.11816
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.06169
+        }
+      ]
+    },
+    {
+      "tick": 33,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.289
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.479
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.48716
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.18373
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.77625
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.25103
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.73519
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.29463
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.24669
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.43669
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.47236
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.1443
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.73407
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.21014
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.72225
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.25232
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.16121
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.35121
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.47958
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.09732
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.65186
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.613
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.14437
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.16684
+        }
+      ]
+    },
+    {
+      "tick": 34,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.229
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.419
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.53479
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.17215
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.72556
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.22472
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.66982
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.33879
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.16903
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.35903
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.52357
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.13986
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.66663
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.17895
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.65588
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.27881
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.20726
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.39726
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.4795
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.12039
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.69657
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.62276
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.17975
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.31705
+        }
+      ]
+    },
+    {
+      "tick": 35,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.179
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.369
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.58436
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.19954
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.69037
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.23168
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.60696
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.41371
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.10987
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.29987
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.57908
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.189
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.62417
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.19982
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.59553
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.34458
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.2308
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.4208
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.46715
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.12973
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.71819
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.61967
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.19479
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.46551
+        }
+      ]
+    },
+    {
+      "tick": 36,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.119
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.309
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.61929
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.22904
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.64595
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.24066
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.54681
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.41388
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": false,
+          "gap": 0.04518
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.23518
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.619
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.229
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.57752
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.229
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.54178
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.34006
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.24794
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.43794
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.45189
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.13799
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.73388
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.61436
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.20629
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.54283
+        }
+      ]
+    },
+    {
+      "tick": 37,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.059
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.249
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.609
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.219
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.58643
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.21945
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.48365
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.35388
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.17488
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.609
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.219
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.51841
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.219
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.48345
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.27976
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.259
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.449
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.4435
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.14599
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.74439
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.61087
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.21534
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.55388
+        }
+      ]
+    },
+    {
+      "tick": 38,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": false,
+          "gap": 0.00448
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.19448
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.59366
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.20366
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.53015
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.20366
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.4297
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.29936
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.12752
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.59366
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.20366
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.46904
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.20366
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.4297
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.2324
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.26642
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.45642
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.43814
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.15219
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.75157
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.60865
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.22194
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.5613
+        }
+      ]
+    },
+    {
+      "tick": 39,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.15462
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.58174
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.19174
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.48879
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.19174
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.38977
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.2595
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.09488
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.58174
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.19174
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.43448
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.19174
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.38977
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.19976
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.27013
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.46013
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.433
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.15535
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.75518
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.6068
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.22528
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.56502
+        }
+      ]
+    },
+    {
+      "tick": 40,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.12578
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.57093
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.18093
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.45803
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.18093
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.36366
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.23066
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.07085
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.57093
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.18093
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.40814
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.18093
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.36366
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.17573
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.27063
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.46063
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.42646
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.15563
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.75563
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.60475
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.22563
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.56551
+        }
+      ]
+    },
+    {
+      "tick": 41,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.10595
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.55971
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.16971
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.43538
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.16971
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.34836
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.21083
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.05365
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.55971
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.16971
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.38776
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.16971
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.34836
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.15853
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.26866
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.45866
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.41755
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.15366
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.75366
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.60215
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.22366
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.56355
+        }
+      ]
+    },
+    {
+      "tick": 42,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.099
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.549
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.159
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.42487
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.159
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.34041
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.20388
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.04427
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.549
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.159
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.37468
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.159
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.34041
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.14915
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.26523
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.45523
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.40565
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.15023
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.75023
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.59862
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.22023
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.56012
+        }
+      ]
+    },
+    {
+      "tick": 43,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.08593
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.53645
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.14645
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.40811
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.14646
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.32761
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.19081
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.04434
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.53645
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.14645
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.3696
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.14645
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.32761
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.14923
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.25974
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.44974
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.39177
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.14474
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.74474
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.59241
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.21474
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.55462
+        }
+      ]
+    },
+    {
+      "tick": 44,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.07466
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.51961
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.12961
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.39172
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.1297
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.31182
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.17954
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.04814
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.51961
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.12961
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.3668
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.12961
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.31182
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.15302
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.25195
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.44195
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.37821
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.13695
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.73695
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.58325
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.20695
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.54683
+        }
+      ]
+    },
+    {
+      "tick": 45,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.06119
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.4927
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.1027
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.3707
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.10381
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.28757
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.16607
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.04924
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.4927
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.1027
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.35923
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.1027
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.28757
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.15412
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.24363
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.43363
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.36646
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.12863
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.72863
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.57331
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.19863
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.53851
+        }
+      ]
+    },
+    {
+      "tick": 46,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.04885
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.44582
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": false,
+          "gap": 0.05582
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.34835
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.07032
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.24839
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.15373
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.04126
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.44582
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.05582
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.34086
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.05582
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.24839
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.14614
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.23664
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.42664
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.35776
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.12164
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.72164
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.56492
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.19164
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.53152
+        }
+      ]
+    },
+    {
+      "tick": 47,
+      "tests": [
+        {
+          "target": "heldLog:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:lidSweep",
+          "intersects": false,
+          "gap": 0.059
+        },
+        {
+          "target": "heldLog:chest_body",
+          "intersects": false,
+          "gap": 0.379
+        },
+        {
+          "target": "heldLog:chest_wall_front",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "heldLog:chest_wall_back",
+          "intersects": false,
+          "gap": 0.354
+        },
+        {
+          "target": "heldLog:chest_wall_left",
+          "intersects": false,
+          "gap": 0.111
+        },
+        {
+          "target": "heldLog:chest_wall_right",
+          "intersects": false,
+          "gap": 0.191
+        },
+        {
+          "target": "heldLog:chest_lid",
+          "intersects": false,
+          "gap": 0.16388
+        },
+        {
+          "target": "leftArm:cavityLower",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:lidSweep",
+          "intersects": false,
+          "gap": 0.00673
+        },
+        {
+          "target": "leftArm:chest_body",
+          "intersects": false,
+          "gap": 0.379
+        },
+        {
+          "target": "leftArm:chest_wall_front",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.30173
+        },
+        {
+          "target": "leftArm:chest_wall_left",
+          "intersects": true,
+          "gap": 0.0
+        },
+        {
+          "target": "leftArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.191
+        },
+        {
+          "target": "leftArm:chest_lid",
+          "intersects": false,
+          "gap": 0.11161
+        },
+        {
+          "target": "rightArm:cavityLower",
+          "intersects": false,
+          "gap": 0.23284
+        },
+        {
+          "target": "rightArm:lidSweep",
+          "intersects": false,
+          "gap": 0.42284
+        },
+        {
+          "target": "rightArm:chest_body",
+          "intersects": false,
+          "gap": 0.35316
+        },
+        {
+          "target": "rightArm:chest_wall_front",
+          "intersects": false,
+          "gap": 0.11784
+        },
+        {
+          "target": "rightArm:chest_wall_back",
+          "intersects": false,
+          "gap": 0.71784
+        },
+        {
+          "target": "rightArm:chest_wall_left",
+          "intersects": false,
+          "gap": 0.56056
+        },
+        {
+          "target": "rightArm:chest_wall_right",
+          "intersects": false,
+          "gap": 0.18784
+        },
+        {
+          "target": "rightArm:chest_lid",
+          "intersects": false,
+          "gap": 0.52772
+        }
+      ]
+    }
+  ],
+  "silhouetteRead": [
+    {
+      "tick": 30,
+      "dimensions": [
+        0.478,
+        0.202,
+        0.402
+      ],
+      "longAxis": 0.478,
+      "minChestMeshGap": 0.284,
+      "barkSideMeshes": 3,
+      "endGrainMeshes": 2
+    },
+    {
+      "tick": 31,
+      "dimensions": [
+        0.478,
+        0.202,
+        0.402
+      ],
+      "longAxis": 0.478,
+      "minChestMeshGap": 0.264,
+      "barkSideMeshes": 3,
+      "endGrainMeshes": 2
+    },
+    {
+      "tick": 32,
+      "dimensions": [
+        0.478,
+        0.202,
+        0.402
+      ],
+      "longAxis": 0.478,
+      "minChestMeshGap": 0.224,
+      "barkSideMeshes": 3,
+      "endGrainMeshes": 2
+    },
+    {
+      "tick": 35,
+      "dimensions": [
+        0.478,
+        0.202,
+        0.402
+      ],
+      "longAxis": 0.478,
+      "minChestMeshGap": 0.19954,
+      "barkSideMeshes": 3,
+      "endGrainMeshes": 2
+    },
+    {
+      "tick": 36,
+      "dimensions": [
+        0.478,
+        0.202,
+        0.402
+      ],
+      "longAxis": 0.478,
+      "minChestMeshGap": 0.22904,
+      "barkSideMeshes": 3,
+      "endGrainMeshes": 2
+    },
+    {
+      "tick": 37,
+      "dimensions": [
+        0.478,
+        0.202,
+        0.402
+      ],
+      "longAxis": 0.478,
+      "minChestMeshGap": 0.219,
+      "barkSideMeshes": 3,
+      "endGrainMeshes": 2
+    }
+  ],
+  "checks": {
+    "palmContactsPass": true,
+    "setDownForwardLeanPass": true,
+    "forwardLeanPass": true,
+    "worldBagAnchorPass": true,
+    "targetFacingPass": true,
+    "withdrawalClearancePass": true,
+    "itemTransformContinuityPass": false,
+    "meshClearancePass": false,
+    "silhouetteReadPass": true,
+    "blockbenchEvidencePass": true,
+    "candidateOnly": true
+  },
+  "reviewTicks": [
+    0,
+    11,
+    12,
+    13,
+    24,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    42,
+    47,
+    48,
+    49,
+    63,
+    64,
+    65,
+    80
+  ],
+  "reviewViews": [
+    "front34",
+    "left",
+    "right",
+    "back34"
+  ]
+}

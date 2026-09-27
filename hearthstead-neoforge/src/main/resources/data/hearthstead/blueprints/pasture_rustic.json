@@ -1,0 +1,120 @@
+{
+  "id": "pasture_rustic",
+  "name": "Barn & Paddock (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "pasture",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "pasture",
+  "size": [
+    20,
+    12,
+    14
+  ],
+  "ground_level": 0,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      10
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      3,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 223
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 170
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 163
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 123
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 72
+    },
+    {
+      "item": "minecraft:dark_oak_planks",
+      "count": 52
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 31
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 23
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 15
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 4
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 3
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 2
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 1
+    }
+  ],
+  "block_count": 893,
+  "cells": 1457
+}

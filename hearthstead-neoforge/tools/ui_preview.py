@@ -495,7 +495,7 @@ def draw_element(c, el):
         c.sprites.draw(c.img, "widget/button_" + state, x, y,
                        w, h or m["button_h"])
         label = el.get("text", "")
-        tone = "text_muted" if state == "disabled" else "text"
+        tone = "text_disabled" if state == "disabled" else "text"
         bh = h or m["button_h"]
         c.text(x + w // 2, y + (bh - m["text_h"]) // 2 + 1, label,
                colour(tone), align="center", box=w - 8,

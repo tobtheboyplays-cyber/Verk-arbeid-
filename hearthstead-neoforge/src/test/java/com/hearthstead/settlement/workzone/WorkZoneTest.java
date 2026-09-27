@@ -144,7 +144,7 @@ class WorkZoneTest {
     }
 
     @Test
-    void persistedZoneOutsideItsParentSettlementQuarantinesAtRootLoad() {
+    void persistedOwnedZoneOutsideCityRadiusSurvivesRootLoad() {
         UUID settlementId = UUID.randomUUID();
         Settlement settlement = new Settlement(settlementId, "Root", BlockPos.ZERO);
         Building camp = building(UUID.randomUUID(), BuildingType.LUMBER_CAMP);
@@ -157,14 +157,15 @@ class WorkZoneTest {
         Settlement loaded = Settlement.readNbt(settlement.writeNbt(),
             SettlementSavedData.CURRENT_DATA_VERSION);
         Building loadedCamp = loaded.buildings.getFirst();
-        assertTrue(loadedCamp.workZoneQuarantined());
-        assertTrue(loadedCamp.workZone().isEmpty());
+        assertFalse(loadedCamp.workZoneQuarantined());
+        assertEquals(outside.writeNbt(), loadedCamp.workZone().orElseThrow().writeNbt(),
+            "a bounded zone keeps its exact identity and geometry beyond the city radius");
         assertEquals(1, loadedCamp.workZoneRevision(),
-            "quarantine must preserve the last monotonic revision");
+            "loading an outlying owned zone must preserve its monotonic revision");
     }
 
     @Test
-    void persistedZoneWithMixedCornerOutsideSphereQuarantinesAtRootLoad() {
+    void persistedOwnedZoneCrossingCityRadiusSurvivesRootLoad() {
         UUID settlementId = UUID.randomUUID();
         Settlement settlement = new Settlement(settlementId, "Mixed Corner",
             BlockPos.ZERO);
@@ -185,10 +186,11 @@ class WorkZoneTest {
         Settlement loaded = Settlement.readNbt(settlement.writeNbt(),
             SettlementSavedData.CURRENT_DATA_VERSION);
         Building loadedCamp = loaded.buildings.getFirst();
-        assertTrue(loadedCamp.workZoneQuarantined());
-        assertTrue(loadedCamp.workZone().isEmpty());
+        assertFalse(loadedCamp.workZoneQuarantined());
+        assertEquals(diagonalEscape.writeNbt(), loadedCamp.workZone().orElseThrow().writeNbt(),
+            "crossing the former city boundary must not erase a bounded owned zone");
         assertEquals(1, loadedCamp.workZoneRevision(),
-            "quarantine must preserve the last monotonic revision");
+            "loading an outlying owned zone must preserve its monotonic revision");
     }
 
     @Test

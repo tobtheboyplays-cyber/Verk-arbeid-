@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "enum": "net/minecraft/client/model/HumanoidModel$ArmPose",
+      "name": "HEARTHSTEAD_TWO_HANDED_GUARD",
+      "constructor": "(ZLnet/neoforged/neoforge/client/IArmPoseTransformer;)V",
+      "parameters": {
+        "class": "com/hearthstead/client/weapon/WeaponArmPoses",
+        "field": "TWO_HANDED_GUARD"
+      }
+    }
+  ]
+}

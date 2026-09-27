@@ -1,0 +1,128 @@
+diff --git a/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java b/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java
+--- a/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java
++++ b/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java
+@@ -1121,7 +1121,22 @@
+             && action.resolved.contains(BlockPos.of(transit.sourcePos()))
+             && logisticsAuthority(level, settlement, workplace, worker,
+                 BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER);
+-        if ((!lumberRecovery && (context == null || action == null
++        // A completed harvest remains real physical Farmhouse cargo if its
++        // field was re-confirmed before the worker reached storage. Recovery
++        // is bounded to the original authenticated action/source and current
++        // exact employer; it cannot begin work or accept foreign cargo.
++        boolean farmRecovery = action != null && worker != null
++            && transit.kind() == TransitKind.FARM_CROP
++            && action.kind == Kind.FARM_HARVEST
++            && action.phase.workTerminal()
++            && action.workerId.equals(worker.getUUID())
++            && action.zone.settlementId().equals(transit.settlementId())
++            && action.zone.buildingId().equals(transit.buildingId())
++            && action.zone.dimension().equals(transit.dimension())
++            && action.resolved.contains(BlockPos.of(transit.sourcePos()))
++            && logisticsAuthority(level, settlement, workplace, worker,
++                BuildingType.FARMHOUSE, WorkZone.Type.FARM);
++        if ((!lumberRecovery && !farmRecovery && (context == null || action == null
+                 || !action.phase.workTerminal() || !action.zone.equals(context.zone)))
+             || action == null || item == null
+             || !transit.settlementId().equals(settlement.id)
+diff --git a/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java b/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java
+--- a/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java
+@@ -12,6 +12,7 @@
+ import com.hearthstead.settlement.Settlement;
+ import com.hearthstead.settlement.SettlementSavedData;
+ import com.hearthstead.settlement.work.ContainerApproach;
++import com.hearthstead.settlement.work.FarmWorkApproach;
+ import com.hearthstead.settlement.work.WorkerProvenanceSavedData;
+ import com.hearthstead.settlement.work.WorkerProvenanceService;
+ import com.hearthstead.settlement.work.WorkerStackProvenance;
+@@ -393,6 +394,89 @@
+         helper.succeed();
+     }
+ 
++    /**
++     * A crop committed under the previous Farm Zone remains authenticated
++     * cargo after an identical re-confirmation. It may enter only the same
++     * live Farmhouse through physical contact; an unrelated transit row must
++     * still remain untouched.
++     */
++    @GameTest(template = "empty16", timeoutTicks = 100,
++        batch = "farmer_storage_adversarial")
++    public void terminalHarvestSurvivesSameFarmhouseZoneReconfirmation(
++        GameTestHelper helper) {
++        Fixture fixture = fixture(helper);
++        giveServiceableHoe(fixture.farmer());
++        BlockPos cropRelative = new BlockPos(12, 1, 12);
++        BlockPos crop = helper.absolutePos(cropRelative);
++        helper.setBlock(cropRelative.below(), Blocks.FARMLAND.defaultBlockState()
++            .setValue(FarmBlock.MOISTURE, 7));
++        helper.setBlock(cropRelative, Blocks.CARROTS.defaultBlockState()
++            .setValue(net.minecraft.world.level.block.CropBlock.AGE, 7));
++        fixture.farmer().moveTo(crop.getX() + 0.5D, crop.getY(),
++            crop.getZ() - 1.5D, fixture.farmer().getYRot(),
++            fixture.farmer().getXRot());
++        helper.assertTrue(FarmWorkApproach.canContact(helper.getLevel(),
++                fixture.farmer(), crop, FarmWorkApproach.Contact.PLANT),
++            "fixture: Farmer must have a real harvest contact before ownership");
++
++        UUID action = WorkerProvenanceService.beginFarmHarvest(helper.getLevel(),
++            fixture.settlement(), fixture.farmhouse(), fixture.farmer(), crop);
++        ItemStack carried = new ItemStack(Items.CARROT);
++        helper.assertTrue(action != null && WorkerProvenanceService.stampOutput(
++                helper.getLevel(), fixture.settlement(), fixture.farmhouse(),
++                fixture.farmer(), action, carried, crop),
++            "fixture: one carrot must be stamped while the old Farm Zone is live");
++        helper.setBlock(cropRelative, Blocks.AIR);
++        helper.assertTrue(WorkerProvenanceService.commitFarmHarvest(
++                helper.getLevel(), fixture.settlement(), fixture.farmhouse(),
++                fixture.farmer(), action, crop, java.util.List.of(carried)),
++            "fixture: source removal must make the old-zone action terminal");
++        fixture.farmer().bag.setItem(0, carried);
++
++        WorkZone oldZone = fixture.farmhouse().workZone().orElseThrow();
++        WorkZone reconfirmed = WorkZone.between(fixture.settlement().id,
++            fixture.farmhouse().id, WorkZone.Type.FARM,
++            helper.getLevel().dimension().location(), oldZone.min(), oldZone.max(),
++            oldZone.revision() + 1);
++        helper.assertTrue(fixture.farmhouse().commitWorkZone(oldZone.revision(),
++                reconfirmed),
++            "fixture: same Farmhouse may advance only to the next zone revision");
++        placeAtContact(helper, fixture.farmer(), PRIMARY_CHEST);
++
++        ItemStack foreign = new ItemStack(Items.CARROT);
++        helper.assertTrue(WorkerStackProvenance.stampTransit(foreign,
++                UUID.randomUUID(), WorkerStackProvenance.TransitKind.FARM_CROP,
++                fixture.settlement().id, fixture.farmhouse().id,
++                fixture.farmer().getUUID(), helper.getLevel().dimension().location(),
++                crop.asLong()), "fixture: foreign transit row must be well-formed");
++        WorkerProvenanceService.DepositResult rejected =
++            WorkerProvenanceService.depositOutput(helper.getLevel(),
++                fixture.settlement(), fixture.farmhouse(), fixture.farmer(),
++                helper.absolutePos(PRIMARY_CHEST), foreign);
++        helper.assertTrue(rejected.receipt() == null
++                && rejected.remainder().getCount() == 1
++                && count(fixture.primary(), Items.CARROT) == 0,
++            "a foreign action remains blocked despite the recovery exception");
++
++        ItemStack live = fixture.farmer().bag.getItem(0);
++        WorkerProvenanceService.DepositResult deposited =
++            WorkerProvenanceService.depositOutput(helper.getLevel(),
++                fixture.settlement(), fixture.farmhouse(), fixture.farmer(),
++                helper.absolutePos(PRIMARY_CHEST), live);
++        fixture.farmer().bag.setItem(0, deposited.remainder());
++        WorkerProvenanceSavedData.ActionView finalAction =
++            WorkerProvenanceSavedData.get(helper.getLevel()).action(action);
++        helper.assertTrue(deposited.receipt() != null
++                && deposited.remainder().isEmpty()
++                && count(fixture.primary(), Items.CARROT) == 1
++                && bagCount(fixture.farmer(), Items.CARROT) == 0
++                && finalAction != null && finalAction.remaining(
++                    net.minecraft.core.registries.BuiltInRegistries.ITEM
++                        .getKey(Items.CARROT)) == 0,
++            "the exact terminal carrot must deposit once after zone revision drift");
++        helper.succeed();
++    }
++
+     private static Building replaceBuilding(Fixture fixture,
+                                             Building replacement) {
+         int index = fixture.settlement().buildings.indexOf(fixture.farmhouse());

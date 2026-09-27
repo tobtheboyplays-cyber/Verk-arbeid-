@@ -206,4 +206,125 @@ public class PlaqueGraceGameTests {
             helper.succeed();
         });
     }
+
+    /** Raid damage must suspend a real Warehouse, survive saving, and recover
+     * through its existing Courier using the surviving store's real materials. */
+    @GameTest(batch = "courier_raid_recovery", template = "empty16", timeoutTicks = 1600)
+    public void warehouseCourierRepairsRecordedDamageWithoutLosingEmployment(GameTestHelper helper) {
+        workplaceRepairsWithoutLosingEmployment(helper, BuildingType.WAREHOUSE, Profession.COURIER);
+    }
+
+    @GameTest(batch = "farmer_raid_recovery", template = "empty16", timeoutTicks = 1600)
+    public void farmerRepairsOwnRaidDamageWithoutLosingEmployment(GameTestHelper helper) {
+        workplaceRepairsWithoutLosingEmployment(helper, BuildingType.FARMHOUSE, Profession.FARMER);
+    }
+
+    private void workplaceRepairsWithoutLosingEmployment(GameTestHelper helper,
+            BuildingType workplaceType, Profession profession) {
+        helper.getLevel().setDayTime(3000);
+        floor(helper, 16);
+        // Clear generated terrain explicitly; template air does not establish
+        // the walkable height of a real room in every GameTest placement.
+        for (int x = 0; x < 16; x++) for (int z = 0; z < 16; z++) {
+            for (int y = 1; y <= 4; y++) helper.setBlock(new BlockPos(x,y,z), Blocks.AIR);
+        }
+        Settlement original = settlement(helper);
+        original.radius = 12;
+        for (int x = 3; x <= 11; x++) {
+            for (int z = 3; z <= 11; z++) {
+                if (x == 3 || x == 11 || z == 3 || z == 11) {
+                    for (int y = 1; y <= 3; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                    }
+                }
+                helper.setBlock(new BlockPos(x, 4, z), Blocks.STONE_BRICKS);
+            }
+        }
+        helper.setBlock(new BlockPos(7, 1, 3), Blocks.OAK_DOOR.defaultBlockState());
+        helper.setBlock(new BlockPos(7, 2, 3), Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.DoorBlock.HALF,
+                net.minecraft.world.level.block.state.properties.DoubleBlockHalf.UPPER));
+        for (int x : new int[]{4, 10}) {
+            for (int z : new int[]{4, 10}) {
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.BARREL);
+            }
+            helper.setBlock(new BlockPos(x, 2, 10), Blocks.TORCH);
+        }
+        helper.setBlock(new BlockPos(6, 1, 6), Blocks.COMPOSTER);
+        BlockPos plaqueRel = new BlockPos(4, 2, 2);
+        helper.setBlock(plaqueRel, com.hearthstead.registry.ModBlocks.PLAQUE.get()
+            .defaultBlockState().setValue(com.hearthstead.block.PlaqueBlock.FACING, Direction.NORTH));
+        PlaqueBlockEntity plaque = plaqueAt(helper, plaqueRel);
+        plaque.insertPlan(helper.getLevel(), com.hearthstead.block.PlaqueItemData.stamped(
+            new ItemStack(com.hearthstead.registry.ModItems.BUILD_PLAN.get()), workplaceType));
+        helper.runAfterDelay(20, () -> {
+            plaque.survey(helper.getLevel());
+            Building warehouse = plaque.building(helper.getLevel());
+            helper.assertTrue(warehouse != null && warehouse.valid,
+                "the complete physical workplace must register before raid damage: " + plaque.state());
+            SettlerEntity worker = settler(helper, original, "Ansgar", 7, 7);
+            worker.setNoAi(true);
+            worker.setHunger(100.0F);
+            helper.assertTrue(Employment.hire(helper.getLevel(), original, warehouse, worker).ok(),
+                "the worker must be hired through the real employment service");
+            var stock = (net.minecraft.world.Container) helper.getLevel()
+                .getBlockEntity(helper.absolutePos(new BlockPos(10, 1, 4)));
+            stock.setItem(0, new ItemStack(net.minecraft.world.item.Items.STONE_BRICKS, 1));
+            stock.setChanged();
+            BlockPos wound = new BlockPos(11, 1, 7);
+            BlockPos woundAbs = helper.absolutePos(wound);
+            com.hearthstead.settlement.raid.RaidDirector.recordScar(helper.getLevel(), original.id,
+                woundAbs, helper.getBlockState(wound));
+            helper.setBlock(wound, Blocks.AIR);
+            helper.assertTrue(Employment.retainsWorkersForRaidRepair(
+                    helper.getLevel(), original, warehouse),
+                "the recorded scar must belong to this assigned workplace; bounds=" + warehouse.bounds
+                    + " wound=" + woundAbs + " workers=" + warehouse.workers);
+            for (int i = 0; i < 4; i++) plaque.survey(helper.getLevel());
+            helper.assertTrue(!warehouse.valid && warehouse.workers.contains(worker.getUUID())
+                    && worker.getProfession() == profession,
+                "recorded raid damage must disable the workplace without firing its worker; valid="
+                    + warehouse.valid + " workers=" + warehouse.workers + " profession="
+                    + worker.getProfession() + " plaque=" + plaque.state()
+                    + " owner=" + original.id + " bounds=" + warehouse.bounds
+                    + " wound=" + woundAbs + " block=" + helper.getBlockState(wound));
+            Settlement restored = Settlement.readNbt(original.writeNbt());
+            var saved = com.hearthstead.settlement.SettlementSavedData.get(helper.getLevel());
+            saved.settlements.put(restored.id, restored);
+            saved.setDirty();
+            Building restoredworkplace = Employment.employerOf(restored, worker.getUUID());
+            helper.assertTrue(restoredworkplace != null && !restoredworkplace.valid
+                    && restoredworkplace.workers.contains(worker.getUUID()),
+                "the suspended job must survive a settlement save/load");
+            worker.setNoAi(false);
+            boolean[] sawRepair = {false};
+            helper.succeedWhen(() -> {
+                sawRepair[0] |= worker.getActivity() == com.hearthstead.entity.SettlerActivity.WORK_CHISEL;
+                helper.assertTrue(helper.getBlockState(wound).is(Blocks.STONE_BRICKS),
+                    "the employed worker must autonomously restore the recorded wall; activity="
+                        + worker.getActivity() + " profession=" + worker.getProfession());
+                helper.assertTrue(sawRepair[0] && stock.getItem(0).isEmpty(),
+                    "repair must animate and consume the one surviving workplace brick, with no Hearth subsidy");
+                helper.assertTrue(!com.hearthstead.settlement.raid.RaidDirector
+                        .hasScarAt(helper.getLevel(), restored.id, woundAbs),
+                    "completed repair must clear the persisted scar");
+                plaque.survey(helper.getLevel());
+                helper.assertTrue(restoredworkplace.valid
+                        && Employment.employerOf(restored, worker.getUUID()) == restoredworkplace
+                        && worker.getProfession() == profession,
+                    "a real successful survey must restore the same worker assignment without another hire");
+                // Ordinary destruction is still ordinary destruction. A scar
+                // outside this building must not keep an unrelated ruin employed.
+                com.hearthstead.settlement.raid.RaidDirector.recordScar(helper.getLevel(), restored.id,
+                    helper.absolutePos(new BlockPos(14, 1, 14)), Blocks.STONE_BRICKS.defaultBlockState());
+                helper.setBlock(wound, Blocks.AIR);
+                for (int i = 0; i < 4; i++) plaque.survey(helper.getLevel());
+                helper.assertTrue(!restoredworkplace.valid
+                        && Employment.employerOf(restored, worker.getUUID()) == null
+                        && worker.getProfession() == Profession.NONE,
+                    "unrecorded sustained destruction must still release the worker");
+            });
+        });
+    }
+
 }

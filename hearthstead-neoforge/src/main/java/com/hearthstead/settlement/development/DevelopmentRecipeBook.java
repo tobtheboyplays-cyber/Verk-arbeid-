@@ -29,10 +29,12 @@ public final class DevelopmentRecipeBook {
         if (state.quarantined()) {
             return;
         }
+        // One authority: exactly the plans the plaque would accept here
+        // (legacy node lists, RoleUnlocks and v3 tech-tree claims).
         EnumSet<BuildingType> known = EnumSet.noneOf(BuildingType.class);
-        for (DevelopmentNode node : DevelopmentNode.PRESENTATION_ORDER) {
-            if (state.unlocked(node)) {
-                known.addAll(node.knowledge().buildPlans());
+        for (BuildingType type : BuildingType.values()) {
+            if (Development.isBuildingUnlocked(player.serverLevel(), settlement, type)) {
+                known.add(type);
             }
         }
         if (state.legacyHouseEntitlement()) {
@@ -41,11 +43,16 @@ public final class DevelopmentRecipeBook {
         ArrayList<ResourceLocation> recipeIds = new ArrayList<>(known.size() + 1);
         for (BuildingType type : known) {
             recipeIds.add(Hearthstead.id("build_plan_" + type.id()));
+            // The Builder's plan for the same building (unknown ids are skipped by the recipe book).
+            recipeIds.add(Hearthstead.id("building_plan_" + type.id()));
         }
         // Player recipe knowledge is only a hint. The Work Scepter's target,
         // corner and commit endpoints still verify this exact settlement's
         // Timber Rights state every time.
-        if (state.unlocked(DevelopmentNode.TIMBER_RIGHTS)) {
+        // Founding trades are independent (Option 2): the Lumber Camp and the
+        // Farm each need a Work Zone, so either one teaches the Scepter.
+        if (state.unlocked(DevelopmentNode.TIMBER_RIGHTS)
+            || state.unlocked(DevelopmentNode.CULTIVATED_GROUND)) {
             recipeIds.add(Hearthstead.id("work_scepter"));
         }
         if (recipeIds.isEmpty()) {

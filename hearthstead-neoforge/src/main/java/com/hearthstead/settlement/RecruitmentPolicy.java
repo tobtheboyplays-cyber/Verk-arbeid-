@@ -17,8 +17,14 @@ import java.util.UUID;
  */
 public final class RecruitmentPolicy {
     public static final int MINECRAFT_DAY_SECONDS = 1_200;
-    public static final int MIN_QUALIFIED_SECONDS = 2 * MINECRAFT_DAY_SECONDS;
-    public static final int MAX_TARGET_SECONDS = 4 * MINECRAFT_DAY_SECONDS;
+    /** New ordinary locks: three to six qualified minutes at normal 20 TPS. */
+    public static final int MIN_QUALIFIED_SECONDS = 3 * 60;
+    public static final int MAX_TARGET_SECONDS = 6 * 60;
+    // Exact historical locks remain readable and retain all earned time and identity.
+    private static final int LEGACY_10_TO_20_MIN_QUALIFIED_SECONDS = 10 * 60;
+    private static final int LEGACY_10_TO_20_MAX_TARGET_SECONDS = 20 * 60;
+    private static final int LEGACY_LONG_MIN_QUALIFIED_SECONDS = 2 * MINECRAFT_DAY_SECONDS;
+    private static final int LEGACY_LONG_MAX_TARGET_SECONDS = 4 * MINECRAFT_DAY_SECONDS;
     /** The one Journey-gated Call to Arms window for the Watch recruit. */
     public static final int CALL_TO_ARMS_MIN_SECONDS = 4 * 60;
     public static final int CALL_TO_ARMS_MAX_SECONDS = 8 * 60;
@@ -26,6 +32,8 @@ public final class RecruitmentPolicy {
     public static final int RESERVE_DAYS = 2;
     public static final int MEALS_PER_NEXT_RESIDENT =
         MEALS_PER_PERSON_PER_DAY * RESERVE_DAYS;
+    /** A Tavern may invite a visitor with one real meal; full newcomer reserves belong to admission. */
+    public static final int MIN_VISITOR_READY_MEALS = 1;
 
     /** Explicit protocol ids. Never serialize or sync enum ordinals. */
     public enum Stage {
@@ -33,7 +41,9 @@ public final class RecruitmentPolicy {
         WAITING_ADMISSION(1),
         INVALID(2),
         QUALIFYING(3),
-        TRAVELING(4);
+        TRAVELING(4),
+        /** A nightly Tavern visit needs a valid physical Tavern only; admission remains gated. */
+        TAVERN_VISIT(5);
 
         private final int wireId;
 
@@ -51,6 +61,7 @@ public final class RecruitmentPolicy {
                 case 1 -> WAITING_ADMISSION;
                 case 3 -> QUALIFYING;
                 case 4 -> TRAVELING;
+                case 5 -> TAVERN_VISIT;
                 default -> INVALID;
             };
         }
@@ -87,6 +98,38 @@ public final class RecruitmentPolicy {
                 case 5 -> CANNOT_PAY;
                 case 6 -> INSUFFICIENT_READY_FOOD;
                 default -> INVALID_STATE;
+            };
+        }
+    }
+
+    /**
+     * Persisted timing identity. Target values are intentionally not enough:
+     * the new ordinary 180-360 second range overlaps Call to Arms at 240-480.
+     */
+    public enum TimingProfile {
+        ORDINARY_48H(0),
+        CALL_TO_ARMS(1),
+        LEGACY_10_TO_20(2),
+        LEGACY_LONG(3),
+        UNKNOWN(-1);
+
+        private final int wireId;
+
+        TimingProfile(int wireId) {
+            this.wireId = wireId;
+        }
+
+        public int wireId() {
+            return wireId;
+        }
+
+        public static TimingProfile fromWireId(int wireId) {
+            return switch (wireId) {
+                case 0 -> ORDINARY_48H;
+                case 1 -> CALL_TO_ARMS;
+                case 2 -> LEGACY_10_TO_20;
+                case 3 -> LEGACY_LONG;
+                default -> UNKNOWN;
             };
         }
     }
@@ -129,21 +172,32 @@ public final class RecruitmentPolicy {
             case QUALIFYING, READY_TO_SPAWN -> Stage.QUALIFYING;
             case TRAVELING -> Stage.TRAVELING;
             case WAITING_ADMISSION -> Stage.WAITING_ADMISSION;
+            case DEPARTING -> Stage.TAVERN_VISIT;
             case QUARANTINED, UNKNOWN -> Stage.INVALID;
         };
     }
 
     /**
      * Assesses without touching live inventory. The discounted price is
-     * paid only on a deep clone, then the two-day reserve is counted from
-     * the resulting stacks using {@link ReadyFood}'s eating predicate.
+     * paid only during explicit admission. A Tavern invite needs one real meal;
+     * the two-day newcomer reserve is enforced only when that guest is admitted.
      */
     public static Assessment assess(ServerLevel level, Settlement settlement, Stage stage) {
+        return assess(level, settlement, stage, null);
+    }
+
+    public static Assessment assess(ServerLevel level, Settlement settlement, Stage stage,
+            net.minecraft.server.level.ServerPlayer payer) {
         Costs.Price price = SettlementManager.recruitPrice(level, settlement);
-        int required = requiredReserve(settlement.population() + 1);
+        int fullReserve = requiredReserve(settlement, settlement.population() + 1);
+        boolean admission = stage == Stage.WAITING_ADMISSION;
+        boolean nightlyVisit = stage == Stage.TAVERN_VISIT;
+        // A nightly traveler may ask for food but is never blocked by it. The
+        // full reserve, bed, morale and paid Coin checks remain admission-only.
+        int required = admission ? fullReserve : nightlyVisit ? 0 : MIN_VISITOR_READY_MEALS;
         HearthBlockEntity hearth = hearth(level, settlement);
         if (hearth == null) {
-            int courierTarget = addSaturated(required,
+            int courierTarget = addSaturated(fullReserve,
                 readyFoodPriceExposure(new ItemStackHandler(0), price));
             return new Assessment(stage, Blocker.NO_HEARTH, price,
                 0, 0, required, required, false, courierTarget);
@@ -151,13 +205,18 @@ public final class RecruitmentPolicy {
 
         ItemStackHandler simulated = ReadyFood.copy(hearth.getInventory());
         int before = ReadyFood.count(simulated);
-        boolean canPay = Costs.canPay(simulated, price);
-        if (canPay) {
+        boolean coinPrice = Costs.isCoinPrice(price);
+        // A visitor may travel to a valid Tavern before the village owns the
+        // recruitment Coins. Only the player's explicit admission can pay.
+        boolean canPay = !admission || (coinPrice
+            ? Costs.canPay(CoinTreasury.open(level, settlement, hearth, payer), price)
+            : Costs.canPay(simulated, price));
+        if (admission && canPay && !coinPrice) {
             Costs.pay(simulated, price);
         }
         int after = ReadyFood.count(simulated);
         int missing = Math.max(0, required - after);
-        int courierTarget = addSaturated(required,
+        int courierTarget = addSaturated(fullReserve,
             readyFoodPriceExposure(hearth.getInventory(), price));
 
         Blocker blocker;
@@ -165,11 +224,12 @@ public final class RecruitmentPolicy {
             blocker = Blocker.INVALID_STATE;
         } else if (!SettlementManager.hasValidTavern(settlement)) {
             blocker = Blocker.NO_TAVERN;
-        } else if (settlement.population() >= settlement.capacity()) {
+        } else if (admission && (settlement.population() >= settlement.capacity()
+                || BuildingManager.findFreeBed(level, settlement) == null)) {
             blocker = Blocker.NO_BED;
-        } else if (settlement.moraleCache < 60) {
+        } else if (!nightlyVisit && settlement.moraleCache < 60) {
             blocker = Blocker.LOW_MORALE;
-        } else if (!canPay) {
+        } else if (admission && !canPay) {
             blocker = Blocker.CANNOT_PAY;
         } else if (missing > 0) {
             blocker = Blocker.INSUFFICIENT_READY_FOOD;
@@ -178,6 +238,20 @@ public final class RecruitmentPolicy {
         }
         return new Assessment(stage, blocker, price, before, after,
             required, missing, canPay, courierTarget);
+    }
+
+    /** The smaller founding reserve ends only after the first raid is completed. */
+    public static int requiredReserve(Settlement settlement, int populationAfterRecruit) {
+        int normal = requiredReserve(populationAfterRecruit);
+        if (settlement == null || settlement.raidLifecycle == null
+            || settlement.raidLifecycle.integrityLost()) return normal;
+        var state = settlement.raidLifecycle.firstState();
+        if (state == com.hearthstead.settlement.state.FirstRaidState.PREPARING
+            || state == com.hearthstead.settlement.state.FirstRaidState.SCHEDULED
+            || state == com.hearthstead.settlement.state.FirstRaidState.ACTIVE) {
+            return Math.min(normal, com.hearthstead.HearthsteadServerConfig.preFirstRaidMealReserve());
+        }
+        return normal;
     }
 
     /** Two whole days for the supplied post-recruit population. */
@@ -261,29 +335,68 @@ public final class RecruitmentPolicy {
         return sum > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) sum;
     }
 
-    /** Ordinary recurring recruitment always retains the two-day minimum. */
+    /** The minimum for newly started ordinary recruitment. */
     public static int minimumFor(int cycle) {
         return MIN_QUALIFIED_SECONDS;
     }
 
-    /**
-     * Required minimum for one persisted lock. The disjoint target ranges
-     * encode whether the authoritative Journey gate selected Call to Arms;
-     * the raw attempt/cycle number never grants the acceleration.
-     */
+    /** Compatibility decoder for pre-v3 records whose target ranges were disjoint. */
     public static int minimumFor(UUID settlementId, int cycle,
                                  int lockedTarget) {
-        int safeCycle = Math.max(0, cycle);
-        if (lockedTarget == ordinaryTargetFor(settlementId, safeCycle)) {
-            return MIN_QUALIFIED_SECONDS;
+        TimingProfile profile = legacyTimingProfileFor(settlementId, cycle, lockedTarget);
+        return minimumFor(profile, settlementId, cycle, lockedTarget);
+    }
+
+    /** Exact current/historical ordinary target only; loose legacy data cannot claim the Watch window. */
+    public static int minimumForOrdinaryTarget(UUID settlementId, int cycle, int lockedTarget) {
+        if (cycle < 0) return -1;
+        if (lockedTarget == legacy10To20TargetFor(settlementId, cycle)) {
+            return LEGACY_10_TO_20_MIN_QUALIFIED_SECONDS;
         }
-        return lockedTarget == callToArmsTargetFor(settlementId, safeCycle)
-            ? CALL_TO_ARMS_MIN_SECONDS : -1;
+        return lockedTarget == legacyLongTargetFor(settlementId, cycle)
+            ? LEGACY_LONG_MIN_QUALIFIED_SECONDS : -1;
     }
 
     public static boolean validLockedTarget(UUID settlementId, int cycle,
                                             int lockedTarget) {
         return minimumFor(settlementId, cycle, lockedTarget) > 0;
+    }
+
+    public static boolean validLockedTarget(TimingProfile profile,
+                                            UUID settlementId, int cycle,
+                                            int lockedTarget) {
+        return minimumFor(profile, settlementId, cycle, lockedTarget) > 0;
+    }
+
+    public static int minimumFor(TimingProfile profile, UUID settlementId,
+                                 int cycle, int lockedTarget) {
+        if (profile == null || cycle < 0) return -1;
+        return switch (profile) {
+            case ORDINARY_48H -> lockedTarget == ordinaryTargetFor(settlementId, cycle)
+                ? MIN_QUALIFIED_SECONDS : -1;
+            case CALL_TO_ARMS -> lockedTarget == callToArmsTargetFor(settlementId, cycle)
+                ? CALL_TO_ARMS_MIN_SECONDS : -1;
+            case LEGACY_10_TO_20 -> lockedTarget == legacy10To20TargetFor(settlementId, cycle)
+                ? LEGACY_10_TO_20_MIN_QUALIFIED_SECONDS : -1;
+            case LEGACY_LONG -> lockedTarget == legacyLongTargetFor(settlementId, cycle)
+                ? LEGACY_LONG_MIN_QUALIFIED_SECONDS : -1;
+            case UNKNOWN -> -1;
+        };
+    }
+
+    /** Exact decoding for schema v1/v2 transactions written before range overlap. */
+    public static TimingProfile legacyTimingProfileFor(UUID settlementId,
+                                                        int cycle,
+                                                        int lockedTarget) {
+        if (cycle < 0) return TimingProfile.UNKNOWN;
+        if (lockedTarget == legacy10To20TargetFor(settlementId, cycle)) {
+            return TimingProfile.LEGACY_10_TO_20;
+        }
+        if (lockedTarget == legacyLongTargetFor(settlementId, cycle)) {
+            return TimingProfile.LEGACY_LONG;
+        }
+        return lockedTarget == callToArmsTargetFor(settlementId, cycle)
+            ? TimingProfile.CALL_TO_ARMS : TimingProfile.UNKNOWN;
     }
 
     /**
@@ -306,6 +419,21 @@ public final class RecruitmentPolicy {
         long z = targetHash(settlementId, Math.max(0, cycle));
         int span = MAX_TARGET_SECONDS - MIN_QUALIFIED_SECONDS + 1;
         return MIN_QUALIFIED_SECONDS + (int) Long.remainderUnsigned(z, span);
+    }
+
+    /** Decode compatibility only: never selected for a new qualification. */
+    private static int legacy10To20TargetFor(UUID settlementId, int cycle) {
+        long z = targetHash(settlementId, Math.max(0, cycle));
+        int span = LEGACY_10_TO_20_MAX_TARGET_SECONDS
+            - LEGACY_10_TO_20_MIN_QUALIFIED_SECONDS + 1;
+        return LEGACY_10_TO_20_MIN_QUALIFIED_SECONDS
+            + (int) Long.remainderUnsigned(z, span);
+    }
+
+    private static int legacyLongTargetFor(UUID settlementId, int cycle) {
+        long z = targetHash(settlementId, Math.max(0, cycle));
+        int span = LEGACY_LONG_MAX_TARGET_SECONDS - LEGACY_LONG_MIN_QUALIFIED_SECONDS + 1;
+        return LEGACY_LONG_MIN_QUALIFIED_SECONDS + (int) Long.remainderUnsigned(z, span);
     }
 
     private static long targetHash(UUID settlementId, int safeCycle) {

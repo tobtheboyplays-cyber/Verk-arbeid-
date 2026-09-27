@@ -57,8 +57,26 @@ public final class SettlerTextureCache {
      *  caller must fall back to a static per-profession texture; this must
      *  never throw into the render loop. */
     public static ResourceLocation getOrCreate(SettlerEntity entity) {
-        SettlerAppearance appearance = entity.getAppearance();
-        Profession profession = entity.getProfession();
+        // Skins lane: genome faces + job/costume clothing when [features]
+        // characterSkins is on; null falls through to the legacy composition.
+        ResourceLocation look = com.hearthstead.client.look.SettlerLook.texture(entity);
+        if (look != null) {
+            return look;
+        }
+        return getOrCreate(entity.getAppearance(), entity.getProfession());
+    }
+
+    /**
+     * UI portraits (realm map heads) from the raw synced seed: the new genome
+     * look when [features] characterSkins is on, else the legacy composition.
+     */
+    public static ResourceLocation getOrCreateForSeed(int seed, Profession profession, String name) {
+        ResourceLocation look = com.hearthstead.client.look.SettlerLook.texture(seed, profession, name);
+        return look != null ? look : getOrCreate(SettlerAppearance.decode(seed), profession);
+    }
+
+    /** Same cache keyed by appearance alone, for UI portraits of settlers this client does not track. */
+    public static ResourceLocation getOrCreate(SettlerAppearance appearance, Profession profession) {
         CacheKey key = new CacheKey(appearance, profession);
         ResourceLocation cached = CACHE.get(key);
         if (cached != null) {

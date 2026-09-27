@@ -1,0 +1,178 @@
+{
+  "id": "farmhouse_large",
+  "name": "Farmhouse",
+  "category": "work",
+  "kind": "building",
+  "building_type": "farmhouse",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "farmhouse",
+  "size": [
+    22,
+    15,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      8,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      9,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        7,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        7,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        8,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_chair[facing=west,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 165
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 154
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 146
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 118
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 39
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 38
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 25
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 8
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 6
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 5
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 2
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 2
+    },
+    {
+      "item": "minecraft:composter",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 1
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 732,
+  "cells": 1067
+}

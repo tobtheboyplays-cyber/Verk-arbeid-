@@ -67,13 +67,22 @@ public final class JobEmblemItem extends Item {
         return switch (profession) {
             case LUMBERER -> new ItemStack(ModItems.LUMBERER_EMBLEM.get());
             case FARMER -> new ItemStack(ModItems.FARMER_EMBLEM.get());
+            case FISHER -> new ItemStack(ModItems.FISHER_EMBLEM.get());
             case COURIER -> new ItemStack(ModItems.COURIER_EMBLEM.get());
             case INNKEEPER -> new ItemStack(ModItems.INNKEEPER_EMBLEM.get());
+            case TRADER -> new ItemStack(ModItems.TRADER_EMBLEM.get());
             case GUARD -> new ItemStack(ModItems.GUARD_EMBLEM.get());
             case ARCHER -> new ItemStack(ModItems.ARCHER_EMBLEM.get());
+            case HUNTER -> new ItemStack(ModItems.HUNTER_EMBLEM.get());
             case SAWYER -> new ItemStack(ModItems.SAWYER_EMBLEM.get());
             case SCHOLAR -> new ItemStack(ModItems.SCHOLAR_EMBLEM.get());
-            default -> ItemStack.EMPTY;
+            case SPEARMAN -> new ItemStack(com.hearthstead.registry.RoleItems.SPEARMAN_EMBLEM.get());
+            case LONGSWORDSMAN -> new ItemStack(com.hearthstead.registry.RoleItems.LONGSWORDSMAN_EMBLEM.get());
+            case HEALER -> new ItemStack(com.hearthstead.registry.RoleItems.HEALER_EMBLEM.get());
+            case RUNE_MAGE -> new ItemStack(com.hearthstead.registry.RoleItems.RUNE_MAGE_EMBLEM.get());
+            case BUILDER -> new ItemStack(ModItems.BUILDER_EMBLEM.get());
+            // Trades-unlock lane: the 15 extended trades (empty for any other).
+            default -> com.hearthstead.registry.TradeEmblemItems.stackFor(profession);
         };
     }
 

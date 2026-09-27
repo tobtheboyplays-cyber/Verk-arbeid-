@@ -23,6 +23,14 @@ public final class ModBlockEntities {
             () -> BlockEntityType.Builder.of(PlaqueBlockEntity::new, ModBlocks.PLAQUE.get())
                 .build(null));
 
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.hearthstead.block.FishRackBlockEntity>>
+        FISH_RACK = BLOCK_ENTITIES.register("fish_rack", () -> BlockEntityType.Builder.of(
+            com.hearthstead.block.FishRackBlockEntity::new, ModBlocks.FISH_RACK.get()).build(null));
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.hearthstead.block.ButcheringTableBlockEntity>>
+        BUTCHERING_TABLE = BLOCK_ENTITIES.register("butchering_table", () -> BlockEntityType.Builder.of(
+            com.hearthstead.block.ButcheringTableBlockEntity::new, ModBlocks.BUTCHERING_TABLE.get()).build(null));
+
     public static void register(IEventBus bus) {
         BLOCK_ENTITIES.register(bus);
     }

@@ -16,6 +16,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -91,6 +92,18 @@ public class RecurringRaidGameTests {
         return raider;
     }
 
+    /** Uses vanilla login registration without GameTestHelper's spectator override. */
+    private static ServerPlayer registeredModeAwarePlayer(GameTestHelper helper) {
+        var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(
+            new com.mojang.authlib.GameProfile(UUID.randomUUID(), "raid-presence"), false);
+        ServerPlayer player = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
+            cookie.gameProfile(), cookie.clientInformation());
+        var connection = new net.minecraft.network.Connection(
+            net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        new io.netty.channel.embedded.EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, player, cookie);
+        return player;
+    }
     private static void forget(GameTestHelper helper, Settlement settlement) {
         SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
         data.settlements.remove(settlement.id);
@@ -135,6 +148,14 @@ public class RecurringRaidGameTests {
         buildArena(helper, 16);
         Settlement settlement = registeredCompletedSettlement(helper, "Nyhavn",
             new BlockPos(8, 1, 8));
+        helper.setBlock(new BlockPos(8, 1, 8), com.hearthstead.registry.ModBlocks.HEARTH.get());
+        var hearth = (com.hearthstead.block.HearthBlockEntity)
+            helper.getLevel().getBlockEntity(settlement.center);
+        hearth.bindSettlement(settlement.id);
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            hearth.getInventory().setStackInSlot(slot,
+                new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.COBBLESTONE, 64));
+        }
         RaidPlan plan = queuePlan(helper, settlement, RaidObjective.KORN, 13L);
 
         List<RaiderEntity> band = RaidDirector.startQueuedRecurringRaid(
@@ -173,6 +194,8 @@ public class RecurringRaidGameTests {
                 && settlement.pendingRaid == null,
             "one held serial must create one shared offer and one aftermath entry");
 
+        helper.assertTrue(settlement.raidCoinRewards.pending() == 4,
+            "full Hearth must retain the four recurring victory coins as saved debt");
         int revision = settlement.blessingState.revision();
         helper.assertTrue(!RaidDirector.resolveIfOver(helper.getLevel(), settlement)
                 && settlement.blessingState.earned() == 1
@@ -187,6 +210,31 @@ public class RecurringRaidGameTests {
                 && loaded.blessingState.earned() == 1
                 && loaded.raidLog.size() == 1,
             "reload must preserve the consumed serial and the single shared offer");
+
+        helper.assertTrue(loaded.raidCoinRewards.pending() == 4,
+            "clean reload must preserve unpaid physical coins");
+        loaded.raidCoinRewards.deliver(helper.getLevel(), loaded);
+        helper.assertTrue(loaded.raidCoinRewards.pending() == 4,
+            "retry against full storage must not lose coins");
+        hearth.getInventory().setStackInSlot(0,
+            new net.minecraft.world.item.ItemStack(com.hearthstead.registry.ModItems.GOLD_COIN.get(), 62));
+        loaded.raidCoinRewards.deliver(helper.getLevel(), loaded);
+        helper.assertTrue(loaded.raidCoinRewards.pending() == 2
+                && hearth.getInventory().getStackInSlot(0).getCount() == 64,
+            "partial capacity must accept only two coins and retain the remaining two");
+        hearth.getInventory().setStackInSlot(1, net.minecraft.world.item.ItemStack.EMPTY);
+        loaded.raidCoinRewards.deliver(helper.getLevel(), loaded);
+        loaded.raidCoinRewards.deliver(helper.getLevel(), loaded);
+        helper.assertTrue(loaded.raidCoinRewards.pending() == 0
+                && hearth.getInventory().getStackInSlot(1).is(com.hearthstead.registry.ModItems.GOLD_COIN.get())
+                && hearth.getInventory().getStackInSlot(1).getCount() == 2,
+            "capacity recovery must materialize remaining debt exactly once");
+        loaded = Settlement.readNbt(loaded.writeNbt(), SettlementSavedData.CURRENT_DATA_VERSION);
+        loaded.raidCoinRewards.awardRecurring(1L);
+        loaded.raidCoinRewards.deliver(helper.getLevel(), loaded);
+        helper.assertTrue(loaded.raidCoinRewards.pending() == 0
+                && hearth.getInventory().getStackInSlot(1).getCount() == 2,
+            "reloaded consumed serial must not mint another physical reward");
 
         // A completed run may allocate the next monotonic serial. Resolve it
         // as lost to prove every outcome consumes its reward watermark.
@@ -203,14 +251,27 @@ public class RecurringRaidGameTests {
             "the next recurring raid must advance to serial two and seal normally");
         loaded.pendingRaid = lostPlan;
         loaded.raidLootEscaped = true;
+        int coinsBeforeLostRaid = 0;
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            var stack = hearth.getInventory().getStackInSlot(slot);
+            if (stack.is(com.hearthstead.registry.ModItems.GOLD_COIN.get())) coinsBeforeLostRaid += stack.getCount();
+        }
         SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
         data.settlements.put(loaded.id, loaded);
         data.setDirty();
         helper.assertTrue(RaidDirector.resolveIfOver(helper.getLevel(), loaded)
                 && loaded.blessingState.earned() == 1
+                && loaded.raidCoinRewards.pending() == 0
                 && loaded.recurringRaidRun.lastResolvedSerial() == 2L
                 && loaded.recurringRaidRun.lastRewardProcessedSerial() == 2L,
             "a lost future run must close without reusing or granting its serial");
+        int coinsAfterLostRaid = 0;
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            var stack = hearth.getInventory().getStackInSlot(slot);
+            if (stack.is(com.hearthstead.registry.ModItems.GOLD_COIN.get())) coinsAfterLostRaid += stack.getCount();
+        }
+        helper.assertTrue(coinsBeforeLostRaid == 66 && coinsAfterLostRaid == coinsBeforeLostRaid,
+            "lost run must not mint even immediately deliverable physical coins");
         forget(helper, loaded);
         helper.succeed();
     }
@@ -354,5 +415,129 @@ public class RecurringRaidGameTests {
             "a non-empty duplicate UUID capture must fail closed");
         forget(helper, source);
         helper.succeed();
+    }
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "recurring_raid_presence_persisted_warning")
+    public void recurringWarningNeedsAnAliveNearbyPlayerAndKeepsItsExactPlan(
+            GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement settlement = registeredCompletedSettlement(helper, "Nattvik",
+            new BlockPos(8, 1, 8));
+        helper.assertTrue(RaidDirector.firstResolutionReceiptReady(settlement),
+            "the completed fixture must use the persisted skipped-Journey receipt path");
+        net.minecraft.world.level.storage.ServerLevelData clock =
+            (net.minecraft.world.level.storage.ServerLevelData) helper.getLevel().getLevelData();
+        long originalGameTime = helper.getLevel().getGameTime();
+        long originalDayTime = helper.getLevel().getDayTime();
+        ServerPlayer spectator = null;
+        ServerPlayer dead = null;
+        ServerPlayer player = null;
+        try {
+            // A real post-resolution recovery is closed through its exact server-tick boundary.
+            settlement.raidLifecycle.recordRecurringRecovery(1_000L, true);
+            setRecurringClock(helper, clock, 24_999L, 13_000L);
+            RaidDirector.tick(helper.getLevel(), settlement);
+            helper.assertTrue(settlement.raidLifecycle.recurringWarnedPlan().isEmpty()
+                    && settlement.raidPressure.lastRolledNight() == Long.MIN_VALUE,
+                "recovery must prevent a warning or pressure roll before its persisted boundary");
+
+            setRecurringClock(helper, clock, 25_000L, 13_000L);
+            RaidDirector.tick(helper.getLevel(), settlement);
+            helper.assertTrue(settlement.raidLifecycle.recurringWarnedPlan().isEmpty()
+                    && settlement.raidPressure.lastRolledNight() == Long.MIN_VALUE,
+                "an absent player must not create an offline warning backlog");
+
+            spectator = registeredModeAwarePlayer(helper);
+            spectator.setPos(settlement.center.getX() + 0.5D, settlement.center.getY(),
+                settlement.center.getZ() + 0.5D);
+            spectator.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+            helper.assertTrue(helper.getLevel().players().contains(spectator)
+                    && spectator.isSpectator(),
+                "fixture spectator must be a real registered level player");
+            RaidDirector.tick(helper.getLevel(), settlement);
+            helper.assertTrue(settlement.raidLifecycle.recurringWarnedPlan().isEmpty()
+                    && settlement.raidPressure.lastRolledNight() == Long.MIN_VALUE,
+                "a nearby spectator must not advance recurring scheduling");
+
+            dead = helper.makeMockServerPlayerInLevel();
+            dead.setPos(settlement.center.getX() + 1.5D, settlement.center.getY(),
+                settlement.center.getZ() + 0.5D);
+            dead.setHealth(0.0F);
+            helper.assertTrue(helper.getLevel().players().contains(dead) && !dead.isAlive(),
+                "fixture dead player must remain registered while failing the live-player predicate");
+            RaidDirector.tick(helper.getLevel(), settlement);
+            helper.assertTrue(settlement.raidLifecycle.recurringWarnedPlan().isEmpty()
+                    && settlement.raidPressure.lastRolledNight() == Long.MIN_VALUE,
+                "a nearby dead player must not advance recurring scheduling");
+
+            player = helper.makeMockServerPlayerInLevel();
+            player.setPos(settlement.center.getX() + 0.5D, settlement.center.getY(),
+                settlement.center.getZ() + 1.5D);
+            helper.assertTrue(helper.getLevel().players().contains(player) && player.isAlive()
+                    && !player.isSpectator(),
+                "fixture eligible player must be alive, non-spectating and registered in this level");
+
+            RaidDirector.tick(helper.getLevel(), settlement);
+            helper.assertTrue(settlement.raidLifecycle.recurringQuietEligibleRolls() == 0
+                    && settlement.raidLifecycle.recurringWarnedPlan().isEmpty()
+                    && settlement.raidPressure.lastRolledNight() == Long.MIN_VALUE,
+                "a nearby live player cannot turn an under-worth hamlet into quiet-roll debt");
+
+            // The real director's pressure roll only considers a settlement worth raiding.
+            for (int index = 0; index < 5; index++) {
+                settlement.putRecord(UUID.randomUUID(), "Nattvik " + index,
+                    com.hearthstead.entity.Profession.NONE);
+            }
+            // This is a valid persisted state after two earlier eligible quiet rolls.
+            CompoundTag persistedQuiet = settlement.raidLifecycle.writeNbt();
+            persistedQuiet.putInt("RecurringQuietEligibleRolls", 2);
+            settlement.raidLifecycle = RaidLifecycle.readNbt(persistedQuiet);
+            helper.assertTrue(settlement.raidLifecycle.recurringQuietEligibleRolls() == 2
+                    && settlement.raidLifecycle.recurringWarnedPlan().isEmpty(),
+                "fixture must reload the two prior eligible quiet rolls without inventing a plan");
+            setRecurringClock(helper, clock, 73_000L, 85_000L);
+            RaidDirector.tick(helper.getLevel(), settlement);
+            RaidPlan warned = settlement.raidLifecycle.recurringWarnedPlan().orElseThrow();
+            helper.assertTrue(warned.night() == 4L
+                    && settlement.raidLifecycle.recurringWarningNight() == 3L
+                    && settlement.raidLifecycle.recurringWarningGameTime() == 73_000L
+                    && settlement.raidLifecycle.recurringQuietEligibleRolls() == 0,
+                "the eligible third director tick must persist one exact next-night warning");
+
+            Settlement reloaded = Settlement.readNbt(settlement.writeNbt(),
+                SettlementSavedData.CURRENT_DATA_VERSION);
+            SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+            data.settlements.put(reloaded.id, reloaded);
+            data.setDirty();
+            helper.assertTrue(reloaded.raidLifecycle.recurringWarnedPlan().orElseThrow().equals(warned)
+                    && reloaded.raidLifecycle.recurringWarningGameTime() == 73_000L,
+                "the exact warned plan and its server-time lead must survive settlement NBT reload");
+
+            setRecurringClock(helper, clock, 78_999L, 109_000L);
+            RaidDirector.tick(helper.getLevel(), reloaded);
+            helper.assertTrue(reloaded.raidLifecycle.recurringWarnedPlan().orElseThrow().equals(warned)
+                    && reloaded.recurringRaidRun.isEmpty(),
+                "the director must retain the warning until the full six-thousand-tick lead");
+            setRecurringClock(helper, clock, 79_000L, 109_000L);
+            RaidDirector.tick(helper.getLevel(), reloaded);
+            helper.assertTrue(reloaded.recurringRaidRun.plan().orElseThrow().equals(warned)
+                    && (reloaded.recurringRaidRun.isQueued() || reloaded.recurringRaidRun.isActive()),
+                "the exact reloaded warning hands off only to its recurring-run authority at the later night");
+        } finally {
+            if (spectator != null) spectator.discard();
+            if (dead != null) dead.discard();
+            if (player != null) player.discard();
+            clock.setGameTime(originalGameTime);
+            helper.getLevel().setDayTime(originalDayTime);
+            forget(helper, settlement);
+        }
+        helper.succeed();
+    }
+
+    private static void setRecurringClock(GameTestHelper helper,
+                                          net.minecraft.world.level.storage.ServerLevelData clock,
+                                          long gameTime, long dayTime) {
+        clock.setGameTime(gameTime);
+        helper.getLevel().setDayTime(dayTime);
     }
 }

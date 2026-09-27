@@ -89,12 +89,56 @@ public class ScholarWorkGoal extends Goal {
         if (!settler.blockPosition().closerThan(building.anchor, Schedule.AT_POST)) {
             return false;
         }
-        if (!Research.hasActiveProject(level, settlement.id)) {
-            return false; // nothing chosen yet -- the player picks at the screen
+        if (!Research.hasActiveProject(level, settlement.id)
+            && !startNextProject(level, settlement, building)
+            && !com.hearthstead.settlement.development.TechTree.anyStudy(level, settlement)) {
+            // Nothing chosen, nothing the study can afford, no tech being
+            // studied: say so on the sheet instead of idling silently.
+            if (settler.logisticsStopReason() != com.hearthstead.logistics.StopReason.NOTHING_TO_STUDY) {
+                settler.setLogisticsStop(com.hearthstead.logistics.StopReason.NOTHING_TO_STUDY,
+                    building.anchor, 0);
+            }
+            return false;
+        }
+        if (settler.logisticsStopReason() == com.hearthstead.logistics.StopReason.NOTHING_TO_STUDY) {
+            settler.clearLogisticsStop();
         }
         study = building;
         return true;
     }
+
+    /**
+     * With no project running, the scholar picks up the next unfinished,
+     * released project whose materials are already stocked in the study
+     * (the player still chooses by what they stock, or by starting one at
+     * the screen). Before this, a finished project left the scholar idle for
+     * the rest of the game (reliability soak: 83-88% of the workday idle).
+     * Research.start takes the materials only on success.
+     */
+    private boolean startNextProject(ServerLevel level, Settlement settlement, Building building) {
+        long now = level.getGameTime();
+        if (now < nextAutoStartTick) {
+            return false;
+        }
+        nextAutoStartTick = now + AUTO_START_INTERVAL;
+        for (com.hearthstead.settlement.research.ResearchProject project
+                : com.hearthstead.settlement.research.ResearchProject.values()) {
+            if (Research.start(level, settlement, building, project) == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final long AUTO_START_INTERVAL = 600L;
+    /**
+     * Extra study clock per completed session while a tech node is studied:
+     * one session (200 ticks) at the lectern adds 200 day-time ticks, so a
+     * Scholar working the whole workday roughly doubles study speed. A
+     * tuning number (plan/RELIABILITY_THROUGHPUT_PROPOSAL.md), not a law.
+     */
+    private static final long TECH_STUDY_DAY_TICKS_PER_SESSION = 200L;
+    private long nextAutoStartTick;
 
     @Override
     public boolean canContinueToUse() {
@@ -140,9 +184,26 @@ public class ScholarWorkGoal extends Goal {
         }
 
         Settlement settlement = settler.settlement();
-        if (settlement != null && Research.hasActiveProject(level, settlement.id)) {
-            Research.advanceSession(level, settlement.id);
+        boolean researching = settlement != null && Research.hasActiveProject(level, settlement.id);
+        if (!researching && settlement != null
+            && com.hearthstead.settlement.development.TechTree.scholarSession(level, settlement,
+                TECH_STUDY_DAY_TICKS_PER_SESSION)) {
+            // Town+ tech study at the lectern: the same training, morale and
+            // effort as a research session (reliability soak 2026-09-26).
             settler.train(Attribute.WITS, 1.0F);
+            com.hearthstead.entity.SkillLevels.completeUnit(settler, 6, Attribute.WITS);
+            settler.addMorale(0.5F);
+            settler.spendEffort(EFFORT_PER_SESSION);
+        }
+        if (researching) {
+            // Trade skill (Intelligence, level 2+): +1% progress per WITS
+            // point above 15, cap +25%, banked as a fraction of a session.
+            // Focus adds 0..10% of a session on top (AttributeRuntime.study, plan/ATTRIBUTES.md).
+            Research.advanceSession(level, settlement.id,
+                (float) com.hearthstead.entity.SkillLevels.researchBonus(settler)
+                    + com.hearthstead.entity.AttributeRuntime.study(settler));
+            settler.train(Attribute.WITS, 1.0F);
+            com.hearthstead.entity.SkillLevels.completeUnit(settler, 6, Attribute.WITS);
             settler.addMorale(0.5F);
             // One completed session is the same 6 units of the daily pool
             // every session costs (see EFFORT_PER_SESSION's own doc note),
@@ -153,7 +214,8 @@ public class ScholarWorkGoal extends Goal {
 
         // Chain straight into the next session while the project remains active.
         // Fatigue changes pace centrally; it does not invalidate valid work.
-        if (settlement == null || !Research.hasActiveProject(level, settlement.id)) {
+        if (settlement == null || !Research.hasActiveProject(level, settlement.id)
+                && !com.hearthstead.settlement.development.TechTree.anyStudy(level, settlement)) {
             working = false;
             return;
         }

@@ -47,13 +47,15 @@ public final class RaidTelegraph {
     /**
      * How far PAST the settlement's own edge the scout stands -- relative to
      * {@link Settlement#radius}, unlike a raiding band's fixed approach
-     * distance ({@link RaidDirector#SPAWN_MIN_DISTANCE}-
-     * {@link RaidDirector#SPAWN_MAX_DISTANCE}), so "the treeline" stays true
-     * to its name for a small young settlement and a sprawling old one alike
-     * rather than landing inside a large settlement's own radius.
+     * band ({@link RaidDirector#spawnMinDistance}-
+     * {@link RaidDirector#spawnMaxDistance}, also claim-relative), so "the
+     * treeline" stays true to its name for a small young settlement and a
+     * sprawling old one alike rather than landing inside the claim.
      */
     public static final int SCOUT_MARGIN_MIN = 4;
     public static final int SCOUT_MARGIN_MAX = 14;
+    /** Evenly spaced bearings a scout tries before giving up for the night. */
+    public static final int SCOUT_BEARING_TRIES = 4;
 
     private RaidTelegraph() {
     }
@@ -152,17 +154,26 @@ public final class RaidTelegraph {
         float bearing = random.nextFloat() * 360.0F - 180.0F;
         int distance = settlement.radius + SCOUT_MARGIN_MIN
             + random.nextInt(Math.max(1, SCOUT_MARGIN_MAX - SCOUT_MARGIN_MIN + 1));
-        BlockPos ground = RaidDirector.standableNear(level,
-            RaidDirector.formUpAt(settlement.center, bearing, distance));
-        if (ground == null) {
-            // A lone scout does not sweep for footing the way a raid's
-            // captain does (RaidDirector#footingFor) -- it is flavour, not a
-            // raid the schedule depends on. One direct attempt, then the
-            // settlement's own ground, then simply no scout tonight.
-            ground = RaidDirector.standableNear(level, settlement.center);
-            if (ground == null) {
-                return null;
+        // A lone scout does not sweep for footing the way a raid's captain
+        // does (RaidDirector#captainFooting) -- it is flavour, not a raid the
+        // schedule depends on. A few bounded bearings OUTSIDE the claim, then
+        // simply no scout tonight. It never falls back to the settlement's
+        // own ground: an omen standing among the houses is not an omen.
+        BlockPos ground = null;
+        for (int attempt = 0; attempt < SCOUT_BEARING_TRIES && ground == null;
+             attempt++) {
+            float tryBearing = bearing + attempt * (360.0F / SCOUT_BEARING_TRIES);
+            BlockPos column = RaidDirector.formUpAt(settlement.center,
+                tryBearing, distance);
+            if (RaidDirector.outsideClaim(settlement, column)) {
+                ground = RaidDirector.standableNear(level, column);
+                if (ground != null) {
+                    bearing = tryBearing;
+                }
             }
+        }
+        if (ground == null) {
+            return null;
         }
         RaiderEntity scout = ModEntities.RAIDER.get().create(level);
         if (scout == null) {

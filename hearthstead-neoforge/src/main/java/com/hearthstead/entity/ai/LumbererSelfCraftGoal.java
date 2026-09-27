@@ -53,6 +53,8 @@ public final class LumbererSelfCraftGoal extends Goal {
     public static final int PICKUP_START_TICK = 37;
     /** The exact table projection hands ownership to protected carry. */
     public static final int PICKUP_CONTACT_TICK = 43;
+    /** Keep the world projection on the contact frame; hide it one tick later. */
+    public static final int PICKUP_TRANSFER_TICK = 44;
     /** Separate chest interaction; never compressed into the table beat. */
     public static final int DEPOSIT_DURATION_TICKS = 24;
     /** Output enters the real linked container at the authored hand contact. */
@@ -96,6 +98,7 @@ public final class LumbererSelfCraftGoal extends Goal {
     private int repathIn;
     private int failedPaths;
     private long retryAt;
+    private static final long STORAGE_WAIT_RETRY_TICKS = 600L;
     @Nullable
     private BlockPos storageTarget;
     private Direction craftFacing = Direction.NORTH;
@@ -202,6 +205,9 @@ public final class LumbererSelfCraftGoal extends Goal {
 
     @Override
     public void tick() {
+        // Vanilla ticks every-tick goals once more after tick() finished them,
+        // without canContinueToUse() (see CrafterWorkGoal.tick): never act again.
+        if (finished) return;
         if (!(settler.level() instanceof ServerLevel level)) {
             finished = true;
             return;
@@ -257,9 +263,10 @@ public final class LumbererSelfCraftGoal extends Goal {
         } else if (committed && phaseTicks == PICKUP_START_TICK) {
             publishTablePhase(CraftPresentation.Phase.PICK_UP, 0);
         } else if (committed && phaseTicks == PICKUP_CONTACT_TICK) {
-            publishCarriedPhase();
             level.playSound(null, settler.blockPosition(),
                 ModSounds.ITEM_PICKUP.get(), SoundSource.NEUTRAL, 0.55F, 1.0F);
+        } else if (committed && phaseTicks == PICKUP_TRANSFER_TICK) {
+            publishCarriedPhase();
         }
         if (phaseTicks >= CRAFT_DURATION_TICKS) {
             startStorageDelivery(level);
@@ -310,9 +317,11 @@ public final class LumbererSelfCraftGoal extends Goal {
             settler.getNavigation().stop();
             settler.setLogisticsStop(StopReason.CHEST_FULL, storageTarget,
                 STORAGE_RETRY_TICKS);
-            if (--repathIn <= 0) {
-                repathIn = STORAGE_RETRY_TICKS;
-            }
+            // Release MOVE while storage is full: the escrowed axe persists and
+            // canUse resumes it, but sleep and other goals must not be locked
+            // out by an unbounded same-priority wait.
+            retryAt = level.getGameTime() + STORAGE_WAIT_RETRY_TICKS;
+            finished = true;
             return;
         }
         if (!available.equals(escrow.storageTarget())) {
@@ -333,6 +342,8 @@ public final class LumbererSelfCraftGoal extends Goal {
                 STORAGE_RETRY_TICKS);
             repathIn = STORAGE_RETRY_TICKS;
             failedPaths = 0;
+            retryAt = level.getGameTime() + STORAGE_WAIT_RETRY_TICKS;
+            finished = true;
         }
     }
 
@@ -360,9 +371,18 @@ public final class LumbererSelfCraftGoal extends Goal {
                 repathIn = STORAGE_RETRY_TICKS;
                 return;
             }
-            settler.clearCraftPresentation(actionId);
             level.playSound(null, storageTarget, ModSounds.CHEST_STOW.get(),
                 SoundSource.NEUTRAL, 0.65F, 1.0F);
+        }
+        // The server-authoritative deposit happens on the authored contact
+        // tick, but its read-only world projection survives that exact frame.
+        // Removing it one tick later prevents the contact pose from reaching
+        // into an already-empty chest without duplicating inventory ownership.
+        if (deposited && depositTicks == DEPOSIT_CONTACT_TICK + 1) {
+            UUID actionId = settler.craftPresentation().actionId();
+            if (actionId != null) {
+                settler.clearCraftPresentation(actionId);
+            }
         }
         if (deposited && depositTicks >= DEPOSIT_DURATION_TICKS) {
             closeStorage(level);
@@ -664,14 +684,14 @@ public final class LumbererSelfCraftGoal extends Goal {
 
     @Override
     public void stop() {
+        CraftOutputEscrow escrow = settler.craftOutputEscrow();
+        UUID actionId = escrow != null ? escrow.actionId()
+            : plan == null ? null : plan.actionId();
         if (settler.level() instanceof ServerLevel level) {
             if (stage == Stage.DEPOSIT) {
                 closeStorage(level);
             }
             if (plan != null) {
-                if (!committed) {
-                    settler.clearCraftPresentation(plan.actionId());
-                }
                 LumbererSelfCraftingService.release(level, plan);
             }
         }
@@ -681,7 +701,13 @@ public final class LumbererSelfCraftGoal extends Goal {
             || settler.getActivity() == SettlerActivity.TRAVELING) {
             settler.setActivity(SettlerActivity.IDLE);
         }
-        if (settler.hasCraftOutputEscrow()) {
+        if (actionId != null) {
+            // Clear the fixed table/chest projection on every interruption.
+            // Pre-contact this is the whole presentation; post-contact the
+            // sole real axe remains protected by the escrow below.
+            settler.clearCraftPresentation(actionId);
+        }
+        if (escrow != null) {
             // Interruption after contact may hide the table/chest interaction,
             // but it cannot discard or visually leave the sole output behind.
             publishCarriedPhase();

@@ -45,8 +45,17 @@ import java.util.UUID;
  */
 public final class SettlerNetwork {
 
-    /** How far a player may stand from a settler and still manage them. */
-    private static final double REACH_SQUARED = 8.0 * 8.0;
+    /**
+     * How far a settler may be from the player and its open sheet still act.
+     * Must match the client sheet's own settler-leave distance (24 blocks in
+     * SettlerScreen): couriers keep walking while read, and an 8-block server
+     * reach silently refused (and dropped the session for) every button on a
+     * sheet the client still showed as live -- the Inventory button "did
+     * nothing". The player-anchor check on the client still closes the sheet
+     * the moment the player walks away.
+     */
+    public static final double SHEET_REACH_SQUARED = 24.0 * 24.0;
+    private static final double REACH_SQUARED = SHEET_REACH_SQUARED;
 
     public static UUID openFor(ServerPlayer player, SettlerEntity settler) {
         UUID sessionId = InspectionViewers.openSettler(player, settler);
@@ -117,10 +126,14 @@ public final class SettlerNetwork {
                 send(player, snapshot(player, settler, action.sessionId(),
                     Optional.ofNullable(refusal), SettlerSnapshotPayload.Delivery.UPDATE));
             }
-            case APPOINT -> send(player, snapshot(player, settler,
-                action.sessionId(), Optional.ofNullable(
-                    Mayor.appoint(level, settlement, settler)),
-                SettlerSnapshotPayload.Delivery.UPDATE));
+            case APPOINT -> {
+                Component refusal = Mayor.appoint(level, settlement, settler);
+                if (refusal == null) {
+                    JourneyServerHooks.noteMayorAppointed(player, settlement, settler);
+                }
+                send(player, snapshot(player, settler, action.sessionId(),
+                    Optional.ofNullable(refusal), SettlerSnapshotPayload.Delivery.UPDATE));
+            }
             case OPEN_INVENTORY -> openInventory(player, settler, settlement,
                 action);
             case EDIT_WORK_ZONE -> editWorkZone(player, settler, action);
@@ -259,7 +272,7 @@ public final class SettlerNetwork {
                 sessionId, 0, false,
                 List.copyOf(values), attributes.knack().ordinal(), List.copyOf(traitOrdinals),
                 List.copyOf(bagItemIds), List.copyOf(bagCounts),
-                "", false, false, false, false, boonKey,
+                "", false, false, false, false, false, boonKey,
                 wardenOathBlessingRank, hearthwardBlessingRank,
                 thornedRoadsBlessingRank, -1, -1, delivery, refusal);
         }
@@ -271,18 +284,55 @@ public final class SettlerNetwork {
         boolean mayorSettling = isMayor && Mayor.activeBoon(level, settlement) == null;
 
         return new SettlerSnapshotPayload(settler.getId(), settler.getUUID(),
-            sessionId, revisionOf(settlement, settler), !player.isSpectator(),
+            sessionId, revisionOf(settlement, settler), !player.isSpectator() && player.mayBuild(),
             List.copyOf(values), attributes.knack().ordinal(), List.copyOf(traitOrdinals),
             List.copyOf(bagItemIds), List.copyOf(bagCounts),
             employer == null ? "" : employer.type.id(),
             Employment.watchOf(settlement, settler) == Employment.Watch.NIGHT,
-            isMayor, mayorSettling, mourning, boonKey,
+            isMayor, mayorSettling, mourning, settlement.mayorId == null, boonKey,
             wardenOathBlessingRank, hearthwardBlessingRank,
             thornedRoadsBlessingRank,
             currentRequest == null ? -1 : BuiltInRegistries.ITEM.getId(
                 currentRequest.requirement().preferredItem()),
             currentRequest == null ? -1 : currentRequest.reason().ordinal(),
-            delivery, refusal);
+            delivery, refusal, developmentMask(level, settlement),
+            homeBuildingId(settlement, settler), settler.getClaimedBed() != null);
+    }
+
+    /** BuildingType id of the building that holds this settler's claimed bed, or "". */
+    private static String homeBuildingId(Settlement settlement, SettlerEntity settler) {
+        net.minecraft.core.BlockPos bed = settler.getClaimedBed();
+        if (bed == null) {
+            return "";
+        }
+        for (Building building : settlement.buildings) {
+            if (building.beds.contains(bed)) {
+                return building.type.id();
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Owned Development bonuses for the sheet's read-only "active bonuses"
+     * line. Only computed when a snapshot is authored; no idle sync.
+     */
+    private static int developmentMask(ServerLevel level, Settlement settlement) {
+        int mask = 0;
+        for (com.hearthstead.settlement.development.PostRaidUpgrade upgrade
+            : com.hearthstead.settlement.development.PostRaidUpgrade.values()) {
+            int bit = upgrade.wireId();
+            if (bit >= 0 && bit < SettlerSnapshotPayload.SHIELD_DOCTRINE_BIT
+                && com.hearthstead.settlement.development.Development
+                    .hasUpgrade(level, settlement, upgrade)) {
+                mask |= 1 << bit;
+            }
+        }
+        if (com.hearthstead.settlement.development.Development.hasNode(level, settlement,
+            com.hearthstead.settlement.development.DevelopmentNode.SHIELD_DOCTRINE)) {
+            mask |= 1 << SettlerSnapshotPayload.SHIELD_DOCTRINE_BIT;
+        }
+        return mask;
     }
 
     /**
@@ -309,7 +359,7 @@ public final class SettlerNetwork {
     }
 
     private static void send(ServerPlayer player, SettlerSnapshotPayload snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private SettlerNetwork() {

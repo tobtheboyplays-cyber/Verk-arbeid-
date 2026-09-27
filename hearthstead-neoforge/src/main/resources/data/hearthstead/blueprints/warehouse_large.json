@@ -1,0 +1,126 @@
+{
+  "id": "warehouse_large",
+  "name": "Great Warehouse",
+  "category": "work",
+  "kind": "building",
+  "building_type": "warehouse",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "warehouse",
+  "size": [
+    17,
+    14,
+    12
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      8
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 172
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 144
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 115
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 112
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 105
+    },
+    {
+      "item": "minecraft:birch_planks",
+      "count": 63
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 41
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 15
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 15
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 10
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 7
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 6
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 6
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 4
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:allium",
+      "count": 1
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    }
+  ],
+  "block_count": 831,
+  "cells": 1299
+}

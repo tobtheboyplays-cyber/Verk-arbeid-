@@ -252,11 +252,11 @@ def self_test():
         got = font.width(ch)
         if got != expect:
             bad.append(f"    {ch!r}: expected {expect}, parsed {got}")
-    # Norwegian matters here: nb_no is a supported language and the accented
-    # sheet is the one whose scaling is easy to get wrong.
+    # Accented characters can occur in citizen/player names. Keep checking
+    # this sheet's scaling even though shipped interface text is English.
     for ch in "æøåÆØÅ":
         if font.width(ch) <= 0:
-            bad.append(f"    {ch!r}: no glyph -- nb_no would render as boxes")
+            bad.append(f"    {ch!r}: no glyph -- accented names would render as boxes")
     if bad:
         print("FAIL  font metrics do not match vanilla:")
         print("\n".join(bad))

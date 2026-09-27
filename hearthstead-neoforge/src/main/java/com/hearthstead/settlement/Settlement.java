@@ -92,9 +92,9 @@ public class Settlement {
 
     /** Eligible seconds accumulated toward this settlement's locked target. */
     public int recruitProgress;
-    /** Independently proves the universal two-day minimum was qualified. */
+    /** Independently proves the locked timing profile's minimum was qualified. */
     public int recruitQualifiedSeconds;
-    /** Deterministic 2-4 day target, locked until a traveler really spawns. */
+    /** Deterministic qualified-second target, locked until a traveler really spawns. */
     public int recruitTarget;
     /** Successful traveler-spawn generation used to derive the next target. */
     public int recruitCycle;
@@ -104,6 +104,10 @@ public class Settlement {
      * runtime mutation must go through {@link #applyRecruitment}.
      */
     public RecruitmentTransaction recruitment;
+    /** Saved day that published the ordinary Tavern visitor batch, or -1 before any batch. */
+    public long lastTavernVisitorDay = -1L;
+    /** Exact outside feet cell selected for the published daily visitor's return journey. */
+    public BlockPos tavernVisitorDepartureOrigin;
     public long alertUntilGameTime;
     public BlockPos alertPos;
     /** A traveler currently walking toward the hearth, if any. */
@@ -130,9 +134,24 @@ public class Settlement {
     public RaidLifecycle raidLifecycle = new RaidLifecycle();
     /** Strict v3 authority for every recurring raid after the first. */
     public RecurringRaidRun recurringRaidRun = new RecurringRaidRun();
+    public com.hearthstead.settlement.raid.RaidCoinRewards raidCoinRewards = new com.hearthstead.settlement.raid.RaidCoinRewards();
     public BlessingState blessingState = new BlessingState();
+    /** Completed repair count modulo four; preserves both 25% and 50% cadence. */
+    private int repairDiscountProgress;
+
+    public int repairDiscountProgress() {
+        return repairDiscountProgress;
+    }
+
+    public void recordScarMended() {
+        repairDiscountProgress = (repairDiscountProgress + 1) % 4;
+    }
     /** Current per-Guard authority. Every runtime query is keyed by Guard UUID. */
     public GuardOrderBook guardOrders = GuardOrderBook.fresh();
+    public com.hearthstead.settlement.guard.BannerTeamBook bannerTeams = new com.hearthstead.settlement.guard.BannerTeamBook();
+    /** Player-authored patrol routes (PATROL ROUTES lane), shared by every member. */
+    public com.hearthstead.settlement.guard.patrol.PatrolRouteBook patrolRoutes =
+        new com.hearthstead.settlement.guard.patrol.PatrolRouteBook();
     /**
      * V0-v7 migration carrier only. Runtime networking, AI and readiness must
      * never read this settlement-global value.
@@ -148,6 +167,9 @@ public class Settlement {
     /** Exact current charged-emblem authority; Journey remains immutable history. */
     public EmploymentAuthorizationLedger employmentAuthorizations =
         EmploymentAuthorizationLedger.fresh();
+    /** Player-owned Job Emblems returned by the Staff Fire action. */
+    public PendingPlayerDeliveryLedger employmentReturns =
+        new PendingPlayerDeliveryLedger();
 
     /**
      * Enemies this settlement has met, and the raid it is currently
@@ -217,10 +239,27 @@ public class Settlement {
     /** Who speaks for the settlement. See {@link Mayor}. Null when leaderless. */
     @javax.annotation.Nullable
     public UUID mayorId;
+    /**
+     * Players who have used this settlement's Banner: the members who get its
+     * town chat ({@link TownChat}). Insertion-ordered, never pruned.
+     */
+    public final Set<UUID> members = new java.util.LinkedHashSet<>();
+    /**
+     * The Warehouse the seated Mayor currently helps to run.  This is a
+     * logistics authority, deliberately separate from {@link Building#workers}:
+     * a Mayor remains Mayor and must never enter the ordinary hire/fire path.
+     */
+    @javax.annotation.Nullable
+    public UUID mayorCourierWarehouseId;
     /** Game time the current mayor took office; a new one settles in slowly. */
     public long mayorSince;
     /** Game time until which the settlement is mourning and cannot appoint. */
     public long mourningUntil;
+
+    /** Makes {@code player} a member (town chat). True when newly added. */
+    public boolean addMember(UUID player) {
+        return player != null && members.add(player);
+    }
 
     public Settlement(UUID id, String name, BlockPos center) {
         this.id = id;
@@ -231,16 +270,45 @@ public class Settlement {
         this.journeyState = JourneyState.skipped(id);
     }
 
-    /** Three founders shelter at the hearth; growth beyond that needs beds. */
+    /**
+     * Places for the four founders by the Banner. They are not beds: every
+     * settler recruited beyond the founders needs a real free bed, and the
+     * founders themselves move into beds as homes appear. Must equal
+     * {@code SettlementManager.FOUNDER_COUNT} (pinned by a unit test).
+     */
+    public static final int FOUNDER_PLACES = 4;
+
+    /**
+     * How many people this settlement can hold (owner decision 26 Sep):
+     * the founders always fit by the Banner, and beds raise that only once
+     * there are more of them than founders. Not {@code 4 + beds}: founders
+     * claim beds as homes appear, and admission needs a real free bed, so an
+     * additive total would show room that recruitment then refuses.
+     */
     public int capacity() {
-        return 3 + validBedCount();
+        return Math.max(FOUNDER_PLACES, validBedCount());
+    }
+
+    /**
+     * Beds one House may count (owner decision 26 Sep): 4, 6 with the
+     * Townhouses node, 8 with Manors. Kept current by the tech tree
+     * (CommonsEffects.refreshHousing, every 2 s on a live server); 0 means
+     * "not known yet" and counts every bed, as before the cap existed.
+     * Not saved: it is derived from the settlement's learned nodes.
+     */
+    public int houseBedCap;
+
+    /** Beds of this home that count toward capacity (House cap applied). */
+    public int countedBeds(Building b) {
+        return houseBedCap > 0 && b.type == com.hearthstead.building.BuildingType.HOUSE
+            ? Math.min(houseBedCap, b.beds.size()) : b.beds.size();
     }
 
     public int validBedCount() {
         int beds = 0;
         for (Building b : buildings) {
             if (b.valid && b.type.housesResidents()) {
-                beds += b.beds.size();
+                beds += countedBeds(b);
             }
         }
         return beds;
@@ -432,8 +500,18 @@ public class Settlement {
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("Id", id);
+        if (!members.isEmpty()) {
+            ListTag memberList = new ListTag();
+            for (UUID member : members) {
+                memberList.add(NbtUtils.createUUID(member));
+            }
+            tag.put("Members", memberList);
+        }
         if (mayorId != null) {
             tag.putUUID("MayorId", mayorId);
+        }
+        if (mayorCourierWarehouseId != null) {
+            tag.putUUID("MayorCourierWarehouseId", mayorCourierWarehouseId);
         }
         tag.putLong("MayorSince", mayorSince);
         tag.putLong("MourningUntil", mourningUntil);
@@ -445,6 +523,10 @@ public class Settlement {
         tag.putInt("RecruitTarget", recruitTarget);
         tag.putInt("RecruitCycle", recruitCycle);
         tag.put("RecruitmentTransaction", recruitment.writeNbt());
+        tag.putLong("LastTavernVisitorDay", lastTavernVisitorDay);
+        if (tavernVisitorDepartureOrigin != null) {
+            tag.put("TavernVisitorDepartureOrigin", NbtUtils.writeBlockPos(tavernVisitorDepartureOrigin));
+        }
         tag.putLong("AlertUntil", alertUntilGameTime);
         if (alertPos != null) {
             tag.put("AlertPos", NbtUtils.writeBlockPos(alertPos));
@@ -455,6 +537,7 @@ public class Settlement {
             rt.putUUID("EntityId", r.entityId);
             rt.putString("Name", r.name);
             rt.putByte("Profession", r.profession.id());
+            rt.put("BedClaimProjection", r.bedClaim.writeNbt());
             list.add(rt);
         }
         tag.put("Settlers", list);
@@ -468,13 +551,18 @@ public class Settlement {
         tag.putString("RaidProfile", raidProfile.id());
         tag.put("RaidLifecycle", raidLifecycle.writeNbt());
         tag.put("RecurringRaidRun", recurringRaidRun.writeNbt());
+        tag.put("RaidCoinRewards", raidCoinRewards.writeNbt());
         tag.put("BlessingState", blessingState.writeNbt());
+        tag.putInt("RepairDiscountProgress", repairDiscountProgress);
         tag.put("GuardOrders", guardOrders.writeNbt());
+        tag.put("BannerTeams", bannerTeams.writeNbt());
+        tag.put("PatrolRoutes", patrolRoutes.writeNbt());
         tag.put("FoundingJourney", foundingJourney.writeNbt());
         tag.put("JourneyV3", journeyState.writeNbt());
         tag.put("FirstRaidReadiness", firstRaidReadiness.writeNbt());
         tag.put("EmploymentAuthorizations",
             employmentAuthorizations.writeNbt());
+        tag.put("EmploymentReturns", employmentReturns.writeNbt());
         tag.put("RaidPressure", raidPressure.writeNbt());
         ListTag captainList = new ListTag();
         for (com.hearthstead.settlement.raid.RaidCaptain c : raidCaptains) {
@@ -521,13 +609,27 @@ public class Settlement {
         }
         Settlement s = new Settlement(tag.getUUID("Id"), tag.getString("Name"),
             NbtUtils.readBlockPos(tag, "Center").orElse(BlockPos.ZERO));
+        for (Tag member : tag.getList("Members", Tag.TAG_INT_ARRAY)) {
+            try {
+                s.members.add(NbtUtils.loadUUID(member));
+            } catch (IllegalArgumentException malformed) {
+                // a damaged entry only drops that one member
+            }
+        }
+        s.raidCoinRewards = com.hearthstead.settlement.raid.RaidCoinRewards.readNbt(tag);
+        // Old saves have no persisted tally. Malformed values cannot grant a waiver.
+        int repairProgress = tag.contains("RepairDiscountProgress", Tag.TAG_INT)
+            ? tag.getInt("RepairDiscountProgress") : 0;
+        s.repairDiscountProgress = repairProgress >= 0 && repairProgress < 4
+            ? repairProgress : 0;
         s.radius = tag.getInt("Radius");
         if (s.radius <= 0) {
             s.radius = DEFAULT_RADIUS;
         }
-        s.mayorId = tag.hasUUID("MayorId") ? tag.getUUID("MayorId") : null;
-        s.mayorSince = tag.getLong("MayorSince");
-        s.mourningUntil = tag.getLong("MourningUntil");
+        // The Mayor office is retired (Guildmaster, 26 Sep): old MayorId /
+        // MayorSince / MourningUntil / MayorCourierWarehouseId keys are read
+        // as nothing, so no seat, settling clock or mourning survives a load.
+        // The roster rows are retired below via MayorRetirement.scrub.
         if (sourceVersion >= 7) {
             Tag rawRecruitment = tag.get("RecruitmentTransaction");
             s.applyRecruitment(rawRecruitment instanceof CompoundTag recruitmentTag
@@ -549,6 +651,10 @@ public class Settlement {
                     legacyTraveler,
                     RecruitmentTransaction.TerminalReason.LEGACY_UNVERIFIABLE));
         }
+        s.lastTavernVisitorDay = tag.contains("LastTavernVisitorDay", Tag.TAG_LONG)
+            ? tag.getLong("LastTavernVisitorDay") : -1L;
+        s.tavernVisitorDepartureOrigin = tag.contains("TavernVisitorDepartureOrigin", Tag.TAG_INT_ARRAY)
+            ? NbtUtils.readBlockPos(tag, "TavernVisitorDepartureOrigin").orElse(null) : null;
         s.alertUntilGameTime = tag.getLong("AlertUntil");
         if (tag.contains("AlertPos")) {
             s.alertPos = NbtUtils.readBlockPos(tag, "AlertPos").orElse(null);
@@ -558,7 +664,9 @@ public class Settlement {
             CompoundTag rt = list.getCompound(i);
             s.settlers.add(new SettlerRecord(rt.getUUID("EntityId"), rt.getString("Name"),
                 Profession.byId(rt.getByte("Profession"))));
+            s.settlers.get(s.settlers.size()-1).bedClaim = ResidentBedClaim.readNbt(rt.get("BedClaimProjection"));
         }
+        com.hearthstead.settlement.guildmaster.MayorRetirement.scrub(s);
         if (tag.get("EquipmentRequestQueue") instanceof CompoundTag queueTag) {
             s.equipmentRequestQueue = EquipmentRequestQueue.readNbt(queueTag);
         }
@@ -592,6 +700,14 @@ public class Settlement {
             }
             building.validateWorkZoneOwner(s);
             s.buildings.add(building);
+        }
+        // A stale helper binding cannot turn an arbitrary building into a
+        // Warehouse authority after a save was edited or a plaque dissolved.
+        if (s.mayorCourierWarehouseId != null && s.buildings.stream().noneMatch(
+                building -> building != null
+                    && s.mayorCourierWarehouseId.equals(building.id)
+                    && building.type == com.hearthstead.building.BuildingType.WAREHOUSE)) {
+            s.mayorCourierWarehouseId = null;
         }
         if (tag.contains("RaidPressure")) {
             s.raidPressure.copyFrom(com.hearthstead.settlement.raid.RaidPressure
@@ -752,6 +868,19 @@ public class Settlement {
             s.employmentAuthorizations = EmploymentAuthorizationLedger
                 .quarantined();
         }
+        Tag rawEmploymentReturns = tag.get("EmploymentReturns");
+        if (rawEmploymentReturns == null) {
+            // No earlier save could contain a Fire-return obligation.
+            s.employmentReturns = new PendingPlayerDeliveryLedger();
+        } else if (rawEmploymentReturns instanceof CompoundTag returnTag) {
+            s.employmentReturns = PendingPlayerDeliveryLedger.readNbt(returnTag);
+        } else {
+            s.employmentReturns = PendingPlayerDeliveryLedger.readNbt(new CompoundTag());
+        }
+        s.bannerTeams = com.hearthstead.settlement.guard.BannerTeamBook.readNbt(
+            tag.contains("BannerTeams", Tag.TAG_COMPOUND) ? tag.getCompound("BannerTeams") : null);
+        s.patrolRoutes = com.hearthstead.settlement.guard.patrol.PatrolRouteBook.readNbt(
+            tag.contains("PatrolRoutes", Tag.TAG_COMPOUND) ? tag.getCompound("PatrolRoutes") : null);
         return s;
     }
 
@@ -948,11 +1077,11 @@ public class Settlement {
         int qualified = tag.getInt("RecruitQualifiedSeconds");
         int target = tag.getInt("RecruitTarget");
         int cycle = tag.getInt("RecruitCycle");
-        if (cycle < 0
-            || target != RecruitmentPolicy.targetFor(settlement.id, cycle)
+        int minimum = RecruitmentPolicy.minimumForOrdinaryTarget(settlement.id, cycle, target);
+        if (minimum <= 0
             || progress < 0 || progress > target
             || qualified < 0
-            || qualified > RecruitmentPolicy.MIN_QUALIFIED_SECONDS) {
+            || qualified > minimum) {
             resetRecruitmentClocks(settlement);
             return;
         }
@@ -1326,6 +1455,7 @@ public class Settlement {
         public final UUID entityId;
         public String name;
         public Profession profession;
+        public ResidentBedClaim bedClaim = ResidentBedClaim.unknown();
 
         public SettlerRecord(UUID entityId, String name, Profession profession) {
             this.entityId = entityId;

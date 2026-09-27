@@ -1,0 +1,37 @@
+BAG_TO_CHEST_EVIDENCE: FAIL
+report must remain Candidate-only evidence
+report check failed or missing: meshClearancePass
+report check failed or missing: runtimeChannelParityPass
+mesh collision at tick 30: rightArm:right_hand:chest_wall_front
+mesh collision at tick 31: rightArm:right_forearm_mesh:cavityLower
+mesh collision at tick 31: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 31: rightArm:right_forearm_mesh:chest_wall_right
+mesh collision at tick 31: rightArm:right_forearm_mesh:chest_lid
+mesh collision at tick 32: rightArm:right_forearm_mesh:chest_lid
+mesh collision at tick 33: rightArm:right_forearm_mesh:chest_lid
+mesh collision at tick 33: rightArm:right_upper_arm:chest_lid
+mesh collision at tick 34: rightArm:right_forearm_mesh:chest_lid
+mesh collision at tick 35: rightArm:right_forearm_mesh:chest_lid
+mesh collision at tick 36: rightArm:right_forearm_mesh:lidSweep
+mesh collision at tick 36: rightArm:right_forearm_mesh:chest_lid
+mesh collision at tick 42: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 42: rightArm:right_forearm_mesh:chest_wall_right
+mesh collision at tick 43: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 43: rightArm:right_forearm_mesh:chest_wall_right
+mesh collision at tick 44: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 44: rightArm:right_forearm_mesh:chest_wall_right
+mesh collision at tick 45: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 45: rightArm:right_forearm_mesh:chest_wall_right
+mesh collision at tick 46: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 46: rightArm:right_forearm_mesh:chest_wall_right
+mesh collision at tick 47: leftArm:left_forearm_mesh:cavityLower
+mesh collision at tick 47: leftArm:left_forearm_mesh:chest_wall_front
+mesh collision at tick 47: rightArm:right_forearm_mesh:cavityLower
+mesh collision at tick 47: rightArm:right_forearm_mesh:chest_wall_front
+mesh collision at tick 47: rightArm:right_forearm_mesh:chest_wall_right
+unreadable or merged log silhouette: {'tick': 30, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.327, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 31, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.307, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 32, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.27577, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 35, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.29881, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 36, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.32244, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 37, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.309, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}

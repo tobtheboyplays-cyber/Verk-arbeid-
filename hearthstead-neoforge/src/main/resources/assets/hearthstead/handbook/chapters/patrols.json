@@ -1,0 +1,21 @@
+{
+  "id": "patrols",
+  "title": "hearthstead.guide.patrols.title",
+  "icon": "hearthstead:patrol_map",
+  "pages": [
+    {
+      "id": "patrols.watch",
+      "title": "hearthstead.guide.patrols.watch.title",
+      "bullets": [
+        "hearthstead.guide.patrols.watch.b1",
+        "hearthstead.guide.patrols.watch.b2",
+        "hearthstead.guide.patrols.watch.b3"
+      ],
+      "tip": "hearthstead.guide.patrols.watch.tip",
+      "image_wanted": "Patrol Map in hand with numbered ground markers, beside its guard and shift settings.",
+      "items": [
+        "hearthstead:patrol_map"
+      ]
+    }
+  ]
+}

@@ -9,8 +9,12 @@ inverse used by Blockbench's own Java importer
 (blockbench/js/formats/java/modded_entity.js):
   bone bb-origin  = [-sum(javaX), 24 - sum(javaY), sum(javaZ)]
   cube bb-from    = [O.x - bx - w, O.y - by - h, O.z + bz]; to = from + [w,h,d]
-Animation channels (verified visually against the in-game renderer):
-  rotation -> (-x, -y, z) degrees; position -> (-x, y, z); scale unchanged.
+Animation channels are serialized in the declared legacy 4.10 format:
+  rotation -> (x, y, z) degrees; position -> (x, y, z); scale unchanged.
+Blockbench 5 upgrades legacy position X and rotation X/Y on import, producing
+the required mesh-space (-x, -y, z) rotations and (-x, y, z) positions.
+Do not pre-apply those signs: that would convert legacy animation data twice.
+Static PartPose rotations below are already mesh-space and are unaffected.
 """
 import base64
 import hashlib
@@ -60,6 +64,12 @@ BONES = [
     ("torso",     "root",  (0, -12, 0),     [(64, 0, -5, -12, -2.5, 10, 12, 5, 0.0, False)]),
     ("head",      "torso", (0, -12, 0),     [(0, 0, -4, -8, -4, 8, 8, 8, 0.0, False)]),
     ("hood",      "head",  (0, 0, 0),       [(32, 0, -4, -8, -4, 8, 8, 8, 0.6, False)]),
+    # Exact runtime Guard-only brow and two side returns, with no inflation.
+    ("guard_rim", "head", (0, 0, 0), [
+        (64, 44, -5.5, -8, -5.5, 11, 1, 2, 0.0, False),
+        (90, 44, -5.5, -8, -3.5, 1, 1, 8, 0.0, False),
+        (90, 44, 4.5, -8, -3.5, 1, 1, 8, 0.0, False),
+    ]),
     ("hat_brim",  "head",  (0, 0, 0),       [(64, 44, -6, -5, -6, 12, 1, 12, 0.0, False)]),
     ("right_arm", "torso", (-6, -10, 0),    [(0, 32, -2, -2, -2, 4, 12, 4, 0.0, False)]),
     ("left_arm",  "torso", (6, -10, 0),     [(16, 32, -2, -2, -2, 4, 12, 4, 0.0, True)]),
@@ -79,6 +89,18 @@ BONES = [
     ]),
     ("cloak",     "torso", (0, -12, 0),     [(64, 32, -5.5, 0, -3, 11, 4, 6, 0.2, False)]),
     ("backpack",  "torso", (0, 0, 0),       [(96, 0, -3, -9, 2.5, 6, 7, 3, 0.0, False)]),
+    # Archer-only open leather case; exact runtime cuboids and existing UV island.
+    # No static arrows: the persisted ammunition count is not client-synced.
+    ("archer_quiver", "torso", (0, 0, 0), [
+        (96, 0, 0.5, -8, 3.5, 3, 6, 3, 0.0, False),
+        (99, 3, 0.5, -11, 3.5, 3, 3, 0.5, 0.0, False),
+        (99, 3, 0.5, -11, 6, 3, 3, 0.5, 0.0, False),
+        (99, 3, 0.5, -11, 4, 0.5, 3, 2, 0.0, False),
+        (99, 3, 3, -11, 4, 0.5, 3, 2, 0.0, False),
+        # Exact leather mounts: torso rear z=2.5 to quiver front z=3.5.
+        (99, 5, 1, -7, 2.5, 2, 1, 1, 0.0, False),
+        (99, 5, 1, -4, 2.5, 2, 1, 1, 0.0, False),
+    ]),
     ("belt",      "torso", (0, 0, 0),       [(96, 20, -5, -5, -2.5, 10, 2, 5, 0.3, False)]),
     # A2b carried sack: always visible on field workers, with size driven by
     # real fill, and always exported so the bridge shows the runtime rig.
@@ -88,21 +110,30 @@ BONES = [
     ]),
     # Original Hearthstead timber carrying frame. Logs are separate children
     # so runtime/preview can communicate real fill without scaling the frame.
-    ("lumber_frame", "torso", (0, -10.5, 2.5), [
+    ("lumber_frame", "torso", (0, -10.5, 4.0), [
         (0, 49, -4.5, 0, 0, 1, 10, 1, 0.0, False),
         (0, 49, 3.5, 0, 0, 1, 10, 1, 0.0, False),
         (7, 49, -4, 1, 0, 8, 1, 1, 0.0, False),
         (7, 49, -4, 8, 0, 8, 1, 1, 0.0, False),
+        (7, 49, -4.5, 9, 3, 0.5, 1, 1, 0.0, False),
+        (7, 49, 4, 9, 3, 0.5, 1, 1, 0.0, False),
         (26, 49, -4, 9, 0, 8, 1, 4, 0.0, False),
+        (0, 49, -0.5, 2, 6, 1, 7, 1, 0.0, False),
     ]),
-    ("log_left", "lumber_frame", (0, 0, 0), [
-        (50, 49, -3.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ("log_retainer_top", "lumber_frame", (0, 1, 4), [
+        (7, 49, -3, 0, -0.5, 6, 1, 1, 0.0, False),
     ]),
-    ("log_center", "lumber_frame", (0, 0, 0), [
-        (50, 49, -1, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ("log_retainer_base", "lumber_frame", (0, 9, 6), [
+        (7, 49, -2, 0, -0.5, 4, 1, 1, 0.0, False),
     ]),
-    ("log_right", "lumber_frame", (0, 0, 0), [
-        (50, 49, 1.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ("log_left", "lumber_frame", (0, 7.9, 3.9), [
+        (50, 49, -1, -4, -1, 2, 8, 2, 0.1, False),
+    ]),
+    ("log_center", "lumber_frame", (0, 5.7, 3.9), [
+        (50, 49, -1, -4, -1, 2, 8, 2, 0.1, False),
+    ]),
+    ("log_right", "lumber_frame", (0, 3.5, 3.9), [
+        (50, 49, -1, -4, -1, 2, 8, 2, 0.1, False),
     ]),
     ("right_leg", "root",  (-2.6, -12, 0),  [(32, 32, -2, 0, -2, 4, 12, 4, 0.0, False)]),
     ("left_leg",  "root",  (2.6, -12, 0),   [(48, 32, -2, 0, -2, 4, 12, 4, 0.0, True)]),
@@ -117,23 +148,45 @@ BONES = [
         (0, 49, 3.5, 0, 0, 1, 10, 1, 0.0, False),
         (7, 49, -4, 1, 0, 8, 1, 1, 0.0, False),
         (7, 49, -4, 8, 0, 8, 1, 1, 0.0, False),
+        (7, 49, -4.5, 9, 3, 0.5, 1, 1, 0.0, False),
+        (7, 49, 4, 9, 3, 0.5, 1, 1, 0.0, False),
         (26, 49, -4, 9, 0, 8, 1, 4, 0.0, False),
+        (0, 49, -0.5, 2, 6, 1, 7, 1, 0.0, False),
     ]),
-    ("ground_log_left", "ground_lumber_frame", (0, 0, 0), [
-        (50, 49, -3.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ("ground_log_retainer_top", "ground_lumber_frame", (0, 1, 4), [
+        (7, 49, -3, 0, -0.5, 6, 1, 1, 0.0, False),
     ]),
-    ("ground_log_center", "ground_lumber_frame", (0, 0, 0), [
-        (50, 49, -1, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ("ground_log_retainer_base", "ground_lumber_frame", (0, 9, 6), [
+        (7, 49, -2, 0, -0.5, 4, 1, 1, 0.0, False),
     ]),
-    ("ground_log_right", "ground_lumber_frame", (0, 0, 0), [
-        (50, 49, 1.5, 0.5, 1.25, 2, 8, 2, 0.0, False),
+    ("ground_log_left", "ground_lumber_frame", (0, 7.9, 3.9), [
+        (50, 49, -1, -4, -1, 2, 8, 2, 0.1, False),
+    ]),
+    ("ground_log_center", "ground_lumber_frame", (0, 5.7, 3.9), [
+        (50, 49, -1, -4, -1, 2, 8, 2, 0.1, False),
+    ]),
+    ("ground_log_right", "ground_lumber_frame", (0, 3.5, 3.9), [
+        (50, 49, -1, -4, -1, 2, 8, 2, 0.1, False),
     ]),
 ]
 
 # Static PartPose rotations, converted with the same Java -> Blockbench sign
-# mapping as animation channels. All omitted groups use PartPose offset only.
+# mapping as imported mesh-space animation channels, not legacy serialization.
+# All omitted groups use PartPose offset only.
 BASE_ROTATIONS_DEG = {
     "spout": (-math.degrees(0.75), -math.degrees(0.42), 0.0),
+    # SettlerModel.addLumberLogs: Java (-90, +/-45, 0), same 2x8x2 UV.
+    # Keep both copies equivalent; preview must expose the actual pale ends.
+    "log_left": (90.0, -45.0, 0.0),
+    "log_center": (90.0, 45.0, 0.0),
+    "log_right": (90.0, -45.0, 0.0),
+    "ground_log_left": (90.0, -45.0, 0.0),
+    "ground_log_center": (90.0, 45.0, 0.0),
+    "ground_log_right": (90.0, -45.0, 0.0),
+    "log_retainer_top": (0.0, -90.0, 0.0),
+    "log_retainer_base": (0.0, -90.0, 0.0),
+    "ground_log_retainer_top": (0.0, -90.0, 0.0),
+    "ground_log_retainer_base": (0.0, -90.0, 0.0),
 }
 
 
@@ -200,9 +253,9 @@ def build():
                        "SCALE": "scale"}[target]
             for (t, _kind, (x, y, z), interp) in frames:
                 if channel == "rotation":
-                    dp = {"x": -x, "y": -y, "z": z}
+                    dp = {"x": x, "y": y, "z": z}
                 elif channel == "position":
-                    dp = {"x": -x, "y": y, "z": z}
+                    dp = {"x": x, "y": y, "z": z}
                 else:
                     dp = {"x": x, "y": y, "z": z}
                 animators[gu]["keyframes"].append({

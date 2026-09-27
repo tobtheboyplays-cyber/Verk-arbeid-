@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Hearth block set, handbook, spawn-egg-free extras and
-the mod logo. All deterministic pixel art."""
+"""Legacy hearth block set, handbook, spawn-egg-free extras and
+the Bannerhold logo. All deterministic pixel art."""
 import os
 import random
 import sys
@@ -219,6 +219,10 @@ FONT5 = {  # 5-row uppercase pixel font, widths vary
     "T": ["###", ".#.", ".#.", ".#.", ".#."],
     "S": [".##", "#..", ".#.", "..#", "##."],
     "D": ["##.", "#.#", "#.#", "#.#", "##."],
+    "B": ["##.", "#.#", "##.", "#.#", "##."],
+    "N": ["#..#", "##.#", "#.##", "#..#", "#..#"],
+    "O": [".#.", "#.#", "#.#", "#.#", ".#."],
+    "L": ["#..", "#..", "#..", "#..", "###"],
 }
 
 
@@ -237,10 +241,8 @@ def draw_text(img, text, x, y, color, scale=2):
 def gen_logo():
     img = new_image(256, 128)
     rng = random.Random(105)
-    # Emblem: stone ring with fire, left of wordmark.
+    # Emblem: stone ring framing the settlement Banner, left of wordmark.
     stone_r = ramp("stone")
-    ember = ramp("ember")
-    amber = ramp("amber")
     cx, cy, r = 52, 64, 40
     ring_rng = random.Random(106)
     for y in range(128):
@@ -253,33 +255,23 @@ def gen_logo():
                 if d2 > r * r * 0.9 or d2 < r * r * 0.68:
                     c = shade(c, 0.82)  # beveled inner/outer edge
                 put(img, x, y, c)
-    # flame inside the ring
-    flame = [
-        "....##....",
-        "...###....",
-        "...####...",
-        "..#####...",
-        "..######..",
-        ".#######..",
-        ".########.",
-        "##########",
-        ".########.",
-        "..######..",
-    ]
-    fs = 4
-    fx, fy = cx - len(flame[0]) * fs // 2, cy - len(flame) * fs // 2
-    for gy, row in enumerate(flame):
-        for gx, cell in enumerate(row):
-            if cell == "#":
-                depth = gy / len(flame)
-                color = amber[4] if depth < 0.35 else amber[3] if depth < 0.6 \
-                    else ember[3] if depth < 0.85 else ember[2]
-                fill(img, fx + gx * fs, fy + gy * fs, fs, fs, color)
+    # pole, crossbar and brass finial behind the cloth
+    oak = ramp("oak")
+    brass = ramp("brass")
+    fill(img, cx - 2, cy - 30, 4, 58, oak[2])
+    fill(img, cx - 2, cy - 30, 1, 58, oak[3])
+    fill(img, cx - 20, cy - 26, 40, 3, oak[3])
+    fill(img, cx - 20, cy - 24, 40, 1, oak[1])
+    fill(img, cx - 3, cy - 34, 6, 4, brass[3])
+    fill(img, cx - 22, cy - 27, 3, 5, brass[3])
+    fill(img, cx + 19, cy - 27, 3, 5, brass[3])
+    from gen_banner import draw_banner_cloth
+    draw_banner_cloth(img, cx - 16, cy - 23, 32, 44, random.Random(107))
     # Wordmark with drop shadow.
     ink = ramp("ink")
     text_x = 112
-    draw_text(img, "HEARTHSTEAD", text_x + 2, 50 + 2, shade(ink[0], 0.7), scale=3)
-    draw_text(img, "HEARTHSTEAD", text_x, 50, ramp("wheat")[3], scale=3)
+    draw_text(img, "BANNERHOLD", text_x + 2, 50 + 2, shade(ink[0], 0.7), scale=3)
+    draw_text(img, "BANNERHOLD", text_x, 50, ramp("wheat")[3], scale=3)
     save(img, f"{RESOURCES}/hearthstead_logo.png")
 
 
@@ -509,6 +501,54 @@ def gen_item_wool_bolt():
     save(img, f"{ASSETS}/textures/item/wool_bolt.png")
 
 
+def gen_hunter_emblem():
+    """A forest-green leather crest with an original antler trail mark."""
+    img = new_image(16, 16)
+    leather = ramp("leather")
+    forest = ramp("forest")
+    wheat = ramp("wheat")
+    iron = ramp("iron")
+
+    # Small iron suspension loop; the crest reads as a physical Mayor token.
+    for x, y, colour in (
+        (7, 0, iron[3]), (8, 0, iron[2]),
+        (6, 1, iron[2]), (7, 1, iron[1]), (8, 1, iron[3]), (9, 1, iron[1]),
+    ):
+        put(img, x, y, colour)
+
+    rows = {
+        2: (4, 11), 3: (3, 12), 4: (2, 13), 5: (2, 13),
+        6: (2, 13), 7: (2, 13), 8: (2, 13), 9: (2, 13),
+        10: (3, 12), 11: (3, 12), 12: (4, 11), 13: (5, 10), 14: (7, 8),
+    }
+    for y, (left, right) in rows.items():
+        for x in range(left, right + 1):
+            edge = x in (left, right) or y in (2, 14)
+            put(img, x, y, leather[1 if edge else 3])
+
+    # Inset forest field, with top-left light and a darker lower point.
+    for y in range(4, 12):
+        inset = 1 if y >= 10 else 0
+        for x in range(4 + inset, 12 - inset):
+            put(img, x, y, forest[3 if x <= 7 and y <= 7 else 2])
+
+    # Symmetric antlers converge into one trail mark, distinct from the Archer bow.
+    antler = wheat[4]
+    antler_shadow = wheat[2]
+    for x, y in ((7, 5), (8, 5), (7, 6), (8, 6), (7, 7), (8, 7),
+                 (7, 8), (8, 8), (7, 9), (8, 9), (7, 10), (8, 10),
+                 (6, 7), (5, 6), (4, 5), (5, 8), (4, 7),
+                 (9, 7), (10, 6), (11, 5), (10, 8), (11, 7)):
+        put(img, x, y, antler)
+    for x, y in ((6, 6), (5, 5), (9, 6), (10, 5), (6, 9), (9, 9)):
+        put(img, x, y, antler_shadow)
+    put(img, 7, 11, wheat[3])
+    put(img, 8, 11, wheat[2])
+
+    large = img.resize((32, 32), Image.Resampling.NEAREST)
+    save(large, f"{ASSETS}/textures/item/hunter_emblem.png")
+
+
 if __name__ == "__main__":
     gen_hearth_stone()
     gen_hearth_bowl()
@@ -524,4 +564,5 @@ if __name__ == "__main__":
     gen_item_timber_beam()
     gen_item_cured_hide()
     gen_item_wool_bolt()
+    gen_hunter_emblem()
     print("blocks/items/logo done")

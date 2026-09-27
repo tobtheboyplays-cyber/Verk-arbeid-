@@ -43,6 +43,8 @@ SETTLER_ACTIVITY_SOURCE = os.path.join(
     ROOT, "src/main/java/com/hearthstead/entity/SettlerActivity.java")
 SETTLER_MODEL_SOURCE = os.path.join(
     ROOT, "src/main/java/com/hearthstead/client/model/SettlerModel.java")
+HUNTER_GOAL_SOURCE = os.path.join(
+    AI_DIR, "HunterWorkGoal.java")
 LUMBER_CRAFT_GOAL_SOURCE = os.path.join(
     AI_DIR, "LumbererSelfCraftGoal.java")
 LUMBER_CRAFT_SERVICE_SOURCE = os.path.join(
@@ -51,13 +53,44 @@ SETTLER_RENDERER_SOURCE = os.path.join(
     ROOT, "src/main/java/com/hearthstead/client/render/SettlerRenderer.java")
 
 SETTLER_BONES = {"root", "torso", "head", "right_arm", "left_arm",
-                 "right_leg", "left_leg", "cloak"}
+                 "bag_right_upper_arm", "bag_right_forearm",
+                 "bag_left_upper_arm", "bag_left_forearm",
+                 "right_leg", "left_leg", "cloak",
+                 # Motion-engine bend joints (client.motion.MotionBones):
+                 # elbow = forearm X (flexion negative), knee = shin X
+                 # (flexion positive). Rendered as bendable limb meshes.
+                 "right_forearm", "left_forearm", "right_shin", "left_shin",
+                 # Held-item wrist bones at the palm (children of the forearms).
+                 "right_item", "left_item"}
+
+
+def reset_index(source, bone):
+    """First reset of a bone: SettlerModel resets limbs via resetLimb(bone),
+    which also clears the limb's bend joint."""
+    hits = [i for i in (source.find(f"{bone}.resetPose()"),
+                        source.find(f"resetLimb({bone})")) if i >= 0]
+    return min(hits) if hits else -1
 # The raider rig has no cloak bone (RaiderModel.createBodyLayer()); hood,
 # helm and pauldron are visibility-toggled parts, never animation targets,
 # the same rule the settler's hood/hat_brim already follow -- see
 # RaiderAnimations.java's own header.
 RAIDER_BONES = {"root", "torso", "head", "right_arm", "left_arm",
                 "right_leg", "left_leg"}
+
+# One-shots in this exact set intentionally hand off to a different pose
+# instead of returning to their own first frame. Keep the set closed: a new
+# exemption must document a real runtime handoff and gain its own review,
+# rather than silently weakening the generic no-snap gate for any clip.
+EXPECTED_ENDS_IN_POSE_ALLOWLISTS = {
+    "settler": frozenset({
+        "COURIER_LIFT", "COURIER_SET_DOWN",
+        "GUARD_HIT_REACT",
+        "GROUND_ITEM_PICKUP", "WORK_CONTAINER_STOW",
+        "WORK_CONTAINER_DOWN", "WORK_CONTAINER_UP",
+        "BAG_TO_CHEST_UNLOAD",
+    }),
+    "raider": frozenset(),
+}
 
 # One registered animation source per model file. Every key below is a
 # per-file version of the settler-era globals that used to be hardcoded to
@@ -73,11 +106,13 @@ ANIMATION_SOURCES = [
         # bone additive layers by design.
         "bone_count_exempt": {
             "GUARD_PATROL", "ARCHER_PATROL", "HAUL_LOG", "HAUL_LOG_HEAVY",
-            "FARMER_CARRY"
+            "FARMER_CARRY", "COURIER_CARRY_GRIP"
         },
         # Clips exempt from "cloak motion on loops >= 1s": the load pins the
         # cloak still, per §0.5.
-        "cloak_pin_allowlist": {"SLEEP_IN_BED", "SHIELD_BLOCK"},
+        "cloak_pin_allowlist": {"SLEEP_IN_BED", "SHIELD_BLOCK", "COURIER_CARRY_GRIP",
+                                # the carcass across the shoulders pins the cloak
+                                "CARCASS_SHOULDER_CARRY"},
         # Clips exempt from "work clips have legs": layers, or clips the
         # catalogue explicitly scopes to arms/torso/head/cloak only (EAT:
         # "Kept as-is... add only cloak, root" -- no leg instruction was ever
@@ -85,19 +120,26 @@ ANIMATION_SOURCES = [
         # §5.2 says its legs are "inherited from WALK_LADEN; do not author"
         # -- an arm+torso+head+cloak+root overlay by design.
         "legs_exempt": {"IDLE", "GUARD_PATROL", "ARCHER_PATROL", "EAT", "HAUL_LOG",
-                        "HAUL_LOG_HEAVY", "FARMER_CARRY",
-                        "COURIER_CARRY", "MELEE"},
-        # One-shots allowed to end away from their start pose. COURIER_LIFT
-        # arrives at the carry handoff pose (catalogue §5, ~line 862) and
-        # COURIER_SET_DOWN departs from it -- by design, per §5.1/§5.3.
-        "ends_in_pose_allowlist": {
-            "COURIER_LIFT", "COURIER_SET_DOWN",
-            # Reaction-first by design: authoritative damage is already
-            # accepted at t=0, and the final frame hands back to low guard.
-            "GUARD_HIT_REACT",
-            "GROUND_ITEM_PICKUP", "WORK_CONTAINER_STOW",
-            "WORK_CONTAINER_UP",
-        },
+                        # Arms-only carcass hold layered over WALK_LADEN,
+                        # exactly like HAUL_LOG.
+                        "CARCASS_SHOULDER_CARRY",
+                        "HAUL_LOG_HEAVY", "FARMER_CARRY", "COURIER_CARRY_GRIP",
+                        "COURIER_CARRY", "MELEE", "GUARD_FINISHER_DRIVE",
+                        # HUNTER_LOOSE is body-only by contract. SettlerModel
+                        # plants both legs/root after locomotion before this
+                        # one-shot is applied; fixed-timer leg channels here
+                        # would fight that explicit reset.
+                        "HUNTER_LOOSE",
+                        # BAG_TO_CHEST_UNLOAD intentionally plants legs in
+                        # the full-body runtime override.
+                        "BAG_TO_CHEST_UNLOAD"},
+        # One-shots allowed to end away from their start pose. The exact
+        # closed set above is checked structurally. WORK_CONTAINER_DOWN
+        # starts at the loaded back-frame grip, then ends in the neutral
+        # GATHERING_LOG/SELECTING_ITEM stance after releasing the world-owned
+        # frame; returning to its first pose would create the actual snap.
+        "ends_in_pose_allowlist": set(
+            EXPECTED_ENDS_IN_POSE_ALLOWLISTS["settler"]),
         # Clips declared as carry/arm layers (§16.2) -- must lock arm
         # rotation to <= 6 degrees of travel. HAUL_LOG is an arms-only tool
         # hold over speed-coupled WALK_LADEN: the visible sack and spine own
@@ -107,7 +149,7 @@ ANIMATION_SOURCES = [
         # the checker's 6-degree limit, so this only confirms the clamp
         # holds.
         "carry_layer_clips": {
-            "HAUL_LOG", "HAUL_LOG_HEAVY", "FARMER_CARRY", "COURIER_CARRY"
+            "HAUL_LOG", "HAUL_LOG_HEAVY", "FARMER_CARRY", "COURIER_CARRY", "COURIER_CARRY_GRIP"
         },
         # Exact-bone contracts for deliberately tiny overlays. This is
         # stronger than merely exempting them from the generic bone/leg rule:
@@ -115,9 +157,14 @@ ANIMATION_SOURCES = [
         "exact_overlay_bones": {
             "GUARD_PATROL": {"right_arm", "left_arm", "head", "torso"},
             "ARCHER_PATROL": {"right_arm", "left_arm", "head"},
+            "GUARD_FINISHER_DRIVE": {
+                "right_arm", "left_arm", "torso", "head", "cloak"
+            },
             "HAUL_LOG": {"right_arm", "left_arm"},
             "HAUL_LOG_HEAVY": {"right_arm", "left_arm"},
             "FARMER_CARRY": {"right_arm", "left_arm"},
+            # WALK_LADEN owns distance-sampled feet, torso support and cloak.
+            "COURIER_CARRY_GRIP": {"right_arm", "left_arm"},
         },
         # Absolute posture bounds complement the travel limit below. The old
         # HAUL_LOG arm sat at -142deg but moved only a few degrees, so a span-
@@ -129,11 +176,11 @@ ANIMATION_SOURCES = [
             },
             "HAUL_LOG": {
                 "right_arm": (-35.0, 15.0),
-                "left_arm": (-60.0, 30.0),
+                "left_arm": (-35.0, 15.0),
             },
             "HAUL_LOG_HEAVY": {
                 "right_arm": (-35.0, 15.0),
-                "left_arm": (-60.0, 30.0),
+                "left_arm": (-35.0, 15.0),
             },
             "FARMER_CARRY": {
                 # The real MAINHAND hoe remains below the shoulder; the free
@@ -147,10 +194,12 @@ ANIMATION_SOURCES = [
                 "left_arm": (-85.0, 5.0),
             },
             "WORK_CONTAINER_DOWN": {
-                "right_arm": (-45.0, 5.0),
-                # This rig's positive X is the verified ground-facing reach;
-                # the earlier negative values were the backward-bend defect.
-                "left_arm": (-40.0, 90.0),
+                # The transition leaves the negative-X back-frame grip and
+                # rotates both palms through negative X to follow the frame
+                # in front. Side-view evidence, not the old axis comment,
+                # establishes this direction on the exported rig.
+                "right_arm": (-85.0, 5.0),
+                "left_arm": (-85.0, 5.0),
             },
             "GROUND_ITEM_PICKUP": {
                 "right_arm": (-45.0, 5.0),
@@ -161,8 +210,8 @@ ANIMATION_SOURCES = [
                 "left_arm": (-60.0, 90.0),
             },
             "WORK_CONTAINER_UP": {
-                "right_arm": (-45.0, 5.0),
-                "left_arm": (-40.0, 85.0),
+                "right_arm": (-85.0, 5.0),
+                "left_arm": (-85.0, 5.0),
             },
             "WALK_CARRY_ITEM": {
                 "right_arm": (-30.0, 5.0),
@@ -228,13 +277,48 @@ ANIMATION_SOURCES = [
         "has_cloak": False,
         "bone_count_exempt": set(),
         "cloak_pin_allowlist": set(),
-        "legs_exempt": set(),
-        "ends_in_pose_allowlist": set(),
+        # These are deliberately upper-body reactions. RaiderModel leaves
+        # root/legs to the live locomotion layer while either clip is active.
+        "legs_exempt": {"CINEMATIC_EXPOSED", "CINEMATIC_STAGGER"},
+        "ends_in_pose_allowlist": set(
+            EXPECTED_ENDS_IN_POSE_ALLOWLISTS["raider"]),
         "carry_layer_clips": set(),
-        "exact_overlay_bones": {},
+        "exact_overlay_bones": {
+            "CINEMATIC_EXPOSED": {"right_arm", "left_arm", "torso", "head"},
+            "CINEMATIC_STAGGER": {"right_arm", "left_arm", "torso", "head"},
+        },
         "arm_posture_bounds": {},
     },
 ]
+
+# A deeper arm angle is safe only for the exact two-hand timber-frame pose
+# whose real MAINHAND item is deliberately hidden. Keep this expected object
+# closed: adding a clip, bone or wider bound requires an explicit contract
+# change and a new visual review instead of silently weakening crown safety.
+EXPECTED_TWO_HAND_FRAME_GRIP_POSTURE_CONTRACTS = {
+    "HAUL_LOG": {
+        "activity": "HAULING_LOG",
+        "runtimeMainHand": "axe",
+        "heldItemPresentation": "suppressed",
+        "attachedLoadGroup": "lumber_frame",
+        "exactOverlayBones": ["left_arm", "right_arm"],
+        "safeArmXBoundsDegrees": {
+            "left_arm": [-50, -30],
+            "right_arm": [-50, -30],
+        },
+    },
+    "HAUL_LOG_HEAVY": {
+        "activity": "HAULING_LOG",
+        "runtimeMainHand": "axe",
+        "heldItemPresentation": "suppressed",
+        "attachedLoadGroup": "lumber_frame",
+        "exactOverlayBones": ["left_arm", "right_arm"],
+        "safeArmXBoundsDegrees": {
+            "left_arm": [-50, -30],
+            "right_arm": [-50, -30],
+        },
+    },
+}
 
 # Head-tracking damping table (§17.4 check 24), for clips this phase gives a
 # non-default damp value to. Cross-checked against SettlerModel.java's damp
@@ -263,12 +347,11 @@ ACTIVITY_ANIMATION_REACHABILITY = {
     "WORK_HARVEST": ("harvestState", "FARM_HARVEST"),
     "WORK_WATER": ("waterState", "FARM_WATER"),
     "WORK_LIMB": ("limbState", "LIMB_BRANCHES"),
-    "WORK_KNEAD": ("kneadState", "KNEAD"),
     "WORK_CLEAVE": ("cleaveState", "CLEAVE"),
-    "WORK_STOKE": ("stokeState", "STOKE"),
-    "WORK_HAMMER": ("hammerState", "HAMMER_ANVIL"),
+    # Hunter butchery reuses the butcher's cleave and the tanner's scrape.
+    "WORK_BUTCHER": ("butcherState", "CLEAVE"),
+    "WORK_SKIN": ("skinState", "TANNER_SCRAPE"),
     "WORK_SAW": ("sawState", "SAW"),
-    "WORK_WEAVE": ("fineWorkState", "FINE_WORK"),
     "WORK_OVEN": ("ovenState", "OVEN_TEND"),
     "WORK_SOW": ("sowState", "SOW_BROADCAST"),
     "WORK_MINE": ("mineState", "MINE_PICK"),
@@ -282,6 +365,31 @@ ACTIVITY_ANIMATION_REACHABILITY = {
     "WORK_HUNT": ("huntState", "HUNTER_LOOSE"),
     "WORK_CRAFT": ("craftState", "LUMBER_CRAFT"),
 }
+# WORK_* activities animated by a MODEL-SIDE activity clock instead of an
+# entity AnimationState (client-only presentation, no entity field): the
+# model must visibly gate on the activity and sample the named holder clip.
+MODEL_CLOCK_ACTIVITY_ANIMATIONS = {
+    "WORK_NAIL": ("CraftMotionAnimations", "NAIL_HAMMER"),
+    # Builder lane: same model-clock pattern as WORK_NAIL.
+    "WORK_BUILD": ("CraftMotionAnimations", "BUILD_PLACE"),
+    "WORK_BUILD_HAMMER": ("CraftMotionAnimations", "BUILD_HAMMER"),
+    # RING-1 lane: Sharpened Axes whet and Fisher's Nets set/haul, same model clock.
+    "WORK_WHET": ("CraftMotionAnimations", "WHET_AXE"),
+    "WORK_NET": ("CraftMotionAnimations", "FISHER_NET"),
+}
+
+# WORK_* activities played by a model-side clock chosen in a switch (anim lane 2026-09-26): the
+# trade clock (SettlerModel.tradeClip, per-trade own clips) and the battle-role activity clock.
+# The model must carry a `case <ACTIVITY> ->` arm that samples each named holder clip.
+SWITCH_CLOCK_ACTIVITY_ANIMATIONS = {
+    "WORK_STOKE": [("SettlerAnimations", "STOKE"), ("TradeMotionAnimations", "BREW_MASH")],
+    "WORK_HAMMER": [("SettlerAnimations", "HAMMER_ANVIL"), ("TradeMotionAnimations", "ARMOUR_PLANISH")],
+    "WORK_WEAVE": [("SettlerAnimations", "FINE_WORK"), ("TradeMotionAnimations", "LOOM_WEAVE")],
+    "WORK_KNEAD": [("SettlerAnimations", "KNEAD"), ("TradeMotionAnimations", "MILL_GRIND")],
+    "WORK_BANDAGE": [("RoleMotionAnimations", "HEALER_BANDAGE")],
+    "WORK_REVIVE": [("RoleMotionAnimations", "HEALER_REVIVE")],
+}
+
 EXPLICIT_ACTIVITY_ANIMATION_REACHABILITY = {
     "STORE_CRAFT_OUTPUT": ("craftStoreState", "CRAFT_OUTPUT_STORE"),
 }
@@ -604,7 +712,22 @@ def activity_animation_reachability_errors(activity_text, entity_text,
     explicit_mapping = (EXPLICIT_ACTIVITY_ANIMATION_REACHABILITY
                         if explicit_mapping is None else explicit_mapping)
 
-    missing_mapping = sorted(work_activities - set(work_mapping))
+    clean_model_text = strip_comments(model_text)
+    for activity, (holder, clip) in MODEL_CLOCK_ACTIVITY_ANIMATIONS.items():
+        if activity in work_activities:
+            if f"activity == SettlerActivity.{activity}" not in clean_model_text                     or f"{holder}.{clip}" not in clean_model_text:
+                failures.append(f"activity reachability: {activity} model clock "
+                                f"must gate on the activity and sample {holder}.{clip}")
+    for activity, clips in SWITCH_CLOCK_ACTIVITY_ANIMATIONS.items():
+        if activity in work_activities:
+            if f"case {activity} ->" not in clean_model_text or any(
+                    f"{holder}.{clip}" not in clean_model_text for holder, clip in clips):
+                failures.append(f"activity reachability: {activity} switch clock must have a "
+                                f"`case {activity} ->` arm sampling "
+                                + ", ".join(f"{h}.{c}" for h, c in clips))
+    missing_mapping = sorted(work_activities - set(work_mapping)
+                             - set(MODEL_CLOCK_ACTIVITY_ANIMATIONS)
+                             - set(SWITCH_CLOCK_ACTIVITY_ANIMATIONS))
     stale_mapping = sorted(set(work_mapping) - work_activities)
     if missing_mapping:
         failures.append("activity reachability: WORK_* enum value(s) have no "
@@ -743,6 +866,7 @@ def check_crafting_truth_contract(defs, errors):
         "CRAFT_DURATION_TICKS": 48,
         "CRAFT_CONTACT_TICK": 30,
         "PICKUP_CONTACT_TICK": 43,
+        "PICKUP_TRANSFER_TICK": 44,
         "DEPOSIT_DURATION_TICKS": 24,
         "DEPOSIT_CONTACT_TICK": 14,
     }
@@ -784,6 +908,210 @@ def check_crafting_truth_contract(defs, errors):
     for needle in renderer_needles:
         if needle not in renderer:
             errors.append(f"CRAFT truth: fixed-world renderer seam missing {needle}")
+
+
+def check_hunter_physical_shot_contract(defs, contract, errors, warns):
+    """Pin the physical Hunter shot without treating static evidence as approval."""
+    expected = {
+        "clip": "HUNTER_LOOSE",
+        "activity": "WORK_HUNT",
+        "mainHandItem": "bow",
+        "bowArm": "right_arm",
+        "stringArm": "left_arm",
+        "drawClock": "synced_vanilla_mainhand_item_use",
+        "durationTicks": 24,
+        "releaseTick": 14,
+        "releaseEvent": "EV_ARCHER_LOOSE",
+        "releaseRequiresSpawnedProjectile": True,
+        "activityClockStartsImmediately": True,
+        "clipOwnsArms": False,
+        "visualQualification": "offline_multiview_and_native_pending",
+    }
+    if contract.get("hunterPhysicalShot") != expected:
+        errors.append("K1 Hunter shot: physical bow contract drifted")
+
+    clip = defs.get("HUNTER_LOOSE")
+    if clip is None:
+        errors.append("K1 Hunter shot: HUNTER_LOOSE is missing")
+    else:
+        bones = {channel[0] for channel in clip["channels"]}
+        if clip["looping"] or abs(clip["length"] - 1.20) > 1e-6:
+            errors.append("K1 Hunter shot: HUNTER_LOOSE must be a non-looping "
+                          "1.20s/24-tick recovery")
+        if bones != {"torso", "head", "cloak"}:
+            errors.append("K1 Hunter shot: body clip must own only torso, head "
+                          "and cloak; the physical bow helper owns both arms")
+
+    paths = (SETTLER_ENTITY_SOURCE, SETTLER_MODEL_SOURCE, HUNTER_GOAL_SOURCE)
+    try:
+        entity_source, model_source, goal_source = (
+            strip_comments(io_read(path)) for path in paths
+        )
+    except OSError as exc:
+        errors.append(f"K1 Hunter shot: cannot read runtime source: {exc}")
+        return
+
+    if not re.search(
+            r'huntState\.animateWhen\(\s*activity\s*==\s*'
+            r'SettlerActivity\.WORK_HUNT\s*,\s*tickCount\s*\)\s*;',
+            entity_source):
+        errors.append("K1 Hunter shot: huntState must start immediately on "
+                      "WORK_HUNT without a movement gate")
+    if re.search(r'huntState\.animateWhen\([^;]*WORK_HUNT[^;]*!moving',
+                 entity_source):
+        errors.append("K1 Hunter shot: stale movement gate delays the physical "
+                      "draw clock")
+    offscreen_clock = entity_source.find(
+        "archerLooseState.updateTime(tickCount, 1.0F)")
+    expiry_read = entity_source.find(
+        "if (archerLooseState.isStarted()", offscreen_clock)
+    if offscreen_clock < 0 or expiry_read <= offscreen_clock:
+        errors.append("K1 Hunter shot: release state must advance on client ticks "
+                      "before expiry so offscreen events cannot remain started")
+
+    if not re.search(
+            r'public void triggerBowLoose\(\)\s*\{\s*'
+            r'if\s*\(\s*!level\(\)\.isClientSide\s*\)\s*\{\s*'
+            r'level\(\)\.broadcastEntityEvent\(this\s*,\s*EV_ARCHER_LOOSE\)',
+            entity_source, re.S):
+        errors.append("K1 Hunter shot: bow release must be a server-broadcast "
+                      "EV_ARCHER_LOOSE")
+    if not re.search(r'id\s*==\s*EV_ARCHER_LOOSE\s*\)\s*\{\s*'
+                     r'archerLooseState\.start\(tickCount\)',
+                     entity_source, re.S):
+        errors.append("K1 Hunter shot: client release event must start the "
+                      "shared bow-release state")
+
+    model_needles = (
+        "profession == Profession.HUNTER && entity.huntState.isStarted()",
+        "entity.hasPhysicalMainhandBow()",
+        "HunterWorkGoal.HUNT_RELEASE_TICK : 20.0F",
+        "entity.isUsingItem()",
+        "entity.getUsedItemHand() == InteractionHand.MAIN_HAND",
+        "float partialTick = Mth.clamp(ageInTicks - entity.tickCount, 0.0F, 1.0F)",
+        "float draw = Mth.clamp((entity.getTicksUsingItem() + partialTick) / drawDurationTicks,",
+        "blend = draw * draw * (3.0F - 2.0F * draw)",
+        "entity.archerLooseState.updateTime(ageInTicks, 1.0F)",
+        "entity.archerLooseState.getAccumulatedTime() / 400.0F",
+        "rightArm.xRot = Mth.lerp(blend, rightArm.xRot, bowArmX)",
+        "leftArm.xRot = Mth.lerp(blend, leftArm.xRot, stringArmX)",
+        "animate(entity.huntState, SettlerAnimations.HUNTER_LOOSE, ageInTicks)",
+    )
+    for needle in model_needles:
+        if needle not in model_source:
+            errors.append(f"K1 Hunter shot: physical model seam missing {needle}")
+    if "SettlerAnimations.HUNTER_LOOSE, ageInTicks +" in model_source:
+        errors.append("K1 Hunter shot: one-shot clock must not have an entity "
+                      "phase offset")
+    body_start = model_source.find("if (entity.huntState.isStarted())")
+    body_end = model_source.find("if (entity.craftState.isStarted()", body_start)
+    hunter_body = model_source[body_start:body_end] \
+        if body_start >= 0 and body_end > body_start else ""
+    for reset in ("torso.resetPose()", "head.resetPose()",
+                  'torso.getChild("cloak").resetPose()', "root.resetPose()",
+                  "rightLeg.resetPose()", "leftLeg.resetPose()"):
+        if reset not in hunter_body and reset_index(hunter_body, reset.split(".")[0]) < 0:
+            errors.append(f"K1 Hunter shot: planted body reset missing {reset}")
+
+    bow_start = model_source.find("private void applyBowMotion(")
+    bow_end = model_source.find("private void applyWorkContainer(", bow_start)
+    bow_motion = model_source[bow_start:bow_end] \
+        if bow_start >= 0 and bow_end > bow_start else ""
+    smooth_clock_position = bow_motion.find(
+        "entity.archerLooseState.updateTime(ageInTicks, 1.0F)")
+    accumulated_position = bow_motion.find(
+        "entity.archerLooseState.getAccumulatedTime() / 400.0F")
+    if smooth_clock_position < 0 or accumulated_position <= smooth_clock_position:
+        errors.append("K1 Hunter shot: visible release clock must advance before "
+                      "the procedural blend reads it")
+    release_position = bow_motion.find("if (entity.archerLooseState.isStarted())")
+    draw_position = bow_motion.find("else if (drawing)")
+    if release_position < 0 or draw_position <= release_position:
+        errors.append("K1 Hunter shot: server release event must override a stale "
+                      "client item-use flag before evaluating draw")
+
+    for name, value in (("HUNT_ANIMATION_TICKS", 24),
+                        ("HUNT_RELEASE_TICK", 14)):
+        if not re.search(rf'\b{name}\s*=\s*{value}\s*;', goal_source):
+            errors.append(f"K1 Hunter shot: {name} must remain {value}")
+
+    def region(start_needle, end_needle):
+        start = goal_source.find(start_needle)
+        end = goal_source.find(end_needle, start + 1) if start >= 0 else -1
+        return goal_source[start:end] if start >= 0 and end > start else ""
+
+    travel = region("private void tickTravelToTarget()", "private void tickDraw()")
+    travel_steps = (
+        "getNavigation().stop()",
+        "setActivity(SettlerActivity.WORK_HUNT)",
+        "startUsingItem(InteractionHand.MAIN_HAND)",
+    )
+    travel_positions = [travel.find(step) for step in travel_steps]
+    if any(position < 0 for position in travel_positions) \
+            or travel_positions != sorted(travel_positions):
+        errors.append("K1 Hunter shot: navigation stop, WORK_HUNT and vanilla "
+                      "MAINHAND use must start in that order")
+
+    draw = region("private void tickDraw()", "private void tickRecovery()")
+    if not re.search(
+            r'workTicks\+\+\s*;\s*if\s*\(\s*workTicks\s*==\s*'
+            r'HUNT_RELEASE_TICK\s*\)\s*\{\s*loose\([^;]+;\s*'
+            r'settler\.stopUsingItem\(\)\s*;\s*mode\s*=\s*Mode\.RECOVERY\s*;',
+            draw, re.S):
+        errors.append("K1 Hunter shot: draw must release at tick 14, stop item "
+                      "use and retain the recovery phase")
+
+    recovery = region("private void tickRecovery()", "private boolean loose(")
+    if not re.search(r'workTicks\+\+\s*;\s*if\s*\(\s*workTicks\s*<\s*'
+                     r'HUNT_ANIMATION_TICKS\s*\)\s*\{\s*return\s*;',
+                     recovery, re.S):
+        errors.append("K1 Hunter shot: WORK_HUNT recovery must remain active "
+                      "through tick 24")
+
+    loose = region("private boolean loose(", "private void beginLootRoute(")
+    required_loose = (
+        "ItemStack bow = settler.getMainHandItem()",
+        "settler.takeCarriedArrows(1)",
+        "new Arrow(level, settler, new ItemStack(Items.ARROW), bow)",
+        "HunterShotEvents.issue(arrow, settler, animal, lodge)",
+        "level.addFreshEntity(arrow)",
+        "settler.storeCarriedArrows(source, 1)",
+        "settler.triggerBowLoose()",
+    )
+    for needle in required_loose:
+        if needle not in loose:
+            errors.append(f"K1 Hunter shot: physical release missing {needle}")
+    if not re.search(
+            r'if\s*\(\s*!mayHarvest\(settler\s*,\s*animal\)\s*\|\|\s*'
+            r'!bow\.is\(Items\.BOW\)\s*\)\s*\{\s*return false\s*;\s*\}.*?'
+            r'if\s*\(\s*source\s*==\s*null\s*\|\|\s*'
+            r'settler\.takeCarriedArrows\(1\)\s*!=\s*1\s*\)\s*\{\s*'
+            r'return false\s*;\s*\}', loose, re.S):
+        errors.append("K1 Hunter shot: release must require the current prey, "
+                      "real MAINHAND bow and exactly one real shaft")
+    add_position = loose.find("level.addFreshEntity(arrow)")
+    event_position = loose.find("settler.triggerBowLoose()")
+    if add_position < 0 or event_position <= add_position:
+        errors.append("K1 Hunter shot: presentation release must follow successful "
+                      "projectile insertion")
+    if not re.search(
+            r'if\s*\(\s*!HunterShotEvents\.issue\(.*?\)\s*\|\|\s*'
+            r'!level\.addFreshEntity\(arrow\)\s*\)\s*\{\s*'
+            r'settler\.storeCarriedArrows\(source\s*,\s*1\)\s*;\s*'
+            r'return false\s*;\s*\}', loose, re.S):
+        errors.append("K1 Hunter shot: rejected projectile must restore its exact "
+                      "real shaft before any release event")
+    if any(token in loose for token in ("animal.kill(", "animal.discard(",
+                                        "animal.hurt(")):
+        errors.append("K1 Hunter shot: release must not retain direct/fake "
+                      "animal damage")
+
+    stop = region("public void stop()", "private boolean refreshExactEmployer()")
+    if "settler.stopUsingItem()" not in stop:
+        errors.append("K1 Hunter shot: interruption must stop synced bow use")
+
+    warns.append("K1 HUNTER_LOOSE physical contract is wired; visual approval "
+                 "still requires offline multiview and native draw/release evidence")
 
 
 def check_offline_prop_contract(defs, errors, warns):
@@ -1103,6 +1431,49 @@ def check_offline_prop_contract(defs, errors, warns):
             or set(runtime_declared) != set(runtime_required):
         errors.append("K1: fixedRuntimeMainHandClips must exactly cover clips "
                       "with one real, context-independent MAINHAND item")
+    suppressed = contract.get("suppressedHeldItemPresentationClips")
+    if suppressed != ["HAUL_LOG", "HAUL_LOG_HEAVY"]:
+        errors.append("K1: held-item suppression must remain scoped exactly to "
+                      "HAUL_LOG and HAUL_LOG_HEAVY")
+    frame_grip_contracts = contract.get(
+        "twoHandFrameGripPostureContracts")
+    if frame_grip_contracts != EXPECTED_TWO_HAND_FRAME_GRIP_POSTURE_CONTRACTS:
+        errors.append("K1: two-hand frame-grip posture contracts must remain "
+                      "the exact HAULING_LOG/axe/lumber_frame/both-arms "
+                      "suppressed exception")
+    expected_transition_presentation = {
+        "WORK_CONTAINER_DOWN": {
+            "suppressedBeforeSeconds": 1.20,
+            "restoredAtOrAfterSeconds": 1.20,
+        },
+        "WORK_CONTAINER_UP": {
+            "visibleBeforeSeconds": 0.60,
+            "suppressedAtOrAfterSeconds": 0.60,
+        },
+    }
+    if contract.get("transitionHeldItemPresentation") \
+            != expected_transition_presentation:
+        errors.append("K1: work-container transition held-item timing drifted")
+    expected_transition_grips = {
+        "javaModelPixels": {
+            "negativeXUpperSideRail": [-4.0, 0.5, 0.5],
+            "positiveXUpperSideRail": [4.0, 0.5, 0.5],
+        },
+        "blockbenchModelPixels": {
+            "negativeXUpperSideRail": [-4.0, -0.5, 0.5],
+            "positiveXUpperSideRail": [4.0, -0.5, 0.5],
+        },
+        "maximumHandCenterDistanceModelPixels": 8.0,
+        "downGroundContactSeconds": 1.0,
+        "upGroundContactSeconds": 0.6,
+        "ownership": ("Hands migrate from lower backpack grips to the existing "
+                      "upper side rails before ground contact; pickup reverses "
+                      "that path."),
+    }
+    if contract.get("workContainerTransitionGripAnchors") \
+            != expected_transition_grips:
+        errors.append("K1: work-container transition grip anchors must remain "
+                      "the exact existing upper-side-rail contact points")
     conditional_offhand = contract.get("conditionalRuntimeOffhandClips")
     if conditional_offhand != {"SHIELD_BLOCK": "shield"}:
         errors.append("K1: SHIELD_BLOCK must declare a physical conditional "
@@ -1114,23 +1485,20 @@ def check_offline_prop_contract(defs, errors, warns):
     elif set(conceptual) & set(runtime_required):
         errors.append("K1: conceptual and runtime-held clips must be disjoint")
     known_no_go = contract.get("knownVisualNoGoClips")
-    required_no_go = {"CLEAVE", "HUNTER_LOOSE"}
+    required_no_go = {"CLEAVE"}
     if not isinstance(known_no_go, dict) \
             or set(known_no_go) != required_no_go \
-            or not all(token in str(known_no_go.get("HUNTER_LOOSE", ""))
-                       for token in ("MAINHAND", "right_arm", "left_arm", "pulling")) \
             or not all(token in str(known_no_go.get("CLEAVE", ""))
                        for token in ("BUTCHER", "HERDER", "BB_CONTEXT")):
         errors.append("K1: runtime/catalogue hand mismatches must remain explicit "
                       "visual NO-GOs until runtime or the clips are repaired")
     else:
-        warns.append("K1 VISUAL NO-GO HUNTER_LOOSE: runtime MAINHAND bow follows "
-                     "right_arm, but the clip authors left_arm as the bow arm; "
-                     "do not approve its item render")
         warns.append("K1 contextual clips: CLEAVE requires BB_CONTEXT=butcher "
                      "(empty hand) or herder_cull (shears); IDLE_SENTRY requires "
                      "BB_CONTEXT=guard (sword) or hunter (empty hand). Neither clip "
                      "has one truthful universal prop")
+
+    check_hunter_physical_shot_contract(defs, contract, errors, warns)
 
     entity_path = os.path.join(ROOT,
         "src/main/java/com/hearthstead/entity/SettlerEntity.java")
@@ -1412,7 +1780,79 @@ def check_entity_sound_contracts(defs, sounds_data, errors, warns):
                               f"is wrong -- they must agree)")
 
 
-def check_structural(source, defs, errors, warns):
+def resolve_arm_posture_bounds(source, clip_name, prop_contract, errors):
+    """Return fail-closed arm bounds for one clip.
+
+    The ordinary posture table protects every visible-tool state. Only the
+    two exact HAUL overlays may replace it, and only when the external prop
+    contract proves that both arms are the complete overlay, the timber frame
+    is present, and ItemInHandLayer presentation is suppressed.
+    """
+    ordinary = source["arm_posture_bounds"].get(clip_name, {})
+    contracts = prop_contract.get("twoHandFrameGripPostureContracts", {}) \
+        if isinstance(prop_contract, dict) else {}
+    entry = contracts.get(clip_name) if isinstance(contracts, dict) else None
+    if entry is None:
+        return ordinary
+
+    expected = EXPECTED_TWO_HAND_FRAME_GRIP_POSTURE_CONTRACTS.get(clip_name)
+    suppressed = prop_contract.get("suppressedHeldItemPresentationClips", [])
+    clips = prop_contract.get("clips", {})
+    exact_bones = source.get("exact_overlay_bones", {}).get(clip_name)
+    valid = expected is not None and entry == expected \
+        and isinstance(suppressed, list) and clip_name in suppressed \
+        and isinstance(clips, dict) and clips.get(clip_name) == "axe" \
+        and exact_bones == {"left_arm", "right_arm"}
+    if not valid:
+        errors.append(f"{clip_name}: rejected two-hand frame-grip posture "
+                      "exception -- exact HAULING_LOG/axe/lumber_frame/"
+                      "both-arms/suppressed contract is required")
+        return ordinary
+
+    return {
+        bone: (float(bounds[0]), float(bounds[1]))
+        for bone, bounds in entry["safeArmXBoundsDegrees"].items()
+    }
+
+
+def check_ends_in_pose_allowlist_contract(source, errors):
+    """Reject accidental broadening of the one-shot handoff exemptions."""
+    label = source["label"]
+    expected = EXPECTED_ENDS_IN_POSE_ALLOWLISTS.get(label)
+    actual = set(source["ends_in_pose_allowlist"])
+    if expected is None:
+        errors.append(f"{label}: no closed ends-in-pose allowlist contract")
+        return
+    if actual != set(expected):
+        added = sorted(actual - set(expected))
+        missing = sorted(set(expected) - actual)
+        errors.append(
+            f"{label}: ends_in_pose_allowlist differs from its reviewed closed "
+            f"contract (added={added}, missing={missing})")
+
+
+def validated_ends_in_pose_allowlist(label):
+    """Return the reviewed set, or fail closed if its source was broadened."""
+    source = next((entry for entry in ANIMATION_SOURCES
+                   if entry["label"] == label), None)
+    if source is None:
+        raise ValueError(f"unknown animation source label: {label}")
+    errors = []
+    check_ends_in_pose_allowlist_contract(source, errors)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return frozenset(source["ends_in_pose_allowlist"])
+
+
+def check_structural(source, defs, errors, warns, prop_contract=None):
+    check_ends_in_pose_allowlist_contract(source, errors)
+    if prop_contract is None:
+        try:
+            with open(PROP_CONTRACT, encoding="utf-8") as contract_file:
+                prop_contract = json.load(contract_file)
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append(f"animation prop contract unavailable: {exc}")
+            prop_contract = {}
     """§17.1/17.2/17.4 structural + craft checks for one registered
     ANIMATION_SOURCES entry, scoped entirely by that entry's own bone
     whitelist and exemption sets -- see the ANIMATION_SOURCES docstring for
@@ -1535,7 +1975,8 @@ def check_structural(source, defs, errors, warns):
         # A small span can still be a catastrophically high static pose.
         # Pin the authored X rotation itself for carry overlays that have a
         # silhouette contract, independent of how little they move.
-        posture_bounds = source["arm_posture_bounds"].get(name, {})
+        posture_bounds = resolve_arm_posture_bounds(
+            source, name, prop_contract, errors)
         for bone, (minimum, maximum) in posture_bounds.items():
             arm_channels = [c for c in d["channels"]
                             if c[0] == bone and c[1] == "ROTATION"]
@@ -1873,12 +2314,12 @@ def check_melee_runtime_composition_source(entity_text, model_text, errors):
 
     patrol_apply = martial.find("SettlerAnimations.GUARD_PATROL")
     for bone in ("rightArm", "leftArm", "head", "torso"):
-        reset = martial.find(f"{bone}.resetPose()")
+        reset = reset_index(martial, bone)
         if reset < 0 or patrol_apply < 0 or reset > patrol_apply:
             errors.append("MELEE gait-arm contamination: moving martial branch "
                           f"must reset {bone} before GUARD_PATROL")
     for locomotion_part in ("root", "rightLeg", "leftLeg"):
-        if f"{locomotion_part}.resetPose()" in martial:
+        if reset_index(martial, locomotion_part) >= 0:
             errors.append("MELEE locomotion ownership: moving martial branch must "
                           f"not reset WALK-owned {locomotion_part}")
     if 'torso.getChild("cloak").resetPose()' in martial:
@@ -1899,6 +2340,14 @@ def check_melee_runtime_composition_source(entity_text, model_text, errors):
         errors.append("MELEE runtime composition: zero-offset strike must be "
                       "applied after the moving or stationary martial base")
     condition_window = model[max(0, melee_position - 260):melee_position]
+    # Frontline roles (guard, spearman, longswordsman) share the moveset through
+    # one derived flag; it must itself require the frontline profession and a
+    # real blade (physicalSword or a RoleWeaponItem).
+    if "frontlineBlade" in condition_window:
+        definition = re.search(r"boolean\s+frontlineBlade\s*=\s*([^;]*);", model, flags=re.S)
+        if definition and "profession.frontline()" in definition.group(1) \
+                and "physicalSword" in definition.group(1):
+            condition_window += " profession == Profession.GUARD physicalSword"
     for requirement in ("entity.meleeState.isStarted()",
                         "profession == Profession.GUARD", "physicalSword"):
         if requirement not in condition_window:
@@ -1918,9 +2367,119 @@ def check_melee_runtime_composition_files(errors):
     check_melee_runtime_composition_source(entity_text, model_text, errors)
 
 
+def check_bag_transfer_repeat_contract(defs, errors):
+    """The server repeats ticks 24..64 without lifting the grounded sack."""
+    clip = defs.get("BAG_TO_CHEST_UNLOAD")
+    if clip is None:
+        errors.append("bag transfer repeat: unload clip missing")
+        return
+    for bone, target, frames in clip["channels"]:
+        start = next((f for f in frames if abs(f[0] - 1.20) < 1e-6), None)
+        end = next((f for f in frames if abs(f[0] - 3.20) < 1e-6), None)
+        if start is None or end is None:
+            errors.append(f"bag transfer repeat: {bone}.{target} needs explicit "
+                          "tick24 and tick64 handoff keys")
+            continue
+        if max(abs(a - b) for a, b in zip(start[2], end[2])) > 0.01:
+            errors.append(f"bag transfer repeat: {bone}.{target} snaps at tick64->24")
+        if target == "ROTATION":
+            for a, b in zip(frames, frames[1:]):
+                if a[0] < 1.20 or b[0] > 3.20 or b[0] <= a[0]:
+                    continue
+                degrees_per_tick = max(abs(x - y) for x, y in zip(a[2], b[2])) / ((b[0] - a[0]) * 20)
+                if degrees_per_tick > 18.0 + 1e-6:
+                    errors.append(f"bag transfer repeat: {bone} jumps "
+                                  f"{degrees_per_tick:.1f}deg/tick at {b[0]:.2f}s")
+
+
+def check_bag_transfer_count_contract(errors):
+    """Keep the exact transfer count readable and tied to server truth."""
+    if not os.path.isfile(SETTLER_RENDERER_SOURCE):
+        errors.append("bag transfer count: SettlerRenderer.java not found")
+        return
+    source = strip_comments(open(SETTLER_RENDERER_SOURCE,
+                                 encoding="utf-8").read())
+
+    scale_m = re.search(
+        r'\bTRANSFER_COUNT_SCALE\s*=\s*([\d.]+)F\s*;', source)
+    if scale_m is None:
+        errors.append("bag transfer count: named world-space scale is missing")
+    else:
+        scale = float(scale_m.group(1))
+        if not 0.024 <= scale <= 0.030:
+            errors.append("bag transfer count: scale must remain 0.024-0.030 "
+                          "so the label is legible without dominating the item")
+
+    def argb(name):
+        match = re.search(rf'\b{name}\s*=\s*0x([0-9A-Fa-f]{{8}})\s*;', source)
+        return int(match.group(1), 16) if match else None
+
+    text = argb("TRANSFER_COUNT_TEXT")
+    fill = argb("TRANSFER_COUNT_FILL")
+    rim = argb("TRANSFER_COUNT_RIM")
+    if text is None or fill is None or rim is None:
+        errors.append("bag transfer count: text/fill/rim ARGB tokens are required")
+    else:
+        if (fill >> 24) < 0xD0 or (rim >> 24) < 0xD0:
+            errors.append("bag transfer count: plate alpha must be at least 0xD0")
+
+        def luminance(argb_value):
+            channels = ((argb_value >> 16) & 0xFF,
+                        (argb_value >> 8) & 0xFF,
+                        argb_value & 0xFF)
+            linear = [v / 255.0 / 12.92 if v / 255.0 <= 0.04045
+                      else ((v / 255.0 + 0.055) / 1.055) ** 2.4
+                      for v in channels]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        contrast = (max(luminance(text), luminance(fill)) + 0.05) / (
+            min(luminance(text), luminance(fill)) + 0.05)
+        if contrast < 7.0:
+            errors.append(f"bag transfer count: text/plate contrast {contrast:.2f}:1 "
+                          "is below the 7:1 high-contrast contract")
+
+    presentation_start = source.find(
+        "private void renderBagTransferPresentation")
+    count_start = source.find("private void renderTransferCount")
+    craft_start = source.find("private void renderCraftPresentation")
+    if presentation_start < 0 or count_start < 0 or craft_start < 0:
+        errors.append("bag transfer count: renderer method boundaries are missing")
+        return
+    presentation = source[presentation_start:count_start]
+    count_renderer = source[count_start:craft_start]
+    required_presentation = (
+        "transfer.clock() < 30 || transfer.clock() > 48",
+        "transfer.item().getCount() > 1",
+        "renderTransferCount(entity, transfer.item().getCount()",
+    )
+    for required in required_presentation:
+        if required not in presentation:
+            errors.append("bag transfer count: missing presentation contract "
+                          + required)
+    if source.count("renderTransferCount(") != 2:
+        errors.append("bag transfer count: label renderer must have exactly one "
+                      "bag-transfer call site")
+    if "pose.scale(TRANSFER_COUNT_SCALE, -TRANSFER_COUNT_SCALE," not in count_renderer:
+        errors.append("bag transfer count: 1.21 billboard must keep a positive x "
+                      "scale and negative y scale")
+    if not re.search(
+            r'drawInBatch\(label,\s*x,\s*0\.0F,\s*TRANSFER_COUNT_TEXT,\s*true,',
+            count_renderer, re.S):
+        errors.append("bag transfer count: Minecraft font shadow is required")
+    if ("TRANSFER_COUNT_FILL" not in count_renderer
+            or "TRANSFER_COUNT_RIM" not in count_renderer):
+        errors.append("bag transfer count: compact high-contrast plate is not rendered")
+
+
 def main():
     errors = []
     warns = []
+    try:
+        with open(PROP_CONTRACT, encoding="utf-8") as contract_file:
+            prop_contract = json.load(contract_file)
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"animation prop contract unavailable: {exc}")
+        prop_contract = {}
 
     # ---- 17.1 keep + 17.2 structural, once per registered source --------
     defs = {}
@@ -1935,7 +2494,7 @@ def main():
             errors.append(f"clip name(s) declared in more than one animation source: "
                           f"{sorted(dupes)}")
         defs.update(source_defs)
-        check_structural(source, source_defs, errors, warns)
+        check_structural(source, source_defs, errors, warns, prop_contract)
 
     check_melee_transition_contract(defs, errors)
     check_melee_runtime_composition_files(errors)
@@ -1963,6 +2522,8 @@ def main():
     goal_contracts = parse_goal_tick_contracts(AI_DIR)
     sounds_data = load_sounds_json()
     check_offline_prop_contract(defs, errors, warns)
+    check_bag_transfer_count_contract(errors)
+    check_bag_transfer_repeat_contract(defs, errors)
     for clip, bone, target, accent_s, sound_field, tick, period in SOUND_CONTRACTS:
         d = defs.get(clip)
         if d is None:

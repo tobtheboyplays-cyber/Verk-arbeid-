@@ -38,16 +38,30 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
     private final ItemStackHandler inventory = new ItemStackHandler(INVENTORY_SIZE) {
         @Override
         protected void onContentsChanged(int slot) {
-            assessmentCacheTick = Long.MIN_VALUE;
-            assessmentCache = null;
-            setChanged();
+            noteContentsChanged();
         }
     };
 
     @Nullable
     private UUID settlementId;
+    /**
+     * The vanilla banner this settlement flies, count 1, or EMPTY for
+     * Bannerhold's own founding colours. Held as the real item so that
+     * hanging new colours is an exact exchange and breaking the Banner
+     * returns it.
+     */
+    private ItemStack heraldry = ItemStack.EMPTY;
+    /**
+     * The design this settlement flies (Banner designer), or null to fly
+     * what the escrowed banner shows (or the founding colours). Pure data:
+     * it never becomes an item, so it cannot mint or lose a banner.
+     */
+    @Nullable
+    private com.hearthstead.heraldry.VillageDesign design;
     private int tickCount;
     private int foundingCooldown;
+    /** The stock changed since the last once-a-second tick (QA-UI-05: refresh open trees). */
+    private boolean treasuryChanged;
 
     public HearthBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.HEARTH.get(), pos, state);
@@ -68,13 +82,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
                 hearth.foundingCooldown--;
                 return;
             }
-            Settlement founded = SettlementManager.tryFound(serverLevel, pos);
-            if (founded != null) {
-                hearth.settlementId = founded.id;
-                hearth.setChanged();
-            } else {
-                hearth.foundingCooldown = 10; // seconds between retries
-            }
+            hearth.foundNow(serverLevel);
             return;
         }
 
@@ -84,7 +92,14 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
             hearth.setChanged();
             return;
         }
+        if (hearth.tickCount % 200 == 0) {
+            com.hearthstead.settlement.work.FishMeals.prepareOne(hearth.inventory);
+        }
         s.foodCache = hearth.countFoodUnits();
+        if (hearth.treasuryChanged) {
+            hearth.treasuryChanged = false;
+            com.hearthstead.network.TechTreeNetwork.refreshViewers(serverLevel, s);
+        }
         SettlementManager.tickRecruitment(serverLevel, s);
         // The hearth IS the settlement's heartbeat: no hearth, no settlement,
         // and nothing to raid. Idempotent per night, so this once-a-second
@@ -130,6 +145,50 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         return settlementId;
     }
 
+    /**
+     * The stock changed: drop the cached assessment and flag open Tech Trees for a refresh
+     * (QA-UI-05). The handler calls it on set/insert/extract; the menu's slots call it too,
+     * because a merge or a partial shift-click changes the live stack in place.
+     */
+    public void noteContentsChanged() {
+        assessmentCacheTick = Long.MIN_VALUE;
+        assessmentCache = null;
+        treasuryChanged = true;
+        setChanged();
+    }
+
+    /**
+     * Founds the settlement now if this Banner has none and no retry is pending: the same
+     * attempt the once-a-second tick makes, also used when a player opens a fresh Banner so
+     * the menu gets the real identity instead of NO_SETTLEMENT (QA-UI-03). Returns whether
+     * the Banner is bound afterwards.
+     */
+    public boolean foundNow(ServerLevel level) {
+        if (settlementId != null) {
+            return true;
+        }
+        if (foundingCooldown > 0) {
+            return false;
+        }
+        Settlement founded = SettlementManager.tryFound(level, worldPosition);
+        if (founded == null) {
+            foundingCooldown = 10; // seconds between retries
+            return false;
+        }
+        settlementId = founded.id;
+        setChanged();
+        // Anyone who opened this Banner before it was founded holds a NO_SETTLEMENT menu
+        // that the server rightly refuses: reopen it with the real identity.
+        for (net.minecraft.server.level.ServerPlayer player : level.players()) {
+            if (player.containerMenu instanceof HearthMenu menu && worldPosition.equals(menu.getHearthPos())
+                && HearthMenu.NO_SETTLEMENT.equals(menu.getSettlementId())) {
+                player.closeContainer();
+                com.hearthstead.block.HearthBlock.openMenu(player, this);
+            }
+        }
+        return true;
+    }
+
     /** Direct binding for tests and admin tools; skips the founding flow. */
     public void bindSettlement(@Nullable UUID id) {
         this.settlementId = id;
@@ -152,11 +211,120 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         if (level == null) {
             return;
         }
-        SimpleContainer drops = new SimpleContainer(inventory.getSlots());
+        SimpleContainer drops = new SimpleContainer(inventory.getSlots() + 1);
         for (int i = 0; i < inventory.getSlots(); i++) {
             drops.setItem(i, inventory.getStackInSlot(i));
         }
+        // A banner a player hung here is theirs: it drops with the stores.
+        drops.setItem(inventory.getSlots(), heraldry);
+        heraldry = ItemStack.EMPTY;
         Containers.dropContents(level, worldPosition, drops);
+    }
+
+    // -------------------------------------------------------- heraldry ---
+
+    /** The adopted vanilla banner, or EMPTY while flying the founding colours. */
+    public ItemStack getHeraldry() {
+        return heraldry;
+    }
+
+    /**
+     * Hangs {@code banner} (exactly one vanilla banner, already removed from
+     * its owner) and returns what flew before: the previous adopted banner, or
+     * EMPTY when the founding colours are replaced. The caller owns both
+     * sides of the exchange; this method never creates or discards an item.
+     */
+    public ItemStack exchangeHeraldry(ItemStack banner) {
+        if (!SettlementHeraldry.isBanner(banner) || banner.getCount() != 1) {
+            throw new IllegalArgumentException("heraldry must be exactly one banner");
+        }
+        ItemStack previous = heraldry;
+        com.hearthstead.heraldry.BannerShape shape = effectiveDesign().shape();
+        heraldry = banner;
+        // A hung banner's colours become the village design; the cloth shape stays.
+        design = com.hearthstead.heraldry.VillageDesign.fromBanner(banner, shape);
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            BlockState state = getBlockState();
+            level.sendBlockUpdated(worldPosition, state, state, 3);
+        }
+        return previous;
+    }
+
+    /** What the settlement flies: the saved design, else the hung banner, else the founding colours. */
+    public com.hearthstead.heraldry.VillageDesign effectiveDesign() {
+        if (design != null) {
+            return design;
+        }
+        return SettlementHeraldry.isBanner(heraldry)
+            ? com.hearthstead.heraldry.VillageDesign.fromBanner(heraldry, com.hearthstead.heraldry.BannerShape.STRAIGHT)
+            : com.hearthstead.heraldry.VillageDesign.FOUNDING;
+    }
+
+    /** True once a design was saved (designer or a hung banner); old saves have none. */
+    public boolean hasSavedDesign() {
+        return design != null;
+    }
+
+    /**
+     * Flies {@code next} (already validated by the server). Never touches the
+     * escrowed banner item: designing is free and mints nothing.
+     */
+    public void setDesign(com.hearthstead.heraldry.VillageDesign next) {
+        design = java.util.Objects.requireNonNull(next, "design");
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            BlockState state = getBlockState();
+            level.sendBlockUpdated(worldPosition, state, state, 3);
+        }
+    }
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        // Clients only need the colours; stores travel through the menu.
+        CompoundTag tag = new CompoundTag();
+        saveHeraldry(tag, registries);
+        return tag;
+    }
+
+    @Nullable
+    @Override
+    public net.minecraft.network.protocol.Packet<net.minecraft.network.protocol.game.ClientGamePacketListener>
+        getUpdatePacket() {
+        return net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    @Override
+    public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider registries) {
+        loadHeraldry(tag, registries);
+    }
+
+    @Override
+    public void onDataPacket(net.minecraft.network.Connection connection,
+                             net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket packet,
+                             HolderLookup.Provider registries) {
+        loadHeraldry(packet.getTag(), registries);
+    }
+
+    private void saveHeraldry(CompoundTag tag, HolderLookup.Provider registries) {
+        if (!heraldry.isEmpty()) {
+            tag.put("Heraldry", heraldry.save(registries));
+        }
+        if (design != null) {
+            tag.put("Design", design.save());
+        }
+    }
+
+    private void loadHeraldry(CompoundTag tag, HolderLookup.Provider registries) {
+        ItemStack loaded = tag.contains("Heraldry", net.minecraft.nbt.Tag.TAG_COMPOUND)
+            ? ItemStack.parseOptional(registries, tag.getCompound("Heraldry"))
+            : ItemStack.EMPTY;
+        heraldry = SettlementHeraldry.isBanner(loaded) ? loaded.copyWithCount(1) : ItemStack.EMPTY;
+        // Saves from before the designer have no Design: they fly the hung
+        // banner or the founding colours, exactly as before.
+        design = tag.contains("Design", net.minecraft.nbt.Tag.TAG_COMPOUND)
+            ? com.hearthstead.heraldry.VillageDesign.load(tag.getCompound("Design"))
+            : null;
     }
 
     // ------------------------------------------------------------ menu ---
@@ -275,6 +443,7 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         if (settlementId != null) {
             tag.putUUID("SettlementId", settlementId);
         }
+        saveHeraldry(tag, registries);
     }
 
     @Override
@@ -282,6 +451,9 @@ public class HearthBlockEntity extends BlockEntity implements MenuProvider {
         super.loadAdditional(tag, registries);
         inventory.deserializeNBT(registries, tag.getCompound("Inventory"));
         settlementId = tag.hasUUID("SettlementId") ? tag.getUUID("SettlementId") : null;
+        // Saves from before the Banner have no Heraldry key: they fly the
+        // founding colours, with stores and settlement link untouched.
+        loadHeraldry(tag, registries);
         assessmentCacheTick = Long.MIN_VALUE;
         assessmentCache = null;
     }

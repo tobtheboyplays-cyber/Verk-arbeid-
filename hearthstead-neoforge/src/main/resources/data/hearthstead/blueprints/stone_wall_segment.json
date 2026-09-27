@@ -1,0 +1,39 @@
+{
+  "id": "stone_wall_segment",
+  "name": "Stone Wall (5)",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": null,
+  "variant": "segment",
+  "style": "stone",
+  "preset": "Stone",
+  "requires": "masonry",
+  "group": "stone_wall_segment",
+  "size": [
+    5,
+    5,
+    2
+  ],
+  "ground_level": 0,
+  "eave_y": null,
+  "plaque": null,
+  "work": [],
+  "segment": "stone",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:cobblestone",
+      "count": 35
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 5
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 3
+    }
+  ],
+  "block_count": 43,
+  "cells": 50
+}

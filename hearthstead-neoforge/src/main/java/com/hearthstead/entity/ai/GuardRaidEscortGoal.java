@@ -7,6 +7,7 @@ import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.guard.GuardAssignmentService;
+import com.hearthstead.settlement.raid.RaidPlan;
 import com.hearthstead.settlement.state.GuardOrder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -53,6 +54,7 @@ public final class GuardRaidEscortGoal extends Goal {
 
     @Override
     public boolean canUse() {
+        if (com.hearthstead.settlement.guard.BannerTeams.active(settler) != null) return false;
         if (!(settler.level() instanceof ServerLevel level)
             || settler.getTarget() != null) {
             return false;
@@ -77,6 +79,7 @@ public final class GuardRaidEscortGoal extends Goal {
 
     @Override
     public boolean canContinueToUse() {
+        if (com.hearthstead.settlement.guard.BannerTeams.active(settler) != null) return false;
         if (!(settler.level() instanceof ServerLevel level)
             || settler.getTarget() != null) {
             return false;
@@ -285,10 +288,28 @@ public final class GuardRaidEscortGoal extends Goal {
     }
 
     private static boolean raidActive(Settlement settlement) {
-        // PendingRaid is written only after a complete band is sealed and is
-        // cleared at terminal resolution. It is the shared active authority
-        // for authored and recurring raids.
-        return settlement != null && settlement.pendingRaid != null;
+        if (settlement == null || !RaidPlan.isValid(settlement.pendingRaid)) {
+            return false;
+        }
+        RaidPlan pending = settlement.pendingRaid;
+        boolean authoredFirst = settlement.raidLifecycle != null
+            && settlement.raidLifecycle.isAuthoredFirstRaidActive()
+            && settlement.raidLifecycle.participantsTracked();
+        boolean first = settlement.raidLifecycle != null
+            && (authoredFirst
+                || settlement.raidLifecycle.isLegacyBridgeActive())
+            && settlement.raidLifecycle.activePlan()
+                .filter(pending::equals).isPresent();
+        boolean authoredRecurring = settlement.recurringRaidRun != null
+            && settlement.recurringRaidRun.isActive()
+            && settlement.recurringRaidRun.participantsSealed();
+        boolean recurring = settlement.recurringRaidRun != null
+            && (authoredRecurring
+                || settlement.recurringRaidRun.isLegacyBridgeActive())
+            && settlement.recurringRaidRun.planMatches(pending);
+        // PendingRaid is only a compatibility mirror. It may present a real
+        // active ledger, but it can never create bodyguard authority alone.
+        return first || recurring;
     }
 
     private static int compareUuid(UUID left, UUID right) {

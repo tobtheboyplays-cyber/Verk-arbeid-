@@ -155,7 +155,7 @@ public class TradeMasonGameTests {
         // LOOK_INTERVAL cycles (CrafterWorkGoal, 20 ticks) to have looked and
         // found nothing, then prove it did nothing.
         final long[] productionStart = {-1};
-        helper.runAtTickTime(60, () -> {
+        GameTestTicks.at(helper, 60, () -> {
             helper.assertTrue(countOf(chest, Items.STONE_BRICKS) == 0,
                 "an empty chest must produce no bricks at all");
             helper.assertTrue(steinar.getActivity() != SettlerActivity.WORK_CHISEL,

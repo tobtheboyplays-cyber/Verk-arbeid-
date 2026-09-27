@@ -1,0 +1,137 @@
+diff --git a/src/main/java/com/hearthstead/client/screen/SettlerScreen.java b/src/main/java/com/hearthstead/client/screen/SettlerScreen.java
+index 9a47ce8..7be921f 100644
+--- a/src/main/java/com/hearthstead/client/screen/SettlerScreen.java
++++ b/src/main/java/com/hearthstead/client/screen/SettlerScreen.java
+@@ -2058,7 +2058,8 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
+                 "hearthstead.settler.compact.job.value",
+                 slot.attribute().displayName(), value);
+             Component bandName = slot.attribute().displayName();
+-            Component bandLabel = Component.literal("PRIMARY · ")
++            boolean primary = impacts.isEmpty();
++            Component bandLabel = Component.literal(primary ? "PRIMARY · " : "SECONDARY · ")
+                 .append(bandName)
+                 .append(Component.literal(" " + value));
+             JobImpactEvidence evidence = jobImpactEvidence(
+@@ -2082,17 +2083,19 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
+                     contacts, capacity);
+             } else if (evidence == JobImpactEvidence.LIVE
+                 && slot.attribute() == Attribute.STAMINA) {
++                int currentPace = (int) Math.round(JobEffects.workPace(
++                    settler.getEnergy(), value) * 100.0D);
+                 int minimumPace = (int) Math.round(
+                     JobEffects.minimumPace(value) * 100.0D);
+                 effect = Component.translatable(
+                     "hearthstead.settler.compact.job.stamina.live",
+-                    minimumPace);
++                    currentPace, minimumPace);
+                 bandEffect = Component.translatable(
+                     "hearthstead.settler.compact.job.stamina.band",
+-                    minimumPace);
++                    currentPace);
+                 detail = Component.translatable(
+                     "hearthstead.settler.compact.job.stamina.live.detail",
+-                    minimumPace);
++                    currentPace, minimumPace);
+             } else if (evidence == JobImpactEvidence.LIVE
+                 && profile.profession() == Profession.GUARD
+                 && slot.attribute() == Attribute.STRENGTH) {
+@@ -2116,20 +2119,15 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
+                 bandEffect = Component.literal("+" + damage + "% · spread " + spread);
+                 detail = Component.literal("At Sharpshooter, every 4th volley becomes a Power Shot.");
+             } else {
+-                effect = Component.translatable(
+-                    "hearthstead.settler.compact.job.values",
+-                    Component.translatable(
+-                        "hearthstead.settler.compact.job.effect."
+-                            + jobEffectKey(slot.effect())));
+-                bandEffect = Component.translatable(
+-                    "hearthstead.settler.compact.job.effect."
+-                        + jobEffectKey(slot.effect()) + ".band");
+-                detail = Component.translatable(
+-                    "hearthstead.settler.compact.job.priority_only");
++                effect = Component.literal("No live bonus");
++                bandEffect = Component.literal("No live bonus");
++                detail = Component.literal("This is a job priority only; no real modifier is wired.");
+             }
+             List<Component> tooltip = List.of(
+                 fullLabel.copy().withStyle(ChatFormatting.WHITE),
+-                Component.translatable("hearthstead.settler.compact.job.core", job)
++                Component.translatable(primary
++                    ? "hearthstead.settler.compact.job.core"
++                    : "hearthstead.settler.compact.job.secondary", job)
+                     .withStyle(ChatFormatting.GOLD),
+                 effect,
+                 detail.copy().withStyle(evidence == JobImpactEvidence.LIVE
+diff --git a/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java b/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java
+index f21c93c..071e78e 100644
+--- a/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java
+@@ -1371,6 +1371,9 @@ public class LumbererWorkGoal extends Goal {
+                     // near a tree. Learning by doing is only true if doing is
+                     // what gets counted.
+                     settler.train(com.hearthstead.entity.Attribute.STRENGTH, 1.0F);
++                    // A felled log is also real sustained labor: the second core
++                    // stat advances only at this committed physical endpoint.
++                    settler.train(com.hearthstead.entity.Attribute.STAMINA, 0.5F);
+                     // Immediate insertion is best-effort. A false result means
+                     // the SavedData row still owns the only copy and will retry
+                     // with this stable UUID; it is not permission to restore,
+diff --git a/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java b/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java
+index 5f08db5..886a1a4 100644
+--- a/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java
+@@ -1833,6 +1833,9 @@ public class FarmerWorkGoal extends Goal {
+         // whether or not there is a seed to replant, since the labor is the
+         // same either way (PLAN_EFFORT.md §2).
+         settler.spendEffort(1);
++        // Stamina is a Farmer core stat, credited only after the crop,
++        // provenance receipt and physical output have all committed.
++        settler.train(com.hearthstead.entity.Attribute.STAMINA, 0.5F);
+         return true;
+     }
+ 
+diff --git a/src/main/resources/assets/hearthstead/lang/en_us.json b/src/main/resources/assets/hearthstead/lang/en_us.json
+index e097b90..3fad14e 100644
+--- a/src/main/resources/assets/hearthstead/lang/en_us.json
++++ b/src/main/resources/assets/hearthstead/lang/en_us.json
+@@ -726,13 +726,14 @@
+   "hearthstead.settler.compact.job.none": "No job • assign Emblem",
+   "hearthstead.settler.compact.job.value": "%1$s %2$s",
+   "hearthstead.settler.compact.job.core": "Primary stat for %s",
++  "hearthstead.settler.compact.job.secondary": "Secondary stat for %s",
+   "hearthstead.settler.compact.job.support": "Support stat for %s",
+   "hearthstead.settler.compact.job.lumber.live": "%1$s hits • carry %2$s",
+   "hearthstead.settler.compact.job.lumber.band": "%1$s hits • %2$s",
+   "hearthstead.settler.compact.job.lumber.live.detail": "Current Strength: %1$s axe contacts; carrying capacity is %2$s items.",
+-  "hearthstead.settler.compact.job.stamina.live": "Tired floor %s%%",
+-  "hearthstead.settler.compact.job.stamina.band": "Floor %s%%",
+-  "hearthstead.settler.compact.job.stamina.live.detail": "At zero Energy, fatigue cannot lower work pace below %s%%.",
++  "hearthstead.settler.compact.job.stamina.live": "Movement now %1$s%% · floor %2$s%%",
++  "hearthstead.settler.compact.job.stamina.band": "Move %s%%",
++  "hearthstead.settler.compact.job.stamina.live.detail": "At current Energy, movement is %1$s%%; at zero Energy it stays at least %2$s%%.",
+   "hearthstead.settler.compact.job.values": "Values %s",
+   "hearthstead.settler.compact.job.priority_only": "Primary role focus.",
+   "hearthstead.settler.compact.job.effect.physical_output": "force",
+diff --git a/src/test/java/com/hearthstead/entity/SettlerAttributesTest.java b/src/test/java/com/hearthstead/entity/SettlerAttributesTest.java
+index 53691db..7c9407c 100644
+--- a/src/test/java/com/hearthstead/entity/SettlerAttributesTest.java
++++ b/src/test/java/com/hearthstead/entity/SettlerAttributesTest.java
+@@ -87,6 +87,18 @@ class SettlerAttributesTest {
+         assertTrue(Attribute.byOrdinal(repaired.knack().ordinal()).isPresent());
+     }
+ 
++    @Test
++    void partialCommittedWorkPersistsExactlyAcrossSaveLoad() {
++        SettlerAttributes attributes = SettlerAttributes.blank();
++        attributes.train(Attribute.STAMINA, 0.5F, 1.0F);
++        assertEquals(0, attributes.get(Attribute.STAMINA));
++        assertEquals(0.025F, attributes.trainingProgress(Attribute.STAMINA), 0.000001F);
++
++        SettlerAttributes restored = SettlerAttributes.load(attributes.save(),
++            RandomSource.create(7L), 7L);
++        assertEquals(0.025F, restored.trainingProgress(Attribute.STAMINA), 0.000001F);
++    }
++
+     private static CompoundTag legacyTag() {
+         CompoundTag legacy = new CompoundTag();
+         legacy.putIntArray("Values", new int[] {3, 15, 9, 6, 12});

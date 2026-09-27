@@ -356,6 +356,15 @@ public final class JourneyState {
     }
 
     private boolean hasSatisfiedEvidence(JourneyStep step) {
+        // Only these two food milestones have an explicit Farmer/Fisher OR.
+        // Staffing still requires its correlated purchase AND bound-emblem events.
+        if ((step.id().equals(JourneyIds.FJ_330_SET_FARM_ZONE)
+                || step.id().equals(JourneyIds.FJ_360_SUPPLY_FIRST_SEED))
+            && step.requiredEvents().size() == 2) {
+            return evidence.stream().anyMatch(item -> item.stepId().equals(step.id())
+                && step.accepts(item.event())
+                && item.progressEligible(step.migrationAllowed()));
+        }
         if (!step.sameTransactionRequired()) {
             return step.requiredEvents().stream().allMatch(required -> evidence.stream()
                 .anyMatch(item -> item.stepId().equals(step.id())

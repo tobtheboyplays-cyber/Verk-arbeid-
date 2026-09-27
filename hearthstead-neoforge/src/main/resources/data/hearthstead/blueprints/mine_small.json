@@ -1,0 +1,123 @@
+{
+  "id": "mine_small",
+  "name": "Mine Headframe",
+  "category": "work",
+  "kind": "building",
+  "building_type": "mine",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "mine",
+  "size": [
+    13,
+    11,
+    13
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      10,
+      2,
+      1
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      5,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 149
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 72
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 45
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 42
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 27
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 18
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 14
+    },
+    {
+      "item": "minecraft:rail",
+      "count": 6
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 6
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 6
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 5
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 5
+    },
+    {
+      "item": "minecraft:stripped_oak_log",
+      "count": 4
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 3
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:hopper",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 409,
+  "cells": 420,
+  "notes": [
+    "No pre-dug shaft: the ladder at the shaft mouth marks where the Miner digs his own ladder shaft (MINE V2), so the Builder never stands in a hole."
+  ]
+}

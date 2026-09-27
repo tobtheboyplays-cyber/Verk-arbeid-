@@ -1,0 +1,15 @@
+diff --git a/src/main/java/com/hearthstead/client/model/SettlerModel.java b/src/main/java/com/hearthstead/client/model/SettlerModel.java
+--- a/src/main/java/com/hearthstead/client/model/SettlerModel.java
++++ b/src/main/java/com/hearthstead/client/model/SettlerModel.java
+@@ -149,8 +149,10 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements A
+            PartPose.offset(0.0F, -12.0F, 0.0F));
+        // Shared villager silhouette; the dedicated skin island cannot pick up
+        // eyes, hair or headgear from the composited appearance layers.
++        // Retain the recognisable block nose, but temper its villager-like
++        // projection: 1.5 x 3 x 1.5 instead of the former 2 x 4 x 2.
+        head.addOrReplaceChild("nose", CubeListBuilder.create()
+-                .texOffs(120, 32).addBox(-1.0F, -3.0F, -6.0F, 2.0F, 4.0F, 2.0F),
++                .texOffs(120, 32).addBox(-0.75F, -2.5F, -5.5F, 1.5F, 3.0F, 1.5F),
+            PartPose.ZERO);
+        head.addOrReplaceChild("hood", CubeListBuilder.create()
+            .texOffs(32, 0).addBox(-4.0F, -8.0F, -4.0F, 8.0F, 8.0F, 8.0F,

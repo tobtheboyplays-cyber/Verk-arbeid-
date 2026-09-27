@@ -1,0 +1,824 @@
+{
+  "branch": "logistics",
+  "nodes": [
+    {
+      "id": "stores_and_roads",
+      "tier": 1,
+      "type": "unlock",
+      "x": 170,
+      "y": 0,
+      "size": "S",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "timber_rights"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "lumber_logs_stored",
+          "target": 1
+        }
+      ],
+      "gate_text": "1 log stored by a Lumberer",
+      "legacy": "node:stores_and_roads",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Warehouse & Courier",
+      "offers": "Build a Warehouse and hire Couriers who carry goods to one shared store.",
+      "details": [
+        "Warehouse plan + Courier emblem (2 Coins, 1 chest, 2 leather)",
+        "Warehouse levels come from the plaque checklist, never a blueprint. L1 Storeroom manages 16 containers (4 storage, 1 door, 2 lights, 25 floor); L2 Stockroom manages 32 (16 storage, a ledger desk, 4 lights, solid floor). Higher levels need Storehouse, Great Storehouse and Royal Storehouse",
+        "Containers beyond the cap show as 'not managed (warehouse full)'; nothing breaks",
+        "Base Courier load: 8 items per trip",
+        "Warehouse staff: 2 Couriers at level 1, 4 from level 2. With no delivery waiting, Couriers tidy it: misplaced stock to its group chest, half stacks merged; renamed or locked chests are left alone"
+      ],
+      "flavor": "A place for everything, and a boy to carry it there.",
+      "depends_on": []
+    },
+    {
+      "id": "trading_post",
+      "tier": 1,
+      "type": "unlock",
+      "x": 120,
+      "y": -40,
+      "size": "-",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "founding": true,
+      "legacy": "node:trading_post",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Trading Post",
+      "offers": "Build a Trading Post; a Trader sells your surplus for Coins.",
+      "details": [
+        "Trading Post plan + Trader emblem (2 Coins, 1 chest, 4 sticks)",
+        "Surplus fish, meat, hides and goods become Coins for the next node",
+        "The trade line grows into Caravan Routes (Castle ring)"
+      ],
+      "flavor": "Coin follows the road, and the road follows the fair.",
+      "depends_on": []
+    },
+    {
+      "id": "stout_straps",
+      "tier": 1,
+      "type": "bonus",
+      "x": 242,
+      "y": -108,
+      "size": "M",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:leather"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:string"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 6
+        }
+      ],
+      "gate_text": "6 Courier deliveries",
+      "legacy": "upgrade:stout_straps",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Stout Straps",
+      "offers": "Couriers carry 2 more items on every trip, and a Courier with room left takes one more nearby pickup on the same trip.",
+      "details": [
+        "A flat +2 carry that stacks with every sack and cart tier",
+        "Pickup batching: after lifting one load, a Courier with room left takes one more waiting pickup whose chest is within 16 blocks (a different item), delivers it first, then the first load",
+        "Both loads must fit one trip's carry and weight budget; a Courier never holds more than two requests",
+        "The settler sheet shows the waiting load as 'stowed'; it is carried, and dropped like the bag if the Courier dies",
+        "Server switch [logistics] courierBatching (on by default) turns batching off; a trip already under way still finishes"
+      ],
+      "flavor": "Double-stitched, and it will outlive the courier.",
+      "depends_on": [
+        "Pickup batching: CourierBatching + RequestLedgerService.reserveBatchPartner"
+      ]
+    },
+    {
+      "id": "paved_roads",
+      "tier": 1,
+      "type": "bonus",
+      "x": 242,
+      "y": 108,
+      "size": "S",
+      "coins": 4,
+      "goods": [
+        {
+          "count": 32,
+          "item": "minecraft:gravel"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "stores_and_roads"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 8
+        }
+      ],
+      "gate_text": "8 Courier deliveries",
+      "legacy": "upgrade:paved_roads",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Paved Roads",
+      "offers": "Every settler walks 15% faster on roads: dirt path, gravel, cobble, stone and bricks.",
+      "details": [
+        "+15% walking speed (server config logistics.pavedRoadsPercent) on blocks in the hearthstead:roads tag (dirt path, gravel, cobble, stone bricks, bricks)",
+        "Hand carts roll 10% faster on roads",
+        "Raiders get no bonus"
+      ],
+      "flavor": "Lay a road and the village grows along it.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 14)"
+      ]
+    },
+    {
+      "id": "courier_satchel",
+      "tier": 2,
+      "type": "bonus",
+      "x": 340,
+      "y": -229,
+      "size": "S",
+      "coins": 4,
+      "goods": [],
+      "study_days": 0,
+      "requires": [
+        "stout_straps",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:courier_satchel",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Courier Satchel",
+      "offers": "Sack tier 1: Couriers carry 50% more (8 -> 12 per trip), and you can see the bigger sack on their back.",
+      "details": [
+        "Carry = 8 x (100 + sack% + cart%) / 100, + 2 Stout Straps, + Trade skill (0-3)",
+        "The weight budget scales with capacity (16 x capacity / 8), so bigger sacks and carts move stone and logs too",
+        "Visible: the sack on the Courier's back grows with each tier",
+        "Price unchanged (4 Coins); the logistics agent keeps it as is"
+      ],
+      "flavor": "Oiled canvas and a good buckle.",
+      "depends_on": [
+        "Sack model layer on the Courier (not in the logistics agent's current scope)"
+      ]
+    },
+    {
+      "id": "leather_pack",
+      "tier": 2,
+      "type": "bonus",
+      "x": 390,
+      "y": -127,
+      "size": "S",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:leather"
+        },
+        {
+          "count": 4,
+          "tag": "minecraft:wool"
+        },
+        {
+          "count": 6,
+          "item": "minecraft:string"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "courier_satchel"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:leather_pack",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Leather Pack",
+      "offers": "Sack tier 2: Couriers carry double (8 -> 16 per trip).",
+      "details": [
+        "Sack +100% (replaces the Satchel's +50%)",
+        "Worker Packs follow the sack tier, so Lumberers and Farmers carry more too"
+      ],
+      "flavor": "Cow-hide on the back, wool on the shoulders.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 12)"
+      ]
+    },
+    {
+      "id": "frame_pack",
+      "tier": 2,
+      "type": "bonus",
+      "x": 454,
+      "y": -221,
+      "size": "S",
+      "coins": 10,
+      "goods": [
+        {
+          "count": 12,
+          "item": "minecraft:leather"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:string"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:stick"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "leather_pack"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:frame_pack",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Frame Pack",
+      "offers": "Sack tier 3: Couriers carry 2.5x (8 -> 20 per trip).",
+      "details": [
+        "Sack +150%",
+        "With a Hand Cart: 8 x (100 + 150 + 200) / 100 = 36 items per trip (38 with Straps)",
+        "Lumberers and Farmers carry at the same tier (Worker Packs)"
+      ],
+      "flavor": "A frame of ash, and a man can carry a calf.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 13)"
+      ]
+    },
+    {
+      "id": "hand_cart",
+      "tier": 2,
+      "type": "bonus",
+      "x": 505,
+      "y": 0,
+      "size": "M",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 12,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 4,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "courier_satchel",
+        "paved_roads"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:hand_cart",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Hand Cart",
+      "offers": "Couriers push a real, visible hand cart: +200% carry.",
+      "details": [
+        "Cart +200% of base: with the Satchel, 8 x 3.5 = 28 items per trip",
+        "+10% speed on roads, -15% off-road (server config: logistics.handCartPercent / handCartRoughPercent)",
+        "A visible cart model rolls behind the Courier"
+      ],
+      "flavor": "Two wheels, two handles, and no more sore backs.",
+      "depends_on": [
+        "Built by the logistics agent now (visible cart)"
+      ]
+    },
+    {
+      "id": "worker_packs",
+      "tier": 2,
+      "type": "bonus",
+      "x": 390,
+      "y": 127,
+      "size": "S",
+      "coins": 6,
+      "goods": [],
+      "study_days": 0,
+      "requires": [
+        "courier_satchel"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:worker_packs",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Worker Packs",
+      "offers": "Lumberers and Farmers carry at the settlement's sack tier (at least +50%).",
+      "details": [
+        "Minimum tier 1 = the old 3/2 behaviour (8 -> 12)",
+        "Leather Pack -> 16, Frame Pack -> 20 per trip",
+        "Visible: Lumberers and Farmers wear the same sack model as the Couriers"
+      ],
+      "flavor": "Fewer walks to the store, more trees down.",
+      "depends_on": []
+    },
+    {
+      "id": "swift_couriers",
+      "tier": 2,
+      "type": "bonus",
+      "x": 340,
+      "y": 229,
+      "size": "S",
+      "coins": 4,
+      "goods": [
+        {
+          "count": 6,
+          "item": "minecraft:leather"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:string"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "stout_straps",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 12
+        }
+      ],
+      "gate_text": "12 Courier deliveries",
+      "legacy": "upgrade:swift_couriers",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Swift Couriers",
+      "offers": "Couriers walk 10% faster everywhere.",
+      "details": [
+        "+10% Courier walking speed; stacks with Paved Roads",
+        "Visible: Couriers jog (run animation) on Urgent requests and when restocking arrows during a raid"
+      ],
+      "flavor": "Light boots, and no dawdling at the well.",
+      "depends_on": [
+        "Built by the logistics agent now (PostRaidUpgrade wire 15)",
+        "Jog animation (extra)"
+      ]
+    },
+    {
+      "id": "warehouse_racks",
+      "tier": 2,
+      "type": "unlock",
+      "x": 492,
+      "y": 114,
+      "size": "S",
+      "coins": 5,
+      "goods": [
+        {
+          "count": 24,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "stores_and_roads",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:warehouse_racks",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Storehouse (Warehouse L3)",
+      "offers": "The plaque now recognises Warehouse level 3, the Storehouse: 64 managed containers.",
+      "details": [
+        "L3 Storehouse checklist (plaque scan): 32 storage, a ledger desk (lectern or cartography table), 4 labels (signs or item frames), 6 lights, 100 floor, solid floor",
+        "Managed containers 32 -> 64 once the room meets the checklist; the plaque shows 'next level: add X' until then",
+        "You or a Builder Upgrade Order add the missing pieces",
+        "A level built above what you have unlocked counts as your highest unlocked level, and the UI names the missing node",
+        "Old saves keep at least the level that covers their containers (up to L3)"
+      ],
+      "flavor": "Shelves to the rafters, and a label on every one.",
+      "depends_on": [
+        "Warehouse checklist levels (being built now: PostRaidUpgrade wire 16, WarehouseLevels)"
+      ]
+    },
+    {
+      "id": "courier_ledger",
+      "tier": 2,
+      "type": "unlock",
+      "x": 437,
+      "y": 252,
+      "size": "M",
+      "coins": 5,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:paper"
+        },
+        {
+          "count": 1,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "stores_and_roads",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Courier's Ledger",
+      "offers": "Couriers serve Urgent, then High, then Normal requests, whatever the kind: Banner food goes before workshop inputs.",
+      "details": [
+        "Without the Ledger, Couriers work a fixed ladder: tools, workshop inputs, Hearth food, Tavern, collecting output",
+        "With it, the ladder is re-sorted every time a Courier picks a job: rungs holding an Urgent request first, then High, then Normal",
+        "Hearth food deliveries are always High; a worker's missing tool is Urgent, a worn one High",
+        "Priorities are the colours in the Banner's request list"
+      ],
+      "flavor": "Arrows first. The baker can wait.",
+      "depends_on": [
+        "Request priority + minimum-stock rules (roadmap phase 4)"
+      ]
+    },
+    {
+      "id": "costers_cart",
+      "tier": 3,
+      "type": "bonus",
+      "x": 611,
+      "y": -222,
+      "size": "M",
+      "coins": 14,
+      "goods": [
+        {
+          "count": 16,
+          "item": "hearthstead:timber_beam"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "hand_cart",
+        "town_charter"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Coster's Cart",
+      "offers": "Cart tier 2: the Courier's cart carries +300% of the base load instead of +200%, and looks it.",
+      "details": [
+        "Cart +300% (replaces the Hand Cart's +200%): Frame Pack + cart 36 -> 44 items per trip",
+        "Visible: a dark-timber cart with higher sides and a second layer of crates",
+        "Needs roads: off-road it is as slow as a hand cart",
+        "Timber Beams come from the Sawmill"
+      ],
+      "flavor": "Iron-shod wheels, and a coster who knows every rut.",
+      "depends_on": [
+        "Cart entity (shared with the Hand Cart)"
+      ]
+    },
+    {
+      "id": "porters_guild",
+      "tier": 3,
+      "type": "choice",
+      "x": 644,
+      "y": 90,
+      "size": "S",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 8,
+          "item": "hearthstead:cured_hide"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:bread"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "courier_ledger"
+      ],
+      "excludes": [
+        "runners_guild"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Porters' Guild",
+      "offers": "Heavy loads: Couriers carry 50% more on every trip, but walk 10% slower.",
+      "details": [
+        "The whole trip budget (sack + cart) x1.5: Frame Pack + Hand Cart 36 -> 54 per trip; with the Coster's Cart 44 -> 66",
+        "Courier walking speed -10% (stacks with roads and carts)",
+        "Pick one: Porters or Runners"
+      ],
+      "flavor": "Bent backs, full stores.",
+      "depends_on": []
+    },
+    {
+      "id": "runners_guild",
+      "tier": 3,
+      "type": "choice",
+      "x": 681,
+      "y": 303,
+      "size": "S",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:leather"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:sugar"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "courier_ledger"
+      ],
+      "excludes": [
+        "porters_guild"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Runners' Guild",
+      "offers": "Swift feet: Couriers walk 15% faster and try a blocked route again twice as soon.",
+      "details": [
+        "+15% Courier walking speed (stacks with Swift Couriers and Paved Roads)",
+        "After a blocked route the rest is halved: 5 s -> 2.5 s, at most 10 s instead of 20 s",
+        "Pick one: Porters or Runners"
+      ],
+      "flavor": "There and back before the bread cools.",
+      "depends_on": []
+    },
+    {
+      "id": "great_storehouse",
+      "tier": 3,
+      "type": "unlock",
+      "x": 743,
+      "y": -52,
+      "size": "S",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 32,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "warehouse_racks",
+        "town_charter"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 24
+        }
+      ],
+      "gate_text": "24 Courier deliveries",
+      "legacy": "upgrade:great_storehouse",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Great Storehouse (Warehouse L4)",
+      "offers": "The plaque now recognises the Great Storehouse: 128 managed containers for a town's worth of goods.",
+      "details": [
+        "L4 checklist (plaque scan): 64 storage, a ledger desk, 8 labels, 10 lights, 2 doors, 200 floor, solid floor",
+        "Managed containers 64 -> 128",
+        "You or a Builder Upgrade Order add the missing pieces"
+      ],
+      "flavor": "Two doors: one for what comes in, one for what goes out.",
+      "depends_on": [
+        "Warehouse checklist levels (being built now: PostRaidUpgrade wire 17; in code it hangs off the Village Charter until town_charter exists)"
+      ]
+    },
+    {
+      "id": "mule_cart",
+      "tier": 4,
+      "type": "bonus",
+      "x": 856,
+      "y": -245,
+      "size": "L",
+      "coins": 24,
+      "goods": [
+        {
+          "count": 16,
+          "item": "minecraft:hay_block"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:lead"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "costers_cart",
+        "castle_charter"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Heavy Carts",
+      "offers": "Cart tier 3: the Courier's cart carries +400% of the base load and rolls 20% faster on roads.",
+      "details": [
+        "Cart +400% (replaces the Coster's +300%): Frame Pack + cart 44 -> 52 items per trip",
+        "A hitched cart rolls +20% faster on road blocks (on top of the cart's own +10%)",
+        "Visible: the cart is piled three layers high when full"
+      ],
+      "flavor": "Iron axles, oak beds, and a load worth ten men.",
+      "depends_on": [
+        "Mules/horses + Stable (owner: horses later)",
+        "Cart entity"
+      ]
+    },
+    {
+      "id": "royal_storehouse",
+      "tier": 4,
+      "type": "unlock",
+      "x": 985,
+      "y": 0,
+      "size": "S",
+      "coins": 24,
+      "goods": [
+        {
+          "count": 64,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:gold_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "great_storehouse",
+        "castle_charter"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 64
+        }
+      ],
+      "gate_text": "64 Courier deliveries",
+      "legacy": "upgrade:royal_storehouse",
+      "design_status": "new",
+      "impl": "A",
+      "name": "Royal Storehouse (Warehouse L5)",
+      "offers": "The plaque now recognises the Royal Storehouse: 256 managed containers, the granary of a castle.",
+      "details": [
+        "L5 checklist (plaque scan): 128 storage, 2 ledger desks, 16 labels, 16 lights, 2 doors, 320 floor, solid floor",
+        "Managed containers 128 -> 256",
+        "You or a Builder Upgrade Order add the missing pieces"
+      ],
+      "flavor": "The king's tithe-barn has nothing on ours.",
+      "depends_on": [
+        "Warehouse checklist levels (being built now: PostRaidUpgrade wire 18)"
+      ]
+    },
+    {
+      "id": "caravan_routes",
+      "tier": 4,
+      "type": "capstone",
+      "x": 856,
+      "y": 245,
+      "size": "L",
+      "coins": 30,
+      "goods": [
+        {
+          "count": 64,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:gold_ingot"
+        },
+        {
+          "count": 1,
+          "item": "minecraft:white_banner"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "costers_cart",
+        "trading_post"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Caravan Routes",
+      "offers": "Trade caravans come to your Banner far more often: at least every 3 days, and 3x as likely on other event days.",
+      "details": [
+        "A caravan is due once 3 days have passed without one; it comes that day unless a raid is due (one event a day, days nobody is home are skipped)",
+        "On other event days the caravan's chance is tripled",
+        "Barter in bulk with the caravan master, or escort the caravan for Coins",
+        "Needs 3 settlers, like every caravan; the world events switch still applies"
+      ],
+      "flavor": "The realm is only as wide as its roads.",
+      "depends_on": [
+        "Outposts + Carter (roadmap phase 5)",
+        "Event engine"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "id": "smelter_rustic",
+  "name": "Bloomery (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "smelter",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "smelter",
+  "size": [
+    13,
+    10,
+    12
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      10,
+      2,
+      2
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      5,
+      1,
+      5
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 143
+    },
+    {
+      "item": "minecraft:bricks",
+      "count": 46
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 39
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 31
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 17
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 12
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 6
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 6
+    },
+    {
+      "item": "minecraft:coal_block",
+      "count": 4
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:blast_furnace",
+      "count": 2
+    },
+    {
+      "item": "minecraft:raw_iron_block",
+      "count": 2
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2
+    },
+    {
+      "item": "minecraft:furnace",
+      "count": 1
+    },
+    {
+      "item": "minecraft:raw_copper_block",
+      "count": 1
+    },
+    {
+      "item": "minecraft:andesite",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 323,
+  "cells": 335
+}

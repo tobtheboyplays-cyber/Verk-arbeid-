@@ -155,6 +155,53 @@ public class BuildPlanRecipeGameTests {
     }
 
     /**
+     * Survival audit 2026-09-25: scaffolding needs bamboo (jungle-only), so the
+     * Trading Post plan also accepts a cartography table -- the same
+     * alternative its room counter now accepts.
+     */
+    @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)
+    public void tradingPostPlanCraftsWithoutBamboo(GameTestHelper helper) {
+        assertCraftsInto(helper, "trading_post (cartography table)",
+            grid(new ItemStack(Items.PAPER), new ItemStack(Items.FEATHER),
+                new ItemStack(Items.BARREL), new ItemStack(Items.CARTOGRAPHY_TABLE)),
+            BuildingType.TRADING_POST);
+        assertCraftsInto(helper, "trading_post (scaffolding)",
+            grid(new ItemStack(Items.PAPER), new ItemStack(Items.FEATHER),
+                new ItemStack(Items.BARREL), new ItemStack(Items.SCAFFOLDING)),
+            BuildingType.TRADING_POST);
+        helper.succeed();
+    }
+
+    @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)
+    public void breadAndFlourBothReachTheTavernPlan(GameTestHelper helper) {
+        var manager = helper.getLevel().getRecipeManager();
+        var wheat = new ItemStack(Items.WHEAT);
+        CraftingInput row = grid(wheat.copy(), wheat.copy(), wheat.copy());
+        var breadRecipe = manager.getRecipeFor(RecipeType.CRAFTING, row, helper.getLevel());
+        helper.assertTrue(breadRecipe.isPresent(), "three horizontal wheat must still craft vanilla bread");
+        ItemStack bread = breadRecipe.orElseThrow().value().assemble(row, helper.getLevel().registryAccess());
+        helper.assertTrue(bread.is(Items.BREAD) && bread.getCount() == 1,
+            "Flour must never intercept the vanilla bread row");
+        CraftingInput column = grid(wheat.copy(), ItemStack.EMPTY, ItemStack.EMPTY,
+            wheat.copy(), ItemStack.EMPTY, ItemStack.EMPTY, wheat.copy());
+        var flourRecipe = manager.getRecipeFor(RecipeType.CRAFTING, column, helper.getLevel());
+        helper.assertTrue(flourRecipe.isPresent(), "vertical wheat must retain Flour production");
+        ItemStack flour = flourRecipe.orElseThrow().value().assemble(column, helper.getLevel().registryAccess());
+        helper.assertTrue(flour.is(ModItems.FLOUR.get()) && flour.getCount() == 2,
+            "three vertical wheat must yield exactly two Flour");
+        CraftingInput flourPair = grid(flour.copyWithCount(1), flour.copyWithCount(1));
+        var recovery = manager.getRecipeFor(RecipeType.CRAFTING, flourPair, helper.getLevel());
+        helper.assertTrue(recovery.isPresent(), "existing Flour needs a survival bread recipe");
+        ItemStack recoveredBread = recovery.orElseThrow().value().assemble(flourPair, helper.getLevel().registryAccess());
+        helper.assertTrue(recoveredBread.is(Items.BREAD) && recoveredBread.getCount() == 1,
+            "two Flour must recover one bread without increasing the wheat yield");
+        assertCraftsInto(helper, "Tavern from both real bread routes",
+            grid(new ItemStack(Items.PAPER), new ItemStack(Items.FEATHER), bread,
+                recoveredBread, new ItemStack(Items.BARREL)), BuildingType.TAVERN);
+        helper.succeed();
+    }
+
+    /**
      * WELL (hearthside, the cheapest tier): 1 paper, 1 feather, 1 stick.
      */
     @GameTest(batch = "build_plan_recipe", template = "empty5", timeoutTicks = 100)

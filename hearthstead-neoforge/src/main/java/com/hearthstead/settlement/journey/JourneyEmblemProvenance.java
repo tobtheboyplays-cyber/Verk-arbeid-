@@ -10,13 +10,13 @@ import net.minecraft.world.item.component.CustomData;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Bounded server-authored sale identity carried by one physical Job Emblem. */
+/** Bounded server-authored sale or Staff-return identity carried by one Job Emblem. */
 public final class JourneyEmblemProvenance {
     private static final String ROOT = "HearthsteadJourneyEmblemV1";
     private static final int DATA_VERSION = 1;
 
     public record Provenance(UUID settlementId, UUID transactionId,
-                             Profession profession) {
+                             Profession profession, boolean employmentReturn) {
     }
 
     public static boolean stamp(ItemStack stack, UUID settlementId,
@@ -34,6 +34,24 @@ public final class JourneyEmblemProvenance {
         authored.putString("Profession", profession.key());
         CustomData.update(DataComponents.CUSTOM_DATA, stack,
             root -> root.put(ROOT, authored));
+        return true;
+    }
+
+    /**
+     * Marks the one physical emblem returned by a committed Staff Fire. Its
+     * transaction is the Fire delivery identity, never a second Mayor sale.
+     */
+    public static boolean stampEmploymentReturn(ItemStack stack, UUID settlementId,
+                                                UUID deliveryId,
+                                                Profession profession) {
+        if (!stamp(stack, settlementId, deliveryId, profession)) {
+            return false;
+        }
+        CustomData.update(DataComponents.CUSTOM_DATA, stack, root -> {
+            CompoundTag authored = root.getCompound(ROOT);
+            authored.putBoolean("EmploymentReturn", true);
+            root.put(ROOT, authored);
+        });
         return true;
     }
 
@@ -68,7 +86,8 @@ public final class JourneyEmblemProvenance {
         if (isNil(settlementId) || isNil(transactionId)) {
             return Optional.empty();
         }
-        return Optional.of(new Provenance(settlementId, transactionId, profession));
+        return Optional.of(new Provenance(settlementId, transactionId, profession,
+            tag.getBoolean("EmploymentReturn")));
     }
 
     private static boolean isNil(UUID value) {

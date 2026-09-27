@@ -13,10 +13,155 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WorkerProvenanceSavedDataTest {
+    @Test
+    void unavailableFarmHarvestSurvivesReloadWithoutCreditingDelivery() {
+        var data = new WorkerProvenanceSavedData();
+        var farm = zone(WorkZone.Type.FARM);
+        UUID worker = UUID.randomUUID();
+        BlockPos crop = new BlockPos(4, 4, 4);
+        var action = new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.FARM_HARVEST,
+            WorkerProvenanceSavedData.Phase.WORK_COMMITTED, worker, farm, crop,
+            List.of(crop), 100);
+        action.resolved.add(crop);
+        action.appliedToolDamage = 1;
+        var wheat = ResourceLocation.withDefaultNamespace("wheat");
+        action.produced.put(wheat, 1);
+        assertTrue(data.add(action));
+        assertFalse(data.suspendUnavailableFarmOutput(action.id, worker, 699));
+        assertFalse(data.suspendUnavailableFarmOutput(action.id, UUID.randomUUID(), 700));
+        assertFalse(data.suspendUnavailableLumberOutput(action.id, worker, 700));
+        assertTrue(data.suspendUnavailableFarmOutput(action.id, worker, 700));
+        assertFalse(data.suspendUnavailableFarmOutput(action.id, worker, 1400));
+        var loaded = WorkerProvenanceSavedData.load(data.save(new CompoundTag(), null), null);
+        assertFalse(loaded.quarantined());
+        var retained = loaded.action(action.id);
+        assertEquals(WorkerProvenanceSavedData.Phase.OUTPUT_UNAVAILABLE, retained.phase());
+        assertEquals(1, retained.remaining(wheat));
+        assertTrue(retained.deposited().isEmpty());
+        assertTrue(loaded.receiptsFor(action.id).isEmpty());
+        assertTrue(retained.workTerminal());
+    }
+
     private static WorkZone zone(WorkZone.Type type) {
         return new WorkZone(UUID.randomUUID(), UUID.randomUUID(), type,
             ResourceLocation.withDefaultNamespace("overworld"),
             new BlockPos(0, 0, 0), new BlockPos(8, 12, 8), 3);
+    }
+
+    @Test
+    void unavailableLumberOutputRetainsEvidenceAcrossReloadWithoutInventingDeposit() {
+        var data = new WorkerProvenanceSavedData();
+        WorkZone zone = zone(WorkZone.Type.LUMBER);
+        UUID worker = UUID.randomUUID();
+        BlockPos root = new BlockPos(4, 4, 4);
+        var action = new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE,
+            WorkerProvenanceSavedData.Phase.WORK_COMMITTED, worker, zone, root,
+            List.of(root), 100);
+        action.resolved.add(root);
+        action.appliedToolDamage = 1;
+        var oak = ResourceLocation.withDefaultNamespace("oak_log");
+        action.produced.put(oak, 1);
+        assertTrue(data.add(action));
+        assertFalse(data.suspendUnavailableLumberOutput(action.id, worker, 699));
+        assertFalse(data.suspendUnavailableLumberOutput(action.id, UUID.randomUUID(), 700));
+        assertTrue(data.suspendUnavailableLumberOutput(action.id, worker, 700));
+        assertFalse(data.suspendUnavailableLumberOutput(action.id, worker, 1400));
+        var loaded = WorkerProvenanceSavedData.load(data.save(new CompoundTag(), null), null);
+        assertFalse(loaded.quarantined());
+        var retained = loaded.action(action.id);
+        assertEquals(WorkerProvenanceSavedData.Phase.OUTPUT_UNAVAILABLE, retained.phase());
+        assertEquals(1, retained.remaining(oak));
+        assertEquals(1, retained.produced().get(oak));
+        assertTrue(retained.deposited().isEmpty());
+        assertTrue(WorkerProvenanceService.hasPersistedRemainder(retained),
+            "unavailable goods remain accounted for rather than falsely deposited");
+        assertTrue(loaded.receiptsFor(action.id).isEmpty());
+        assertTrue(retained.workTerminal(), "real returned cargo retains terminal deposit authority");
+        assertTrue(loaded.add(new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE,
+            WorkerProvenanceSavedData.Phase.ACTIVE, worker, zone, root,
+            List.of(root), 701)));
+    }
+
+    @Test
+    void zoneReplacementRetiresUntouchedWorkAndAllowsFreshActionAfterReload() {
+        var data = new WorkerProvenanceSavedData();
+        WorkZone old = zone(WorkZone.Type.LUMBER);
+        WorkZone replacement = new WorkZone(old.settlementId(), old.buildingId(),
+            old.type(), old.dimension(), old.min(), old.max(), old.revision() + 1);
+        UUID worker = UUID.randomUUID();
+        BlockPos root = new BlockPos(4, 4, 4);
+        var action = new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE,
+            WorkerProvenanceSavedData.Phase.ACTIVE, worker, old, root,
+            List.of(root), 10);
+        assertTrue(data.add(action));
+        assertFalse(data.retireLumber(worker, old, 11));
+        assertTrue(data.retireLumber(worker, replacement, 12));
+        var loaded = WorkerProvenanceSavedData.load(data.save(new CompoundTag(), null), null);
+        assertFalse(loaded.quarantined());
+        assertEquals(WorkerProvenanceSavedData.Phase.RETIRED, loaded.action(action.id).phase());
+        assertFalse(loaded.action(action.id).workTerminal());
+        assertTrue(loaded.action(action.id).produced().isEmpty());
+        assertTrue(loaded.add(new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE,
+            WorkerProvenanceSavedData.Phase.ACTIVE, worker, replacement, root,
+            List.of(root), 13)));
+    }
+
+    @Test
+    void lostEmploymentRetainsPartialOutputAndDoesNotInventWholeTreeCompletion() {
+        var data = new WorkerProvenanceSavedData();
+        WorkZone old = zone(WorkZone.Type.LUMBER);
+        UUID worker = UUID.randomUUID();
+        BlockPos root = new BlockPos(4, 4, 4);
+        var action = new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE,
+            WorkerProvenanceSavedData.Phase.ACTIVE, worker, old, root,
+            List.of(root.above(), root), 10);
+        action.resolved.add(root.above());
+        action.appliedToolDamage = 1;
+        var oak = ResourceLocation.withDefaultNamespace("oak_log");
+        action.produced.put(oak, 1);
+        assertTrue(data.add(action));
+        assertTrue(data.retireLumber(worker, null, 12));
+        var loaded = WorkerProvenanceSavedData.load(data.save(new CompoundTag(), null), null);
+        var retained = loaded.action(action.id);
+        assertFalse(loaded.quarantined());
+        assertEquals(old, retained.zone());
+        assertEquals(List.of(root.above(), root), retained.planned());
+        assertEquals(java.util.Set.of(root.above()), retained.resolved());
+        assertEquals(1, retained.remaining(oak));
+        assertEquals(1, retained.appliedToolDamage());
+        assertFalse(retained.workTerminal());
+        assertNull(loaded.activeFor(worker, WorkerProvenanceSavedData.Kind.LUMBER_TREE));
+    }
+
+    @Test
+    void obsoletePendingToolReceiptCannotBeDiscardedByRetirement() {
+        var data = new WorkerProvenanceSavedData();
+        WorkZone old = zone(WorkZone.Type.LUMBER);
+        UUID worker = UUID.randomUUID();
+        BlockPos root = new BlockPos(4, 4, 4);
+        var action = new WorkerProvenanceSavedData.Action(UUID.randomUUID(),
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE,
+            WorkerProvenanceSavedData.Phase.ACTIVE, worker, old, root,
+            List.of(root), 10);
+        action.pendingOperation = root;
+        action.pendingToolItem = ResourceLocation.withDefaultNamespace("iron_axe");
+        action.pendingToolBefore = 4;
+        action.pendingToolAfter = 5;
+        action.pendingToolApplied = true;
+        action.appliedToolDamage = 1;
+        assertTrue(data.add(action));
+        assertFalse(data.retireLumber(worker, null, 12));
+        var loaded = WorkerProvenanceSavedData.load(data.save(new CompoundTag(), null), null);
+        assertFalse(loaded.quarantined());
+        assertEquals(root, loaded.activeFor(worker,
+            WorkerProvenanceSavedData.Kind.LUMBER_TREE).pendingOperation());
+        assertEquals(1, loaded.action(action.id).appliedToolDamage());
     }
 
     @Test

@@ -1,0 +1,112 @@
+{
+  "id": "tannery_rustic",
+  "name": "Tanner's Yard (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "tannery",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "tannery",
+  "size": [
+    13,
+    6,
+    12
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      4,
+      2,
+      2
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      9,
+      1,
+      5
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 129
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 49
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 35
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 18
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 16
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 16
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 11
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 10
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 8
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 6
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2
+    },
+    {
+      "item": "minecraft:composter",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 319,
+  "cells": 338
+}

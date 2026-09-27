@@ -1,0 +1,642 @@
+diff --git a/src/main/java/com/hearthstead/client/screen/HearthScreen.java b/src/main/java/com/hearthstead/client/screen/HearthScreen.java
+index 210f4f5..507e344 100644
+--- a/src/main/java/com/hearthstead/client/screen/HearthScreen.java
++++ b/src/main/java/com/hearthstead/client/screen/HearthScreen.java
+@@ -4049,7 +4049,7 @@ public class HearthScreen extends AbstractContainerScreen<HearthMenu>
+             return List.copyOf(wrapped);
+         }
+         String stageKey = switch (stage) {
+-            case ATTRACTION -> "hearthstead.gui.tooltip.recruit.stage.attraction";
++            case ATTRACTION, TAVERN_VISIT -> "hearthstead.gui.tooltip.recruit.stage.attraction";
+             case QUALIFYING -> "hearthstead.gui.tooltip.recruit.stage.qualifying";
+             case TRAVELING -> "hearthstead.gui.tooltip.recruit.stage.traveling";
+             case WAITING_ADMISSION -> "hearthstead.gui.tooltip.recruit.stage.waiting";
+diff --git a/src/main/java/com/hearthstead/entity/ai/TravelerJoinGoal.java b/src/main/java/com/hearthstead/entity/ai/TravelerJoinGoal.java
+index 751966c..45fa4bb 100644
+--- a/src/main/java/com/hearthstead/entity/ai/TravelerJoinGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/TravelerJoinGoal.java
+@@ -15,8 +15,8 @@ import java.util.EnumSet;
+ 
+ /**
+  * A traveler walks to the exact locked Tavern's physical doorstep, then waits
+- * as a guest. Recruitment owns arrival/admission and the immutable Tavern
+- * identity; this goal owns only ordinary Vanilla movement and presentation.
++ * as a guest and later retraces a saved outside origin. Recruitment owns both
++ * transitions and immutable identity; this goal owns ordinary Vanilla movement.
+  */
+ public class TravelerJoinGoal extends Goal {
+     private static final int REPATH_TICKS = 40;
+@@ -46,7 +46,7 @@ public class TravelerJoinGoal extends Goal {
+ 
+     private BlockPos waitingSpot() {
+         return settler.level() instanceof ServerLevel level
+-            ? SettlementManager.travelerTavernApproach(level, settler) : null;
++            ? SettlementManager.travelerRouteDestination(level, settler) : null;
+     }
+ 
+     private void schedulePath() {
+diff --git a/src/main/java/com/hearthstead/gametest/RecruitGameTests.java b/src/main/java/com/hearthstead/gametest/RecruitGameTests.java
+index 08d37c4..897cd34 100644
+--- a/src/main/java/com/hearthstead/gametest/RecruitGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/RecruitGameTests.java
+@@ -182,6 +182,22 @@ public class RecruitGameTests {
+         return traveler;
+     }
+ 
++    /** Builds one ordinary persisted candidate without using the admin prime path. */
++    private static void naturalReady(GameTestHelper helper, Settlement settlement,
++                                     Building tavern) {
++        RecruitmentTransaction next = settlement.recruitment.beginQualification(
++            UUID.randomUUID(), helper.getLevel().getGameTime(), tavern.id,
++            tavern.plaquePos, tavern.anchor, helper.getLevel().dimension().location());
++        for (int ticks = 0; next.status() != RecruitmentTransaction.Status.READY_TO_SPAWN
++                && ticks < 512; ticks++) {
++            next = next.advanceQualification();
++        }
++        helper.assertTrue(next.status() == RecruitmentTransaction.Status.READY_TO_SPAWN
++                && next.survivalAuthored(),
++            "fixture must create a natural, persisted READY_TO_SPAWN candidate");
++        settlement.applyRecruitment(next);
++    }
++
+     /** Controlled payment stock derived from the real already-frozen guest quote. */
+     private static void stockQuotedAdmission(GameTestHelper helper, Settlement settlement,
+                                                HearthBlockEntity hearth, Item planks) {
+@@ -444,9 +460,9 @@ public class RecruitGameTests {
+                     + "; navDone=" + traveler.getNavigation().isDone());
+             helper.assertTrue(s.recruitment.tavernAnchor().equals(immutableAnchor),
+                 "resolving a doorstep must never mutate the locked Tavern anchor");
+-            helper.assertTrue(!com.hearthstead.settlement.TavernSeating.mayVisit(traveler)
+-                    && new com.hearthstead.entity.ai.TravelerJoinGoal(traveler).canUse(),
+-                "an unstaffed Tavern must retain its physical doorstep waiting goal");
++            helper.assertTrue(com.hearthstead.settlement.TavernSeating.mayVisit(traveler),
++                "the exact waiting visitor may sit at its valid Tavern without an Innkeeper; "
++                    + "food and admission remain separately owned transactions");
+             helper.assertTrue(traveler.blockPosition().distSqr(resolvedDoorstep) <= 9,
+                 "the real traveler must arrive at the derived physical doorstep; pos="
+                     + traveler.position() + "; approach=" + resolvedDoorstep
+@@ -456,6 +472,48 @@ public class RecruitGameTests {
+         });
+     }
+ 
++    /** Natural visitors publish once at evening and retain the daily lock across a restart. */
++    @GameTest(batch = "recruit", template = "empty32", timeoutTicks = 120)
++    public void ordinaryTavernVisitorPublishesOncePerEveningAndPersistsTheDayLock(
++            GameTestHelper helper) {
++        floor(helper, 32);
++        ServerLevel level = helper.getLevel();
++        BlockPos hearthRel = new BlockPos(6, 1, 6);
++        Settlement settlement = settlement(helper, hearthRel);
++        Building tavern = building(helper, settlement, BuildingType.TAVERN, 10, 10);
++        HearthBlockEntity hearth = (HearthBlockEntity) level
++            .getBlockEntity(helper.absolutePos(hearthRel));
++        hearth.insertGoods(new ItemStack(Items.BREAD, 12));
++        naturalReady(helper, settlement, tavern);
++
++        long day = 7L;
++        level.setDayTime(day * 24_000L + SettlementManager.TAVERN_VISITOR_ARRIVAL_TIME - 1L);
++        SettlementManager.tickRecruitment(level, settlement);
++        helper.assertTrue(settlement.recruitment.status()
++                == RecruitmentTransaction.Status.READY_TO_SPAWN,
++            "a natural candidate must wait for the daily evening batch");
++
++        level.setDayTime(day * 24_000L + SettlementManager.TAVERN_VISITOR_ARRIVAL_TIME);
++        SettlementManager.tickRecruitment(level, settlement);
++        helper.assertTrue(settlement.recruitment.status()
++                == RecruitmentTransaction.Status.TRAVELING
++                && settlement.recruitment.travelerId() != null,
++            "the evening batch must publish one physically routed traveler");
++        helper.assertTrue(settlement.lastTavernVisitorDay == day,
++            "only a published visitor owns the daily lock");
++        BlockPos origin = settlement.tavernVisitorDepartureOrigin;
++        helper.assertTrue(origin != null && origin.distSqr(settlement.center)
++                > (double) settlement.radius * settlement.radius,
++            "the published visitor must retain the real exterior feet cell for its night return");
++
++        Settlement restarted = Settlement.readNbt(settlement.writeNbt());
++        helper.assertTrue(restarted.lastTavernVisitorDay == day
++                && origin.equals(restarted.tavernVisitorDepartureOrigin)
++                && !SettlementManager.tavernVisitorArrivalDue(level, restarted),
++            "the saved day lock and exterior route must prevent a duplicate batch after restart");
++        helper.succeed();
++    }
++
+     /**
+      * The settlement edge is wider than a settler's 32-block FOLLOW_RANGE.
+      * A legal distant guest therefore needs ordinary bounded navigation legs;
+diff --git a/src/main/java/com/hearthstead/settlement/RecruitmentPolicy.java b/src/main/java/com/hearthstead/settlement/RecruitmentPolicy.java
+index feee97a..764bb5d 100644
+--- a/src/main/java/com/hearthstead/settlement/RecruitmentPolicy.java
++++ b/src/main/java/com/hearthstead/settlement/RecruitmentPolicy.java
+@@ -41,7 +41,9 @@ public final class RecruitmentPolicy {
+         WAITING_ADMISSION(1),
+         INVALID(2),
+         QUALIFYING(3),
+-        TRAVELING(4);
++        TRAVELING(4),
++        /** A nightly Tavern visit needs a valid physical Tavern only; admission remains gated. */
++        TAVERN_VISIT(5);
+ 
+         private final int wireId;
+ 
+@@ -59,6 +61,7 @@ public final class RecruitmentPolicy {
+                 case 1 -> WAITING_ADMISSION;
+                 case 3 -> QUALIFYING;
+                 case 4 -> TRAVELING;
++                case 5 -> TAVERN_VISIT;
+                 default -> INVALID;
+             };
+         }
+@@ -187,9 +190,10 @@ public final class RecruitmentPolicy {
+         Costs.Price price = SettlementManager.recruitPrice(level, settlement);
+         int fullReserve = requiredReserve(settlement.population() + 1);
+         boolean admission = stage == Stage.WAITING_ADMISSION;
+-        // These fields feed the Hearth UI. Show the rule active for this stage,
+-        // while the Courier target continues to prepare the later admission reserve.
+-        int required = admission ? fullReserve : MIN_VISITOR_READY_MEALS;
++        boolean nightlyVisit = stage == Stage.TAVERN_VISIT;
++        // A nightly traveler may ask for food but is never blocked by it. The
++        // full reserve, bed, morale and paid Coin checks remain admission-only.
++        int required = admission ? fullReserve : nightlyVisit ? 0 : MIN_VISITOR_READY_MEALS;
+         HearthBlockEntity hearth = hearth(level, settlement);
+         if (hearth == null) {
+             int courierTarget = addSaturated(fullReserve,
+@@ -222,7 +226,7 @@ public final class RecruitmentPolicy {
+         } else if (admission && (settlement.population() >= settlement.capacity()
+                 || BuildingManager.findFreeBed(level, settlement) == null)) {
+             blocker = Blocker.NO_BED;
+-        } else if (settlement.moraleCache < 60) {
++        } else if (!nightlyVisit && settlement.moraleCache < 60) {
+             blocker = Blocker.LOW_MORALE;
+         } else if (admission && !canPay) {
+             blocker = Blocker.CANNOT_PAY;
+diff --git a/src/main/java/com/hearthstead/settlement/RecruitmentTransaction.java b/src/main/java/com/hearthstead/settlement/RecruitmentTransaction.java
+index 5689aba..a3e3bd1 100644
+--- a/src/main/java/com/hearthstead/settlement/RecruitmentTransaction.java
++++ b/src/main/java/com/hearthstead/settlement/RecruitmentTransaction.java
+@@ -62,6 +62,7 @@ public record RecruitmentTransaction(
+         ADMITTED(5),
+         LEFT(6),
+         QUARANTINED(7),
++        DEPARTING(8),
+         UNKNOWN(-1);
+ 
+         private final int wireId;
+@@ -84,6 +85,7 @@ public record RecruitmentTransaction(
+                 case 5 -> ADMITTED;
+                 case 6 -> LEFT;
+                 case 7 -> QUARANTINED;
++                case 8 -> DEPARTING;
+                 default -> UNKNOWN;
+             };
+         }
+@@ -100,6 +102,7 @@ public record RecruitmentTransaction(
+         DUPLICATE_TRAVELER(7),
+         CROSS_SETTLEMENT(8),
+         PLAYER_REJECTED(9),
++        VISIT_COMPLETE(10),
+         UNKNOWN(-1);
+ 
+         private final int wireId;
+@@ -124,6 +127,7 @@ public record RecruitmentTransaction(
+                 case 7 -> DUPLICATE_TRAVELER;
+                 case 8 -> CROSS_SETTLEMENT;
+                 case 9 -> PLAYER_REJECTED;
++                case 10 -> VISIT_COMPLETE;
+                 default -> UNKNOWN;
+             };
+         }
+@@ -221,7 +225,7 @@ public record RecruitmentTransaction(
+ 
+     public boolean hasCandidate() {
+         return travelerId != null && switch (status) {
+-            case TRAVELING, WAITING_ADMISSION, ADMITTED, LEFT, QUARANTINED -> true;
++            case TRAVELING, WAITING_ADMISSION, DEPARTING, ADMITTED, LEFT, QUARANTINED -> true;
+             default -> false;
+         };
+     }
+@@ -374,7 +378,8 @@ public record RecruitmentTransaction(
+     }
+ 
+     public RecruitmentTransaction left(TerminalReason reason) {
+-        if ((status != Status.WAITING_ADMISSION && status != Status.TRAVELING)
++        if ((status != Status.WAITING_ADMISSION && status != Status.TRAVELING
++                && status != Status.DEPARTING)
+             || revisionSaturated()) {
+             return this;
+         }
+@@ -382,6 +387,16 @@ public record RecruitmentTransaction(
+             spawnedTick, arrivedTick, null, reason);
+     }
+ 
++    /** Starts the physical return trip without altering the locked candidate or quote. */
++    public RecruitmentTransaction departing() {
++        if ((status != Status.WAITING_ADMISSION && status != Status.TRAVELING)
++            || revisionSaturated()) {
++            return this;
++        }
++        return copy(Status.DEPARTING, nextRevision(), 0, 0, travelerId,
++            spawnedTick, arrivedTick, null, TerminalReason.NONE);
++    }
++
+     public RecruitmentTransaction admitted(AdmissionReceipt receipt) {
+         if (status != Status.WAITING_ADMISSION || receipt == null
+             || !receipt.valid() || revisionSaturated()) {
+@@ -705,6 +720,13 @@ public record RecruitmentTransaction(
+                     throw new IllegalArgumentException("invalid waiting state");
+                 }
+             }
++            case DEPARTING -> {
++                boolean validArrival = arrivedTick == NO_TICK || arrivedTick >= spawnedTick;
++                if (!tavern || transactionId == null || travelerId == null || spawnedTick < 0L
++                    || !validArrival || terminalReason != TerminalReason.NONE) {
++                    throw new IllegalArgumentException("invalid departing state");
++                }
++            }
+             case ADMITTED -> {
+                 if (!tavern || transactionId == null || travelerId == null || arrivedTick < spawnedTick
+                     || terminalReason != TerminalReason.ADMITTED
+@@ -721,7 +743,8 @@ public record RecruitmentTransaction(
+                     || (terminalReason != TerminalReason.PATIENCE_EXPIRED
+                         && terminalReason != TerminalReason.ENTITY_GONE
+                         && terminalReason != TerminalReason.TAVERN_INVALIDATED
+-                        && terminalReason != TerminalReason.PLAYER_REJECTED)) {
++                        && terminalReason != TerminalReason.PLAYER_REJECTED
++                        && terminalReason != TerminalReason.VISIT_COMPLETE)) {
+                     throw new IllegalArgumentException("invalid left state");
+                 }
+             }
+diff --git a/src/main/java/com/hearthstead/settlement/Settlement.java b/src/main/java/com/hearthstead/settlement/Settlement.java
+index b52fe37..b5b9b6a 100644
+--- a/src/main/java/com/hearthstead/settlement/Settlement.java
++++ b/src/main/java/com/hearthstead/settlement/Settlement.java
+@@ -104,6 +104,10 @@ public class Settlement {
+      * runtime mutation must go through {@link #applyRecruitment}.
+      */
+     public RecruitmentTransaction recruitment;
++    /** Saved day that published the ordinary Tavern visitor batch, or -1 before any batch. */
++    public long lastTavernVisitorDay = -1L;
++    /** Exact outside feet cell selected for the published daily visitor's return journey. */
++    public BlockPos tavernVisitorDepartureOrigin;
+     public long alertUntilGameTime;
+     public BlockPos alertPos;
+     /** A traveler currently walking toward the hearth, if any. */
+@@ -459,6 +463,10 @@ public class Settlement {
+         tag.putInt("RecruitTarget", recruitTarget);
+         tag.putInt("RecruitCycle", recruitCycle);
+         tag.put("RecruitmentTransaction", recruitment.writeNbt());
++        tag.putLong("LastTavernVisitorDay", lastTavernVisitorDay);
++        if (tavernVisitorDepartureOrigin != null) {
++            tag.put("TavernVisitorDepartureOrigin", NbtUtils.writeBlockPos(tavernVisitorDepartureOrigin));
++        }
+         tag.putLong("AlertUntil", alertUntilGameTime);
+         if (alertPos != null) {
+             tag.put("AlertPos", NbtUtils.writeBlockPos(alertPos));
+@@ -569,6 +577,10 @@ public class Settlement {
+                     legacyTraveler,
+                     RecruitmentTransaction.TerminalReason.LEGACY_UNVERIFIABLE));
+         }
++        s.lastTavernVisitorDay = tag.contains("LastTavernVisitorDay", Tag.TAG_LONG)
++            ? tag.getLong("LastTavernVisitorDay") : -1L;
++        s.tavernVisitorDepartureOrigin = tag.contains("TavernVisitorDepartureOrigin", Tag.TAG_COMPOUND)
++            ? NbtUtils.readBlockPos(tag, "TavernVisitorDepartureOrigin").orElse(null) : null;
+         s.alertUntilGameTime = tag.getLong("AlertUntil");
+         if (tag.contains("AlertPos")) {
+             s.alertPos = NbtUtils.readBlockPos(tag, "AlertPos").orElse(null);
+diff --git a/src/main/java/com/hearthstead/settlement/SettlementManager.java b/src/main/java/com/hearthstead/settlement/SettlementManager.java
+index 8cbca1c..9c847d0 100644
+--- a/src/main/java/com/hearthstead/settlement/SettlementManager.java
++++ b/src/main/java/com/hearthstead/settlement/SettlementManager.java
+@@ -64,6 +64,10 @@ public final class SettlementManager {
+      * independently, and neither substitutes for the other.
+      */
+     private static final long GUEST_PATIENCE_TICKS = 60_000L;
++    /** The ordinary visitor batch is published during the same evening each game day. */
++    public static final long TAVERN_VISITOR_ARRIVAL_TIME = 11_000L;
++    /** A waiting visitor returns home during night, after a full physical visit window. */
++    public static final long TAVERN_VISITOR_DEPARTURE_TIME = 15_000L;
+ 
+     public static SettlementSavedData data(ServerLevel level) {
+         return SettlementSavedData.get(level);
+@@ -288,6 +292,12 @@ public final class SettlementManager {
+                 return null;
+             }
+             s.applyRecruitment(spawned);
++            // The same committed spawn owns the physical origin used to leave
++            // at night. Admin prime remains an explicit immediate-only tool.
++            if (beforeRecruitment.survivalAuthored()) {
++                s.lastTavernVisitorDay = currentTavernVisitorDay(level);
++                s.tavernVisitorDepartureOrigin = spawnPos.immutable();
++            }
+             TravelerArrivalRoutes.completeAttempt(s);
+         }
+         data(level).setDirty();
+@@ -330,6 +340,11 @@ public final class SettlementManager {
+             case ATTRACTING -> tickAttraction(level, s, transaction);
+             case QUALIFYING -> tickQualification(level, s, transaction);
+             case READY_TO_SPAWN -> {
++                // Admin fast-forward intentionally remains immediate. Natural,
++                // persisted recruitment is the one daily visitor batch.
++                if (transaction.survivalAuthored() && !tavernVisitorArrivalDue(level, s)) {
++                    return;
++                }
+                 SettlerEntity spawned = spawnSettler(level, s, true);
+                 if (spawned != null) {
+                     broadcast(level, s,
+@@ -338,6 +353,7 @@ public final class SettlementManager {
+             }
+             case TRAVELING -> tickTravelingTraveler(level, s, transaction);
+             case WAITING_ADMISSION -> tickWaitingTraveler(level, s, transaction);
++            case DEPARTING -> tickDepartingTraveler(level, s, transaction);
+             case ADMITTED -> {
+                 // Do not erase the persisted proof until FJ460 has observed it.
+                 if (s.recruitment.evidenceAcknowledged(
+@@ -348,6 +364,7 @@ public final class SettlementManager {
+             }
+             case LEFT -> {
+                 s.applyRecruitment(transaction.nextCycle(s.id));
++                s.tavernVisitorDepartureOrigin = null;
+                 data(level).setDirty();
+             }
+             case QUARANTINED, UNKNOWN -> {
+@@ -360,7 +377,8 @@ public final class SettlementManager {
+     private static void tickAttraction(ServerLevel level, Settlement s,
+                                        RecruitmentTransaction transaction) {
+         RecruitmentPolicy.Assessment assessment = RecruitmentPolicy.assess(level,
+-            s, RecruitmentPolicy.Stage.ATTRACTION);
++            s, transaction.survivalAuthored()
++                ? RecruitmentPolicy.Stage.TAVERN_VISIT : RecruitmentPolicy.Stage.ATTRACTION);
+         Building tavern = firstLiveTavern(level, s);
+         if (!assessment.eligible() || tavern == null) {
+             return;
+@@ -387,7 +405,8 @@ public final class SettlementManager {
+             return; // preserve the exact locked trip; invalid time never rerolls it
+         }
+         RecruitmentPolicy.Assessment assessment = RecruitmentPolicy.assess(level,
+-            s, RecruitmentPolicy.Stage.QUALIFYING);
++            s, transaction.survivalAuthored()
++                ? RecruitmentPolicy.Stage.TAVERN_VISIT : RecruitmentPolicy.Stage.QUALIFYING);
+         RecruitmentTransaction next = assessment.eligible()
+             ? transaction.advanceQualification()
+             : transaction;
+@@ -411,6 +430,9 @@ public final class SettlementManager {
+             data(level).setDirty();
+             return;
+         }
++        if (beginTavernVisitorNightDeparture(level, s, transaction, guest)) {
++            return;
++        }
+         LockedTavern locked = resolveLockedTavern(level, s, transaction);
+         if (locked.state() == LockedTavernState.UNLOADED) {
+             return; // never force-load or infer loss from an unobserved Tavern
+@@ -461,6 +483,58 @@ public final class SettlementManager {
+         reconcileRecruitmentEvidence(level, s);
+     }
+ 
++    /** Read-only daily gate; the persisted marker changes only after a real guest is published. */
++    public static boolean tavernVisitorArrivalDue(ServerLevel level, Settlement settlement) {
++        if (level == null || settlement == null) {
++            return false;
++        }
++        long day = currentTavernVisitorDay(level);
++        long local = Math.floorMod(level.getDayTime(), 24_000L);
++        return local >= TAVERN_VISITOR_ARRIVAL_TIME
++            && local < TAVERN_VISITOR_DEPARTURE_TIME
++            && settlement.lastTavernVisitorDay != day;
++    }
++
++    /** Read-only cutoff for the batch that was actually published this day. */
++    public static boolean tavernVisitorNightDepartureDue(ServerLevel level, Settlement settlement) {
++        if (level == null || settlement == null || settlement.lastTavernVisitorDay < 0L) {
++            return false;
++        }
++        long day = currentTavernVisitorDay(level);
++        return day > settlement.lastTavernVisitorDay
++            || (day == settlement.lastTavernVisitorDay
++                && Math.floorMod(level.getDayTime(), 24_000L) >= TAVERN_VISITOR_DEPARTURE_TIME);
++    }
++
++    private static long currentTavernVisitorDay(ServerLevel level) {
++        return Math.floorDiv(level.getDayTime(), 24_000L);
++    }
++
++    /** Starts the exact saved outward trip after a collision-safe seat release. */
++    private static boolean beginTavernVisitorNightDeparture(ServerLevel level,
++            Settlement settlement, RecruitmentTransaction transaction, SettlerEntity guest) {
++        if (!tavernVisitorNightDepartureDue(level, settlement)
++            || settlement.tavernVisitorDepartureOrigin == null) {
++            return false;
++        }
++        // The paid meal transaction remains owned by the visitor until its
++        // existing seat goal has consumed it. Never discard paid food at the
++        // night cutoff merely to make a timer appear punctual.
++        if (guest.hasMeal()) {
++            return false;
++        }
++        if (guest.isPassenger() && !guest.leaveSeat()) {
++            return true;
++        }
++        RecruitmentTransaction departing = transaction.departing();
++        if (departing == transaction) {
++            return false;
++        }
++        settlement.applyRecruitment(departing);
++        data(level).setDirty();
++        return true;
++    }
++
+     /** Arrival and admission share one physical radius, after locked identity validation. */
+     private static boolean atTravelerDestination(ServerLevel level,
+             SettlerEntity guest, RecruitmentTransaction transaction) {
+@@ -491,6 +565,9 @@ public final class SettlementManager {
+             data(level).setDirty();
+             return;
+         }
++        if (beginTavernVisitorNightDeparture(level, s, transaction, guest)) {
++            return;
++        }
+         LockedTavern locked = resolveLockedTavern(level, s, transaction);
+         boolean innkeeper = locked.state() == LockedTavernState.VALID
+             && locked.building() != null && !locked.building().workers.isEmpty();
+@@ -508,6 +585,46 @@ public final class SettlementManager {
+             Component.translatable("hearthstead.message.traveler_left", name));
+     }
+ 
++    /** The departure goal owns movement; this terminal only observes a real outside return. */
++    private static void tickDepartingTraveler(ServerLevel level, Settlement settlement,
++                                              RecruitmentTransaction transaction) {
++        Entity entity = level.getEntity(transaction.travelerId());
++        if (entity == null) {
++            return; // unloaded travelers and exterior chunks pause, never despawn remotely
++        }
++        if (!(entity instanceof SettlerEntity guest) || !guest.isAlive() || !guest.isTraveler()
++            || !settlement.id.equals(guest.getTargetSettlementId())) {
++            settlement.applyRecruitment(transaction.quarantine(
++                RecruitmentTransaction.TerminalReason.CROSS_SETTLEMENT));
++            data(level).setDirty();
++            return;
++        }
++        BlockPos origin = settlement.tavernVisitorDepartureOrigin;
++        if (origin == null) {
++            settlement.applyRecruitment(transaction.quarantine(
++                RecruitmentTransaction.TerminalReason.MALFORMED_SAVE));
++            data(level).setDirty();
++            return;
++        }
++        if (!level.hasChunkAt(origin)) {
++            return;
++        }
++        if (guest.blockPosition().distSqr(origin) > 9.0D || !outsideSettlement(settlement,
++                guest.blockPosition())) {
++            return;
++        }
++        guest.discard();
++        settlement.applyRecruitment(transaction.left(
++            RecruitmentTransaction.TerminalReason.VISIT_COMPLETE));
++        data(level).setDirty();
++    }
++
++    private static boolean outsideSettlement(Settlement settlement, BlockPos feet) {
++        double x = feet.getX() - settlement.center.getX();
++        double z = feet.getZ() - settlement.center.getZ();
++        return x * x + z * z > (double) settlement.radius * settlement.radius;
++    }
++
+     /** The first valid TAVERN building in this settlement, or null. */
+     @Nullable
+     private static Building firstValidTavern(Settlement s) {
+@@ -648,6 +765,26 @@ public final class SettlementManager {
+         return resolveTravelerApproach(level, travelerTavernAnchor(level, traveler));
+     }
+ 
++    /** The registered traveler goal reuses its ordinary bounded legs for both directions. */
++    @Nullable
++    public static BlockPos travelerRouteDestination(ServerLevel level, SettlerEntity traveler) {
++        if (level == null || traveler == null || !traveler.isTraveler()) {
++            return null;
++        }
++        Settlement settlement = byId(level, traveler.getTargetSettlementId());
++        RecruitmentTransaction transaction = settlement == null ? null : settlement.recruitment;
++        if (transaction == null || !traveler.getUUID().equals(transaction.travelerId())) {
++            return null;
++        }
++        if (transaction.status() == RecruitmentTransaction.Status.TRAVELING) {
++            return travelerTavernApproach(level, traveler);
++        }
++        return transaction.status() == RecruitmentTransaction.Status.DEPARTING
++            && settlement.tavernVisitorDepartureOrigin != null
++            && level.hasChunkAt(settlement.tavernVisitorDepartureOrigin)
++                ? settlement.tavernVisitorDepartureOrigin : null;
++    }
++
+     @Nullable
+     private static BlockPos resolveTravelerApproach(ServerLevel level,
+                                                      @Nullable BlockPos anchor) {
+@@ -1213,9 +1350,11 @@ public final class SettlementManager {
+             if (target != null && target.recruitment != null
+                 && settler.getUUID().equals(target.recruitment.travelerId())
+                 && (target.recruitment.status()
+-                        == RecruitmentTransaction.Status.TRAVELING
++                    == RecruitmentTransaction.Status.TRAVELING
++                    || target.recruitment.status()
++                        == RecruitmentTransaction.Status.WAITING_ADMISSION
+                     || target.recruitment.status()
+-                        == RecruitmentTransaction.Status.WAITING_ADMISSION)) {
++                        == RecruitmentTransaction.Status.DEPARTING)) {
+                 target.applyRecruitment(target.recruitment.left(
+                     RecruitmentTransaction.TerminalReason.ENTITY_GONE));
+                 data(level).setDirty();
+diff --git a/src/main/java/com/hearthstead/settlement/TavernSeating.java b/src/main/java/com/hearthstead/settlement/TavernSeating.java
+index 0d0bbb6..b4dd0b7 100644
+--- a/src/main/java/com/hearthstead/settlement/TavernSeating.java
++++ b/src/main/java/com/hearthstead/settlement/TavernSeating.java
+@@ -95,11 +95,15 @@ public final class TavernSeating {
+             || actor.getEnergy() < 20 || Summons.active(actor)
+             || s.pendingRaid != null || s.alertUntilGameTime > actor.level().getGameTime()) return false;
+         if (actor.isTraveler()) {
+-            // Without an actual host there is no visit to hand movement over
+-            // to. Keep TravelerJoinGoal holding the physical waiting spot.
+             Building tavern = SettlementManager.waitingTravelerTavern(
+                 (ServerLevel) actor.level(), actor);
+-            return staffed((ServerLevel) actor.level(), s, tavern);
++            // The exact persisted visitor may occupy an otherwise valid
++            // locked Tavern while it waits to purchase service. Residents
++            // remain staff-gated below, and TavernHostService still authorizes
++            // food/Coins independently.
++            return usableTavern((ServerLevel) actor.level(), s, tavern)
++                && (!SettlementManager.tavernVisitorNightDepartureDue(
++                    (ServerLevel) actor.level(), s) || actor.hasMeal());
+         }
+         DayPhase phase = actor.dayPhase();
+         if (!(phase.meal() || phase.social()) || Schedule.shouldSleep(s, actor, phase)) return false;
+@@ -113,9 +117,7 @@ public final class TavernSeating {
+         return null;
+     }
+     public static boolean staffed(ServerLevel level, Settlement s, Building b) {
+-        if (s == null || b == null || !b.valid || b.type != BuildingType.TAVERN
+-            || b.bounds == null || !level.hasChunkAt(b.plaquePos)
+-            || !(level.getBlockState(b.plaquePos).getBlock() instanceof PlaqueBlock)) return false;
++        if (!usableTavern(level, s, b)) return false;
+         for (UUID id : b.workers) {
+             if (level.getEntity(id) instanceof SettlerEntity host && host.isAlive()
+                 && s.id.equals(host.getSettlementId()) && host.getProfession() == Profession.INNKEEPER
+@@ -123,6 +125,16 @@ public final class TavernSeating {
+         }
+         return false;
+     }
++    private static boolean usableTavern(ServerLevel level, Settlement s, Building b) {
++        return s != null && b != null && b.valid && b.type == BuildingType.TAVERN
++            && b.bounds != null && b.plaquePos != null && level.hasChunkAt(b.plaquePos)
++            && level.getBlockState(b.plaquePos).getBlock() instanceof PlaqueBlock;
++    }
++    private static boolean seatServiceAllowed(ServerLevel level, SettlerEntity actor,
++                                              Settlement settlement, Building tavern) {
++        return usableTavern(level, settlement, tavern)
++            && (actor.isTraveler() || staffed(level, settlement, tavern));
++    }
+     private static boolean anotherFurniture(BlockState state, String suffix) {
+         ResourceLocation id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+         if (id == null || !ANOTHER_FURNITURE.equals(id.getNamespace()) || !id.getPath().endsWith(suffix)) return false;
+@@ -192,7 +204,9 @@ public final class TavernSeating {
+     }
+     public static boolean valid(ServerLevel level, SettlerEntity actor, SeatSite site) {
+         Building b = building(visitSettlement(actor), site.tavernId());
+-        return allowedTavern(actor, b) && staffed(level, visitSettlement(actor), b) && site.equals(site(level, b, site.chair(), site.aisle()))
++        return allowedTavern(actor, b) && mayVisit(actor)
++            && seatServiceAllowed(level, actor, visitSettlement(actor), b)
++            && site.equals(site(level, b, site.chair(), site.aisle()))
+             && clearSeatedHeadroom(level, actor, site);
+     }
+     public static boolean occupied(ServerLevel level, BlockPos chair) {
+@@ -287,7 +301,7 @@ public final class TavernSeating {
+         if (!(actor.level() instanceof ServerLevel level) || !mayVisit(actor)
+             || actor.isPassenger() || !com.hearthstead.settlement.work.TavernGuestPayment.bagAllowsVisit(actor)
+             // mayVisit above proves that a traveler is the exact persisted
+-            // WAITING_ADMISSION guest at its locked, staffed Tavern. Let its
++            // WAITING_ADMISSION guest at its locked Tavern. Let its
+             // higher-priority visit goal preempt TravelerJoinGoal's return walk.
+             || (actor.getActivity() != com.hearthstead.entity.SettlerActivity.IDLE
+                 && !(actor.isTraveler()
+@@ -296,7 +310,8 @@ public final class TavernSeating {
+         int cells = 0, paths = 0, buildings = 0;
+         for (Building b : visitSettlement(actor).buildings) {
+             if (++buildings > MAX_BUILDINGS) break;
+-            if (!allowedTavern(actor, b) || !staffed(level, visitSettlement(actor), b)) continue;
++            if (!allowedTavern(actor, b)
++                || !seatServiceAllowed(level, actor, visitSettlement(actor), b)) continue;
+             for (BlockPos p : BlockPos.betweenClosed(b.bounds.minX(), b.bounds.minY(), b.bounds.minZ(),
+                     b.bounds.maxX(), b.bounds.maxY(), b.bounds.maxZ())) {
+                 if (cells == MAX_SCAN_CELLS || paths == MAX_PATHS) return new Search(null, null, cells, paths);
+diff --git a/src/main/resources/assets/hearthstead/lang/en_us.json b/src/main/resources/assets/hearthstead/lang/en_us.json
+index 3fad14e..73b6e39 100644
+--- a/src/main/resources/assets/hearthstead/lang/en_us.json
++++ b/src/main/resources/assets/hearthstead/lang/en_us.json
+@@ -423,7 +423,7 @@
+   "hearthstead.message.recruited": "%s has joined %s!",
+   "hearthstead.message.settler_died": "%s has fallen. The settlement mourns.",
+   "hearthstead.message.traveler_left": "%s waited as long as they could, and moved on.",
+-  "hearthstead.message.traveler_spotted": "A traveler is approaching your settlement.",
++  "hearthstead.message.traveler_spotted": "New travelers in town!",
+   "hearthstead.message.traveler_waiting": "A traveler is waiting at the Tavern.",
+   "hearthstead.mood.content": "Content",
+   "hearthstead.mood.happy": "Happy",

@@ -1,5 +1,8 @@
 package com.hearthstead.settlement;
 
+import com.hearthstead.block.AleTapBlock;
+import com.hearthstead.entity.path.IndoorBlocks;
+import com.hearthstead.entity.path.StairHeadroom;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.BedBlock;
@@ -9,8 +12,10 @@ import net.minecraft.world.level.block.CampfireBlock;
 import net.minecraft.world.level.block.CarpetBlock;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FlowerPotBlock;
+import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
+import net.minecraft.world.level.block.state.properties.Half;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
@@ -75,7 +80,76 @@ public final class RoomScanner {
                          int doors, int lights, int furnishingScore,
                          boolean enclosed, boolean skyLeak,
                          java.util.Map<Block, Integer> blockCounts,
-                         @Nullable BlockPos leakPos, @Nullable BlockPos skyLeakPos) {
+                         @Nullable BlockPos leakPos, @Nullable BlockPos skyLeakPos,
+                         int connectedAleTaps,
+                         java.util.Map<Block, Integer> floorCounts,
+                         @Nullable BlockPos lowStairStep) {
+
+        /**
+         * Headroom lane: {@code lowStairStep} is the step (floor or tread) a
+         * settler would climb from onto a stair in this room without the
+         * three clear blocks above it that the climb needs, or null. It is a
+         * warning only and never fails a requirement. Older callers pass none.
+         */
+        public Result(BoundingBox bounds, int volume, List<BlockPos> beds,
+                      int doors, int lights, int furnishingScore,
+                      boolean enclosed, boolean skyLeak,
+                      java.util.Map<Block, Integer> blockCounts,
+                      @Nullable BlockPos leakPos, @Nullable BlockPos skyLeakPos,
+                      int connectedAleTaps,
+                      java.util.Map<Block, Integer> floorCounts) {
+            this(bounds, volume, beds, doors, lights, furnishingScore, enclosed,
+                skyLeak, blockCounts, leakPos, skyLeakPos, connectedAleTaps,
+                floorCounts, null);
+        }
+
+        /**
+         * The non-blocking stair warning for the plaque, pointing at the step
+         * that lacks headroom, or null when every stair here is climbable.
+         */
+        @Nullable
+        public net.minecraft.network.chat.Component stairWarning() {
+            return lowStairStep == null ? null
+                : net.minecraft.network.chat.Component.translatable(
+                    "hearthstead.plaque.scan.stair_headroom",
+                    lowStairStep.getX(), lowStairStep.getY(), lowStairStep.getZ());
+        }
+
+        /**
+         * Builder lane (checklist levels): {@code floorCounts} tallies the
+         * block directly under every interior cell that has no interior cell
+         * below it -- the room's floor -- so a level can ask for a solid
+         * floor. Older callers that never measured a floor get an empty map.
+         */
+        public Result(BoundingBox bounds, int volume, List<BlockPos> beds,
+                      int doors, int lights, int furnishingScore,
+                      boolean enclosed, boolean skyLeak,
+                      java.util.Map<Block, Integer> blockCounts,
+                      @Nullable BlockPos leakPos, @Nullable BlockPos skyLeakPos,
+                      int connectedAleTaps) {
+            this(bounds, volume, beds, doors, lights, furnishingScore, enclosed,
+                skyLeak, blockCounts, leakPos, skyLeakPos, connectedAleTaps,
+                java.util.Map.of());
+        }
+
+        /** Number of floor cells measured (0 for synthetic scans). */
+        public int floorCells() {
+            int total = 0;
+            for (int n : floorCounts.values()) {
+                total += n;
+            }
+            return total;
+        }
+
+        /** Older synthetic scans contain no demonstrated connected tap. */
+        public Result(BoundingBox bounds, int volume, List<BlockPos> beds,
+                      int doors, int lights, int furnishingScore,
+                      boolean enclosed, boolean skyLeak,
+                      java.util.Map<Block, Integer> blockCounts,
+                      @Nullable BlockPos leakPos, @Nullable BlockPos skyLeakPos) {
+            this(bounds, volume, beds, doors, lights, furnishingScore, enclosed,
+                skyLeak, blockCounts, leakPos, skyLeakPos, 0);
+        }
 
         /**
          * How many blocks of the given kinds stand in this room. Building
@@ -320,9 +394,101 @@ public final class RoomScanner {
 
         BoundingBox bounds = new BoundingBox(minX - 1, minY - 1, minZ - 1,
             maxX + 1, maxY + 1, maxZ + 1);
+        // Builder lane: the floor is the block under each bottom interior
+        // cell. Read from cells the fill already visited (bounded by the same
+        // MAX_VOLUME), never a second walk of the room.
+        java.util.Map<Block, Integer> floorCounts = new java.util.HashMap<>();
+        for (BlockPos cell : filled) {
+            BlockPos below = cell.below();
+            if (!filled.contains(below) && level.hasChunkAt(below)) {
+                floorCounts.merge(level.getBlockState(below).getBlock(), 1, Integer::sum);
+            }
+        }
         return new Result(bounds, filled.size(), beds, distinctDoors.size(), lights,
             Math.min(8, furnishingHits.size()), enclosed, skyLeak,
-            java.util.Map.copyOf(blockCounts), leakPos, skyLeakPos);
+            java.util.Map.copyOf(blockCounts), leakPos, skyLeakPos,
+            countConnectedAleTaps(level, bounds, filled, boundarySeen),
+            java.util.Map.copyOf(floorCounts),
+            lowStairStep(level, interior, filled, boundarySeen));
+    }
+
+    /**
+     * The step nearest the seed from which a settler cannot climb onto a
+     * stair of this room for lack of headroom ({@link StairHeadroom}), or
+     * null. Only bottom-half stairs the fill already met as boundary are
+     * examined, and only when the cell in front of their low side is an
+     * interior cell with a floor under it: somewhere a settler stands.
+     */
+    @Nullable
+    static BlockPos lowStairStep(ServerLevel level, BlockPos interior,
+                                 Set<BlockPos> filled, Set<BlockPos> boundary) {
+        BlockPos best = null;
+        for (BlockPos stair : boundary) {
+            if (!level.hasChunkAt(stair)) continue;
+            BlockState state = level.getBlockState(stair);
+            if (!(state.getBlock() instanceof StairBlock)
+                || state.getValue(StairBlock.HALF) != Half.BOTTOM) continue;
+            Direction up = state.getValue(StairBlock.FACING);
+            BlockPos approach = stair.relative(up.getOpposite());
+            if (!filled.contains(approach) || filled.contains(approach.below())) continue;
+            StairHeadroom.Cell blocker = StairHeadroom.blocker(stair.getX(), stair.getY(), stair.getZ(),
+                up.getStepX(), up.getStepZ(), (x, y, z) -> clearForBody(level, new BlockPos(x, y, z), approach));
+            if (blocker == null) continue;
+            BlockPos step = approach.below();
+            if (best == null || interior.distSqr(step) < interior.distSqr(best)) best = step.immutable();
+        }
+        return best;
+    }
+
+    /**
+     * A cell leaves a centred settler body (0.6 wide) free: no collision box
+     * reaches into the middle of it. Edge panels (ladders, open trapdoors,
+     * door leaves) stay clear. Low coverings are allowed only at the approach floor.
+     */
+    private static boolean clearForBody(ServerLevel level, BlockPos pos, BlockPos approach) {
+        if (!level.hasChunkAt(pos)) return true;
+        BlockState state = level.getBlockState(pos);
+        if (state.isAir()) return true;
+        net.minecraft.world.phys.shapes.VoxelShape shape = state.getCollisionShape(level, pos);
+        return clearForBody(shape, pos, approach);
+    }
+
+    static boolean clearForBody(net.minecraft.world.phys.shapes.VoxelShape shape,
+                                BlockPos pos, BlockPos approach) {
+        if (shape.isEmpty()) return true;
+        if (pos.equals(approach) && shape.max(Direction.Axis.Y) <= IndoorBlocks.LOW_COVER_MAX_Y
+            && shape.min(Direction.Axis.Y) <= 0.0D) return true;
+        net.minecraft.world.phys.AABB body = new net.minecraft.world.phys.AABB(0.2D, 0.0D, 0.2D, 0.8D, 1.0D, 0.8D);
+        for (net.minecraft.world.phys.AABB box : shape.toAabbs()) {
+            if (box.intersects(body)) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Structural only: an empty barrel still makes a valid Tavern. Both parts
+     * must belong to this exact observed room, not merely its enclosing box.
+     * The tap's outlet must face an interior cell, so a fixture on the other
+     * side of a shared wall cannot satisfy this room's requirement.
+     */
+    private static int countConnectedAleTaps(ServerLevel level, BoundingBox bounds,
+                                             Set<BlockPos> filled, Set<BlockPos> boundary) {
+        Set<BlockPos> observed = new HashSet<>(filled);
+        observed.addAll(boundary);
+        int pairs = 0;
+        for (BlockPos tap : observed) {
+            if (!bounds.isInside(tap) || !level.hasChunkAt(tap)) continue;
+            BlockState state = level.getBlockState(tap);
+            if (!(state.getBlock() instanceof AleTapBlock)) continue;
+            Direction facing = state.getValue(AleTapBlock.FACING);
+            BlockPos barrel = tap.relative(facing.getOpposite());
+            if (!filled.contains(tap.relative(facing)) || !observed.contains(barrel)
+                    || !bounds.isInside(barrel) || !level.hasChunkAt(barrel)) continue;
+            if (level.getBlockState(barrel).is(Blocks.BARREL)
+                    && level.getBlockEntity(barrel)
+                        instanceof net.minecraft.world.level.block.entity.BarrelBlockEntity) pairs++;
+        }
+        return pairs;
     }
 
     private static void classifyContents(ServerLevel level, BlockPos pos,
@@ -363,7 +529,9 @@ public final class RoomScanner {
      */
     private static boolean isPassable(ServerLevel level, BlockPos pos, BlockState state) {
         if (state.getBlock() instanceof BedBlock
-            || state.getBlock() instanceof CarpetBlock) {
+            || state.getBlock() instanceof CarpetBlock
+            || state.getBlock() instanceof net.minecraft.world.level.block.LadderBlock
+                && state.getFluidState().isEmpty()) {
             return true;
         }
         return state.getFluidState().isEmpty()
@@ -393,7 +561,8 @@ public final class RoomScanner {
             if (state.is(Blocks.BARRIER)) {
                 return false;
             }
-            if (!state.getCollisionShape(level, probe).isEmpty()) {
+            if (!(state.getBlock() instanceof net.minecraft.world.level.block.LadderBlock)
+                && !state.getCollisionShape(level, probe).isEmpty()) {
                 return true;
             }
         }

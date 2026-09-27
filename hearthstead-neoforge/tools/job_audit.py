@@ -136,11 +136,10 @@ def audit(key, info):
     # 9. Obeys the village day.
     result["schedule"] = ("dayPhase()" in goal_src or "Schedule." in goal_src)
 
-    # 10. Legible in both languages.
+    # 10. Legible in the shipped English language.
     en = json.loads(read(ASSETS, "lang", "en_us.json") or "{}")
-    nb = json.loads(read(ASSETS, "lang", "nb_no.json") or "{}")
     lang_key = f"hearthstead.profession.{key}"
-    result["lang"] = lang_key in en and lang_key in nb
+    result["lang"] = lang_key in en and str(en[lang_key]).strip() != ""
 
     # 11. Named tests that drive it.
     tests = ""

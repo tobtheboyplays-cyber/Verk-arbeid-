@@ -1,0 +1,184 @@
+diff --git a/src/main/java/com/hearthstead/entity/ai/HearthApproach.java b/src/main/java/com/hearthstead/entity/ai/HearthApproach.java
+index a4248d1..945a52e 100644
+--- a/src/main/java/com/hearthstead/entity/ai/HearthApproach.java
++++ b/src/main/java/com/hearthstead/entity/ai/HearthApproach.java
+@@ -17,12 +17,21 @@ import java.util.LinkedHashSet;
+ import java.util.List;
+ import java.util.Set;
+ 
++import javax.annotation.Nullable;
++
+ /**
+  * Plans a legal standing cell from which a settler can use the existing
+  * Hearth contact contract.  It owns no meal, danger, or order state.
+  */
+ public final class HearthApproach {
+     private static final double CONTACT_DISTANCE_SQR = 6.25D;
++    /**
++     * Hungry civilians may be farther from the communal Hearth than their
++     * ordinary follow range. This is a planning bound only: it never changes
++     * the entity attribute used by combat or other goals.
++     */
++    private static final float CIVILIAN_MEAL_ROUTE_RANGE = 96.0F;
++    private static final float CIVILIAN_MEAL_ROUTE_NODE_MULTIPLIER = 3.0F;
+ 
+     private HearthApproach() {
+     }
+@@ -66,6 +75,59 @@ public final class HearthApproach {
+         return null;
+     }
+ 
++    /**
++     * Civilian meal route with one bounded full-route probe after the ordinary
++     * exact and strictly-nearer paths fail. This admits a necessary initial
++     * detour around a house, doors or stairs for a hungry resident without
++     * enlarging FOLLOW_RANGE or changing combat navigation. The returned path
++     * still ends at one existing ray-clear Hearth contact cell; callers retain
++     * the existing live-contact gate before withdrawing food.
++     */
++    public static Path findCivilianMealContactPath(SettlerEntity settler,
++                                                   ServerLevel level,
++                                                   BlockPos hearth) {
++        ContactPathProbes probes = probeContactPaths(settler, level, hearth);
++        if (fullContactRoute(probes.road(), probes.candidates())) return probes.road();
++        if (fullContactRoute(probes.vanilla(), probes.candidates())) return probes.vanilla();
++        // Prefer a bounded complete detour before accepting a partial prefix.
++        // This is required for an elevated home whose only legal first step is
++        // away from the Hearth.
++        Path longRoute = boundedCivilianMealRoute(settler, level, probes.candidates());
++        if (fullContactRoute(longRoute, probes.candidates())) return longRoute;
++        if (strictlyProgressingPrefix(probes.road(), settler.blockPosition(), hearth)) {
++            return probes.road();
++        }
++        recordMiss(settler, level, hearth, probes);
++        return null;
++    }
++
++    @Nullable
++    private static Path boundedCivilianMealRoute(SettlerEntity settler,
++                                                  ServerLevel level,
++                                                  Set<BlockPos> candidates) {
++        if (candidates.isEmpty()) return null;
++        return new CivilianMealNavigation(settler, level).createLongContactPath(candidates);
++    }
++
++    /**
++     * Exposes the protected multi-target navigator API without changing the
++     * actor's own range or navigation state. One query ranks the existing
++     * legal contact set; it never loops independent target searches.
++     */
++    private static final class CivilianMealNavigation extends RoadNavigation {
++        private CivilianMealNavigation(SettlerEntity settler, ServerLevel level) {
++            super(settler, level);
++        }
++
++        @Nullable
++        private Path createLongContactPath(Set<BlockPos> targets) {
++            setMaxVisitedNodesMultiplier(CIVILIAN_MEAL_ROUTE_NODE_MULTIPLIER);
++            // PathNavigation bytecode: (targets, regionOffset, above, accuracy,
++            // searchRange).  The range is the final float, not the fourth int.
++            return createPath(targets, 0, false, 0, CIVILIAN_MEAL_ROUTE_RANGE);
++        }
++    }
++
+     private static ContactPathProbes probeContactPaths(SettlerEntity settler,
+                                                         ServerLevel level,
+                                                         BlockPos hearth) {
+diff --git a/src/main/java/com/hearthstead/entity/ai/EatFromHearthGoal.java b/src/main/java/com/hearthstead/entity/ai/EatFromHearthGoal.java
+index 4b3d51e..975b1c5 100644
+--- a/src/main/java/com/hearthstead/entity/ai/EatFromHearthGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/EatFromHearthGoal.java
+@@ -99,7 +99,7 @@ public class EatFromHearthGoal extends Goal {
+         // Guard and other essential-order callers use the same bounded
+         // progressing probe when a safe essential meal must temporarily
+         // yield a persisted post.
+-        Path route = HearthApproach.findProgressingContactPath(settler, level, hearth);
++        Path route = HearthApproach.findCivilianMealContactPath(settler, level, hearth);
+         if (route == null) return;
+         if (route.canReach()) {
+             lastPartialPosition = null;
+diff --git a/src/main/java/com/hearthstead/command/HearthsteadCommand.java b/src/main/java/com/hearthstead/command/HearthsteadCommand.java
+index 4b4fa61..ba96c25 100644
+--- a/src/main/java/com/hearthstead/command/HearthsteadCommand.java
++++ b/src/main/java/com/hearthstead/command/HearthsteadCommand.java
+@@ -1141,6 +1141,7 @@ public final class HearthsteadCommand {
+             }
+         });
+         lines.add("running goals: " + (running.length() == 0 ? "none" : running));
++        lines.add("navigation: " + navigationWhy(s0));
+         lines.add("last route failure: " + s0.routeFailureNote());
+         for (String line : lines) {
+             source.sendSuccess(() -> Component.literal(line), true);
+@@ -1148,6 +1149,23 @@ public final class HearthsteadCommand {
+         return 1;
+     }
+ 
++    /** Read-only current-path snapshot for live stuck-route diagnosis. */
++    private static String navigationWhy(com.hearthstead.entity.SettlerEntity settler) {
++        var navigation = settler.getNavigation();
++        var path = navigation.getPath();
++        if (path == null) {
++            return "path=none target=" + navigation.getTargetPos()
++                + " done=" + navigation.isDone();
++        }
++        int nodes = path.getNodeCount();
++        net.minecraft.core.BlockPos end = nodes <= 0 ? null
++            : path.getNodePos(nodes - 1);
++        return "target=" + path.getTarget() + " navTarget="
++            + navigation.getTargetPos() + " done=" + path.isDone()
++            + " reachable=" + path.canReach() + " next="
++            + path.getNextNodeIndex() + " nodes=" + nodes + " end=" + end;
++    }
++
+     private static int bagCount(com.hearthstead.entity.SettlerEntity settler) {
+         int n = 0;
+         for (int i = 0; i < settler.bag.getContainerSize(); i++) {
+diff --git a/src/main/java/com/hearthstead/gametest/ResidentMealGameTests.java b/src/main/java/com/hearthstead/gametest/ResidentMealGameTests.java
+index 8e7f6bb..3d0b517 100644
+--- a/src/main/java/com/hearthstead/gametest/ResidentMealGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/ResidentMealGameTests.java
+@@ -606,6 +606,44 @@ public class ResidentMealGameTests {
+     }
+ 
+ 
++    /**
++     * A hungry civilian may be more than its ordinary 32-block follow range
++     * from food. The meal-only probe must still plan one complete legal route
++     * without changing the combat-follow attribute or moving any food.
++     */
++    @GameTest(batch = "resident_meal_long_route", template = "empty64", timeoutTicks = 40)
++    public void civilianMealProbeFindsCompleteRouteBeyondFollowRange(GameTestHelper helper) {
++        BlockPos hearthLocal = new BlockPos(4, 1, 4);
++        for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++) {
++            helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
++            for (int y = 1; y <= 3; y++) helper.setBlock(new BlockPos(x, y, z), Blocks.AIR);
++        }
++        helper.setBlock(hearthLocal, ModBlocks.HEARTH.get());
++        HearthBlockEntity hearth = (HearthBlockEntity) helper.getBlockEntity(hearthLocal);
++        helper.assertTrue(hearth != null, "HSQA_LONG_HEARTH_ROUTE hearth must exist");
++        hearth.getInventory().setStackInSlot(0, new ItemStack(Items.BREAD, 1));
++
++        BlockPos hearthPos = helper.absolutePos(hearthLocal);
++        SettlerEntity resident = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(55, 1, 55));
++        resident.setNoAi(true);
++        double followRange = resident.getAttributeValue(
++            net.minecraft.world.entity.ai.attributes.Attributes.FOLLOW_RANGE);
++        helper.assertTrue(followRange >= 30.0D && followRange <= 40.0D
++                && resident.blockPosition().distSqr(hearthPos) > followRange * followRange,
++            "HSQA_LONG_HEARTH_ROUTE fixture must start beyond ordinary follow range"
++                + " [range=" + followRange + ", start=" + resident.blockPosition()
++                + ", hearth=" + hearthPos + "]");
++
++        Path route = HearthApproach.findCivilianMealContactPath(resident, helper.getLevel(), hearthPos);
++        helper.assertTrue(route != null && route.canReach()
++                && route.getTarget() != null && route.getTarget().distSqr(hearthPos) <= 6.25D,
++            "HSQA_LONG_HEARTH_ROUTE must return a complete close-contact route beyond 32 blocks: "
++                + pathEvidence(route));
++        helper.assertTrue(hearth.countFoodUnits() == 1 && !resident.hasMeal(),
++            "HSQA_LONG_HEARTH_ROUTE planning must not withdraw Hearth food");
++        helper.succeed();
++    }
++
+     private static Set<BlockPos> legalOpenFieldTargets(BlockPos hearth) {
+         Set<BlockPos> targets = new LinkedHashSet<>();
+         targets.add(hearth.above());

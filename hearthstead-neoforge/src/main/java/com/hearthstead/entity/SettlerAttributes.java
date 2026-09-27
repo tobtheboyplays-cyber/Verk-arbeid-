@@ -112,6 +112,21 @@ public final class SettlerAttributes {
         this.value[attribute.ordinal()] = Mth.clamp(value, 0, CEILING);
     }
 
+    /**
+     * Raises one attribute to at least {@code floor}; never lowers it. The
+     * Captain's Commission field promotion (plan/CAPTAIN.md) is its only
+     * gameplay caller: a paid tech node, once per settlement.
+     */
+    public void raiseTo(Attribute attribute, int floor) {
+        int i = attribute.ordinal();
+        this.value[i] = Mth.clamp(Math.max(this.value[i], floor), 0, CEILING);
+    }
+
+    /** Test-only, like {@link #pinForTest}: sets the knack (it picks a mayor boon). */
+    public void pinKnackForTest(Attribute attribute) {
+        this.knack = attribute;
+    }
+
     // -------------------------------------------------------------- values ---
 
     public int get(Attribute attribute) {

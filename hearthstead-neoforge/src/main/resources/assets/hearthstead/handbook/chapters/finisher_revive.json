@@ -1,0 +1,49 @@
+{
+  "id": "finisher_revive",
+  "title": "hearthstead.guide.finisher_revive.title",
+  "icon": "minecraft:iron_sword",
+  "pages": [
+    {
+      "id": "finisher_revive.finish",
+      "title": "hearthstead.guide.finisher_revive.finish.title",
+      "bullets": [
+        "hearthstead.guide.finisher_revive.finish.b1",
+        "hearthstead.guide.finisher_revive.finish.b2",
+        "hearthstead.guide.finisher_revive.finish.b3"
+      ],
+      "tip": "hearthstead.guide.finisher_revive.finish.tip",
+      "image_wanted": "Close combat view with a finishable enemy outlined red and a clear key prompt.",
+      "keys": [
+        {
+          "key": "key.hearthstead.finisher",
+          "action": "hearthstead.guide.finisher_revive.finish.k1",
+          "fallback": "key.hearthstead.command_melee"
+        }
+      ]
+    },
+    {
+      "id": "finisher_revive.rescue",
+      "title": "hearthstead.guide.finisher_revive.rescue.title",
+      "bullets": [
+        "hearthstead.guide.finisher_revive.rescue.b1",
+        "hearthstead.guide.finisher_revive.rescue.b2",
+        "hearthstead.guide.finisher_revive.rescue.b3",
+        "hearthstead.guide.finisher_revive.rescue.b4"
+      ],
+      "tip": "hearthstead.guide.finisher_revive.rescue.tip",
+      "image_wanted": "One player reviving a downed friend, with the progress bar visible.",
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.finisher_revive.rescue.k1",
+          "hold": true
+        },
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.finisher_revive.rescue.k2",
+          "modifier": "key.sneak"
+        }
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.network.WorkZoneActionPayload;
+import com.hearthstead.network.WorkZoneSelectionPayload;
 import com.hearthstead.network.WorkZoneSnapshotPayload;
 import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.Building;
@@ -168,18 +169,31 @@ public final class WorkZoneService {
         return Result.SELECTED;
     }
 
-    /** Ordinary right-click on one physical block after target selection. */
+    /** Server-authoritative first physical right-click after target selection. */
     public static Result setFirstCorner(ServerPlayer player, BlockPos corner) {
         Session session = session(player);
         if (session == null) {
             return rejectWithoutSession(player, Result.NO_SESSION, "corner_one");
+        }
+        return setFirstCorner(player, session, corner);
+    }
+
+    private static Result setFirstCorner(ServerPlayer player, Session session,
+                                         @Nullable BlockPos corner) {
+        // The session revision belongs to the committed zone, so it does not
+        // change between click stages. Reject a replayed first-click instead
+        // of letting it replace an already acknowledged corner.
+        if (session.cornerOne != null) {
+            trace(player, "corner_one_replay", session, Result.REPLAY);
+            return Result.REPLAY;
         }
         Resolved resolved = resolve(player, session);
         if (resolved.result != Result.APPLIED) {
             return reject(player, session, resolved.building, resolved.result,
                 "corner_one");
         }
-        if (!physicalReach(player, corner) || !serverRayMatches(player, corner)) {
+        if (corner == null || !physicalReach(player, corner)
+            || !serverRayMatches(player, corner)) {
             return reject(player, session, resolved.building, Result.TOO_FAR,
                 "corner_one");
         }
@@ -206,6 +220,8 @@ public final class WorkZoneService {
             return;
         }
         switch (action.kind()) {
+            case SET_FIRST_CORNER -> setFirstCorner(player, session,
+                action.corner().orElse(null));
             case SET_SECOND_CORNER -> setSecondCorner(player, session,
                 action.corner().orElse(null));
             case SET_HEIGHT -> setHeight(player, session,
@@ -216,8 +232,52 @@ public final class WorkZoneService {
         }
     }
 
+    /** Resolves a right-click target server-side before any session is opened. */
+    public static void handleSelection(ServerPlayer player,
+                                       WorkZoneSelectionPayload selection) {
+        if (player == null || selection == null
+            || selection.kind() == WorkZoneSelectionPayload.Kind.UNKNOWN) {
+            return;
+        }
+        // A duplicate select packet must not replace an already acknowledged
+        // target session while its later clicks are still in flight.
+        if (session(player) != null) {
+            player.displayClientMessage(Result.REPLAY.message(), true);
+            return;
+        }
+        switch (selection.kind()) {
+            case SETTLER -> {
+                net.minecraft.world.entity.Entity entity = selection.settlerId()
+                    .map(player.serverLevel()::getEntity).orElse(null);
+                if (entity instanceof SettlerEntity settler) {
+                    selectWorker(player, settler);
+                } else {
+                    rejectWithoutSession(player, Result.WRONG_TARGET, "select_worker");
+                }
+            }
+            case WORKPLACE -> {
+                BlockPos pos = selection.workplacePos().orElse(null);
+                if (pos == null || !physicalReach(player, pos)
+                    || !serverRayMatches(player, pos)) {
+                    rejectWithoutSession(player, Result.TOO_FAR, "select_plaque");
+                    return;
+                }
+                if (player.serverLevel().getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
+                    selectPlaque(player, plaque);
+                } else {
+                    rejectWithoutSession(player, Result.WRONG_WORKPLACE, "select_plaque");
+                }
+            }
+            case UNKNOWN -> { }
+        }
+    }
+
     private static Result setSecondCorner(ServerPlayer player, Session session,
                                           @Nullable BlockPos claimedCorner) {
+        if (session.cornerTwo != null) {
+            trace(player, "corner_two_replay", session, Result.REPLAY);
+            return Result.REPLAY;
+        }
         Resolved resolved = resolve(player, session);
         if (resolved.result != Result.APPLIED) {
             return reject(player, session, resolved.building, resolved.result,
@@ -245,6 +305,10 @@ public final class WorkZoneService {
     /** Third physical click contributes only Y; the first two clicks own X/Z. */
     private static Result setHeight(ServerPlayer player, Session session,
                                     @Nullable BlockPos claimedHeight) {
+        if (session.previewReady) {
+            trace(player, "height_replay", session, Result.REPLAY);
+            return Result.REPLAY;
+        }
         Resolved resolved = resolve(player, session);
         if (resolved.result != Result.APPLIED) {
             return reject(player, session, resolved.building, resolved.result,
@@ -307,36 +371,78 @@ public final class WorkZoneService {
             return reject(player, session, resolved.building, Result.MALFORMED,
                 "commit");
         }
-        Result validation = validateCandidate(player.serverLevel(),
+        Result committed = commitValidated(player.serverLevel(),
             resolved.settlement, resolved.building, candidate,
             session.workerTier);
-        if (validation != Result.APPLIED) {
-            return reject(player, session, resolved.building, validation,
+        if (committed != Result.APPLIED) {
+            return reject(player, session, resolved.building, committed,
                 "commit");
         }
-        long revisionBefore = resolved.building.workZoneRevision();
-        long countBefore = resolved.building.workZone().isPresent() ? 1L : 0L;
-        if (!resolved.building.commitWorkZone(session.expectedRevision,
-                candidate)) {
-            return reject(player, session, resolved.building, Result.STALE,
-                "commit");
-        }
-        SettlementSavedData.get(player.serverLevel()).setDirty();
-        FoundingJourneyProgress.noteWorkZoneCommitted(player.serverLevel(),
-            resolved.settlement, resolved.building, candidate);
-        AuthorityTelemetry.emit(player.serverLevel(),
-            AuthorityTelemetry.Event.WORK_ZONE_COMMITTED,
-            AuthorityTelemetry.Result.COMMITTED,
-            AuthorityTelemetry.Fields.state(resolved.settlement.id,
-                authorityTarget(resolved.building, "commit"),
-                revisionBefore, resolved.building.workZoneRevision(),
-                countBefore,
-                resolved.building.workZone().isPresent() ? 1L : 0L,
-                "confirmed_bounds"));
         sessions(player.server).remove(player.getUUID());
         send(player, snapshot(session, resolved.building,
             WorkZoneSnapshotPayload.Stage.COMMITTED, Result.APPLIED));
         trace(player, "commit", session, Result.APPLIED);
+        return Result.APPLIED;
+    }
+
+    /**
+     * One authoritative validated-zone transaction shared by the interactive
+     * Work Scepter flow and permission-two fixture authors.  Callers may
+     * supply a real worker so Farm side limits use that worker's actual tier;
+     * no caller writes Building, Journey, dirty state or telemetry separately.
+     */
+    public static Result commitValidated(ServerLevel level,
+                                         Settlement settlement,
+                                         Building building,
+                                         SettlerEntity worker,
+                                         WorkZone candidate) {
+        if (level == null || settlement == null || worker == null
+            || building == null
+            || worker.level() != level || !worker.isAlive()
+            || SettlementManager.byId(level, settlement.id) != settlement
+            || worker.settlement() != settlement
+            || !settlement.id.equals(worker.getSettlementId())
+            || !building.workers.contains(worker.getUUID())
+            || Employment.employerOf(settlement, worker.getUUID()) != building
+            || candidate == null
+            || candidate.type().profession() != worker.getProfession()) {
+            return Result.WRONG_WORKPLACE;
+        }
+        Result target = validateTarget(level, settlement, building,
+            candidate.type());
+        if (target != Result.APPLIED) {
+            return target;
+        }
+        return commitValidated(level, settlement, building, candidate,
+            farmerTier(worker));
+    }
+
+    private static Result commitValidated(ServerLevel level,
+                                          Settlement settlement,
+                                          Building building,
+                                          WorkZone candidate,
+                                          int workerTier) {
+        Result validation = validateCandidate(level, settlement, building,
+            candidate, workerTier);
+        if (validation != Result.APPLIED) {
+            return validation;
+        }
+        long revisionBefore = building.workZoneRevision();
+        long countBefore = building.workZone().isPresent() ? 1L : 0L;
+        if (!building.commitWorkZone(candidate.revision() - 1, candidate)) {
+            return Result.STALE;
+        }
+        SettlementSavedData.get(level).setDirty();
+        FoundingJourneyProgress.noteWorkZoneCommitted(level, settlement,
+            building, candidate);
+        AuthorityTelemetry.emit(level,
+            AuthorityTelemetry.Event.WORK_ZONE_COMMITTED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.state(settlement.id,
+                authorityTarget(building, "commit"),
+                revisionBefore, building.workZoneRevision(), countBefore,
+                building.workZone().isPresent() ? 1L : 0L,
+                "confirmed_bounds"));
         return Result.APPLIED;
     }
 
@@ -393,9 +499,10 @@ public final class WorkZoneService {
         if (!zone.withinPersistentLimits()) {
             return Result.OVERSIZE;
         }
-        if (!settlement.insideBox(zone.min(), zone.max())) {
-            return Result.OUTSIDE_SETTLEMENT;
-        }
+        // City membership is the exact settlement/building UUID pair above.
+        // Do not reintroduce a center-radius gate here: the persistent zone
+        // limits, dimension, world border and loaded-chunk checks below still
+        // bound every candidate independently.
         if (!level.getWorldBorder().isWithinBounds(zone.min())
             || !level.getWorldBorder().isWithinBounds(zone.max())) {
             return Result.WORLD_BORDER;
@@ -451,8 +558,17 @@ public final class WorkZoneService {
             return Result.CORRUPT;
         }
         DevelopmentState development = Development.of(level, settlement);
-        if (development.quarantined()
-            || !development.unlocked(DevelopmentNode.TIMBER_RIGHTS)
+        if (development.quarantined()) {
+            // A damaged development ledger must be reported separately from
+            // ordinary unlearned Timber Rights. The latter is actionable
+            // progression; the former requires an explicit save repair.
+            return Result.CORRUPT;
+        }
+        // Timber Rights gates only the LUMBER zone. Since the founding
+        // trades (tech tree Option 2) Fields & Farmer needs only the Banner,
+        // so a Farmhouse-first village must be able to set its farm zone.
+        if ((type == WorkZone.Type.LUMBER
+                && !development.unlocked(DevelopmentNode.TIMBER_RIGHTS))
             || !Development.isBuildingUnlocked(level, settlement,
                 type.buildingType())) {
             return Result.TECH_LOCKED;
@@ -730,15 +846,26 @@ public final class WorkZoneService {
         // Before the modal exists, preserve the last actionable stage so a
         // bad corner can be retried. Once a validated preview is open, keep
         // the explicit rejection screen and its working server-side Cancel.
-        WorkZoneSnapshotPayload.Stage stage = session.previewReady
-            ? WorkZoneSnapshotPayload.Stage.REJECTED
-            : session.cornerOne == null
-                ? WorkZoneSnapshotPayload.Stage.TARGET_SELECTED
-                : WorkZoneSnapshotPayload.Stage.CORNER_ONE;
+        WorkZoneSnapshotPayload.Stage stage = rejectionStage(session.previewReady,
+            session.cornerOne != null, session.cornerTwo != null);
         send(player, snapshot(session, building, stage, result));
         emitRejection(player, session, building, result, event);
         trace(player, event, session, result);
         return result;
+    }
+
+    /** The retry snapshot must describe the server's retained click state. */
+    static WorkZoneSnapshotPayload.Stage rejectionStage(boolean previewReady,
+                                                        boolean hasCornerOne,
+                                                        boolean hasCornerTwo) {
+        if (previewReady) {
+            return WorkZoneSnapshotPayload.Stage.REJECTED;
+        }
+        if (hasCornerTwo) {
+            return WorkZoneSnapshotPayload.Stage.CORNER_TWO;
+        }
+        return hasCornerOne ? WorkZoneSnapshotPayload.Stage.CORNER_ONE
+            : WorkZoneSnapshotPayload.Stage.TARGET_SELECTED;
     }
 
     /** Stateless terminal reply for an expired or replayed client identity. */
@@ -779,7 +906,7 @@ public final class WorkZoneService {
 
     private static void send(ServerPlayer player,
                              WorkZoneSnapshotPayload snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
         snapshot.feedback().ifPresent(message ->
             player.displayClientMessage(message, true));
     }
@@ -866,11 +993,11 @@ public final class WorkZoneService {
 
     static int farmerSideLimit(int tier) {
         return switch (Math.max(1, Math.min(5, tier))) {
-            case 1 -> 5;
-            case 2 -> 9;
-            case 3 -> 13;
-            case 4 -> 17;
-            default -> 25;
+            case 1 -> 12;
+            case 2 -> 16;
+            case 3 -> 20;
+            case 4 -> 24;
+            default -> 28;
         };
     }
 

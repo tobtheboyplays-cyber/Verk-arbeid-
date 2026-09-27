@@ -40,6 +40,7 @@ LAYERS_OUT = os.path.join(OUT, "layers")
 
 UV = {
     "head":      (0, 0, 8, 8, 8),
+    "nose":      (120, 32, 2, 4, 2),
     "hood":      (32, 0, 8, 8, 8),
     "torso":     (64, 0, 10, 12, 5),
     "backpack":  (96, 0, 6, 7, 3),
@@ -50,6 +51,10 @@ UV = {
     "left_leg":  (48, 32, 4, 12, 4),
     "cloak":     (64, 32, 11, 4, 6),
     "hat_brim":  (64, 44, 12, 1, 12),
+    # Guard-only allocation within its otherwise transparent hat band.
+    # Farmer keeps its own original texture; these meshes are mutually exclusive.
+    "guard_brow":     (64, 44, 11, 1, 2),
+    "guard_side_rim": (90, 44, 1, 1, 8),
     # A2b: two overlapping cuboids make a visibly cinched cloth sack rather
     # than a wooden-looking rectangular crate.
     "sack_body": (0, 17, 7, 6, 6),
@@ -162,6 +167,7 @@ PROFESSION_OUTFITS = {
     # oak-toned hood, leather apron, one amber barrel-hoop band. The
     # archer is a woodland silhouette against the guard's iron wall: a
     # forest hood, a fletched quiver on the back, leather arm guards.
+    "mayor":     dict(headgear="hood", hood_wool="ink_blue", book_satchel=True),
     "scholar":   dict(headgear="hood", hood_wool="ink_blue",
                       book_satchel=True),
     "miller":    dict(headgear="miller_cap", apron=True, apron_wool="amber",
@@ -210,6 +216,14 @@ PROFESSION_OUTFITS = {
     # reuse, and the hood/bracer ramp pairing is still nobody else's.
     "hunter":    dict(headgear="hood", hood_wool="oak", quiver=True,
                       bracers=True, bracer_wool="forest"),
+    # BUILDER lane (Profession id 32): a pale work cap (the miller's crown
+    # mechanism, no hood cube, so SettlerModel needs no change), a dark oak
+    # leather apron, amber arm guards and the tool-belt rig for the hammer
+    # and plumb line. Distinct from the miller by ramp family (oak/amber vs
+    # amber/linen) and part combination (rig, no flour); from every hooded
+    # or bare trade by headgear silhouette plus parts -- checked pairwise.
+    "builder":   dict(headgear="miller_cap", apron=True, apron_wool="oak",
+                      bracers=True, bracer_wool="amber", satchel_rig=True),
 }
 
 # Legacy full-body fallback sheets (settler_<profession>.png) pick one fixed
@@ -242,6 +256,13 @@ def build_base(skin_idx):
     Shadows step the warm skin ramp, never gray."""
     img = new_image(128, 64)
     skin = ramp(SKIN_KEYS[skin_idx])
+
+    # Reserved8x6 island: all appearances and legacy fallback sheets inherit
+    # the same skin tone, independent of hair/face/outfit overlays.
+    for face, (x, y, width, height) in box_faces(*UV["nose"]).items():
+        for row in range(height):
+            for col in range(width):
+                put(img, x + col, y + row, lit(skin[3 if row < 3 else 2], face))
 
     u, v, w, h, d = UV["head"]
     faces = box_faces(u, v, w, h, d)
@@ -404,214 +425,123 @@ def build_face(variant_idx):
 # ---------------------------------------------------------------- clothing --
 
 def build_clothing(variant_idx):
-    """Default garment: torso, arm sleeves, legs, cloak, backpack, belt, sack.
-    No profession-specific extras -- those are the outfit layer's job."""
+    """Four independent everyday garments with connected cloth construction.
+
+    Variant palettes remain unchanged. Seams, knee reinforcements, cuffs and
+    soles replace stochastic weave; no profession is encoded in this layer.
+    """
     img = new_image(128, 64)
     palette = CLOTHING_PALETTES[variant_idx]
     tunic = ramp(palette["tunic"])
     trim = ramp(palette["trim"])
-    cloak_wool = ramp(palette["cloak_wool"])
-    legs_wool = ramp(palette["legs_wool"])
+    wool = ramp(palette["legs_wool"])
     leather = ramp("leather")
-    rng = random.Random(seed_for("clothing", variant_idx))
-
-    # torso
-    u, v, w, h, d = UV["torso"]
-    faces = box_faces(u, v, w, h, d)
-    for face, (x, y, fw, fh) in faces.items():
-        woven(img, x, y, fw, fh, tunic, rng, face)
+    iron = ramp("iron")
+    for face, (x, y, w, h) in box_faces(*UV["torso"]).items():
+        _work_fill(img, face, x, y, w, h, tunic)
         if face in ("front", "back", "right", "left"):
-            # Shoulder catch-light, then a fold crease where the tunic
-            # bunches above the belt line, then the hem trim -- three
-            # dedicated tones instead of one flat woven block.
-            for i in range(fw):
-                put(img, x + i, y, lit(shade(tunic[4], 1.05), face))
-            crease = shade(tunic[1], 0.88)
-            for i in range(fw):
-                put(img, x + i, y + fh - 2, lit(crease, face))
-                put(img, x + i, y + fh - 1, lit(trim[2], face))
-    x, y, fw, fh = faces["front"]
-    neck = shade(tunic[1], 0.9)
-    put(img, x + fw // 2 - 1, y, lit(neck, "front"))
-    put(img, x + fw // 2, y, lit(neck, "front"))
-    put(img, x + fw // 2 - 1, y + 1, lit(neck, "front"))
-    put(img, x + fw // 2, y + 1, lit(neck, "front"))
-    lace = leather[4]
-    put(img, x + fw // 2 - 2, y + 1, lit(lace, "front"))
-    put(img, x + fw // 2 + 1, y + 1, lit(lace, "front"))
-    put(img, x + fw // 2 - 1, y + 2, lit(lace, "front"))
-    put(img, x + fw // 2, y + 2, lit(lace, "front"))
-    strap = leather[1]
-    for face in ("front", "back"):
-        fx, fy, fw2, fh2 = faces[face]
-        for j in range(0, 6):
-            put(img, fx + 2, fy + j, lit(strap, face))
-            put(img, fx + fw2 - 3, fy + j, lit(strap, face))
+            for j in range(3, h - 2):
+                put(img, x, y + j, lit(tunic[2], face))
+            for i in range(w):
+                put(img, x + i, y + h - 1, lit(tunic[2], face))
+        if face == "front":
+            # Short split-neck shirt under the open outer collar. The face
+            # and hands still come exclusively from the independent skin.
+            for j in range(3):
+                for i in (w // 2 - 1, w // 2):
+                    put(img, x + i, y + j, lit(tunic[1], face))
+            put(img, x + w // 2 - 1, y + 2, lit(trim[3], face))
+            put(img, x + w // 2, y + 2, lit(trim[3], face))
+            # An offset seam is a sewn panel, not a repeating texture pattern.
+            seam = 2 if variant_idx in (0, 2) else w - 3
+            for j in range(4, 7):
+                put(img, x + seam, y + j, lit(tunic[2], face))
 
-    # arms: sleeve top, woven body, rolled cuff, shoulder seam. Hands and
-    # the very bottom face are skin (base layer); rows 4-8 may be replaced
-    # by a bracer/gauntlet outfit overlay.
     for part in ("right_arm", "left_arm"):
-        u, v, w, h, d = UV[part]
-        faces = box_faces(u, v, w, h, d)
-        for face, (x, y, fw, fh) in faces.items():
-            if face == "top":
-                woven(img, x, y, fw, fh, tunic, rng, face)
-                continue
+        for face, (x, y, w, h) in box_faces(*UV[part]).items():
             if face == "bottom":
                 continue
-            for j in range(0, 9):
-                for i in range(fw):
-                    if j in (7, 8):
-                        color = shade(tunic[4], 1.02)  # rolled cuff
-                    elif j == 6:
-                        color = shade(tunic[1], 0.85)  # crease before the cuff
-                    else:
-                        color = tunic[3]
-                        r = rng.random()
-                        if r < 0.16:
-                            color = tunic[2]
-                        elif r < 0.22:
-                            color = tunic[4]
-                    put(img, x + i, y + j, lit(color, face))
-            for i in range(fw):
-                put(img, x + i, y, lit(trim[2], face))  # shoulder seam
-
-    # legs
-    for part in ("right_leg", "left_leg"):
-        u, v, w, h, d = UV[part]
-        faces = box_faces(u, v, w, h, d)
-        for face, (x, y, fw, fh) in faces.items():
-            if face in ("top", "bottom"):
-                src = legs_wool if face == "top" else leather
-                for j in range(fh):
-                    for i in range(fw):
-                        put(img, x + i, y + j, lit(src[1 if face == "bottom" else 3], face))
+            if face == "top":
+                _work_fill(img, face, x, y, w, h, tunic)
                 continue
-            for j in range(fh):
-                for i in range(fw):
-                    if j >= 8:
-                        # boot: cuff highlight -> body -> welt line -> sole,
-                        # four dedicated tones instead of a flat block.
-                        if j == 8:
-                            idx = 4
-                        elif j == fh - 1:
-                            idx = 1
-                        elif j == fh - 2:
-                            idx = 2
-                        else:
-                            idx = 3
-                        color = leather[idx]
-                    else:
-                        color = legs_wool[3]
-                        r = rng.random()
-                        if r < 0.18:
-                            color = legs_wool[2]
-                        elif r < 0.24:
-                            color = legs_wool[4]
-                        if j == 4:
-                            color = shade(color, 0.85)  # knee crease shadow
-                    put(img, x + i, y + j, lit(color, face))
+            _work_fill(img, face, x, y, w, 9, tunic)
+            for i in range(w):
+                put(img, x + i, y + 6, lit(tunic[2], face))
+                put(img, x + i, y + 7, lit(tunic[4], face))
+                put(img, x + i, y + 8, lit(tunic[3], face))
 
-    # cloak
-    u, v, w, h, d = UV["cloak"]
-    faces = box_faces(u, v, w, h, d)
-    for face, (x, y, fw, fh) in faces.items():
-        woven(img, x, y, fw, fh, cloak_wool, rng, face)
+    for part in ("right_leg", "left_leg"):
+        for face, (x, y, w, h) in box_faces(*UV[part]).items():
+            if face in ("top", "bottom"):
+                _work_fill(img, face, x, y, w, h,
+                           wool if face == "top" else leather, base=2)
+                continue
+            _work_fill(img, face, x, y, w, 8, wool,
+                       base=2 if variant_idx in (0, 2) else 3)
+            if face == "front":
+                # A connected two-by-three sewn knee patch. Opposite side
+                # faces remain calm; this is not camouflage or random wear.
+                for j in range(4, 7):
+                    for i in range(1, w - 1):
+                        put(img, x + i, y + j,
+                            lit(wool[3 if j == 4 else 2], face))
+            for i in range(w):
+                for j, tone in ((8, 1), (9, 3), (10, 2), (11, 1)):
+                    put(img, x + i, y + j, lit(leather[tone], face))
+            if face == "front":
+                for i in range(1, w - 1):
+                    put(img, x + i, y + 9, lit(leather[4], face))
+
+    # This short shoulder mesh now matches the shirt, with a constructed
+    # open collar. It no longer forces every profession into a green band.
+    for face, (x, y, w, h) in box_faces(*UV["cloak"]).items():
+        _work_fill(img, face, x, y, w, h, tunic)
+        if face == "front":
+            for j in range(h):
+                half = max(0, 2 - j)
+                for i in range(w // 2 - half, w // 2 + half + 1):
+                    put(img, x + i, y + j, (0, 0, 0, 0))
+                for i in (w // 2 - half - 1, w // 2 + half + 1):
+                    if 0 <= i < w:
+                        put(img, x + i, y + j, lit(trim[2], face))
+        elif face == "back":
+            for j in range(h):
+                put(img, x + w // 2, y + j, lit(tunic[2], face))
+
+    for face, (x, y, w, h) in box_faces(*UV["backpack"]).items():
+        _work_fill(img, face, x, y, w, h, leather, base=2)
         if face in ("front", "back", "right", "left"):
-            # Draped fold lines: a structured vertical crease every 3rd
-            # column reads as fabric hanging in folds, distinct from the
-            # random weave noise underneath.
-            fold = shade(cloak_wool[1], 0.9)
-            for i in range(1, fw, 3):
-                for j in range(fh - 1):
-                    put(img, x + i, y + j, lit(fold, face))
-            for i in range(fw):
-                put(img, x + i, y + fh - 1, lit(cloak_wool[1], face))
-    x, y, fw, fh = faces["front"]
-    put(img, x + fw // 2, y + 1, lit(ramp("amber")[3], "front"))
-
-    # backpack
-    u, v, w, h, d = UV["backpack"]
-    faces = box_faces(u, v, w, h, d)
-    for face, (x, y, fw, fh) in faces.items():
-        for j in range(fh):
-            for i in range(fw):
-                idx = 3 if (i * 3 + j * 5) % 7 else 2
-                put(img, x + i, y + j, lit(leather[idx], face))
-        if face in ("front", "back", "right", "left") and fh > 2:
-            for i in range(fw):
+            for i in range(w):
                 put(img, x + i, y, lit(leather[4], face))
                 put(img, x + i, y + 1, lit(leather[3], face))
                 put(img, x + i, y + 2, lit(leather[1], face))
-    x, y, fw, fh = faces["back"]
-    put(img, x + fw // 2, y + 2, lit(ramp("iron")[4], "back"))
-    put(img, x + fw // 2, y + 3, lit(ramp("iron")[3], "back"))
+        if face == "back":
+            for j in (2, 3):
+                put(img, x + w // 2, y + j, lit(iron[2], face))
 
-    # belt
-    u, v, w, h, d = UV["belt"]
-    faces = box_faces(u, v, w, h, d)
-    for face, (x, y, fw, fh) in faces.items():
-        for j in range(fh):
-            for i in range(fw):
-                idx = 2 if j == fh - 1 else 3
-                put(img, x + i, y + j, lit(leather[idx], face))
-    x, y, fw, fh = faces["front"]
-    buckle = ramp("iron")
-    # Dark frame pixels either side of the buckle so its square reads as
-    # a distinct fitting against the leather, not a soft smear.
-    put(img, x + fw // 2 - 2, y, lit(buckle[0], "front"))
-    put(img, x + fw // 2 + 1, y, lit(buckle[0], "front"))
-    put(img, x + fw // 2 - 2, y + 1, lit(buckle[0], "front"))
-    put(img, x + fw // 2 + 1, y + 1, lit(buckle[0], "front"))
-    put(img, x + fw // 2 - 1, y, lit(buckle[4], "front"))
-    put(img, x + fw // 2, y, lit(buckle[3], "front"))
-    put(img, x + fw // 2 - 1, y + 1, lit(buckle[3], "front"))
-    put(img, x + fw // 2, y + 1, lit(buckle[2], "front"))
+    for face, (x, y, w, h) in box_faces(*UV["belt"]).items():
+        for j in range(h):
+            for i in range(w):
+                put(img, x + i, y + j, lit(leather[2 if j == 0 else 1], face))
+        if face == "front":
+            for i in (w // 2 - 1, w // 2):
+                put(img, x + i, y, lit(iron[3], face))
+                put(img, x + i, y + 1, lit(iron[2], face))
 
-    # Sack body (A2b): rounded shading, vertical cloth folds and a dark heavy
-    # base. The body overlaps the smaller neck by one pixel in geometry.
-    sack_cloth = ramp_of("sack_cloth")
-    u, v, w, h, d = UV["sack_body"]
-    faces = box_faces(u, v, w, h, d)
-    for face, (x, y, fw, fh) in faces.items():
-        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=2)
-        if face in ("front", "back", "right", "left"):
-            for j in range(0, fh - 2):
-                t = j / max(1, fh - 3)
-                for i in range(fw):
-                    edge = abs(i - (fw - 1) / 2.0) / max(0.5, (fw - 1) / 2.0)
-                    if edge > 0.72:
-                        idx = 1
-                    elif i in (1, fw - 2) and (j + i) % 3 == 0:
-                        idx = 1
-                    elif edge < 0.28 and t < 0.55:
-                        idx = 4
-                    else:
-                        idx = 2 if t > 0.65 else 3
-                    put(img, x + i, y + j, lit(sack_cloth[idx], face))
-            for i in range(fw):
-                put(img, x + i, y + fh - 2, lit(sack_cloth[1], face))
-                put(img, x + i, y + fh - 1, lit(sack_cloth[0], face))
-
-    # Narrow gathered neck and drawstring. Keeping this in its own UV island
-    # lets the silhouette taper instead of relying on painted fake corners.
-    u, v, w, h, d = UV["sack_neck"]
-    neck_faces = box_faces(u, v, w, h, d)
-    for face, (x, y, fw, fh) in neck_faces.items():
-        woven(img, x, y, fw, fh, sack_cloth, rng, face, base_idx=2)
-        if face in ("front", "back", "right", "left"):
-            for i in range(fw):
-                put(img, x + i, y, lit(leather[1], face))
-                if fh > 1:
-                    put(img, x + i, y + 1, lit(sack_cloth[4], face))
-    # Knot on the back face, where the cord is tied off.
-    faces = neck_faces
-    x, y, fw, fh = faces["back"]
-    put(img, x + fw // 2 - 1, y, lit(leather[4], "back"))
-    put(img, x + fw // 2, y + min(1, fh - 1), lit(leather[4], "back"))
-    put(img, x + fw // 2 + 1, y, lit(leather[2], "back"))
-
+    canvas = ramp_of("sack_cloth")
+    for part in ("sack_body", "sack_neck"):
+        for face, (x, y, w, h) in box_faces(*UV[part]).items():
+            _work_fill(img, face, x, y, w, h, canvas)
+            if face in ("front", "back", "right", "left"):
+                for j in range(h):
+                    for i in (0, w - 1):
+                        put(img, x + i, y + j, lit(canvas[1], face))
+                if part == "sack_neck":
+                    for i in range(w):
+                        put(img, x + i, y, lit(leather[2], face))
+                elif w >= 5:
+                    for j in range(1, h - 1):
+                        put(img, x + w // 2, y + j, lit(canvas[2], face))
     return img
 
 
@@ -758,6 +688,15 @@ def _paint_log_frame(img):
     faces = box_faces(u, v, w, h, d)
     for face, (x, y, fw, fh) in faces.items():
         if face in ("top", "bottom"):
+            if fw == 2 and fh == 2:
+                # A 2x2 cut end has no interior: reserve three pale pixels
+                # and one grain mark instead of painting an all-bark rim.
+                # Both rotated ends share material; runtime supplies lighting.
+                for j in range(2):
+                    for i in range(2):
+                        put(img, x + i, y + j,
+                            rings[3] if i == 1 and j == 1 else rings[4])
+                continue
             for j in range(fh):
                 for i in range(fw):
                     edge = i in (0, fw - 1) or j in (0, fh - 1)
@@ -1008,9 +947,304 @@ def _paint_quiver(img, rng):
         put(img, tx + ai, ty + th // 2, lit(wheat[4 if k != 1 else 3], "top"))
 
 
+# First coherent workwear set. These are profession overlays only: the four
+# clothing variants still supply sleeves and exposed shirt panels, while skin,
+# hair and face remain independent. Other profession OUTFIT pixels stay exact;
+# the refreshed shared clothing intentionally improves their composites too.
+WORKWEAR_SET = {
+    "farmer":  dict(yoke="forest", body="wheat", trim="leather", shape="apron"),
+    "lumberer": dict(yoke="burgundy", body="burgundy", trim="leather", shape="vest"),
+    "courier": dict(yoke="amber", body="leather", trim="linen_raw", shape="harness"),
+    "guard":   dict(yoke="wool_gray", body="wool_gray", trim="linen_raw", shape="padded"),
+    "archer":  dict(yoke="forest", body="leather", trim="forest", shape="harness"),
+    "miner":   dict(yoke="stone", body="iron", trim="amber", shape="apron"),
+    "smith":   dict(yoke="iron", body="leather", trim="iron", shape="apron"),
+    "baker":   dict(yoke="linen", body="linen", trim="wheat", shape="apron"),
+}
+
+
+def _work_fill(img, face, x, y, w, h, colors, base=3):
+    """Connected material planes: one lit edge and one structural shadow.
+
+    No stochastic weave, checkerboard or isolated highlight dots. Coordinates
+    are exact face rectangles on the existing 128x64 model, never resampled.
+    """
+    for j in range(h):
+        for i in range(w):
+            tone = base
+            if h >= 3 and j == 0:
+                tone = min(4, base + 1)
+            elif (w >= 3 and i == 0) or (h >= 4 and j == h - 1):
+                tone = max(1, base - 1)
+            put(img, x + i, y + j, lit(colors[tone], face))
+
+
+def _work_clear(img, part):
+    # Clear this outfit's old motif, not the composed layers underneath it.
+    for x, y, w, h in box_faces(*UV[part]).values():
+        for j in range(h):
+            for i in range(w):
+                put(img, x + i, y + j, (0, 0, 0, 0))
+
+
+def _work_headgear(img, prof_key):
+    outfit = PROFESSION_OUTFITS[prof_key]
+    kind = outfit["headgear"]
+    _work_clear(img, "hood")
+    if kind in ("hood", "helm"):
+        colors = ramp_of("iron" if kind == "helm" else outfit["hood_wool"])
+        for face, (x, y, w, h) in box_faces(*UV["hood"]).items():
+            # Baker retains the existing visible hood mesh, but its lower
+            # shell is transparent: a short clean linen cap exposes the hair.
+            cap = prof_key == "baker"
+            if face == "bottom" and cap:
+                continue
+            if face == "front":
+                for j in range(h):
+                    for i in range(w):
+                        covered = j < (2 if cap else 1)
+                        if not cap:
+                            covered |= i in (0, w - 1) or j == h - 1
+                        if covered:
+                            put(img, x + i, y + j,
+                                lit(colors[3 if j < 2 else 2], face))
+            else:
+                _work_fill(img, face, x, y, w,
+                           min(2, h) if cap and face != "top" else h, colors)
+            if prof_key == "guard" and face in ("back", "right", "left"):
+                for i in range(w):
+                    put(img, x + i, y + h - 2, lit(colors[1], face))
+                    put(img, x + i, y + h - 1, lit(colors[3], face))
+                for j in range(1, h - 2):
+                    put(img, x + w // 2, y + j, lit(colors[2], face))
+            if prof_key == "miner" and face not in ("top", "bottom"):
+                # A copper-colored stitched band, not a painted/emissive lamp.
+                band = ramp("amber")
+                for i in range(w):
+                    put(img, x + i, y + 1, lit(band[2], face))
+    if prof_key == "guard":
+        # Three rigid planes, not cloth noise. Exact integer box UVs retain
+        # one texel per model unit; nothing is borrowed from skin or clothing.
+        iron = ramp_of("iron")
+        tone = {"top": 4, "bottom": 1, "front": 3,
+                "back": 2, "right": 3, "left": 2}
+        for part in ("guard_brow", "guard_side_rim"):
+            for face, (x, y, w, h) in box_faces(*UV[part]).items():
+                for j in range(h):
+                    for i in range(w):
+                        put(img, x + i, y + j, lit(iron[tone[face]], face))
+    if kind == "straw_hat":
+        straw = ramp("straw")
+        leather = ramp("leather")
+        for face, (x, y, w, h) in box_faces(*UV["head"]).items():
+            if face == "bottom":
+                continue
+            _work_fill(img, face, x, y, w, h if face == "top" else 2, straw)
+        _work_clear(img, "hat_brim")
+        for face, (x, y, w, h) in box_faces(*UV["hat_brim"]).items():
+            for j in range(h):
+                for i in range(w):
+                    if face in ("top", "bottom"):
+                        radius = max(abs(i - (w - 1) / 2), abs(j - (h - 1) / 2))
+                        if radius < 2.5:
+                            continue
+                        color = leather[2] if radius < 3.3 else straw[3 if radius < 5 else 4]
+                    else:
+                        color = straw[2]
+                    put(img, x + i, y + j, lit(color, face))
+
+
+def _work_cargo(img, prof_key):
+    if prof_key == "courier":
+        canvas = ramp_of("sack_cloth")
+        leather = ramp("leather")
+        for part in ("sack_body", "sack_neck"):
+            _work_clear(img, part)
+            for face, (x, y, w, h) in box_faces(*UV[part]).items():
+                _work_fill(img, face, x, y, w, h, canvas)
+                if face not in ("top", "bottom"):
+                    for i in range(w):
+                        put(img, x + i, y, lit(leather[2], face))
+                    if part == "sack_body":
+                        # Broad lashing follows the cloth bag's actual faces;
+                        # its curved/tapered silhouette is still model-owned.
+                        for j in range(h):
+                            put(img, x + 1, y + j, lit(leather[2], face))
+                            put(img, x + w - 2, y + j, lit(leather[2], face))
+    elif prof_key == "archer":
+        leather = ramp("leather")
+        cord = ramp("forest")
+        _work_clear(img, "backpack")
+        for face, (x, y, w, h) in box_faces(*UV["backpack"]).items():
+            _work_fill(img, face, x, y, w, h, leather, base=2)
+            if face in ("front", "back", "right", "left"):
+                for i in range(w):
+                    put(img, x + i, y, lit(leather[3], face))
+                    put(img, x + i, y + h - 2, lit(cord[2], face))
+                for i in range(1, w - 1):
+                    put(img, x + i, y + 1, lit(leather[0], face))
+            elif face == "top":
+                for i in range(1, w - 1):
+                    for j in range(1, h - 1):
+                        put(img, x + i, y + j, lit(leather[0], face))
+        # This backpack is not ammo-aware: its dark mouth and leather rim must
+        # never paint permanent arrow shafts or feathers into an empty quiver.
+    # Lumber rails/logs keep their UV, fill thresholds and authored bark.
+
+
+
+def _work_strap(img, prof_key):
+    leather = ramp("leather")
+    # One continuous physical strap crosses shoulder, chest and the separate
+    # belt mesh. UV islands use their own local rows but one body-space line.
+    for part, first_row, body_offset in (("cloak", 0, 0), ("torso", 4, 0),
+                                          ("belt", 0, 7)):
+        for face in ("front", "back"):
+            x, y, w, h = box_faces(*UV[part])[face]
+            for j in range(first_row, h):
+                body_row = j + body_offset
+                i = 1 + body_row * 6 // 11
+                if face == "back":
+                    i = w - 3 - i
+                for stripe in range(2):
+                    if 0 <= i + stripe < w:
+                        put(img, x + i + stripe, y + j,
+                            lit(leather[3 - stripe], face))
+    # A broad shoulder fastening, below the neck, distinguishes the carrying
+    # harness without printing an icon or a fake carried item on the chest.
+    face = "front"
+    x, y, w, h = box_faces(*UV["cloak"])[face]
+    color = ramp("amber" if prof_key == "courier" else "leather")
+    for j in (1, 2):
+        put(img, x + 2, y + j, lit(color[2], face))
+
+
+def _work_flour_marks(img):
+    """Connected flour smears where hands wipe the apron and rolled cuffs.
+
+    Keep the clean garment construction: no stochastic dust or stray pixels.
+    These live below the cloak and above the belt so actual geometry shows them.
+    """
+    flour = ramp("linen")
+    x, y, w, h = box_faces(*UV["torso"])["front"]
+    for i, j in ((3, 4), (4, 4), (5, 4), (3, 5), (4, 5)):
+        put(img, x + i, y + j, lit(flour[4], "front"))
+    for part, face in (("right_arm", "front"), ("left_arm", "left")):
+        x, y, w, h = box_faces(*UV[part])[face]
+        for i in (1, 2):
+            put(img, x + i, y + 7, lit(flour[4], face))
+
+
+def _paint_readable_workwear(img, prof_key):
+    style = WORKWEAR_SET[prof_key]
+    yoke = ramp(style["yoke"])
+    cloth = ramp(style["body"])
+    trim = ramp(style["trim"])
+    shape = style["shape"]
+    for part in ("torso", "cloak", "belt", "right_arm", "left_arm"):
+        _work_clear(img, part)
+    # Every shoulder face has garment construction, not a flat color stripe.
+    # Transparent collar openings reveal the independent shirt beneath.
+    for face, (x, y, w, h) in box_faces(*UV["cloak"]).items():
+        _work_fill(img, face, x, y, w, h, yoke,
+                   base=2 if prof_key in ("guard", "smith") else 3)
+        if face == "front":
+            for j in range(h):
+                half = max(0, 2 - j)
+                if shape == "vest":
+                    half = 1
+                for i in range(w // 2 - half, w // 2 + half + 1):
+                    put(img, x + i, y + j, (0, 0, 0, 0))
+                # Two lapel edges form a V or the vest's open center.
+                for i in (w // 2 - half - 1, w // 2 + half + 1):
+                    if 0 <= i < w:
+                        put(img, x + i, y + j, lit(yoke[1], face))
+            if shape == "apron":
+                # Shoulder straps join a visible bib on this outer mesh;
+                # painting these only on torso rows0..3 would hide them.
+                for strap_x in (2, w - 3):
+                    for j in range(h):
+                        put(img, x + strap_x, y + j, lit(cloth[2], face))
+                for j in (2, 3):
+                    for i in range(3, w - 3):
+                        put(img, x + i, y + j, lit(cloth[3], face))
+            elif shape == "padded":
+                for i in range(1, w - 1):
+                    if i not in (w // 2 - 1, w // 2, w // 2 + 1):
+                        put(img, x + i, y + h - 1, lit(yoke[1], face))
+        elif face == "back":
+            for j in range(h):
+                put(img, x + w // 2, y + j, lit(yoke[2], face))
+        elif face in ("right", "left"):
+            for j in range(h):
+                put(img, x, y + j, lit(yoke[2], face))
+    torso = box_faces(*UV["torso"])
+    for face in ("front", "back", "right", "left"):
+        x, y, w, h = torso[face]
+        if shape == "padded":
+            _work_fill(img, face, x, y + 4, w, h - 4, cloth, base=2)
+            for seam in range(2, w, 3):
+                for j in range(4, h - 1):
+                    put(img, x + seam, y + j, lit(cloth[1], face))
+            if face in ("front", "back"):
+                for i in range(1, w - 1):
+                    put(img, x + i, y + h - 1, lit(trim[2], face))
+        elif shape == "apron" and face == "front":
+            _work_fill(img, face, x + 1, y + 4, w - 2, 7, cloth,
+                       base=2 if prof_key == "smith" else 3)
+            for i in range(1, w - 1):
+                put(img, x + i, y + 10, lit(cloth[2], face))
+            # Connected pocket opening stays below the separate belt.
+            for i in range(3, w - 3):
+                put(img, x + i, y + 9, lit(cloth[1], face))
+            if prof_key == "miner":
+                for i in (1, w - 2):
+                    for j in (4, 5):
+                        put(img, x + i, y + j, lit(trim[2], face))
+        elif shape == "vest" and face in ("front", "back"):
+            if face == "back":
+                _work_fill(img, face, x, y + 4, w, h - 4, cloth, base=2)
+            else:
+                for offset in (0, w - 3):
+                    _work_fill(img, face, x + offset, y + 4, 3, h - 4, cloth)
+                for j in range(4, h):
+                    for seam in (2, w - 3):
+                        put(img, x + seam, y + j, lit(cloth[1], face))
+    # Cuff construction differs by work: a long bow-arm leather guard,
+    # reinforced forge/wood cuffs, or light rolled apron-worker sleeves.
+    for part in ("right_arm", "left_arm"):
+        for face, (x, y, w, h) in box_faces(*UV[part]).items():
+            if face in ("top", "bottom"):
+                continue
+            start = 4 if prof_key == "archer" and part == "left_arm" else 6
+            cuff = cloth if prof_key in ("smith", "lumberer", "archer", "guard") else trim
+            _work_fill(img, face, x, y + start, w, 9 - start, cuff,
+                       base=2 if prof_key in ("guard", "smith") else 3)
+            for i in range(w):
+                put(img, x + i, y + start, lit(cuff[1], face))
+                put(img, x + i, y + 8, lit(cuff[2], face))
+    if shape == "harness":
+        _work_strap(img, prof_key)
+    if prof_key == "baker":
+        _work_flour_marks(img)
+    _work_headgear(img, prof_key)
+    _work_cargo(img, prof_key)
+
+
 def build_outfit(prof_key):
+    # Reuse the existing formal civic outfit without regenerating different art.
+    if prof_key == "mayor":
+        return build_outfit("scholar")
     img = new_image(128, 64)
     o = PROFESSION_OUTFITS[prof_key]
+    # The refreshed set owns its garment islands from the start. Preserve
+    # the existing frame painter explicitly: its separate UV islands and
+    # runtime log-fill geometry are not replaced by the workwear layer.
+    if prof_key in WORKWEAR_SET:
+        if o.get("log_frame"):
+            _paint_log_frame(img)
+        _paint_readable_workwear(img, prof_key)
+        return img
     rng = random.Random(seed_for("outfit", prof_key))
 
     _paint_headgear_shell(img, o, rng)

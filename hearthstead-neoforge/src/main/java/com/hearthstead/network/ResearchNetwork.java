@@ -67,6 +67,12 @@ public final class ResearchNetwork {
         }
 
         Optional<Component> refusal = Optional.empty();
+        if ((action.kind() == ResearchActionPayload.Kind.START
+                || action.kind() == ResearchActionPayload.Kind.CANCEL)
+            && (player.isSpectator() || !player.mayBuild())) {
+            send(player, snapshot(player, settlement, study, action.pos(), refusal));
+            return;
+        }
         switch (action.kind()) {
             case START -> {
                 ResearchProject project = ResearchProject.byOrdinal(action.projectOrdinal());
@@ -116,7 +122,7 @@ public final class ResearchNetwork {
     }
 
     private static void send(ServerPlayer player, ResearchSnapshotPayload snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private ResearchNetwork() {

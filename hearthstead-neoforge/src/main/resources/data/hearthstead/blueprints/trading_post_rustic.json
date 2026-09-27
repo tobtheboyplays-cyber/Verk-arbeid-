@@ -1,0 +1,132 @@
+{
+  "id": "trading_post_rustic",
+  "name": "Trader's Shop (Rustic Log)",
+  "category": "common",
+  "kind": "building",
+  "building_type": "trading_post",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "trading_post",
+  "size": [
+    12,
+    9,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      4,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      7,
+      1,
+      6
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:spruce_log",
+      "count": 90
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 54
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 52
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 36
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 35
+    },
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 34
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 22
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 16
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 11
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 4
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 4
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 3
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:red_wool",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cartography_table",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 1
+    },
+    {
+      "item": "minecraft:green_banner",
+      "count": 1
+    }
+  ],
+  "block_count": 374,
+  "cells": 573
+}

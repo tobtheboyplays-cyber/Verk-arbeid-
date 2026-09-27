@@ -192,6 +192,9 @@ public final class Research extends SavedData {
         if (state.completed.contains(project)) {
             return new Refusal("hearthstead.research.refused.done");
         }
+        if (!project.newStartsSupported()) {
+            return new Refusal("hearthstead.research.blocked.unreleased");
+        }
         List<IItemHandler> sources = sourcesFor(level, settlement, study);
         // COSTS.md's law 2, "the village helps": a standing library takes a
         // quarter off the materials, capped with every other discount at
@@ -253,11 +256,28 @@ public final class Research extends SavedData {
 
     /** One work-session finished at the lectern ({@code ScholarWorkGoal}). */
     public static void advanceSession(ServerLevel level, UUID settlementId) {
+        advanceSession(level, settlementId, 0.0F);
+    }
+
+    /**
+     * One session plus {@code bonus} (0..1) of a further session, banked in
+     * the same fractional accumulator the daily trickle uses. {@code 0} is
+     * exactly {@link #advanceSession(ServerLevel, UUID)}. Used by the
+     * Scholar's trade skill (Intelligence, see SkillLevels#researchBonus).
+     */
+    public static void advanceSession(ServerLevel level, UUID settlementId, float bonus) {
         ResearchState state = of(level, settlementId);
         if (state.active == null) {
             return;
         }
         state.active.sessions++;
+        if (bonus > 0.0F) {
+            state.active.trickle += Math.min(1.0F, bonus);
+            if (state.active.trickle >= 1.0F) {
+                state.active.trickle -= 1.0F;
+                state.active.sessions++;
+            }
+        }
         completeIfDone(state);
         get(level).setDirty();
     }
@@ -404,7 +424,7 @@ public final class Research extends SavedData {
             }
         }
         if (!remaining.isEmpty() && study.anchor != null) {
-            Block.popResource(level, study.anchor, remaining);
+            com.hearthstead.util.ItemSpill.conserve(level, study.anchor, remaining);
         }
     }
 }

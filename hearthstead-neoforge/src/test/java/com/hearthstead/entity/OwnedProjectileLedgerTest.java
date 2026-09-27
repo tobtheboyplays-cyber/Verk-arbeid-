@@ -21,11 +21,18 @@ class OwnedProjectileLedgerTest {
         UUID victim = UUID.randomUUID();
 
         assertTrue(OwnedProjectileLedger.issue(persistent, projectile, owner));
+        OwnedProjectileLedger.Inspection issued =
+            OwnedProjectileLedger.inspect(persistent, projectile);
+        assertNotNull(issued);
+        assertEquals(owner, issued.ownerId());
+        assertEquals(0L, issued.committedContacts());
         OwnedProjectileLedger.ContactCommit first = OwnedProjectileLedger.commit(
             persistent, projectile, owner, victim);
         assertNotNull(first);
         assertEquals(0L, first.revisionBefore());
         assertEquals(1L, first.revisionAfter());
+        assertEquals(1L, OwnedProjectileLedger.inspect(persistent, projectile)
+            .committedContacts());
         assertNull(OwnedProjectileLedger.commit(persistent, projectile, owner,
             victim), "the same arrow/victim contact cannot replay");
         assertNull(OwnedProjectileLedger.commit(persistent, UUID.randomUUID(),
@@ -67,6 +74,7 @@ class OwnedProjectileLedgerTest {
             UUID.randomUUID()));
         assertNull(OwnedProjectileLedger.commit(persistent, UUID.randomUUID(),
             UUID.randomUUID(), UUID.randomUUID()));
+        assertNull(OwnedProjectileLedger.inspect(persistent, UUID.randomUUID()));
         assertEquals(before, persistent.toString(),
             "a malformed authority tag must remain fail-closed, not be laundered");
     }

@@ -1,0 +1,44 @@
+{
+  "id": "tavern",
+  "title": "hearthstead.guide.tavern.title",
+  "icon": "hearthstead:ale",
+  "pages": [
+    {
+      "id": "tavern.p1",
+      "title": "hearthstead.guide.tavern.p1.title",
+      "bullets": [
+        "hearthstead.guide.tavern.p1.b1",
+        "hearthstead.guide.tavern.p1.b2",
+        "hearthstead.guide.tavern.p1.b3",
+        "hearthstead.guide.tavern.p1.b4"
+      ],
+      "items": [
+        "minecraft:bell",
+        "hearthstead:ale_tap",
+        "minecraft:barrel",
+        "hearthstead:innkeeper_emblem"
+      ],
+      "tip": "hearthstead.guide.tavern.p1.tip",
+      "text": [
+        "hearthstead.guide.tavern.body"
+      ],
+      "journey": [
+        "fj_420_unlock_tavern",
+        "fj_430_link_tavern"
+      ]
+    },
+    {
+      "id": "tavern.p2",
+      "title": "hearthstead.guide.tavern.p2.title",
+      "bullets": [
+        "hearthstead.guide.tavern.p2.b1",
+        "hearthstead.guide.tavern.p2.b2",
+        "hearthstead.guide.tavern.p2.b3"
+      ],
+      "tip": "hearthstead.guide.tavern.p2.tip",
+      "text": [
+        "hearthstead.guide.tavern.body2"
+      ]
+    }
+  ]
+}

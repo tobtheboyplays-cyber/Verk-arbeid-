@@ -1,0 +1,247 @@
+{
+  "name": "journey_field_journal",
+  "width": 304,
+  "height": 285,
+  "elements": [
+    {
+      "t": "window",
+      "x": 0,
+      "y": 0,
+      "w": 304,
+      "h": 285
+    },
+    {
+      "t": "inset",
+      "x": 8,
+      "y": 8,
+      "w": 76,
+      "h": 269
+    },
+    {
+      "t": "label",
+      "x": 46,
+      "y": 16,
+      "text": "JOURNEY",
+      "align": "center",
+      "box": 64,
+      "tone": "text_strong",
+      "id": "journey_rail_title"
+    },
+    {
+      "t": "label",
+      "x": 14,
+      "y": 34,
+      "text": "Foundation",
+      "box": 64,
+      "tone": "accent",
+      "id": "journey_chapter"
+    },
+    {
+      "t": "pips",
+      "x": 26,
+      "y": 54,
+      "n": 1,
+      "of": 3,
+      "tone": "accent"
+    },
+    {
+      "t": "label",
+      "x": 46,
+      "y": 68,
+      "text": "MILESTONE",
+      "align": "center",
+      "box": 64,
+      "tone": "text_muted",
+      "id": "journey_marker"
+    },
+    {
+      "t": "divider",
+      "x": 14,
+      "y": 81,
+      "w": 64
+    },
+    {
+      "t": "card",
+      "x": 12,
+      "y": 92,
+      "w": 68,
+      "h": 38
+    },
+    {
+      "t": "label",
+      "x": 46,
+      "y": 103,
+      "text": "2 / 18",
+      "align": "center",
+      "box": 64,
+      "tone": "text_strong",
+      "id": "journey_progress"
+    },
+    {
+      "t": "title",
+      "x": 90,
+      "y": 12,
+      "text": "Founding Journey",
+      "box": 206,
+      "id": "journey_title"
+    },
+    {
+      "t": "label",
+      "x": 90,
+      "y": 27,
+      "text": "Foundation",
+      "box": 110,
+      "tone": "accent",
+      "id": "journey_head_chapter"
+    },
+    {
+      "t": "label",
+      "x": 296,
+      "y": 27,
+      "text": "2 / 18",
+      "align": "right",
+      "box": 206,
+      "tone": "text_muted",
+      "id": "journey_head_progress"
+    },
+    {
+      "t": "divider",
+      "x": 90,
+      "y": 42,
+      "w": 206
+    },
+    {
+      "t": "line",
+      "x": 0,
+      "y": 0,
+      "points": [
+        [
+          97,
+          84
+        ],
+        [
+          97,
+          187
+        ]
+      ],
+      "tone": "accent",
+      "width": 2
+    },
+    {
+      "t": "pips",
+      "x": 95,
+      "y": 77,
+      "n": 1,
+      "of": 1,
+      "tone": "accent"
+    },
+    {
+      "t": "card_hover",
+      "x": 108,
+      "y": 66,
+      "w": 188,
+      "h": 58
+    },
+    {
+      "t": "label",
+      "x": 115,
+      "y": 72,
+      "text": "Appoint a Mayor",
+      "box": 134,
+      "tone": "accent",
+      "id": "journey_step_title[0]"
+    },
+    {
+      "t": "label",
+      "x": 289,
+      "y": 72,
+      "text": "CURRENT",
+      "align": "right",
+      "box": 42,
+      "tone": "accent",
+      "id": "journey_step_state[0]"
+    },
+    {
+      "t": "paragraph",
+      "x": 115,
+      "y": 87,
+      "w": 174,
+      "h": 28,
+      "box": 174,
+      "text": "Choose a settlement member to authorise research and job emblems.",
+      "lines": 3,
+      "tone": "text_muted",
+      "id": "journey_step_desc[0]"
+    },
+    {
+      "t": "pips",
+      "x": 95,
+      "y": 143,
+      "n": 0,
+      "of": 1,
+      "tone": "accent"
+    },
+    {
+      "t": "card",
+      "x": 108,
+      "y": 132,
+      "w": 188,
+      "h": 58
+    },
+    {
+      "t": "label",
+      "x": 115,
+      "y": 138,
+      "text": "Research Lumber Camp",
+      "box": 134,
+      "tone": "text_muted",
+      "id": "journey_step_title[1]"
+    },
+    {
+      "t": "label",
+      "x": 289,
+      "y": 138,
+      "text": "NEXT",
+      "align": "right",
+      "box": 42,
+      "tone": "text_muted",
+      "id": "journey_step_state[1]"
+    },
+    {
+      "t": "paragraph",
+      "x": 115,
+      "y": 153,
+      "w": 174,
+      "h": 28,
+      "box": 174,
+      "text": "Pay the shown cost in Development to learn the first build plan.",
+      "lines": 3,
+      "tone": "text_muted",
+      "id": "journey_step_desc[1]"
+    },
+    {
+      "t": "divider",
+      "x": 90,
+      "y": 232,
+      "w": 206
+    },
+    {
+      "t": "label",
+      "x": 90,
+      "y": 242,
+      "text": "Complete this objective to continue.",
+      "box": 206,
+      "tone": "text_muted",
+      "id": "journey_footer"
+    },
+    {
+      "t": "button",
+      "x": 99,
+      "y": 257,
+      "w": 106,
+      "h": 20,
+      "text": "Skip journey",
+      "state": "danger"
+    }
+  ]
+}

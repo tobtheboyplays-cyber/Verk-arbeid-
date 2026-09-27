@@ -194,8 +194,11 @@ public final class DevelopmentQuests {
         boolean changed = state.noteEquipmentRequest(requestId);
         if (request.profession() == Profession.GUARD
             && destination.type == BuildingType.BARRACKS
-            && Objects.equals(EquipmentRequests.requirementFor(Profession.GUARD),
-                request.requirement())) {
+            // BH-24: the stored request carries the Guard's Gear Tier cap, so
+            // compare the need itself, never the record (cap included).
+            && request.requirement() != null
+            && request.requirement().sameNeed(
+                EquipmentRequests.requirementFor(Profession.GUARD))) {
             changed |= state.noteGuardEquipmentRequest(requestId);
         }
         return dirtyIf(level, changed);
@@ -227,16 +230,57 @@ public final class DevelopmentQuests {
         }
         Development data = Development.get(level);
         for (Settlement settlement : SettlementSavedData.get(level).settlements.values()) {
-            DevelopmentState state = data.existingState(settlement.id);
-            if (state == null || state.quarantined()
-                || !state.unlocked(DevelopmentNode.FIRST_RAID_AFTERMATH)
-                || state.activeDoctrine() != null) {
-                continue;
-            }
-            if (state.updateAllHousedTicks(allResidentsHoused(settlement), 20)) {
-                data.setDirty();
-            }
+            updateAllHousedProgress(data, settlement);
         }
+    }
+
+    /**
+     * Advances one real one-second housing sample until Hearth Doctrine is
+     * learned. Choosing another primary doctrine must not strand this quest.
+     */
+    static boolean updateAllHousedProgress(ServerLevel level,
+                                            Settlement settlement) {
+        return level != null && updateAllHousedProgress(Development.get(level),
+            settlement);
+    }
+
+    private static boolean updateAllHousedProgress(Development data,
+                                                    Settlement settlement) {
+        DevelopmentState state = settlement == null ? null
+            : data.existingState(settlement.id);
+        if (state == null || state.quarantined()
+            || !state.unlocked(DevelopmentNode.FIRST_RAID_AFTERMATH)
+            || state.unlocked(DevelopmentNode.HEARTH_DOCTRINE)) {
+            return false;
+        }
+        boolean changed = state.updateAllHousedTicks(
+            allResidentsHoused(settlement), 20);
+        if (changed) {
+            data.setDirty();
+        }
+        return changed;
+    }
+
+    /**
+     * Lifetime progress for an upgrade milestone gate. Live counts (housed
+     * settlers, the first raid) are measured now; stored counters are the
+     * settlement's lifetime totals, never a per-node baseline, so a gate
+     * already met before the upgrade was visible stays met.
+     */
+    public static int upgradeGateProgress(ServerLevel level, Settlement settlement,
+                                          DevelopmentState state,
+                                          DevelopmentObjective objective) {
+        if (objective == null) {
+            return 0;
+        }
+        return switch (objective) {
+            case HOUSED_SETTLERS -> housedResidents(settlement);
+            case POPULATION -> settlement.population();
+            case FIRST_RAID_COMPLETE -> settlement.raidLifecycle.firstState()
+                == FirstRaidState.COMPLETED ? 1 : 0;
+            case FOUNDATION_READY -> 1;
+            default -> state.counter(objective);
+        };
     }
 
     private static int measure(ServerLevel level, Settlement settlement,
@@ -246,6 +290,7 @@ public final class DevelopmentQuests {
         return switch (objective) {
             case FOUNDATION_READY -> foundationReady(level, settlement, hearth) ? 1 : 0;
             case HOUSED_SETTLERS -> housedResidents(settlement);
+            case POPULATION -> settlement.population();
             case FIRST_RAID_COMPLETE -> settlement.raidLifecycle.firstState()
                 == FirstRaidState.COMPLETED ? 1 : 0;
             case ALL_HOUSED_TICKS -> state.counter(objective);
@@ -256,21 +301,15 @@ public final class DevelopmentQuests {
     private static boolean foundationReady(ServerLevel level, Settlement settlement,
                                            HearthBlockEntity hearth) {
         if (level == null || settlement == null || hearth == null
-            || settlement.mayorId == null
             || !settlement.center.equals(hearth.getBlockPos())
             || !settlement.id.equals(hearth.getSettlementId())
             || level.getBlockEntity(hearth.getBlockPos()) != hearth) {
             return false;
         }
-        if (!(level.getEntity(settlement.mayorId) instanceof SettlerEntity mayor)
-            || !mayor.isAlive()
-            || !Objects.equals(mayor.getSettlementId(), settlement.id)
-            || settlement.record(mayor.getUUID()) == null) {
-            return false;
-        }
         // The first research choice must be reachable before Home knowledge.
-        // A valid Hearth, a live bound Mayor and the founded settlement are
-        // the complete First Fire proof; housing is deliberately later.
+        // A valid Banner and the founded settlement are the complete First
+        // Fire proof (the retired Mayor seat is no longer part of it);
+        // housing is deliberately later.
         return settlement.population() >= 3;
     }
 

@@ -77,6 +77,21 @@ public final class Weight {
      */
     public static final int BAG_BUDGET = 16;
 
+    /**
+     * The weight budget for a trip budget of {@code carryCapacity} items.
+     *
+     * <p>Sack tiers and the Hand Cart raise the item budget; without this the
+     * fixed {@link #BAG_BUDGET} would cap a Frame Pack or cart at four logs,
+     * exactly like a plain sack, and the upgrade would only help light
+     * cargo. The budget grows in proportion to the item budget above the
+     * base eight, and never drops below {@link #BAG_BUDGET}, so a base or
+     * deliberately reduced courier behaves exactly as before.
+     */
+    public static int budgetFor(int carryCapacity) {
+        int base = 8; // SettlerEntity.BASE_CARRY_CAPACITY (kept literal: no entity import)
+        return BAG_BUDGET * Math.max(base, carryCapacity) / base;
+    }
+
     /** What one unit of {@code stack}'s item costs to carry. */
     public static int of(ItemStack stack) {
         if (stack.isEmpty()) {
@@ -151,7 +166,7 @@ public final class Weight {
         // the light ones the design meant to leave alone. Caught by review
         // before the first caller existed; taking the capacity directly
         // removes the ambiguity rather than documenting around it.
-        int byWeight = BAG_BUDGET / unit;
+        int byWeight = budgetFor(carryCapacity) / unit;
         return Math.max(1, Math.min(carryCapacity, byWeight));
     }
 }

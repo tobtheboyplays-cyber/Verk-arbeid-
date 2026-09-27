@@ -1,0 +1,103 @@
+{
+  "id": "stone_gatehouse",
+  "name": "Stone Gatehouse",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": "watchtower",
+  "variant": "large",
+  "style": "stone",
+  "preset": "Stone",
+  "requires": "masonry",
+  "group": "watchtower",
+  "size": [
+    9,
+    10,
+    8
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      1,
+      2,
+      5
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      4,
+      9,
+      3
+    ]
+  ],
+  "segment": "gate",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:cobblestone",
+      "count": 177
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 163
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 30
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 14
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 13
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 7
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 6
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 6
+    },
+    {
+      "item": "minecraft:stone_brick_stairs",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 3
+    },
+    {
+      "item": "minecraft:iron_bars",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    }
+  ],
+  "block_count": 432,
+  "cells": 606,
+  "notes": [
+    "Gate = 3 oak fence gates across the passage; guard room above registers as a watchtower."
+  ]
+}

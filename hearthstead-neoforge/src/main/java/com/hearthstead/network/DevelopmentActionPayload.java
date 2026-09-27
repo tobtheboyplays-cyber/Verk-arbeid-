@@ -45,6 +45,8 @@ public record DevelopmentActionPayload(BlockPos hearthPos, UUID settlementId, UU
         REFRESH(2),
         /** Open the appointed Mayor's ordinary settler sheet from the shop. */
         INSPECT_MAYOR(3),
+        /** Buy one post-raid upgrade ({@code targetWireId} = upgrade wire id). */
+        BUY_UPGRADE(4),
         UNKNOWN(-1);
 
         private final int wireId;
@@ -63,6 +65,7 @@ public record DevelopmentActionPayload(BlockPos hearthPos, UUID settlementId, UU
                 case 1 -> BUY_EMBLEM;
                 case 2 -> REFRESH;
                 case 3 -> INSPECT_MAYOR;
+                case 4 -> BUY_UPGRADE;
                 default -> UNKNOWN;
             };
         }

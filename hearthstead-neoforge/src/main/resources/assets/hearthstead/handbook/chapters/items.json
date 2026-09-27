@@ -1,0 +1,804 @@
+{
+  "id": "items",
+  "title": "hearthstead.guide.items.title",
+  "icon": "hearthstead:work_scepter",
+  "pages": [
+    {
+      "id": "items.banner",
+      "title": "hearthstead.guide.items.banner.title",
+      "bullets": [
+        "hearthstead.guide.items.banner.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.banner.k1"
+        },
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.banner.k2",
+          "modifier": "key.sneak"
+        }
+      ],
+      "items": [
+        "hearthstead:hearth"
+      ],
+      "tip": "hearthstead.guide.items.banner.tip",
+      "steps": [
+        "hearthstead.howto.banner.s1",
+        "hearthstead.howto.banner.s2",
+        "hearthstead.howto.banner.s3",
+        "hearthstead.howto.banner.s4",
+        "hearthstead.howto.banner.s5"
+      ],
+      "recipes": [
+        "hearthstead:hearth"
+      ],
+      "link": "founding.p1"
+    },
+    {
+      "id": "items.handbook",
+      "title": "hearthstead.guide.items.handbook.title",
+      "bullets": [
+        "hearthstead.guide.items.handbook.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.handbook.k1"
+        },
+        {
+          "key": "key.hearthstead.handbook",
+          "action": "hearthstead.guide.items.handbook.k2"
+        }
+      ],
+      "items": [
+        "hearthstead:handbook"
+      ],
+      "tip": "hearthstead.guide.items.handbook.tip",
+      "steps": [
+        "hearthstead.howto.handbook.s1",
+        "hearthstead.howto.handbook.s2",
+        "hearthstead.howto.handbook.s3"
+      ],
+      "obtain": "hearthstead.howto.handbook.obtain",
+      "recipes": [
+        "hearthstead:handbook"
+      ],
+      "link": "start_here.welcome"
+    },
+    {
+      "id": "items.plaque",
+      "title": "hearthstead.guide.items.plaque.title",
+      "bullets": [
+        "hearthstead.guide.items.plaque.b1",
+        "hearthstead.howto.build_plan.use"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.plaque.k1"
+        },
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.plaque.k2",
+          "modifier": "key.sneak"
+        }
+      ],
+      "items": [
+        "hearthstead:plaque",
+        "hearthstead:build_plan"
+      ],
+      "tip": "hearthstead.guide.items.plaque.tip",
+      "steps": [
+        "hearthstead.howto.plaque.s1",
+        "hearthstead.howto.plaque.s2",
+        "hearthstead.howto.plaque.s3",
+        "hearthstead.howto.plaque.s4"
+      ],
+      "obtain": "hearthstead.howto.build_plan.obtain",
+      "recipes": [
+        "hearthstead:plaque",
+        "hearthstead:build_plan_lumber_camp"
+      ],
+      "link": "plaque.p1"
+    },
+    {
+      "id": "items.work_scepter",
+      "title": "hearthstead.guide.items.work_scepter.title",
+      "bullets": [
+        "hearthstead.guide.items.work_scepter.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.work_scepter.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:work_scepter"
+      ],
+      "tip": "hearthstead.guide.items.work_scepter.tip",
+      "steps": [
+        "hearthstead.howto.work_scepter.s1",
+        "hearthstead.howto.work_scepter.s2",
+        "hearthstead.howto.work_scepter.s3",
+        "hearthstead.howto.work_scepter.s4"
+      ],
+      "recipes": [
+        "hearthstead:work_scepter"
+      ],
+      "link": "work_zones.p1"
+    },
+    {
+      "id": "items.builders_plan",
+      "title": "hearthstead.guide.items.builders_plan.title",
+      "bullets": [
+        "hearthstead.guide.items.builders_plan.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.builders_plan.k1"
+        },
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.builders_plan.k2"
+        }
+      ],
+      "items": [
+        "hearthstead:builders_plan"
+      ],
+      "tip": "hearthstead.guide.items.builders_plan.tip",
+      "steps": [
+        "hearthstead.howto.builders_plan.s1",
+        "hearthstead.howto.builders_plan.s2",
+        "hearthstead.howto.builders_plan.s3",
+        "hearthstead.howto.builders_plan.s4"
+      ],
+      "recipes": [
+        "hearthstead:builders_plan"
+      ],
+      "link": "builder.hut"
+    },
+    {
+      "id": "items.survey_rod",
+      "title": "hearthstead.guide.items.survey_rod.title",
+      "bullets": [
+        "hearthstead.guide.items.survey_rod.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.survey_rod.k1"
+        },
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.survey_rod.k2"
+        }
+      ],
+      "items": [
+        "hearthstead:survey_rod"
+      ],
+      "tip": "hearthstead.guide.items.survey_rod.tip",
+      "steps": [
+        "hearthstead.howto.survey_rod.s1",
+        "hearthstead.howto.survey_rod.s2",
+        "hearthstead.howto.survey_rod.s3",
+        "hearthstead.howto.survey_rod.s4"
+      ],
+      "recipes": [
+        "hearthstead:survey_rod"
+      ],
+      "link": "builder.designs"
+    },
+    {
+      "id": "items.resource_scroll",
+      "title": "hearthstead.guide.items.resource_scroll.title",
+      "bullets": [
+        "hearthstead.guide.items.resource_scroll.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.resource_scroll.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:resource_scroll"
+      ],
+      "tip": "hearthstead.guide.items.resource_scroll.tip",
+      "steps": [
+        "hearthstead.howto.resource_scroll.s1",
+        "hearthstead.howto.resource_scroll.s2"
+      ],
+      "recipes": [
+        "hearthstead:resource_scroll"
+      ],
+      "link": "builder.sites"
+    },
+    {
+      "id": "items.patrol_map",
+      "title": "hearthstead.guide.items.patrol_map.title",
+      "bullets": [
+        "hearthstead.guide.items.patrol_map.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.patrol_map.k1"
+        },
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.patrol_map.k2",
+          "modifier": "key.sneak"
+        }
+      ],
+      "items": [
+        "hearthstead:patrol_map"
+      ],
+      "tip": "hearthstead.guide.items.patrol_map.tip",
+      "steps": [
+        "hearthstead.howto.patrol_map.s1",
+        "hearthstead.howto.patrol_map.s2",
+        "hearthstead.howto.patrol_map.s3",
+        "hearthstead.howto.patrol_map.s4"
+      ],
+      "recipes": [
+        "hearthstead:patrol_map"
+      ],
+      "link": "patrols.watch"
+    },
+    {
+      "id": "items.emblems",
+      "title": "hearthstead.guide.items.emblems.title",
+      "bullets": [
+        "hearthstead.guide.items.emblems.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.emblems.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:lumberer_emblem",
+        "hearthstead:farmer_emblem",
+        "hearthstead:courier_emblem",
+        "hearthstead:guard_emblem",
+        "hearthstead:archer_emblem",
+        "hearthstead:builder_emblem"
+      ],
+      "tip": "hearthstead.guide.items.emblems.tip",
+      "steps": [
+        "hearthstead.howto.job_emblem.s1",
+        "hearthstead.howto.job_emblem.s2",
+        "hearthstead.howto.job_emblem.s3",
+        "hearthstead.howto.job_emblem.s4"
+      ],
+      "obtain": "hearthstead.howto.job_emblem.obtain",
+      "link": "jobs.p1",
+      "text": [
+        "hearthstead.guide.items.emblems.prices"
+      ]
+    },
+    {
+      "id": "items.seals",
+      "title": "hearthstead.guide.items.seals.title",
+      "bullets": [
+        "hearthstead.guide.items.seals.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.seals.k1",
+          "modifier": "key.sneak"
+        }
+      ],
+      "items": [
+        "hearthstead:warden_oath_seal",
+        "hearthstead:hearthward_seal",
+        "hearthstead:thorned_roads_seal"
+      ],
+      "tip": "hearthstead.guide.items.seals.tip",
+      "steps": [
+        "hearthstead.howto.blessing_seal.s1",
+        "hearthstead.howto.blessing_seal.s2",
+        "hearthstead.howto.blessing_seal.s3"
+      ],
+      "obtain": "hearthstead.howto.blessing_seal.obtain",
+      "link": "raids.p1"
+    },
+    {
+      "id": "items.coins",
+      "title": "hearthstead.guide.items.coins.title",
+      "bullets": [
+        "hearthstead.guide.items.coins.b1"
+      ],
+      "items": [
+        "hearthstead:gold_coin"
+      ],
+      "tip": "hearthstead.guide.items.coins.tip",
+      "steps": [
+        "hearthstead.howto.coin.s1",
+        "hearthstead.howto.coin.s2",
+        "hearthstead.howto.coin.s3"
+      ],
+      "obtain": "hearthstead.howto.coin.obtain",
+      "link": "coins.p1"
+    },
+    {
+      "id": "items.weapons",
+      "title": "hearthstead.guide.items.weapons.title",
+      "bullets": [
+        "hearthstead.guide.items.weapons.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.weapons.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:wooden_spear",
+        "hearthstead:iron_spear",
+        "hearthstead:diamond_spear"
+      ],
+      "tip": "hearthstead.guide.items.weapons.tip",
+      "steps": [
+        "hearthstead.howto.role_weapon.s1",
+        "hearthstead.howto.role_weapon.s2",
+        "hearthstead.howto.role_weapon.s3"
+      ],
+      "recipes": [
+        "hearthstead:wooden_spear",
+        "hearthstead:iron_spear"
+      ],
+      "link": "battle_roles.front"
+    },
+    {
+      "id": "items.short_sword",
+      "title": "hearthstead.guide.items.short_sword.title",
+      "bullets": [
+        "hearthstead.guide.items.short_sword.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.short_sword.k1"
+        },
+        {
+          "key": "key.swapOffhand",
+          "action": "hearthstead.guide.items.short_sword.k2"
+        }
+      ],
+      "items": [
+        "hearthstead:wooden_short_sword",
+        "hearthstead:iron_short_sword",
+        "hearthstead:diamond_short_sword",
+        "hearthstead:netherite_short_sword"
+      ],
+      "tip": "hearthstead.guide.items.short_sword.tip",
+      "steps": [
+        "hearthstead.howto.captain_short_sword.s1",
+        "hearthstead.howto.captain_short_sword.s2",
+        "hearthstead.howto.captain_short_sword.s3"
+      ],
+      "recipes": [
+        "hearthstead:iron_short_sword"
+      ],
+      "link": "hero_captain.specials",
+      "entries": [
+        {
+          "icon": "hearthstead:wooden_short_sword",
+          "name": "hearthstead.guide.items.short_sword.tier_wooden.name",
+          "text": "hearthstead.guide.items.short_sword.tier_wooden.text"
+        },
+        {
+          "icon": "hearthstead:stone_short_sword",
+          "name": "hearthstead.guide.items.short_sword.tier_stone.name",
+          "text": "hearthstead.guide.items.short_sword.tier_stone.text"
+        },
+        {
+          "icon": "hearthstead:iron_short_sword",
+          "name": "hearthstead.guide.items.short_sword.tier_iron.name",
+          "text": "hearthstead.guide.items.short_sword.tier_iron.text"
+        },
+        {
+          "icon": "hearthstead:golden_short_sword",
+          "name": "hearthstead.guide.items.short_sword.tier_golden.name",
+          "text": "hearthstead.guide.items.short_sword.tier_golden.text"
+        },
+        {
+          "icon": "hearthstead:diamond_short_sword",
+          "name": "hearthstead.guide.items.short_sword.tier_diamond.name",
+          "text": "hearthstead.guide.items.short_sword.tier_diamond.text"
+        },
+        {
+          "icon": "hearthstead:netherite_short_sword",
+          "name": "hearthstead.guide.items.short_sword.tier_netherite.name",
+          "text": "hearthstead.guide.items.short_sword.tier_netherite.text"
+        }
+      ]
+    },
+    {
+      "id": "items.double_axe",
+      "title": "hearthstead.guide.items.double_axe.title",
+      "bullets": [
+        "hearthstead.guide.items.double_axe.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.double_axe.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:wooden_double_axe",
+        "hearthstead:iron_double_axe",
+        "hearthstead:diamond_double_axe",
+        "hearthstead:netherite_double_axe"
+      ],
+      "tip": "hearthstead.guide.items.double_axe.tip",
+      "steps": [
+        "hearthstead.howto.captain_double_axe.s1",
+        "hearthstead.howto.captain_double_axe.s2",
+        "hearthstead.howto.captain_double_axe.s3",
+        "hearthstead.howto.captain_double_axe.s4"
+      ],
+      "recipes": [
+        "hearthstead:iron_double_axe"
+      ],
+      "link": "hero_captain.specials",
+      "entries": [
+        {
+          "icon": "hearthstead:wooden_double_axe",
+          "name": "hearthstead.guide.items.double_axe.tier_wooden.name",
+          "text": "hearthstead.guide.items.double_axe.tier_wooden.text"
+        },
+        {
+          "icon": "hearthstead:stone_double_axe",
+          "name": "hearthstead.guide.items.double_axe.tier_stone.name",
+          "text": "hearthstead.guide.items.double_axe.tier_stone.text"
+        },
+        {
+          "icon": "hearthstead:iron_double_axe",
+          "name": "hearthstead.guide.items.double_axe.tier_iron.name",
+          "text": "hearthstead.guide.items.double_axe.tier_iron.text"
+        },
+        {
+          "icon": "hearthstead:golden_double_axe",
+          "name": "hearthstead.guide.items.double_axe.tier_golden.name",
+          "text": "hearthstead.guide.items.double_axe.tier_golden.text"
+        },
+        {
+          "icon": "hearthstead:diamond_double_axe",
+          "name": "hearthstead.guide.items.double_axe.tier_diamond.name",
+          "text": "hearthstead.guide.items.double_axe.tier_diamond.text"
+        },
+        {
+          "icon": "hearthstead:netherite_double_axe",
+          "name": "hearthstead.guide.items.double_axe.tier_netherite.name",
+          "text": "hearthstead.guide.items.double_axe.tier_netherite.text"
+        }
+      ]
+    },
+    {
+      "id": "items.halberd",
+      "title": "hearthstead.guide.items.halberd.title",
+      "bullets": [
+        "hearthstead.guide.items.halberd.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.halberd.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:wooden_halberd",
+        "hearthstead:iron_halberd",
+        "hearthstead:diamond_halberd",
+        "hearthstead:netherite_halberd"
+      ],
+      "tip": "hearthstead.guide.items.halberd.tip",
+      "steps": [
+        "hearthstead.howto.captain_halberd.s1",
+        "hearthstead.howto.captain_halberd.s2",
+        "hearthstead.howto.captain_halberd.s3"
+      ],
+      "recipes": [
+        "hearthstead:iron_halberd"
+      ],
+      "link": "hero_captain.specials",
+      "entries": [
+        {
+          "icon": "hearthstead:wooden_halberd",
+          "name": "hearthstead.guide.items.halberd.tier_wooden.name",
+          "text": "hearthstead.guide.items.halberd.tier_wooden.text"
+        },
+        {
+          "icon": "hearthstead:stone_halberd",
+          "name": "hearthstead.guide.items.halberd.tier_stone.name",
+          "text": "hearthstead.guide.items.halberd.tier_stone.text"
+        },
+        {
+          "icon": "hearthstead:iron_halberd",
+          "name": "hearthstead.guide.items.halberd.tier_iron.name",
+          "text": "hearthstead.guide.items.halberd.tier_iron.text"
+        },
+        {
+          "icon": "hearthstead:golden_halberd",
+          "name": "hearthstead.guide.items.halberd.tier_golden.name",
+          "text": "hearthstead.guide.items.halberd.tier_golden.text"
+        },
+        {
+          "icon": "hearthstead:diamond_halberd",
+          "name": "hearthstead.guide.items.halberd.tier_diamond.name",
+          "text": "hearthstead.guide.items.halberd.tier_diamond.text"
+        },
+        {
+          "icon": "hearthstead:netherite_halberd",
+          "name": "hearthstead.guide.items.halberd.tier_netherite.name",
+          "text": "hearthstead.guide.items.halberd.tier_netherite.text"
+        }
+      ]
+    },
+    {
+      "id": "items.warhammer",
+      "title": "hearthstead.guide.items.warhammer.title",
+      "bullets": [
+        "hearthstead.guide.items.warhammer.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.warhammer.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:wooden_warhammer",
+        "hearthstead:iron_warhammer",
+        "hearthstead:diamond_warhammer",
+        "hearthstead:netherite_warhammer"
+      ],
+      "tip": "hearthstead.guide.items.warhammer.tip",
+      "steps": [
+        "hearthstead.howto.captain_warhammer.s1",
+        "hearthstead.howto.captain_warhammer.s2",
+        "hearthstead.howto.captain_warhammer.s3"
+      ],
+      "recipes": [
+        "hearthstead:iron_warhammer"
+      ],
+      "link": "hero_captain.specials",
+      "entries": [
+        {
+          "icon": "hearthstead:wooden_warhammer",
+          "name": "hearthstead.guide.items.warhammer.tier_wooden.name",
+          "text": "hearthstead.guide.items.warhammer.tier_wooden.text"
+        },
+        {
+          "icon": "hearthstead:stone_warhammer",
+          "name": "hearthstead.guide.items.warhammer.tier_stone.name",
+          "text": "hearthstead.guide.items.warhammer.tier_stone.text"
+        },
+        {
+          "icon": "hearthstead:iron_warhammer",
+          "name": "hearthstead.guide.items.warhammer.tier_iron.name",
+          "text": "hearthstead.guide.items.warhammer.tier_iron.text"
+        },
+        {
+          "icon": "hearthstead:golden_warhammer",
+          "name": "hearthstead.guide.items.warhammer.tier_golden.name",
+          "text": "hearthstead.guide.items.warhammer.tier_golden.text"
+        },
+        {
+          "icon": "hearthstead:diamond_warhammer",
+          "name": "hearthstead.guide.items.warhammer.tier_diamond.name",
+          "text": "hearthstead.guide.items.warhammer.tier_diamond.text"
+        },
+        {
+          "icon": "hearthstead:netherite_warhammer",
+          "name": "hearthstead.guide.items.warhammer.tier_netherite.name",
+          "text": "hearthstead.guide.items.warhammer.tier_netherite.text"
+        }
+      ]
+    },
+    {
+      "id": "items.longsword",
+      "title": "hearthstead.guide.items.longsword.title",
+      "bullets": [
+        "hearthstead.guide.items.longsword.b1"
+      ],
+      "keys": [
+        {
+          "key": "key.attack",
+          "action": "hearthstead.guide.items.longsword.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:wooden_longsword",
+        "hearthstead:iron_longsword",
+        "hearthstead:diamond_longsword",
+        "hearthstead:netherite_longsword"
+      ],
+      "tip": "hearthstead.guide.items.longsword.tip",
+      "steps": [
+        "hearthstead.howto.longsword.s1",
+        "hearthstead.howto.longsword.s2"
+      ],
+      "recipes": [
+        "hearthstead:stone_longsword",
+        "hearthstead:iron_longsword"
+      ],
+      "link": "battle_roles.front"
+    },
+    {
+      "id": "items.battle_supplies",
+      "title": "hearthstead.guide.items.battle_supplies.title",
+      "bullets": [
+        "hearthstead.guide.items.battle_supplies.b1",
+        "hearthstead.howto.rune_stone.use"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.battle_supplies.k1",
+          "hold": true
+        }
+      ],
+      "items": [
+        "hearthstead:bandage",
+        "hearthstead:rune_stone"
+      ],
+      "tip": "hearthstead.guide.items.battle_supplies.tip",
+      "steps": [
+        "hearthstead.howto.bandage.s1",
+        "hearthstead.howto.bandage.s2"
+      ],
+      "recipes": [
+        "hearthstead:bandage",
+        "hearthstead:rune_stone"
+      ],
+      "link": "battle_roles.support"
+    },
+    {
+      "id": "items.fishery",
+      "title": "hearthstead.guide.items.fishery.title",
+      "bullets": [
+        "hearthstead.guide.items.fishery.b1",
+        "hearthstead.howto.fishers_chair.use",
+        "hearthstead.howto.fish_rack.use"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.fishery.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:fishers_rod",
+        "hearthstead:fishers_chair",
+        "hearthstead:fish_rack"
+      ],
+      "tip": "hearthstead.guide.items.fishery.tip",
+      "steps": [
+        "hearthstead.howto.fishers_rod.s1",
+        "hearthstead.howto.fishers_rod.s2"
+      ],
+      "recipes": [
+        "hearthstead:fishers_rod",
+        "hearthstead:fishers_chair",
+        "hearthstead:fish_rack"
+      ],
+      "link": "jobs.p1"
+    },
+    {
+      "id": "items.workplace",
+      "title": "hearthstead.guide.items.workplace.title",
+      "bullets": [
+        "hearthstead.guide.items.workplace.b1",
+        "hearthstead.howto.butchering_table.use"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.workplace.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:ale_tap",
+        "hearthstead:butchering_table"
+      ],
+      "tip": "hearthstead.guide.items.workplace.tip",
+      "steps": [
+        "hearthstead.howto.ale_tap.s1",
+        "hearthstead.howto.ale_tap.s2",
+        "hearthstead.howto.ale_tap.s3"
+      ],
+      "recipes": [
+        "hearthstead:ale_tap",
+        "hearthstead:butchering_table"
+      ],
+      "link": "tavern.p1"
+    },
+    {
+      "id": "items.goods",
+      "title": "hearthstead.guide.items.goods.title",
+      "bullets": [
+        "hearthstead.guide.items.goods.b1"
+      ],
+      "items": [
+        "hearthstead:flour",
+        "hearthstead:malt",
+        "hearthstead:ale",
+        "hearthstead:iron_bloom",
+        "hearthstead:timber_beam",
+        "hearthstead:wool_bolt"
+      ],
+      "tip": "hearthstead.guide.items.goods.tip",
+      "steps": [
+        "hearthstead.howto.goods.s1",
+        "hearthstead.howto.goods.s2",
+        "hearthstead.howto.goods.s3"
+      ],
+      "obtain": "hearthstead.howto.goods.obtain",
+      "recipes": [
+        "hearthstead:flour",
+        "hearthstead:wool_bolt"
+      ],
+      "link": "quality.grades"
+    },
+    {
+      "id": "items.fish_game",
+      "title": "hearthstead.guide.items.fish_game.title",
+      "bullets": [
+        "hearthstead.guide.items.fish_game.b1",
+        "hearthstead.howto.carcass.use"
+      ],
+      "items": [
+        "hearthstead:river_perch",
+        "hearthstead:brown_trout",
+        "hearthstead:silver_pike",
+        "hearthstead:golden_char",
+        "hearthstead:fish_portion",
+        "hearthstead:carcass"
+      ],
+      "tip": "hearthstead.guide.items.fish_game.tip",
+      "steps": [
+        "hearthstead.howto.fish.s1",
+        "hearthstead.howto.fish.s2",
+        "hearthstead.howto.fish.s3"
+      ],
+      "obtain": "hearthstead.howto.fish.obtain",
+      "link": "logistics.p1"
+    },
+    {
+      "id": "items.oddities",
+      "title": "hearthstead.guide.items.oddities.title",
+      "bullets": [
+        "hearthstead.guide.items.oddities.b1",
+        "hearthstead.howto.spawn_egg.use"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.items.oddities.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:poop_stick",
+        "hearthstead:troll_toenail",
+        "hearthstead:settler_spawn_egg"
+      ],
+      "tip": "hearthstead.guide.items.oddities.tip",
+      "steps": [
+        "hearthstead.howto.goblin_loot.s1",
+        "hearthstead.howto.goblin_loot.s2"
+      ],
+      "obtain": "hearthstead.howto.goblin_loot.obtain",
+      "link": "raids.p2"
+    }
+  ]
+}

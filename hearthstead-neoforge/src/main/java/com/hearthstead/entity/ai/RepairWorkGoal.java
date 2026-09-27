@@ -6,10 +6,12 @@ import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import net.minecraft.core.BlockPos;
@@ -54,7 +56,8 @@ import java.util.function.Predicate;
  * too: a dugnad is the whole village turning out, and the idle are exactly
  * the hands it has to spare. (There is no child/adult distinction among
  * settlers today; if one lands, the dugnad is adults'.) Employed
- * non-masons keep their own trades — the village must not stop feeding
+ * non-masons keep their own trades, except workers repairing their own
+ * temporarily invalid workplace after raid damage. The village must not stop feeding
  * itself to patch a wall.
  *
  * <h2>Chest truth</h2>
@@ -74,8 +77,8 @@ import java.util.function.Predicate;
  * cannot shave a percentage off a {@code Costs.Price} the way recruiting's
  * hooks do — there is no settlement-level price here, only one real item per
  * block. Balance decision, 2026-08-26: they instead waive the material
- * entirely on some scars, deterministically. {@link #SCAR_MENDS} counts real
- * completed repairs per settlement; {@link #shouldMendFree} waives the one
+ * entirely on some scars, deterministically. Settlement saves the cadence of real
+ * completed repairs; {@link #shouldMendFree} waives the one
  * ({@code 100 / discountPercent})th mend — every 4th with one hook (25%),
  * every 2nd with both (the capped 50%) — so the same settlement in the same
  * state always gets the same answer. This stays chest-true (fewer items ever
@@ -131,6 +134,8 @@ public class RepairWorkGoal extends Goal {
      * {@link Employment#soundPeriodOf}(MASON) (21).
      */
     public static final int REPAIR_TICKS = 63;
+    /** Two complete 40-tick nail hammer loops, including six visible taps. */
+    private static final int NAIL_REPAIR_TICKS = 80;
     /** Close enough to work the wall: a reach, not a teleport. */
     private static final int WORK_RANGE = 3;
     /** Walking pace to the scar, same as the miner's to his stone. */
@@ -159,12 +164,6 @@ public class RepairWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        Profession profession = settler.getProfession();
-        boolean mason = profession == Profession.MASON;
-        boolean dugnad = profession == Profession.NONE && !settler.isTraveler();
-        if (!mason && !dugnad) {
-            return false;
-        }
         if (!settler.isBound() || settler.getTarget() != null) {
             return false;
         }
@@ -177,7 +176,7 @@ public class RepairWorkGoal extends Goal {
             return false;
         }
         Settlement settlement = settler.settlement();
-        if (settlement == null
+        if (settlement == null || !mayRepairFor(settlement, null)
             // Repair starts when the raid is over, not during it.
             || settlement.pendingRaid != null
             // Working hours; see the class doc for why not Schedule.shouldWork.
@@ -205,6 +204,7 @@ public class RepairWorkGoal extends Goal {
         }
         Settlement settlement = settler.settlement();
         return settlement != null && settlement.pendingRaid == null
+            && mayRepairFor(settlement, scarPos)
             && settler.dayPhase().work()
             // The scar can be closed under us (another claimant after a TTL
             // lapse, or /setblock healing it) -- then this trip is over.
@@ -266,21 +266,40 @@ public class RepairWorkGoal extends Goal {
             return;
         }
         settler.getNavigation().stop();
-        if (settler.getActivity() != SettlerActivity.WORK_CHISEL) {
-            settler.setActivity(SettlerActivity.WORK_CHISEL);
+        SettlerActivity workActivity = scarOriginal.is(BlockTags.PLANKS)
+            || scarOriginal.is(BlockTags.LOGS)
+            || scarOriginal.is(BlockTags.WOODEN_DOORS)
+            || scarOriginal.is(BlockTags.WOODEN_TRAPDOORS)
+            || scarOriginal.is(BlockTags.WOODEN_FENCES)
+            || scarOriginal.is(BlockTags.WOODEN_STAIRS)
+            || scarOriginal.is(BlockTags.WOODEN_SLABS)
+            || scarOriginal.is(BlockTags.FENCE_GATES)
+                ? SettlerActivity.WORK_NAIL : SettlerActivity.WORK_CHISEL;
+        if (settler.getActivity() != workActivity) {
+            settler.setActivity(workActivity);
         }
         repairTicks++;
         // The tap rides the clip's contact beat (tick 10 of 21), read from
         // the same tables CrafterWorkGoal reads for the mason at her bench
         // (audit F8: never the loop seam), so repair sounds like the trade
         // it borrows its motion from.
-        int period = Employment.soundPeriodOf(BuildingType.MASON);
-        if (repairTicks % period == Employment.soundContactOf(BuildingType.MASON)) {
-            level.playSound(null, scarPos, Employment.soundOf(BuildingType.MASON),
-                SoundSource.NEUTRAL, 0.75F,
-                0.94F + settler.getRandom().nextFloat() * 0.12F);
+        if (workActivity == SettlerActivity.WORK_NAIL) {
+            // NAIL_HAMMER loops 40 ticks with taps at 8, 16 and 24. The
+            // deferred send lands each tap on its clip frame, same counter
+            // convention as the chisel beat below.
+            int beat = repairTicks % 40;
+            if (beat == 8 || beat == 16 || beat == 24) {
+                WorkSoundSync.play(level, scarPos, ModSounds.NAIL_TAP.get(), 0.5F, 1.0F);
+            }
+        } else {
+            int period = Employment.soundPeriodOf(BuildingType.MASON);
+            if (repairTicks % period == Employment.soundContactOf(BuildingType.MASON)) {
+                level.playSound(null, scarPos, Employment.soundOf(BuildingType.MASON),
+                    SoundSource.NEUTRAL, 0.75F,
+                    0.94F + settler.getRandom().nextFloat() * 0.12F);
+            }
         }
-        if (repairTicks < REPAIR_TICKS) {
+        if (repairTicks < (workActivity == SettlerActivity.WORK_NAIL ? NAIL_REPAIR_TICKS : REPAIR_TICKS)) {
             return;
         }
         finishRepair(level);
@@ -323,8 +342,9 @@ public class RepairWorkGoal extends Goal {
             scarPos = null;
             return;
         }
-        SCAR_MENDS.merge(settlement.id, 1, Integer::sum);
         level.setBlock(scarPos, scarOriginal, 3);
+        settlement.recordScarMended();
+        SettlementSavedData.get(level).setDirty();
         RaidDirector.clearScar(level, settlement.id, scarPos);
         // Doing the job makes you better at it -- the mason's own attribute
         // (Employment.trainedBy(MASON) is STRENGTH), counted on completion
@@ -337,14 +357,6 @@ public class RepairWorkGoal extends Goal {
     }
 
     // ---------------------------------------------------- mend-free tally ---
-
-    /**
-     * Running count of scars actually mended per settlement, feeding
-     * {@link #shouldMendFree} -- not persisted, the same reasoning as
-     * {@link #CLAIMS}: a discount opportunity forgotten across a server
-     * restart is not the kind of thing a raid ledger needs to survive.
-     */
-    private static final Map<UUID, Integer> SCAR_MENDS = new HashMap<>();
 
     /**
      * Whether the scar about to finish should mend WITHOUT consuming any
@@ -363,8 +375,21 @@ public class RepairWorkGoal extends Goal {
             return false;
         }
         int interval = 100 / percent; // 4 at 25%, 2 at 50% -- exact both times
-        int next = SCAR_MENDS.getOrDefault(settlement.id, 0) + 1;
+        int next = settlement.repairDiscountProgress() + 1;
         return next % interval == 0;
+    }
+
+    /** A displaced worker repairs only their own damaged workplace. Keeping
+     * its saved roster avoids charging for a second hire after an ordinary raid.
+     * Valid workplaces and other professions retain their usual priorities. */
+    private boolean mayRepairFor(Settlement settlement, @Nullable BlockPos target) {
+        Profession profession = settler.getProfession();
+        if (profession == Profession.MASON) return true;
+        if (profession == Profession.NONE) return !settler.isTraveler();
+        if (profession == Profession.MAYOR) return false;
+        Building own = Employment.employerOf(settlement, settler.getUUID());
+        return own != null && !own.valid && own.type != null
+            && own.bounds != null && (target == null || own.bounds.isInside(target));
     }
 
     // ------------------------------------------------------- scar choice ---
@@ -384,6 +409,7 @@ public class RepairWorkGoal extends Goal {
         RaidDirector.Scar best = null;
         double bestDist = Double.MAX_VALUE;
         for (RaidDirector.Scar scar : scars) {
+            if (!mayRepairFor(settlement, scar.pos())) continue;
             if (!level.isLoaded(scar.pos())) {
                 continue; // never sync-load a chunk to inspect a wound
             }
@@ -399,8 +425,9 @@ public class RepairWorkGoal extends Goal {
             if (heldByOther(new ScarKey(settlement.id, scar.pos()), now)) {
                 continue;
             }
-            if (!materialAvailable(level, settlement, scar.original())) {
-                continue; // no material, no repair -- and no claim either
+            if (!shouldMendFree(level, settlement)
+                    && !materialAvailable(level, settlement, scar.original())) {
+                continue; // a paid repair needs stock; an earned waiver does not
             }
             double dist = settler.blockPosition().distSqr(scar.pos());
             if (dist < bestDist) {
@@ -479,7 +506,9 @@ public class RepairWorkGoal extends Goal {
      */
     private List<Container> ownChests(ServerLevel level, Settlement settlement) {
         Building employer = Employment.employerOf(settlement, settler.getUUID());
-        if (employer == null || !employer.valid || employer.bounds == null) {
+        if (employer == null || employer.bounds == null
+                || (!employer.valid && !Employment.retainsWorkersForRaidRepair(
+                    level, settlement, employer))) {
             return List.of();
         }
         List<Container> found = new ArrayList<>();

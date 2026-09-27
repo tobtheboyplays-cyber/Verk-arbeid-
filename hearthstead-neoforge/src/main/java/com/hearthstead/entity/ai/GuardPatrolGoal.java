@@ -45,13 +45,33 @@ public class GuardPatrolGoal extends Goal {
         setFlags(EnumSet.of(Flag.MOVE));
     }
 
+    /**
+     * Who walks the rounds between fights: Guards, and the battle roles that
+     * fight on foot (J-02: Spearman, Longswordsman, Rune Mage used to only
+     * stroll). They share the Guards' watch rota ({@link Schedule#onWatch}),
+     * salute and sleep. With the battle-roles switch off the roles stand down.
+     */
+    public static boolean patrols(Profession profession) {
+        if (profession == Profession.GUARD) {
+            return true;
+        }
+        return (profession == Profession.SPEARMAN || profession == Profession.LONGSWORDSMAN
+                || profession == Profession.RUNE_MAGE)
+            && com.hearthstead.entity.combat.role.RoleCombat.enabled();
+    }
+
     @Override
     public boolean canUse() {
-        if (settler.getProfession() != Profession.GUARD
+        if (!patrols(settler.getProfession())
             || settler.getTarget() != null) {
             return false;
         }
         Settlement settlement = settler.settlement();
+        // A guard walking a player-drawn patrol route (PatrolRouteGoal) is
+        // off these rounds; everyone else keeps them.
+        if (com.hearthstead.settlement.guard.patrol.PatrolService.assigned(settler)) {
+            return false;
+        }
         // Half the garrison stands the night watch. Off-watch guards fall
         // through to the ordinary day -- meals, the tavern, their own bed.
         return settlement != null
@@ -67,6 +87,14 @@ public class GuardPatrolGoal extends Goal {
     }
 
     /**
+     * The same waypoint drill for a guard walking a player-drawn route
+     * (PatrolRouteGoal): stamina, the Strength rep and the armour foley.
+     */
+    public static void drillAtWaypoint(SettlerEntity settler) {
+        new GuardPatrolGoal(settler).reachedWaypoint();
+    }
+
+    /**
      * A guard's work is the walking, so that is what is counted and what is
      * heard: one waypoint reached is one unit (job standard, point 8), and the
      * armour answers at each one (point 6) — a patrol you can hear passing
@@ -74,6 +102,9 @@ public class GuardPatrolGoal extends Goal {
      */
     private void reachedWaypoint() {
         settler.train(com.hearthstead.entity.Attribute.STAMINA, 1.0F);
+        // Being seen on the rounds is what builds a guard's Presence, their
+        // secondary since the attributes rework (plan/ATTRIBUTES.md).
+        settler.train(com.hearthstead.entity.Attribute.PRESENCE, 0.5F);
         // The peacetime drill: rank reads STRENGTH (GuardRank.of), so the
         // guard's own rounds must train it — without this, only lumberjacks
         // and miners trained Strength and a career guard could never leave
@@ -83,12 +114,27 @@ public class GuardPatrolGoal extends Goal {
         settler.train(com.hearthstead.entity.Attribute.STRENGTH,
             com.hearthstead.entity.GuardRank.TRAIN_DRILL * drillBonus());
         settler.spendEffort(1);
-        if (settler.level() instanceof net.minecraft.server.level.ServerLevel level) {
+        if (hasAudibleArmor()
+                && settler.level() instanceof net.minecraft.server.level.ServerLevel level) {
             level.playSound(null, settler.blockPosition(),
                 com.hearthstead.registry.ModSounds.ARMOUR_CLINK.get(),
                 net.minecraft.sounds.SoundSource.NEUTRAL, 0.55F,
                 0.94F + settler.getRandom().nextFloat() * 0.12F);
         }
+    }
+
+    /** Leather, turtle shell and empty slots do not produce metal equipment foley. */
+    private boolean hasAudibleArmor() {
+        for (net.minecraft.world.item.ItemStack stack : settler.getArmorSlots()) {
+            if (!(stack.getItem() instanceof net.minecraft.world.item.ArmorItem armor)) continue;
+            var material = armor.getMaterial();
+            if (material.equals(net.minecraft.world.item.ArmorMaterials.IRON)
+                || material.equals(net.minecraft.world.item.ArmorMaterials.CHAIN)
+                || material.equals(net.minecraft.world.item.ArmorMaterials.GOLD)
+                || material.equals(net.minecraft.world.item.ArmorMaterials.DIAMOND)
+                || material.equals(net.minecraft.world.item.ArmorMaterials.NETHERITE)) return true;
+        }
+        return false;
     }
 
     private void nextWaypoint() {

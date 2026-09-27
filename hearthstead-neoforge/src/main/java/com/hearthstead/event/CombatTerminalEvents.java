@@ -67,10 +67,31 @@ public final class CombatTerminalEvents {
         if (event == null || !Float.isFinite(event.getAmount())
             || event.getAmount() <= 0.0F
             || !(event.getSource().getDirectEntity()
-                instanceof AbstractArrow arrow)
-            || !(event.getSource().getEntity()
-                instanceof SettlerEntity archer)
+                instanceof AbstractArrow arrow)) {
+            return;
+        }
+
+        boolean claimed = OwnedProjectileLedger.claimsOwnership(arrow);
+        OwnedProjectileLedger.Inspection inspection = claimed
+            ? OwnedProjectileLedger.inspect(arrow) : null;
+        SettlerEntity archer = event.getSource().getEntity()
+                instanceof SettlerEntity sourceSettler
+            ? sourceSettler : null;
+
+        // The ledger exists specifically so a physical arrow remains
+        // recognizable after chunk unload/restart.  If that claim is
+        // malformed, copied, or its exact Archer cannot be resolved, the
+        // safe result is no damage.  Falling through to vanilla here would
+        // turn a settlement weapon into uncontrolled friendly fire merely
+        // because the owner chunk unloaded first.
+        if (claimed && (inspection == null || archer == null
             || archer.getProfession() != Profession.ARCHER
+            || !inspection.ownerId().equals(archer.getUUID())
+            || arrow.getOwner() != archer)) {
+            event.setCanceled(true);
+            return;
+        }
+        if (archer == null || archer.getProfession() != Profession.ARCHER
             || arrow.getOwner() != archer) {
             return;
         }
@@ -87,7 +108,7 @@ public final class CombatTerminalEvents {
 
         if (!(victim instanceof RaiderEntity raider)
             || raider.isCaptain()
-            || OwnedProjectileLedger.committedCount(arrow) < 0L
+            || inspection == null
             || raider.settlementId() == null
             || !raider.settlementId().equals(archer.getSettlementId())) {
             return;

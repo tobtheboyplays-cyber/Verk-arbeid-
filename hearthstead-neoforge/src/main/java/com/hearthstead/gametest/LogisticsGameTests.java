@@ -14,11 +14,21 @@ import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.RecruitmentPolicy;
+import com.hearthstead.settlement.request.RequestBlocker;
+import com.hearthstead.settlement.request.RequestLedger;
+import com.hearthstead.settlement.request.RequestLedgerSavedData;
+import com.hearthstead.settlement.request.RequestLedgerService;
+import com.hearthstead.settlement.request.RequestItemFingerprint;
+import com.hearthstead.settlement.request.RequestRecord;
+import com.hearthstead.settlement.request.RequestState;
+import com.hearthstead.settlement.request.RequestType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -140,6 +150,35 @@ public class LogisticsGameTests {
             n += settler.bag.getItem(i).getCount();
         }
         return n;
+    }
+
+    private static String tidyDiagnostic(GameTestHelper helper, Settlement settlement,
+                                         SettlerEntity courier, BlockPos[] chestRel,
+                                         int targetIndex) {
+        StringBuilder stock = new StringBuilder();
+        for (int index = 0; index < chestRel.length; index++) {
+            if (index > 0) {
+                stock.append(',');
+            }
+            BlockPos absolute = helper.absolutePos(chestRel[index]);
+            stock.append(index == targetIndex ? "target@" : "source@")
+                .append(absolute.toShortString()).append('=')
+                .append(countIn(containerAt(helper, chestRel[index]), Items.COBBLESTONE));
+        }
+        RequestLedgerSavedData saved = RequestLedgerSavedData.existing(helper.getLevel());
+        RequestLedger ledger = saved == null ? null : saved.existing(settlement.id);
+        String request = ledger == null ? "none" : ledger.active().stream()
+            .filter(row -> courier.getUUID().equals(row.courierId()))
+            .map(row -> row.type() + ":" + row.state() + ":" + row.blocker()
+                + " src=" + row.sourceContainer().toShortString()
+                + " dst=" + row.targetContainer().toShortString()
+                + " moved=" + row.movedCount() + " delivered=" + row.deliveredCount())
+            .reduce((left, right) -> left + "|" + right).orElse("none");
+        return " [stock=" + stock + " bag=" + bagCount(courier)
+            + " activity=" + courier.getActivity()
+            + " lifecycle=" + courier.workerLifecycle().state()
+            + "/" + courier.workerLifecycle().task()
+            + " route=" + courier.routeFailureNote() + " request=" + request + "]";
     }
 
     private static SettlerEntity courier(GameTestHelper helper, Settlement s, BlockPos rel) {
@@ -267,14 +306,21 @@ public class LogisticsGameTests {
     // -------------------------------------------------------------- tidy ---
 
     /**
-     * Three part-stacks of the same item, scattered across three chests,
-     * with a courier employed to tidy them. This must both consolidate --
+     * Three part-stacks of the same ordinary material, scattered across two
+     * source chests with a separately assigned home chest, with a courier employed
+     * to tidy them. Wood and crops take the
+     * physical warehouse route; this keeps the tidy convergence contract
+     * scoped to the work it still owns. This must both consolidate --
      * every existing GameTest that checked this class checked a single
      * merge, never whether it keeps going and then genuinely stops -- and
      * stay converged: once the warehouse reads as tidy the goal must go
      * quiet, not keep re-selecting and re-scanning forever.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2000, batch = "logistics_day")
+    // This is a convergence fixture, not a throughput benchmark. Each unit
+    // owns a full source-pickup and bag-to-chest presentation cycle, while a
+    // real day also contains meals. Three small partial stacks prove the same
+    // physical all-to-one contract inside one bounded work window.
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "logistics_day")
     public void tidyConvergesAndGoesQuiet(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
@@ -291,17 +337,40 @@ public class LogisticsGameTests {
         BlockPos[] chestRel = {
             new BlockPos(3, 1, 5), new BlockPos(5, 1, 5), new BlockPos(3, 1, 7),
         };
-        int[] amounts = {20, 15, 10}; // 45 total: one stack (max 64) fits it all
         for (int i = 0; i < chestRel.length; i++) {
             helper.setBlock(chestRel[i], Blocks.CHEST);
             Container c = containerAt(helper, chestRel[i]);
             helper.assertTrue(c != null, "arena chest " + i + " should exist");
-            c.setItem(0, new ItemStack(Items.WHEAT, amounts[i]));
         }
-        int expectedTotal = 20 + 15 + 10;
+        // Use the production selector's y/x/z-ordered result rather than
+        // assuming fixture declaration order is the chosen Materials home.
+        java.util.List<BlockPos> materialTargets =
+            com.hearthstead.settlement.warehouse.WarehouseSorting.destinations(
+            helper.getLevel(), warehouse, new ItemStack(Items.COBBLESTONE));
+        int selectedTargetIndex = -1;
+        for (int index = 0; index < chestRel.length; index++) {
+            if (materialTargets.contains(helper.absolutePos(chestRel[index]))) {
+                selectedTargetIndex = index;
+                break;
+            }
+        }
+        final int targetIndex = selectedTargetIndex;
+        helper.assertTrue(materialTargets.size() == 1 && targetIndex >= 0,
+            "tidy fixture must have one real Materials destination: " + materialTargets);
+        int firstSource = targetIndex == 0 ? 1 : 0;
+        int secondSource = targetIndex == 2 ? 1 : 2;
+        Container first = containerAt(helper, chestRel[firstSource]);
+        Container second = containerAt(helper, chestRel[secondSource]);
+        first.setItem(0, new ItemStack(Items.COBBLESTONE, 3));
+        first.setItem(1, new ItemStack(Items.COBBLESTONE, 2));
+        second.setItem(0, new ItemStack(Items.COBBLESTONE, 1));
+        int expectedTotal = 3 + 2 + 1;
 
         SettlerEntity bud = courier(helper, s, new BlockPos(4, 1, 6));
-        warehouse.workers.add(bud.getUUID()); // TidyWarehouseGoal requires employment
+        helper.assertTrue(Employment.employerOf(s, bud.getUUID()) == warehouse,
+            "tidy fixture must keep the courier's real Warehouse employment");
+        bud.setHunger(100.0F);
+        bud.setEnergy(100.0F);
 
         final int[] stableTicks = {0};
         final int[] maxDistinctSeen = {0};
@@ -310,17 +379,22 @@ public class LogisticsGameTests {
             int total = 0;
             int distinctChests = 0;
             for (BlockPos rel : chestRel) {
-                int here = countIn(containerAt(helper, rel), Items.WHEAT);
+                int here = countIn(containerAt(helper, rel), Items.COBBLESTONE);
                 total += here;
                 if (here > 0) {
                     distinctChests++;
                 }
             }
             maxDistinctSeen[0] = Math.max(maxDistinctSeen[0], distinctChests);
+            total += bagCount(bud);
             helper.assertTrue(total == expectedTotal,
-                "tidying must conserve every wheat, saw " + total + " of " + expectedTotal);
+                "tidying must conserve every cobblestone, saw " + total + " of " + expectedTotal
+                    + tidyDiagnostic(helper, s, bud, chestRel, targetIndex));
 
-            boolean settled = distinctChests <= 1
+            int targetCount = countIn(containerAt(helper, chestRel[targetIndex]),
+                Items.COBBLESTONE);
+            boolean settled = distinctChests <= 1 && targetCount == expectedTotal
+                && bagCount(bud) == 0
                 && bud.getActivity() != SettlerActivity.SORTING;
             // A streak, not a one-shot check: the whole point is that once
             // tidy, it STAYS tidy and the goal STAYS quiet -- a courier who
@@ -329,9 +403,10 @@ public class LogisticsGameTests {
             stableTicks[0] = settled ? stableTicks[0] + 1 : 0;
             helper.assertTrue(stableTicks[0] >= 150,
                 "tidy should converge to one chest and go quiet, and stay quiet: "
-                    + "distinctChests=" + distinctChests + " act=" + bud.getActivity()
+                    + "distinctChests=" + distinctChests + " targetCount=" + targetCount
+                    + " act=" + bud.getActivity()
                     + " stableTicks=" + stableTicks[0] + " maxDistinctSeen="
-                    + maxDistinctSeen[0]);
+                    + maxDistinctSeen[0] + tidyDiagnostic(helper, s, bud, chestRel, targetIndex));
         });
     }
 
@@ -388,6 +463,123 @@ public class LogisticsGameTests {
                     + " [act=" + bud.getActivity() + " pos=" + bud.blockPosition().toShortString()
                     + " energy=" + String.format("%.1f", bud.getEnergy())
                     + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+        });
+    }
+
+    /**
+     * Hunter ammunition is a durable ledger-owned restock trip: exact physical
+     * warehouse source, bounded Lodge target, and an exact-source bag return
+     * across goal recreation. The Lodge is mixed storage,
+     * so its real wildlife output must remain collectable while bow and arrow
+     * inputs stay put.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 1640,
+        batch = "hunter_lodge_ammunition")
+    public void hunterLodgeAmmoRestockConservesAcrossInterruptionAndCannotDrain(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement s = registerSettlement(helper, hearthRel, 8);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+            instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(s.id);
+        }
+
+        Building warehouse = addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(3, 1, 3), new BlockPos(5, 3, 5),
+            new BlockPos(3, 1, 3));
+        BlockPos warehouseChestRel = new BlockPos(5, 1, 4);
+        helper.setBlock(warehouseChestRel, Blocks.CHEST);
+        Container source = containerAt(helper, warehouseChestRel);
+        helper.assertTrue(source != null, "warehouse source must exist");
+        source.setItem(0, new ItemStack(Items.ARROW, 40));
+
+        addBuilding(helper, s, BuildingType.HUNTERS_LODGE,
+            new BlockPos(7, 1, 3), new BlockPos(9, 3, 5),
+            new BlockPos(9, 1, 3));
+        BlockPos lodgeChestRel = new BlockPos(7, 1, 4);
+        helper.setBlock(lodgeChestRel, Blocks.CHEST);
+        Container lodge = containerAt(helper, lodgeChestRel);
+        helper.assertTrue(lodge != null, "Hunter Lodge target must exist");
+        lodge.setItem(0, new ItemStack(Items.BOW));
+        lodge.setItem(1, new ItemStack(Items.ARROW, 3));
+        lodge.setItem(2, new ItemStack(Items.BEEF, 2));
+
+        SettlerEntity bud = courier(helper, s, new BlockPos(6, 1, 5));
+        int seededArrows = 43;
+        // This fixture drives real goal ticks while NoAI excludes a second goal owner.
+        // Typed source presentation accepts only one advancement per world tick.
+        bud.setNoAi(true);
+        BlockPos sourceContact = helper.absolutePos(warehouseChestRel.south());
+        BlockPos targetContact = helper.absolutePos(lodgeChestRel.south());
+        bud.setPos(sourceContact.getX() + .5, sourceContact.getY(), sourceContact.getZ() + .5);
+        CourierWorkGoal route = new CourierWorkGoal(bud);
+        CourierWorkGoal collection = new CourierWorkGoal(bud);
+        helper.assertTrue(route.canUse(),
+            "the existing restock ladder must select the short Lodge");
+        route.start();
+        int[] phase = {0};
+        boolean[] interrupted = {false};
+        helper.succeedWhen(() -> {
+            helper.assertTrue(countIn(source, Items.ARROW) + countIn(lodge, Items.ARROW)
+                    + bagCountOf(bud, Items.ARROW) == seededArrows,
+                "every actual source/destination contact must conserve all forty-three arrows");
+            helper.assertTrue(countIn(source, Items.BEEF) + countIn(lodge, Items.BEEF)
+                    + bagCountOf(bud, Items.BEEF) == 2,
+                "the output positive control must conserve both real beef items");
+            if (phase[0] == 0) {
+                route.tick();
+                if (bagCountOf(bud, Items.ARROW) == 0) {
+                    helper.assertTrue(false, "waiting for the first actual source contact");
+                }
+                helper.assertTrue(bagCountOf(bud, Items.ARROW) == 1,
+                    "the interruption must follow exactly one new source unit");
+                route.stop();
+                interrupted[0] = true;
+                helper.assertTrue(route.canUse(), "the same route must resume its partial source session");
+                route.start();
+                phase[0] = 1;
+            } else if (phase[0] == 1) {
+                boolean sourceActive = new com.hearthstead.entity.ai.CourierSourceBagSession(bud).active();
+                if (!sourceActive && bagCountOf(bud, Items.ARROW) > 0) {
+                    // Controlled contact fixture: move the actor only after the real final source lift.
+                    bud.setPos(targetContact.getX() + .5, targetContact.getY(), targetContact.getZ() + .5);
+                }
+                route.tick();
+                if (bagCountOf(bud, Items.ARROW) == 0 && !bud.bagTransferPresentation().active()
+                        && !new com.hearthstead.entity.ai.CourierSourceBagSession(bud).active()) {
+                    route.stop();
+                    if (countIn(lodge, Items.ARROW) < SettlerEntity.ARCHER_QUIVER_CAPACITY) {
+                        bud.setPos(sourceContact.getX() + .5, sourceContact.getY(), sourceContact.getZ() + .5);
+                        helper.assertTrue(route.canUse(), "remaining real ammunition deficit needs its next bounded load");
+                        route.start();
+                    } else {
+                        helper.assertTrue(countIn(lodge, Items.ARROW) == SettlerEntity.ARCHER_QUIVER_CAPACITY,
+                            "resumed delivery must fill exactly one quiver reserve");
+                        bud.setPos(targetContact.getX() + .5, targetContact.getY(), targetContact.getZ() + .5);
+                        helper.assertTrue(collection.canUse(), "genuine Lodge output must remain collectable");
+                        collection.start();
+                        phase[0] = 2;
+                    }
+                }
+            } else {
+                if (!new com.hearthstead.entity.ai.CourierSourceBagSession(bud).active()
+                        && bagCountOf(bud, Items.BEEF) > 0) {
+                    bud.setPos(sourceContact.getX() + .5, sourceContact.getY(), sourceContact.getZ() + .5);
+                }
+                collection.tick();
+            }
+            helper.assertTrue(phase[0] == 2 && countIn(source, Items.BEEF) == 2
+                    && countIn(lodge, Items.BEEF) == 0 && bagCountOf(bud, Items.BEEF) == 0
+                    && !bud.bagTransferPresentation().active(),
+                "actual source fill, warehouse unload and final lift must finish the output positive control");
+            helper.assertTrue(interrupted[0] && countIn(lodge, Items.BOW) == 1
+                    && countIn(lodge, Items.ARROW) == SettlerEntity.ARCHER_QUIVER_CAPACITY
+                    && countIn(source, Items.ARROW) == seededArrows - SettlerEntity.ARCHER_QUIVER_CAPACITY,
+                "interrupted ammunition and output collection must retain the exact Lodge reserve");
+            collection.stop();
         });
     }
 
@@ -730,8 +922,523 @@ public class LogisticsGameTests {
                 "the ladder must continue below restock: the larder should reach "
                     + "its LOW mark of " + threshold + " afterwards, saw " + atHearth
                     + " [act=" + bud.getActivity()
-                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+                    + " lastRouteFailure=" + bud.routeFailureNote()
+                    + " sourceBread=" + atWarehouseBread + " bagBread=" + breadInBag
+                    + " pos=" + bud.position() + " grounded=" + bud.onGround()
+                    + " navTarget=" + bud.getNavigation().getTargetPos()
+                    + " navDone=" + bud.getNavigation().isDone()
+                    + " running=" + bud.goalSelector.getAvailableGoals().stream().filter(goal -> goal.isRunning())
+                        .map(goal -> goal.getGoal().getClass().getSimpleName()).toList()
+                    + " sourceBag=" + bud.getPersistentData().getCompound("HearthsteadCourierSourceBag")
+                    + "]");
         });
+    }
+
+    // --------------------------------------- durable Hunter ammunition ---
+
+    private record AmmoFixture(Settlement settlement, Building warehouse,
+                               Container source, BlockPos sourcePos,
+                               Building lodge, Container lodgeChest,
+                               BlockPos lodgePos, Container otherWarehouse,
+                               SettlerEntity courier) {
+    }
+
+    private static AmmoFixture ammoFixture(GameTestHelper helper,
+                                           int sourceArrows,
+                                           int lodgeArrows,
+                                           boolean secondWarehouse) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 14);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement settlement = registerSettlement(helper, hearthRel, 9);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+                instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(settlement.id);
+        }
+
+        Building warehouse = addBuilding(helper, settlement,
+            BuildingType.WAREHOUSE, new BlockPos(3, 1, 3),
+            new BlockPos(5, 3, 5), new BlockPos(3, 1, 3));
+        BlockPos sourceRel = new BlockPos(5, 1, 4);
+        helper.setBlock(sourceRel, Blocks.CHEST);
+        Container source = containerAt(helper, sourceRel);
+        helper.assertTrue(source != null, "ammunition Warehouse must have a chest");
+        if (sourceArrows > 0) {
+            source.setItem(0, new ItemStack(Items.ARROW, sourceArrows));
+        }
+
+        Building lodge = addBuilding(helper, settlement,
+            BuildingType.HUNTERS_LODGE, new BlockPos(7, 1, 3),
+            new BlockPos(9, 3, 5), new BlockPos(9, 1, 3));
+        BlockPos lodgeRel = new BlockPos(7, 1, 4);
+        helper.setBlock(lodgeRel, Blocks.CHEST);
+        Container lodgeChest = containerAt(helper, lodgeRel);
+        helper.assertTrue(lodgeChest != null,
+            "ammunition Hunter Lodge must have a chest");
+        if (lodgeArrows > 0) {
+            lodgeChest.setItem(0, new ItemStack(Items.ARROW, lodgeArrows));
+        }
+
+        Container other = null;
+        if (secondWarehouse) {
+            addBuilding(helper, settlement, BuildingType.WAREHOUSE,
+                new BlockPos(3, 1, 8), new BlockPos(5, 3, 10),
+                new BlockPos(3, 1, 8));
+            BlockPos otherRel = new BlockPos(5, 1, 9);
+            helper.setBlock(otherRel, Blocks.CHEST);
+            other = containerAt(helper, otherRel);
+            helper.assertTrue(other != null,
+                "alternate Warehouse must have a physical chest");
+        }
+
+        SettlerEntity courier = courier(helper, settlement,
+            new BlockPos(6, 1, 5));
+        courier.setNoAi(true);
+        return new AmmoFixture(settlement, warehouse, source,
+            helper.absolutePos(sourceRel), lodge, lodgeChest,
+            helper.absolutePos(lodgeRel), other, courier);
+    }
+
+    private static RequestRecord openAndReserveAmmo(GameTestHelper helper,
+                                                     AmmoFixture fixture,
+                                                     SettlerEntity courier,
+                                                     int sourceSlot,
+                                                     int maximum) {
+        RequestLedgerService.Decision opened =
+            RequestLedgerService.openAmmunitionDelivery(helper.getLevel(),
+                fixture.settlement(), fixture.warehouse(), fixture.sourcePos(),
+                sourceSlot, fixture.lodge(), fixture.lodgePos(),
+                Math.min(maximum, courier.getCarryCapacity()));
+        helper.assertTrue(opened.accepted() && opened.request() != null,
+            "fixture must open one exact AMMUNITION row");
+        RequestLedgerService.Decision reserved =
+            RequestLedgerService.reserve(helper.getLevel(),
+                fixture.settlement(), opened.request().id(), courier);
+        helper.assertTrue(reserved.accepted() && reserved.request() != null,
+            "fixture Courier must own the exact AMMUNITION row");
+        return reserved.request();
+    }
+
+    private static void pickupAmmo(GameTestHelper helper, AmmoFixture fixture,
+                                   SettlerEntity courier,
+                                   RequestRecord request) {
+        courier.setPos(fixture.sourcePos().getX() + 0.5D,
+            fixture.sourcePos().getY() + 1.0D,
+            fixture.sourcePos().getZ() + 0.5D);
+        RequestLedgerService.Decision picked = RequestLedgerService.pickup(
+            helper.getLevel(), fixture.settlement(), request.id(), courier);
+        helper.assertTrue(picked.accepted()
+                && picked.request().state() == RequestState.IN_TRANSIT,
+            "exact source contact must move the AMMUNITION row into transit");
+    }
+
+    private static RequestLedger ammoLedger(GameTestHelper helper,
+                                             Settlement settlement) {
+        return RequestLedgerSavedData.get(helper.getLevel())
+            .ledger(settlement.id);
+    }
+
+    private static SettlerEntity reloadAmmoCourier(GameTestHelper helper,
+                                                    SettlerEntity original) {
+        CompoundTag savedEntity = original.saveWithoutId(new CompoundTag());
+        UUID id = original.getUUID();
+        original.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        SettlerEntity restored = ModEntities.SETTLER.get()
+            .create(helper.getLevel());
+        helper.assertTrue(restored != null,
+            "saved ammunition Courier must be constructible");
+        restored.load(savedEntity);
+        helper.assertTrue(id.equals(restored.getUUID())
+                && helper.getLevel().addFreshEntity(restored),
+            "reload must recreate the exact Courier identity");
+
+        RequestLedgerSavedData live = RequestLedgerSavedData.get(
+            helper.getLevel());
+        RequestLedgerSavedData restoredLedger = RequestLedgerSavedData.load(
+            live.save(new CompoundTag(), helper.getLevel().registryAccess()),
+            helper.getLevel().registryAccess());
+        helper.assertTrue(!restoredLedger.rootQuarantined(),
+            "AMMUNITION ledger root must survive its real NBT round-trip");
+        helper.getLevel().getDataStorage().set(
+            "hearthstead_request_ledger", restoredLedger);
+        restored.setNoAi(true);
+        return restored;
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "hunter_lodge_ammunition")
+    public void reservedAmmoReloadKeepsOneRequestAndUntouchedSource(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 40, 3, true);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        SettlerEntity restored = reloadAmmoCourier(helper, f.courier());
+
+        CourierWorkGoal fresh = new CourierWorkGoal(restored);
+        helper.assertTrue(fresh.canUse(),
+            "a fresh goal must adopt the persisted pre-pickup route");
+        helper.assertTrue(restored.workerLifecycle().task() != null
+                && restored.workerLifecycle().task().requestId()
+                    .equals(request.id()),
+            "runtime lifecycle observation must point at the original row");
+        SettlerEntity other = courier(helper, f.settlement(),
+            new BlockPos(4, 1, 9));
+        other.setNoAi(true);
+        helper.assertTrue(!RequestLedgerService.reserve(helper.getLevel(),
+                f.settlement(), request.id(), other).accepted(),
+            "a second Courier cannot steal the recovered reservation");
+        long ammunitionRows = ammoLedger(helper, f.settlement()).active()
+            .stream().filter(row -> row.type() == RequestType.AMMUNITION)
+            .count();
+        helper.assertTrue(ammunitionRows == 1
+                && countIn(f.source(), Items.ARROW) == 40
+                && bagCountOf(restored, Items.ARROW) == 0,
+            "pre-pickup reload must retain one intent and mutate no arrows");
+        CompoundTag malformed = request.writeNbt();
+        malformed.put("Fingerprint", RequestItemFingerprint.capture(
+            helper.getLevel().registryAccess(), new ItemStack(Items.BONE,
+                request.fingerprint().count()),
+            request.fingerprint().count()).writeNbt());
+        helper.assertTrue(RequestRecord.readNbt(malformed,
+                helper.getLevel().registryAccess(), f.settlement().id) == null,
+            "a serialized AMMUNITION row for a non-Arrow item must quarantine at decode");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 600,
+        batch = "hunter_lodge_ammunition")
+    public void inTransitAmmoReloadCompletesOriginalLodgeWithoutSecondPickup(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 40, 3, true);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        pickupAmmo(helper, f, f.courier(), request);
+        int moved = request.fingerprint().count();
+        helper.assertTrue(countIn(f.source(), Items.ARROW) == 40 - moved
+                && bagCountOf(f.courier(), Items.ARROW) == moved,
+            "fixture must cross the physical source-to-bag boundary once");
+
+        SettlerEntity restored = reloadAmmoCourier(helper, f.courier());
+        restored.setPos(f.lodgePos().getX() + 0.5D,
+            f.lodgePos().getY(), f.lodgePos().getZ() + 1.5D);
+        CourierWorkGoal fresh = new CourierWorkGoal(restored);
+        helper.assertTrue(fresh.canUse(),
+            "fresh goal must reconstruct the original in-transit Lodge route");
+        fresh.start();
+        helper.succeedWhen(() -> {
+            fresh.tick();
+            helper.assertTrue(countIn(f.source(), Items.ARROW) == 40 - moved
+                    && countIn(f.otherWarehouse(), Items.ARROW) == 0
+                    && countIn(f.source(), Items.ARROW) + countIn(f.lodgeChest(), Items.ARROW)
+                        + bagCountOf(restored, Items.ARROW) == 43,
+                "every reloaded destination unit must conserve arrows without a second source debit");
+            RequestRecord completed = ammoLedger(helper, f.settlement())
+            .any(request.id());
+            helper.assertTrue(completed != null
+                && completed.state() == RequestState.SATISFIED
+                && completed.hasFullTransportTrace(),
+            "the original AMMUNITION row must own the complete transport trace");
+            helper.assertTrue(countIn(f.source(), Items.ARROW) == 40 - moved
+                && countIn(f.lodgeChest(), Items.ARROW)
+                    == 3 + moved
+                && bagCountOf(restored, Items.ARROW) == 0
+                && countIn(f.otherWarehouse(), Items.ARROW) == 0,
+            "reload must deliver once to the exact Lodge, never anonymous storage");
+            helper.assertTrue(countIn(f.source(), Items.ARROW)
+                + countIn(f.lodgeChest(), Items.ARROW) == 43,
+            "source, bag and Lodge must conserve all seeded shafts");
+            fresh.stop();
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "hunter_lodge_ammunition")
+    public void externallyFilledLodgeReturnsTrackedAmmoToExactSource(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 40, 3, true);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        pickupAmmo(helper, f, f.courier(), request);
+        int moved = request.fingerprint().count();
+        int externalFill = SettlerEntity.ARCHER_QUIVER_CAPACITY - 3;
+        f.lodgeChest().getItem(0).grow(externalFill);
+        f.lodgeChest().setChanged();
+
+        SettlerEntity restored = reloadAmmoCourier(helper, f.courier());
+        restored.setPos(f.lodgePos().getX() + 0.5D,
+            f.lodgePos().getY() + 1.0D, f.lodgePos().getZ() + 0.5D);
+        RequestLedgerService.Decision refused = RequestLedgerService.deliver(
+            helper.getLevel(), f.settlement(), request.id(), restored);
+        helper.assertTrue(!refused.accepted()
+                && refused.blocker() == RequestBlocker.TARGET_FULL,
+            "an externally filled Lodge must refuse every tracked surplus shaft");
+
+        restored.setPos(f.sourcePos().getX() + 0.5D,
+            f.sourcePos().getY() + 1.0D, f.sourcePos().getZ() + 0.5D);
+        CourierWorkGoal recovered = new CourierWorkGoal(restored);
+        helper.assertTrue(recovered.canUse(),
+            "fresh blocked route must recover toward its exact source");
+        recovered.start();
+        for (int tick = 0; tick < 40
+                && bagCountOf(restored, Items.ARROW) > 0; tick++) {
+            recovered.tick();
+        }
+        recovered.stop();
+
+        RequestRecord terminal = ammoLedger(helper, f.settlement())
+            .any(request.id());
+        helper.assertTrue(terminal != null
+                && terminal.state() == RequestState.CANCELLED
+                && terminal.deliveredCount() == 0,
+            "return must terminalise the same request without erasing its history");
+        helper.assertTrue(countIn(f.source(), Items.ARROW) == 40
+                && countIn(f.lodgeChest(), Items.ARROW)
+                    == SettlerEntity.ARCHER_QUIVER_CAPACITY
+                && bagCountOf(restored, Items.ARROW) == 0
+                && countIn(f.otherWarehouse(), Items.ARROW) == 0,
+            "tracked surplus must return only to its recorded Warehouse source");
+        helper.assertTrue(countIn(f.source(), Items.ARROW)
+                + countIn(f.lodgeChest(), Items.ARROW) == 43 + externalFill,
+            "external Lodge fill plus the original forty-three shafts must conserve");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "hunter_lodge_ammunition")
+    public void partialAmmoDeliverySurvivesLegitimateConsumption(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 40, 3, false);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        pickupAmmo(helper, f, f.courier(), request);
+        f.courier().setPos(f.lodgePos().getX() + 0.5D,
+            f.lodgePos().getY() + 1.0D, f.lodgePos().getZ() + 0.5D);
+
+        RequestLedgerService.Decision partial =
+            RequestLedgerService.deliver(helper.getLevel(), f.settlement(),
+                request.id(), f.courier(), 5);
+        helper.assertTrue(partial.outcome()
+                == RequestLedgerService.Outcome.COMMITTED
+                && partial.request().deliveredCount() == 5
+                && bagCountOf(f.courier(), Items.ARROW)
+                    == request.fingerprint().count() - 5,
+            "a bounded first contact must record exactly five delivered arrows");
+        int consumed = f.lodgeChest().removeItem(0, 5).getCount();
+        helper.assertTrue(consumed == 5,
+            "fixture must model a legitimate Hunter/player withdrawal");
+
+        RequestLedgerService.Decision completed =
+            RequestLedgerService.deliver(helper.getLevel(), f.settlement(),
+                request.id(), f.courier());
+        helper.assertTrue(completed.outcome()
+                == RequestLedgerService.Outcome.SATISFIED
+                && completed.request().hasFullTransportTrace(),
+            "local transaction evidence must survive consumption between deposits");
+        helper.assertTrue(countIn(f.source(), Items.ARROW)
+                + countIn(f.lodgeChest(), Items.ARROW)
+                + bagCountOf(f.courier(), Items.ARROW) + consumed == 43,
+            "partial deposit, consumption and completion must conserve all shafts");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "hunter_lodge_ammunition")
+    public void reboundLodgeCannotReceiveSavedAmmo(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 40, 3, true);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        pickupAmmo(helper, f, f.courier(), request);
+        int moved = request.fingerprint().count();
+
+        f.lodge().valid = false;
+        Building replacement = addBuilding(helper, f.settlement(),
+            BuildingType.HUNTERS_LODGE, new BlockPos(8, 1, 8),
+            new BlockPos(10, 3, 10), new BlockPos(8, 1, 8));
+        BlockPos replacementRel = new BlockPos(9, 1, 9);
+        helper.setBlock(replacementRel, Blocks.CHEST);
+        Container replacementChest = containerAt(helper, replacementRel);
+        helper.assertTrue(replacementChest != null,
+            "rebound Lodge must expose a different physical endpoint");
+
+        SettlerEntity restored = reloadAmmoCourier(helper, f.courier());
+        restored.setPos(f.sourcePos().getX() + 0.5D,
+            f.sourcePos().getY() + 1.0D, f.sourcePos().getZ() + 0.5D);
+        CourierWorkGoal recovered = new CourierWorkGoal(restored);
+        helper.assertTrue(recovered.canUse(),
+            "invalid exact target with a valid source must recover the bag");
+        recovered.start();
+        for (int tick = 0; tick < 40
+                && bagCountOf(restored, Items.ARROW) > 0; tick++) {
+            recovered.tick();
+        }
+        recovered.stop();
+
+        helper.assertTrue(countIn(f.source(), Items.ARROW) == 40
+                && countIn(replacementChest, Items.ARROW) == 0
+                && countIn(f.lodgeChest(), Items.ARROW) == 3
+                && countIn(f.otherWarehouse(), Items.ARROW) == 0
+                && bagCountOf(restored, Items.ARROW) == 0,
+            "rebound identity must not receive tracked cargo or trigger fallback");
+        helper.assertTrue(ammoLedger(helper, f.settlement())
+                .any(request.id()).state() == RequestState.CANCELLED
+                && countIn(f.source(), Items.ARROW)
+                    + countIn(f.lodgeChest(), Items.ARROW) == 43,
+            "exact-source cancellation must conserve all original arrows");
+        helper.assertTrue(!replacement.id.equals(request.targetBuildingId())
+                && moved > 0,
+            "fixture must prove a real target-identity change after pickup");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "hunter_lodge_ammunition")
+    public void partialSourceRoomKeepsWholeTrackedRemainderUntilRetry(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 8, 8, false);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        pickupAmmo(helper, f, f.courier(), request);
+        helper.assertTrue(request.fingerprint().count() == 8,
+            "fixture must own an exact eight-arrow in-transit remainder");
+
+        f.source().setItem(0, new ItemStack(Items.ARROW, 60));
+        for (int slot = 1; slot < f.source().getContainerSize(); slot++) {
+            f.source().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+        f.courier().setPos(f.sourcePos().getX() + 0.5D,
+            f.sourcePos().getY() + 1.0D, f.sourcePos().getZ() + 0.5D);
+        RequestLedgerSavedData trusted = RequestLedgerSavedData.get(
+            helper.getLevel());
+        CompoundTag quarantinedTag = trusted.save(new CompoundTag(),
+            helper.getLevel().registryAccess());
+        quarantinedTag.putBoolean("RootQuarantined", true);
+        quarantinedTag.putString("QuarantineReason", "fixture");
+        RequestLedgerSavedData quarantined = RequestLedgerSavedData.load(
+            quarantinedTag, helper.getLevel().registryAccess());
+        helper.getLevel().getDataStorage().set(
+            "hearthstead_request_ledger", quarantined);
+        RequestLedgerService.Decision refusedQuarantine =
+            RequestLedgerService.returnAmmunitionToSource(helper.getLevel(),
+                f.settlement(), request.id(), f.courier());
+        helper.assertTrue(refusedQuarantine.outcome()
+                == RequestLedgerService.Outcome.QUARANTINED
+                && countIn(f.source(), Items.ARROW) == 60
+                && bagCountOf(f.courier(), Items.ARROW) == 8,
+            "quarantined ledger authority must mutate neither source nor bag");
+        helper.getLevel().getDataStorage().set(
+            "hearthstead_request_ledger", trusted);
+
+        RequestLedgerService.Decision blocked =
+            RequestLedgerService.returnAmmunitionToSource(helper.getLevel(),
+                f.settlement(), request.id(), f.courier());
+        helper.assertTrue(!blocked.accepted()
+                && blocked.blocker() == RequestBlocker.TARGET_FULL
+                && countIn(f.source(), Items.ARROW) == 60
+                && bagCountOf(f.courier(), Items.ARROW) == 8
+                && ammoLedger(helper, f.settlement()).any(request.id()).state()
+                    != RequestState.CANCELLED,
+            "four free source slots must mutate neither half of an eight-arrow return");
+
+        f.source().setItem(1, ItemStack.EMPTY);
+        RequestLedgerService.Decision returned =
+            RequestLedgerService.returnAmmunitionToSource(helper.getLevel(),
+                f.settlement(), request.id(), f.courier());
+        RequestRecord terminal = ammoLedger(helper, f.settlement())
+            .any(request.id());
+        helper.assertTrue(returned.accepted() && terminal != null
+                && terminal.state() == RequestState.CANCELLED
+                && terminal.deliveredCount() == 0
+                && countIn(f.source(), Items.ARROW) == 68
+                && bagCountOf(f.courier(), Items.ARROW) == 0,
+            "clearing full remainder room must atomically return and terminalise");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "hunter_lodge_ammunition")
+    public void playerSourceRemovalStillAllowsLocalDeltaReturn(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 40, 3, false);
+        RequestRecord request = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        pickupAmmo(helper, f, f.courier(), request);
+        int moved = request.fingerprint().count();
+        int externalRemoval = f.source().removeItem(0,
+            f.source().getItem(0).getCount()).getCount();
+        f.courier().setPos(f.sourcePos().getX() + 0.5D,
+            f.sourcePos().getY() + 1.0D, f.sourcePos().getZ() + 0.5D);
+
+        RequestLedgerService.Decision returned =
+            RequestLedgerService.returnAmmunitionToSource(helper.getLevel(),
+                f.settlement(), request.id(), f.courier());
+        RequestRecord terminal = ammoLedger(helper, f.settlement())
+            .any(request.id());
+        helper.assertTrue(returned.accepted() && terminal != null
+                && terminal.state() == RequestState.CANCELLED
+                && terminal.deliveredCount() == 0,
+            "external source withdrawal must not invalidate a same-tick return delta");
+        helper.assertTrue(externalRemoval == 40 - moved
+                && countIn(f.source(), Items.ARROW) == moved
+                && bagCountOf(f.courier(), Items.ARROW) == 0
+                && countIn(f.source(), Items.ARROW)
+                    + countIn(f.lodgeChest(), Items.ARROW)
+                    + externalRemoval == 43,
+            "tracked return plus explicit player removal must conserve all shafts");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "hunter_lodge_ammunition")
+    public void twoCouriersAndSourceSlotsCannotOverReserveLodge(
+            GameTestHelper helper) {
+        AmmoFixture f = ammoFixture(helper, 10, 0, true);
+        f.source().setItem(1, new ItemStack(Items.ARROW, 10));
+        SettlerEntity other = courier(helper, f.settlement(),
+            new BlockPos(4, 1, 9));
+        other.setNoAi(true);
+
+        RequestRecord first = openAndReserveAmmo(helper, f, f.courier(),
+            0, 64);
+        RequestLedgerService.Decision duplicate =
+            RequestLedgerService.openAmmunitionDelivery(helper.getLevel(),
+                f.settlement(), f.warehouse(), f.sourcePos(), 1, f.lodge(),
+                f.lodgePos(), 64);
+        helper.assertTrue(duplicate.outcome()
+                == RequestLedgerService.Outcome.DUPLICATE
+                && duplicate.request() != null
+                && duplicate.request().id().equals(first.id())
+                && !RequestLedgerService.reserve(helper.getLevel(),
+                    f.settlement(), first.id(), other).accepted(),
+            "another source slot and Courier must resolve to the same owned deficit");
+
+        pickupAmmo(helper, f, f.courier(), first);
+        f.courier().setPos(f.lodgePos().getX() + 0.5D,
+            f.lodgePos().getY() + 1.0D, f.lodgePos().getZ() + 0.5D);
+        helper.assertTrue(RequestLedgerService.deliver(helper.getLevel(),
+                f.settlement(), first.id(), f.courier()).outcome()
+                == RequestLedgerService.Outcome.SATISFIED,
+            "first exact ten-arrow request must complete");
+
+        RequestRecord second = openAndReserveAmmo(helper, f, other, 1, 64);
+        helper.assertTrue(second.fingerprint().count() == 8,
+            "second request must be bounded by the Courier's eight-item bag");
+        pickupAmmo(helper, f, other, second);
+        other.setPos(f.lodgePos().getX() + 0.5D,
+            f.lodgePos().getY() + 1.0D, f.lodgePos().getZ() + 0.5D);
+        helper.assertTrue(RequestLedgerService.deliver(helper.getLevel(),
+                f.settlement(), second.id(), other).outcome()
+                == RequestLedgerService.Outcome.SATISFIED,
+            "second Courier may claim only after the first row terminalises");
+        helper.assertTrue(countIn(f.lodgeChest(), Items.ARROW)
+                == SettlerEntity.ARCHER_QUIVER_CAPACITY
+                && countIn(f.source(), Items.ARROW) == 4
+                && bagCountOf(f.courier(), Items.ARROW) == 0
+                && bagCountOf(other, Items.ARROW) == 0
+                && countIn(f.otherWarehouse(), Items.ARROW) == 0,
+            "two slots and Couriers must conserve twenty arrows without over-cap");
+        helper.succeed();
     }
 
     private static int bagCountOf(SettlerEntity settler, Item item) {

@@ -6,6 +6,7 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.ai.GuardMeleeGoal;
+import com.hearthstead.entity.combat.CinematicOpportunity;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
@@ -15,6 +16,8 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -82,10 +85,33 @@ public class GuardMeleeContactGameTests {
 
     private static void tickAt(GameTestHelper helper, long tick,
                                GuardMeleeGoal goal, Runnable assertion) {
-        helper.runAtTickTime(tick, () -> {
+        GameTestTicks.at(helper, tick, () -> {
             goal.tick();
             assertion.run();
         });
+    }
+
+    /** Makes one ordinary hit leave a live Raider inside the finisher threshold. */
+    private static void prepareCinematicTarget(RaiderEntity target) {
+        target.getAttribute(Attributes.MAX_HEALTH).setBaseValue(40.0D);
+        target.setHealth(13.0F);
+    }
+
+    private static SettlerEntity alliedGuard(GameTestHelper helper, Fixture f,
+                                              BlockPos pos) {
+        SettlerEntity ally = helper.spawn(ModEntities.SETTLER.get(), pos);
+        ally.setSettlerName("Sideblade");
+        ally.bindTo(f.settlement().id, f.settlement().center);
+        f.settlement().putRecord(ally.getUUID(), ally.getSettlerName(),
+            Profession.NONE);
+        ally.assignProfession(Profession.GUARD);
+        // It must exceed the first iron-sword hit while vanilla hurt immunity
+        // is active, otherwise this overlapping real contact is correctly
+        // rejected before RaiderEntity can observe the interruption.
+        ally.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.NETHERITE_SWORD));
+        ally.setNoAi(true);
+        ally.setTarget(f.target());
+        return ally;
     }
 
     @GameTest(template = "empty16", timeoutTicks = 80,
@@ -133,14 +159,14 @@ public class GuardMeleeContactGameTests {
         Fixture f = fixture(helper);
         tickAt(helper, 1L, f.goal(), () -> {
         });
-        helper.runAtTickTime(2L, f.goal()::stop);
+        GameTestTicks.at(helper, 2L, f.goal()::stop);
         for (int elapsed = 1; elapsed <= GuardMeleeGoal.MELEE_CONTACT_TICK;
              elapsed++) {
             tickAt(helper, 2L + elapsed, f.goal(), () ->
                 helper.assertTrue(f.target().getHealth() == f.startingHealth(),
                     "an interrupted wind-up must never replay damage"));
         }
-        helper.runAtTickTime(3L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+        GameTestTicks.at(helper, 3L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
             helper.assertTrue(f.guard().attribute(Attribute.STRENGTH)
                     == f.startingStrength(),
                 "interruption must not pay combat training");
@@ -156,7 +182,7 @@ public class GuardMeleeContactGameTests {
         Fixture f = fixture(helper);
         tickAt(helper, 1L, f.goal(), () -> {
         });
-        helper.runAtTickTime(2L, () -> f.target().teleportTo(
+        GameTestTicks.at(helper, 2L, () -> f.target().teleportTo(
             f.guard().getX() + 6.0, f.guard().getY(), f.guard().getZ()));
         for (int elapsed = 1; elapsed <= GuardMeleeGoal.MELEE_CONTACT_TICK;
              elapsed++) {
@@ -164,7 +190,7 @@ public class GuardMeleeContactGameTests {
                 helper.assertTrue(f.target().getHealth() == f.startingHealth(),
                     "leaving blade range before contact must turn the swing into a miss"));
         }
-        helper.runAtTickTime(3L + GuardMeleeGoal.MELEE_CONTACT_TICK,
+        GameTestTicks.at(helper, 3L + GuardMeleeGoal.MELEE_CONTACT_TICK,
             helper::succeed);
     }
 
@@ -174,7 +200,7 @@ public class GuardMeleeContactGameTests {
         Fixture f = fixture(helper);
         tickAt(helper, 1L, f.goal(), () -> {
         });
-        helper.runAtTickTime(2L, () -> {
+        GameTestTicks.at(helper, 2L, () -> {
             // An iron-bar screen blocks the eye ray without suffocating the
             // no-AI target standing in that block. Clear Sensing's per-tick
             // cache so this assertion proves the fixture before contact.
@@ -190,7 +216,7 @@ public class GuardMeleeContactGameTests {
                 helper.assertTrue(f.target().getHealth() == f.startingHealth(),
                     "LOS loss before contact must turn the swing into a miss"));
         }
-        helper.runAtTickTime(3L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+        GameTestTicks.at(helper, 3L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
             helper.assertTrue(f.guard().attribute(Attribute.STRENGTH)
                     == f.startingStrength(),
                 "a LOS-cancelled contact must not pay combat training");
@@ -203,13 +229,13 @@ public class GuardMeleeContactGameTests {
     public void targetDeathBeforeContactCannotTakeDamage(GameTestHelper helper) {
         Fixture f = fixture(helper);
         long[] ticket = {0L};
-        helper.runAtTickTime(1L, () -> {
+        GameTestTicks.at(helper, 1L, () -> {
             ticket[0] = f.guard().beginMeleeWindup(f.target());
             helper.assertTrue(ticket[0] > 0L,
                 "fixture: a live authorized target must issue a contact ticket");
         });
-        helper.runAtTickTime(2L, f.target()::kill);
-        helper.runAtTickTime(1L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+        GameTestTicks.at(helper, 2L, f.target()::kill);
+        GameTestTicks.at(helper, 1L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
             helper.assertFalse(f.target().isAlive(),
                 "fixture: the target must already be dead before contact");
             helper.assertFalse(f.guard().commitMeleeContact(ticket[0], f.target()),
@@ -228,13 +254,13 @@ public class GuardMeleeContactGameTests {
     public void removedTargetBeforeContactCannotTakeDamage(GameTestHelper helper) {
         Fixture f = fixture(helper);
         long[] ticket = {0L};
-        helper.runAtTickTime(1L, () -> {
+        GameTestTicks.at(helper, 1L, () -> {
             ticket[0] = f.guard().beginMeleeWindup(f.target());
             helper.assertTrue(ticket[0] > 0L,
                 "fixture: a live authorized target must issue a contact ticket");
         });
-        helper.runAtTickTime(2L, f.target()::discard);
-        helper.runAtTickTime(1L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+        GameTestTicks.at(helper, 2L, f.target()::discard);
+        GameTestTicks.at(helper, 1L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
             helper.assertTrue(f.target().isRemoved(),
                 "fixture: the target must be removed before contact");
             helper.assertFalse(f.guard().commitMeleeContact(ticket[0], f.target()),
@@ -260,7 +286,7 @@ public class GuardMeleeContactGameTests {
 
         tickAt(helper, 1L, f.goal(), () -> {
         });
-        helper.runAtTickTime(2L, () -> f.guard().setTarget(replacement));
+        GameTestTicks.at(helper, 2L, () -> f.guard().setTarget(replacement));
         for (int elapsed = 1; elapsed <= GuardMeleeGoal.MELEE_CONTACT_TICK;
              elapsed++) {
             tickAt(helper, 2L + elapsed, f.goal(), () -> {
@@ -270,7 +296,7 @@ public class GuardMeleeContactGameTests {
                     "the old ticket must never transfer damage to a new target");
             });
         }
-        helper.runAtTickTime(3L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+        GameTestTicks.at(helper, 3L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
             helper.assertTrue(f.guard().attribute(Attribute.STRENGTH)
                     == f.startingStrength(),
                 "target-switch cancellation must not pay combat training");
@@ -284,7 +310,7 @@ public class GuardMeleeContactGameTests {
         Fixture f = fixture(helper);
         tickAt(helper, 1L, f.goal(), () -> {
         });
-        helper.runAtTickTime(2L, () -> f.guard().setItemSlot(
+        GameTestTicks.at(helper, 2L, () -> f.guard().setItemSlot(
             EquipmentSlot.MAINHAND, ItemStack.EMPTY));
         for (int elapsed = 1; elapsed <= GuardMeleeGoal.MELEE_CONTACT_TICK;
              elapsed++) {
@@ -292,7 +318,7 @@ public class GuardMeleeContactGameTests {
                 helper.assertTrue(f.target().getHealth() == f.startingHealth(),
                     "removing the physical sword must cancel pending damage"));
         }
-        helper.runAtTickTime(3L + GuardMeleeGoal.MELEE_CONTACT_TICK,
+        GameTestTicks.at(helper, 3L + GuardMeleeGoal.MELEE_CONTACT_TICK,
             helper::succeed);
     }
 
@@ -302,7 +328,7 @@ public class GuardMeleeContactGameTests {
         Fixture f = fixture(helper);
         tickAt(helper, 1L, f.goal(), () -> {
         });
-        helper.runAtTickTime(2L, () -> f.target().assign(UUID.randomUUID(),
+        GameTestTicks.at(helper, 2L, () -> f.target().assign(UUID.randomUUID(),
             UUID.randomUUID(), RaidObjective.BLOD, 1.0F, false));
         for (int elapsed = 1; elapsed <= GuardMeleeGoal.MELEE_CONTACT_TICK;
              elapsed++) {
@@ -310,7 +336,7 @@ public class GuardMeleeContactGameTests {
                 helper.assertTrue(f.target().getHealth() == f.startingHealth(),
                     "a raider rebound to another settlement must not receive this blade"));
         }
-        helper.runAtTickTime(3L + GuardMeleeGoal.MELEE_CONTACT_TICK,
+        GameTestTicks.at(helper, 3L + GuardMeleeGoal.MELEE_CONTACT_TICK,
             helper::succeed);
     }
 
@@ -321,7 +347,7 @@ public class GuardMeleeContactGameTests {
         long[] oldTicket = {0L};
         SettlerEntity[] loaded = {null};
 
-        helper.runAtTickTime(1L, () -> {
+        GameTestTicks.at(helper, 1L, () -> {
             oldTicket[0] = f.guard().beginMeleeWindup(f.target());
             helper.assertTrue(oldTicket[0] > 0L,
                 "fixture must issue a real pending contact ticket");
@@ -341,12 +367,268 @@ public class GuardMeleeContactGameTests {
                 new ItemStack(Items.IRON_SWORD));
         });
 
-        helper.runAtTickTime(1L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+        GameTestTicks.at(helper, 1L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
             helper.assertFalse(loaded[0].commitMeleeContact(oldTicket[0],
                     f.target()),
                 "a reloaded entity must refuse the pre-save contact ticket");
             helper.assertTrue(f.target().getHealth() == f.startingHealth(),
                 "reload must not replay pending melee damage");
+            helper.succeed();
+        });
+    }
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "cinematic_finisher_real_hit_opens_and_resolves_normally")
+    public void realHitOpensOpportunityAndFinisherUsesOrdinaryContact(
+            GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        float[] healthBeforeOpening = {0.0F};
+        float[] healthAfterOpening = {0.0F};
+
+        GameTestTicks.at(helper, 1L, () -> {
+            f.target().getAttribute(Attributes.MAX_HEALTH).setBaseValue(80.0D);
+            f.target().setHealth(27.0F);
+            healthBeforeOpening[0] = f.target().getHealth();
+            f.goal().tick();
+        });
+        for (long tick = 2L; tick <= 25L; tick++) {
+            long currentTick = tick;
+            tickAt(helper, currentTick, f.goal(), () -> {
+                if (currentTick == 5L) {
+                    helper.assertTrue(f.target().getHealth() < healthBeforeOpening[0],
+                        "the normal goal's opening contact must land at tick 5");
+                    healthAfterOpening[0] = f.target().getHealth();
+                    helper.assertTrue(f.target().isAlive() && healthAfterOpening[0] <= 28.0F,
+                        "the real hit must leave a live Raider in the finisher threshold");
+                    helper.assertTrue(f.target().cinematicOpportunityState()
+                            == CinematicOpportunity.State.OFFERED,
+                        "only the accepted opening hit may create an offered opportunity");
+                    // The normal goal trains after each accepted contact. Pin
+                    // the comparison fixture again so the second contact has
+                    // identical weapon, armour and combat attributes.
+                    f.guard().attributes().pinForTest(Attribute.STRENGTH, 0);
+                } else if (currentTick == 21L) {
+                    helper.assertTrue(f.target().cinematicOpportunityState()
+                            == CinematicOpportunity.State.CLAIMED,
+                        "the ordinary 20-tick Guard cadence must claim the live offer");
+                } else if (currentTick == 25L) {
+                    float openingDamage = healthBeforeOpening[0] - healthAfterOpening[0];
+                    float finisherDamage = healthAfterOpening[0] - f.target().getHealth();
+                    helper.assertTrue(f.target().getHealth() < healthAfterOpening[0],
+                        "the normal goal's claimed contact must still deal damage");
+                    helper.assertTrue(Math.abs(finisherDamage - openingDamage) < 0.001F,
+                        "the finisher must use exactly the ordinary contact damage, not execute damage");
+                    helper.assertTrue(f.target().cinematicOpportunityClearReason()
+                            == CinematicOpportunity.ClearReason.FINISHER_RESOLVED,
+                        "the accepted contact must resolve the claimed opportunity once");
+                    helper.assertTrue(f.guard().committedMeleeContacts() == 2L,
+                        "opening and finisher must each commit exactly one ledger contact");
+                    helper.succeed();
+                }
+            });
+        }
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "cinematic_finisher_side_guard_interrupt_cancels_ticket")
+    public void sideGuardHitCancelsClaimedFinisherWithoutDelayedDamage(
+            GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        SettlerEntity side = alliedGuard(helper, f, new BlockPos(6, 1, 9));
+        long[] openingTicket = {0L};
+        long[] finisherTicket = {0L};
+        long[] sideTicket = {0L};
+        float[] healthAfterInterrupt = {0.0F};
+
+        GameTestTicks.at(helper, 1L, () -> {
+            prepareCinematicTarget(f.target());
+            f.target().getAttribute(Attributes.MAX_HEALTH).setBaseValue(80.0D);
+            f.target().setHealth(27.0F);
+            openingTicket[0] = f.guard().beginMeleeWindup(f.target());
+        });
+        GameTestTicks.at(helper, 2L, () -> {
+            sideTicket[0] = side.beginMeleeWindup(f.target());
+            helper.assertTrue(sideTicket[0] > 0L,
+                "fixture: the side Guard must issue a normal ticket before the offer");
+        });
+        GameTestTicks.at(helper, 5L, () -> {
+            helper.assertTrue(f.guard().commitMeleeContact(openingTicket[0], f.target()),
+                "fixture: the opening contact must create the opportunity");
+            finisherTicket[0] = f.guard().beginMeleeWindup(f.target());
+            helper.assertTrue(finisherTicket[0] > 0L,
+                "the same post-hit callback must claim the fresh finisher offer");
+        });
+        GameTestTicks.at(helper, 6L, () -> {
+            helper.assertTrue(side.commitMeleeContact(sideTicket[0], f.target()),
+                "a live allied Guard side contact must be accepted by the Raider");
+            healthAfterInterrupt[0] = f.target().getHealth();
+        });
+        GameTestTicks.at(helper, 9L, () -> {
+            helper.assertFalse(f.guard().commitMeleeContact(finisherTicket[0], f.target()),
+                "an accepted side hit must cancel the exact pending finisher ticket");
+            helper.assertTrue(f.target().getHealth() == healthAfterInterrupt[0],
+                "the cancelled finisher must not add delayed or duplicate damage");
+            helper.assertTrue(f.guard().committedMeleeContacts() == 1,
+                "only the opening contact may belong to the original Guard");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "cinematic_finisher_arrow_interrupt_cancels_ticket")
+    public void arrowHitCancelsClaimedFinisherWithoutDelayedDamage(
+            GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        long[] openingTicket = {0L};
+        long[] finisherTicket = {0L};
+        float[] healthAfterInterrupt = {0.0F};
+
+        GameTestTicks.at(helper, 1L, () -> {
+            prepareCinematicTarget(f.target());
+            openingTicket[0] = f.guard().beginMeleeWindup(f.target());
+        });
+        GameTestTicks.at(helper, 5L, () -> helper.assertTrue(
+            f.guard().commitMeleeContact(openingTicket[0], f.target()),
+            "fixture: the opening contact must create the opportunity"));
+        GameTestTicks.at(helper, 15L, () -> {
+            finisherTicket[0] = f.guard().beginMeleeWindup(f.target());
+            helper.assertTrue(finisherTicket[0] > 0L,
+                "fixture: the original Guard must claim the finisher");
+        });
+        GameTestTicks.at(helper, 16L, () -> {
+            Arrow arrow = new Arrow(helper.getLevel(), f.guard(),
+                new ItemStack(Items.ARROW), f.guard().getMainHandItem());
+            helper.assertTrue(f.target().hurt(helper.getLevel().damageSources()
+                    .arrow(arrow, f.guard()), 1.0F),
+                "a real Arrow damage source must be accepted by the Raider");
+            healthAfterInterrupt[0] = f.target().getHealth();
+        });
+        GameTestTicks.at(helper, 19L, () -> {
+            helper.assertFalse(f.guard().commitMeleeContact(finisherTicket[0], f.target()),
+                "an accepted arrow hit must cancel the claimed finisher ticket");
+            helper.assertTrue(f.target().getHealth() == healthAfterInterrupt[0],
+                "the arrow cancellation must leave no delayed finisher damage");
+            helper.assertTrue(f.guard().committedMeleeContacts() == 1,
+                "the original Guard must retain only its opening contact");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "cinematic_finisher_range_loss_cancels_ticket")
+    public void claimedFinisherLeavingRangeCancelsWithoutDelayedDamage(
+            GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        long[] openingTicket = {0L};
+        long[] finisherTicket = {0L};
+        float[] healthBeforeContact = {0.0F};
+
+        GameTestTicks.at(helper, 1L, () -> {
+            prepareCinematicTarget(f.target());
+            openingTicket[0] = f.guard().beginMeleeWindup(f.target());
+        });
+        GameTestTicks.at(helper, 5L, () -> helper.assertTrue(
+            f.guard().commitMeleeContact(openingTicket[0], f.target()),
+            "fixture: the opening contact must create the opportunity"));
+        GameTestTicks.at(helper, 15L, () -> {
+            finisherTicket[0] = f.guard().beginMeleeWindup(f.target());
+            helper.assertTrue(finisherTicket[0] > 0L,
+                "fixture: the live low-health Raider must offer a claimable ticket");
+        });
+        GameTestTicks.at(helper, 16L, () -> {
+            f.target().teleportTo(f.guard().getX() + 6.0D, f.guard().getY(),
+                f.guard().getZ());
+            healthBeforeContact[0] = f.target().getHealth();
+        });
+        GameTestTicks.at(helper, 17L, () -> f.target().teleportTo(
+            f.guard().getX() + 1.0D, f.guard().getY(), f.guard().getZ()));
+        GameTestTicks.at(helper, 19L, () -> {
+            helper.assertFalse(f.guard().commitMeleeContact(finisherTicket[0], f.target()),
+                "even temporary range loss must immediately cancel the claimed ticket");
+            helper.assertTrue(f.target().getHealth() == healthBeforeContact[0],
+                "a cancelled claim must not revive when the target returns to range");
+            helper.assertTrue(f.guard().committedMeleeContacts() == 1,
+                "the original Guard must retain only its valid opening contact");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "cinematic_finisher_removed_target_cancels_ticket")
+    public void removedTargetCancelsClaimedFinisherWithoutDelayedDamage(
+            GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        long[] openingTicket = {0L};
+        long[] finisherTicket = {0L};
+
+        GameTestTicks.at(helper, 1L, () -> {
+            prepareCinematicTarget(f.target());
+            openingTicket[0] = f.guard().beginMeleeWindup(f.target());
+        });
+        GameTestTicks.at(helper, 5L, () -> helper.assertTrue(
+            f.guard().commitMeleeContact(openingTicket[0], f.target()),
+            "fixture: the opening contact must create the opportunity"));
+        GameTestTicks.at(helper, 6L, () -> {
+            finisherTicket[0] = f.guard().beginMeleeWindup(f.target());
+            helper.assertTrue(finisherTicket[0] > 0L,
+                "fixture: the low-health target must issue a claimed finisher ticket");
+            helper.assertTrue(f.target().cinematicOpportunityState()
+                    == CinematicOpportunity.State.CLAIMED,
+                "fixture: target removal must follow an actual claimed opportunity");
+        });
+        GameTestTicks.at(helper, 7L, f.target()::discard);
+        GameTestTicks.at(helper, 10L, () -> {
+            helper.assertTrue(f.target().isRemoved(),
+                "fixture: the target must be gone before the claimed contact");
+            helper.assertFalse(f.guard().commitMeleeContact(finisherTicket[0], f.target()),
+                "a removed target must cancel the exact claimed finisher ticket");
+            helper.assertTrue(f.guard().committedMeleeContacts() == 1,
+                "target loss must not leave a delayed original-Guard contact");
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 80,
+        batch = "cinematic_finisher_expiry_returns_to_normal_contact")
+    public void expiredOpportunityReturnsToOrdinaryContact(GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        long[] openingTicket = {0L};
+        long[] claimedTicket = {0L};
+        long[] postExpiryTicket = {0L};
+        float[] healthBeforePostExpiryContact = {0.0F};
+
+        GameTestTicks.at(helper, 1L, () -> {
+            prepareCinematicTarget(f.target());
+            openingTicket[0] = f.guard().beginMeleeWindup(f.target());
+        });
+        GameTestTicks.at(helper, 5L, () -> helper.assertTrue(
+            f.guard().commitMeleeContact(openingTicket[0], f.target()),
+            "fixture: the opening contact must create the opportunity"));
+        GameTestTicks.at(helper, 6L, () -> {
+            claimedTicket[0] = f.guard().beginMeleeWindup(f.target());
+            helper.assertTrue(claimedTicket[0] > 0L
+                    && f.target().cinematicOpportunityState()
+                        == CinematicOpportunity.State.CLAIMED,
+                "fixture: an ordinary Guard ticket must claim the live window first");
+        });
+        GameTestTicks.at(helper, 26L, () -> {
+            helper.assertFalse(f.target().claimCinematicOpportunity(UUID.randomUUID(),
+                    helper.getLevel().getGameTime()),
+                "a competing claim after expiry must fail through Raider-owned cleanup");
+            helper.assertTrue(f.target().cinematicOpportunityClearReason()
+                    == CinematicOpportunity.ClearReason.EXPIRED,
+                "expiry must be recorded before normal combat resumes");
+            postExpiryTicket[0] = f.guard().beginMeleeWindup(f.target());
+            helper.assertTrue(postExpiryTicket[0] > 0L,
+                "expiry must cancel the old claimed ticket before a new normal one begins");
+            healthBeforePostExpiryContact[0] = f.target().getHealth();
+        });
+        GameTestTicks.at(helper, 26L + GuardMeleeGoal.MELEE_CONTACT_TICK, () -> {
+            helper.assertTrue(f.guard().commitMeleeContact(postExpiryTicket[0], f.target()),
+                "after expiry, a normal valid contact must still resolve");
+            helper.assertTrue(f.target().getHealth() < healthBeforePostExpiryContact[0],
+                "expiry must not lock the Raider or suppress ordinary combat");
+            helper.assertTrue(f.guard().committedMeleeContacts() == 2,
+                "expiry must preserve one contact per valid ticket");
             helper.succeed();
         });
     }

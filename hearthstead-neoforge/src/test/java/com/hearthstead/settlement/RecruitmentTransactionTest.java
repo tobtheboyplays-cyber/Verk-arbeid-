@@ -219,14 +219,14 @@ class RecruitmentTransactionTest {
             RecruitmentTransaction value, int revision) {
         return new RecruitmentTransaction(value.schemaVersion(),
             value.settlementId(), value.status(), value.survivalAuthored(),
-            revision, value.cycle(),
+            value.timingProfile(), revision, value.cycle(),
             value.lockedTarget(), value.progress(), value.qualifiedSeconds(),
             value.qualificationStartedTick(), value.transactionId(),
             value.travelerId(), value.travelerName(), value.spawnedTick(),
             value.arrivedTick(), value.tavernBuildingId(),
             value.tavernPlaquePos(), value.tavernAnchor(), value.dimension(),
             value.admissionReceipt(), value.journeyEvidenceMask(),
-            value.terminalReason());
+            value.terminalReason(), value.quote());
     }
 
     private static void assertRoundTrips(RecruitmentTransaction value,

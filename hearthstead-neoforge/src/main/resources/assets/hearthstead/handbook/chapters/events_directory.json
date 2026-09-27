@@ -1,0 +1,308 @@
+{
+  "id": "events_directory",
+  "title": "hearthstead.guide.events_directory.title",
+  "icon": "minecraft:bell",
+  "pages": [
+    {
+      "id": "events_directory.list1",
+      "title": "hearthstead.guide.events_directory.list1.title",
+      "bullets": [
+        "hearthstead.guide.events_directory.list1.b1"
+      ],
+      "tip": "hearthstead.guide.events_directory.list1.tip",
+      "entries": [
+        {
+          "ref": "event:peddler",
+          "name": "hearthstead.guide.ref.events_directory.peddler.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.peddler.text"
+        },
+        {
+          "ref": "event:refugees",
+          "name": "hearthstead.guide.ref.events_directory.refugees.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.refugees.text"
+        },
+        {
+          "ref": "event:minstrels",
+          "name": "hearthstead.guide.ref.events_directory.minstrels.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.minstrels.text"
+        },
+        {
+          "ref": "event:field_fox",
+          "name": "hearthstead.guide.ref.events_directory.field_fox.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.field_fox.text"
+        },
+        {
+          "ref": "event:wolf_pack",
+          "name": "hearthstead.guide.ref.events_directory.wolf_pack.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.wolf_pack.text"
+        },
+        {
+          "ref": "event:wild_boar",
+          "name": "hearthstead.guide.ref.events_directory.wild_boar.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.wild_boar.text"
+        },
+        {
+          "ref": "event:tavern_brawl",
+          "name": "hearthstead.guide.ref.events_directory.tavern_brawl.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.tavern_brawl.text"
+        },
+        {
+          "ref": "event:brute_toll",
+          "name": "hearthstead.guide.ref.events_directory.brute_toll.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.brute_toll.text"
+        }
+      ]
+    },
+    {
+      "id": "events_directory.list2",
+      "title": "hearthstead.guide.events_directory.list2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "event:stray_dog",
+          "name": "hearthstead.guide.ref.events_directory.stray_dog.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.stray_dog.text"
+        },
+        {
+          "ref": "event:caravan",
+          "name": "hearthstead.guide.ref.events_directory.caravan.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.caravan.text"
+        },
+        {
+          "ref": "event:rival_envoy",
+          "name": "hearthstead.guide.ref.events_directory.rival_envoy.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.rival_envoy.text"
+        },
+        {
+          "ref": "event:story_visit",
+          "name": "hearthstead.guide.ref.events_directory.story_visit.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_visit.text"
+        },
+        {
+          "ref": "event:story_threat",
+          "name": "hearthstead.guide.ref.events_directory.story_threat.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_threat.text"
+        },
+        {
+          "ref": "conversation:bandit_parley",
+          "name": "hearthstead.guide.ref.events_directory.bandit_parley.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.bandit_parley.text"
+        },
+        {
+          "ref": "conversation:barter_only",
+          "name": "hearthstead.guide.ref.events_directory.barter_only.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.barter_only.text"
+        },
+        {
+          "ref": "conversation:brute_toll",
+          "name": "hearthstead.guide.ref.events_directory.brute_toll.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.brute_toll.text"
+        }
+      ]
+    },
+    {
+      "id": "events_directory.list3",
+      "title": "hearthstead.guide.events_directory.list3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "conversation:caravan",
+          "name": "hearthstead.guide.ref.events_directory.caravan.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.caravan.text"
+        },
+        {
+          "ref": "conversation:demo_peddler",
+          "name": "hearthstead.guide.ref.events_directory.demo_peddler.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.demo_peddler.text"
+        },
+        {
+          "ref": "conversation:minstrels",
+          "name": "hearthstead.guide.ref.events_directory.minstrels.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.minstrels.text"
+        },
+        {
+          "ref": "conversation:peddler",
+          "name": "hearthstead.guide.ref.events_directory.peddler.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.peddler.text"
+        },
+        {
+          "ref": "conversation:raid_parley",
+          "name": "hearthstead.guide.ref.events_directory.raid_parley.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.raid_parley.text"
+        },
+        {
+          "ref": "conversation:refugees",
+          "name": "hearthstead.guide.ref.events_directory.refugees.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.refugees.text"
+        },
+        {
+          "ref": "conversation:rival_envoy",
+          "name": "hearthstead.guide.ref.events_directory.rival_envoy.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.rival_envoy.text"
+        },
+        {
+          "ref": "conversation:stray_dog",
+          "name": "hearthstead.guide.ref.events_directory.stray_dog.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.stray_dog.text"
+        }
+      ]
+    },
+    {
+      "id": "events_directory.list4",
+      "title": "hearthstead.guide.events_directory.list4.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "conversation:traveller",
+          "name": "hearthstead.guide.ref.events_directory.traveller.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.events_directory.traveller.text"
+        },
+        {
+          "ref": "event:story_hollins",
+          "name": "hearthstead.guide.ref.events_directory.story_hollins.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_hollins.text"
+        },
+        {
+          "ref": "event:story_pell_rook",
+          "name": "hearthstead.guide.ref.events_directory.story_pell_rook.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_pell_rook.text"
+        },
+        {
+          "ref": "event:story_odo",
+          "name": "hearthstead.guide.ref.events_directory.story_odo.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_odo.text"
+        },
+        {
+          "ref": "event:story_thanks",
+          "name": "hearthstead.guide.ref.events_directory.story_thanks.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_thanks.text"
+        },
+        {
+          "ref": "event:story_wenna",
+          "name": "hearthstead.guide.ref.events_directory.story_wenna.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_wenna.text"
+        },
+        {
+          "ref": "event:story_brisks",
+          "name": "hearthstead.guide.ref.events_directory.story_brisks.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_brisks.text"
+        },
+        {
+          "ref": "event:story_anselm",
+          "name": "hearthstead.guide.ref.events_directory.story_anselm.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_anselm.text"
+        }
+      ]
+    },
+    {
+      "id": "events_directory.list5",
+      "title": "hearthstead.guide.events_directory.list5.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "event:story_gerd",
+          "name": "hearthstead.guide.ref.events_directory.story_gerd.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_gerd.text"
+        },
+        {
+          "ref": "event:story_brannoc",
+          "name": "hearthstead.guide.ref.events_directory.story_brannoc.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_brannoc.text"
+        },
+        {
+          "ref": "event:story_hilde",
+          "name": "hearthstead.guide.ref.events_directory.story_hilde.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_hilde.text"
+        },
+        {
+          "ref": "event:story_sigrun",
+          "name": "hearthstead.guide.ref.events_directory.story_sigrun.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_sigrun.text"
+        },
+        {
+          "ref": "event:story_hamon",
+          "name": "hearthstead.guide.ref.events_directory.story_hamon.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_hamon.text"
+        },
+        {
+          "ref": "event:story_gorm",
+          "name": "hearthstead.guide.ref.events_directory.story_gorm.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.story_gorm.text"
+        },
+        {
+          "ref": "event:RaidDirector",
+          "name": "hearthstead.guide.ref.events_directory.raiddirector.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.raiddirector.text"
+        },
+        {
+          "ref": "event:GoblinTheftDirector",
+          "name": "hearthstead.guide.ref.events_directory.goblintheftdirector.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.goblintheftdirector.text"
+        }
+      ]
+    },
+    {
+      "id": "events_directory.list6",
+      "title": "hearthstead.guide.events_directory.list6.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "event:EarlyCoinMerchant",
+          "name": "hearthstead.guide.ref.events_directory.earlycoinmerchant.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.events_directory.earlycoinmerchant.text"
+        }
+      ]
+    }
+  ]
+}

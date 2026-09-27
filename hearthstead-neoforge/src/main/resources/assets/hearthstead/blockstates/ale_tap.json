@@ -1,0 +1,36 @@
+{
+  "variants": {
+    "facing=north,pouring=false": {
+      "model": "hearthstead:block/ale_tap",
+      "y": 0
+    },
+    "facing=north,pouring=true": {
+      "model": "hearthstead:block/ale_tap_pouring",
+      "y": 0
+    },
+    "facing=east,pouring=false": {
+      "model": "hearthstead:block/ale_tap",
+      "y": 90
+    },
+    "facing=east,pouring=true": {
+      "model": "hearthstead:block/ale_tap_pouring",
+      "y": 90
+    },
+    "facing=south,pouring=false": {
+      "model": "hearthstead:block/ale_tap",
+      "y": 180
+    },
+    "facing=south,pouring=true": {
+      "model": "hearthstead:block/ale_tap_pouring",
+      "y": 180
+    },
+    "facing=west,pouring=false": {
+      "model": "hearthstead:block/ale_tap",
+      "y": 270
+    },
+    "facing=west,pouring=true": {
+      "model": "hearthstead:block/ale_tap_pouring",
+      "y": 270
+    }
+  }
+}

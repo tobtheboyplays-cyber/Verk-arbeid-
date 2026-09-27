@@ -1,0 +1,276 @@
+{
+  "schema": 1,
+  "status": "Candidate - native in-game validation pending",
+  "state": "CRAFT_OUTPUT_STORE",
+  "view": "left",
+  "targetContract": {
+    "role": "fixed_world_authority_reconstruction",
+    "actorForwardModel": [
+      0,
+      0,
+      -1
+    ],
+    "tableCenterModelPixels": [
+      0,
+      8,
+      -12
+    ],
+    "tableSizeModelPixels": [
+      16,
+      16,
+      16
+    ],
+    "gridSpacingModelPixels": 3.6,
+    "recipeId": "minecraft:wooden_axe",
+    "recipeOccupiedSlots": [
+      0,
+      1,
+      3,
+      4,
+      7
+    ],
+    "recipeSlotItems": {
+      "0": "minecraft:oak_planks",
+      "1": "minecraft:oak_planks",
+      "3": "minecraft:oak_planks",
+      "4": "minecraft:stick",
+      "7": "minecraft:stick"
+    },
+    "layoutContactSeconds": [
+      0.2,
+      0.4,
+      0.6,
+      0.8,
+      0.9
+    ],
+    "transformContactSeconds": 1.5,
+    "pickupContactSeconds": 2.15,
+    "tableBeatDurationSeconds": 2.4,
+    "storageContactSeconds": 0.7,
+    "storageBeatDurationSeconds": 1.2,
+    "outputItem": "minecraft:wooden_axe",
+    "worldPropsMustNotInheritActorTransform": true
+  },
+  "records": [
+    {
+      "time": 0,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        6,
+        13,
+        0
+      ],
+      "leftHand": [
+        -6,
+        13,
+        0
+      ],
+      "rightSurfaceDistance": 5.348130514488218,
+      "leftSurfaceDistance": 5.348130514488218,
+      "rightOutputDistance": 8.605938848553722,
+      "leftOutputDistance": 8.02667264233464,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.2,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        7.9743975426803635,
+        13.086383086214502,
+        -3.2677899446299996
+      ],
+      "leftHand": [
+        -8.492111155113582,
+        13.559009959267716,
+        -4.730158207327075
+      ],
+      "rightSurfaceDistance": 3.5401657716335717,
+      "leftSurfaceDistance": 3.031203525457659,
+      "rightOutputDistance": 7.521630937768843,
+      "leftOutputDistance": 5.826030376300212,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.4,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        8.915575838379784,
+        13.227829038201692,
+        -5.409226433361756
+      ],
+      "leftHand": [
+        -5.241694030777843,
+        14.224014137823982,
+        -8.433200921672583
+      ],
+      "rightSurfaceDistance": 3.446026554633719,
+      "leftSurfaceDistance": 2.3259858621760188,
+      "rightOutputDistance": 7.455605404385851,
+      "leftOutputDistance": 2.1794216650496057,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.6,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        8.811003178809322,
+        13.156715359963831,
+        -7.287058420834341
+      ],
+      "leftHand": [
+        -1.6116826097895025,
+        15.572955129646292,
+        -9.328106281884274
+      ],
+      "rightSurfaceDistance": 3.488854655090152,
+      "leftSurfaceDistance": 0.9770448703537085,
+      "rightOutputDistance": 7.170166823100848,
+      "leftOutputDistance": 0.16704485604859443,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.65,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        8.562642116641575,
+        13.07323019674593,
+        -7.669334990870627
+      ],
+      "leftHand": [
+        -1.2805335385700776,
+        15.744515034102168,
+        -9.363927920408914
+      ],
+      "rightSurfaceDistance": 3.522001478738795,
+      "leftSurfaceDistance": 0.8054849658978327,
+      "rightOutputDistance": 6.970572475584014,
+      "leftOutputDistance": 0,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.7,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        8.068865424383105,
+        12.892661594193097,
+        -8.764855949388128
+      ],
+      "leftHand": [
+        -0.5600270889524461,
+        16.11040130948369,
+        -9.896227807155892
+      ],
+      "rightSurfaceDistance": 3.6579866950640554,
+      "leftSurfaceDistance": 0.4395986905163092,
+      "rightOutputDistance": 6.593045544795174,
+      "leftOutputDistance": 0,
+      "expectedHand": "left",
+      "contactDistance": 0,
+      "maximumDistance": 1.5,
+      "physicalContact": true
+    },
+    {
+      "time": 0.75,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        7.889943852639476,
+        12.79706405181567,
+        -8.495464475062578
+      ],
+      "leftHand": [
+        -0.9738763037363407,
+        15.863825354162493,
+        -9.952136885406757
+      ],
+      "rightSurfaceDistance": 3.75293594818433,
+      "leftSurfaceDistance": 0.6861746458375073,
+      "rightOutputDistance": 6.475019898099036,
+      "leftOutputDistance": 0,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.9,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        7.1060618523900825,
+        12.582914519103994,
+        -5.790709432855447
+      ],
+      "leftHand": [
+        -5.161354369911913,
+        13.662054616481148,
+        -7.917832167171818
+      ],
+      "rightSurfaceDistance": 3.9670854808960065,
+      "leftSurfaceDistance": 2.8879453835188524,
+      "rightOutputDistance": 6.060365924334823,
+      "leftOutputDistance": 2.5542883001491083,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 1.1,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        6.086184610302466,
+        12.90238987736385,
+        -0.6714062717685414
+      ],
+      "leftHand": [
+        -6.459292222999013,
+        12.921537665117887,
+        -0.8327448845652361
+      ],
+      "rightSurfaceDistance": 4.938076124806048,
+      "leftSurfaceDistance": 4.816351719082176,
+      "rightOutputDistance": 8.129882587723486,
+      "leftOutputDistance": 7.4798797929996095,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 1.2,
+      "clipName": "CRAFT_OUTPUT_STORE",
+      "rightHand": [
+        6,
+        13,
+        0
+      ],
+      "leftHand": [
+        -6,
+        13,
+        0
+      ],
+      "rightSurfaceDistance": 5.348130514488218,
+      "leftSurfaceDistance": 5.348130514488218,
+      "rightOutputDistance": 8.605938848553722,
+      "leftOutputDistance": 8.02667264233464,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    }
+  ]
+}

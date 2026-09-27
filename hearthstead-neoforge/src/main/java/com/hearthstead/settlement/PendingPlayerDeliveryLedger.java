@@ -224,6 +224,7 @@ public final class PendingPlayerDeliveryLedger {
         if (!row.worldFallback) {
             Outcome direct = deliverDirect(player, exact);
             if (direct != Outcome.PENDING) {
+                com.hearthstead.network.PickupNoticeNetwork.notify(player, exact, exact.getCount());
                 pending.remove(deliveryId);
                 return new DeliveryResult(direct, true);
             }
@@ -381,6 +382,28 @@ public final class PendingPlayerDeliveryLedger {
             }
         }
         return false;
+    }
+
+    /** Read-only receipt projection; canonical player slots, never menu slot ids. */
+    public static int exactRecipientSlot(ServerLevel level, ServerPlayer player,
+                                         Reservation reservation) {
+        if (level == null || player == null || reservation == null
+                || player.serverLevel() != level
+                || !player.getUUID().equals(reservation.playerId())) return -1;
+        ItemStack exact = decode(level, reservation);
+        if (exact.isEmpty() || !markedFor(exact, reservation.id(), reservation.playerId())) return -1;
+        for (int slot = 0; slot < 36; slot++) {
+            if (ownsExact(player.getInventory().getItem(slot), exact)) return slot;
+        }
+        return ownsExact(player.getInventory().getItem(40), exact) ? 40 : -1;
+    }
+
+    /** Shared client/server proof against the exact stamped expected output. */
+    public static boolean matchesDelivery(ItemStack candidate, ItemStack source,
+                                          UUID deliveryId, UUID playerId) {
+        return source != null && !source.isEmpty() && !isNil(deliveryId) && !isNil(playerId)
+            && candidate != null && markedFor(candidate, deliveryId, playerId)
+            && ownsExact(candidate, stamp(source, deliveryId, playerId));
     }
 
     private static boolean ownsExact(ItemStack candidate, ItemStack exact) {

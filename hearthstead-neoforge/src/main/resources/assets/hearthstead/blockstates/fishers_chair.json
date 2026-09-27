@@ -1,0 +1,20 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "hearthstead:block/fishers_chair",
+      "y": 0
+    },
+    "facing=east": {
+      "model": "hearthstead:block/fishers_chair",
+      "y": 90
+    },
+    "facing=south": {
+      "model": "hearthstead:block/fishers_chair",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "hearthstead:block/fishers_chair",
+      "y": 270
+    }
+  }
+}

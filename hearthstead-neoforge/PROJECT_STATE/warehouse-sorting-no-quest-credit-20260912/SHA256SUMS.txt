@@ -1,0 +1,4 @@
+452b26b091536dd97599ca01c12c56f8d9edfa5787fb6ccffaa22e7d8eb2bc91  baseline/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java
+25f744d7854840876be779e4f36971fa7a8ae2a7f4d17ff9172ef1df3121437b  proposed/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java
+ddf312a1dc85a4ad80375d91e41bcdf7f176b4deec3ccddbadce02af47100bb9  baseline/src/main/java/com/hearthstead/gametest/WarehouseSortingGameTests.java
+13d700ea516df083a1667b1585bad13e64885d1fe5073515b6cd7b27b32aa3d5  proposed/src/main/java/com/hearthstead/gametest/WarehouseSortingGameTests.java

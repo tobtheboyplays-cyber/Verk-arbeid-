@@ -86,12 +86,29 @@ public class SettlerHelpLoopGameTests {
         GameTestHelper helper) {
         SettlerEntity farmer = employed(helper, settlement(helper),
             BuildingType.FARMHOUSE);
+        // employed(...) is intentionally synchronous and returns before the
+        // first entity tick can resolve the helper's solid template floor.
+        // Put this hand-contact fixture on the same standing Y a real settler
+        // reaches on that first tick; otherwise the ray correctly hits the
+        // worker's own floor and the test measures spawn timing, not pickup.
+        farmer.setPos(farmer.getX(), farmer.getY() + 1.0D, farmer.getZ());
         ItemEntity irrelevant = new ItemEntity(helper.getLevel(), farmer.getX() + 0.4,
-            farmer.getY(), farmer.getZ(), new ItemStack(Items.DIRT, 3));
+            farmer.getY() + 0.25, farmer.getZ(), new ItemStack(Items.DIRT, 3));
         ItemEntity hoe = new ItemEntity(helper.getLevel(), farmer.getX() + 0.7,
-            farmer.getY(), farmer.getZ(), new ItemStack(Items.IRON_HOE));
-        helper.getLevel().addFreshEntity(irrelevant);
-        helper.getLevel().addFreshEntity(hoe);
+            farmer.getY() + 0.25, farmer.getZ(), new ItemStack(Items.IRON_HOE));
+        irrelevant.setNoGravity(true);
+        irrelevant.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        hoe.setNoGravity(true);
+        hoe.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        helper.assertTrue(helper.getLevel().addFreshEntity(irrelevant),
+            "fixture must materialize the exact irrelevant ground stack");
+        helper.assertTrue(helper.getLevel().addFreshEntity(hoe),
+            "fixture must materialize the exact requested ground tool");
+        helper.assertTrue(EquipmentRequests.hasPhysicalGroundContact(
+                helper.getLevel(), farmer, hoe),
+            "fixture must establish unobstructed physical tool contact"
+                + " [farmer=" + farmer.position() + ", hoe=" + hoe.position()
+                + "]");
 
         AcquireRequestedEquipmentGoal goal =
             new AcquireRequestedEquipmentGoal(farmer);
@@ -108,7 +125,9 @@ public class SettlerHelpLoopGameTests {
 
         helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE)
                 && !hoe.isAlive(),
-            "exactly one hoe must move world-to-hand on the contact tick");
+            "exactly one hoe must move world-to-hand on the contact tick"
+                + " [route=" + farmer.routeFailureNote() + ", farmer="
+                + farmer.position() + ", hoe=" + hoe.position() + "]");
         helper.assertTrue(irrelevant.isAlive()
                 && irrelevant.getItem().is(Items.DIRT)
                 && irrelevant.getItem().getCount() == 3,

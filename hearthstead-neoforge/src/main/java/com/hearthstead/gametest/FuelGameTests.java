@@ -215,7 +215,7 @@ public class FuelGameTests {
         // the hired smelter and the ore.
         helper.getLevel().setDayTime(3000);
 
-        helper.runAtTickTime(400, () -> {
+        GameTestTicks.at(helper, 400, () -> {
             helper.assertTrue(countOf(chest, Items.IRON_INGOT) == 0,
                 "no fuel, no ingots — saw "
                     + countOf(chest, Items.IRON_INGOT) + " after 400 ticks");

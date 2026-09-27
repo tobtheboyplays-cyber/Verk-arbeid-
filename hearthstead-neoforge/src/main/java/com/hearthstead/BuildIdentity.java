@@ -34,6 +34,16 @@ public final class BuildIdentity {
         return Boolean.parseBoolean(VALUES.getProperty("gitDirty", "true"));
     }
 
+    /** Full SHA-256 of the module source inputs packaged into this JAR. */
+    public static String inputHash() {
+        return VALUES.getProperty("inputHash", "unknown");
+    }
+
+    /** Collision-resistant filename selected for this exact module snapshot. */
+    public static String artifactFileName() {
+        return VALUES.getProperty("artifactFileName", "unknown");
+    }
+
     public static String display() {
         return VALUES.getProperty("buildIdentity",
             version() + "+g" + shortCommit() + ".unknown");

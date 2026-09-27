@@ -1,17 +1,41 @@
 package com.hearthstead.entity.ai;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import com.hearthstead.settlement.workzone.WorkZone;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorkScannerTest {
+
+    @Test
+    void farmerSurveyCoversEveryAuthorisedHeightLayerBeforeCompleting() {
+        WorkZone zone = WorkZone.between(UUID.randomUUID(), UUID.randomUUID(),
+            WorkZone.Type.FARM, ResourceLocation.withDefaultNamespace("overworld"),
+            new BlockPos(10, 60, 20), new BlockPos(12, 65, 21), 1);
+
+        // 3x2 columns. Cursor 0..5 covers the ordinary floor first; cursor
+        // 12 is the first column of the third possible soil layer.
+        assertEquals(new BlockPos(10, 60, 20),
+            FarmerWorkGoal.fieldSurveyCell(zone, 0));
+        assertEquals(new BlockPos(12, 60, 21),
+            FarmerWorkGoal.fieldSurveyCell(zone, 5));
+        assertEquals(new BlockPos(10, 62, 20),
+            FarmerWorkGoal.fieldSurveyCell(zone, 12));
+        assertEquals(new BlockPos(12, 64, 21),
+            FarmerWorkGoal.fieldSurveyCell(zone, 29));
+        assertNull(FarmerWorkGoal.fieldSurveyCell(zone, 30),
+            "the top boundary cannot be soil because no authorised crop cell remains above");
+    }
 
     @Test
     void duplicateColumnHitsDoNotConsumeDistinctResultBudget() {

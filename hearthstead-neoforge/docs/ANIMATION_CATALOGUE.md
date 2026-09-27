@@ -156,7 +156,7 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 
 ### 0.8 The catalogue at a glance
 
-72 primary clips and 5 sub-variants. `L` = looping, `1` = one-shot,
+73 primary clips and 5 sub-variants. `L` = looping, `1` = one-shot,
 `+` = additive/layer.
 
 | § | clip | s | kind | phase |
@@ -176,6 +176,7 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 3.1 | `CHOP` | 1.00 | L | A1 |
 | 3.2 | `LIMB_BRANCHES` | 1.30 | L | A1 |
 | 3.3 | `HAUL_LOG` | 2.40 | L+ | A1 |
+| 3.3b | `CARCASS_SHOULDER_CARRY` | 2.40 | L+ | A1 |
 | 3.4 | `LUMBER_CRAFT` | 2.40 | 1 | A1 |
 | 3.5 | `CRAFT_OUTPUT_STORE` | 1.20 | 1 | A1 |
 | 4.1 | `GUARD_STANCE` | 4.00 | L | A1 |
@@ -191,6 +192,7 @@ which mechanism drives it: **`activity`** (looping, synced state) or
 | 5.2 | `COURIER_CARRY` | 2.00 | L+ | A2 |
 | 5.3 | `COURIER_SET_DOWN` | 1.20 | 1 | A2 |
 | 5.4 | `COURIER_SORT` | 1.60 | L | A2 |
+| 5.5 | `BAG_TO_CHEST_UNLOAD` | 4.00 | 1 | A2 |
 | 6.1 | `INN_POUR` | 2.80 | L | A2 |
 | 6.2 | `INN_SERVE` | 1.60 | 1 | A2 |
 | 6.3 | `INN_GREET` | 2.20 | 1 | A2 |
@@ -673,6 +675,13 @@ long-range silhouette cue we have and the farmer uses all of it.
 
 ## 3. Lumberer
 
+- **Sack visibility (2026-09-25):** the farmer's canvas sack now stays on
+  the back while `SORTING` at storage as well as `CARRYING`, so it never
+  blinks out on arrival before `BAG_TO_CHEST_UNLOAD` lowers it. The Fisher
+  walking fish to the rack (`CARRYING`, then `SORTING` at the rack) now
+  shows the same fill-scaled sack on `WALK_LADEN`; rod and landing net keep
+  their hands, so no arm layer is added.
+
 ### 3.1 `CHOP` — felling *(REBUILT 2026-08-25: the cascade build)*
 
 - **Trigger:** `LumbererWorkGoal`, chopping a validated tree.
@@ -762,6 +771,30 @@ long-range silhouette cue we have and the farmer uses all of it.
   cycle.
 - **Carry:** axe in the right hand, held short (choked up on the haft) — if the
   renderer supports a grip offset, shift the item 2 px toward the wrist here.
+
+### 3.3b `CARCASS_SHOULDER_CARRY` - Hunter carries game across the shoulders
+
+- **Trigger:** Hunter walking a carcass from the kill (or the ground) to the
+  Lodge's Butchering Table / chest.
+- **Activity:** `HAULING_CARCASS` (arms layer, over `WALK_LADEN` legs, the
+  same locomotion rule as `HAUL_LOG`; the Hunter also walks at 0.7 speed).
+- **Length:** 2.40 s, **looping** grip settle; legs, root, torso and cloak are
+  owned by the distance-sampled `WALK_LADEN` gait (legs_exempt).
+- **Silhouette:** the carcass (its real species model, drawn by
+  `CarcassCarryLayer` from the synced OFFHAND stack) lies across the shoulders
+  behind the neck with its legs hanging down in front; both hands hold those
+  legs at chest height (coordinator reference: deer carried over both
+  shoulders); the head dips slightly under the load.
+  The bow is hidden while both hands are on the carcass.
+- **Bones:**
+  - `right_arm` ROT (-72, -14, 8) @0.00 -> (-76, -14, 9) @1.20 -> back @2.40.
+  - `left_arm` ROT (-72, 14, -8) @0.00 -> (-76, 14, -9) @1.20 -> back @2.40.
+  - `right_forearm` / `left_forearm` ROT x -28 -> -32 -> -28 (elbow flexion).
+  - `head` ROT x 8 -> 10 -> 8.
+- **Butchering** reuses existing clips on their own states: `WORK_SKIN` ->
+  `skinState` -> `TANNER_SCRAPE` (hide_scrape at its contact tick), then
+  `WORK_BUTCHER` -> `butcherState` -> `CLEAVE` (cleaver_chop at its contact
+  tick). Presentation prop: the hunter's knife (a scaled iron blade).
 
 ### 3.3 `HAUL_LOG` (+`HAUL_LOG_HEAVY`) — loaded sack, axe held low
 
@@ -1076,6 +1109,27 @@ raised. Never two guard clips with the same arm shape.
   without the physical shield.
 - **Carry:** physical MAINHAND sword right; OFFHAND empty.
 
+### 4.3b `GUARD_FINISHER_DRIVE` — committed finishing push *(0.70 s, one-shot)*
+
+- **Trigger:** `SettlerEntity` broadcasts `EV_GUARD_FINISHER` only when the
+  next ordinary, ticketed Guard swing successfully claims a live low-health
+  Raider opportunity. The ordinary contact, range/LOS/authority revalidation
+  and `blade_hit` remain on tick 4; this clip creates neither damage nor a
+  target lock. Any accepted side hit, arrow, range/LOS loss, target removal or
+  expired window broadcasts the matching cancel before contact.
+- **Length / beats:** 0.70 s. Compact load at 0.10 s, **ordinary blade
+  contact at 0.20 s**, a short hold through 0.30 s, recovery at 0.40 s, then
+  controlled return to neutral at 0.70 s.
+  The 0.20 s contact is intentionally the same server time as `MELEE`, not an
+  added strike or execute beat.
+- **Bones / locomotion:** `right_arm`, `left_arm`, `torso`, `head`, `cloak`
+  only. It deliberately owns neither `root` nor legs: normal walk or planted
+  guard support remains visible while nearby settlers and arrows keep fighting.
+- **Interpolation / carry:** the contact is LINEAR on both sides; recovery is
+  CATMULLROM. Physical MAINHAND sword remains on `right_arm`; no item is
+  created or hidden. Appearance is a **Candidate** pending the normal offline
+  and native animation gates.
+
 ### 4.4 `SHIELD_BLOCK` — bracing behind the shield
 
 - **Trigger:** guard in melee with an incoming attack telegraphed, or on
@@ -1238,6 +1292,15 @@ at it, and `COURIER_SET_DOWN`, which *departs* from it.
 - **Carry:** the real source transaction and attached back-sack/load handoff
   share t = 0.60 s. The sack stays a direct torso child; it must not float in
   front, lag, spring or change shape at the carry edge.
+
+### 5.2a `COURIER_CARRY_GRIP` — strap grip over distance-sampled movement
+
+Two-second looping arm overlay used by the current Courier renderer. Both hands
+hold the front straps with at most one degree of motion per axis. WALK_LADEN
+owns the feet, torso support and cloak, so this clip must contain exactly the
+two arm rotation channels. It stops owning the arms when the sack is grounded.
+This documents the existing runtime composition; it does not approve native
+motion or change the Courier's walking or physical inventory.
 
 ### 5.2 `COURIER_CARRY` — the back-sack walk *(the flagship clip)*
 
@@ -3167,6 +3230,45 @@ returns any OFFHAND item to a real `ItemEntity`; reload recovery walks back to
 the persisted container before transport. These are gameplay invariants, not
 animation conveniences.
 
+### 18.76 `BAG_TO_CHEST_UNLOAD` — visible courier deposit *(4.00 s, one-shot)*
+
+This runtime track is content-bound to independently reviewed offline
+candidate `1bae8d124f5cb89c`. The courier settles from the laden arrival,
+routes the bag around the body and publishes its fixed world anchor at tick
+12, reaches into it, presents one planned item at tick 30, follows the lid
+pull with the free hand through ticks 31–36, releases the pull at tick 37 and
+reaches chest contact at tick 48. The server may grant exactly one inventory
+commit ticket on that contact. The chest-owned presentation is below the rim
+at tick 49, the lid is closed at tick 64, and tick 80 deliberately hands into
+the next cycle when cargo remains. The final pose therefore does not return to
+the arrival pose; it is an explicitly reviewed next-cycle handoff. Legs have
+no animation channel because the full-body model override resets them to a
+planted rest throughout the stationary transaction.
+
+The offline candidate and its deterministic contact evidence are not native
+approval. Actual item, bag and chest projections, interruption, simultaneous
+workers, sound contacts, renderer readability and client/server timing remain
+mandatory in-game gates.
+
+**Shared by every container-unloading job (2026-09-25 bag audit).** Courier
+(source, hearth, food and warehouse sessions), Trader, Farmer
+(`GroundedBagUnload`) and Lumberer (camp unload) all drive this exact clip
+from the same server clock; no job uses a weaker per-job unload pose. The
+keyframes and contact ticks (12 bag contact, 30 item-hand, 31/36/37 lid, 48
+commit, 64 lid closed, 24/64 repeat handoff) are unchanged. Prop fixes:
+
+- The shoulder-to-floor handoff (ticks 0-12) and floor-to-shoulder lift
+  (ticks 64-80) now draw the moving duplicate for all four jobs. Before, the
+  farmer's sack vanished at the strap release and the lumber frame popped
+  from the back to the floor at tick 12 and back at tick 80.
+- The grounded sack/frame is drawn forward-left of the planted worker
+  (`BagTransferPresentation.visualSackPoint()`: 0.28 forward, 0.58 left of
+  the anchor-to-chest heading, world-fixed) instead of at the anchor block
+  centre, where it clipped through both legs. The flying item (tick 30-48)
+  and the courier source-pickup reach use the same point.
+- A grounded sack stands upright with its sole scaled to fill for every job
+  (the farmer's sack previously tilted 0.08 rad and sank or hovered).
+
 ### 18.8 `OVEN_TEND` — the baker's peel *(1.60 s, loop)*
 
 The signature is the **flip**. Both hands drive the peel forward into the oven
@@ -3415,6 +3517,15 @@ Empty-handed and relaxed until the right hand rises to the shoulder strap
 against the fingers (−79° ↔ −83°, LINEAR pairs, 2.35–2.85 s) before
 dropping back to the side over 1.65 s. The head dips to watch the count.
 
+### 22.4a `IDLE_TRADER` — the quote *(4.50 s, loop)*
+
+For a stationary bound `TRADER` in `IDLE`, an empty right hand opens into one
+small price quote (x −12° → −31°, y −7° → −19°, 1.10–1.75 s), holds briefly,
+then settles. The left gives a smaller answering gesture while the head makes
+one confirming nod (x 2° → 8° → 2°). Feet stay planted, the torso remains
+upright, and the cloak only breathes 1–3°. This owns no item or inventory
+representation: the actual Coin/container transfer remains in `TraderWorkGoal`.
+
 ### 22.5 `IDLE_FORGE` — hands worked raw *(5.00 s, loop)*
 
 Both hands flex outward, then wipe slowly down the apron front — the
@@ -3522,7 +3633,8 @@ Below the geometry, exactly one locomotion clip is active per state
 (`STALK`/`BRUTE_MARCH`/`SPRINT`, mutually exclusive, same reasoning §1
 gives `WALK`/`WALK_HURRIED`/`RUN_PANIC`), `MENACE_IDLE` layers on top while
 stationary the same way `IDLE` layers under §22's trade idles, and the
-three one-shots (`BREACH_SLAM`, `RAIDER_STRIKE`, `LOOT_SNATCH`) reset only
+four one-shots (`BREACH_SLAM`, `BRUTE_CLUB_STRIKE`, `RAIDER_STRIKE`,
+`LOOT_SNATCH`) reset only
 the bones they own — never a full `resetPose()`, which would erase the
 BRUTE's persistent scale along with whatever clip came before it.
 
@@ -3584,7 +3696,22 @@ impact keyframe still lands a few ticks into that playback rather than on
 tick zero; this remains a reaction-first presentation and must not borrow
 the guard's newer ticketed-contact claim.
 
-### 23.5 `RAIDER_STRIKE` — the wild swing *(0.55 s, one-shot)*
+### 23.5 `BRUTE_CLUB_STRIKE` — committed club blow *(0.75 s, one-shot)*
+
+BRUTE's ordinary player-facing melee action, separate from the block-only
+`BREACH_SLAM`. Its server ticket begins at clip time 0.00 and commits one
+ordinary damage pass on tick 7 / 0.35 s only after the exact target is still
+alive, hostile, in normal melee range and visible. The shoulder and hip load
+peaks before that at 0.25 s; the club crosses through a two-tick LINEAR strike
+at 0.35 s, holds its follow-through through 0.45 s, and reaches the same
+neutral pose at 0.75 s. The club is parented to `right_arm`, so this clip owns
+its visible held transform. Every keyframe is on the 0.05-second grid and the
+clip contains no scale channels, preserving the existing tall/slim BRUTE mesh.
+If the target changes, dies, leaves range or loses line of sight during the
+wind-up, the ticket is consumed without damage while this visible recovery
+still resolves to neutral.
+
+### 23.6 `RAIDER_STRIKE` — the wild swing *(0.55 s, one-shot)*
 
 Both builds' ordinary melee attack, and deliberately less disciplined than
 the guard's `MELEE` (§4.4) — that contrast is the point. The wind-up
@@ -3596,7 +3723,7 @@ in total, and recovery does not return cleanly: it overshoots hard into a
 breaches a door or wall (`RaiderBreachGoal`); the BRUTE's own breach gets
 `BREACH_SLAM` instead.
 
-### 23.6 `LOOT_SNATCH` — fast grab, look over the shoulder *(0.70 s, one-shot)*
+### 23.7 `LOOT_SNATCH` — fast grab, look over the shoulder *(0.70 s, one-shot)*
 
 A fast reach into the chest (`right_arm` out to −95° by 0.20 s, LINEAR
 into the −100° grip by 0.30 s), then the torso and head whip together into
@@ -3606,7 +3733,7 @@ past `MENACE_IDLE`'s 42° scan range, the clip's one clearly held pose
 skill specifies) — before releasing back to neutral by 0.70 s. Triggered
 from `RaiderLootGoal` the instant a stack actually leaves the chest.
 
-### 23.7 `MENACE_IDLE` — the stationary read *(4.20 s, loop)*
+### 23.8 `MENACE_IDLE` — the stationary read *(4.20 s, loop)*
 
 What the player actually watches during the dusk telegraph, so it has to
 carry the dread on its own: shoulders roll on an asymmetric, out-of-phase
@@ -3618,6 +3745,32 @@ raider plays this while stopped and nothing else has claimed the pose —
 pack, brute, captain, and the telegraph scout at the treeline alike
 (`RaiderModel` gates it on `!moving` alone, no profession- or
 variant-specific condition).
+
+### 23.8 `CINEMATIC_EXPOSED` — wounded opening *(0.80 s, one-shot)*
+
+After an accepted ordinary Guard hit leaves a Raider at or below 35% health,
+the server broadcasts this reaction-first opening. It begins from the neutral
+upper-body pose, arms lift and torso leans back by 0.15 s, holds an exposed
+silhouette through 0.45 s, then returns to neutral by 0.80 s. It owns
+`right_arm`, `left_arm`, `torso` and `head` only:
+no root or leg channel may halt the Raider's live movement. It is an invitation,
+not a stun; another enemy, a Guard or an arrow can interrupt it immediately.
+All motion into and out of the reaction uses CATMULLROM except the terminal
+LINEAR settle. No dedicated sound or damage belongs to this clip. **Candidate**
+only; visual approval remains unearned.
+
+### 23.9 `CINEMATIC_STAGGER` — finishing impact recovery *(0.40 s, one-shot)*
+
+This reaction plays only after the claimed Guard ticket passes ordinary
+contact-time validation and deals its existing normal damage. It starts from
+neutral because the short exposed reaction has already returned before the
+next ordinary Guard contact. The arms, torso and head snap through a two-tick
+LINEAR impact at 0.10 s, recover through a small CATMULLROM recoil at 0.25 s,
+and settle at neutral by 0.40 s. It deliberately has
+no root or leg channels, so locomotion continues and the target can still be
+hit by the rest of the battle. The clip creates no damage, immunity, movement
+constraint or special sound. **Candidate** only; visual approval remains
+unearned.
 
 ## 24. Ring-1 trades — herder, fisher, hunter
 
@@ -3658,19 +3811,26 @@ overshoot this recovery uses rather than a plain return-to-neutral. One
 full loop is one catch (`FisherWorkGoal.FISH_CADENCE`); the accent
 (`water_pour`, pitched up) lands at t=1.45 s → tick 29 of 40.
 
-### 24.3 `HUNTER_LOOSE` — the string looses *(1.20 s, loop, impact)*
+### 24.3 `HUNTER_LOOSE` — physical bow release *(1.20 s, one-shot)*
 
-The bow arm (`left_arm`) is held to 4° of drift for the whole loop — the
-stillness principle again, this time on the OFF-hand, because a bow only
-reads if the arm holding it never wavers. The draw hand accelerates back to
-full extension at the cheek (0.20–0.55 s), holds the aim for two ticks,
-then looses at 96°/tick (`right_arm` −136° → −40° in one tick, LINEAR both
-keys — heavy-impact velocity) as the hand snaps forward with the released
-tension. Torso leads the loose by three ticks (peak twist at 0.55 s against
-the arm's 0.70 s release), and the recovery overshoots rest by 5° before
-settling. One full loop is one shot (`HunterWorkGoal.HUNT_DURATION`); the
-accent (`pick_strike`, a stand-in for a string's own transient — no bow
-sound exists in the catalogue yet) lands at t=0.70 s → tick 14 of 24.
+This is the planted body support for one real 24-tick shot. The clip owns only
+`torso`, `head` and `cloak`: it turns the torso 5° into the aim, counter-yaws
+the head by the same amount and returns all three to neutral. It deliberately
+authors neither arm. `SettlerModel.applyBowMotion` owns the physical hand roles:
+the real `MAINHAND` bow follows `right_arm`, while `left_arm` draws the string
+from the server-synced vanilla item-use clock.
+
+`HunterWorkGoal` stops navigation, enters `WORK_HUNT` and starts MAINHAND item
+use at the same phase boundary. `huntState` starts immediately from that
+activity without waiting for the client movement envelope to decay. At tick 14
+the goal consumes one real carried arrow and attempts to add a real Arrow to the
+level. Only successful insertion broadcasts `EV_ARCHER_LOOSE`; its 400 ms blend
+lowers both procedural arms while this body clip continues through recovery
+tick 24. Rejected insertion restores the shaft and emits no release event.
+
+The static animation and prop checks pin that physical contract. They do not
+approve its appearance. Offline front/side multiview and native evidence of the
+pulling item model, projectile-aligned release and clean recovery remain required.
 
 ### 24.4 `IDLE_FISHER` — watching the water *(4.50 s, loop)*
 
@@ -3680,7 +3840,95 @@ watching-open-ground gesture `IDLE_FARMER` already is (§22.1), and a
 hunter's alert scan for game is genuinely the same readiness `IDLE_SENTRY`
 already is (§22.3), so both are reused (`SettlerEntity.setupAnimationStates`)
 rather than duplicated. A fisher's patience is its own thing: the rod
-rests loosely across the shoulder, held about as still as `HUNTER_LOOSE`'s
-own off-hand, while partway through the loop the free hand rises to shade
+rests loosely across the shoulder while partway through the loop the free hand rises to shade
 the eyes and the head tips out and down scanning the water, then both ease
 back to rest.
+
+
+## 25. Tavern hospitality — demo candidate, 6 September 2026
+
+### 25.1 `INN_WELCOME` — arrival greeting *(1.80 s, one-shot)*
+
+INN_WELCOME is a 1.80-second, non-looping, empty-handed greeting. The server owns a 36-tick welcome cue after a visible player crosses into the staffed Tavern; existing occupants after loading do not count as new arrivals. Look anticipation occupies ticks0–4, the right arm lifts through tick10, two small shoulder waves occur through tick26, and recovery ends at tick36. No inventory changes or contact sounds occur. Both hands must be free, navigation pauses, and body direction follows the arriving guest. Real service defers the greeting briefly; danger and interruptions cancel it. Feet remain parallel and planted. Model sampling uses the synchronized server start time, including partial ticks. Original sparse humming is independently cancellable and never loops the sound file. Server entry/cooldown/occlusion/interrupt behavior passed the705-test run; offline views, native motion and listening remain UNTESTED.
+
+### 25.2 Physical tabletop service and receiving — procedural candidate
+
+One saved Tavern serving entity owns the actual ready food and reusable bottle. Carrying follows its host;12-tick placement reaches the table before a20-tick slide. The host pushes for4ticks, then releases. The diner reaches for8contact-valid ticks before the food becomes the shared resident meal. The same FIXED food model, scale and palm endpoint bridge that ownership boundary; equipment is visibly stowed without inventory mutation. After eating,20ticks prepare the guest's return push, followed by a20-tick reverse slide. Interrupted guests leave the prop at its actual point; the host must use a loaded, body-clear and reachable pickup stand before the12-tick lift and ordinary return to storage.
+
+The client samples one synchronized world-pair-centre/yaw/clock snapshot, independent of vanilla position-packet ordering. Both world props and hands use the same interpolated points. Existing4+6pixel split arms retain their true lengths; unsupported targets are rejected. The30-degree host service hinge settles idle torso yaw/roll/scale over the contact envelope; root and feet remain unchanged. Normal table contact uses.03block horizontal,.01vertical and1degree facing tolerance with ordinary distance-scaled final movement. Guest receiving uses an18-degree hinge. These are source contracts, not visual approval. Whole-body sitting/standing transitions, all side/rear contact views, custom item-model context, actual sound and native motion still require qualification.
+
+### 25.3 `VILLAGE_CHAT` — speaker's small hand-led thought *(2.40 s, loop)*
+
+This is the initiator's role after the 32-tick `INN_WELCOME`: a quiet neighbour
+explaining something, never two NPCs mirroring the same gesture. The right hand
+punctuates a sentence at 0.45 and 1.45 seconds; the left answers only later, so
+the arms never read as a cheer. Head turns stay small and alternating, cloak drift
+is only 1° to 2.5°, and both legs carry explicit zero-rotation channels for a
+planted silhouette. The exact 0.00/2.40-second poses match on every owned
+channel, so the 96-tick social window has no loop seam. Work, needs, danger,
+movement, held items and reload cancel the moment; it owns no items, currency,
+task output or gameplay reward.
+
+### 25.4 `VILLAGE_LISTEN` — eye contact and one measured nod *(2.40 s, loop)*
+
+The companion keeps a distinct listening role for the same social window instead
+of replaying the speaker animation. Both arms remain close to rest, while torso
+weight shifts slightly toward the speaker. The readable response is one deliberate
+nod: head inclines from 9° at 0.55 seconds to 15° at 0.80 seconds, returns by
+1.10 seconds, then makes one smaller acknowledging look. Its zero-rotation leg
+channels keep the feet planted; cloak drift remains in the same restrained 1° to
+2.5° range. The loop closes at rest and has no physical item, contact tick or
+sound contract.
+
+## 26. Guard ordinary locomotion - 9 September 2026 candidate
+
+### 26.1 `GUARD_WALK` - planted sword-Guard travel *(1.00 s, loop)*
+
+Distance-sampled base selected only when the complete existing locomotion decision ends in ordinary WALK for a Guard. Fleeing, retreat, load carrying, hand-carried collection, injury, urgent combat and traveling retain their existing choices. This base owns right_leg, left_leg, root and cloak only. GUARD_PATROL retains the upper-body and actual sword pose. Compact 26-28 degree strides hold ground contacts for two ticks; root weight remains below the ordinary rest height, with a small controlled cloak response. Every key is on the 0.05-second animation grid. No server navigation, attack, inventory or sound-contact timing changes. Offline and in-game visual approval remain required.
+
+GATHER_LOG remains the unchanged legacy clip and is not called by production Lumberer work. The reachable post-tree transitions are WORK_CONTAINER_DOWN and WORK_CONTAINER_UP. CHOP impact timing and all bag-transfer clocks remain unchanged.
+
+### 25.5 `BARD_PLAY` - tavern bard's seated/standing tune *(1.00 s, loop)*
+
+Played while a bard patron's activity is `PLAYING_MUSIC` (TavernVisitGoal) and no
+blessing or village-social moment owns the body. Only the arms and head are reset
+before sampling; legs, root and cloak stay with the underlying stance or seat. The
+left hand holds the instrument neck steady (-52 to -55 degrees pitch, a 3-degree
+breathing drift); the right hand strums twice per second with a quick 3-tick
+down-stroke at 0.15/0.65 s and a softer recovery. The head leans into the
+instrument and nods on the first beat only, and the torso sways 1.5 degrees in
+time. Sampled from ageInTicks (no server clock), so it owns no contact tick,
+sound contract, item transfer or reward. The 0.00/1.00 s poses match on every
+channel, so the loop has no seam. Owner-directed polish pass, September 2026;
+native motion review still UNTESTED.
+
+## 27. Locomotion and transition polish - 25 September 2026
+
+Client-only pass; no clip length, contact key or sound accent moved.
+
+- `WALK`: adds a head channel that counter-yaws the torso twist (3 degrees) and
+  dips 1 degree a beat after each contact, so the gaze stays level.
+- `GUARD_WALK`: heavier contacts - the root settles 0.64 px just after each
+  foot lands (only while both legs are spread, so the feet stay on the ground),
+  plus a 1.2-degree root roll toward the stance leg (the pivot is at the feet)
+  and a slower cloak drag. The legs are unchanged.
+- `WALK_LADEN`: the root now follows the straight-leg geometry (lowest when the
+  feet are spread, level at passing) instead of a constant 1 px sink that pushed
+  the feet into the ground. The load's weight moves to a torso compression one
+  beat after each contact, a forward spine pump, a 1-degree root roll, and a
+  head that counter-yaws and dips late.
+- `WALK_HURRIED`: the head holds level against the 11-degree lean and
+  counter-yaws the torso twist; the torso gains a 1.5-degree shoulder roll with
+  the arm pump.
+- `SHIELD_BLOCK`: the root drop is cut from 2 px to 0.45 px (the braced legs'
+  own foot lift), so the feet no longer sink; the crouch is carried by the
+  torso (1.2 to 1.35 px breathing).
+- `ARCHER_STANCE`: the root is grounded at -0.16 px (it used to float the feet
+  0.3-0.5 px); breathing stays in the torso and arms.
+- Activity cross-fade (SettlerModel): when a settler's activity or moving/still
+  state changes, the final pose eases from the pose on screen over 5 ticks (4
+  ticks into WORK_* loops, so the earliest synced contact at tick 6 plays at
+  full weight). Only the pose is blended; every clip keeps its own clock.
+  Excluded: climbing, seats, passengers, sleeping, combat, fleeing, bag and
+  container transfers, carried-frame grips, traveller staff, tavern serving,
+  and the melee, shield, hunt and archer-loose one-shots.

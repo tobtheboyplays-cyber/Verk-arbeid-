@@ -1,0 +1,115 @@
+{
+  "id": "watchtower_stone",
+  "name": "Stone Watchtower",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": "watchtower",
+  "variant": "stone",
+  "style": "stone",
+  "preset": "Stone",
+  "requires": "masonry",
+  "group": "watchtower",
+  "size": [
+    9,
+    16,
+    9
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      5,
+      2,
+      5
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      4,
+      9,
+      4
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:cobblestone",
+      "count": 83
+    },
+    {
+      "item": "minecraft:cobblestone_stairs",
+      "count": 80
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 72
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 56
+    },
+    {
+      "item": "minecraft:stone_brick_slab",
+      "count": 24
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 20
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 8
+    },
+    {
+      "item": "minecraft:ladder",
+      "count": 7
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 7
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 6
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cobblestone_slab",
+      "count": 1
+    }
+  ],
+  "block_count": 375,
+  "cells": 568,
+  "notes": [
+    "Guards climb the ladder and open the hatch to the lookout; the lookout is outside the room."
+  ]
+}

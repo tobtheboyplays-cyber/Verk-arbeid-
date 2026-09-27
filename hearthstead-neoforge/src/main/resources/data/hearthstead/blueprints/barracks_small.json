@@ -1,0 +1,204 @@
+{
+  "id": "barracks_small",
+  "name": "Barracks & Drill Yard",
+  "category": "military",
+  "kind": "building",
+  "building_type": "barracks",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "barracks",
+  "size": [
+    13,
+    11,
+    17
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        6,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        6,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        5,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        7,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_chair[facing=west,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        2,
+        1,
+        10
+      ],
+      "to": "another_furniture:oak_chair[facing=south,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        3,
+        1,
+        10
+      ],
+      "to": "another_furniture:oak_chair[facing=south,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 142
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 115
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 85
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 83
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 44
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 40
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 13
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 9
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 4
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 3
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lightning_rod",
+      "count": 3
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:carved_pumpkin",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:white_bed",
+      "count": 2
+    },
+    {
+      "item": "minecraft:target",
+      "count": 2
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_banner",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 574,
+  "cells": 812
+}

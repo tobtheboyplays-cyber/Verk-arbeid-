@@ -59,6 +59,32 @@ public final class HearthMayorRosterGameTests {
         helper.assertTrue(candidates.get(0).knack()
                 < candidates.get(1).knack(),
             "fixture must be adversarial to descending knack ranking");
+        List<HearthMayorSnapshot.Resident> residents = snapshot.residents();
+        helper.assertTrue(residents.size() == 2
+                && residents.get(0).id().equals(low.getUUID())
+                && residents.get(1).id().equals(high.getUUID()),
+            "People projection must preserve the exact persisted member order");
+        helper.assertTrue(residents.stream().allMatch(HearthMayorSnapshot.Resident::loaded)
+                && residents.stream().allMatch(row -> row.runtimeEntityId() >= 0)
+                && residents.stream().allMatch(row -> "idle".equals(row.statusKey())),
+            "loaded residents must expose their live activity and runtime id, not invented facts");
+        UUID absent = UUID.randomUUID();
+        settlement.putRecord(absent, "Away Record", Profession.FARMER);
+        SettlerEntity foreign = settler(helper, settlement, "Foreign Binding", 7, 5);
+        foreign.bindTo(UUID.randomUUID(), helper.absolutePos(new BlockPos(7, 1, 5)));
+        HearthMayorSnapshot refreshed = HearthNetwork.snapshot(helper.getLevel(), settlement);
+        HearthMayorSnapshot.Resident away = refreshed.residents().get(2);
+        HearthMayorSnapshot.Resident foreignRow = refreshed.residents().get(3);
+        helper.assertTrue(refreshed.residentTotal() == 4
+                && away.id().equals(absent) && !away.loaded() && away.runtimeEntityId() == -1
+                && "Away Record".equals(away.name())
+                && "FARMER".equals(away.professionId())
+                && "unloaded".equals(away.statusKey()),
+            "unloaded records must be shown from persisted facts without loading an entity");
+        helper.assertTrue(foreignRow.id().equals(foreign.getUUID()) && !foreignRow.loaded()
+                && foreignRow.runtimeEntityId() == -1
+                && "Foreign Binding".equals(foreignRow.name()),
+            "a recorded UUID bound to another settlement must not leak live identity or activity");
         helper.succeed();
     }
 

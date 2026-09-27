@@ -21,7 +21,7 @@ import net.minecraft.server.level.ServerPlayer;
 public final class RaidBroadcast {
 
     /** How far past the settlement edge a line still reaches, in blocks. */
-    private static final int RANGE_MARGIN = 32;
+    private static final int RANGE_MARGIN = RaidDirector.PLAYER_PRESENCE_MARGIN;
 
     public static void send(ServerLevel level, Settlement settlement, Component message) {
         double range = settlement.radius + RANGE_MARGIN;
@@ -30,6 +30,16 @@ public final class RaidBroadcast {
                 p.displayClientMessage(message, false);
             }
         }
+    }
+
+    /**
+     * A raid headline (warning, arrival, how it ended): one town chat line
+     * for the settlement's members ({@link com.hearthstead.settlement.TownChat},
+     * kind RAID). Flavour and detail lines stay on {@link #send}.
+     */
+    public static void town(ServerLevel level, Settlement settlement, Component message) {
+        com.hearthstead.settlement.TownChat.send(level, settlement,
+            com.hearthstead.settlement.TownChat.Kind.RAID, message);
     }
 
     private RaidBroadcast() {

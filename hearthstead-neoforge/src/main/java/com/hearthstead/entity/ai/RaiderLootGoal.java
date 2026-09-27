@@ -8,6 +8,7 @@ import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.settlement.work.ContainerApproach;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ItemParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -17,6 +18,8 @@ import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BarrelBlockEntity;
+import net.minecraft.world.level.block.entity.ChestBlockEntity;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -157,11 +160,21 @@ public class RaiderLootGoal extends Goal {
     }
 
     private void tickToStores() {
-        if (target == null || !(raider.level() instanceof ServerLevel)) {
+        if (target == null || !(raider.level() instanceof ServerLevel level)) {
             done = true;
             return;
         }
-        if (raider.blockPosition().distSqr(target) <= REACH_SQR) {
+        if (!isOwnedWarehouseContainer(level, raider.settlement(), target)) {
+            Settlement settlement = raider.settlement();
+            target = settlement == null ? null : nearestStore(level, settlement);
+            if (target == null) {
+                done = true;
+            }
+            return;
+        }
+        // Distance can place a raider on the wrong side of a wall. Entering
+        // LOOTING is permitted only from a real visible container face.
+        if (hasLootContact(level)) {
             raider.getNavigation().stop();
             mode = Mode.LOOTING;
             workTicks = 0;
@@ -172,6 +185,19 @@ public class RaiderLootGoal extends Goal {
             if (++stuckChecks > STUCK_LIMIT) {
                 done = true; // cannot reach the stores; fall back to fighting
             } else {
+                ContainerApproach.Result route = ContainerApproach.moveMobToContact(
+                    level, raider, target, 1.0D);
+                if (route.canInteract()) {
+                    mode = Mode.LOOTING;
+                    workTicks = 0;
+                    return;
+                }
+                if (route.startedPath()) {
+                    return;
+                }
+                // A full route to a visible face did not exist. Preserve the
+                // existing bounded partial route to this exact store so the
+                // breach goal can reach and clear a closed gate or wall.
                 raider.getNavigation().moveTo(target.getX() + 0.5,
                     target.getY(), target.getZ() + 0.5, 1.0);
             }
@@ -186,6 +212,15 @@ public class RaiderLootGoal extends Goal {
         }
         if (!(raider.level() instanceof ServerLevel level)) {
             done = true;
+            return;
+        }
+        // Re-check immediately before every real withdrawal. Knockback,
+        // movement, a door closing, or a new wall can never turn a previous
+        // contact into a remote inventory mutation.
+        if (!hasLootContact(level)) {
+            mode = Mode.TO_STORES;
+            workTicks = 0;
+            repathTimer = 0;
             return;
         }
         Container store = containerAt(level, target);
@@ -280,6 +315,34 @@ public class RaiderLootGoal extends Goal {
     @Override
     public void stop() {
         raider.getNavigation().stop();
+    }
+
+    /** Target authority is the settlement's own bounded warehouse index. */
+    private static boolean isOwnedWarehouseContainer(ServerLevel level,
+                                                       Settlement settlement,
+                                                       BlockPos pos) {
+        if (settlement == null || pos == null || !level.hasChunkAt(pos)) {
+            return false;
+        }
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (!(blockEntity instanceof ChestBlockEntity)
+            && !(blockEntity instanceof BarrelBlockEntity)) {
+            return false;
+        }
+        for (Building building : settlement.buildings) {
+            if (!building.valid || building.type != BuildingType.WAREHOUSE
+                || building.bounds == null || !building.bounds.isInside(pos)) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasLootContact(ServerLevel level) {
+        return target != null && isOwnedWarehouseContainer(level,
+            raider.settlement(), target)
+            && ContainerApproach.hasPhysicalContact(level, raider, target);
     }
 
     /** Test seam: what this raider is currently doing. */

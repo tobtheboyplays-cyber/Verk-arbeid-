@@ -59,17 +59,96 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
                                      List<Integer> traitOrdinals, List<Integer> bagItemIds,
                                      List<Integer> bagCounts, String employerBuildingId,
                                      boolean guardWatchNight, boolean isMayor,
-                                     boolean mayorSettling, boolean mourning, String boonKey,
+                                     boolean mayorSettling, boolean mourning,
+                                     boolean mayorVacant, String boonKey,
                                      int wardenOathBlessingRank,
                                      int hearthwardBlessingRank,
                                      int thornedRoadsBlessingRank,
                                      int requestedItemId,
                                      int requestReasonOrdinal,
                                      Delivery delivery,
-                                     Optional<Component> refusal)
+                                     Optional<Component> refusal,
+                                     int developmentMask,
+                                     String homeBuildingId,
+                                     boolean hasBed)
     implements CustomPacketPayload {
 
     private static final int MAX_SNAPSHOT_TEXT = 64;
+    /**
+     * Read-only projection of the settlement's owned Development bonuses for
+     * the settler sheet's "active bonuses" line: bit {@code wireId} per owned
+     * {@link com.hearthstead.settlement.development.PostRaidUpgrade}, plus
+     * {@link #SHIELD_DOCTRINE_BIT} for the Shield Doctrine node. A fixed-width
+     * int, masked to known bits; it never carries a client-sized list.
+     */
+    public static final int SHIELD_DOCTRINE_BIT = 30;
+    /** Bits 0..29 (upgrade wire ids) plus the doctrine bit; never the sign bit. */
+    public static final int DEVELOPMENT_MASK_BITS = 0x7FFFFFFF;
+
+    /**
+     * Source-compatible constructor: no home projected. {@code homeBuildingId}
+     * is the BuildingType id of the building holding the settler's claimed bed
+     * ("" when none or unknown); {@code hasBed} says whether a bed is claimed at
+     * all (a bed outside every detected building still counts). Settler sheet.
+     */
+    public SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionId,
+                                  int revision, boolean canManage,
+                                  List<Integer> attributeValues, int knackOrdinal,
+                                  List<Integer> traitOrdinals, List<Integer> bagItemIds,
+                                  List<Integer> bagCounts, String employerBuildingId,
+                                  boolean guardWatchNight, boolean isMayor,
+                                  boolean mayorSettling, boolean mourning,
+                                  boolean mayorVacant, String boonKey,
+                                  int wardenOathBlessingRank,
+                                  int hearthwardBlessingRank,
+                                  int thornedRoadsBlessingRank,
+                                  int requestedItemId,
+                                  int requestReasonOrdinal,
+                                  Delivery delivery,
+                                  Optional<Component> refusal,
+                                  int developmentMask) {
+        this(entityId, settlerId, sessionId, revision, canManage,
+            attributeValues, knackOrdinal, traitOrdinals, bagItemIds, bagCounts,
+            employerBuildingId, guardWatchNight, isMayor, mayorSettling, mourning,
+            mayorVacant, boonKey, wardenOathBlessingRank, hearthwardBlessingRank,
+            thornedRoadsBlessingRank, requestedItemId, requestReasonOrdinal,
+            delivery, refusal, developmentMask, "", false);
+    }
+
+    /** Source-compatible constructor: no Development bonuses projected. */
+    public SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionId,
+                                  int revision, boolean canManage,
+                                  List<Integer> attributeValues, int knackOrdinal,
+                                  List<Integer> traitOrdinals, List<Integer> bagItemIds,
+                                  List<Integer> bagCounts, String employerBuildingId,
+                                  boolean guardWatchNight, boolean isMayor,
+                                  boolean mayorSettling, boolean mourning,
+                                  boolean mayorVacant, String boonKey,
+                                  int wardenOathBlessingRank,
+                                  int hearthwardBlessingRank,
+                                  int thornedRoadsBlessingRank,
+                                  int requestedItemId,
+                                  int requestReasonOrdinal,
+                                  Delivery delivery,
+                                  Optional<Component> refusal) {
+        this(entityId, settlerId, sessionId, revision, canManage,
+            attributeValues, knackOrdinal, traitOrdinals, bagItemIds, bagCounts,
+            employerBuildingId, guardWatchNight, isMayor, mayorSettling, mourning,
+            mayorVacant, boonKey, wardenOathBlessingRank, hearthwardBlessingRank,
+            thornedRoadsBlessingRank, requestedItemId, requestReasonOrdinal,
+            delivery, refusal, 0);
+    }
+
+    /** True when the projected mask marks this upgrade as owned. */
+    public boolean ownsUpgrade(com.hearthstead.settlement.development.PostRaidUpgrade upgrade) {
+        int bit = upgrade == null ? -1 : upgrade.wireId();
+        return bit >= 0 && bit < SHIELD_DOCTRINE_BIT
+            && (developmentMask & (1 << bit)) != 0;
+    }
+
+    public boolean ownsShieldDoctrine() {
+        return (developmentMask & (1 << SHIELD_DOCTRINE_BIT)) != 0;
+    }
 
     /**
      * The Blessing projection has an invariant fixed shape: exactly three
@@ -97,6 +176,8 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
         // A malformed/null mode must never gain screen-opening authority.
         delivery = delivery == null ? Delivery.UPDATE : delivery;
         refusal = refusal == null ? Optional.empty() : refusal;
+        developmentMask &= DEVELOPMENT_MASK_BITS;
+        homeBuildingId = boundedText(homeBuildingId);
     }
 
     /** Source-compatible, fail-closed constructor: opening is always explicit. */
@@ -114,7 +195,28 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
         this(entityId, settlerId, sessionId, revision, canManage,
             attributeValues, knackOrdinal,
             traitOrdinals, bagItemIds, bagCounts, employerBuildingId,
-            guardWatchNight, isMayor, mayorSettling, mourning, boonKey,
+            guardWatchNight, isMayor, mayorSettling, mourning, false, boonKey,
+            wardenOathBlessingRank, hearthwardBlessingRank,
+            thornedRoadsBlessingRank, -1, -1, Delivery.UPDATE, refusal);
+    }
+
+    /** Explicit server occupancy projection for the appointment control. */
+    public SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionId,
+                                  int revision, boolean canManage,
+                                  List<Integer> attributeValues, int knackOrdinal,
+                                  List<Integer> traitOrdinals, List<Integer> bagItemIds,
+                                  List<Integer> bagCounts, String employerBuildingId,
+                                  boolean guardWatchNight, boolean isMayor,
+                                  boolean mayorSettling, boolean mourning,
+                                  boolean mayorVacant, String boonKey,
+                                  int wardenOathBlessingRank,
+                                  int hearthwardBlessingRank,
+                                  int thornedRoadsBlessingRank,
+                                  Optional<Component> refusal) {
+        this(entityId, settlerId, sessionId, revision, canManage,
+            attributeValues, knackOrdinal,
+            traitOrdinals, bagItemIds, bagCounts, employerBuildingId,
+            guardWatchNight, isMayor, mayorSettling, mourning, mayorVacant, boonKey,
             wardenOathBlessingRank, hearthwardBlessingRank,
             thornedRoadsBlessingRank, -1, -1, Delivery.UPDATE, refusal);
     }
@@ -164,6 +266,7 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
         buf.writeBoolean(snapshot.isMayor);
         buf.writeBoolean(snapshot.mayorSettling);
         buf.writeBoolean(snapshot.mourning);
+        buf.writeBoolean(snapshot.mayorVacant);
         buf.writeUtf(snapshot.boonKey, MAX_SNAPSHOT_TEXT);
         buf.writeByte(snapshot.wardenOathBlessingRank);
         buf.writeByte(snapshot.hearthwardBlessingRank);
@@ -173,6 +276,9 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
         buf.writeByte(snapshot.requestReasonOrdinal + 1);
         buf.writeByte(snapshot.delivery.ordinal());
         ComponentSerialization.OPTIONAL_STREAM_CODEC.encode(buf, snapshot.refusal);
+        buf.writeInt(snapshot.developmentMask);
+        buf.writeUtf(snapshot.homeBuildingId, MAX_SNAPSHOT_TEXT);
+        buf.writeBoolean(snapshot.hasBed);
     }
 
     private static SettlerSnapshotPayload read(RegistryFriendlyByteBuf buf) {
@@ -211,6 +317,7 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
         boolean isMayor = buf.readBoolean();
         boolean mayorSettling = buf.readBoolean();
         boolean mourning = buf.readBoolean();
+        boolean mayorVacant = buf.readBoolean();
         String boonKey = buf.readUtf(MAX_SNAPSHOT_TEXT);
         int wardenOathBlessingRank = buf.readUnsignedByte();
         int hearthwardBlessingRank = buf.readUnsignedByte();
@@ -219,13 +326,17 @@ public record SettlerSnapshotPayload(int entityId, UUID settlerId, UUID sessionI
         int requestReasonOrdinal = buf.readUnsignedByte() - 1;
         Delivery delivery = Delivery.read(buf.readUnsignedByte());
         Optional<Component> refusal = ComponentSerialization.OPTIONAL_STREAM_CODEC.decode(buf);
+        int developmentMask = buf.readInt();
+        String homeBuildingId = buf.readUtf(MAX_SNAPSHOT_TEXT);
+        boolean hasBed = buf.readBoolean();
         return new SettlerSnapshotPayload(entityId, settlerId, sessionId,
             revision, canManage,
             List.copyOf(attributeValues), knackOrdinal, List.copyOf(traitOrdinals),
             List.copyOf(bagItemIds), List.copyOf(bagCounts),
-            employerBuildingId, guardWatchNight, isMayor, mayorSettling, mourning, boonKey,
+            employerBuildingId, guardWatchNight, isMayor, mayorSettling, mourning, mayorVacant, boonKey,
             wardenOathBlessingRank, hearthwardBlessingRank, thornedRoadsBlessingRank,
-            requestedItemId, requestReasonOrdinal, delivery, refusal);
+            requestedItemId, requestReasonOrdinal, delivery, refusal, developmentMask,
+            homeBuildingId, hasBed);
     }
 
     /** Constant-time view used by the inspection screen and packet tests. */

@@ -1,0 +1,104 @@
+{
+  "id": "lumber_camp_timber",
+  "name": "Woodcutter's Camp (Whitewashed Timber)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "lumber_camp",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber",
+  "requires": "builders_hut",
+  "group": "lumber_camp",
+  "size": [
+    13,
+    6,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      6,
+      2,
+      1
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      4,
+      1,
+      2
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 136
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 43
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 38
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 29
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 27
+    },
+    {
+      "item": "minecraft:white_concrete",
+      "count": 22
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 9
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 7
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 5
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2
+    },
+    {
+      "item": "minecraft:crafting_table",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:grindstone",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lever",
+      "count": 1
+    }
+  ],
+  "block_count": 324,
+  "cells": 347
+}

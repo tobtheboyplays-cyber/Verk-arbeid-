@@ -27,7 +27,7 @@ import java.util.UUID;
  * invariant explicit if packet handling ever moves off-thread.
  */
 public final class BlessingState {
-    public static final int DATA_VERSION = 3;
+    public static final int DATA_VERSION = 4;
     public static final int MAX_COUNTER = 1_000_000;
     public static final int MAX_REVISION = MAX_COUNTER * 2;
     /** Root v3 is where the nested Blessing DataVersion became mandatory.
@@ -62,6 +62,7 @@ public final class BlessingState {
     private int revision;
     /** Persisted fail-closed quarantine; only an explicit repair may clear it. */
     private boolean quarantined;
+    private BlessingQualityPolicy qualityPolicy = BlessingQualityPolicy.fresh(0);
     private final EnumMap<BlessingId, Integer> issued =
         new EnumMap<>(BlessingId.class);
     /** Same persisted compound as offer spend and issued counters. */
@@ -83,6 +84,14 @@ public final class BlessingState {
     /** Serial shown for the next offer, or zero when none is available. */
     public synchronized int offerSerial() {
         return spent < earned ? spent + 1 : 0;
+    }
+
+    /** Quality is committed with the ledger, never rolled by an OPEN or viewer. */
+    public synchronized BlessingQuality qualityFor(int serial, BlessingId blessing) {
+        if (quarantined || serial < 1 || serial > earned) {
+            throw new IllegalStateException("no auditable earned Blessing offer");
+        }
+        return qualityPolicy.qualityFor(serial, blessing);
     }
 
     /** Number of physical seals of this type issued by this settlement. */
@@ -218,6 +227,7 @@ public final class BlessingState {
         tag.putInt("Spent", spent);
         tag.putInt("Revision", revision);
         tag.putBoolean("Quarantined", quarantined);
+        tag.put("QualityPolicy", qualityPolicy.writeNbt());
         ListTag issuedList = new ListTag();
         if (!quarantined) {
             for (BlessingId blessing : BlessingId.values()) {
@@ -269,11 +279,11 @@ public final class BlessingState {
                 return quarantinedEmpty();
             }
             int version = tag.getInt("DataVersion");
-            if (version != 2 && version != DATA_VERSION) {
+            if (version != 2 && version != 3 && version != DATA_VERSION) {
                 return quarantinedEmpty();
             }
-            return readLedger(tag, "Issued", "Count", MAX_COUNTER,
-                version >= 3);
+            return withQualityPolicy(readLedger(tag, "Issued", "Count", MAX_COUNTER,
+                version >= 3), tag, version);
         }
         if (!allowMissingNestedVersion) {
             return quarantinedEmpty();
@@ -283,7 +293,35 @@ public final class BlessingState {
         // not by the rank-III gameplay cap. Preserving the full value is
         // required for save compatibility with settlements that completed
         // more than three raids of the same reward type.
-        return readLedger(tag, "Ranks", "Rank", MAX_COUNTER, false);
+        return withQualityPolicy(readLedger(tag, "Ranks", "Rank", MAX_COUNTER, false), tag, 0);
+    }
+
+    private static BlessingState withQualityPolicy(BlessingState state, CompoundTag tag, int version) {
+        if (state.quarantined) return state;
+        if (version < DATA_VERSION) {
+            if (tag.contains("QualityPolicy")) return quarantineQuality(state);
+            // Every previously earned queued offer remains Common, including
+            // those beyond the current visible serial. The next normal grant
+            // persists this policy with the already-required dirty ledger.
+            state.qualityPolicy = BlessingQualityPolicy.fresh(state.earned);
+            return state;
+        }
+        if (!(tag.get("QualityPolicy") instanceof CompoundTag policy)) return quarantineQuality(state);
+        try {
+            state.qualityPolicy = BlessingQualityPolicy.readNbt(policy, state.earned);
+            return state;
+        } catch (IllegalArgumentException malformed) {
+            return quarantineQuality(state);
+        }
+    }
+
+    private static BlessingState quarantineQuality(BlessingState state) {
+        state.quarantined = true;
+        state.spent = state.earned;
+        state.revision = Math.min(MAX_REVISION, state.earned + state.spent);
+        // Keep the exact persisted outbox; malformed quality must not erase
+        // previously reserved physical rewards or remint their replacements.
+        return state;
     }
 
     private static BlessingState readLedger(CompoundTag tag, String listKey,

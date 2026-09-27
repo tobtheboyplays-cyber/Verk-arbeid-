@@ -11,6 +11,7 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class JourneyRecruitmentSlotTest {
@@ -131,6 +132,36 @@ class JourneyRecruitmentSlotTest {
     }
 
     @Test
+    void firstRecruitCannotFillWatchSlotBeforeItsTerminalCycleRollsOver() {
+        JourneyState state = through(JourneyIds.FJ_430_LINK_TAVERN);
+        RecruitmentTransaction first = qualifying(0, 1_000L, false);
+        applyMapped(state, first,
+            JourneyEvent.RECRUITMENT_QUALIFICATION_STARTED_COMMITTED);
+        applyMapped(state, first, JourneyEvent.TRAVELER_ARRIVED_AT_TAVERN_COMMITTED);
+        RecruitmentTransaction terminal = admitted(first);
+        applyMapped(state, terminal, JourneyEvent.TRAVELER_ADMITTED_COMMITTED);
+        advanceThrough(state, JourneyIds.FJ_552_ADD_FIFTH_BED, 1_000L);
+        state = restart(state);
+        terminal = restart(terminal);
+        int revision = state.revision();
+        for (JourneyEvent event : new JourneyEvent[] {
+                JourneyEvent.RECRUITMENT_QUALIFICATION_STARTED_COMMITTED,
+                JourneyEvent.TRAVELER_ARRIVED_AT_TAVERN_COMMITTED,
+                JourneyEvent.TRAVELER_ADMITTED_COMMITTED}) {
+            assertNull(JourneyServerHooks.recruitmentStep(state, terminal, event),
+                "first-slot transaction identity must never be reused for Watch evidence");
+        }
+        assertEquals(revision, state.revision());
+        assertEquals(JourneyPresentationMode.ACTIVE, state.mode());
+        assertFalse(state.isCompleted(JourneyIds.FJ_553_SECOND_RECRUITMENT_WINDOW));
+        RecruitmentTransaction next = retry(terminal, 2_000L, true);
+        assertEquals(JourneyIds.FJ_553_SECOND_RECRUITMENT_WINDOW,
+            JourneyServerHooks.recruitmentStep(state, next,
+                JourneyEvent.RECRUITMENT_QUALIFICATION_STARTED_COMMITTED),
+            "the next genuine transaction must remain eligible");
+    }
+
+    @Test
     void callToArmsAdoptionKeepsIdentityAndPersistsBoundedTarget() {
         RecruitmentTransaction ordinary = qualifying(7, 7_000L, false);
         UUID transactionId = ordinary.transactionId();
@@ -153,16 +184,26 @@ class JourneyRecruitmentSlotTest {
 
     private static JourneyState through(ResourceLocation target) {
         JourneyState state = JourneyState.fresh(SETTLEMENT);
-        int sequence = 0;
+        advanceThrough(state, target);
+        return state;
+    }
+
+    private static void advanceThrough(JourneyState state, ResourceLocation target) {
+        advanceThrough(state, target, -1L);
+    }
+
+    private static void advanceThrough(JourneyState state, ResourceLocation target,
+                                       long fixedGameTime) {
+        int sequence = state.revision();
         while (!state.isCompleted(target)) {
             JourneyStep step = state.currentStep().orElseThrow();
             UUID transaction = uuid(10_000L + sequence++);
             for (JourneyEvent event : step.requiredEvents()) {
                 state.record(evidence(step, event, transaction,
-                    100L + sequence), JourneyDefinition.CURRENT);
+                    fixedGameTime >= 0L ? fixedGameTime : 100L + sequence),
+                    JourneyDefinition.CURRENT);
             }
         }
-        return state;
     }
 
     private static void applyMapped(JourneyState state,

@@ -5,12 +5,16 @@ import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.ai.GroundCollectionSession;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.DeferredItemMaterializationSavedData;
+import com.hearthstead.settlement.work.WorkerStackProvenance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.ClipContext;
@@ -27,6 +31,43 @@ import java.util.UUID;
 @GameTestHolder(Hearthstead.MODID)
 @PrefixGameTestTemplate(false)
 public class GroundCollectionSessionGameTests {
+
+    @GameTest(template = "empty16", timeoutTicks = 80)
+    public void fallDelaySurvivesQueueReloadAndMaterializesOnce(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        SettlerEntity worker = worker(helper);
+        worker.setNoAi(true);
+        GroundCollectionSession session = new GroundCollectionSession(worker,
+            stack -> stack.is(ItemTags.LOGS), 4);
+        BlockPos source = helper.absolutePos(new BlockPos(5,1,4));
+        long due = level.getGameTime() + 40;
+        UUID id = session.queuePhysical(level, source, new ItemStack(Items.BIRCH_LOG), due);
+        helper.assertTrue(id != null, "fall queue must accept one physical log");
+        var original = DeferredItemMaterializationSavedData.get(level);
+        var restored = DeferredItemMaterializationSavedData.load(
+            original.save(new CompoundTag(), level.registryAccess()), level.registryAccess());
+        helper.assertTrue(restored.pendingForTarget(id, worker.getUUID()),
+            "queue roundtrip must preserve sole item owner");
+        helper.onEachTick(() -> {
+            if (level.getGameTime() < due) {
+                helper.assertTrue(!original.materialize(level,id) && !restored.materialize(level,id)
+                    && level.getEntity(id)==null,
+                    "neither retry nor reloaded row may materialize before landing");
+            }
+        });
+        GameTestTicks.at(helper, 45, () -> {
+            original.materialize(level,id);
+            restored.materialize(level,id);
+            original.materialize(level,id);
+            restored.materialize(level,id);
+            helper.assertTrue(level.getEntity(id) instanceof ItemEntity item
+                && item.getItem().is(Items.BIRCH_LOG) && item.getItem().getCount()==1,
+                "both saved copies converge on exactly one stable physical UUID");
+            helper.assertTrue(physicalLogEntities(level,source)==1,
+                "landing and replay must not duplicate visible logs");
+            helper.succeed();
+        });
+    }
 
     private static SettlerEntity worker(GameTestHelper helper) {
         return worker(helper, new BlockPos(4, 1, 4));
@@ -54,6 +95,18 @@ public class GroundCollectionSessionGameTests {
         for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class,
             new AABB(around).inflate(8.0))) {
             if (item.isAlive() && item.getItem().is(ItemTags.LOGS)) {
+                total += item.getItem().getCount();
+            }
+        }
+        return total;
+    }
+
+    private static int worldItemCount(ServerLevel level, BlockPos around,
+                                      Item expected) {
+        int total = 0;
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class,
+            new AABB(around).inflate(8.0))) {
+            if (item.isAlive() && item.getItem().is(expected)) {
                 total += item.getItem().getCount();
             }
         }
@@ -94,13 +147,17 @@ public class GroundCollectionSessionGameTests {
         helper.assertTrue(staged != null
                 && DeferredItemMaterializationSavedData.get(level)
                     .pendingRows() == pendingBefore + 1
+                && DeferredItemMaterializationSavedData.get(level)
+                    .pendingForTarget(staged, worker.getUUID())
+                && session.hasTrackedDrops() && session.trackedCount() == 1
                 && level.getEntity(staged) == null,
-            "phase one must durably queue exactly one log without spawning it");
+            "phase one must durably track exactly one queued log before spawn");
         helper.assertTrue(session.cancelQueued(level, staged)
                 && DeferredItemMaterializationSavedData.get(level)
                     .pendingRows() == pendingBefore
+                && !session.hasTrackedDrops() && session.trackedCount() == 0
                 && level.getEntity(staged) == null,
-            "a source-clear failure must roll back the queued copy exactly");
+            "a source-clear failure must roll back queue and pickup intent exactly");
 
         helper.assertTrue(session.spawnPhysical(level, source,
                 new ItemStack(Items.OAK_LOG)),
@@ -125,6 +182,77 @@ public class GroundCollectionSessionGameTests {
                 && session.load() == 1,
             "the same one item must finish in the persistent container");
         helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 100)
+    public void boundedStackContactReloadFullSackAndInterruptStayExact(
+        GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        SettlerEntity worker = worker(helper);
+        worker.setCarryCapacity(3);
+        GroundCollectionSession beforeReload = new GroundCollectionSession(worker,
+            stack -> WorkerStackProvenance.readTransit(stack)
+                .map(transit -> transit.kind()
+                    == WorkerStackProvenance.TransitKind.FARM_CROP).orElse(false), 4);
+        BlockPos source = helper.absolutePos(new BlockPos(5, 1, 4));
+        ItemStack seedOutput = new ItemStack(Items.BEETROOT_SEEDS, 4);
+        helper.assertTrue(WorkerStackProvenance.stampTransit(seedOutput,
+                UUID.randomUUID(), WorkerStackProvenance.TransitKind.FARM_CROP,
+                UUID.randomUUID(), UUID.randomUUID(), worker.getUUID(),
+                level.dimension().location(), source.asLong()),
+            "fixture must create one real FARM_CROP transit component for the output stack");
+        helper.assertTrue(beforeReload.spawnPhysical(level, source,
+                seedOutput),
+            "fixture must expose one four-unit physical source stack");
+        ItemEntity physical = beforeReload.nearestLoaded(level, worker.blockPosition());
+        helper.assertTrue(physical != null, "fixture must resolve the owned source stack");
+        beforeReload.select(physical);
+        helper.assertTrue(beforeReload.takeUpToOffhand(level, 4.0D, 4)
+                == GroundCollectionSession.PickupResult.PICKED,
+            "the pickup contact must move only the capacity-bounded source portion");
+        helper.assertTrue(worldItemCount(level, source, Items.BEETROOT_SEEDS) == 1
+                && worker.getOffhandItem().is(Items.BEETROOT_SEEDS)
+                && worker.getOffhandItem().getCount() == 3 && beforeReload.load() == 0,
+            "world remainder and full carried portion must remain the only authorities");
+
+        SettlerEntity reloaded = reload(helper, worker);
+        reloaded.setCarryCapacity(2);
+        reloaded.bag.addItem(new ItemStack(Items.COBBLESTONE));
+        GroundCollectionSession afterReload = new GroundCollectionSession(reloaded,
+            stack -> WorkerStackProvenance.readTransit(stack)
+                .map(transit -> transit.kind()
+                    == WorkerStackProvenance.TransitKind.FARM_CROP).orElse(false), 4);
+        helper.assertTrue(afterReload.adoptEligibleStackOffhand()
+                && afterReload.stowAll() == GroundCollectionSession.StowResult.FULL,
+            "after NBT reload a reduced capacity/full sack must reject the whole carried stack");
+        helper.assertTrue(worldItemCount(level, source, Items.BEETROOT_SEEDS) == 1
+                && reloaded.getOffhandItem().is(Items.BEETROOT_SEEDS)
+                && reloaded.getOffhandItem().getCount() == 3
+                && WorkerStackProvenance.readTransit(reloaded.getOffhandItem())
+                    .map(transit -> transit.kind()
+                        == WorkerStackProvenance.TransitKind.FARM_CROP).orElse(false)
+                && afterReload.load() == 1,
+            "rejected batch stow must preserve the three carried FARM_CROP seeds and sack item");
+        afterReload.suspend(level);
+        afterReload.suspend(level);
+        helper.assertTrue(worldItemCount(level, source, Items.BEETROOT_SEEDS) == 4
+                && reloaded.getOffhandItem().isEmpty() && afterReload.load() == 1,
+            "interruption and replay must materialize exactly the retained FARM_CROP three-stack once");
+        helper.succeed();
+    }
+
+    private static SettlerEntity reload(GameTestHelper helper,
+                                        SettlerEntity original) {
+        UUID id = original.getUUID();
+        CompoundTag saved = original.saveWithoutId(new CompoundTag());
+        original.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        SettlerEntity replacement = ModEntities.SETTLER.get().create(helper.getLevel());
+        helper.assertTrue(replacement != null, "fixture must construct a replacement settler");
+        replacement.load(saved);
+        helper.assertTrue(id.equals(replacement.getUUID())
+                && helper.getLevel().addFreshEntity(replacement),
+            "full NBT reload must restore the same live worker identity");
+        return replacement;
     }
 
     @GameTest(template = "empty16", timeoutTicks = 100)
@@ -167,7 +295,9 @@ public class GroundCollectionSessionGameTests {
         ItemEntity physical = session.nearestLoaded(level, worker.blockPosition());
         helper.assertTrue(physical != null, "setup must expose the real log");
         session.select(physical);
-        session.takeOneToOffhand(level, 4.0);
+        helper.assertTrue(session.takeOneToOffhand(level, 4.0)
+                == GroundCollectionSession.PickupResult.PICKED,
+            "a full bag must not erase the separate one-item offhand ownership path");
 
         helper.assertTrue(session.stowOne() == GroundCollectionSession.StowResult.FULL,
             "capacity must reject stow before mutating either inventory");
@@ -388,7 +518,7 @@ public class GroundCollectionSessionGameTests {
         // Vanilla only performs neighbour merging periodically. Re-pin both
         // entities immediately before that cadence so random spawn velocity
         // cannot turn this ownership contract into a probabilistic test.
-        helper.runAtTickTime(39, () -> {
+        GameTestTicks.at(helper, 39, () -> {
             ownedA.setPos(source.getX() + 0.5, source.getY() + 0.25,
                 source.getZ() + 0.5);
             ownedB.setPos(source.getX() + 0.5, source.getY() + 0.25,
@@ -441,7 +571,7 @@ public class GroundCollectionSessionGameTests {
         helper.assertTrue(level.addFreshEntity(ordinary),
             "fixture must add one ordinary unowned physical log");
 
-        helper.runAtTickTime(39, () -> {
+        GameTestTicks.at(helper, 39, () -> {
             owned.setPos(source.getX() + 0.5, source.getY() + 0.25,
                 source.getZ() + 0.5);
             ordinary.setPos(source.getX() + 0.5, source.getY() + 0.25,

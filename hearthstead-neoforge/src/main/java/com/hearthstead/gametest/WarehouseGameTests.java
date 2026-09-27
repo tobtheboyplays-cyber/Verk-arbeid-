@@ -293,7 +293,12 @@ public class WarehouseGameTests {
         helper.succeed();
     }
 
-    /** The container walk is capped, so a huge warehouse cannot stall a tick. */
+    /**
+     * The managed set is capped by the warehouse level (a new warehouse is
+     * L1 = 16), so a huge warehouse cannot stall a tick; the rest are known
+     * but "not managed". Updated 26 Sep: the old global 64-cap is gone,
+     * replaced by level capacity (see WarehouseLevelGameTests).
+     */
     @GameTest(batch = "warehouse", template = "empty16", timeoutTicks = 400)
     public void warehouseScanIsBounded(GameTestHelper helper) {
         buildArena(helper, 12);
@@ -305,17 +310,20 @@ public class WarehouseGameTests {
             }
         }
         Building warehouse = warehouseOver(helper, 12);
+        int capacity = WarehouseIndex.capacityFor(warehouse);
+        helper.assertTrue(capacity == 16, "a new warehouse is L1 = 16, got " + capacity);
         List<BlockPos> found =
             WarehouseIndex.containers(helper.getLevel(), warehouse);
-        helper.assertTrue(found.size() <= WarehouseIndex.MAX_CONTAINERS,
-            "container scan must respect MAX_CONTAINERS, got " + found.size());
-        helper.assertTrue(found.size() >= 20,
-            "scan should still find the chests it is meant to, got " + found.size());
+        helper.assertTrue(found.size() == capacity,
+            "managed containers must fill exactly the level capacity, got " + found.size());
+        helper.assertTrue(WarehouseIndex.knownCount(helper.getLevel(), warehouse) == 40,
+            "every physical chest is still known (managed or not), got "
+                + WarehouseIndex.knownCount(helper.getLevel(), warehouse));
 
         WarehouseStorage storage =
             WarehouseStorage.refreshed(helper.getLevel(), warehouse);
-        helper.assertTrue(storage.lastVisitCount() <= WarehouseIndex.MAX_CONTAINERS,
-            "refresh must visit at most MAX_CONTAINERS containers, visited "
+        helper.assertTrue(storage.lastVisitCount() == capacity,
+            "refresh must visit only the managed containers, visited "
                 + storage.lastVisitCount());
         helper.succeed();
     }

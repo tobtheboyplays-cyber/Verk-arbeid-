@@ -62,7 +62,8 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public class SettlerSheetGameTests {
 
-    private static final int EXPECTED_PROFESSIONS = 26;
+    // 28 + the four battle roles (plan/BATTLE-ROLES.md) + BUILDER.
+    private static final int EXPECTED_PROFESSIONS = 33;
 
     // ------------------------------------------------------------ fixtures --
 
@@ -163,6 +164,12 @@ public class SettlerSheetGameTests {
 
         List<String> covered = new ArrayList<>();
         for (Profession profession : Profession.values()) {
+            if (profession == Profession.MAYOR) {
+                // The Mayor office is retired: MAYOR is never assigned, so
+                // no player can see a Mayor sheet. Counted, not rendered.
+                covered.add(profession.key());
+                continue;
+            }
             // NONE is the unemployed case: no building, no hire.
             Building employer = null;
             if (profession.employed()) {
@@ -411,15 +418,14 @@ public class SettlerSheetGameTests {
     }
 
     /**
-     * Every translation key {@code SettlerScreen} can ask for exists, in both
-     * shipped languages, and is not blank. Read out of the shipped resources
+     * Every translation key {@code SettlerScreen} can ask for exists in the
+     * shipped English language and is not blank. Read out of the shipped resources
      * themselves, so this measures what ships rather than what the code hoped
      * for.
      */
     @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
-    public void everySettlerSheetStringIsTranslatedInBothLanguages(GameTestHelper helper) {
+    public void everySettlerSheetStringHasEnglishText(GameTestHelper helper) {
         JsonObject en = lang("en_us");
-        JsonObject nb = lang("nb_no");
         List<String> keys = new ArrayList<>();
 
         for (Profession p : Profession.values()) {
@@ -488,14 +494,11 @@ public class SettlerSheetGameTests {
             if (!en.has(key) || en.get(key).getAsString().isBlank()) {
                 broken.add(key + " (en_us)");
             }
-            if (!nb.has(key) || nb.get(key).getAsString().isBlank()) {
-                broken.add(key + " (nb_no)");
-            }
         }
         helper.assertTrue(broken.isEmpty(),
             "the settler sheet asks for strings that do not ship: " + broken);
         Hearthstead.LOGGER.info(
-            "UI-DATA-1 settler sheet strings: {} keys present and non-blank in en_us and nb_no",
+            "UI-DATA-1 settler sheet strings: {} keys present and non-blank in en_us",
             keys.size());
         helper.succeed();
     }
@@ -506,10 +509,10 @@ public class SettlerSheetGameTests {
      * <p>Both are drawn from snapshot fields with no fallback — the badge
      * formats {@code boonKey} straight into a translation key, and the banner
      * draws the refusal {@link net.minecraft.network.chat.Component} the
-     * server composed. This checks that appointing a mayor actually turns the
-     * badge's flags on, that the boon matches the settler's own knack, and
-     * that a refusal sentence survives the codec intact rather than arriving
-     * as an empty optional (which would be a silent no-op, D-014).
+     * server composed. The Mayor office is retired, so this checks that an
+     * appointment attempt is refused and never turns the badge on, and that a
+     * refusal sentence survives the codec intact rather than arriving as an
+     * empty optional (which would be a silent no-op, D-014).
      */
     @GameTest(batch = "settlersheet", template = "empty16", timeoutTicks = 200)
     public void theMayorBadgeAndTheRefusalBannerCarryTheirOwnText(GameTestHelper helper) {
@@ -524,16 +527,12 @@ public class SettlerSheetGameTests {
 
         net.minecraft.network.chat.Component refused =
             Mayor.appoint(helper.getLevel(), s, settler);
-        helper.assertTrue(refused == null,
-            "setup: the first appointment must succeed, got " + refused);
+        helper.assertTrue(refused != null && s.mayorId == null,
+            "the retired Mayor office must refuse every appointment, got " + refused);
 
         SettlerSnapshotPayload after = throughTheWire(helper, snapshotOf(player, settler));
-        helper.assertTrue(after.isMayor(),
-            "the mayor badge would not draw for the settler who holds the seat");
-        helper.assertTrue(after.boonKey()
-                .equals(Mayor.Boon.of(settler.attributes().knack()).key()),
-            "the badge names boon '" + after.boonKey() + "' but the knack is "
-                + settler.attributes().knack());
+        helper.assertTrue(!after.isMayor() && !after.mayorSettling(),
+            "the mayor badge must never draw once the office is retired");
 
         // The banner. Composed exactly the way SettlerNetwork does, and put
         // through the same optional-component codec.

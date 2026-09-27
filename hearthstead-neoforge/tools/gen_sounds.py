@@ -615,6 +615,81 @@ def render_settler_hm(rng, dur, variant=0):
     return out
 
 
+# Original wordless two-breath phrases, composed for Hearthstead. These are
+# note timings/semitones, not transcriptions or samples of an existing song.
+# Each file includes its own short breath gap and silent tail. Longer spacing
+# and cancellation belong to the client playback owner, never an audio loop.
+INNKEEPER_HUM_PHRASES = (
+    (146.83, ((0.18, 0.42, 0), (0.63, 0.34, 2), (1.00, 0.55, 7),
+              (1.90, 0.38, 4), (2.31, 0.35, 2), (2.69, 0.65, 0))),
+    (155.56, ((0.20, 0.48, 4), (0.71, 0.35, 7), (1.09, 0.52, 2),
+              (1.98, 0.43, 4), (2.44, 0.35, 2), (2.82, 0.72, 0))),
+    (138.59, ((0.18, 0.40, 0), (0.61, 0.40, 4), (1.04, 0.52, 2),
+              (1.95, 0.42, 7), (2.40, 0.40, 4), (2.83, 0.36, 2),
+              (3.22, 0.80, 0))),
+)
+
+
+def render_innkeeper_hum(rng, dur, variant=0):
+    """Low, closed-mouth melodic hum using the existing owned vocal method.
+
+    Smooth note approaches, small vibrato, dark harmonics and nasal formants
+    suggest humming rather than a bell/flute cue. No words, foley, borrowed
+    tune, recording or reverb that would fill the intentional breath gaps.
+    Audible naturalness still requires listening to the generated candidate.
+    """
+    base_hz, notes = INNKEEPER_HUM_PHRASES[variant]
+    n = n_samples(dur)
+    source = [0.0] * n
+    envelope = [0.0] * n
+    phase = 0.0
+    vibrato_phase = rng.uniform(0.0, TWO_PI)
+    breath_phase = rng.uniform(0.0, TWO_PI)
+    note_index = 0
+    for i in range(n):
+        t = i / SR
+        while note_index < len(notes) and t >= sum(notes[note_index][:2]):
+            note_index += 1
+        if note_index == len(notes):
+            break
+        start, length, semitone = notes[note_index]
+        if t < start:
+            continue
+        age = t - start
+        hz = base_hz * 2.0 ** (semitone / 12.0)
+        # Within a breath, gently approach the next note instead of jumping.
+        previous = notes[note_index - 1] if note_index else None
+        linked = previous is not None and start - sum(previous[:2]) < 0.10
+        from_hz = base_hz * 2.0 ** (previous[2] / 12.0) if linked else hz * 0.99
+        glide = min(1.0, age / 0.065)
+        glide = glide * glide * (3.0 - 2.0 * glide)
+        pitch = from_hz + (hz - from_hz) * glide
+        # A few cents of slow drift and late, restrained vibrato, not a siren.
+        pitch *= 1.0 + 0.002 * math.sin(TWO_PI * 0.73 * t + breath_phase)
+        pitch *= 1.0 + 0.004 * min(1.0, age / 0.20) * math.sin(
+            TWO_PI * 4.7 * t + vibrato_phase)
+        phase += TWO_PI * pitch / SR
+        source[i] = (math.sin(phase) + 0.28 * math.sin(2.0 * phase)
+                     + 0.12 * math.sin(3.0 * phase)
+                     + 0.055 * math.sin(4.0 * phase)
+                     + 0.024 * math.sin(5.0 * phase))
+        attack = 0.045 if linked else 0.095
+        onset = 0.5 - 0.5 * math.cos(math.pi * min(1.0, age / attack))
+        release = 0.5 - 0.5 * math.cos(
+            math.pi * min(1.0, max(0.0, length - age) / 0.095))
+        swell = 0.90 + 0.10 * math.sin(math.pi * age / length)
+        envelope[i] = onset * release * swell
+
+    # Same low-pass / nasal-band / quiet-breath vocabulary as settler_hm;
+    # a slightly richer voiced source sustains a melody without sharp attacks.
+    voiced = one_pole_lp(source, 700.0)
+    nasal = biquad_bp(source, 300.0, 4.5)
+    upper = biquad_bp(source, 1000.0, 6.0)
+    breath = one_pole_lp(white_noise(rng, dur), 900.0)
+    return [(0.70 * voiced[i] + 0.80 * nasal[i] + 0.20 * upper[i]
+             + 0.012 * breath[i]) * envelope[i] for i in range(n)]
+
+
 def render_seed_press(rng, dur):
     """Soft soil pat: a low dull thump plus a short damp puff. No metal."""
     mix = []
@@ -1367,6 +1442,9 @@ SOUND_SPECS = [
     ("hide_scrape2",         1.20, render_hide_scrape, {"variant": 1}, 0.65),
     ("settler_hm",          0.7, render_settler_hm, {"variant": 0}, 0.35),
     ("settler_hm2",         0.7, render_settler_hm, {"variant": 1}, 0.35),
+    ("innkeeper_hum",       3.8, render_innkeeper_hum, {"variant": 0}, 0.28),
+    ("innkeeper_hum2",      4.2, render_innkeeper_hum, {"variant": 1}, 0.28),
+    ("innkeeper_hum3",      4.6, render_innkeeper_hum, {"variant": 2}, 0.28),
     # SLICE ANIM-1 additions.
     ("seed_press",          0.15, render_seed_press,   {}, 0.55),
     ("crop_pull",           0.20, render_crop_pull,    {}, 0.60),
@@ -1529,6 +1607,14 @@ SOUNDS_JSON_DATA = {
             {"name": "hearthstead:settler_hm2", "volume": 0.6},
         ],
         "subtitle": "subtitles.hearthstead.settler_hm",
+    },
+    "innkeeper_hum": {
+        "sounds": [
+            {"name": "hearthstead:innkeeper_hum", "volume": 0.6},
+            {"name": "hearthstead:innkeeper_hum2", "volume": 0.6},
+            {"name": "hearthstead:innkeeper_hum3", "volume": 0.6},
+        ],
+        "subtitle": "subtitles.hearthstead.innkeeper_hum",
     },
     "seed_press": {
         "sounds": [{"name": "hearthstead:seed_press", "volume": 0.6}],

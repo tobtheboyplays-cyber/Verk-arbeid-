@@ -11,6 +11,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.development.Development;
 import com.hearthstead.settlement.state.GuardOrder;
 import com.hearthstead.settlement.state.GuardOrderBook;
 import io.netty.buffer.Unpooled;
@@ -20,6 +21,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ReferenceCountUtil;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.Connection;
@@ -477,6 +479,203 @@ public class GuardOrderNetworkGameTests {
         packets.close();
         InspectionViewers.clear(helper.getLevel().getServer());
         helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "guard_order_raised_watchtower_post")
+    public void raisedWatchtowerMarkerUsesRealLowerFloorPost(
+            GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        Building tower = GameTestFixtures.register(helper, f.settlement,
+            BuildingType.WATCHTOWER, 10, 2);
+        BlockPos raisedMarkerRelative = new BlockPos(10, 2, 2);
+        tower.anchor = helper.absolutePos(raisedMarkerRelative);
+        BlockPos oldTopCandidateRelative = raisedMarkerRelative.south().above();
+        // GameTestFixtures supplies the plaque's real south support at y=2.
+        // Block its y=3 top so the old same/above-only search cannot escape
+        // this regression by choosing that one elevated support cell.
+        helper.setBlock(oldTopCandidateRelative, Blocks.STONE_BRICKS);
+        helper.assertTrue(tower.anchor.equals(tower.plaquePos)
+                && tower.bounds.minY() == tower.anchor.getY() - 1
+                && tower.bounds.maxY() == tower.anchor.getY() + 1
+                && !hasOldTowerCandidate(helper, tower),
+            "fixture: both raised markers must leave only the y-1 floor; old same/above candidates are not standable");
+        // This fixture's existing registered Watchtower initializes the same
+        // Development state the server gate reads before accepting the request.
+        Development.of(helper.getLevel(), f.settlement);
+        helper.assertTrue(Employment.dismiss(helper.getLevel(), f.settlement,
+                f.guard) == f.barracks
+                && Employment.hire(helper.getLevel(), f.settlement,
+                    tower, f.guard).ok()
+                && f.guard.getProfession() == Profession.ARCHER,
+            "fixture: the exact resident must be a Watchtower Archer");
+        f.guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
+
+        // GroundPathNavigation refuses createPath until the newly spawned resident
+        // has completed normal physics (on-ground, in liquid, or passenger).
+        helper.runAfterDelay(2, () -> {
+            helper.assertTrue(f.guard.onGround(),
+                "fixture: hired Archer must complete two ordinary physics ticks before requesting a ground Tower Post");
+            PayloadProbe packets = new PayloadProbe(f.player, "raised_tower");
+            UUID session = SettlerNetwork.openFor(f.player, f.guard);
+            flush(packets);
+            GuardOrderSnapshotPayload state = act(helper, f, packets,
+                action(f, session, GuardOrderActionPayload.Kind.REFRESH,
+                    SettlerActionPayload.NO_SETTLER, -1));
+            helper.assertTrue(state.towerPostAvailable(),
+                "fixture: a valid Arm-the-Watch Watchtower must expose Tower Post");
+
+            setTowerPostCellsBlocked(helper, tower, true);
+            GuardOrderSnapshotPayload blocked = act(helper, f, packets,
+                action(f, session, GuardOrderActionPayload.Kind.TOWER_POST,
+                    f.settlement.id, state.revision()));
+            helper.assertTrue(blocked.outcome()
+                    == GuardOrderSnapshotPayload.Outcome.REFUSED
+                    && currentRevision(f) == state.revision(),
+                "a physically blocked Tower interior must refuse without mutating the order");
+            helper.assertTrue(GuardOrderNetwork.towerPostPosition(
+                    helper.getLevel(), f.settlement, f.barracks, f.guard) == null,
+                "a non-Watchtower building must never provide a Tower Post candidate");
+
+            setTowerPostCellsBlocked(helper, tower, false);
+            helper.setBlock(oldTopCandidateRelative, Blocks.STONE_BRICKS);
+            BlockPos candidate = GuardOrderNetwork.towerPostPosition(
+                helper.getLevel(), f.settlement, tower, f.guard);
+            GuardOrderSnapshotPayload applied = act(helper, f, packets,
+                action(f, session, GuardOrderActionPayload.Kind.TOWER_POST,
+                    f.settlement.id, blocked.revision()));
+            GuardOrder committed = f.settlement.guardOrders.order(f.guard.getUUID())
+                .orElse(null);
+            BlockPos post = applied.destination().orElse(tower.anchor);
+            var path = f.guard.getNavigation().createPath(post, 0);
+            helper.assertTrue(candidate != null
+                    && applied.outcome() == GuardOrderSnapshotPayload.Outcome.APPLIED
+                    && applied.destination().isPresent()
+                    && committed != null
+                    && committed.mode() == GuardOrder.Mode.TOWER_POST
+                    && committed.pos().map(post::equals).orElse(false)
+                    && post.getY() == tower.anchor.getY() - 1
+                    && tower.contains(post)
+                    && helper.getLevel().getBlockState(post)
+                        .getCollisionShape(helper.getLevel(), post).isEmpty()
+                    && helper.getLevel().getBlockState(post.above())
+                        .getCollisionShape(helper.getLevel(), post.above()).isEmpty()
+                    && helper.getLevel().getBlockState(post.below()).isFaceSturdy(
+                        helper.getLevel(), post.below(), Direction.UP)
+                    && path != null && path.canReach()
+                    && f.guard.getNavigation().moveTo(path, 1.0D),
+                "Tower Post must apply [candidate=" + candidate
+                    + ", outcome=" + applied.outcome()
+                    + ", destination=" + applied.destination()
+                    + ", mode=" + applied.modeWireId()
+                    + ", revision=" + applied.revision()
+                    + ", towerAvailable=" + applied.towerPostAvailable()
+                    + ", persisted=" + (committed == null ? "none" : committed.pos())
+                    + "]");
+
+            helper.runAfterDelay(80, () -> {
+                GuardOrder persisted = f.settlement.guardOrders
+                    .order(f.guard.getUUID()).orElse(null);
+                helper.assertTrue(f.guard.blockPosition().distSqr(post) <= 2
+                        && persisted != null
+                        && persisted.mode() == GuardOrder.Mode.TOWER_POST
+                        && persisted.pos().map(post::equals).orElse(false),
+                    "the Archer must physically follow the committed lower-floor Tower Post");
+                packets.close();
+                InspectionViewers.clear(helper.getLevel().getServer());
+                helper.succeed();
+            });
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "guard_order_wall_watchtower_post")
+    public void exteriorTowerPlaqueFindsFloorBeyondSolidWall(GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        BlockPos marker = new BlockPos(10, 2, 10);
+        Building tower = GameTestFixtures.registerWithBounds(helper, f.settlement,
+            BuildingType.WATCHTOWER, marker, marker,
+            net.minecraft.world.level.levelgen.structure.BoundingBox.fromCorners(
+                helper.absolutePos(new BlockPos(8, 1, 5)),
+                helper.absolutePos(new BlockPos(12, 3, 9))));
+        // Match the observed normal-world failure: exterior plaque, solid
+        // first inward ring, then walkable interior at horizontal distance two.
+        for (int x = 8; x <= 12; x++) {
+            for (int y = 1; y <= 3; y++) {
+                helper.setBlock(new BlockPos(x, y, 9), Blocks.STONE_BRICKS);
+            }
+        }
+        helper.assertTrue(Employment.dismiss(helper.getLevel(), f.settlement,
+                f.guard) == f.barracks
+                && Employment.hire(helper.getLevel(), f.settlement,
+                    tower, f.guard).ok(),
+            "fixture: exact member must be hired at the registered Watchtower");
+        f.guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
+        helper.runAfterDelay(2, () -> {
+            helper.assertTrue(f.guard.onGround(), "fixture: ordinary ground physics completed");
+            BlockPos post = GuardOrderNetwork.towerPostPosition(
+                helper.getLevel(), f.settlement, tower, f.guard);
+            helper.assertTrue(post != null && tower.contains(post)
+                    && post.getZ() == helper.absolutePos(new BlockPos(10, 1, 8)).getZ()
+                    && post.getY() == tower.anchor.getY() - 1,
+                "an exterior plaque must find the real interior beyond its solid first ring");
+            var path = f.guard.getNavigation().createPath(post, 0);
+            helper.assertTrue(path != null && path.canReach(),
+                "the selected interior must have a complete ordinary walking route");
+            helper.assertTrue(GuardOrderNetwork.towerPostPosition(
+                    helper.getLevel(), f.settlement, f.barracks, f.guard) == null,
+                "a different building type cannot provide a Tower Post");
+            setTowerPostCellsBlocked(helper, tower, true);
+            helper.assertTrue(GuardOrderNetwork.towerPostPosition(
+                    helper.getLevel(), f.settlement, tower, f.guard) == null,
+                "expanded search must still reject a physically blocked interior");
+            InspectionViewers.clear(helper.getLevel().getServer());
+            helper.succeed();
+        });
+    }
+
+    /** Keeps the registered plaque and its mandatory south support live. */
+    private static void setTowerPostCellsBlocked(GameTestHelper helper,
+                                                 Building tower,
+                                                 boolean blocked) {
+        BlockPos plaqueSupport = tower.plaquePos.south();
+        for (int y = tower.bounds.minY(); y <= tower.bounds.maxY(); y++) {
+            for (int x = tower.bounds.minX(); x <= tower.bounds.maxX(); x++) {
+                for (int z = tower.bounds.minZ(); z <= tower.bounds.maxZ(); z++) {
+                    BlockPos cell = new BlockPos(x, y, z);
+                    if (cell.equals(tower.plaquePos) || cell.equals(plaqueSupport)) {
+                        continue;
+                    }
+                    helper.getLevel().setBlock(cell, (blocked
+                        ? Blocks.STONE_BRICKS : Blocks.AIR).defaultBlockState(), 3);
+                }
+            }
+        }
+    }
+
+    /** The pre-fix search: only marker height and one block above it. */
+    private static boolean hasOldTowerCandidate(GameTestHelper helper,
+                                                Building tower) {
+        for (BlockPos marker : List.of(tower.anchor, tower.plaquePos)) {
+            for (int dy = 0; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    for (int dz = -1; dz <= 1; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        BlockPos feet = marker.offset(dx, dy, dz);
+                        if (tower.contains(feet)
+                            && helper.getLevel().getBlockState(feet)
+                                .getCollisionShape(helper.getLevel(), feet).isEmpty()
+                            && helper.getLevel().getBlockState(feet.above())
+                                .getCollisionShape(helper.getLevel(), feet.above()).isEmpty()
+                            && helper.getLevel().getBlockState(feet.below())
+                                .isFaceSturdy(helper.getLevel(), feet.below(), Direction.UP)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static GuardOrderSnapshotPayload act(GameTestHelper helper,

@@ -91,6 +91,29 @@ public final class Production {
     private static final Map<BuildingType, List<Recipe>> RECIPES =
         new EnumMap<>(BuildingType.class);
 
+    /** The smithy's no-iron pickaxe (owner decision 26 Sep). */
+    public static final String STONE_PICKAXE_RECIPE = "stone_pickaxe";
+
+    /**
+     * Recipes a bench runs only for an open crafting order that asks for
+     * their output ({@link #ready(ServerLevel, Building, Item)}'s
+     * {@code preferred}); never as surplus work, never as the idle bench's
+     * material ask.
+     */
+    private static final java.util.Set<String> ORDER_ONLY = java.util.Set.of(STONE_PICKAXE_RECIPE);
+
+    public static boolean orderOnly(Recipe recipe) {
+        return recipe != null && (ORDER_ONLY.contains(recipe.id())
+            || recipe.id().startsWith(BUILD_SUPPLY_PREFIX));
+    }
+
+    /** Every vanilla wool colour: the weaver's any-wool bolt recipe. */
+    public static final Ingredient ANY_WOOL = Ingredient.of(
+        Items.WHITE_WOOL, Items.ORANGE_WOOL, Items.MAGENTA_WOOL, Items.LIGHT_BLUE_WOOL,
+        Items.YELLOW_WOOL, Items.LIME_WOOL, Items.PINK_WOOL, Items.GRAY_WOOL,
+        Items.LIGHT_GRAY_WOOL, Items.CYAN_WOOL, Items.PURPLE_WOOL, Items.BLUE_WOOL,
+        Items.BROWN_WOOL, Items.GREEN_WOOL, Items.RED_WOOL, Items.BLACK_WOOL);
+
     static {
         // SLICE CHAINS -- six intermediate goods bound by FLOWS.md
         // (docs/project/FLOWS.md), the coordinator's constitution for how
@@ -472,6 +495,17 @@ public final class Production {
             new Recipe("axe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_AXE, 1, 300),
             new Recipe("pickaxe", Ingredient.of(Items.IRON_INGOT), 3, Items.IRON_PICKAXE, 1, 300),
             new Recipe("hoe", Ingredient.of(Items.IRON_INGOT), 2, Items.IRON_HOE, 1, 240),
+            // Owner decision 26 Sep ("Steinhakke hos smeden"): the Herder's
+            // shears come from the forge like every other iron work tool,
+            // and a town with no iron yet still gets its first pickaxe here:
+            // cobblestone head, fired with wood (the smithy burns fuel), so
+            // the Miner can reach the iron that makes everything else. The
+            // stone pickaxe is ORDER_ONLY: forged for a crafting order, never
+            // as idle-bench surplus (cobblestone is plentiful and would
+            // otherwise feed an endless pickaxe pile). Sword stays LAST: the
+            // last-listed input is what an idle smithy asks the player for.
+            new Recipe("shears", Ingredient.of(Items.IRON_INGOT), 2, Items.SHEARS, 1, 200),
+            new Recipe(STONE_PICKAXE_RECIPE, Ingredient.of(Items.COBBLESTONE), 3, Items.STONE_PICKAXE, 1, 200),
             new Recipe("sword", Ingredient.of(Items.IRON_INGOT), 2, Items.IRON_SWORD, 1, 260));
 
         put(BuildingType.MASON,
@@ -532,6 +566,16 @@ public final class Production {
         put(BuildingType.WEAVER,
             new Recipe("wool", Ingredient.of(Items.STRING), 4, Items.WHITE_WOOL, 1, 140),
             new Recipe("wool_bolt", Ingredient.of(Items.WHITE_WOOL), 3, ModItems.WOOL_BOLT.get(), 2, 130),
+            // [economy] (owner decision 26 Sep, plan/ECONOMY.md): nothing in
+            // the village makes STRING, so the weaver's only "basic" recipe
+            // never ran. The herder shears wool in every colour, so the weaver
+            // also takes ANY wool: 4 of any colour -> 2 bolts, a worse ratio
+            // than white's 3 -> 2, listed after it so white wool keeps the
+            // better recipe (same output: Production#ready's fed-pair rule).
+            // An explicit item list, not the #wool tag, so it matches before
+            // tags bind (JUnit) and a mod's odd "wool" can never slip in.
+            // No cycle: wool is the input of nothing that makes wool.
+            new Recipe("wool_bolt_any", ANY_WOOL, 4, ModItems.WOOL_BOLT.get(), 2, 130),
             new Recipe("banner", Ingredient.of(Items.WHITE_WOOL), 6, Items.WHITE_BANNER, 1, 260));
 
         // leather_cured is the tannery's fed path: the butcher's CURED_HIDE
@@ -656,12 +700,24 @@ public final class Production {
      */
     public static int ticksFor(ServerLevel level, java.util.UUID settlementId,
                                BuildingType type, Recipe recipe) {
+        // [economy] craftTimeMultiplier (plan/ECONOMY.md): the table's ticks
+        // let one crafter use 3-20x what the village's gatherers supply, so a
+        // workshop emptied its chest in an hour and idled. Spreading the same
+        // batches over more of the day costs no output while inputs are the
+        // limit. Neutral (1.0) on the GameTest server, so the trade tests
+        // keep measuring the table itself.
+        double pace = com.hearthstead.settlement.economy.EconomyConfig
+            .craftTimeMultiplier(level == null ? null : level.getServer())
+            // Tech tree (Harvest Feast): 10% faster until the next dawn.
+            * com.hearthstead.settlement.techtree.effects.CommonsEffects.craftPace(level, settlementId);
+        // Tech tree Charcoal Kilns (techtree-craft): Smelter batches x0.75.
+        pace *= com.hearthstead.settlement.techtree.effects.CraftEffects.smelterScale(level, settlementId, type);
         ResearchKey key = researchKeyFor(type);
         if (key == null || settlementId == null) {
-            return recipe.ticks();
+            return Math.max(1, (int) Math.round(recipe.ticks() * pace));
         }
         float multiplier = Research.bonus(level, settlementId, key);
-        return Math.max(1, Math.round(recipe.ticks() * multiplier));
+        return Math.max(1, (int) Math.round(recipe.ticks() * multiplier * pace));
     }
 
     /** Which project, if any, speeds this kind of building up. */
@@ -677,8 +733,194 @@ public final class Production {
     }
 
     /** Everything this kind of building knows how to make. Never null. */
+    // ------------------------------------------------ Builder supply ---
+
+    /**
+     * Recipe id prefix of the Builder-supply recipes below. Every one is
+     * ORDER-ONLY ({@link #orderOnly}): a bench makes it only while a crafting
+     * order asks for that output (the Builder's missing blocks,
+     * CraftingOrderService via BuilderSupply.craftNeeds), never as surplus,
+     * so no workshop ever turns the village's planks or stone into a pile of
+     * stairs on its own.
+     */
+    public static final String BUILD_SUPPLY_PREFIX = "bp_";
+
+    private static void append(BuildingType type, Recipe... recipes) {
+        List<Recipe> merged = new java.util.ArrayList<>(RECIPES.getOrDefault(type, List.of()));
+        merged.addAll(List.of(recipes));
+        RECIPES.put(type, List.copyOf(merged));
+    }
+
+    private static Recipe bp(String id, Ingredient input, int inputCount, Item output,
+                             int outputCount, int ticks) {
+        return new Recipe(BUILD_SUPPLY_PREFIX + id, input, inputCount, output, outputCount, ticks);
+    }
+
+    private static Recipe bp(String id, Item input, int inputCount, Item output,
+                             int outputCount, int ticks) {
+        return bp(id, Ingredient.of(input), inputCount, output, outputCount, ticks);
+    }
+
+    static {
+        // Supply-chain audit (owner, 26 Sep: "the Builder must be able to build
+        // every building from blocks someone in the village can supply"). The
+        // blueprint bills use ~110 items; before this only logs, three plank
+        // kinds, cobblestone, stone, stone bricks, barrels, ladders, dirt and
+        // wool had a village source. Each block below is made by the EXISTING
+        // workshop a player would expect, from one input, in the same
+        // simplified style as the banner or the bow (the second vanilla
+        // ingredient, a stick or a torch, is folded into the count).
+        append(BuildingType.SAWMILL,
+            bp("dark_oak_planks", Items.DARK_OAK_LOG, 1, Items.DARK_OAK_PLANKS, 6, 120),
+            bp("stripped_spruce_log", Items.SPRUCE_LOG, 1, Items.STRIPPED_SPRUCE_LOG, 1, 80),
+            bp("stripped_oak_log", Items.OAK_LOG, 1, Items.STRIPPED_OAK_LOG, 1, 80));
+
+        java.util.List<Recipe> carpentry = new java.util.ArrayList<>();
+        Item[][] woods = {
+            {Items.OAK_PLANKS, Items.OAK_STAIRS, Items.OAK_SLAB, Items.OAK_FENCE, Items.OAK_FENCE_GATE,
+                Items.OAK_DOOR, Items.OAK_TRAPDOOR, Items.OAK_PRESSURE_PLATE},
+            {Items.SPRUCE_PLANKS, Items.SPRUCE_STAIRS, Items.SPRUCE_SLAB, Items.SPRUCE_FENCE,
+                Items.SPRUCE_FENCE_GATE, Items.SPRUCE_DOOR, Items.SPRUCE_TRAPDOOR, Items.SPRUCE_PRESSURE_PLATE},
+            {Items.DARK_OAK_PLANKS, Items.DARK_OAK_STAIRS, Items.DARK_OAK_SLAB, Items.DARK_OAK_FENCE,
+                Items.DARK_OAK_FENCE_GATE, Items.DARK_OAK_DOOR, Items.DARK_OAK_TRAPDOOR,
+                Items.DARK_OAK_PRESSURE_PLATE}};
+        String[] woodNames = {"oak", "spruce", "dark_oak"};
+        for (int w = 0; w < woods.length; w++) {
+            Item planks = woods[w][0];
+            String n = woodNames[w];
+            carpentry.add(bp(n + "_stairs", planks, 6, woods[w][1], 4, 140));
+            carpentry.add(bp(n + "_slab", planks, 3, woods[w][2], 6, 100));
+            carpentry.add(bp(n + "_fence", planks, 5, woods[w][3], 3, 140));
+            carpentry.add(bp(n + "_fence_gate", planks, 4, woods[w][4], 1, 140));
+            carpentry.add(bp(n + "_door", planks, 6, woods[w][5], 3, 180));
+            carpentry.add(bp(n + "_trapdoor", planks, 6, woods[w][6], 2, 160));
+            carpentry.add(bp(n + "_pressure_plate", planks, 2, woods[w][7], 1, 80));
+        }
+        carpentry.add(bp("oak_sign", Items.OAK_PLANKS, 6, Items.OAK_SIGN, 3, 120));
+        carpentry.add(bp("spruce_sign", Items.SPRUCE_PLANKS, 6, Items.SPRUCE_SIGN, 3, 120));
+        carpentry.add(bp("chest", Items.OAK_PLANKS, 8, Items.CHEST, 1, 200));
+        carpentry.add(bp("crafting_table", Items.OAK_PLANKS, 4, Items.CRAFTING_TABLE, 1, 140));
+        carpentry.add(bp("composter", Items.OAK_PLANKS, 4, Items.COMPOSTER, 1, 140));
+        carpentry.add(bp("loom", Items.OAK_PLANKS, 2, Items.LOOM, 1, 160));
+        carpentry.add(bp("fletching_table", Items.OAK_PLANKS, 4, Items.FLETCHING_TABLE, 1, 160));
+        carpentry.add(bp("cartography_table", Items.OAK_PLANKS, 4, Items.CARTOGRAPHY_TABLE, 1, 160));
+        carpentry.add(bp("lectern", Items.OAK_PLANKS, 8, Items.LECTERN, 1, 200));
+        carpentry.add(bp("bookshelf", Items.PAPER, 9, Items.BOOKSHELF, 1, 220));
+        carpentry.add(bp("campfire", Ingredient.of(ItemTags.LOGS), 3, Items.CAMPFIRE, 1, 160));
+        carpentry.add(bp("torch", Ingredient.of(Items.COAL, Items.CHARCOAL), 1, Items.TORCH, 4, 60));
+        // The workplace fittings a Fishery blueprint places (string/stick folded in).
+        carpentry.add(bp("fishers_chair", Items.OAK_PLANKS, 4, ModItems.FISHERS_CHAIR.get(), 1, 160));
+        carpentry.add(bp("fish_rack", Items.OAK_PLANKS, 4, ModItems.FISH_RACK.get(), 1, 160));
+        append(BuildingType.CARPENTER, carpentry.toArray(new Recipe[0]));
+
+        append(BuildingType.MASON,
+            bp("cobblestone_stairs", Items.COBBLESTONE, 6, Items.COBBLESTONE_STAIRS, 4, 140),
+            bp("cobblestone_slab", Items.COBBLESTONE, 3, Items.COBBLESTONE_SLAB, 6, 100),
+            bp("cobblestone_wall", Items.COBBLESTONE, 6, Items.COBBLESTONE_WALL, 6, 140),
+            bp("stone_brick_stairs", Items.STONE_BRICKS, 6, Items.STONE_BRICK_STAIRS, 4, 140),
+            bp("stone_brick_slab", Items.STONE_BRICKS, 3, Items.STONE_BRICK_SLAB, 6, 100),
+            bp("mossy_cobblestone", Items.COBBLESTONE, 1, Items.MOSSY_COBBLESTONE, 1, 80),
+            bp("coarse_dirt", Items.DIRT, 1, Items.COARSE_DIRT, 1, 60),
+            bp("furnace", Items.COBBLESTONE, 8, Items.FURNACE, 1, 200),
+            bp("smoker", Items.FURNACE, 1, Items.SMOKER, 1, 160),
+            bp("stonecutter", Items.STONE, 3, Items.STONECUTTER, 1, 160),
+            bp("grindstone", Items.STONE, 2, Items.GRINDSTONE, 1, 160),
+            bp("glass_pane", Items.GLASS, 6, Items.GLASS_PANE, 16, 140),
+            bp("bricks", Items.BRICK, 4, Items.BRICKS, 1, 120),
+            bp("brick_stairs", Items.BRICKS, 6, Items.BRICK_STAIRS, 4, 140),
+            bp("brick_slab", Items.BRICKS, 3, Items.BRICK_SLAB, 6, 100),
+            bp("flower_pot", Items.BRICK, 3, Items.FLOWER_POT, 1, 100),
+            bp("white_concrete", Items.SAND, 1, Items.WHITE_CONCRETE, 1, 100),
+            bp("coal_block", Items.COAL, 9, Items.COAL_BLOCK, 1, 120),
+            bp("raw_iron_block", Items.RAW_IRON, 9, Items.RAW_IRON_BLOCK, 1, 120),
+            bp("raw_copper_block", Items.RAW_COPPER, 9, Items.RAW_COPPER_BLOCK, 1, 120),
+            bp("lever", Items.COBBLESTONE, 1, Items.LEVER, 1, 60),
+            // Workplace requirements with no plain village source (the
+            // Brewery's stand, the Rune Hall's table and amethyst): the
+            // rare ingredient is folded into a village one.
+            bp("brewing_stand", Items.COBBLESTONE, 3, Items.BREWING_STAND, 1, 200),
+            bp("enchanting_table", Items.DIAMOND, 2, Items.ENCHANTING_TABLE, 1, 300),
+            bp("amethyst_block", Items.LAPIS_LAZULI, 4, Items.AMETHYST_BLOCK, 1, 160));
+
+        append(BuildingType.SMELTER,
+            bp("glass", Items.SAND, 1, Items.GLASS, 1, 120),
+            bp("brick", Items.CLAY_BALL, 1, Items.BRICK, 1, 120));
+
+        append(BuildingType.SMITHY,
+            bp("plaque", Items.COPPER_INGOT, 5, ModItems.PLAQUE.get(), 1, 240),
+            bp("lantern", Items.IRON_INGOT, 1, Items.LANTERN, 2, 160),
+            bp("chain", Items.IRON_INGOT, 1, Items.CHAIN, 1, 120),
+            bp("iron_bars", Items.IRON_INGOT, 6, Items.IRON_BARS, 16, 200),
+            bp("cauldron", Items.IRON_INGOT, 7, Items.CAULDRON, 1, 240),
+            bp("anvil", Items.IRON_INGOT, 31, Items.ANVIL, 1, 400),
+            bp("lightning_rod", Items.COPPER_INGOT, 3, Items.LIGHTNING_ROD, 1, 160),
+            bp("hopper", Items.IRON_INGOT, 5, Items.HOPPER, 1, 240),
+            bp("rail", Items.IRON_INGOT, 6, Items.RAIL, 16, 200),
+            bp("smithing_table", Items.IRON_INGOT, 2, Items.SMITHING_TABLE, 1, 200),
+            bp("blast_furnace", Items.IRON_INGOT, 5, Items.BLAST_FURNACE, 1, 240),
+            bp("bell", Items.GOLD_INGOT, 4, Items.BELL, 1, 240),
+            // The Tavern blueprint's tap (the iron nugget folded in).
+            bp("ale_tap", Items.COPPER_INGOT, 3, ModItems.ALE_TAP.get(), 1, 200));
+
+        append(BuildingType.MILL,
+            bp("hay_block", Items.WHEAT, 9, Items.HAY_BLOCK, 1, 80));
+
+        append(BuildingType.WEAVER,
+            bp("white_bed", Items.WHITE_WOOL, 3, Items.WHITE_BED, 1, 180),
+            bp("white_carpet", Items.WHITE_WOOL, 2, Items.WHITE_CARPET, 3, 80));
+    }
+
+    /** True when {@code item} is made ONLY by an order-only recipe of this workshop. */
+    public static boolean orderOnlyOutput(BuildingType type, Item item) {
+        boolean orderOnly = false;
+        for (Recipe recipe : of(type)) {
+            if (recipe.output() == item) {
+                if (!orderOnly(recipe)) {
+                    return false;
+                }
+                orderOnly = true;
+            }
+        }
+        return orderOnly;
+    }
+
+    /** True when some recipe of this workshop takes {@code item} as its input. */
+    public static boolean consumes(BuildingType type, Item item) {
+        ItemStack probe = new ItemStack(item);
+        for (Recipe recipe : of(type)) {
+            if (recipe.input().test(probe)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True when any workshop of any type has a recipe that makes {@code item}. */
+    public static boolean anyRecipeMakes(Item item) {
+        for (List<Recipe> recipes : RECIPES.values()) {
+            for (Recipe recipe : recipes) {
+                if (recipe.output() == item) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static List<Recipe> of(BuildingType type) {
         return RECIPES.getOrDefault(type, List.of());
+    }
+
+    /** Whether some workshop recipe makes this item (tooltip: "Basic quality" on it). */
+    public static boolean isWorkshopOutput(Item item) {
+        for (List<Recipe> recipes : RECIPES.values()) {
+            for (Recipe recipe : recipes) {
+                if (recipe.output() == item) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Whether any profession would have production work to do here at all. */
@@ -729,6 +971,17 @@ public final class Production {
 
     @Nullable
     public static Recipe ready(ServerLevel level, Building building) {
+        return ready(level, building, null);
+    }
+
+    /**
+     * {@link #ready} with one tie-break (logistics M1, crafting orders): when
+     * {@code preferred} is non-null, the first satisfiable recipe making it
+     * wins over the scarcest-output rule. It never gates -- if no recipe for
+     * the preferred item can run, the ordinary choice is returned unchanged.
+     */
+    @Nullable
+    public static Recipe ready(ServerLevel level, Building building, @Nullable Item preferred) {
         List<Recipe> recipes = of(building.type);
         if (recipes.isEmpty() || building.bounds == null) {
             return null;
@@ -737,13 +990,36 @@ public final class Production {
         if (containers.isEmpty()) {
             return null;
         }
+        // A crafting order's item wins over everything else, including a
+        // fed pair's reserve rule below (which used to return the Carpenter's
+        // barrel before the ordered stairs were ever looked at).
+        if (preferred != null) {
+            for (Recipe recipe : recipes) {
+                if (recipe.output() == preferred && runnable(level, building, containers, recipe, preferred)) {
+                    return recipe;
+                }
+            }
+        }
         Recipe best = null;
         int bestStock = Integer.MAX_VALUE;
         for (Recipe recipe : recipes) {
-            if (count(containers, recipe) < recipe.inputCount()
-                || !hasRoomFor(containers, recipe)
-                || !hasFuelFor(containers, building.type, recipe)) {
+            if (orderOnly(recipe) && recipe.output() != preferred) {
                 continue;
+            }
+            if (count(containers, recipe) < recipe.inputCount()
+                || !hasRoomFor(level, containers, recipe)
+                || !hasFuelFor(containers, building.type, recipe)
+                // Owner rule: workshops cannot make a tech-gated item before its node.
+                || !com.hearthstead.settlement.development.TechCraftGate.workshopAllowed(level, building,
+                    recipe.output())
+                // [economy] tools/weapons/armour are made to demand, not to a
+                // pile (settlement/economy/DurableStock; neutral in GameTests).
+                || !com.hearthstead.settlement.economy.DurableStock.allows(level, building,
+                    recipe, preferred)) {
+                continue;
+            }
+            if (preferred != null && recipe.output() == preferred) {
+                return recipe;
             }
             int stock = countItem(containers, recipe.output());
             // The reserve rule applies ONLY between recipes making the SAME
@@ -782,6 +1058,48 @@ public final class Production {
         return best;
     }
 
+    /** The same run checks {@link #ready} applies to every candidate recipe. */
+    private static boolean runnable(ServerLevel level, Building building, List<Container> containers,
+                                    Recipe recipe, @Nullable Item preferred) {
+        return count(containers, recipe) >= recipe.inputCount()
+            && hasRoomFor(level, containers, recipe)
+            && hasFuelFor(containers, building.type, recipe)
+            && com.hearthstead.settlement.development.TechCraftGate.workshopAllowed(level, building,
+                recipe.output())
+            && com.hearthstead.settlement.economy.DurableStock.allows(level, building, recipe, preferred);
+    }
+
+    /** Why a bench can run nothing right now (QA-JOBS J-01). */
+    public enum Idle { READY, WAITING_INPUT, OUTPUT_FULL }
+
+    /**
+     * A pure read for the settler sheet: {@link Idle#OUTPUT_FULL} when some
+     * recipe has its inputs but nowhere to put the result, otherwise
+     * {@link Idle#WAITING_INPUT} (missing inputs or firewood) unless a recipe
+     * can run. Same predicates as {@link #ready}; never moves an item.
+     */
+    public static Idle idleReason(ServerLevel level, Building building) {
+        List<Recipe> recipes = of(building.type);
+        if (recipes.isEmpty() || building.bounds == null) {
+            return Idle.WAITING_INPUT;
+        }
+        List<Container> containers = containersOf(level, building);
+        boolean fedButFull = false;
+        for (Recipe recipe : recipes) {
+            if (orderOnly(recipe) || count(containers, recipe) < recipe.inputCount()) {
+                continue;
+            }
+            if (!hasRoomFor(level, containers, recipe)) {
+                fedButFull = true;
+                continue;
+            }
+            if (hasFuelFor(containers, building.type, recipe)) {
+                return Idle.READY;
+            }
+        }
+        return fedButFull ? Idle.OUTPUT_FULL : Idle.WAITING_INPUT;
+    }
+
     /**
      * Whether this building is idle for want of FIREWOOD specifically: some
      * recipe's inputs are in the chests and its output has room — it would
@@ -809,8 +1127,8 @@ public final class Production {
         for (Recipe recipe : of(building.type)) {
             // Inputs there, room there, and yet ready() had no candidates:
             // the only gate left standing is fuel.
-            if (count(containers, recipe) >= recipe.inputCount()
-                && hasRoomFor(containers, recipe)
+            if (!orderOnly(recipe) && count(containers, recipe) >= recipe.inputCount()
+                && hasRoomFor(level, containers, recipe)
                 && !hasFuelFor(containers, building.type, recipe)) {
                 return true;
             }
@@ -842,15 +1160,36 @@ public final class Production {
      * @return whether the recipe actually ran
      */
     public static boolean run(ServerLevel level, Building building, Recipe recipe) {
+        return run(level, building, recipe, null);
+    }
+
+    /**
+     * {@link #run} by a real crafter: the finished good rolls its quality
+     * grade from this settler's trade level, trade attribute, the building's
+     * checklist level and the tool in hand ({@link
+     * com.hearthstead.settlement.work.CraftedQuality}). The grade is rolled
+     * BEFORE anything is taken, and the room check then asks for room for
+     * exactly that graded stack (a Fine loaf cannot top up a Basic stack), so
+     * a batch that cannot be stored still removes nothing. {@code crafter}
+     * null, a disabled {@code [quality] craftedQuality}, or an intermediate
+     * output (flour, ingots, planks) is exactly the old Basic path.
+     */
+    public static boolean run(ServerLevel level, Building building, Recipe recipe,
+                              @Nullable com.hearthstead.entity.SettlerEntity crafter) {
         List<Container> containers = containersOf(level, building);
         boolean burns = fuelGated(building.type, recipe);
         int fuelNeeded = burns ? Fuel.unitsPerBatch(building.type) : 0;
         List<FuelWithdrawal> fuelPlan = burns
             ? planFuel(containers, fuelNeeded)
             : List.of();
+        ItemStack output = new ItemStack(recipe.output(), recipe.outputCount());
+        if (crafter != null && graded(level, recipe)) {
+            com.hearthstead.settlement.work.CraftedQuality.stamp(output, rollQuality(crafter, building));
+        }
+        int craftedGrade = com.hearthstead.settlement.work.GoodsQuality.of(output);
         if (containers.isEmpty()
             || count(containers, recipe) < recipe.inputCount()
-            || !hasRoomFor(containers, recipe)
+            || !hasRoomFor(containers, output)
             || fuelPlan == null) {
             return false;
         }
@@ -874,11 +1213,11 @@ public final class Production {
             // deliberately — no re-insert, no drop. This line is the one
             // sanctioned item sink (INV-3 note in the class doc).
         }
-        ItemStack output = new ItemStack(recipe.output(), recipe.outputCount());
         ItemStack left = insert(containers, output);
         if (!left.isEmpty()) {
-            Block.popResource(level, building.anchor, left);
+            com.hearthstead.util.ItemSpill.conserve(level, building.anchor, left);
         }
+        com.hearthstead.fx.FxHooks.crafted(crafter, craftedGrade);
         return true;
     }
 
@@ -1056,7 +1395,7 @@ public final class Production {
         for (FuelWithdrawal withdrawal : taken) {
             ItemStack left = insert(containers, withdrawal.stack());
             if (!left.isEmpty()) {
-                Block.popResource(level, building.anchor, left);
+                com.hearthstead.util.ItemSpill.conserve(level, building.anchor, left);
             }
         }
     }
@@ -1097,6 +1436,68 @@ public final class Production {
             }
         }
         return total;
+    }
+
+    /** Whether this recipe's output rolls a quality grade in this world. */
+    private static boolean graded(ServerLevel level, Recipe recipe) {
+        return com.hearthstead.settlement.economy.QualityConfig.craftedQuality(level.getServer())
+            && com.hearthstead.settlement.work.CraftedQuality.bearsQuality(
+                new ItemStack(recipe.output()));
+    }
+
+    /** One crafted batch's grade, from the crafter who finished it. */
+    private static int rollQuality(com.hearthstead.entity.SettlerEntity crafter, Building building) {
+        com.hearthstead.entity.Profession trade = crafter.getProfession();
+        int attribute = com.hearthstead.entity.SkillLevels.primaryOf(trade)
+            .map(crafter::attribute).orElse(0);
+        // Tech tree Guild Halls (techtree-craft): rolls as if 2 trade levels higher.
+        double guild = crafter.level() instanceof ServerLevel server
+            ? com.hearthstead.settlement.techtree.effects.CraftEffects.qualityMeanBonus(server, crafter.settlement())
+            : 0.0D;
+        return com.hearthstead.settlement.work.CraftedQuality.roll(
+            com.hearthstead.entity.SkillLevels.levelOf(crafter), attribute, building.level,
+            com.hearthstead.settlement.gear.GearTiers.tierOf(crafter.getMainHandItem()),
+            guild, crafter.getRandom());
+    }
+
+    /**
+     * {@link #hasRoomFor(List, Recipe)} for a pure read. A graded output's
+     * grade is not known until the batch completes, so it only counts an
+     * EMPTY slot as room: a partial stack of one grade cannot take another.
+     */
+    private static boolean hasRoomFor(ServerLevel level, List<Container> containers, Recipe recipe) {
+        if (!graded(level, recipe)) {
+            return hasRoomFor(containers, recipe);
+        }
+        for (Container container : containers) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                if (container.getItem(slot).isEmpty()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Room for exactly this stack, components included (no quality merging). */
+    private static boolean hasRoomFor(List<Container> containers, ItemStack output) {
+        int needed = output.getCount();
+        for (Container container : containers) {
+            for (int slot = 0; slot < container.getContainerSize(); slot++) {
+                ItemStack stack = container.getItem(slot);
+                if (stack.isEmpty()) {
+                    return true;
+                }
+                if (ItemStack.isSameItemSameComponents(stack, output)
+                    && stack.getCount() < stack.getMaxStackSize()) {
+                    needed -= stack.getMaxStackSize() - stack.getCount();
+                    if (needed <= 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean hasRoomFor(List<Container> containers, Recipe recipe) {
@@ -1152,7 +1553,7 @@ public final class Production {
         ItemStack back = accepted[0].copyWithCount(amount);
         ItemStack left = insert(containers, back);
         if (!left.isEmpty()) {
-            Block.popResource(level, building.anchor, left);
+            com.hearthstead.util.ItemSpill.conserve(level, building.anchor, left);
         }
     }
 

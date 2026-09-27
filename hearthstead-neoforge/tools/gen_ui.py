@@ -59,6 +59,13 @@ GREEN = ramp("emerald")
 RED = ramp("crimson")
 AMBER = ramp("amber")
 
+# Field-ledger identity: smoked timber, pine leather, aged copper and linen
+# ink. Keep these UI materials local; world textures own their own palettes.
+PINE = [(14, 25, 24, 255), (22, 37, 34, 255), (30, 48, 43, 255),
+        (40, 62, 54, 255), (79, 103, 84, 255)]
+COPPER = [(49, 29, 21, 255), (88, 49, 31, 255), (145, 88, 48, 255),
+          (198, 141, 78, 255), (235, 195, 125, 255)]
+
 # --------------------------------------------------------------- tokens ---
 # The single source of truth for every number both the game and the preview
 # need. Python builds the sprites from it, Java reads it as constants, and the
@@ -67,15 +74,18 @@ AMBER = ramp("amber")
 TOKENS = {
     "colour": {
         "text":          0xFFE8E0D0,
-        "text_muted":    0xFF8A8578,
+        # Secondary information is still actionable/readable on hovered cards.
+        # Disabled controls retain a separate subdued ink instead of sharing it.
+        "text_muted":    0xFFD3CAB8,
+        "text_disabled": 0xFF8A8578,
         "text_strong":   0xFFF2ECDC,
         "text_on_light": 0xFF241A0E,
-        "accent":        0xFFB8912F,
-        "good":          0xFF5FA860,
-        "warn":          0xFFC98A2E,
-        "bad":           0xFF8A3A35,
-        "field":         0xFF1A1A1A,
-        "row_odd":       0xFF212121,
+        "accent":        0xFFE9C66B,
+        "good":          0xFF9CD89D,
+        "warn":          0xFFF2C477,
+        "bad":           0xFFFFBCAE,
+        "field":         0xFF162522,
+        "row_odd":       0xFF1E302B,
         "shadow":        0x66000000,
     },
     # Spacing is a 4px grid. Every gutter, pad and row height below is a
@@ -132,13 +142,13 @@ def frame(size, border, bands, centre, corner_plate=None, r=None):
 
 
 def rivet(img, x, y, border, r):
-    """A brass stud in a corner square. Corners never tile, so detail is safe."""
+    """A copper bookbinding nail, contained in the fixed corner square."""
     cx, cy = x + border // 2, y + border // 2
-    put(img, cx, cy, BRASS[4])
+    put(img, cx, cy, COPPER[3])
     for dx, dy in ((1, 0), (0, 1), (-1, 0), (0, -1)):
-        put(img, cx + dx, cy + dy, BRASS[2])
-    put(img, cx - 1, cy - 1, BRASS[4])
-    put(img, cx + 1, cy + 1, shade(BRASS[0], 0.8))
+        put(img, cx + dx, cy + dy, COPPER[1])
+    put(img, cx - 1, cy - 1, COPPER[4])
+    put(img, cx + 1, cy + 1, COPPER[0])
 
 
 def mcmeta(name, kind, border=None, width=None, height=None,
@@ -170,37 +180,37 @@ def emit(name, img, kind="nine_slice", border=None, stretch_inner=False):
 # ----------------------------------------------------------------- panels ---
 
 def window():
-    """The main screen frame: dark outline, carved oak, a brass inner rule."""
+    """Copper-bound timber around a quiet, dark pine writing surface."""
     bands = [
-        (shade(OAK[0], 0.55), shade(OAK[0], 0.45)),   # 0 outline
-        (OAK[3], OAK[1]),                             # 1 lit chamfer
-        (OAK[2], OAK[1]),                             # 2 board
-        (OAK[2], OAK[0]),                             # 3 board
-        (OAK[1], OAK[0]),                             # 4 board, into shadow
-        (BRASS[1], BRASS[0]),                         # 5 brass rule, dim
-        (BRASS[3], BRASS[2]),                         # 6 brass rule, catch
+        (PINE[0], shade(PINE[0], 0.7)),
+        (COPPER[3], COPPER[0]),
+        (shade(OAK[1], 0.9), shade(OAK[0], 0.8)),
+        (OAK[1], OAK[0]),
+        (COPPER[1], COPPER[0]),
+        (PINE[0], PINE[2]),
+        (PINE[1], PINE[1]),
     ]
-    return frame(18, 7, bands, COAL[1], corner_plate=rivet)
+    return frame(18, 7, bands, PINE[1], corner_plate=rivet)
 
 
 def inset():
     """A recessed field: light lip at the bottom-right, shadow at the top-left,
     which is the inverse of `window` and is what makes it read as sunken."""
     bands = [
-        (shade(COAL[0], 0.6), IRON[2]),
-        (COAL[0], IRON[1]),
-        (COAL[1], COAL[2]),
+        (PINE[0], PINE[3]),
+        (shade(PINE[0], 0.8), PINE[2]),
+        (PINE[0], PINE[0]),
     ]
-    return frame(8, 3, bands, COAL[1])
+    return frame(8, 3, bands, PINE[0])
 
 
 def card(hover=False):
-    base = COAL[3] if hover else COAL[2]
-    edge = BRASS[1] if hover else IRON[1]
+    base = PINE[3] if hover else PINE[2]
+    edge = COPPER[3] if hover else PINE[3]
     bands = [
-        (shade(edge, 1.15), shade(edge, 0.7)),
-        (mix(base, edge, 0.35), shade(base, 0.85)),
-        (shade(base, 1.08), shade(base, 0.94)),
+        (edge, shade(edge, 0.7)),
+        (base, base),
+        (base, base),
         (base, base),
     ]
     return frame(12, 4, bands, base)
@@ -211,16 +221,16 @@ def card(hover=False):
 def button(state):
     """idle / hover / pressed / disabled / danger / danger_hover."""
     if state.startswith("danger"):
-        body = RED[1] if "hover" not in state else RED[2]
-        edge = RED[3] if "hover" in state else RED[0]
+        body = mix(RED[1], COPPER[0], 0.45) if "hover" not in state else RED[2]
+        edge = RED[3] if "hover" in state else RED[2]
     elif state == "disabled":
-        body, edge = shade(IRON[1], 0.9), IRON[0]
+        body, edge = PINE[1], PINE[2]
     elif state == "hover":
-        body, edge = OAK[3], BRASS[3]
+        body, edge = COPPER[1], COPPER[4]
     elif state == "pressed":
-        body, edge = OAK[1], BRASS[1]
+        body, edge = COPPER[0], COPPER[2]
     else:
-        body, edge = OAK[2], BRASS[1]
+        body, edge = COPPER[0], COPPER[2]
     if state == "pressed":
         bands = [(shade(edge, 0.7), edge),
                  (shade(body, 0.8), shade(body, 1.05)),
@@ -234,22 +244,22 @@ def button(state):
 
 def tab(selected):
     if selected:
-        bands = [(BRASS[2], BRASS[0]), (OAK[3], OAK[1]), (OAK[2], OAK[2])]
-        centre = OAK[2]
+        bands = [(COPPER[4], COPPER[1]), (COPPER[1], COPPER[0]), (COPPER[0], COPPER[0])]
+        centre = COPPER[0]
     else:
-        bands = [(IRON[1], IRON[0]), (COAL[3], COAL[1]), (COAL[2], COAL[2])]
-        centre = COAL[2]
+        bands = [(PINE[3], PINE[0]), (PINE[1], PINE[0]), (PINE[1], PINE[1])]
+        centre = PINE[1]
     return frame(8, 3, bands, centre)
 
 
 def scroll_track():
-    bands = [(shade(COAL[0], 0.7), COAL[2]), (COAL[0], COAL[1])]
-    return frame(6, 2, bands, COAL[0])
+    bands = [(shade(PINE[0], 0.7), PINE[2]), (PINE[0], PINE[1])]
+    return frame(6, 2, bands, PINE[0])
 
 
 def scroll_thumb(hover):
-    top = BRASS[3] if hover else IRON[3]
-    body = BRASS[1] if hover else IRON[2]
+    top = COPPER[4] if hover else COPPER[3]
+    body = COPPER[2] if hover else COPPER[1]
     bands = [(top, shade(body, 0.7)), (body, shade(body, 0.85))]
     return frame(6, 2, bands, body)
 
@@ -257,26 +267,26 @@ def scroll_thumb(hover):
 def slot():
     """An 18x18 item slot, vanilla's own size so items sit at 16x16 with a
     one-pixel lip -- deviating from 18 is the fastest way to look wrong."""
-    bands = [(shade(COAL[0], 0.5), IRON[2]), (COAL[0], IRON[0])]
-    return frame(18, 2, bands, COAL[2])
+    bands = [(shade(PINE[0], 0.7), PINE[3]), (PINE[0], PINE[0])]
+    return frame(18, 2, bands, PINE[0])
 
 
 def divider():
     """A ruled line: one dark pixel, one catch-light. Tiles along x."""
     img = new_image(2, 2)
     for x in range(2):
-        put(img, x, 0, shade(OAK[0], 0.7))
-        put(img, x, 1, mix(OAK[3], BRASS[0], 0.4))
+        put(img, x, 0, PINE[0])
+        put(img, x, 1, COPPER[1])
     return img
 
 
 def pip(filled, tone="accent"):
     """A 5x5 skill/rating pip. Pips beat printed integers: you read four of
     five at a glance and never read '4' at a glance."""
-    ramp_for = {"accent": BRASS, "good": GREEN, "bad": RED, "warn": AMBER}[tone]
+    ramp_for = {"accent": COPPER, "good": GREEN, "bad": RED, "warn": AMBER}[tone]
     img = new_image(5, 5)
-    core = ramp_for[3] if filled else COAL[3]
-    rim = ramp_for[1] if filled else COAL[0]
+    core = ramp_for[3] if filled else PINE[2]
+    rim = ramp_for[1] if filled else PINE[0]
     for y in range(5):
         for x in range(5):
             d = abs(x - 2) + abs(y - 2)
@@ -291,8 +301,8 @@ def pip(filled, tone="accent"):
 def bar(kind):
     """Need/progress bars. `track` is the groove, `fill` the contents."""
     if kind == "track":
-        bands = [(shade(COAL[0], 0.6), IRON[1]), (COAL[0], COAL[1])]
-        return frame(6, 2, bands, COAL[0])
+        bands = [(shade(PINE[0], 0.6), PINE[3]), (PINE[0], PINE[1])]
+        return frame(6, 2, bands, PINE[0])
     tone = {"fill_good": GREEN, "fill_warn": AMBER, "fill_bad": RED}[kind]
     bands = [(tone[4], tone[1]), (tone[3], tone[2])]
     return frame(6, 2, bands, tone[3])

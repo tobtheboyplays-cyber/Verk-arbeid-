@@ -6,7 +6,9 @@ import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.client.model.SettlerModel;
 import com.hearthstead.client.ui.HsUiTokens;
 import com.hearthstead.entity.CraftPresentation;
+import com.hearthstead.entity.BagTransferPresentation;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.logistics.StopReason;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -15,6 +17,7 @@ import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.ItemInHandRenderer;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -33,6 +36,23 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
+    private boolean portraitLabelsHidden;
+
+    /** Hide this renderer's world name/activity plate only for the synchronous portrait draw. */
+    public static void withoutPortraitLabels(SettlerEntity entity, Runnable drawPortrait) {
+        var renderer = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity);
+        if (!(renderer instanceof SettlerRenderer settlerRenderer)) {
+            drawPortrait.run();
+            return;
+        }
+        boolean previous = settlerRenderer.portraitLabelsHidden;
+        settlerRenderer.portraitLabelsHidden = true;
+        try {
+            drawPortrait.run();
+        } finally {
+            settlerRenderer.portraitLabelsHidden = previous;
+        }
+    }
     private static final ResourceLocation TEXTURE_NONE =
         Hearthstead.id("textures/entity/settler/settler_none.png");
     private static final ResourceLocation TEXTURE_FARMER =
@@ -55,6 +75,25 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     // full 64-block range -- that is a deliberate, different contract, not
     // the ambient everyone-nearby-is-named behaviour this fixes.
     private static final double AMBIENT_RANGE = 24.0;
+    /** Vanilla world size from two blocks out; capped apparent size below it. */
+    static final double NEAR_FULL_SIZE = 2.0;
+    /** Below this distance the apparent size also shrinks toward zero. */
+    static final double NEAR_SHRINK_DISTANCE = 1.5;
+
+    /**
+     * World-label multiplier shared with thought bubbles. Proportional scaling
+     * cancels perspective growth nearby; an extra close-range factor makes the
+     * label recede below 1.5 blocks. No positive floor: that would let labels
+     * grow without bound as the camera approaches.
+     */
+    static float nearLabelScale(double distance) {
+        if (!(distance > 0.0)) {
+            return 0.0F;
+        }
+        double cap = Math.min(1.0, distance / NEAR_FULL_SIZE);
+        double shrink = Math.min(1.0, distance / NEAR_SHRINK_DISTANCE);
+        return (float) (cap * shrink);
+    }
     private static final double AMBIENT_RANGE_SQ = AMBIENT_RANGE * AMBIENT_RANGE;
     private static final double CUSTOM_RANGE_SQ = 4096.0;
     private static final double FADE_BAND = 6.0;
@@ -81,11 +120,123 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     private static final double REQUEST_BUBBLE_RANGE_SQ = 24.0D * 24.0D;
     private static final int REQUEST_BUBBLE_RIM = 0xFFD6A447;
     private static final int REQUEST_BUBBLE_FILL = 0xEE1A1A1A;
+    // 1.21 text quads need a positive billboard x scale (the same rule as
+    // renderNameTag above). The previous negative x scale back-faced and
+    // culled the count at normal player-camera angles even though the item
+    // itself rendered. This compact high-contrast plate is deliberately
+    // smaller than the 0.62-block item prop while remaining readable at the
+    // native QA distance (about five blocks at 1024x768).
+    static final float TRANSFER_COUNT_SCALE = 0.025F;
+    static final int TRANSFER_COUNT_TEXT = 0xFFFDF3DB;
+    static final int TRANSFER_COUNT_RIM = 0xFFD6A447;
+    static final int TRANSFER_COUNT_FILL = 0xE61A1A1A;
+    private static final float TRANSFER_COUNT_PAD_X = 2.5F;
+    private static final float TRANSFER_COUNT_PAD_Y = 1.5F;
+    static final long CONTAINER_DOWN_TOOL_RESTORE_MS = 1200L;
+    static final long CONTAINER_UP_TOOL_SUPPRESS_MS = 600L;
 
     public SettlerRenderer(EntityRendererProvider.Context context) {
         super(context, new SettlerModel(context.bakeLayer(SettlerModel.LAYER)), 0.5F);
-        addLayer(new ItemInHandLayer<>(this, context.getItemInHandRenderer()));
+        addLayer(new LumberCarryItemInHandLayer(this,
+            context.getItemInHandRenderer()));
+        addLayer(new FisherOutfitLayer(this));
         addLayer(new SettlerArmorLayer(this));
+        addLayer(new ResidentMealLayer(this, context.getItemInHandRenderer()));
+        addLayer(new CarcassCarryLayer(this, context.getItemInHandRenderer()));
+        addLayer(new MotionPropLayer(this, context.getItemInHandRenderer()));
+        addLayer(new GuardScabbardLayer(this, context.getItemInHandRenderer()));
+        addLayer(new CarryPackLayer(this, context.getItemInHandRenderer()));
+    }
+
+    /**
+     * The server-owned MAINHAND stack never changes here. Heavy timber carry
+     * reserves both visible hands for the frame grips. The two container
+     * one-shots run under GATHERING_LOG server activity, so their exact
+     * AnimationState clocks also participate: set-down begins in the
+     * two-hand haul silhouette and restores the axe during recovery; pickup
+     * begins with the axe visible and suppresses it as both hands settle onto
+     * the frame. Every other state uses vanilla's ItemInHandLayer unchanged.
+     */
+    static boolean rendersHeldItemsFor(SettlerActivity activity,
+                                       boolean containerDownActive,
+                                       long containerDownElapsedMs,
+                                       boolean containerUpActive,
+                                       long containerUpElapsedMs) {
+        if (activity == SettlerActivity.HAULING_LOG
+            || CarcassCarryLayer.ownsHands(activity)) {
+            return false;
+        }
+        if (containerDownActive) {
+            return containerDownElapsedMs >= CONTAINER_DOWN_TOOL_RESTORE_MS;
+        }
+        if (containerUpActive) {
+            return containerUpElapsedMs < CONTAINER_UP_TOOL_SUPPRESS_MS;
+        }
+        return true;
+    }
+
+    private static final class LumberCarryItemInHandLayer
+            extends ItemInHandLayer<SettlerEntity, SettlerModel> {
+        private LumberCarryItemInHandLayer(
+                net.minecraft.client.renderer.entity.RenderLayerParent<SettlerEntity,
+                    SettlerModel> parent,
+                ItemInHandRenderer itemRenderer) {
+            super(parent, itemRenderer);
+            this.bowRenderer = itemRenderer;
+        }
+
+        /** Weapons lane: vanilla's ItemInHandLayer field is private; SettlerBowHold needs it. */
+        private final ItemInHandRenderer bowRenderer;
+
+        @Override
+        protected void renderArmWithItem(net.minecraft.world.entity.LivingEntity entity,
+                                         net.minecraft.world.item.ItemStack stack,
+                                         net.minecraft.world.item.ItemDisplayContext context,
+                                         net.minecraft.world.entity.HumanoidArm arm,
+                                         PoseStack pose, MultiBufferSource buffers, int light) {
+            // A carried carcass is drawn whole by CarcassCarryLayer, never as a hand sprite.
+            if (com.hearthstead.item.CarcassItem.isCarcass(stack)) return;
+            // A motion-clip prop window may stow the real item of one hand (display only).
+            if (entity instanceof SettlerEntity settler
+                && MotionPropLayer.hidesReal(getParentModel(), settler, arm)) return;
+            // Greeting: the sword is in the scabbard (GuardScabbardLayer draws it at the hip).
+            if (entity instanceof SettlerEntity sheathing && arm == sheathing.getMainArm()
+                && SettlerModel.swordSheathed(sheathing)) return;
+            // Weapons lane (owner 26 Sep): settlers carry the vanilla bow 1.22x, at the side when
+            // idle, across the hips at low ready, upright while drawing (players keep vanilla's).
+            if (com.hearthstead.client.weapon.SettlerBowHold.applies(entity, stack)) {
+                com.hearthstead.client.weapon.SettlerBowHold.render(getParentModel(), entity, stack, arm,
+                    pose, buffers, light, this.bowRenderer);
+                return;
+            }
+            super.renderArmWithItem(entity, stack, context, arm, pose, buffers, light);
+        }
+
+        @Override
+        public void render(PoseStack pose, MultiBufferSource buffers,
+                           int packedLight, SettlerEntity entity,
+                           float limbSwing, float limbSwingAmount,
+                           float partialTick, float ageInTicks,
+                           float netHeadYaw, float headPitch) {
+            if (entity.bagTransferPresentation().ownsBodyPose(entity)) return;
+            if (entity.getActivity() == SettlerActivity.EATING && entity.hasMeal()) return;
+            if (getParentModel().hasServiceHandPose(net.minecraft.world.entity.HumanoidArm.RIGHT)
+                || getParentModel().hasServiceHandPose(net.minecraft.world.entity.HumanoidArm.LEFT)) return;
+            boolean lowering = entity.workContainerDownState.isStarted();
+            boolean lifting = entity.workContainerUpState.isStarted();
+            if (rendersHeldItemsFor(entity.getActivity(), lowering,
+                    lowering
+                        ? entity.workContainerDownState.getAccumulatedTime()
+                        : -1L,
+                    lifting,
+                    lifting
+                        ? entity.workContainerUpState.getAccumulatedTime()
+                        : -1L)) {
+                super.render(pose, buffers, packedLight, entity, limbSwing,
+                    limbSwingAmount, partialTick, ageInTicks, netHeadYaw,
+                    headPitch);
+            }
+        }
     }
 
     @Override
@@ -119,6 +270,10 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
     protected void renderNameTag(SettlerEntity entity, Component name, PoseStack pose,
                                  MultiBufferSource buffers, int packedLight,
                                  float partialTick) {
+        // The short happiness cue replaces the name plate rather than drawing
+        // over its text or pushing the cue into a low Tavern ceiling.
+        if (portraitLabelsHidden || entity.moraleJoyTicksRemaining() > 0
+            || tavernCueVisible(entity)) return;
         // Taper the ambient tag out over the last FADE_BAND blocks before
         // its cap rather than letting shouldShowName's hard boolean pop it
         // in and out of existence.
@@ -145,7 +300,13 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
         pose.pushPose();
         pose.translate(attach.x, attach.y + 0.5, attach.z);
         pose.mulPose(entityRenderDispatcher.cameraOrientation());
-        pose.scale(0.025F, -0.025F, 0.025F);
+        // QA gate (owner, 26 Sep): vanilla's fixed 0.025 world scale makes the
+        // tag fill the screen up close. Keep its apparent size no larger than
+        // at NEAR_FULL_SIZE blocks; see nearLabelScale.
+        float tagScale = 0.025F * nearLabelScale(
+            entity.getPosition(partialTick).add(attach).add(0.0, 0.5, 0.0)
+                .distanceTo(entityRenderDispatcher.camera.getPosition()));
+        pose.scale(tagScale, -tagScale, tagScale);
         Matrix4f matrix = pose.last().pose();
         Font font = getFont();
 
@@ -157,15 +318,18 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
         Profession profession = entity.getProfession();
         boolean targeted = Minecraft.getInstance().crosshairPickEntity == entity;
         Component status = null;
-        if (profession.employed()) {
+        boolean roleLabel = profession.employed() || profession == Profession.MAYOR;
+        if (roleLabel) {
+            Component role = Component.literal(profession.displayName().getString()
+                .toUpperCase(java.util.Locale.ROOT));
             status = targeted
-                ? Component.empty().append(profession.displayName())
+                ? Component.empty().append(role)
                     .append(" · ").append(entity.getActivity().displayName())
-                : profession.displayName();
+                : role;
         } else if (targeted) {
             status = entity.getActivity().displayName();
         }
-        boolean badge = profession.employed();
+        boolean badge = roleLabel;
 
         // World-first diagnostics stay quiet at village scale: only the one
         // courier the player deliberately targets while sneaking gets the
@@ -252,10 +416,184 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
                        PoseStack pose, MultiBufferSource buffers,
                        int packedLight) {
         super.render(entity, entityYaw, partialTick, pose, buffers, packedLight);
+        renderTavernCue(entity, pose, buffers, packedLight);
+        renderMoraleJoy(entity, partialTick, pose, buffers, packedLight);
         renderCraftPresentation(entity, partialTick, pose, buffers,
             packedLight);
-        renderEquipmentRequestBubble(entity, partialTick, pose, buffers,
+        renderBagTransferPresentation(entity, partialTick, pose, buffers,
             packedLight);
+        // The near-range thought bubble owns the space above the head while
+        // shown (it carries the tool need too); the far equipment bubble
+        // keeps covering everything beyond the thought bubble's range.
+        // Living village: a short spoken line owns the space for a few seconds.
+        boolean barkShown = SettlerBarkLabel.render(entity, pose, buffers, packedLight,
+            getFont(), entityRenderDispatcher, portraitLabelsHidden || tavernCueVisible(entity));
+        boolean thoughtShown = barkShown || SettlerThoughtBubble.render(entity, partialTick,
+            pose, buffers, packedLight, getFont(), entityRenderDispatcher,
+            portraitLabelsHidden || tavernCueVisible(entity));
+        if (!thoughtShown) {
+            renderEquipmentRequestBubble(entity, partialTick, pose, buffers,
+                packedLight);
+        }
+    }
+
+    /** One short depth-tested line replaces the name plate during a restaurant step. */
+    private boolean tavernCueVisible(SettlerEntity entity) {
+        double distance = entityRenderDispatcher.distanceToSqr(entity);
+        return entity.tavernCue() != com.hearthstead.entity.TavernCue.NONE
+            && !portraitLabelsHidden && !entity.isInvisible() && distance <= 12 * 12
+            && (distance <= 6 * 6 || Minecraft.getInstance().crosshairPickEntity == entity);
+    }
+    private void renderTavernCue(SettlerEntity entity, PoseStack pose,
+                                MultiBufferSource buffers, int light) {
+        var cue = entity.tavernCue();
+        double distance = entityRenderDispatcher.distanceToSqr(entity);
+        if (!tavernCueVisible(entity)) return;
+        Component text = cue == com.hearthstead.entity.TavernCue.QUOTED
+            ? entity.tavernQuotedCoins() == 0 ? Component.translatable("hearthstead.tavern.cue.included")
+                : Component.translatable(cue.translationKey(), com.hearthstead.util.CoinText.coins(entity.tavernQuotedCoins()))
+            : Component.translatable(cue.translationKey());
+        Font font = getFont();
+        float width = font.width(text);
+        float scale = .025F * Math.min(1F, 116F / Math.max(1F, width));
+        float fade = Mth.clamp((float) ((12 - Math.sqrt(distance)) / 2), 0, 1);
+        pose.pushPose();
+        pose.translate(0, entity.getBbHeight() + .48, 0);
+        pose.mulPose(entityRenderDispatcher.cameraOrientation());
+        pose.scale(scale, -scale, scale);
+        VertexConsumer plate = buffers.getBuffer(RenderType.textBackground());
+        fillQuad(plate, pose, -width / 2 - 4, width / 2 + 4, -3, 11,
+            withAlpha(0xFF89704B, fadeAlpha(0xEE, fade)), light);
+        fillQuad(plate, pose, -width / 2 - 3, width / 2 + 3, -2, 10, -.001F,
+            withAlpha(0xFF211E19, fadeAlpha(0xEE, fade)), light);
+        pose.translate(0, 0, -.002);
+        font.drawInBatch(text, -width / 2, 0, withAlpha(0xFFF8EDD8, fadeAlpha(0xFF, fade)), false,
+            pose.last().pose(), buffers, Font.DisplayMode.NORMAL, 0, light);
+        pose.popPose();
+    }
+
+    /** Brief depth-tested pixel smile: a server-confirmed positive morale change. */
+    private void renderMoraleJoy(SettlerEntity entity, float partial, PoseStack pose,
+                                 MultiBufferSource buffers, int light) {
+        int remaining = entity.moraleJoyTicksRemaining();
+        if (remaining == 0 || portraitLabelsHidden || entity.isInvisible()
+            || tavernCueVisible(entity)
+            || !entity.isAlive() || entityRenderDispatcher.distanceToSqr(entity) > 24 * 24) return;
+        float age = 40 - remaining + partial;
+        float opacity = Math.min(1F, Math.min(age / 4F, (40 - age) / 10F));
+        int alpha = Mth.clamp((int) (255 * opacity), 0, 255) << 24;
+        if (alpha == 0) return;
+        pose.pushPose();
+        pose.translate(0, entity.getBbHeight() + .55 + age * .004, 0);
+        pose.mulPose(entityRenderDispatcher.cameraOrientation());
+        pose.scale(.025F, -.025F, .025F);
+        VertexConsumer pixels = buffers.getBuffer(RenderType.textBackground());
+        // Original 12-pixel face geometry, with a clipped round silhouette.
+        fillQuad(pixels, pose, -4, 4, -6, 6, alpha | 0x426B28, light);
+        fillQuad(pixels, pose, -6, 6, -4, 4, alpha | 0x426B28, light);
+        fillQuad(pixels, pose, -4, 4, -5, 5, -.001F, alpha | 0xA3D85D, light);
+        fillQuad(pixels, pose, -5, 5, -3, 3, -.001F, alpha | 0xA3D85D, light);
+        fillQuad(pixels, pose, -3, -1, -3, -1, -.002F, alpha | 0x243520, light);
+        fillQuad(pixels, pose, 1, 3, -3, -1, -.002F, alpha | 0x243520, light);
+        fillQuad(pixels, pose, -3, -2, 1, 3, -.002F, alpha | 0x243520, light);
+        fillQuad(pixels, pose, 2, 3, 1, 3, -.002F, alpha | 0x243520, light);
+        fillQuad(pixels, pose, -2, 2, 3, 4, -.002F, alpha | 0x243520, light);
+        pose.popPose();
+    }
+
+    /**
+     * Draws the exact server-named one-count stack from hand contact until
+     * chest contact. It is world-positioned, so neither locomotion nor body
+     * yaw can drag the item or its grounded sack truth around.
+     */
+    private void renderBagTransferPresentation(SettlerEntity entity,
+                                               float partialTick,
+                                               PoseStack pose,
+                                               MultiBufferSource buffers,
+                                               int packedLight) {
+        BagTransferPresentation transfer = entity.bagTransferPresentation();
+        if (!transfer.active() || transfer.bagAnchor() == null
+            || transfer.containerPos() == null || transfer.committed()
+            || transfer.clock() < 30 || transfer.clock() > 48) return;
+        if (transfer.sourcePickup()) {
+            var point = transfer.sourceUnitPosition(transfer.clock() + partialTick);
+            renderFixedCraftItem(entity, transfer.item(), pose, buffers, packedLight,
+                entity.getPosition(partialTick), point.x, point.y, point.z,
+                transfer.bagYaw(), .62F, 911);
+            return;
+        }
+        // Start at the drawn sack mouth (forward-left of the planted worker),
+        // not the anchor block centre under the worker's feet.
+        Vec3 bag = transfer.visualSackPoint();
+        BlockPos chest = transfer.containerPos();
+        float clock = transfer.clock() + partialTick;
+        float progress = Mth.clamp((clock - 30.0F) / 18.0F, 0.0F, 1.0F);
+        progress = progress * progress * (3.0F - 2.0F * progress);
+        double x = Mth.lerp(progress, bag.x, chest.getX() + 0.5D);
+        double y = Mth.lerp(progress, bag.y + 0.72D, chest.getY() + 1.05D);
+        double z = Mth.lerp(progress, bag.z, chest.getZ() + 0.5D);
+        float spin = transfer.bagYaw();
+        float itemScale = 0.62F;
+        Vec3 hand = getModel().transferHandWorld(entity, partialTick);
+        if (hand != null && com.hearthstead.client.motion.MotionSettings.engineEnabled()) {
+            // One beat per unit: the carrying palm holds the exact server-named
+            // item from the grab (tick 30) to over the open chest (tick 45),
+            // then lets it drop in a short spinning arc into the chest mouth
+            // just as the server commits it (tick 48). Display only.
+            itemScale = 0.42F;
+            if (clock < 45.0F) {
+                x = hand.x;
+                y = hand.y - 0.06D;
+                z = hand.z;
+            } else {
+                float drop = Mth.clamp((clock - 45.0F) / 3.0F, 0.0F, 1.0F);
+                double ex = chest.getX() + 0.5D, ey = chest.getY() + 0.62D, ez = chest.getZ() + 0.5D;
+                x = Mth.lerp(drop, hand.x, ex);
+                z = Mth.lerp(drop, hand.z, ez);
+                y = Mth.lerp(drop * drop, hand.y - 0.06D, ey) + 0.12D * Math.sin(Math.PI * drop);
+                spin += 220.0F * drop;
+            }
+        }
+        renderFixedCraftItem(entity, transfer.item(), pose, buffers,
+            packedLight, entity.getPosition(partialTick), x, y, z,
+            spin, itemScale, 911);
+        if (transfer.item().getCount() > 1) {
+            renderTransferCount(entity, transfer.item().getCount(), pose,
+                buffers, packedLight, partialTick, x, y + 0.34D, z);
+        }
+    }
+
+    /** Exact bundle count; without this label one rendered item would lie. */
+    private void renderTransferCount(SettlerEntity entity, int count,
+                                     PoseStack pose, MultiBufferSource buffers,
+                                     int packedLight, float partialTick,
+                                     double worldX, double worldY,
+                                     double worldZ) {
+        Vec3 entityPosition = entity.getPosition(partialTick);
+        String label = "×" + count;
+        Font font = Minecraft.getInstance().font;
+        pose.pushPose();
+        pose.translate(worldX - entityPosition.x, worldY - entityPosition.y,
+            worldZ - entityPosition.z);
+        pose.mulPose(entityRenderDispatcher.cameraOrientation());
+        pose.scale(TRANSFER_COUNT_SCALE, -TRANSFER_COUNT_SCALE,
+            TRANSFER_COUNT_SCALE);
+        float x = -font.width(label) / 2.0F;
+        float halfWidth = font.width(label) / 2.0F + TRANSFER_COUNT_PAD_X;
+        VertexConsumer plate = buffers.getBuffer(
+            RenderType.textBackgroundSeeThrough());
+        fillQuad(plate, pose, -halfWidth - 1.0F, halfWidth + 1.0F,
+            -TRANSFER_COUNT_PAD_Y - 1.0F,
+            font.lineHeight + TRANSFER_COUNT_PAD_Y + 1.0F,
+            TRANSFER_COUNT_RIM, packedLight);
+        fillQuad(plate, pose, -halfWidth, halfWidth,
+            -TRANSFER_COUNT_PAD_Y,
+            font.lineHeight + TRANSFER_COUNT_PAD_Y,
+            TRANSFER_COUNT_FILL, packedLight);
+        font.drawInBatch(label, x, 0.0F, TRANSFER_COUNT_TEXT, true,
+            pose.last().pose(), buffers, Font.DisplayMode.NORMAL,
+            0, packedLight);
+        pose.popPose();
     }
 
     /**
@@ -367,7 +705,8 @@ public class SettlerRenderer extends MobRenderer<SettlerEntity, SettlerModel> {
                                               int packedLight) {
         ItemStack requested = entity.requestedEquipmentIcon();
         double distanceSqr = entityRenderDispatcher.distanceToSqr(entity);
-        if (requested.isEmpty() || distanceSqr > REQUEST_BUBBLE_RANGE_SQ) {
+        if (requested.isEmpty() || distanceSqr > REQUEST_BUBBLE_RANGE_SQ
+            || tavernCueVisible(entity)) {
             return;
         }
         float fade = Mth.clamp((float) ((24.0D - Math.sqrt(distanceSqr)) / 4.0D),

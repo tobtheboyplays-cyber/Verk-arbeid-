@@ -183,7 +183,10 @@ public final class BlessingNetwork {
         int revisionBefore = settlement.blessingState.revision();
         int spentBefore = settlement.blessingState.spent();
         int offerSerialBefore = settlement.blessingState.offerSerial();
-        ItemStack seal = BlessingSealItem.stackFor(blessing);
+        var quality = hasSelectableOffer(settlement.blessingState)
+            ? settlement.blessingState.qualityFor(offerSerialBefore, blessing)
+            : com.hearthstead.settlement.state.BlessingQuality.COMMON;
+        ItemStack seal = BlessingSealItem.stackFor(blessing, quality);
         UUID deliveryId = JourneyTransactionIds.forRevision(
             "blessing_seal_delivery", settlement.id, player.getUUID(),
             action.revision() + 1L);
@@ -220,7 +223,15 @@ public final class BlessingNetwork {
                     settlement.blessingState.spent(),
                     BuiltInRegistries.ITEM.getKey(seal.getItem()).toString(),
                     0, 1, 1, "seal_delivery_" + delivery.outcome().id()));
-            broadcastCommittedChoice(level, settlement, player, blessing);
+            BlessingReceipt.Outcome receiptOutcome = BlessingReceipt.Outcome.fromDelivery(delivery.outcome());
+            int slot = receiptOutcome.direct()
+                ? PendingPlayerDeliveryLedger.exactRecipientSlot(level, player, reservation) : -1;
+            // Never guess a destination if physical verification unexpectedly fails.
+            BlessingReceipt receipt = !BlessingReceipt.validSlot(receiptOutcome, slot) ? null
+                : new BlessingReceipt(player.getUUID(), deliveryId, revisionBefore,
+                    offerSerialBefore, blessing.wireId(), receiptOutcome, slot, quality.rankUnits());
+            player.inventoryMenu.broadcastChanges();
+            broadcastCommittedChoice(level, settlement, player, blessing, receipt);
             return;
         }
 
@@ -335,7 +346,13 @@ public final class BlessingNetwork {
             state.issuedCount(BlessingId.WARDEN_OATH),
             state.issuedCount(BlessingId.HEARTHWARD),
             state.issuedCount(BlessingId.THORNED_ROADS), delivery, feedback,
-            feedbackBlessing == null ? -1 : feedbackBlessing.wireId());
+            feedbackBlessing == null ? -1 : feedbackBlessing.wireId(), null,
+            offerUnits(state, BlessingId.WARDEN_OATH), offerUnits(state, BlessingId.HEARTHWARD),
+            offerUnits(state, BlessingId.THORNED_ROADS));
+    }
+
+    private static int offerUnits(BlessingState state, BlessingId blessing) {
+        return hasSelectableOffer(state) ? state.qualityFor(state.offerSerial(), blessing).rankUnits() : 1;
     }
 
     private static void sendUpdate(ServerPlayer player, ViewerSession session,
@@ -370,7 +387,7 @@ public final class BlessingNetwork {
     private static void broadcastCommittedChoice(ServerLevel level,
                                                  Settlement settlement,
                                                  ServerPlayer winner,
-                                                 BlessingId blessing) {
+                                                 BlessingId blessing, BlessingReceipt receipt) {
         MinecraftServer server = level.getServer();
         Map<UUID, ViewerSession> viewers = VIEWERS.get(server);
         if (viewers == null) {
@@ -408,6 +425,13 @@ public final class BlessingNetwork {
                 acceptedHere ? BlessingSnapshotPayload.Feedback.ACCEPTED
                     : BlessingSnapshotPayload.Feedback.OTHER_PLAYER_CHOSE,
                 acceptedHere ? blessing : null);
+            if (acceptedHere && receipt != null) {
+                update = new BlessingSnapshotPayload(update.settlementId(), update.sessionId(),
+                    update.settlementName(), update.revision(), update.offerSerial(),
+                    update.wardenOathIssued(), update.hearthwardIssued(), update.thornedRoadsIssued(),
+                    update.delivery(), update.feedback(), update.feedbackBlessingWireId(), receipt,
+                    update.wardenOathUnits(), update.hearthwardUnits(), update.thornedRoadsUnits());
+            }
             if (followUp) {
                 rememberUpdate(viewer, session, update);
             } else if (!acceptedHere) {
@@ -702,7 +726,7 @@ public final class BlessingNetwork {
             basis.settlementName(), basis.revision(), basis.offerSerial(),
             basis.wardenOathIssued(), basis.hearthwardIssued(),
             basis.thornedRoadsIssued(), BlessingSnapshotPayload.Delivery.RESULT,
-            feedback, -1);
+            feedback, -1, null, basis.wardenOathUnits(), basis.hearthwardUnits(), basis.thornedRoadsUnits());
     }
 
     private record ViewerSession(UUID sessionId,
@@ -729,7 +753,7 @@ public final class BlessingNetwork {
     }
 
     private static void send(ServerPlayer player, BlessingSnapshotPayload snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private static void reject(ServerLevel level, Settlement settlement,

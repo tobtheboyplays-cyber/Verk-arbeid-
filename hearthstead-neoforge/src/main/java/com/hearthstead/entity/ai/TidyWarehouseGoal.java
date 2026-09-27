@@ -290,6 +290,7 @@ public class TidyWarehouseGoal extends Goal {
                 }
                 for (Object[] other : partials) {
                     Container oc = (Container) other[0];
+                    if (oc != container && com.hearthstead.settlement.warehouse.WarehouseSorting.groupOf(stack) != null) continue;
                     int os = (int) other[1];
                     ItemStack existing = oc.getItem(os);
                     if (!existing.isEmpty()
@@ -338,6 +339,7 @@ public class TidyWarehouseGoal extends Goal {
                     continue;
                 }
                 Container target = home.get(stack.getItem());
+                if (com.hearthstead.settlement.warehouse.WarehouseSorting.groupOf(stack) != null) continue;
                 if (target == null || target == container) {
                     continue; // this already IS the home chest for this item
                 }

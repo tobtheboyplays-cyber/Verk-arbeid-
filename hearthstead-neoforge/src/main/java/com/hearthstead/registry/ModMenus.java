@@ -26,6 +26,9 @@ public final class ModMenus {
         SETTLER_INVENTORY = MENUS.register("settler_inventory",
             () -> IMenuTypeExtension.create(SettlerInventoryMenu::new));
 
+    public static final DeferredHolder<MenuType<?>, MenuType<com.hearthstead.menu.FishRackMenu>> FISH_RACK =
+        MENUS.register("fish_rack", () -> IMenuTypeExtension.create(com.hearthstead.menu.FishRackMenu::new));
+
     public static void register(IEventBus bus) {
         MENUS.register(bus);
     }

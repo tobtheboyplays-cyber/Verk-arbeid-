@@ -11,7 +11,6 @@ import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
-import com.hearthstead.settlement.Mayor;
 import com.hearthstead.settlement.PendingPlayerDeliveryLedger;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
@@ -55,7 +54,7 @@ import java.util.HashSet;
 import java.util.UUID;
 import java.util.function.Consumer;
 
-/** Contract tests for per-settlement knowledge and physical Mayor emblems. */
+/** Contract tests for per-settlement knowledge and physical Guildmaster emblems. */
 @GameTestHolder(Hearthstead.MODID)
 @PrefixGameTestTemplate(false)
 public final class DevelopmentGameTests {
@@ -66,7 +65,7 @@ public final class DevelopmentGameTests {
         HashSet<Profession> seen = new HashSet<>();
         for (JobEmblemCatalog.Entry entry : JobEmblemCatalog.RELEASE_CATALOG) {
             helper.assertTrue(seen.add(entry.profession()),
-                "Mayor catalog contains duplicate " + entry.profession());
+                "Guildmaster catalog contains duplicate " + entry.profession());
             helper.assertTrue(entry.unlock().implemented()
                     && entry.unlock().knowledge().jobEmblems().contains(entry.profession()),
                 entry.profession() + " must be granted by its implemented knowledge node");
@@ -104,8 +103,10 @@ public final class DevelopmentGameTests {
         helper.assertTrue(!viewer.getRecipeBook().contains(
                 Hearthstead.id("build_plan_house"))
                 && !viewer.getRecipeBook().contains(
-                    Hearthstead.id("build_plan_lumber_camp")),
-            "recipe hints must not reveal the later Home or Timber plans early");
+                    Hearthstead.id("build_plan_lumber_camp"))
+                && !viewer.getRecipeBook().contains(
+                    Hearthstead.id("work_scepter")),
+            "recipe hints must not reveal the later Home, Timber plan or Work Scepter early");
 
         int revision = Development.revisionOf(helper.getLevel(), a.settlement);
         payAndUnlock(helper, a, DevelopmentNode.TIMBER_RIGHTS);
@@ -114,18 +115,22 @@ public final class DevelopmentGameTests {
         helper.assertTrue(!Development.isBuildingUnlocked(helper.getLevel(), b.settlement,
             BuildingType.LUMBER_CAMP), "A's Timber knowledge must never leak into B");
         putCosts(a.hearth, DevelopmentNode.TIMBER_RIGHTS);
+        int replayCoins = count(a.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get());
         int replayLogs = count(a.hearth, Items.OAK_LOG);
         int replayLeather = count(a.hearth, Items.LEATHER);
         Development.Result replay = Development.purchaseNode(helper.getLevel(), a.settlement,
             a.hearth, DevelopmentNode.TIMBER_RIGHTS, revision);
         helper.assertTrue(replay == Development.Result.STALE
+                && count(a.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == replayCoins
                 && count(a.hearth, Items.OAK_LOG) == replayLogs
                 && count(a.hearth, Items.LEATHER) == replayLeather,
             "a replayed node packet must be stale and charge nothing");
         DevelopmentRecipeBook.syncPlayerHints(viewer, a.settlement);
         helper.assertTrue(viewer.getRecipeBook().contains(
-                Hearthstead.id("build_plan_lumber_camp")),
-            "learned Timber knowledge must become visible as a player recipe-book hint");
+                Hearthstead.id("build_plan_lumber_camp"))
+                && viewer.getRecipeBook().contains(
+                    Hearthstead.id("work_scepter")),
+            "learned Timber knowledge must reveal both the Lumber Camp plan and physical Work Scepter recipe");
 
         DevelopmentState disk = DevelopmentState.readNbt(
             Development.of(helper.getLevel(), a.settlement).writeNbt());
@@ -141,23 +146,27 @@ public final class DevelopmentGameTests {
     public void insufficientAndPrerequisiteRefusalsTakeNothing(GameTestHelper helper) {
         Fixture fixture = fixture(helper, new BlockPos(5, 1, 5), "Short");
         putCosts(fixture.hearth, DevelopmentNode.TIMBER_RIGHTS);
+        int nodeCost = DevelopmentNode.TIMBER_RIGHTS.costs().getFirst().count();
         int revision = Development.revisionOf(helper.getLevel(), fixture.settlement);
         Development.Result quest = Development.purchaseNode(helper.getLevel(),
             fixture.settlement, fixture.hearth, DevelopmentNode.TIMBER_RIGHTS, revision);
         helper.assertTrue(quest == Development.Result.QUEST_REQUIRED,
             "materials cannot bypass the live First Fire foundation quest, got " + quest);
-        helper.assertTrue(count(fixture.hearth, Items.OAK_LOG) == 8
-                && count(fixture.hearth, Items.COBBLESTONE) == 8,
+        helper.assertTrue(count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == nodeCost,
             "an unmet quest must take no physical materials");
 
         prepareFoundation(helper, fixture, 1, 9);
-        fixture.hearth.getInventory().extractItem(1, 1, false);
+        for (int slot = 0; slot < fixture.hearth.getInventory().getSlots(); slot++) {
+            if (fixture.hearth.getInventory().getStackInSlot(slot).is(com.hearthstead.registry.ModItems.GOLD_COIN.get())) {
+                helper.assertTrue(fixture.hearth.getInventory().extractItem(slot, 1, false).getCount() == 1, "remove exactly one seeded coin");
+                break;
+            }
+        }
         Development.Result shortResult = Development.purchaseNode(helper.getLevel(),
             fixture.settlement, fixture.hearth, DevelopmentNode.TIMBER_RIGHTS, revision);
         helper.assertTrue(shortResult == Development.Result.MATERIALS,
-            "8 logs + 7/8 cobblestone must refuse atomically, got " + shortResult);
-        helper.assertTrue(count(fixture.hearth, Items.OAK_LOG) == 8
-                && count(fixture.hearth, Items.COBBLESTONE) == 7,
+            "one coin below the exact node price must refuse atomically, got " + shortResult);
+        helper.assertTrue(count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == nodeCost - 1,
             "refused node must not partially charge");
         helper.assertTrue(Development.revisionOf(helper.getLevel(), fixture.settlement)
             == revision, "refusal must not advance revision");
@@ -168,8 +177,7 @@ public final class DevelopmentGameTests {
         helper.assertTrue(prereq == Development.Result.PREREQUISITE,
             "Stores and Roads before Timber Rights must refuse on prerequisite, got "
                 + prereq);
-        helper.assertTrue(count(fixture.hearth, Items.LEATHER) == 2
-                && count(fixture.hearth, Items.OAK_LOG) == 16,
+        helper.assertTrue(count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == nodeCost - 1 + DevelopmentNode.STORES_AND_ROADS.costs().getFirst().count(),
             "prerequisite refusal must take no physical materials");
         helper.succeed();
     }
@@ -212,22 +220,108 @@ public final class DevelopmentGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty16", batch = "development", timeoutTicks = 100)
+    public void spectatorTransitionCannotSpendPreviouslyAvailableEmblem(GameTestHelper helper) {
+        Fixture fixture = fixture(helper, new BlockPos(6, 1, 6), "Spectator Purchase");
+        seatGuildmaster(helper, fixture);
+        unlockThrough(helper, fixture, DevelopmentNode.TIMBER_RIGHTS);
+        // The vanilla mock hardcodes isSpectator=false; use the real mode-backed player.
+        var cookie = net.minecraft.server.network.CommonListenerCookie.createInitial(
+            new com.mojang.authlib.GameProfile(UUID.randomUUID(), "spectator-buyer"), false);
+        ServerPlayer actor = new ServerPlayer(helper.getLevel().getServer(), helper.getLevel(),
+            cookie.gameProfile(), cookie.clientInformation());
+        var connection = new net.minecraft.network.Connection(net.minecraft.network.protocol.PacketFlow.SERVERBOUND);
+        new io.netty.channel.embedded.EmbeddedChannel(connection);
+        helper.getLevel().getServer().getPlayerList().placeNewPlayer(connection, actor, cookie);
+        actor.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        helper.assertTrue(!actor.isSpectator() && !actor.isCreative()
+                && actor.gameMode.getGameModeForPlayer() == net.minecraft.world.level.GameType.SURVIVAL,
+            "fixture uses actual Survival mode, not a hardcoded creative mock");
+        actor.setPos(fixture.settlement.center.getX() + 0.5D,
+            fixture.settlement.center.getY() + 1.0D, fixture.settlement.center.getZ() + 0.5D);
+        Item coin = com.hearthstead.registry.ModItems.GOLD_COIN.get();
+        int price = JobEmblemCatalog.forProfession(Profession.LUMBERER).costs().getFirst().count();
+        helper.assertTrue(price == 1, "fixture proves the affordable one-Coin Lumberer starter price");
+        actor.getInventory().setItem(0, new ItemStack(coin, 1));
+        put(fixture.hearth, coin, 1);
+        putEmblemGoods(fixture.hearth, Profession.LUMBERER);
+        int revision = Development.revisionOf(helper.getLevel(), fixture.settlement);
+        DevelopmentState state = Development.of(helper.getLevel(), fixture.settlement);
+        helper.assertTrue(Development.assessEmblem(helper.getLevel(), fixture.settlement,
+                fixture.hearth, Profession.LUMBERER, actor) == Development.Result.APPLIED,
+            "survival buyer must have a genuinely available offer before changing mode");
+        var inventoryBefore = actor.getInventory().save(new net.minecraft.nbt.ListTag());
+        actor.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+        helper.assertTrue(actor.isSpectator()
+                && actor.gameMode.getGameModeForPlayer() == net.minecraft.world.level.GameType.SPECTATOR,
+            "the same previously eligible buyer must actually transition to Spectator");
+        helper.assertTrue(Development.assessEmblem(helper.getLevel(), fixture.settlement,
+                fixture.hearth, Profession.LUMBERER, actor) == Development.Result.READ_ONLY,
+            "a fresh spectator snapshot must disable the previously available offer");
+        for (int attempt = 0; attempt < 2; attempt++) {
+            Development.EmblemPurchase denied = Development.purchaseEmblem(helper.getLevel(),
+                fixture.settlement, fixture.hearth, Profession.LUMBERER, revision, actor);
+            helper.assertTrue(denied.result() == Development.Result.READ_ONLY
+                    && denied.emblem().isEmpty() && denied.deliveryId() == null
+                    && state.revision() == revision && state.pendingDeliveryCount() == 0
+                    && count(fixture.hearth, coin) == 1
+                    && inventoryBefore.equals(actor.getInventory().save(new net.minecraft.nbt.ListTag())),
+                "spectator stale-open click and retry must preserve wallet, Hearth, revision and issuance");
+        }
+        actor.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+        helper.assertTrue(!actor.isSpectator() && !actor.isCreative()
+                && actor.gameMode.getGameModeForPlayer() == net.minecraft.world.level.GameType.SURVIVAL,
+            "fixture uses actual Survival mode, not a hardcoded creative mock");
+        Development.EmblemPurchase paid = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.LUMBERER, revision, actor);
+        helper.assertTrue(paid.applied() && paid.deliveryId() != null
+                && state.revision() == revision + 1 && state.pendingDeliveryCount() == 1
+                && count(fixture.hearth, coin) == 1 && actor.getInventory().countItem(coin) == 0
+                && count(fixture.hearth, Items.FLINT) == 0,
+            "return to survival must pay one wallet Coin and the Hearth goods once and preserve the unneeded Hearth Coin");
+        Development.deliverPending(helper.getLevel(), fixture.settlement, actor, paid.deliveryId());
+        Item emblem = JobEmblemItem.stackFor(Profession.LUMBERER).getItem();
+        helper.assertTrue(state.pendingDeliveryCount() == 0 && actor.getInventory().countItem(emblem) == 1,
+            "successful retry must deliver exactly one physical emblem");
+        Development.EmblemPurchase replay = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.LUMBERER, revision, actor);
+        helper.assertTrue(replay.result() == Development.Result.STALE
+                && state.revision() == revision + 1 && actor.getInventory().countItem(emblem) == 1,
+            "the successful revision cannot be replayed to duplicate its emblem");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty16", batch = "development", timeoutTicks = 200)
     public void emblemPurchasePaysOnceAndReplayCannotDuplicate(GameTestHelper helper) {
         Fixture fixture = fixture(helper, new BlockPos(6, 1, 6), "Emblem");
         unlockThrough(helper, fixture, DevelopmentNode.TIMBER_RIGHTS);
+        put(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get(), JobEmblemCatalog.forProfession(Profession.LUMBERER).costs().getFirst().count());
+        putEmblemGoods(fixture.hearth, Profession.LUMBERER);
+        int absentRevision = Development.revisionOf(helper.getLevel(), fixture.settlement);
+        Development.EmblemPurchase absent = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.LUMBERER, absentRevision);
+        helper.assertTrue(absent.result() == Development.Result.MAYOR_UNAVAILABLE
+                && absent.emblem().isEmpty()
+                && Development.revisionOf(helper.getLevel(), fixture.settlement) == absentRevision
+                && count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get())
+                    == JobEmblemCatalog.forProfession(Profession.LUMBERER).costs().getFirst().count(),
+            "without a live Guildmaster a funded purchase must issue and charge nothing, got "
+                + absent.result());
+        take(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get());
+        takeEmblemGoods(fixture.hearth, Profession.LUMBERER);
+        seatGuildmaster(helper, fixture);
         int unfundedRevision = Development.revisionOf(helper.getLevel(), fixture.settlement);
         Development.EmblemPurchase unfunded = Development.purchaseEmblem(helper.getLevel(),
             fixture.settlement, fixture.hearth, Profession.LUMBERER, unfundedRevision);
         helper.assertTrue(unfunded.result() == Development.Result.MATERIALS
                 && unfunded.emblem().isEmpty(),
-            "an unfunded Mayor purchase must issue nothing, got " + unfunded.result());
+            "an unfunded Guildmaster purchase must issue nothing, got " + unfunded.result());
         helper.assertTrue(Development.revisionOf(helper.getLevel(), fixture.settlement)
                 == unfundedRevision,
-            "an unfunded Mayor purchase must not consume the replay revision");
+            "an unfunded Guildmaster purchase must not consume the replay revision");
 
-        put(fixture.hearth, Items.FLINT, 2);
-        put(fixture.hearth, Items.LEATHER, 2);
+        put(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get(), JobEmblemCatalog.forProfession(Profession.LUMBERER).costs().getFirst().count());
+        putEmblemGoods(fixture.hearth, Profession.LUMBERER);
         int revision = Development.revisionOf(helper.getLevel(), fixture.settlement);
 
         Development.EmblemPurchase first = Development.purchaseEmblem(helper.getLevel(),
@@ -235,18 +329,17 @@ public final class DevelopmentGameTests {
         helper.assertTrue(first.applied(), "unlocked, funded emblem must be issued");
         helper.assertTrue(JobEmblemItem.professionOf(first.emblem()) == Profession.LUMBERER,
             "issued item must carry Lumberer identity");
-        helper.assertTrue(count(fixture.hearth, Items.FLINT) == 0
-            && count(fixture.hearth, Items.LEATHER) == 0,
-            "the exact physical Mayor price must leave the Hearth");
+        helper.assertTrue(count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == 0
+                && count(fixture.hearth, Items.FLINT) == 0,
+            "the exact physical Guildmaster price, Coins and goods, must leave the Hearth");
 
-        put(fixture.hearth, Items.FLINT, 2);
-        put(fixture.hearth, Items.LEATHER, 2);
+        put(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get(), JobEmblemCatalog.forProfession(Profession.LUMBERER).costs().getFirst().count());
+        putEmblemGoods(fixture.hearth, Profession.LUMBERER);
         Development.EmblemPurchase replay = Development.purchaseEmblem(helper.getLevel(),
             fixture.settlement, fixture.hearth, Profession.LUMBERER, revision);
         helper.assertTrue(replay.result() == Development.Result.STALE
             && replay.emblem().isEmpty(), "same revision replay must issue nothing");
-        helper.assertTrue(count(fixture.hearth, Items.FLINT) == 2
-            && count(fixture.hearth, Items.LEATHER) == 2,
+        helper.assertTrue(count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == JobEmblemCatalog.forProfession(Profession.LUMBERER).costs().getFirst().count(),
             "same revision replay must charge nothing");
 
         ServerPlayer actor = helper.makeMockServerPlayerInLevel();
@@ -266,8 +359,7 @@ public final class DevelopmentGameTests {
             fixture.settlement);
         helper.assertTrue(paid.applied() && paid.deliveryId() != null
                 && liveState.pendingDeliveryCount() == 1
-                && count(fixture.hearth, Items.FLINT) == 0
-                && count(fixture.hearth, Items.LEATHER) == 0,
+                && count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == 0,
             "a paid player purchase must commit its exact pending output with the charge");
 
         Consumer<EntityJoinLevelEvent> rejectEmblemSpawn = event -> {
@@ -322,46 +414,102 @@ public final class DevelopmentGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = "empty16", batch = "development", timeoutTicks = 300)
-    public void doctrineChoicePermanentlyExcludesTheOtherBranchesAndPersists(
+    @GameTest(template = "empty16", batch = "development", timeoutTicks = 350)
+    public void borderWardensPaysOncePersistsAndUnlocksOnlyHunter(
             GameTestHelper helper) {
-        Fixture fixture = fixture(helper, new BlockPos(8, 1, 8), "Doctrine");
+        Fixture fixture = fixture(helper, new BlockPos(8, 1, 8), "Hunter Border");
+        seatGuildmaster(helper, fixture);
         unlockThrough(helper, fixture, DevelopmentNode.ARM_THE_WATCH);
         completeFirstRaid(fixture.settlement);
         payAndUnlock(helper, fixture, DevelopmentNode.FIRST_RAID_AFTERMATH);
         Building barracks = GameTestFixtures.register(helper, fixture.settlement,
             BuildingType.BARRACKS, 10, 9);
-        SettlerEntity guard = settler(helper, fixture.settlement, "Doctrine Guard",
+        SettlerEntity guard = settler(helper, fixture.settlement, "Border Guard",
             new BlockPos(9, 1, 7));
         helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
-                barracks, guard).ok(),
-            "fixture Guard must have one real registered Barracks employer");
-        helper.assertTrue(DevelopmentQuests.noteGuardExperience(helper.getLevel(),
-                fixture.settlement, guard, 40),
-            "40 exact server-awarded Guard XP must complete the Shield quest");
+                barracks, guard).ok()
+                && DevelopmentQuests.noteGuardExperience(helper.getLevel(),
+                    fixture.settlement, guard, 40),
+            "Border fixture needs one employed Guard and 40 exact awarded XP");
         payAndUnlock(helper, fixture, DevelopmentNode.SHIELD_DOCTRINE);
 
-        DevelopmentState state = Development.of(helper.getLevel(), fixture.settlement);
-        helper.assertTrue(state.activeDoctrine() == DevelopmentNode.SHIELD_DOCTRINE,
-            "Shield must be the one active doctrine");
-        putCosts(fixture.hearth, DevelopmentNode.GUILD_DOCTRINE);
-        int iron = count(fixture.hearth, Items.IRON_INGOT);
-        int logs = count(fixture.hearth, Items.OAK_LOG);
-        Development.Result switchResult = Development.purchaseNode(helper.getLevel(),
-            fixture.settlement, fixture.hearth, DevelopmentNode.GUILD_DOCTRINE,
-            state.revision());
-        helper.assertTrue(switchResult == Development.Result.DOCTRINE_EXCLUSIVE,
-            "a second doctrine must be permanently excluded, got " + switchResult);
-        helper.assertTrue(state.activeDoctrine() == DevelopmentNode.SHIELD_DOCTRINE,
-            "refusal must leave exactly one active doctrine");
-        helper.assertTrue(count(fixture.hearth, Items.IRON_INGOT) == iron
-            && count(fixture.hearth, Items.OAK_LOG) == logs,
-            "refused doctrine switch must charge nothing");
+        helper.assertTrue(!Development.isBuildingUnlocked(helper.getLevel(),
+                fixture.settlement, BuildingType.HUNTERS_LODGE)
+                && !Development.isEmblemUnlocked(helper.getLevel(),
+                    fixture.settlement, Profession.HUNTER),
+            "Hunter plans and hiring must stay locked before Border Wardens");
+        helper.assertTrue(DevelopmentNode.BORDER_WARDENS.knowledge().buildPlans().size() == 1
+                && DevelopmentNode.BORDER_WARDENS.knowledge().buildPlans().get(0)
+                    == BuildingType.HUNTERS_LODGE
+                && DevelopmentNode.BORDER_WARDENS.knowledge().jobEmblems().size() == 1
+                && DevelopmentNode.BORDER_WARDENS.knowledge().jobEmblems().get(0)
+                    == Profession.HUNTER,
+            "released Border Wardens must promise only the complete Hunter vertical");
 
-        DevelopmentState disk = DevelopmentState.readNbt(state.writeNbt());
-        helper.assertTrue(disk.activeDoctrine() == DevelopmentNode.SHIELD_DOCTRINE
-            && disk.unlocked(DevelopmentNode.SHIELD_DOCTRINE),
-            "active and permanent doctrine knowledge must survive reload");
+        putCosts(fixture.hearth, DevelopmentNode.BORDER_WARDENS);
+        int nodePrice = DevelopmentNode.BORDER_WARDENS.costs().getFirst().count();
+        int emblemPrice = JobEmblemCatalog.forProfession(Profession.HUNTER).costs().getFirst().count();
+        int nodeRevision = Development.revisionOf(helper.getLevel(), fixture.settlement);
+        Development.Result unlocked = Development.purchaseNode(helper.getLevel(),
+            fixture.settlement, fixture.hearth, DevelopmentNode.BORDER_WARDENS,
+            nodeRevision);
+        helper.assertTrue(unlocked == Development.Result.APPLIED
+                && count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == 0,
+            "Border Wardens must consume exactly the current node coin price once");
+        helper.assertTrue(Development.isBuildingUnlocked(helper.getLevel(),
+                fixture.settlement, BuildingType.HUNTERS_LODGE)
+                && Development.isEmblemUnlocked(helper.getLevel(),
+                    fixture.settlement, Profession.HUNTER)
+                && !Development.isBuildingUnlocked(helper.getLevel(),
+                    fixture.settlement, BuildingType.FLETCHER)
+                && !Development.isBuildingUnlocked(helper.getLevel(),
+                    fixture.settlement, BuildingType.FISHERY)
+                && (JobEmblemCatalog.forProfession(Profession.FLETCHER) == null
+                    || JobEmblemCatalog.forProfession(Profession.FLETCHER).unlock()
+                        == DevelopmentNode.FORTIFICATION)
+                && !Development.isEmblemUnlocked(helper.getLevel(), fixture.settlement,
+                    Profession.FLETCHER)
+                && JobEmblemCatalog.forProfession(Profession.FISHER) != null
+                && !Development.isEmblemUnlocked(helper.getLevel(), fixture.settlement, Profession.FISHER),
+            "one paid node must expose Hunter without advertising parked trades");
+
+        DevelopmentState live = Development.of(helper.getLevel(), fixture.settlement);
+        DevelopmentState disk = DevelopmentState.readNbt(live.writeNbt());
+        helper.assertTrue(disk.unlocked(DevelopmentNode.BORDER_WARDENS),
+            "paid Border Wardens knowledge must survive its NBT round trip");
+
+        putCosts(fixture.hearth, DevelopmentNode.BORDER_WARDENS);
+        int afterNodeRevision = Development.revisionOf(helper.getLevel(), fixture.settlement);
+        Development.Result nodeReplay = Development.purchaseNode(helper.getLevel(),
+            fixture.settlement, fixture.hearth, DevelopmentNode.BORDER_WARDENS,
+            nodeRevision);
+        helper.assertTrue(nodeReplay == Development.Result.STALE
+                && Development.revisionOf(helper.getLevel(), fixture.settlement)
+                    == afterNodeRevision
+                && count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == nodePrice,
+            "stale node replay must retain its full physical payment");
+
+        put(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get(), emblemPrice);
+        putEmblemGoods(fixture.hearth, Profession.HUNTER);
+        int emblemRevision = Development.revisionOf(helper.getLevel(), fixture.settlement);
+        Development.EmblemPurchase emblem = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.HUNTER, emblemRevision);
+        helper.assertTrue(emblem.applied()
+                && JobEmblemItem.professionOf(emblem.emblem()) == Profession.HUNTER
+                && count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == nodePrice,
+            "the Guildmaster must issue one physical Hunter emblem for exactly the current emblem coin price");
+
+        put(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get(), emblemPrice);
+
+        int afterEmblemRevision = Development.revisionOf(helper.getLevel(), fixture.settlement);
+        Development.EmblemPurchase emblemReplay = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.HUNTER, emblemRevision);
+        helper.assertTrue(emblemReplay.result() == Development.Result.STALE
+                && emblemReplay.emblem().isEmpty()
+                && Development.revisionOf(helper.getLevel(), fixture.settlement)
+                    == afterEmblemRevision
+                && count(fixture.hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == nodePrice + emblemPrice,
+            "stale Hunter emblem replay must issue and charge nothing");
         helper.succeed();
     }
 
@@ -449,6 +597,111 @@ public final class DevelopmentGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty16", batch = "development", timeoutTicks = 300)
+    public void firstWatchEarlyBranchRequiresCourierProofAndSurvivesFounderReassignment(
+            GameTestHelper helper) {
+        Fixture fixture = fixture(helper, new BlockPos(7, 1, 7), "Early Watch");
+        Foundation foundation = prepareFoundation(helper, fixture, 1, 9);
+        Item coin = com.hearthstead.registry.ModItems.GOLD_COIN.get();
+        // Tech-tree rework: Coins stay the first line; real goods follow.
+        helper.assertTrue(DevelopmentNode.FIRST_WATCH.costs().size()
+                    == 1 + DevelopmentNode.FIRST_WATCH.materialCosts().size()
+                && DevelopmentNode.FIRST_WATCH.costs().getFirst().item() == coin
+                && DevelopmentNode.FIRST_WATCH.costs().getFirst().count() == 4
+                && JobEmblemCatalog.forProfession(Profession.GUARD).costs().size()
+                    == 1 + JobEmblemCatalog.forProfession(Profession.GUARD).goods().size()
+                && JobEmblemCatalog.forProfession(Profession.GUARD).costs()
+                    .getFirst().item() == coin
+                && JobEmblemCatalog.forProfession(Profession.GUARD).costs()
+                    .getFirst().count() == 3,
+            "First Watch keeps its 4-Coin price; the Guard emblem costs 3 since the 26 Sep Coin balance");
+
+        payAndUnlock(helper, fixture, DevelopmentNode.TIMBER_RIGHTS);
+        Building camp = GameTestFixtures.register(helper, fixture.settlement,
+            BuildingType.LUMBER_CAMP, 1, 1);
+        helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
+                camp, foundation.worker).ok()
+                && DevelopmentQuests.noteLumberLogsStored(helper.getLevel(),
+                    fixture.settlement, camp, foundation.worker,
+                    new ItemStack(Items.OAK_LOG), 1),
+            "early Watch setup needs one real Lumberer storage delivery");
+        payAndUnlock(helper, fixture, DevelopmentNode.STORES_AND_ROADS);
+
+        assertObjective(helper, fixture, DevelopmentNode.FIRST_WATCH,
+            DevelopmentObjective.COURIER_DELIVERIES, 0, 1,
+            "the new First Watch baseline must start at zero after Stores and Roads");
+        helper.assertTrue(!Development.of(helper.getLevel(), fixture.settlement)
+                    .unlocked(DevelopmentNode.HOSPITALITY)
+                && !Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement,
+                    BuildingType.TAVERN)
+                && Development.assessNode(helper.getLevel(), fixture.settlement,
+                    fixture.hearth, DevelopmentNode.FIRST_WATCH).result()
+                    == Development.Result.QUEST_REQUIRED,
+            "First Watch must remain blocked by the delivery, not Tavern or housing");
+
+        CompoundTag oldBaselineSave = Development.of(helper.getLevel(), fixture.settlement)
+            .writeNbt();
+        CompoundTag oldBaseline = new CompoundTag();
+        oldBaseline.putString("Key", "first_watch/housed_settlers");
+        oldBaseline.putInt("Value", 4);
+        oldBaselineSave.getList("QuestBaselines", Tag.TAG_COMPOUND).add(oldBaseline);
+        DevelopmentState migrated = DevelopmentState.readNbt(oldBaselineSave);
+        DevelopmentQuests.Progress migratedProgress = DevelopmentQuests.progress(
+            helper.getLevel(), fixture.settlement, fixture.hearth, migrated,
+            DevelopmentNode.FIRST_WATCH).getFirst();
+        helper.assertTrue(!migrated.quarantined()
+                && migratedProgress.objective() == DevelopmentObjective.COURIER_DELIVERIES
+                && migratedProgress.progress() == 0 && migratedProgress.target() == 1
+                && hasBaseline(migrated.writeNbt(), "first_watch/housed_settlers"),
+            "old First Watch housing history must survive inactive and never credit Courier delivery");
+
+        Building warehouse = GameTestFixtures.register(helper, fixture.settlement,
+            BuildingType.WAREHOUSE, 10, 1);
+        helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
+                warehouse, foundation.worker).ok()
+                && foundation.worker.getProfession() == Profession.COURIER,
+            "the same founder must become a live Warehouse Courier before a delivery counts");
+        assertObjective(helper, fixture, DevelopmentNode.FIRST_WATCH,
+            DevelopmentObjective.COURIER_DELIVERIES, 0, 1,
+            "the Courier role name alone must not complete First Watch");
+        helper.assertTrue(DevelopmentQuests.noteCourierDelivery(helper.getLevel(),
+                fixture.settlement, foundation.worker, camp, warehouse, 1),
+            "only a validated productive Courier route may record early Watch progress");
+        assertObjective(helper, fixture, DevelopmentNode.FIRST_WATCH,
+            DevelopmentObjective.COURIER_DELIVERIES, 1, 1,
+            "one actual Courier route must complete the early Watch objective");
+
+        payAndUnlock(helper, fixture, DevelopmentNode.FIRST_WATCH);
+        helper.assertTrue(Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement,
+                BuildingType.BARRACKS)
+                && Development.isEmblemUnlocked(helper.getLevel(), fixture.settlement,
+                    Profession.GUARD),
+            "early First Watch must grant the Barracks plan and Guard emblem before Tavern");
+        Building barracks = GameTestFixtures.register(helper, fixture.settlement,
+            BuildingType.BARRACKS, 10, 10);
+        helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
+                barracks, foundation.worker).ok()
+                && foundation.worker.getProfession() == Profession.GUARD,
+            "the recorded Courier founder must be able to become the early Guard");
+
+        DevelopmentState afterReassignment = DevelopmentState.readNbt(
+            Development.of(helper.getLevel(), fixture.settlement).writeNbt());
+        DevelopmentQuests.Progress retainedDelivery = DevelopmentQuests.progress(
+            helper.getLevel(), fixture.settlement, fixture.hearth, afterReassignment,
+            DevelopmentNode.FIRST_WATCH).getFirst();
+        helper.assertTrue(!afterReassignment.quarantined()
+                && retainedDelivery.progress() == 1 && retainedDelivery.target() == 1,
+            "Courier delivery proof must survive same-founder Guard reassignment and reload");
+        assertObjective(helper, fixture, DevelopmentNode.ARM_THE_WATCH,
+            DevelopmentObjective.GUARD_EQUIPMENT_DELIVERIES, 0, 1,
+            "early Guard reassignment must not satisfy Arm the Watch's equipment delivery gate");
+        helper.assertTrue(Development.assessNode(helper.getLevel(), fixture.settlement,
+                fixture.hearth, DevelopmentNode.ARM_THE_WATCH).result()
+                == Development.Result.QUEST_REQUIRED,
+            "Arm the Watch must remain blocked until its separate real equipment delivery");
+        helper.succeed();
+    }
+
     /**
      * The Stores quest is not allowed to pass on a test-only adapter call.
      * A worker hired through the real Lumber Camp must fetch the physical axe,
@@ -518,7 +771,7 @@ public final class DevelopmentGameTests {
      */
     @GameTest(template = "empty16", batch = "development_runtime",
         timeoutTicks = 2400)
-    public void realCourierCollectionAdvancesCultivatedObjective(
+    public void realCourierCollectionAdvancesCultivatedAndEarlyWatch(
             GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 16);
@@ -526,6 +779,10 @@ public final class DevelopmentGameTests {
             "Runtime Courier");
         fixture.settlement.radius = 20;
         Foundation foundation = prepareFoundation(helper, fixture, 10, 1);
+        // This proof follows one founder through Courier -> Guard. Keep the
+        // other residents present, but still so none of them can disturb the
+        // fixture's logs before the observed Courier collects them.
+        foundation.resident.setNoAi(true);
         payAndUnlock(helper, fixture, DevelopmentNode.TIMBER_RIGHTS);
 
         Building camp = GameTestFixtures.register(helper, fixture.settlement,
@@ -548,9 +805,11 @@ public final class DevelopmentGameTests {
         helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
                 warehouse, worker).ok(),
             "runtime Cultivated proof needs a real Warehouse-employed Courier");
-        assertObjective(helper, fixture, DevelopmentNode.CULTIVATED_GROUND,
+        // Option 2: Fields & Farmer has no Courier gate any more (a founding
+        // trade); the same real route is still proven on early Watch below.
+        assertObjective(helper, fixture, DevelopmentNode.FIRST_WATCH,
             DevelopmentObjective.COURIER_DELIVERIES, 0, 1,
-            "Cultivated must start at 0/1 before the real Courier route");
+            "early Watch must start at 0/1 before the real Courier route");
 
         final boolean[] sawReservedRequest = {false};
         final boolean[] sawPhysicalBag = {false};
@@ -578,10 +837,33 @@ public final class DevelopmentGameTests {
                     + worker.routeFailureNote() + "]");
             helper.assertTrue(sawReservedRequest[0] && sawPhysicalBag[0],
                 "Cultivated proof must observe both the reserved output request and "
-                    + "its physical Courier bag load");
-            assertObjective(helper, fixture, DevelopmentNode.CULTIVATED_GROUND,
+                    + "its physical Courier bag load [reserved=" + sawReservedRequest[0]
+                    + ", carried=" + sawPhysicalBag[0] + ", activity=" + worker.getActivity()
+                    + ", route=" + worker.routeFailureNote() + "]");
+            assertObjective(helper, fixture, DevelopmentNode.FIRST_WATCH,
                 DevelopmentObjective.COURIER_DELIVERIES, 1, 1,
-                "the completed production Courier route must author exact Cultivated 1/1");
+                "that same real post-Stores Courier route must author early Watch 1/1");
+            payAndUnlock(helper, fixture, DevelopmentNode.FIRST_WATCH);
+            helper.assertTrue(!Development.of(helper.getLevel(), fixture.settlement)
+                        .unlocked(DevelopmentNode.HOSPITALITY)
+                    && Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement,
+                        BuildingType.BARRACKS)
+                    && Development.isEmblemUnlocked(helper.getLevel(), fixture.settlement,
+                        Profession.GUARD),
+                "the physical Courier route must unlock Barracks and Guard before Tavern");
+            Building barracks = GameTestFixtures.register(helper, fixture.settlement,
+                BuildingType.BARRACKS, 11, 5);
+            helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
+                    barracks, worker).ok() && worker.getProfession() == Profession.GUARD,
+                "the founder who made the physical Courier route must be able to become Guard");
+            DevelopmentState afterReassignment = DevelopmentState.readNbt(
+                Development.of(helper.getLevel(), fixture.settlement).writeNbt());
+            DevelopmentQuests.Progress retainedDelivery = DevelopmentQuests.progress(
+                helper.getLevel(), fixture.settlement, fixture.hearth, afterReassignment,
+                DevelopmentNode.FIRST_WATCH).getFirst();
+            helper.assertTrue(!afterReassignment.quarantined()
+                    && retainedDelivery.progress() == 1 && retainedDelivery.target() == 1,
+                "physical Courier proof must survive same-founder Guard reassignment and reload");
         });
     }
 
@@ -635,9 +917,9 @@ public final class DevelopmentGameTests {
         helper.assertTrue(Employment.hire(helper.getLevel(), fixture.settlement,
                 farmhouse, worker).ok(),
             "runtime Home proof needs a real Farmhouse-employed Farmer");
-        assertObjective(helper, fixture, DevelopmentNode.HOME,
-            DevelopmentObjective.FARM_CROPS_STORED, 0, 1,
-            "Home must start at 0/1 before the real Farmer harvest");
+        helper.assertTrue(Development.of(helper.getLevel(), fixture.settlement)
+            .writeNbt().getCompound("QuestCounters").getInt("FarmCropsStored") == 0,
+            "crop history must start empty before the real Farmer harvest");
 
         final boolean[] sawHarvest = {false};
         helper.succeedWhen(() -> {
@@ -653,9 +935,9 @@ public final class DevelopmentGameTests {
             helper.assertTrue(helper.getBlockState(crop).is(Blocks.WHEAT)
                     && helper.getBlockState(crop).getValue(CropBlock.AGE) < 7,
                 "the harvested world crop must be physically replanted");
-            assertObjective(helper, fixture, DevelopmentNode.HOME,
-                DevelopmentObjective.FARM_CROPS_STORED, 1, 1,
-                "the production Farmer deposit must author exact Home 1/1");
+            helper.assertTrue(Development.of(helper.getLevel(), fixture.settlement)
+                .writeNbt().getCompound("QuestCounters").getInt("FarmCropsStored") == 1,
+                "the production Farmer deposit must record exactly one crop independently of early housing");
         });
     }
 
@@ -718,6 +1000,179 @@ public final class DevelopmentGameTests {
                 && progress.target() == expectedTarget,
             message + " [objective=" + progress.objective() + " progress="
                 + progress.progress() + '/' + progress.target() + "]");
+    }
+
+    private static boolean hasBaseline(CompoundTag tag, String key) {
+        var baselines = tag.getList("QuestBaselines", Tag.TAG_COMPOUND);
+        for (int i = 0; i < baselines.size(); i++) {
+            CompoundTag baseline = baselines.getCompound(i);
+            if (key.equals(baseline.getString("Key"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 100, batch = "early_housing")
+    public void housingCanBeLearnedBeforeProductionOrRecruitment(GameTestHelper helper) {
+        buildArena(helper, 16);
+        Fixture fixture = fixture(helper, new BlockPos(2, 1, 2), "Early Homes");
+        prepareFoundation(helper, fixture, 1, 9);
+        payAndUnlock(helper, fixture, DevelopmentNode.HOME);
+        DevelopmentState state = Development.of(helper.getLevel(), fixture.settlement);
+        helper.assertTrue(state.unlocked(DevelopmentNode.HOME)
+            && !state.unlocked(DevelopmentNode.TIMBER_RIGHTS)
+            && !state.unlocked(DevelopmentNode.CULTIVATED_GROUND)
+            && !state.unlocked(DevelopmentNode.HOSPITALITY),
+            "housing is a paid early branch without granting production or recruitment unlocks");
+        helper.assertTrue(Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement, BuildingType.HOUSE)
+            && Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement, BuildingType.LODGING),
+            "both real housing plans must be usable before a Farmer or Tavern");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "development")
+    public void hospitalityPublishesTradeStewardPlanAndTwoCoinMayorEmblem(
+            GameTestHelper helper) {
+        Fixture fixture = fixture(helper, new BlockPos(8, 1, 8), "Trade Steward");
+        seatGuildmaster(helper, fixture);
+        unlockThrough(helper, fixture, DevelopmentNode.HOSPITALITY);
+        // Option 2 split the Trading Post and the Trader off Hospitality onto
+        // their own founding node: Hospitality alone grants neither.
+        helper.assertTrue(!Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement,
+                BuildingType.TRADING_POST)
+                && !Development.isEmblemUnlocked(helper.getLevel(), fixture.settlement, Profession.TRADER),
+            "Hospitality (Tavern & Inn) no longer grants the Trading Post or the Trader");
+        payAndUnlock(helper, fixture, DevelopmentNode.TRADING_POST);
+        JobEmblemCatalog.Entry entry = JobEmblemCatalog.forProfession(Profession.TRADER);
+        Item coin = com.hearthstead.registry.ModItems.GOLD_COIN.get();
+        helper.assertTrue(entry != null && entry.costs().size() == 1 + entry.goods().size()
+                && entry.costs().getFirst().item() == coin
+                && entry.costs().getFirst().count() == 2
+                && Development.isBuildingUnlocked(helper.getLevel(), fixture.settlement,
+                    BuildingType.TRADING_POST)
+                && Development.isEmblemUnlocked(helper.getLevel(), fixture.settlement,
+                    Profession.TRADER),
+            "Trading Post must visibly grant the Trading Post plan and the two-Coin Trade Steward Emblem");
+
+        put(fixture.hearth, coin, 2);
+        putEmblemGoods(fixture.hearth, Profession.TRADER);
+        Development.EmblemPurchase purchase = Development.purchaseEmblem(
+            helper.getLevel(), fixture.settlement, fixture.hearth, Profession.TRADER,
+            Development.revisionOf(helper.getLevel(), fixture.settlement));
+        helper.assertTrue(purchase.applied()
+                && JobEmblemItem.professionOf(purchase.emblem()) == Profession.TRADER
+                && count(fixture.hearth, coin) == 0
+                && count(fixture.hearth, Items.PAPER) == 0
+                && count(fixture.hearth, Items.LEATHER) == 0,
+            "the Guildmaster must issue one physical Trade Steward Emblem for exactly two Coins plus its goods");
+        helper.succeed();
+    }
+
+    /**
+     * Emblem goods are real price lines: a short goods line refuses and takes
+     * nothing (and names the shortfall), a funded purchase charges Coins plus
+     * goods exactly once, a replay charges nothing, and a mid-payment
+     * extraction refusal restores every already-taken line.
+     */
+    @GameTest(template = "empty16", batch = "development", timeoutTicks = 200)
+    public void emblemGoodsAreChargedExactlyOnceWithRollback(GameTestHelper helper) {
+        Fixture fixture = fixture(helper, new BlockPos(6, 1, 6), "Emblem Goods");
+        seatGuildmaster(helper, fixture);
+        unlockThrough(helper, fixture, DevelopmentNode.STORES_AND_ROADS);
+        Item coin = com.hearthstead.registry.ModItems.GOLD_COIN.get();
+        JobEmblemCatalog.Entry courier = JobEmblemCatalog.forProfession(Profession.COURIER);
+        helper.assertTrue(courier != null && courier.coinPrice() == 2
+                && courier.goods().size() == 2
+                && courier.goods().get(0).item() == Items.CHEST
+                && courier.goods().get(0).count() == 1
+                && courier.goods().get(1).item() == Items.LEATHER
+                && courier.goods().get(1).count() == 2
+                && courier.costs().size() == 3 && courier.costs().getFirst().item() == coin,
+            "the Courier emblem must price 2 Coins, 1 Chest and 2 Leather");
+        clearHearth(fixture.hearth);
+        put(fixture.hearth, coin, 3);
+        put(fixture.hearth, Items.CHEST, 1);
+        put(fixture.hearth, Items.LEATHER, 1);
+        DevelopmentState state = Development.of(helper.getLevel(), fixture.settlement);
+        int revision = state.revision();
+
+        Development.EmblemPurchase shortGoods = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.COURIER, revision);
+        java.util.List<DevelopmentNode.Cost> missing = Development.missingEmblemCosts(
+            helper.getLevel(), fixture.settlement, fixture.hearth, Profession.COURIER, null);
+        helper.assertTrue(shortGoods.result() == Development.Result.MATERIALS
+                && shortGoods.emblem().isEmpty()
+                && count(fixture.hearth, coin) == 3
+                && count(fixture.hearth, Items.CHEST) == 1
+                && count(fixture.hearth, Items.LEATHER) == 1
+                && state.revision() == revision,
+            "Coins alone must not buy an emblem; a short goods line takes nothing, got "
+                + shortGoods.result());
+        helper.assertTrue(missing.size() == 1 && missing.getFirst().item() == Items.LEATHER
+                && missing.getFirst().count() == 1,
+            "the refusal must name exactly the missing 1 Leather, got " + missing);
+
+        put(fixture.hearth, Items.LEATHER, 1);
+        Development.EmblemPurchase paid = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.COURIER, revision);
+        helper.assertTrue(paid.applied()
+                && JobEmblemItem.professionOf(paid.emblem()) == Profession.COURIER
+                && count(fixture.hearth, coin) == 1
+                && count(fixture.hearth, Items.CHEST) == 0
+                && count(fixture.hearth, Items.LEATHER) == 0
+                && state.revision() == revision + 1
+                && Development.missingEmblemCosts(helper.getLevel(), fixture.settlement,
+                    fixture.hearth, Profession.COURIER, null).size() == 3,
+            "a funded Courier emblem must charge 2 Coins, 1 Chest and 2 Leather exactly once");
+
+        put(fixture.hearth, coin, 1);
+        putEmblemGoods(fixture.hearth, Profession.COURIER);
+        Development.EmblemPurchase replay = Development.purchaseEmblem(helper.getLevel(),
+            fixture.settlement, fixture.hearth, Profession.COURIER, revision);
+        helper.assertTrue(replay.result() == Development.Result.STALE
+                && replay.emblem().isEmpty()
+                && count(fixture.hearth, coin) == 2
+                && count(fixture.hearth, Items.CHEST) == 1
+                && count(fixture.hearth, Items.LEATHER) == 2
+                && state.revision() == revision + 1,
+            "a stale replay must issue and charge nothing");
+
+        // Rollback through the exact payment path purchases use: the Leather
+        // slot refuses extraction after Coins and the Chest were taken.
+        net.neoforged.neoforge.items.ItemStackHandler refusing =
+            new net.neoforged.neoforge.items.ItemStackHandler(3) {
+                @Override
+                public ItemStack extractItem(int slot, int amount, boolean simulate) {
+                    return slot == 2 ? ItemStack.EMPTY : super.extractItem(slot, amount, simulate);
+                }
+            };
+        refusing.setStackInSlot(0, new ItemStack(coin, 2));
+        refusing.setStackInSlot(1, new ItemStack(Items.CHEST, 1));
+        refusing.setStackInSlot(2, new ItemStack(Items.LEATHER, 2));
+        boolean threw = false;
+        try {
+            java.lang.reflect.Method pay = Development.class.getDeclaredMethod("pay",
+                net.neoforged.neoforge.items.ItemStackHandler.class, java.util.List.class);
+            pay.setAccessible(true);
+            pay.invoke(null, refusing, courier.costs());
+        } catch (java.lang.reflect.InvocationTargetException refused) {
+            threw = refused.getCause() instanceof IllegalStateException;
+        } catch (ReflectiveOperationException seam) {
+            throw new IllegalStateException("Development.pay seam moved", seam);
+        }
+        helper.assertTrue(threw
+                && refusing.getStackInSlot(0).getCount() == 2
+                && refusing.getStackInSlot(1).getCount() == 1
+                && refusing.getStackInSlot(2).getCount() == 2,
+            "a refused goods extraction must roll the already-taken Coins and Chest back");
+        helper.succeed();
+    }
+
+    private static void clearHearth(HearthBlockEntity hearth) {
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            hearth.getInventory().setStackInSlot(slot, ItemStack.EMPTY);
+        }
     }
 
     private static void unlockThrough(GameTestHelper helper, Fixture fixture,
@@ -927,18 +1382,17 @@ public final class DevelopmentGameTests {
             BuildingType.HOUSE, houseX, houseZ);
         addBed(helper, house, new BlockPos(houseX, 1, houseZ + 1), Blocks.RED_BED);
         addBed(helper, house, new BlockPos(houseX + 1, 1, houseZ + 1), Blocks.BLUE_BED);
-        SettlerEntity mayor = settler(helper, fixture.settlement, "Quest Mayor",
+        SettlerEntity resident = settler(helper, fixture.settlement, "Quest Elder",
             new BlockPos(houseX, 1, Math.max(1, houseZ - 2)));
         settler(helper, fixture.settlement, "Quest Resident",
             new BlockPos(houseX + 1, 1, Math.max(1, houseZ - 2)));
         SettlerEntity worker = settler(helper, fixture.settlement, "Quest Worker",
             new BlockPos(houseX + 2, 1, Math.max(1, houseZ - 2)));
-        helper.assertTrue(Mayor.appoint(helper.getLevel(), fixture.settlement, mayor) == null
-                && mayor.getUUID().equals(fixture.settlement.mayorId),
-            "foundation requires one living, appointed Mayor");
+        // The Mayor office is retired: the foundation needs only a valid
+        // Banner and three live settlement records.
         helper.assertTrue(fixture.settlement.population() == 3,
             "foundation requires exactly three live settlement records");
-        return new Foundation(house, mayor, worker);
+        return new Foundation(house, resident, worker);
     }
 
     private static SettlerEntity settler(GameTestHelper helper, Settlement settlement,
@@ -995,6 +1449,39 @@ public final class DevelopmentGameTests {
         return new Fixture(settlement, hearth);
     }
 
+    /**
+     * Seats the settlement's Guildmaster beside the bound Banner: emblems are
+     * traded only while he is live (the Mayor office is retired).
+     */
+    private static void seatGuildmaster(GameTestHelper helper, Fixture fixture) {
+        helper.assertTrue(com.hearthstead.settlement.guildmaster.GuildmasterService
+                .ensure(helper.getLevel(), fixture.settlement) != null,
+            "fixture: the Guildmaster must take his seat beside the bound Banner");
+    }
+
+    /** Removes every stack of {@code item} from the Hearth. */
+    private static void take(HearthBlockEntity hearth, Item item) {
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            if (hearth.getInventory().getStackInSlot(slot).is(item)) {
+                hearth.getInventory().setStackInSlot(slot, ItemStack.EMPTY);
+            }
+        }
+    }
+
+    /** Removes an emblem's non-Coin goods again (see {@link #putEmblemGoods}). */
+    private static void takeEmblemGoods(HearthBlockEntity hearth, Profession profession) {
+        for (DevelopmentNode.Cost cost : JobEmblemCatalog.forProfession(profession).goods()) {
+            take(hearth, cost.item());
+        }
+    }
+
+    /** Stocks the Hearth with an emblem's non-Coin goods (its Coins are put separately). */
+    private static void putEmblemGoods(HearthBlockEntity hearth, Profession profession) {
+        for (DevelopmentNode.Cost cost : JobEmblemCatalog.forProfession(profession).goods()) {
+            put(hearth, cost.item(), cost.count());
+        }
+    }
+
     private static void put(HearthBlockEntity hearth, Item item, int amount) {
         for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
             ItemStack existing = hearth.getInventory().getStackInSlot(slot);
@@ -1025,7 +1512,7 @@ public final class DevelopmentGameTests {
     private record Fixture(Settlement settlement, HearthBlockEntity hearth) {
     }
 
-    private record Foundation(Building house, SettlerEntity mayor,
+    private record Foundation(Building house, SettlerEntity resident,
                               SettlerEntity worker) {
     }
 }

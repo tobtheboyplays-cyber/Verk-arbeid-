@@ -1,5 +1,7 @@
 package com.hearthstead.settlement.equipment;
 
+import com.hearthstead.settlement.gear.GearTier;
+import com.hearthstead.settlement.gear.GearTiers;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -17,18 +19,43 @@ import javax.annotation.Nullable;
  */
 public record EquipmentRequirement(Item preferredItem,
                                    @Nullable ResourceLocation acceptedTag,
-                                   int minimumRemainingUses) {
+                                   int minimumRemainingUses,
+                                   int maxGearTier) {
 
     public EquipmentRequirement {
         if (preferredItem == null) {
             throw new IllegalArgumentException("preferredItem");
         }
         minimumRemainingUses = Math.max(1, minimumRemainingUses);
+        maxGearTier = Math.max(0, Math.min(GearTier.MAX, maxGearTier));
     }
 
-    /** Accepts the preferred item or any member of the declared tool tag. */
+    /** No Gear Tier cap: the profession-wide shape of the need. */
+    public EquipmentRequirement(Item preferredItem,
+                                @Nullable ResourceLocation acceptedTag,
+                                int minimumRemainingUses) {
+        this(preferredItem, acceptedTag, minimumRemainingUses, GearTier.MAX);
+    }
+
+    /**
+     * The same need narrowed to what one settler may take ({@code GearGate}):
+     * a Recruit's sword request is never filled with diamond.
+     */
+    public EquipmentRequirement withMaxGearTier(int tier) {
+        int capped = Math.max(0, Math.min(GearTier.MAX, tier));
+        return capped == maxGearTier ? this
+            : new EquipmentRequirement(preferredItem, acceptedTag,
+                minimumRemainingUses, capped);
+    }
+
+    /** Accepts the preferred item or any member of the declared tool tag,
+     *  within the Gear Tier cap. */
     public boolean matches(ItemStack stack) {
         if (stack.isEmpty()) {
+            return false;
+        }
+        if (maxGearTier < GearTier.MAX && GearTiers.tierOf(stack) > maxGearTier
+            && com.hearthstead.settlement.gear.GearGate.enabled()) {
             return false;
         }
         if (stack.is(preferredItem)) {
@@ -50,6 +77,19 @@ public record EquipmentRequirement(Item preferredItem,
             || stack.getMaxDamage() - stack.getDamageValue() >= minimumRemainingUses;
     }
 
+    /**
+     * The same profession need (item, tag, minimum uses), ignoring the
+     * per-settler Gear Tier cap. A stored request carries its requester's cap
+     * ({@code GearGate.limit}), so record equality with the profession-wide
+     * {@code EquipmentRequests.requirementFor} fails for every capped
+     * settler (BH-24: the Arm the Watch Guard-delivery credit never counted).
+     */
+    public boolean sameNeed(@Nullable EquipmentRequirement other) {
+        return other != null && preferredItem == other.preferredItem
+            && java.util.Objects.equals(acceptedTag, other.acceptedTag)
+            && minimumRemainingUses == other.minimumRemainingUses;
+    }
+
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putString("PreferredItem",
@@ -58,6 +98,9 @@ public record EquipmentRequirement(Item preferredItem,
             tag.putString("AcceptedTag", acceptedTag.toString());
         }
         tag.putInt("MinimumRemainingUses", minimumRemainingUses);
+        if (maxGearTier < GearTier.MAX) {
+            tag.putInt("MaxGearTier", maxGearTier);
+        }
         return tag;
     }
 
@@ -75,7 +118,10 @@ public record EquipmentRequirement(Item preferredItem,
                 return null;
             }
         }
+        int maxGearTier = tag.contains("MaxGearTier")
+            ? tag.getInt("MaxGearTier") : GearTier.MAX;
         return new EquipmentRequirement(BuiltInRegistries.ITEM.get(itemId),
-            acceptedTag, Math.max(1, tag.getInt("MinimumRemainingUses")));
+            acceptedTag, Math.max(1, tag.getInt("MinimumRemainingUses")),
+            maxGearTier);
     }
 }

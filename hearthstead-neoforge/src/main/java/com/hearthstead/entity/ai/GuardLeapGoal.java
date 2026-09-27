@@ -70,6 +70,7 @@ public class GuardLeapGoal extends Goal {
 
     @Override
     public boolean canUse() {
+        if (com.hearthstead.settlement.guard.BannerTeams.active(guard) != null) return false;
         if (cooldown > 0) {
             cooldown--;
             return false;
@@ -123,8 +124,10 @@ public class GuardLeapGoal extends Goal {
         guard.setDeltaMovement(launch);
         guard.hasImpulse = true;
         if (guard.level() instanceof ServerLevel level) {
-            level.playSound(null, guard.blockPosition(), ModSounds.LEAP_SLAM.get(),
-                SoundSource.HOSTILE, 0.5F, 1.35F);
+            // Air movement is anticipation; reserve the heavy impact for contact.
+            level.playSound(null, guard.blockPosition(),
+                net.minecraft.sounds.SoundEvents.PLAYER_ATTACK_SWEEP,
+                SoundSource.NEUTRAL, 0.25F, 1.15F);
         }
     }
 
@@ -210,6 +213,7 @@ public class GuardLeapGoal extends Goal {
                 continue;
             }
             boolean primary = victim == target;
+            if (!com.hearthstead.settlement.guard.BannerTeams.allowsTarget(guard, victim)) continue;
             victim.hurt(source, primary ? base : base * GuardRank.CLEAVE_SHARE);
             Vec3 push = victim.position().subtract(guard.position()).normalize().scale(0.45);
             victim.push(push.x, 0.32, push.z);
@@ -222,8 +226,16 @@ public class GuardLeapGoal extends Goal {
             // fizzle teaches half as much.
             guard.train(Attribute.STRENGTH, GuardRank.TRAIN_COMBAT * scale);
         }
-        level.playSound(null, guard.blockPosition(), ModSounds.LEAP_SLAM.get(),
-            SoundSource.HOSTILE, 1.0F, hitAnything ? 0.92F : 1.05F);
+        // A water/air fizzle can commit combat without striking solid ground.
+        // Keep that existing result, but do not fabricate a ground-slam sound.
+        if (guard.onGround()) {
+            level.playSound(null, guard.blockPosition(), ModSounds.LEAP_SLAM.get(),
+                SoundSource.NEUTRAL, 0.8F, hitAnything ? 0.92F : 1.05F);
+        } else if (hitAnything) {
+            level.playSound(null, guard.blockPosition(),
+                net.minecraft.sounds.SoundEvents.PLAYER_ATTACK_WEAK,
+                SoundSource.NEUTRAL, 0.4F, 1.0F);
+        }
         level.sendParticles(net.minecraft.core.particles.ParticleTypes.CRIT,
             guard.getX(), guard.getY() + 0.1, guard.getZ(), 14, 0.6, 0.1, 0.6, 0.05);
     }

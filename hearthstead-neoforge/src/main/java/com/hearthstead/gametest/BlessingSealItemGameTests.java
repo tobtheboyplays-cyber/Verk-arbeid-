@@ -6,6 +6,8 @@ import com.hearthstead.item.BlessingSealItem;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.state.BlessingId;
+import com.hearthstead.settlement.state.BlessingQuality;
+import net.minecraft.world.item.component.CustomData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -111,6 +113,32 @@ public class BlessingSealItemGameTests {
         helper.assertTrue(player.getMainHandItem().getCount() == 2
                 && quarantined.blessingRank(BlessingId.THORNED_ROADS) == 0,
             "INVALID/quarantined targets must retain the physical seal and stay inert");
+        SettlerEntity rareTarget = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(1, 1, 2));
+        player.getAbilities().instabuild = false;
+        player.setItemInHand(InteractionHand.OFF_HAND, ItemStack.EMPTY);
+        ItemStack rare = BlessingSealItem.stackFor(BlessingId.WARDEN_OATH, BlessingQuality.RARE);
+        rare.setCount(2);
+        CustomData.update(DataComponents.CUSTOM_DATA, rare, tag -> tag.putString("unrelated_marker", "preserved"));
+        player.setItemInHand(InteractionHand.MAIN_HAND, rare);
+        interactOnSettler(player, rareTarget, InteractionHand.MAIN_HAND);
+        helper.assertTrue(rareTarget.blessingRank(BlessingId.WARDEN_OATH) == 2 && rare.getCount() == 1,
+            "one physical Rare seal must atomically add two ranks and consume exactly one item");
+        ItemStack retained = rare.copy();
+        interactOnSettler(player, rareTarget, InteractionHand.MAIN_HAND);
+        helper.assertTrue(rareTarget.blessingRank(BlessingId.WARDEN_OATH) == 2
+                && ItemStack.matches(retained, rare),
+            "Rare at rankII must keep the exact seal/components and original rank");
+        CustomData.update(DataComponents.CUSTOM_DATA, rare, tag ->
+            tag.getCompound("hearthstead:blessing_quality").putInt("RankUnits", 99));
+        retained = rare.copy();
+        interactOnSettler(player, rareTarget, InteractionHand.MAIN_HAND);
+        helper.assertTrue(rareTarget.blessingRank(BlessingId.WARDEN_OATH) == 2
+                && ItemStack.matches(retained, rare) && BlessingSealItem.qualityOf(rare).isEmpty(),
+            "malformed present quality must refuse without consumption or legacy downgrade");
+        helper.assertTrue(ItemStack.matches(BlessingSealItem.stackFor(BlessingId.WARDEN_OATH),
+                BlessingSealItem.stackFor(BlessingId.WARDEN_OATH, BlessingQuality.COMMON)),
+            "Common factory must preserve exact legacy component identity");
+
         helper.succeed();
     }
 

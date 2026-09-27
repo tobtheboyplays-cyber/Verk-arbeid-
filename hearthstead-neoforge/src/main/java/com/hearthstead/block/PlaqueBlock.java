@@ -170,14 +170,9 @@ public class PlaqueBlock extends BaseEntityBlock {
     protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level,
                                               BlockPos pos, Player player, InteractionHand hand,
                                               BlockHitResult hit) {
-        // A Work Scepter selects the authoritative registered workplace; it
-        // never opens the ordinary plaque sheet or mutates the fitted plan.
+        // Work Scepter selection is routed from the client right-click action.
+        // Consume any late fallback before the normal plaque sheet can open.
         if (stack.getItem() instanceof WorkScepterItem) {
-            if (!level.isClientSide && player instanceof ServerPlayer serverPlayer
-                && level.getBlockEntity(pos) instanceof PlaqueBlockEntity plaque) {
-                com.hearthstead.settlement.workzone.WorkZoneService.selectPlaque(
-                    serverPlayer, plaque);
-            }
             return level.isClientSide
                 ? ItemInteractionResult.SUCCESS : ItemInteractionResult.CONSUME;
         }
@@ -205,18 +200,24 @@ public class PlaqueBlock extends BaseEntityBlock {
         if (plaque.state() != PlaqueState.EMPTY || !(stack.getItem() instanceof BuildPlanItem)) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
-        // Resolve through the plaque's own deterministic nearest-settlement
-        // authority. Using SettlementManager.at here selected the first
-        // overlapping radius by map iteration, while the immediate survey
-        // below selected the nearest settlement; knowledge could therefore
-        // be checked against one settlement and the building linked to
-        // another. One resolver now owns both decisions.
+        // Resolve through the plaque's own deterministic city authority.
+        // A new plan chooses the nearest registered same-dimension city and
+        // persists that UUID; an already fitted plan reuses its UUID.  Using
+        // SettlementManager.at here would retain the old radius gate and
+        // could select an arbitrary overlapping settlement by map iteration.
+        // One resolver therefore owns both the knowledge check and link.
         Settlement settlement = plaque.settlementFor((ServerLevel) level);
         com.hearthstead.building.BuildingType planned = PlaqueItemData.buildingType(stack);
         if (settlement == null
             || !Development.isBuildingUnlocked((ServerLevel) level, settlement, planned)) {
-            serverPlayer.displayClientMessage(Component.translatable(
-                "hearthstead.development.plan_locked", planned.displayName()), true);
+            // Name the tech node that opens this plan, when there is one.
+            Component source = settlement == null ? null
+                : com.hearthstead.settlement.techtree.effects.CommonsEffects.planSource(planned);
+            serverPlayer.displayClientMessage(source != null
+                ? Component.translatableWithFallback("hearthstead.development.plan_locked_node",
+                    "%s needs the tech node %s. Open Tech Tree at the Banner and learn it first.",
+                    planned.displayName(), source)
+                : Component.translatable("hearthstead.development.plan_locked", planned.displayName()), true);
             return ItemInteractionResult.CONSUME;
         }
         if (!plaque.insertPlan((ServerLevel) level, stack.copyWithCount(1))) {
@@ -309,7 +310,7 @@ public class PlaqueBlock extends BaseEntityBlock {
         boolean removed = super.onDestroyedByPlayer(state, level, pos, player,
             willHarvest, fluid);
         if (removed && !level.isClientSide && !plan.isEmpty()) {
-            Block.popResource(level, pos, plan);
+            com.hearthstead.util.ItemSpill.conserve((net.minecraft.server.level.ServerLevel) level, pos, plan);
         }
         return removed;
     }

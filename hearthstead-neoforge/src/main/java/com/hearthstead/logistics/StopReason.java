@@ -21,9 +21,13 @@ public enum StopReason {
     RESTING_AFTER_FAIL(6, "hearthstead.logistics.stop.resting_after_fail"),
     NO_PATH(7, "hearthstead.logistics.stop.no_path"),
     NO_WORK_ZONE(8, "hearthstead.logistics.stop.no_work_zone"),
-    NO_VALID_TARGET(9, "hearthstead.logistics.stop.no_valid_target");
+    NO_VALID_TARGET(9, "hearthstead.logistics.stop.no_valid_target"),
+    /** Advisory: food/crops are overflowing into other chests (warehouse full). */
+    FOOD_OVERFLOW(10, "hearthstead.logistics.stop.food_overflow"),
+    /** A Scholar at the study with no research project and no tech being studied. */
+    NOTHING_TO_STUDY(11, "hearthstead.logistics.stop.nothing_to_study");
 
-    private static final StopReason[] BY_WIRE_ID = new StopReason[10];
+    private static final StopReason[] BY_WIRE_ID = new StopReason[12];
 
     static {
         for (StopReason reason : values()) {

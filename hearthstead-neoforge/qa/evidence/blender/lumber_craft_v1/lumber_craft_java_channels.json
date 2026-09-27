@@ -1,0 +1,702 @@
+{
+  "name": "LUMBER_CRAFT",
+  "durationSeconds": 2.4,
+  "fps": 20,
+  "contacts": {
+    "ingredientTicks": [
+      4,
+      8,
+      12,
+      16,
+      18
+    ],
+    "craftCommitTick": 30,
+    "pickupTick": 43
+  },
+  "coordinateContract": {
+    "rotation": "Java degrees; Blender mapping documented in author script",
+    "root": "Java posVec where Y is vertical model-space compression"
+  },
+  "channels": {
+    "right_arm": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 0.1,
+        "value": [
+          24,
+          -10,
+          5
+        ]
+      },
+      {
+        "time": 0.2,
+        "value": [
+          58,
+          -18,
+          8
+        ]
+      },
+      {
+        "time": 0.3,
+        "value": [
+          22,
+          -6,
+          3
+        ]
+      },
+      {
+        "time": 0.5,
+        "value": [
+          28,
+          8,
+          -4
+        ]
+      },
+      {
+        "time": 0.6,
+        "value": [
+          61,
+          15,
+          -8
+        ]
+      },
+      {
+        "time": 0.7,
+        "value": [
+          24,
+          5,
+          -2
+        ]
+      },
+      {
+        "time": 0.85,
+        "value": [
+          28,
+          -2,
+          2
+        ]
+      },
+      {
+        "time": 0.9,
+        "value": [
+          56,
+          0,
+          3
+        ]
+      },
+      {
+        "time": 1.05,
+        "value": [
+          38,
+          -4,
+          4
+        ]
+      },
+      {
+        "time": 1.25,
+        "value": [
+          -18,
+          -12,
+          12
+        ]
+      },
+      {
+        "time": 1.4,
+        "value": [
+          -31,
+          -8,
+          9
+        ]
+      },
+      {
+        "time": 1.5,
+        "value": [
+          61,
+          -3,
+          4
+        ]
+      },
+      {
+        "time": 1.65,
+        "value": [
+          58,
+          -2,
+          3
+        ]
+      },
+      {
+        "time": 1.8,
+        "value": [
+          35,
+          -4,
+          3
+        ]
+      },
+      {
+        "time": 2.15,
+        "value": [
+          35,
+          -5,
+          3
+        ]
+      },
+      {
+        "time": 2.3,
+        "value": [
+          15,
+          -3,
+          2
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "left_arm": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 0.25,
+        "value": [
+          22,
+          7,
+          -3
+        ]
+      },
+      {
+        "time": 0.4,
+        "value": [
+          59,
+          18,
+          -8
+        ]
+      },
+      {
+        "time": 0.5,
+        "value": [
+          24,
+          7,
+          -3
+        ]
+      },
+      {
+        "time": 0.7,
+        "value": [
+          23,
+          -8,
+          4
+        ]
+      },
+      {
+        "time": 0.8,
+        "value": [
+          61,
+          -16,
+          8
+        ]
+      },
+      {
+        "time": 0.9,
+        "value": [
+          25,
+          -5,
+          3
+        ]
+      },
+      {
+        "time": 1.1,
+        "value": [
+          46,
+          10,
+          -5
+        ]
+      },
+      {
+        "time": 1.4,
+        "value": [
+          52,
+          11,
+          -6
+        ]
+      },
+      {
+        "time": 1.5,
+        "value": [
+          55,
+          9,
+          -5
+        ]
+      },
+      {
+        "time": 1.8,
+        "value": [
+          48,
+          7,
+          -4
+        ]
+      },
+      {
+        "time": 1.95,
+        "value": [
+          59,
+          3,
+          -5
+        ]
+      },
+      {
+        "time": 2.15,
+        "value": [
+          79,
+          -29,
+          -3
+        ]
+      },
+      {
+        "time": 2.25,
+        "value": [
+          37,
+          -9,
+          -12
+        ]
+      },
+      {
+        "time": 2.35,
+        "value": [
+          14,
+          6,
+          -6
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "torso": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 0.15,
+        "value": [
+          -8,
+          -2,
+          0
+        ]
+      },
+      {
+        "time": 0.4,
+        "value": [
+          -12,
+          3,
+          0
+        ]
+      },
+      {
+        "time": 0.6,
+        "value": [
+          -13,
+          -3,
+          0
+        ]
+      },
+      {
+        "time": 0.8,
+        "value": [
+          -14,
+          3,
+          0
+        ]
+      },
+      {
+        "time": 0.95,
+        "value": [
+          -16,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 1.3,
+        "value": [
+          -10,
+          -5,
+          0
+        ]
+      },
+      {
+        "time": 1.4,
+        "value": [
+          -12,
+          -2,
+          0
+        ]
+      },
+      {
+        "time": 1.5,
+        "value": [
+          -23,
+          2,
+          0
+        ]
+      },
+      {
+        "time": 1.7,
+        "value": [
+          -20,
+          1,
+          0
+        ]
+      },
+      {
+        "time": 1.95,
+        "value": [
+          -21,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.15,
+        "value": [
+          -24,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.3,
+        "value": [
+          -9,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "head": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 0.2,
+        "value": [
+          8,
+          -8,
+          0
+        ]
+      },
+      {
+        "time": 0.4,
+        "value": [
+          9,
+          8,
+          0
+        ]
+      },
+      {
+        "time": 0.6,
+        "value": [
+          10,
+          -7,
+          0
+        ]
+      },
+      {
+        "time": 0.8,
+        "value": [
+          10,
+          7,
+          0
+        ]
+      },
+      {
+        "time": 1.1,
+        "value": [
+          12,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 1.4,
+        "value": [
+          7,
+          -2,
+          0
+        ]
+      },
+      {
+        "time": 1.5,
+        "value": [
+          13,
+          1,
+          0
+        ]
+      },
+      {
+        "time": 1.8,
+        "value": [
+          10,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.15,
+        "value": [
+          14,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.3,
+        "value": [
+          6,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "root": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 0.2,
+        "value": [
+          0,
+          -0.25,
+          0
+        ]
+      },
+      {
+        "time": 0.95,
+        "value": [
+          0,
+          -0.48,
+          0
+        ]
+      },
+      {
+        "time": 1.3,
+        "value": [
+          0,
+          -0.18,
+          0
+        ]
+      },
+      {
+        "time": 1.5,
+        "value": [
+          0,
+          -0.82,
+          0
+        ]
+      },
+      {
+        "time": 1.75,
+        "value": [
+          0,
+          -0.55,
+          0
+        ]
+      },
+      {
+        "time": 2.15,
+        "value": [
+          0,
+          -0.86,
+          0
+        ]
+      },
+      {
+        "time": 2.3,
+        "value": [
+          0,
+          -0.18,
+          0
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "cloak": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 0.95,
+        "value": [
+          3,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 1.3,
+        "value": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 1.55,
+        "value": [
+          6,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 1.8,
+        "value": [
+          3,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.15,
+        "value": [
+          6,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "right_leg": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ],
+    "left_leg": [
+      {
+        "time": 0.0,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "time": 2.4,
+        "value": [
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "reviewFrames": {
+    "rest_tick00": 1,
+    "ingredient_contact_tick04": 5,
+    "layout_complete_tick18": 19,
+    "windup_tick28": 29,
+    "craft_pre_tick29": 30,
+    "craft_contact_tick30": 31,
+    "craft_post_tick31": 32,
+    "result_read_tick36": 37,
+    "pickup_pre_tick42": 43,
+    "pickup_contact_tick43": 44,
+    "pickup_post_tick44": 45,
+    "recovery_tick47": 48,
+    "neutral_tick48": 49
+  },
+  "reviewViews": [
+    "front34",
+    "left",
+    "right",
+    "back34",
+    "feet_left_low",
+    "feet_right_low",
+    "feet_rear_low"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_material": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "tag": "minecraft:planks"
+          }
+        ]
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_material"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "hearthstead:wooden_double_axe",
+      "hearthstead:wooden_halberd",
+      "hearthstead:wooden_longsword",
+      "hearthstead:wooden_short_sword",
+      "hearthstead:wooden_warhammer"
+    ]
+  }
+}

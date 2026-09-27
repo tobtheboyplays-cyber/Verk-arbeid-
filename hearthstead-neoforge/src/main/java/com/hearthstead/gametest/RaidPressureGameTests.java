@@ -126,19 +126,17 @@ public class RaidPressureGameTests {
     }
 
     /**
-     * The inversion of MineColonies. There, losing more than 15% of the
-     * population lowers difficulty AND buys six quiet nights, so the system
-     * converges on safe however you play. Here, holding the line makes you
-     * a bigger target.
+     * Successful defense preserves pressure. Loss retains its existing
+     * relief; village worth still drives pressure during eligible quiet nights.
      */
-    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_surviving_a_raid_raises_pressure_and_losing_relieves_it")
-    public void survivingARaidRaisesPressureAndLosingRelievesIt(GameTestHelper helper) {
+    @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_surviving_a_raid_leaves_pressure_and_losing_relieves_it")
+    public void survivingARaidLeavesPressureAndLosingRelievesIt(GameTestHelper helper) {
         Settlement s = settlement(8, 3);
         RaidPressure p = s.raidPressure;
         p.setPressureForTesting(40);
         p.recordRepelled();
-        helper.assertTrue(p.pressure() == 40 + RaidPressure.REPEL_GAIN,
-            "repelling must RAISE pressure, got " + p.pressure());
+        helper.assertTrue(p.pressure() == 40,
+            "holding the line must leave pressure unchanged, got " + p.pressure());
         p.setPressureForTesting(40);
         p.recordLost();
         helper.assertTrue(p.pressure() == 40 - RaidPressure.LOSS_RELIEF,
@@ -385,18 +383,18 @@ public class RaidPressureGameTests {
         helper.succeed();
     }
 
-    /** Winning makes a captain worse news; losing teaches them something too. */
+    /** A captain win adds modest menace; a held raid adds none. */
     @GameTest(template = "empty16", timeoutTicks = 200, batch = "raid_pressure_captains_grow_from_both_outcomes")
     public void captainsGrowFromBothOutcomes(GameTestHelper helper) {
         RaidCaptain captain = RaidCaptain.generate(helper.getLevel().getRandom());
         float base = captain.menace();
         captain.recordDefeat();
         float afterDefeat = captain.menace();
-        helper.assertTrue(afterDefeat > base,
-            "even a beaten captain learns, got " + afterDefeat + " from " + base);
+        helper.assertTrue(afterDefeat == base,
+            "a held raid must not add captain menace, got " + afterDefeat + " from " + base);
         captain.recordVictory();
-        helper.assertTrue(captain.menace() > afterDefeat,
-            "and a win must count for more");
+        helper.assertTrue(Math.abs(captain.menace() - (base + 0.05F)) < 0.0001F,
+            "a captain win must add exactly 0.05 menace, got " + captain.menace());
         captain.rememberGrudge("Hedda");
         helper.assertTrue("Hedda".equals(captain.grudge()),
             "a captain remembers who hurt them, got " + captain.grudge());

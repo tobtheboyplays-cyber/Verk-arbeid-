@@ -76,16 +76,14 @@ final class AnimalHarvest {
      * have checked {@link IShearable#isShearable}; returns an empty list if
      * {@code sheep} is somehow not an {@link IShearable} at all.
      */
-    static List<ItemStack> shear(ServerLevel level, Sheep sheep) {
+    static List<ItemStack> shear(ServerLevel level, Sheep sheep, ItemStack shears) {
         if (!(sheep instanceof IShearable shearable)) {
             return List.of();
         }
-        // player=null, item=EMPTY: this is the settler's own hands doing the
-        // work, not an item stack that could break -- onSheared's default
-        // implementation only uses `player` to pick a sound source (BLOCKS
-        // vs PLAYERS) and to hand back change from a tool, neither of which
-        // applies here.
-        return shearable.onSheared(null, ItemStack.EMPTY, level, sheep.blockPosition());
+        // player=null: a settler, not a player, holds the shears. The caller
+        // has just checked they really are shears and wears them itself (one
+        // point per cut); onSheared does not damage the stack it is handed.
+        return shearable.onSheared(null, shears, level, sheep.blockPosition());
     }
 
     /**

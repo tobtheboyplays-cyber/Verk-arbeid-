@@ -6,6 +6,12 @@ import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.state.BlessingId;
+import com.hearthstead.settlement.state.BlessingQuality;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.component.CustomData;
+import java.util.Optional;
 import com.hearthstead.settlement.state.TargetBlessingState;
 import com.hearthstead.util.AuthorityTelemetry;
 import net.minecraft.ChatFormatting;
@@ -58,6 +64,33 @@ public final class BlessingSealItem extends Item {
         });
     }
 
+    private static final String QUALITY_TAG = "hearthstead:blessing_quality";
+
+    /** Common remains byte-for-byte compatible with existing one-rank seals. */
+    public static ItemStack stackFor(BlessingId blessing, BlessingQuality quality) {
+        ItemStack stack = stackFor(blessing);
+        if (Objects.requireNonNull(quality, "quality") == BlessingQuality.RARE) {
+            CustomData.update(DataComponents.CUSTOM_DATA, stack, data -> {
+                CompoundTag tag = new CompoundTag();
+                tag.putInt("Version", 1);
+                tag.putInt("RankUnits", quality.rankUnits());
+                data.put(QUALITY_TAG, tag);
+            });
+        }
+        return stack;
+    }
+
+    /** Missing means legacy Common; present malformed data is never downgraded. */
+    public static Optional<BlessingQuality> qualityOf(ItemStack stack) {
+        if (stack.isEmpty() || !(stack.getItem() instanceof BlessingSealItem)) return Optional.empty();
+        CompoundTag data = stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag();
+        if (!data.contains(QUALITY_TAG)) return Optional.of(BlessingQuality.COMMON);
+        if (!(data.get(QUALITY_TAG) instanceof CompoundTag tag)
+                || !tag.contains("Version", Tag.TAG_INT) || tag.getInt("Version") != 1
+                || !tag.contains("RankUnits", Tag.TAG_INT)) return Optional.empty();
+        return BlessingQuality.fromRankUnits(tag.getInt("RankUnits"));
+    }
+
     @Override
     public InteractionResult interactLivingEntity(ItemStack stack, Player player,
                                                    LivingEntity target,
@@ -90,7 +123,10 @@ public final class BlessingSealItem extends Item {
         }
         int rankBefore = settler.blessingRank(blessing);
         int sealsBefore = stack.getCount();
-        TargetBlessingState.ApplyResult result = settler.applyBlessing(blessing);
+        TargetBlessingState.ApplyResult result = qualityOf(stack)
+            .filter(quality -> stack.getItem() == this)
+            .map(quality -> settler.applyBlessing(blessing, quality.rankUnits()))
+            .orElse(TargetBlessingState.ApplyResult.INVALID);
         finishUse(stack, player, result, settler.getDisplayName());
         if (settler.level() instanceof ServerLevel level) {
             int expectedDelta = result == TargetBlessingState.ApplyResult.APPLIED
@@ -143,7 +179,10 @@ public final class BlessingSealItem extends Item {
         Building building = plaque.building(level);
         int rankBefore = plaque.blessingRank(blessing);
         int sealsBefore = stack.getCount();
-        TargetBlessingState.ApplyResult result = plaque.applyBlessing(blessing);
+        TargetBlessingState.ApplyResult result = qualityOf(stack)
+            .filter(quality -> stack.getItem() == this)
+            .map(quality -> plaque.applyBlessing(blessing, quality.rankUnits()))
+            .orElse(TargetBlessingState.ApplyResult.INVALID);
         finishUse(stack, player, result, plaque.type().displayName());
         int expectedDelta = result == TargetBlessingState.ApplyResult.APPLIED
             && !player.getAbilities().instabuild ? -1 : 0;
@@ -181,6 +220,9 @@ public final class BlessingSealItem extends Item {
             }
             case MAXED -> player.displayClientMessage(Component.translatable(
                 "item.hearthstead.blessing_seal.maxed", targetName, blessingName()), true);
+            case INSUFFICIENT_CAPACITY -> player.displayClientMessage(Component.translatable(
+                "item.hearthstead.blessing_seal.insufficient_capacity", targetName,
+                qualityOf(stack).map(BlessingQuality::rankUnits).orElse(0)), true);
             case INVALID -> player.displayClientMessage(Component.translatable(
                 "item.hearthstead.blessing_seal.invalid"), true);
         }
@@ -198,6 +240,14 @@ public final class BlessingSealItem extends Item {
     @Override
     public void appendHoverText(ItemStack stack, TooltipContext context,
                                 List<Component> tooltip, TooltipFlag flag) {
+        Optional<BlessingQuality> quality = qualityOf(stack);
+        tooltip.add(Component.translatable(quality.isEmpty()
+                ? "item.hearthstead.blessing_seal.quality.invalid"
+                : quality.get() == BlessingQuality.RARE
+                    ? "item.hearthstead.blessing_seal.quality.rare"
+                    : "item.hearthstead.blessing_seal.quality.common")
+            .withStyle(quality.isEmpty() ? ChatFormatting.RED
+                : quality.get() == BlessingQuality.RARE ? ChatFormatting.LIGHT_PURPLE : ChatFormatting.GRAY));
         tooltip.add(Component.translatable(
                 "item.hearthstead.blessing_seal.effect." + blessing.id())
             .withStyle(ChatFormatting.LIGHT_PURPLE));

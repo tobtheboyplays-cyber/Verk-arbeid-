@@ -1,0 +1,342 @@
+{
+  "schema": 1,
+  "status": "Candidate - native in-game validation pending",
+  "state": "LUMBER_CRAFT",
+  "view": "right",
+  "targetContract": {
+    "role": "fixed_world_authority_reconstruction",
+    "actorForwardModel": [
+      0,
+      0,
+      -1
+    ],
+    "tableCenterModelPixels": [
+      0,
+      8,
+      -12
+    ],
+    "tableSizeModelPixels": [
+      16,
+      16,
+      16
+    ],
+    "gridSpacingModelPixels": 3.6,
+    "recipeId": "minecraft:wooden_axe",
+    "recipeOccupiedSlots": [
+      0,
+      1,
+      3,
+      4,
+      7
+    ],
+    "recipeSlotItems": {
+      "0": "minecraft:oak_planks",
+      "1": "minecraft:oak_planks",
+      "3": "minecraft:oak_planks",
+      "4": "minecraft:stick",
+      "7": "minecraft:stick"
+    },
+    "layoutContactSeconds": [
+      0.2,
+      0.4,
+      0.6,
+      0.8,
+      0.9
+    ],
+    "transformContactSeconds": 1.5,
+    "pickupContactSeconds": 2.15,
+    "tableBeatDurationSeconds": 2.4,
+    "storageContactSeconds": 0.7,
+    "storageBeatDurationSeconds": 1.2,
+    "outputItem": "minecraft:wooden_axe",
+    "worldPropsMustNotInheritActorTransform": true
+  },
+  "records": [
+    {
+      "time": 0,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        6,
+        13,
+        0
+      ],
+      "leftHand": [
+        -6,
+        13,
+        0
+      ],
+      "rightSurfaceDistance": 5.348130514488218,
+      "leftSurfaceDistance": 5.348130514488218,
+      "rightOutputDistance": 10.022656509933906,
+      "leftOutputDistance": 10.508739226368016,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 0.2,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        9.140985964576698,
+        16.166486888417996,
+        -8.401240346066983
+      ],
+      "leftHand": [
+        -6.528242290876891,
+        12.53631755724136,
+        -3.11349042109744
+      ],
+      "rightSurfaceDistance": 1.2037156134720235,
+      "leftSurfaceDistance": 4.110419198183437,
+      "rightOutputDistance": 4.142226978333289,
+      "leftOutputDistance": 8.350720673007894,
+      "expectedHand": "right",
+      "contactDistance": 1.2037156134720235,
+      "maximumDistance": 2.6,
+      "physicalContact": true
+    },
+    {
+      "time": 0.9,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        5.911762838954764,
+        14.29837193745665,
+        -9.379252411770178
+      ],
+      "leftHand": [
+        -5.334726904562804,
+        12.039531808194766,
+        -4.50928794845858
+      ],
+      "rightSurfaceDistance": 2.2516280625433502,
+      "leftSurfaceDistance": 4.510468191805234,
+      "rightOutputDistance": 2.5172374893556757,
+      "leftOutputDistance": 7.1546125062335495,
+      "expectedHand": "right",
+      "contactDistance": 2.2516280625433502,
+      "maximumDistance": 2.6,
+      "physicalContact": true
+    },
+    {
+      "time": 1.4,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        6.240799281256669,
+        15.062833329471827,
+        4.372910945257062
+      ],
+      "leftHand": [
+        -7.7701762811867106,
+        14.769678728727524,
+        -9.003904720875672
+      ],
+      "rightSurfaceDistance": 8.503958043354597,
+      "leftSurfaceDistance": 1.7803212712724772,
+      "rightOutputDistance": 13.792272889699936,
+      "leftOutputDistance": 5.407679927520556,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 1.45,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        7.282520045814986,
+        11.639879202786203,
+        -5.001497200422352
+      ],
+      "leftHand": [
+        -7.914260183365183,
+        13.848247187958181,
+        -9.410959833830194
+      ],
+      "rightSurfaceDistance": 4.910120797213798,
+      "leftSurfaceDistance": 2.7017528120418195,
+      "rightOutputDistance": 6.959700150894026,
+      "leftOutputDistance": 5.918730862310797,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 1.5,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        5.984894261438157,
+        16.37021555300539,
+        -13.041073337893557
+      ],
+      "leftHand": [
+        -8.08795309440587,
+        12.94711605602063,
+        -9.756738291803412
+      ],
+      "rightSurfaceDistance": 0.17978444699460994,
+      "leftSurfaceDistance": 3.603957333348984,
+      "rightOutputDistance": 0.9160029449053204,
+      "leftOutputDistance": 6.542075933941679,
+      "expectedHand": "right",
+      "contactDistance": 0.17978444699460994,
+      "maximumDistance": 2.6,
+      "physicalContact": true
+    },
+    {
+      "time": 1.55,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        6.015473918616635,
+        16.303813867451943,
+        -12.794923373450171
+      ],
+      "leftHand": [
+        -7.988034475938001,
+        13.018708394984035,
+        -9.639589389476985
+      ],
+      "rightSurfaceDistance": 0.24618613254805766,
+      "leftSurfaceDistance": 3.5312916050159657,
+      "rightOutputDistance": 0.96921178015062,
+      "leftOutputDistance": 6.41916645763057,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 1.8,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        6.831172466888132,
+        12.091244015637846,
+        -7.332134267448258
+      ],
+      "leftHand": [
+        -7.449538307172597,
+        12.851238054996276,
+        -8.602845906426216
+      ],
+      "rightSurfaceDistance": 4.4587559843621545,
+      "leftSurfaceDistance": 3.6987619450037243,
+      "rightOutputDistance": 5.276302753319884,
+      "leftOutputDistance": 6.126797128723786,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 2.1,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        7.568436411838147,
+        11.475449493280783,
+        -8.152589193857047
+      ],
+      "leftHand": [
+        -1.4929637095219652,
+        16.289817637536167,
+        -11.80646723605957
+      ],
+      "rightSurfaceDistance": 5.074550506719218,
+      "leftSurfaceDistance": 0.2601823624638335,
+      "rightOutputDistance": 5.866873899000348,
+      "leftOutputDistance": 0.4001823481587188,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 2.15,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        7.578621356903886,
+        11.527104419820143,
+        -8.045694028812783
+      ],
+      "leftHand": [
+        -0.9606715073255545,
+        16.634403708304802,
+        -11.478939702441268
+      ],
+      "rightSurfaceDistance": 5.022895580179858,
+      "leftSurfaceDistance": 0.08440370830480148,
+      "rightOutputDistance": 5.846876061192264,
+      "leftOutputDistance": 0.05559627739008377,
+      "expectedHand": "left",
+      "contactDistance": 0.08440370830480148,
+      "maximumDistance": 2.6,
+      "physicalContact": true
+    },
+    {
+      "time": 2.2,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        7.339053809572506,
+        11.80907145187537,
+        -6.86102828470056
+      ],
+      "leftHand": [
+        -2.8044244717665014,
+        14.033095462221567,
+        -9.71897330938669
+      ],
+      "rightSurfaceDistance": 4.74092854812463,
+      "leftSurfaceDistance": 2.5169045377784336,
+      "rightOutputDistance": 5.878669735588334,
+      "leftOutputDistance": 2.6581715601684306,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 2.35,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        6,
+        12.924319698091745,
+        -0.0871557427476577
+      ],
+      "leftHand": [
+        -7.379552595371342,
+        13.22725554041684,
+        -2.884626217855199
+      ],
+      "rightSurfaceDistance": 5.3344079177691475,
+      "leftSurfaceDistance": 3.504952127716809,
+      "rightOutputDistance": 9.97037054254582,
+      "leftOutputDistance": 8.634271410942162,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    },
+    {
+      "time": 2.4,
+      "clipName": "LUMBER_CRAFT",
+      "rightHand": [
+        6,
+        13,
+        0
+      ],
+      "leftHand": [
+        -6,
+        13,
+        0
+      ],
+      "rightSurfaceDistance": 5.348130514488218,
+      "leftSurfaceDistance": 5.348130514488218,
+      "rightOutputDistance": 10.022656509933906,
+      "leftOutputDistance": 10.508739226368016,
+      "expectedHand": null,
+      "contactDistance": null,
+      "maximumDistance": null,
+      "physicalContact": null
+    }
+  ]
+}

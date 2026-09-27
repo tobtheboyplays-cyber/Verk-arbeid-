@@ -239,7 +239,18 @@ public class FarmerContactAuthorityGameTests {
         });
     }
 
-    /** FARM_HARVEST: crop pull, stamped bag output and receipt share tick 9. */
+    private static int harvestMatter(GameTestHelper helper, SettlerEntity farmer, Container chest) {
+        var bounds = new net.minecraft.world.phys.AABB(
+            net.minecraft.world.phys.Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(0,0,0))),
+            net.minecraft.world.phys.Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(16,8,16))));
+        int world = helper.getLevel().getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+            bounds, item -> item.isAlive() && item.getItem().is(Items.WHEAT)).stream()
+            .mapToInt(item -> item.getItem().getCount()).sum();
+        int hand = farmer.getOffhandItem().is(Items.WHEAT) ? farmer.getOffhandItem().getCount() : 0;
+        return world + hand + countInBag(farmer, Items.WHEAT) + countIn(chest, Items.WHEAT);
+    }
+
+    /** FARM_HARVEST: crop pull, stamped physical output and receipt share tick 9. */
     @GameTest(template = "empty16", timeoutTicks = 900,
         batch = "farmer_contact_authority")
     public void harvestContactSurvivesInterruptionAndCannotReplay(
@@ -272,7 +283,7 @@ public class FarmerContactAuthorityGameTests {
                     if (delta < FarmerWorkGoal.HARVEST_CONTACT_TICK) {
                         helper.assertTrue(helper.getBlockState(fixture.target())
                                 .is(Blocks.WHEAT)
-                                && countInBag(farmer, Items.WHEAT) == 0,
+                                && harvestMatter(helper, farmer, fixture.chest()) == 0,
                             "FARM_HARVEST must keep crop/output physical before contact +"
                                 + FarmerWorkGoal.HARVEST_CONTACT_TICK
                                 + " (observed +" + delta + ")");
@@ -296,14 +307,14 @@ public class FarmerContactAuthorityGameTests {
                 if (restartStart[0] == Long.MIN_VALUE) {
                     helper.assertTrue(helper.getBlockState(fixture.target())
                             .is(Blocks.WHEAT)
-                            && countInBag(farmer, Items.WHEAT) == 0,
+                            && harvestMatter(helper, farmer, fixture.chest()) == 0,
                         "reload before FARM_HARVEST contact must remain mutation-free");
                     return;
                 }
                 long delta = now - restartStart[0];
                 boolean pulled = helper.getBlockState(fixture.target()).isAir();
                 if (delta < FarmerWorkGoal.HARVEST_CONTACT_TICK) {
-                    helper.assertTrue(!pulled && countInBag(farmer, Items.WHEAT) == 0,
+                    helper.assertTrue(!pulled && harvestMatter(helper, farmer, fixture.chest()) == 0,
                         "restarted FARM_HARVEST committed early at +" + delta);
                 }
                 if (pulled) {
@@ -311,8 +322,8 @@ public class FarmerContactAuthorityGameTests {
                         "crop must leave the world exactly on FARM_HARVEST contact +"
                             + FarmerWorkGoal.HARVEST_CONTACT_TICK
                             + " (observed +" + delta + ")");
-                    helper.assertTrue(countInBag(farmer, Items.WHEAT) == 1,
-                        "accepted harvest contact must make exactly one wheat physical in bag");
+                    helper.assertTrue(harvestMatter(helper, farmer, fixture.chest()) == 1,
+                        "accepted harvest contact must make exactly one wheat physical across world/hand/bag/storage");
                     committedAt[0] = now;
                     active[0] = reload(helper, farmer);
                     postReloadAt[0] = now;
@@ -322,8 +333,7 @@ public class FarmerContactAuthorityGameTests {
             }
 
             if (now - postReloadAt[0] >= POST_CONTACT_OBSERVATION_TICKS) {
-                int wheat = countIn(fixture.chest(), Items.WHEAT)
-                    + countInBag(active[0], Items.WHEAT);
+                int wheat = harvestMatter(helper, active[0], fixture.chest());
                 var postContactCrop = helper.getBlockState(fixture.target());
                 helper.assertTrue(!postContactCrop.is(Blocks.WHEAT)
                         || postContactCrop.getValue(CropBlock.AGE)
@@ -431,6 +441,85 @@ public class FarmerContactAuthorityGameTests {
                     "reloaded farmer must leave the completed FARM_WATER pose");
                 helper.succeed();
             }
+        });
+    }
+
+    /** An obstruction after anticipation must not spend the hoe or mature crop. */
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "farmer_contact_authority")
+    public void harvestRejectsWallIntroducedDuringAnticipation(GameTestHelper helper) {
+        rejectsObstructedContact(helper, false);
+    }
+
+    /** The exact withdrawn seed remains physical when its authored press is occluded. */
+    @GameTest(template = "empty16", timeoutTicks = 600, batch = "farmer_contact_authority")
+    public void plantRejectsWallIntroducedDuringAnticipation(GameTestHelper helper) {
+        rejectsObstructedContact(helper, true);
+    }
+
+    private static void rejectsObstructedContact(GameTestHelper helper, boolean planting) {
+        Fixture fixture = fixture(helper);
+        SettlerEntity farmer = fixture.farmer();
+        fixture.chest().setItem(0, new ItemStack(Items.IRON_HOE));
+        if (planting) {
+            fixture.chest().setItem(1, new ItemStack(Items.WHEAT_SEEDS));
+        }
+        helper.setBlock(fixture.target().below(), Blocks.FARMLAND.defaultBlockState()
+            .setValue(FarmBlock.MOISTURE, 7));
+        if (!planting) {
+            helper.setBlock(fixture.target(), Blocks.WHEAT.defaultBlockState()
+                .setValue(CropBlock.AGE, CropBlock.MAX_AGE));
+        }
+        long[] started = {Long.MIN_VALUE};
+        int[] toolDamage = {-1};
+        int contactTick = planting ? FarmerWorkGoal.PLANT_CONTACT_TICK
+            : FarmerWorkGoal.HARVEST_CONTACT_TICK;
+        SettlerActivity expected = planting ? SettlerActivity.WORK_PLANT
+            : SettlerActivity.WORK_HARVEST;
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            if (started[0] == Long.MIN_VALUE) {
+                if (farmer.getActivity() != expected) {
+                    return;
+                }
+                started[0] = now;
+                helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE),
+                    "fixture: the normal equipment goal must supply the physical hoe");
+                toolDamage[0] = farmer.getMainHandItem().getDamageValue();
+                // Deliberate adversarial world change after the normal goal
+                // enters anticipation: displace to distance-squared4 (still
+                // inside the old6.5 envelope), then interpose a solid wall.
+                // This does not manually tick or replace the production goal.
+                BlockPos feet = helper.absolutePos(new BlockPos(7, 1, 8));
+                farmer.teleportTo(feet.getX() + 0.5D, feet.getY(), feet.getZ() + 0.5D);
+                for (int y = 1; y <= 3; y++) {
+                    for (int z = 7; z <= 9; z++) {
+                        helper.setBlock(new BlockPos(8, y, z), Blocks.STONE_BRICKS);
+                    }
+                }
+                helper.assertTrue(farmer.blockPosition().distSqr(
+                        helper.absolutePos(fixture.target())) == 4.0D,
+                    "fixture: obstruction, not excessive distance, must invalidate contact");
+                return;
+            }
+            if (now - started[0] < contactTick + 2L) {
+                return;
+            }
+            helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE)
+                    && farmer.getMainHandItem().getDamageValue() == toolDamage[0],
+                "an occluded authored contact must not charge a new hoe point");
+            if (planting) {
+                helper.assertTrue(helper.getBlockState(fixture.target()).isAir()
+                        && seedMatter(helper, fixture, farmer) == 1,
+                    "rejected planting must preserve its exact physical seed and empty crop cell");
+            } else {
+                helper.assertTrue(helper.getBlockState(fixture.target()).is(Blocks.WHEAT)
+                        && helper.getBlockState(fixture.target()).getValue(CropBlock.AGE)
+                            == CropBlock.MAX_AGE
+                        && countInBag(farmer, Items.WHEAT) == 0
+                        && countIn(fixture.chest(), Items.WHEAT) == 0,
+                    "rejected harvesting must preserve the mature crop and create no output");
+            }
+            helper.succeed();
         });
     }
 }

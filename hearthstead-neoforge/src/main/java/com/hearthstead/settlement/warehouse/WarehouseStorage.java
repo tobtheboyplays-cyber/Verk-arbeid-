@@ -90,11 +90,13 @@ public final class WarehouseStorage {
     /** Drops every cached index. Call when a settlement or world unloads. */
     public static void clearAll() {
         CACHE.clear();
+        WarehouseIndex.clearAll();
     }
 
     /** Drops one building's index — e.g. when its plaque is removed. */
     public static void forget(UUID buildingId) {
         CACHE.remove(buildingId);
+        WarehouseIndex.forget(buildingId);
     }
 
     private void refresh(ServerLevel level, Building building) {
@@ -176,6 +178,12 @@ public final class WarehouseStorage {
         if (container == null) {
             return stack.copy();
         }
+        var group = WarehouseSorting.assignedGroup(level.getBlockEntity(pos));
+        if (group != null && group != WarehouseSorting.groupOf(stack)
+            // Food/crops overflow (no proper home): life support beats labels.
+            && !WarehouseSorting.lifeOverflowAllowed(level, building, pos, stack)) {
+            return stack.copy();
+        }
         ItemStack remaining = insertInto(container, stack.copy());
         refresh(level, building);
         return remaining;
@@ -185,6 +193,7 @@ public final class WarehouseStorage {
     private static ItemStack insertInto(Container container, ItemStack stack) {
         ItemStack remaining = stack;
         for (int slot = 0; slot < container.getContainerSize() && !remaining.isEmpty(); slot++) {
+            if (!container.canPlaceItem(slot, remaining)) continue;
             ItemStack existing = container.getItem(slot);
             if (existing.isEmpty() || !ItemStack.isSameItemSameComponents(existing, remaining)) {
                 continue;
@@ -200,6 +209,7 @@ public final class WarehouseStorage {
             remaining.shrink(moved);
         }
         for (int slot = 0; slot < container.getContainerSize() && !remaining.isEmpty(); slot++) {
+            if (!container.canPlaceItem(slot, remaining)) continue;
             if (!container.getItem(slot).isEmpty()) {
                 continue;
             }
@@ -252,7 +262,7 @@ public final class WarehouseStorage {
             for (int slot = 0; slot < container.getContainerSize(); slot++) {
                 ItemStack existing = container.getItem(slot);
                 if (existing.isEmpty()
-                    || existing.getCount() < existing.getMaxStackSize()) {
+                    || existing.getCount() < Math.min(container.getMaxStackSize(),existing.getMaxStackSize())) {
                     return true;
                 }
             }

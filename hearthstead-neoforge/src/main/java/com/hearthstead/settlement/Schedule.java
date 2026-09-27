@@ -44,6 +44,8 @@ public final class Schedule {
 
     /** How close counts as "at your post". A room, not a block. */
     public static final int AT_POST = 4;
+    /** Beyond this, a Fisher or Hunter is walked back towards their building (see postFor). */
+    public static final int WORK_RANGE_RETURN = 24;
 
     /**
      * @param where    the block to walk to
@@ -98,7 +100,7 @@ public final class Schedule {
     /**
      * The block this settler should be standing at, or null when the ordinary
      * day has nothing to say — during rest (the bed goal owns that) and while
-     * a guard is on watch (the patrol owns that).
+     * a guard follows its own watch and needs (those goals own movement).
      */
     @Nullable
     public static Posting postFor(Settlement settlement, SettlerEntity settler,
@@ -106,9 +108,16 @@ public final class Schedule {
         if (shouldSleep(settlement, settler, phase)) {
             return null;
         }
-        if (settler.getProfession().martial()
-            && onWatch(settlement, settler, phase)) {
+        if (settler.getProfession().martial()) {
+            // Patrol, sleep and urgent needs own martial movement. Even off
+            // watch, generic gathering must never post a guard to the Tavern.
             return null;
+        }
+        if (settler.getProfession() == com.hearthstead.entity.Profession.INNKEEPER
+            && (phase.work() || phase.meal() || phase.social())) {
+            Building tavern = Employment.employerOf(settlement, settler.getUUID());
+            if (tavern != null && tavern.valid && tavern.type == BuildingType.TAVERN && tavern.anchor != null)
+                return new Posting(tavernFloorPost(settler, tavern), SettlerActivity.TRAVELING, "work");
         }
         if (phase.work()) {
             Building work = Employment.employerOf(settlement, settler.getUUID());
@@ -117,6 +126,18 @@ public final class Schedule {
                 // a lumberjack's trees are not, and posting them to the
                 // building has them walk back to the shed between stints.
                 if (!Employment.worksAtTheBuilding(work.type)) {
+                    // A Fisher's chair and a Hunter's grounds lie within
+                    // about 16-28 blocks of their building, and their own
+                    // goals plan exact routes that fail beyond the 32-block
+                    // follow range. Idle 40-60 blocks away after the meal,
+                    // they never started again (captain1 soak 2026-09-26:
+                    // fisher 17%, hunter 3% work). Walk them back into range;
+                    // once there the trade goal owns movement again.
+                    if ((work.type == BuildingType.FISHERY || work.type == BuildingType.HUNTERS_LODGE)
+                        && work.anchor != null
+                        && !settler.blockPosition().closerThan(work.anchor, WORK_RANGE_RETURN)) {
+                        return new Posting(work.anchor, SettlerActivity.TRAVELING, "work");
+                    }
                     return null;
                 }
                 return new Posting(work.anchor, SettlerActivity.TRAVELING, "work");
@@ -156,6 +177,67 @@ public final class Schedule {
             }
         }
         return null;
+    }
+
+    @Nullable
+    private static Building firstValidBuilding(Settlement settlement, BuildingType type) {
+        for (Building building : settlement.buildings) {
+            if (building.valid && building.type == type && building.anchor != null) {
+                return building;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * A bedless Tavern's anchor is its Plaque, which usually hangs high on a
+     * wall where nobody can stand. Posting the Innkeeper and the evening
+     * guests there made them walk against the wall until patience ran out.
+     * Use a standable floor cell in the room's centre column instead; a bed
+     * anchor (or a room with no free floor there) keeps the old anchor.
+     */
+    public static BlockPos tavernFloorPost(SettlerEntity settler, Building tavern) {
+        BlockPos anchor = tavern.anchor;
+        if (anchor == null || tavern.bounds == null || tavern.plaquePos == null
+            || !anchor.equals(tavern.plaquePos)) {
+            return anchor;
+        }
+        var level = settler.level();
+        long now = level.getGameTime();
+        CachedPost cached = FLOOR_POSTS.get(tavern.id);
+        if (cached != null && cached.anchor().equals(anchor) && now - cached.at() >= 0
+                && now - cached.at() < 100) {
+            return cached.pos();
+        }
+        BlockPos found = scanTavernFloor(settler, tavern, anchor);
+        if (FLOOR_POSTS.size() > 256) FLOOR_POSTS.clear();
+        FLOOR_POSTS.put(tavern.id, new CachedPost(anchor, found, now));
+        return found;
+    }
+
+    private record CachedPost(BlockPos anchor, BlockPos pos, long at) {}
+    /** Server-thread only; a bounded per-Tavern cache so posting stays cheap. */
+    private static final java.util.Map<java.util.UUID, CachedPost> FLOOR_POSTS =
+        new java.util.HashMap<>();
+
+    private static BlockPos scanTavernFloor(SettlerEntity settler, Building tavern, BlockPos anchor) {
+        var level = settler.level();
+        var box = tavern.bounds;
+        int cx = (box.minX() + box.maxX()) >> 1;
+        int cz = (box.minZ() + box.maxZ()) >> 1;
+        for (int ring = 0; ring <= 2; ring++) {
+            for (int dx = -ring; dx <= ring; dx++) {
+                for (int dz = -ring; dz <= ring; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != ring) continue;
+                    for (int y = box.minY(); y < box.maxY(); y++) {
+                        BlockPos feet = new BlockPos(cx + dx, y, cz + dz);
+                        if (!level.hasChunkAt(feet)) return anchor;
+                        if (TavernSeating.clearStand(level, settler, feet)) return feet;
+                    }
+                }
+            }
+        }
+        return anchor;
     }
 
     private Schedule() {

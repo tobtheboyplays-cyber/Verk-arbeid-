@@ -15,6 +15,7 @@ public record RequestTransition(int sequence, RequestState from,
     public RequestTransition {
         if (sequence <= 0 || from == null || to == null
             || from == to && from != RequestState.IN_TRANSIT
+                && from != RequestState.PICKUP
             || gameTime < 0L || blocker == null || movedCount < 0
             || deliveredCount < 0 || deliveredCount > movedCount) {
             throw new IllegalArgumentException("invalid request transition");

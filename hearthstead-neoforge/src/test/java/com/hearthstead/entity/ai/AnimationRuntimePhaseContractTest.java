@@ -36,4 +36,16 @@ final class AnimationRuntimePhaseContractTest {
             LumbererWorkGoal.TICKS_PER_LOG % LumbererWorkGoal.CHOP_CYCLE_TICKS,
             "world mutation must land on the same phase as axe/wood contact");
     }
+
+    @Test
+    void craftPropsRemainVisibleOnTheirExactContactFrames() {
+        assertEquals(30, LumbererSelfCraftGoal.CRAFT_CONTACT_TICK);
+        assertEquals(43, LumbererSelfCraftGoal.PICKUP_CONTACT_TICK);
+        assertEquals(44, LumbererSelfCraftGoal.PICKUP_TRANSFER_TICK,
+            "table output projection must hand off after visible pickup contact");
+        assertEquals(14, LumbererSelfCraftGoal.DEPOSIT_CONTACT_TICK);
+        assertTrue(LumbererSelfCraftGoal.DEPOSIT_CONTACT_TICK
+                < LumbererSelfCraftGoal.DEPOSIT_DURATION_TICKS,
+            "storage contact needs a visible post-contact recovery frame");
+    }
 }

@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
@@ -62,12 +63,13 @@ public final class QaClientObserver {
     private static final int FRAME_SAMPLE_CAPACITY = 360;
     private static final long SLOW_FRAME_NANOS = 33_333_333L;
     private static final long VERY_SLOW_FRAME_NANOS = 100_000_000L;
+    private static final long MONOTONIC_ORIGIN_NANOS = System.nanoTime();
     private static final Pattern VALID_NONCE =
         Pattern.compile("[A-Za-z0-9_-]{1,80}");
     private static final Pattern VALID_SESSION =
         Pattern.compile("[A-Za-z0-9_-]{8,80}");
     private static final Pattern INVALID_STATE_CHARACTER =
-        Pattern.compile("[^A-Za-z0-9_.,:=/+\\-]");
+        Pattern.compile("[^A-Za-z0-9_.,:/+\\-]");
 
     private static long postOrdinal;
     private static String pendingNonce;
@@ -97,6 +99,7 @@ public final class QaClientObserver {
             return;
         }
 
+        com.hearthstead.client.model.QaTravelerPoseCapture.expireIfNeeded();
         sampleFrameTiming(minecraft);
         long thisPost = ++postOrdinal;
 
@@ -122,6 +125,25 @@ public final class QaClientObserver {
             .resolve(REQUEST_FILE);
         String nonce = readNonce(request);
         if (nonce == null || nonce.equals(lastAcceptedNonce)) {
+            return;
+        }
+
+        // Consume the one-shot mailbox entry before scheduling the delayed
+        // acknowledgement. Leaving an acknowledged request in place made the
+        // render thread reopen the same file every frame. On DrvFs/Windows
+        // that brief read handle can deny the harness' next atomic replace.
+        // A consumed request is safe: the nonce remains in pendingNonce, and a
+        // client crash before the later ACK still makes the harness time out.
+        try {
+            Files.delete(request);
+        } catch (NoSuchFileException exception) {
+            return;
+        } catch (IOException exception) {
+            if (!requestIoErrorLogged) {
+                requestIoErrorLogged = true;
+                Hearthstead.LOGGER.error(
+                    "HSQA_FRAME_ERROR code=request_consume_io", exception);
+            }
             return;
         }
 
@@ -197,6 +219,12 @@ public final class QaClientObserver {
             requestIoErrorLogged = false;
             invalidNonceLogged = false;
             return nonce;
+        } catch (NoSuchFileException exception) {
+            // The mailbox is a one-shot file. A no-path result between
+            // exists/stat/read means either there is no request this frame or
+            // the next atomic publication has not appeared yet. The nonce
+            // still has to be read and receive a matching ACK.
+            return null;
         } catch (IOException exception) {
             if (!requestIoErrorLogged) {
                 requestIoErrorLogged = true;
@@ -215,6 +243,11 @@ public final class QaClientObserver {
      * deleted before activation; a malformed, expired, symlinked or
      * non-deletable marker fails closed and cannot silently enable QA.
      */
+    /** Read-only access for the bounded final-model recorder; never activates QA itself. */
+    public static boolean travelerPoseEnabled() { return active; }
+    public static String travelerPoseSession() { return qaSession; }
+    public static String travelerPoseJar() { return runtimeJarSha256(Minecraft.getInstance()); }
+
     private static boolean ensureActivated(Minecraft minecraft) {
         if (activationChecked) {
             return active;
@@ -356,11 +389,8 @@ public final class QaClientObserver {
         String blessingTitle = I18n.get("hearthstead.blessing.title");
         boolean blessingTitleResolved =
             !"hearthstead.blessing.title".equals(blessingTitle);
-        boolean blessingTitleLanguageMatch = switch (language) {
-            case "en_us" -> "Choose a Blessing Seal".equals(blessingTitle);
-            case "nb_no" -> "Velg et velsignelsessegl".equals(blessingTitle);
-            default -> false;
-        };
+        boolean blessingTitleLanguageMatch = "en_us".equals(language)
+            && "Choose a Blessing Seal".equals(blessingTitle);
         String uiState = minecraft.screen instanceof QaUiInspectable inspectable
             ? safeToken(inspectable.qaUiState())
             : "unavailable";
@@ -368,11 +398,17 @@ public final class QaClientObserver {
         boolean integratedServer = minecraft.getSingleplayerServer() != null;
         String worldPathToken = worldPathToken(minecraft);
         long observedEpochMillis = System.currentTimeMillis();
+        // System.nanoTime has an arbitrary signed origin. Publish a positive
+        // JVM-relative elapsed value so evidence parsers can validate the
+        // field without mistaking that unspecified origin for corruption.
+        long observedMonotonicNanos = Math.max(1L,
+            System.nanoTime() - MONOTONIC_ORIGIN_NANOS);
         Hearthstead.LOGGER.info(
             "HSQA_FRAME_ACK nonce={} qaSession={} observerSource={} nativeWindows={} "
                 + "runtimeJarSha256={} runtimeJarSource={} gameDirectoryToken={} "
                 + "runtimeJarPathToken={} worldPathToken={} integratedServer={} "
-                + "observedEpochMillis={} screen={} screenClass={} grabbed={} "
+                + "observedEpochMillis={} observedMonotonicNanos={} "
+                + "screen={} screenClass={} grabbed={} "
                 + "auxButtonBound={} yaw={} pitch={} playerPos={} hitType={} hitBlock={} "
                 + "guiScale={} gui={}x{} framebuffer={}x{} "
                 + "language={} blessingTitleResolved={} blessingTitleLanguageMatch={} "
@@ -382,7 +418,7 @@ public final class QaClientObserver {
             nonce, qaSession, observerSource, NATIVE_WINDOWS, runtimeJarSha256,
             cachedRuntimeJarSource, cachedGameDirectoryToken,
             cachedRuntimeJarPathToken, worldPathToken, integratedServer,
-            observedEpochMillis,
+            observedEpochMillis, observedMonotonicNanos,
             screen, screenClass, grabbed, auxiliaryBindings, yaw, pitch,
             playerPos, hitType, hitBlock,
             window.getGuiScale(), window.getGuiScaledWidth(),
@@ -574,11 +610,17 @@ public final class QaClientObserver {
         return Math.round(nanos / 10_000.0D) / 100.0D;
     }
 
-    private static String safeToken(String value) {
+    static String safeToken(String value) {
         if (value == null || value.isBlank()) {
             return "none";
         }
-        return INVALID_STATE_CHARACTER.matcher(value).replaceAll("_");
+        // Log records use one '=' to separate each top-level field. Screen
+        // diagnostics contain their own key/value pairs, so normalise those
+        // inner separators to ':' before the strict evidence parser sees the
+        // token. This preserves readable state without creating ambiguous
+        // or unsealable ACK records.
+        return INVALID_STATE_CHARACTER.matcher(value.replace('=', ':'))
+            .replaceAll("_");
     }
 
     private record FrameStats(int samples, double p50Ms, double p95Ms,

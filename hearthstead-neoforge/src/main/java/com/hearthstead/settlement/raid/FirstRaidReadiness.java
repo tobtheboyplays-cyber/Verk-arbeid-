@@ -17,6 +17,8 @@ import com.hearthstead.settlement.equipment.EquipmentRequirement;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.journey.JourneyReadinessGate;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
+import com.hearthstead.settlement.work.WorkerProvenanceSavedData;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.level.ServerLevel;
@@ -37,6 +39,9 @@ import java.util.UUID;
  * <p>The ledger records the two one-time founding commits: a Lumberer entering
  * the real Lumber Camp after the matching physical emblem was consumed, and
  * that same worker later inserting a real log into that workplace's storage.
+ * If that recorded employment becomes invalid, a new paid hire and a new
+ * provenance-backed physical deposit can renew this live proof without
+ * replaying or resetting the completed founding Journey.
  * The remaining Journey-v2 proof already has durable server authority in the
  * Development ledger: Cultivated Ground can only precede a real Farmer crop
  * deposit, Hospitality can only precede three real Courier deliveries, First
@@ -130,6 +135,8 @@ public final class FirstRaidReadiness {
     private UUID lumberCampId;
     private int storedLogCount;
     private long storedAtGameTime;
+    /** Present only while a paid replacement awaits a new physical deposit. */
+    private long recoveryHiredAt = -1L;
 
     /** Fixture/migration-safe default. Real founding replaces it with fresh. */
     public FirstRaidReadiness() {
@@ -193,7 +200,7 @@ public final class FirstRaidReadiness {
     public synchronized boolean noteConsumedLumbererEmblemHire(
             ServerLevel level, Settlement settlement, Building building,
             SettlerEntity settler) {
-        if (stage == Stage.PRODUCTION_STORED || stage == Stage.QUARANTINED
+        if (stage == Stage.QUARANTINED
             || revision >= MAX_REVISION
             || !liveLumbererAtCamp(level, settlement, building, settler)
             ) {
@@ -206,9 +213,16 @@ public final class FirstRaidReadiness {
         // locking the first raid. Replacement is allowed only after the old
         // recorded employment is no longer a live valid fact (dismissal,
         // reassignment, death, or building loss).
-        if (stage == Stage.EMBLEM_HIRED && recordedHireStillLive(level, settlement)) {
+        if ((stage == Stage.EMBLEM_HIRED || stage == Stage.PRODUCTION_STORED)
+            && recordedHireStillLive(level, settlement)) {
             return false;
         }
+        boolean recovery = stage == Stage.PRODUCTION_STORED || recoveryHiredAt >= 0L;
+        if (recovery && !settlement.employmentAuthorizations.matches(settlement.id,
+                settler.getUUID(), building.id, Profession.LUMBERER)) {
+            return false; // An unissued/free emblem cannot replace earned production.
+        }
+        recoveryHiredAt = recovery ? level.getGameTime() : -1L;
         stage = Stage.EMBLEM_HIRED;
         workerId = settler.getUUID();
         lumberCampId = building.id;
@@ -228,7 +242,7 @@ public final class FirstRaidReadiness {
     public synchronized boolean noteStoredProduction(
             ServerLevel level, Settlement settlement, Building building,
             SettlerEntity settler, ItemStack offeredStack, int insertedCount) {
-        if (stage != Stage.EMBLEM_HIRED || revision >= MAX_REVISION
+        if (recoveryHiredAt >= 0L || stage != Stage.EMBLEM_HIRED || revision >= MAX_REVISION
             || workerId == null || lumberCampId == null
             || !workerId.equals(settler == null ? null : settler.getUUID())
             || !lumberCampId.equals(building == null ? null : building.id)
@@ -244,6 +258,39 @@ public final class FirstRaidReadiness {
         storedLogCount = insertedCount;
         storedAtGameTime = Math.max(0L, level.getGameTime());
         revision++;
+        return true;
+    }
+
+    /** Called only after a new provenance-backed physical Camp insertion committed.
+     * Completed founding/Journey history is preserved; only live raid proof renews. */
+    public synchronized boolean noteRecoveredStoredProduction(ServerLevel level,
+            Settlement settlement, Building camp, SettlerEntity worker,
+            WorkerProvenanceSavedData.DepositReceipt receipt) {
+        if (recoveryHiredAt < 0L || stage != Stage.EMBLEM_HIRED || revision >= MAX_REVISION
+            || !liveLumbererAtCamp(level, settlement, camp, worker)
+            || !Objects.equals(workerId, worker.getUUID()) || !Objects.equals(lumberCampId, camp.id)
+            || !settlement.employmentAuthorizations.matches(settlement.id, workerId, camp.id, Profession.LUMBERER)
+            || receipt == null || receipt.committedTick() <= recoveryHiredAt
+            || receipt.committedTick() != level.getGameTime()
+            || !receipt.settlementId().equals(settlement.id) || !receipt.buildingId().equals(camp.id)
+            || !receipt.workerId().equals(workerId) || !receipt.dimension().equals(level.dimension().location())
+            || receipt.count() > MAX_STORED_LOG_COUNT
+            || !new ItemStack(BuiltInRegistries.ITEM.get(receipt.itemId())).is(ItemTags.LOGS)) {
+            return false;
+        }
+        var data = WorkerProvenanceSavedData.existing(level);
+        var action = data == null ? null : data.action(receipt.actionId());
+        if (data == null || data.quarantined() || !receipt.equals(data.receipt(receipt.id()))
+            || action == null || !action.workTerminal()
+            || action.kind() != WorkerProvenanceSavedData.Kind.LUMBER_TREE
+            || !action.workerId().equals(workerId) || !action.zone().equals(camp.workZone().orElse(null))
+            || action.deposited().getOrDefault(receipt.itemId(), 0) < receipt.count()) return false;
+        stage = Stage.PRODUCTION_STORED;
+        storedLogCount = receipt.count();
+        storedAtGameTime = receipt.committedTick();
+        recoveryHiredAt = -1L;
+        revision++;
+        SettlementManager.data(level).setDirty();
         return true;
     }
 
@@ -285,7 +332,8 @@ public final class FirstRaidReadiness {
             || !development.unlocked(DevelopmentNode.SETTLEMENT_CHARTER)
             || !development.unlocked(DevelopmentNode.SHELTER)
             || !development.unlocked(DevelopmentNode.TIMBER_RIGHTS)
-            || !development.unlocked(DevelopmentNode.CULTIVATED_GROUND)
+            || !(development.unlocked(DevelopmentNode.CULTIVATED_GROUND)
+                || development.unlocked(DevelopmentNode.SHORE_PROVISIONS))
             || !development.unlocked(DevelopmentNode.STORES_AND_ROADS)
             || !development.unlocked(DevelopmentNode.HOSPITALITY)
             || !development.unlocked(DevelopmentNode.FIRST_WATCH)
@@ -307,13 +355,14 @@ public final class FirstRaidReadiness {
         boolean validHouse = false;
         int physicalHousingBeds = 0;
         Building farmhouse = null;
+        Building fishery = null;
         Building warehouse = null;
         Building tavern = null;
         Building barracks = null;
         for (Building building : settlement.buildings) {
             if (building == null || building.id == null || building.type == null
                 || building.plaquePos == null || !buildingIds.add(building.id)
-                || building.workers.size() > building.type.workerCapacity()) {
+                || building.workers.size() > Building.maxWorkerCapacity(building.type)) {
                 return Assessment.ROSTER_CORRUPT;
             }
             Set<UUID> localWorkers = new HashSet<>();
@@ -335,13 +384,17 @@ public final class FirstRaidReadiness {
             }
             if (building.valid && building.type.housesResidents()
                 && exactPhysicalPlaque(level, settlement, building)) {
-                physicalHousingBeds += Math.min(building.type.residentCapacity(),
+                physicalHousingBeds += Math.min(com.hearthstead.settlement.techtree.effects
+                        .CommonsEffects.houseCapacity(level, settlement, building.type),
                     building.beds.size());
             }
             if (building.valid && exactPhysicalPlaque(level, settlement, building)) {
                 if (building.type == BuildingType.FARMHOUSE
                     && storageHealthy(level, building)) {
                     farmhouse = building;
+                } else if (building.type == BuildingType.FISHERY
+                    && storageHealthy(level, building)) {
+                    fishery = building;
                 } else if (building.type == BuildingType.WAREHOUSE
                     && storageHealthy(level, building)) {
                     warehouse = building;
@@ -355,8 +408,11 @@ public final class FirstRaidReadiness {
             }
         }
         for (Map.Entry<UUID, Settlement.SettlerRecord> entry : records.entrySet()) {
-            if (!employed.contains(entry.getKey())
-                && entry.getValue().profession != Profession.NONE) {
+            boolean mayor = entry.getKey().equals(settlement.mayorId);
+            Profession profession = entry.getValue().profession;
+            if (mayor ? profession != Profession.MAYOR || employed.contains(entry.getKey())
+                    : profession == Profession.MAYOR
+                        || !employed.contains(entry.getKey()) && profession != Profession.NONE) {
                 return Assessment.ROSTER_CORRUPT;
             }
         }
@@ -372,10 +428,9 @@ public final class FirstRaidReadiness {
             return Assessment.LUMBER_CAMP_INVALID;
         }
 
-        SettlerEntity mayor = liveMember(level, settlement, settlement.mayorId);
-        if (mayor == null || records.get(mayor.getUUID()) == null) {
-            return Assessment.MAYOR_INVALID;
-        }
+        // The Mayor office is retired (Guildmaster, 26 Sep): readiness no
+        // longer requires a seated leader. MAYOR_INVALID stays in the enum
+        // only as a stable legacy value; nothing returns it.
 
         Settlement.SettlerRecord workerRecord = records.get(workerId);
         SettlerEntity worker = liveMember(level, settlement, workerId);
@@ -385,11 +440,13 @@ public final class FirstRaidReadiness {
             || !exactEmployerIs(settlement, workerId, evidenceCamp)) {
             return Assessment.WORKER_INVALID;
         }
-        if (farmhouse == null) {
+        if (farmhouse == null && fishery == null) {
             return Assessment.FARMHOUSE_INVALID;
         }
-        if (!hasLiveWorker(level, settlement, records, farmhouse,
-                Profession.FARMER)) {
+        if (!(farmhouse != null && hasLiveWorker(level, settlement, records, farmhouse,
+                Profession.FARMER))
+            && !(fishery != null && hasLiveWorker(level, settlement, records, fishery,
+                Profession.FISHER))) {
             return Assessment.FARMER_INVALID;
         }
         if (warehouse == null) {
@@ -570,8 +627,7 @@ public final class FirstRaidReadiness {
     private static boolean exactPhysicalPlaque(ServerLevel level,
                                                Settlement settlement,
                                                Building building) {
-        if (!settlement.inside(building.plaquePos)
-            || !(level.getBlockEntity(building.plaquePos)
+        if (!(level.getBlockEntity(building.plaquePos)
                 instanceof PlaqueBlockEntity plaque)
             || plaque.isRemoved() || plaque.getLevel() != level
             || plaque.state() != PlaqueState.LINKED_VALID
@@ -620,6 +676,7 @@ public final class FirstRaidReadiness {
         }
         tag.putInt("StoredLogCount", storedLogCount);
         tag.putLong("StoredAtGameTime", storedAtGameTime);
+        if (recoveryHiredAt >= 0L) tag.putLong("RecoveryHiredAt", recoveryHiredAt);
         return tag;
     }
 
@@ -644,6 +701,10 @@ public final class FirstRaidReadiness {
             return quarantined();
         }
 
+        if (tag.contains("RecoveryHiredAt") && (!tag.contains("RecoveryHiredAt", Tag.TAG_LONG)
+                || tag.getLong("RecoveryHiredAt") < 0L || decoded != Stage.EMBLEM_HIRED)) {
+            return quarantined();
+        }
         boolean hasWorker = tag.hasUUID("WorkerId");
         boolean hasCamp = tag.hasUUID("LumberCampId");
         if (decoded == Stage.QUARANTINED) {
@@ -660,10 +721,12 @@ public final class FirstRaidReadiness {
         UUID decodedWorker = tag.getUUID("WorkerId");
         UUID decodedCamp = tag.getUUID("LumberCampId");
         if (decoded == Stage.EMBLEM_HIRED) {
-            return decodedRevision >= 1 && decodedCount == 0 && decodedTime == -1L
-                ? new FirstRaidReadiness(decoded, decodedRevision,
-                    decodedWorker, decodedCamp, 0, -1L)
-                : quarantined();
+            if (decodedRevision < 1 || decodedCount != 0 || decodedTime != -1L) return quarantined();
+            FirstRaidReadiness restored = new FirstRaidReadiness(decoded, decodedRevision,
+                decodedWorker, decodedCamp, 0, -1L);
+            restored.recoveryHiredAt = tag.contains("RecoveryHiredAt", Tag.TAG_LONG)
+                ? tag.getLong("RecoveryHiredAt") : -1L;
+            return restored;
         }
         return decodedRevision >= 2
             && decodedCount > 0 && decodedCount <= MAX_STORED_LOG_COUNT

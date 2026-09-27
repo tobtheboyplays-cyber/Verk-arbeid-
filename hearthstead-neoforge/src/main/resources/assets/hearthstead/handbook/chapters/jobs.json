@@ -1,0 +1,55 @@
+{
+  "id": "jobs",
+  "title": "hearthstead.guide.jobs.title",
+  "icon": "hearthstead:lumberer_emblem",
+  "pages": [
+    {
+      "id": "jobs.p1",
+      "title": "hearthstead.guide.jobs.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/emblem_hire.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.jobs.p1.b1",
+        "hearthstead.guide.jobs.p1.b2",
+        "hearthstead.guide.jobs.p1.b3",
+        "hearthstead.guide.jobs.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.jobs.p1.k1"
+        },
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.jobs.p1.k2",
+          "modifier": "key.sneak"
+        }
+      ],
+      "items": [
+        "hearthstead:lumberer_emblem",
+        "hearthstead:farmer_emblem",
+        "hearthstead:courier_emblem",
+        "hearthstead:guard_emblem"
+      ],
+      "tip": "hearthstead.guide.jobs.p1.tip",
+      "text": [
+        "hearthstead.guide.jobs.body"
+      ]
+    },
+    {
+      "id": "jobs.stuck",
+      "title": "hearthstead.guide.jobs.stuck.title",
+      "bullets": [
+        "hearthstead.guide.jobs.stuck.b1",
+        "hearthstead.guide.jobs.stuck.b2",
+        "hearthstead.guide.jobs.stuck.b3",
+        "hearthstead.guide.jobs.stuck.b4"
+      ],
+      "tip": "hearthstead.guide.jobs.stuck.tip"
+    }
+  ]
+}

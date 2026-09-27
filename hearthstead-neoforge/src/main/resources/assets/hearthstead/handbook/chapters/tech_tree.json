@@ -1,0 +1,40 @@
+{
+  "id": "tech_tree",
+  "title": "hearthstead.guide.tech_tree.title",
+  "icon": "minecraft:lectern",
+  "pages": [
+    {
+      "id": "tech_tree.p1",
+      "title": "hearthstead.guide.tech_tree.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/tech_tree_qa.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.tech_tree.p1.b1",
+        "hearthstead.guide.tech_tree.p1.b2",
+        "hearthstead.guide.tech_tree.p1.b3",
+        "hearthstead.guide.tech_tree.p1.b4"
+      ],
+      "tip": "hearthstead.guide.tech_tree.p1.tip",
+      "text": [
+        "hearthstead.guide.tech_tree.body"
+      ]
+    },
+    {
+      "id": "tech_tree.p2",
+      "title": "hearthstead.guide.tech_tree.p2.title",
+      "bullets": [
+        "hearthstead.guide.tech_tree.p2.b1",
+        "hearthstead.guide.tech_tree.p2.b2",
+        "hearthstead.guide.tech_tree.p2.b3"
+      ],
+      "tip": "hearthstead.guide.tech_tree.p2.tip",
+      "text": [
+        "hearthstead.guide.tech_tree.body2"
+      ]
+    }
+  ]
+}

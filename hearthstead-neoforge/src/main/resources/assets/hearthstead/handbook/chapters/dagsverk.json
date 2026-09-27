@@ -1,0 +1,33 @@
+{
+  "id": "dagsverk",
+  "title": "hearthstead.guide.dagsverk.title",
+  "icon": "minecraft:red_bed",
+  "pages": [
+    {
+      "id": "dagsverk.p1",
+      "title": "hearthstead.guide.dagsverk.p1.title",
+      "bullets": [
+        "hearthstead.guide.dagsverk.p1.b1",
+        "hearthstead.guide.dagsverk.p1.b2",
+        "hearthstead.guide.dagsverk.p1.b3"
+      ],
+      "tip": "hearthstead.guide.dagsverk.p1.tip",
+      "text": [
+        "hearthstead.guide.dagsverk.body"
+      ]
+    },
+    {
+      "id": "dagsverk.p2",
+      "title": "hearthstead.guide.dagsverk.p2.title",
+      "bullets": [
+        "hearthstead.guide.dagsverk.p2.b1",
+        "hearthstead.guide.dagsverk.p2.b2",
+        "hearthstead.guide.dagsverk.p2.b3"
+      ],
+      "tip": "hearthstead.guide.dagsverk.p2.tip",
+      "text": [
+        "hearthstead.guide.dagsverk.body2"
+      ]
+    }
+  ]
+}

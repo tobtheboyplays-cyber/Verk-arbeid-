@@ -10,7 +10,7 @@ public enum Profession {
     NONE(0, "none", () -> ItemStack.EMPTY, 0xC9B28A),
     FARMER(1, "farmer", () -> new ItemStack(Items.IRON_HOE), 0x5B7A50),
     LUMBERER(2, "lumberer", () -> new ItemStack(Items.IRON_AXE), 0x93494E),
-    GUARD(3, "guard", () -> new ItemStack(Items.IRON_SWORD), 0x57575E),
+    GUARD(3, "guard", () -> new ItemStack(Items.WOODEN_SWORD), 0x57575E),
     // A2a: hands stay free for crates -- the carry animations own them.
     COURIER(4, "courier", () -> ItemStack.EMPTY, 0x8A6D3B),
     // CHAINS-1. Crafters keep their hands free: the work animation is what
@@ -76,8 +76,28 @@ public enum Profession {
     // These values are request templates, not starting equipment. SHEARS,
     // FISHING_ROD and BOW must all enter the settlement as physical items.
     HERDER(23, "herder", () -> new ItemStack(Items.SHEARS), 0x8B9A6B),
-    FISHER(24, "fisher", () -> new ItemStack(Items.FISHING_ROD), 0x3E7C8A),
-    HUNTER(25, "hunter", () -> new ItemStack(Items.BOW), 0x5C4A32);
+    FISHER(24, "fisher", () -> new ItemStack(com.hearthstead.registry.ModItems.FISHERS_ROD.get()), 0x3E7C8A),
+    HUNTER(25, "hunter", () -> new ItemStack(Items.BOW), 0x5C4A32),
+    MAYOR(26, "mayor", () -> ItemStack.EMPTY, 0xB59A55),
+    TRADER(27, "trader", () -> ItemStack.EMPTY, 0xB89643),
+    // BATTLE-ROLES (plan/BATTLE-ROLES.md): four battlefield roles, each with
+    // its own building (the building decides the trade, D-011) and its own
+    // command key. Ids are APPENDED; never renumber (saves + sync + wire).
+    // The spear/longsword are request templates exactly like the Guard's
+    // sword: hiring never conjures one (EquipmentRequests).
+    SPEARMAN(28, "spearman",
+        () -> new ItemStack(com.hearthstead.registry.RoleItems.WOODEN_SPEAR.get()), 0x8C5A2B),
+    LONGSWORDSMAN(29, "longswordsman",
+        () -> new ItemStack(com.hearthstead.registry.RoleItems.IRON_LONGSWORD.get()), 0x4F6D8A),
+    // Hands stay free for bandages; supplies ride in the offhand where they show.
+    HEALER(30, "healer", () -> ItemStack.EMPTY, 0xC8BFA8),
+    // Spells are rune charges, not a held item; rune stones ride in the offhand.
+    RUNE_MAGE(31, "rune_mage", () -> ItemStack.EMPTY, 0x3A4FA0),
+    // BUILDER lane (plan/BUILDER.md): raises what a player explicitly ordered
+    // -- a placed blueprint, a drawn defense line, an Upgrade Order -- from
+    // real delivered materials. Hands stay free: the plank carry and the
+    // place-and-tap clips own them. Appended id; never renumber.
+    BUILDER(32, "builder", () -> ItemStack.EMPTY, 0x9A6A3A);
 
     public static final Profession[] BY_ID = values();
 
@@ -121,7 +141,7 @@ public enum Profession {
     }
 
     public boolean employed() {
-        return this != NONE;
+        return this != NONE && this != MAYOR;
     }
 
     /**
@@ -135,7 +155,23 @@ public enum Profession {
      * follows.
      */
     public boolean martial() {
-        return this == GUARD || this == ARCHER;
+        return this == GUARD || this == ARCHER || this == SPEARMAN
+            || this == LONGSWORDSMAN || this == RUNE_MAGE;
+    }
+
+    /**
+     * Everyone who belongs on the battlefield during a raid: the martial
+     * trades plus the Healer. A Healer stays awake, out of the panic shelter
+     * and at work while a raid runs, but it is deliberately NOT martial: it
+     * never picks targets and it flees when targeted (plan/BATTLE-ROLES.md).
+     */
+    public boolean battlefield() {
+        return martial() || this == HEALER;
+    }
+
+    /** Melee trades that fight at the line (knights, spearmen, longswords). */
+    public boolean frontline() {
+        return this == GUARD || this == SPEARMAN || this == LONGSWORDSMAN;
     }
 
     public Component displayName() {

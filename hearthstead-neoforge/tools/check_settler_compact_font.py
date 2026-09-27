@@ -2,7 +2,7 @@
 """Real-font contract for the compact Settler Citizen Dossier.
 
 This mirrors the small amount of responsive geometry in
-``SettlerScreen.compactLayout`` and measures the live EN/NB language files with
+``SettlerScreen.compactLayout`` and measures the shipped English language file with
 Minecraft's actual client font through ``tools/mcfont.py``.  It deliberately
 checks the 320px floor as well as the reviewed 427px target; rectangle-only
 tests cannot detect a translated label that technically stays inside its cell
@@ -92,23 +92,14 @@ def run():
     failures = []
     selections = {}
 
-    for locale in ("en_us", "nb_no"):
+    for locale in ("en_us",):
         lang = language(locale)
         for viewport in (320, 427):
             geo = geometry(viewport)
             summary_inner = geo["summary"] - 16
-            max_pace_width = font.width("100%")
             right_now = lang["hearthstead.settler.compact.right_now"]
-            pace = lang["hearthstead.settler.compact.pace"]
-            show_pace = (font.width(right_now) + font.width(pace)
-                         + max_pace_width + 8 <= summary_inner)
-            right_box = (summary_inner - max_pace_width - 4
-                         - (font.width(pace) + 4 if show_pace else 0))
             require_fit(font, failures, locale, viewport,
-                        "right-now", right_now, right_box)
-            if show_pace:
-                require_fit(font, failures, locale, viewport,
-                            "pace", pace, font.width(pace))
+                        "right-now", right_now, summary_inner)
 
             for need_key in ("hunger", "energy", "morale"):
                 text = lang[f"hearthstead.gui.{need_key}"]
@@ -189,7 +180,7 @@ def run():
             print(f"  - {failure}", file=sys.stderr)
         return 1
 
-    for locale in ("en_us", "nb_no"):
+    for locale in ("en_us",):
         for viewport in (320, 427):
             labels = ", ".join(selections[(locale, viewport)].values())
             print(f"PASS  {locale} {viewport}px: {labels}")

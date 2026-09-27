@@ -1,0 +1,8 @@
+BAG_TO_CHEST_EVIDENCE: FAIL
+report must remain Candidate-only evidence
+unreadable or merged log silhouette: {'tick': 30, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.327, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 31, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.307, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 32, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.27577, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 35, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.29881, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 36, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.32244, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}
+unreadable or merged log silhouette: {'tick': 37, 'dimensions': [0.584, 0.229, 0.229], 'xLongAxis': 0.584, 'crossSectionMax': 0.229, 'axisRatio': 2.55022, 'minChestMeshGap': 0.309, 'barkBodyMeshes': 1, 'barkRidgeMeshes': 2, 'endGrainMeshes': 2}

@@ -93,6 +93,18 @@ public enum ResearchProject {
         return id;
     }
 
+    /** New payments only: retain all IDs and historical progress for trades not yet released.
+     *  Seasoned Timber may be researched before a sawmill is unlocked or built.
+     *  The bakery, smelter and tannery projects open with their trades
+     *  ([features] extendedTrades, trades-unlock lane 26 Sep). */
+    public boolean newStartsSupported() {
+        return switch (this) {
+            case BEDRE_GJAER, BLESTRING, GARVESYRE ->
+                com.hearthstead.settlement.development.ExtendedTrades.enabled();
+            case TORRSETT_TOMMER, AAKERSKIFTE, VAKTDRILL -> true;
+        };
+    }
+
     /** Which {@code Research.bonus} lookup this project affects. */
     public ResearchKey key() {
         return key;

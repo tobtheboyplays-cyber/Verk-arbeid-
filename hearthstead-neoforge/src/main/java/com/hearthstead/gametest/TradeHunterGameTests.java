@@ -15,7 +15,10 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.animal.Cow;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -51,6 +54,23 @@ public class TradeHunterGameTests {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE_BRICKS);
             }
         }
+        // The floor ends exactly at this empty16 arena's edge. Keep wandering
+        // wildlife and its real vanilla drops over that authored support: the
+        // failed run killed its sole prey at x=15.55 in the open edge cell,
+        // where a one-and-a-half-block fence let arrow knockback lift the cow
+        // onto its top and the ensuing loot could leave the supported floor.
+        // Two full solid courses contain both the animal and its real drops;
+        // the Lodge and hunting rules remain untouched.
+        for (int y = 1; y <= 2; y++) {
+            for (int x = 0; x < size; x++) {
+                helper.setBlock(new BlockPos(x, y, 0), Blocks.STONE_BRICKS);
+                helper.setBlock(new BlockPos(x, y, size - 1), Blocks.STONE_BRICKS);
+            }
+            for (int z = 1; z < size - 1; z++) {
+                helper.setBlock(new BlockPos(0, y, z), Blocks.STONE_BRICKS);
+                helper.setBlock(new BlockPos(size - 1, y, z), Blocks.STONE_BRICKS);
+            }
+        }
     }
 
     private static Settlement settlement(GameTestHelper helper) {
@@ -79,7 +99,10 @@ public class TradeHunterGameTests {
         return settler;
     }
 
-    @GameTest(batch = "trade_hunter", template = "empty16", timeoutTicks = 1400)
+    // Hunter rework: the kill is now carried home as a carcass, dressed on
+    // the Lodge floor (this fixture has no Butchering Table, 12 s) and
+    // unloaded unit by unit, so the window covers the whole physical loop.
+    @GameTest(batch = "trade_hunter", template = "empty16", timeoutTicks = 2600)
     public void aHiredHunterHuntsButNeverBreaksTheFloor(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -89,11 +112,14 @@ public class TradeHunterGameTests {
             helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
         helper.assertTrue(be instanceof Container, "the arena chest should be a container");
         Container chest = (Container) be;
+        chest.setItem(0, new ItemStack(Items.ARROW, 16));
 
-        // MIN_SPECIES_POPULATION + 1 real wild cows, spread around the
-        // arena, well within HUNT_RADIUS (28) of the lodge's anchor and
-        // outside its own small bounds -- never conjured by the goal.
-        int[][] spots = {{10, 10}, {11, 9}, {9, 11}, {12, 11}, {10, 13}};
+        // MIN_SPECIES_POPULATION + 1 real wild cows. Keep one nearest prey
+        // in a clear lane and the four protected herd members well away from
+        // that lane: the old clustered herd let a low-inaccuracy vanilla
+        // arrow sequence injure every cow without making one lethal hit.
+        // Every cow remains inside HUNT_RADIUS and outside the Lodge bounds.
+        int[][] spots = {{7, 8}, {1, 13}, {13, 2}, {13, 13}, {2, 13}};
         List<Cow> herd = new ArrayList<>();
         for (int[] spot : spots) {
             herd.add(helper.spawn(EntityType.COW, new BlockPos(spot[0], 1, spot[1])));
@@ -107,6 +133,7 @@ public class TradeHunterGameTests {
         // over the test window, so the floor is what has to stop it, not an
         // exhausted labour pool giving a false pass.
         orn.attributes().pinForTest(Attribute.STAMINA, 100);
+        orn.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         helper.assertTrue(Employment.hire(helper.getLevel(), s, lodge, orn).ok(),
             "a hunters lodge must be able to take a hunter");
         helper.assertTrue(orn.getProfession() == Profession.HUNTER,
@@ -115,6 +142,19 @@ public class TradeHunterGameTests {
         helper.getLevel().setDayTime(3000);
 
         boolean[] sawHunting = new boolean[1];
+        boolean[] sawPhysicalArrow = new boolean[1];
+        boolean[] sawSyncedBowUse = new boolean[1];
+
+        helper.onEachTick(() -> {
+            if (orn.getActivity() == SettlerActivity.WORK_HUNT
+                && orn.isUsingItem()) {
+                sawSyncedBowUse[0] = true;
+            }
+            if (!helper.getLevel().getEntitiesOfClass(Arrow.class,
+                    orn.getBoundingBox().inflate(32.0D)).isEmpty()) {
+                sawPhysicalArrow[0] = true;
+            }
+        });
 
         helper.succeedWhen(() -> {
             if (orn.getActivity() == SettlerActivity.WORK_HUNT) {
@@ -146,10 +186,75 @@ public class TradeHunterGameTests {
             }
             helper.assertTrue(meat > 0,
                 "a hired hunter must bring back real meat or hide into the lodge's "
-                    + "own chest (activity=" + orn.getActivity() + ", alive=" + alive + ")");
+                    + "own chest (activity=" + orn.getActivity() + ", alive=" + alive + ")"
+                    + (meat > 0 ? "" : hunterDeliveryDiagnostic(helper, orn, chest, herd,
+                        sawHunting[0], sawPhysicalArrow[0], sawSyncedBowUse[0])));
             helper.assertTrue(sawHunting[0],
                 "the hunter must actually be seen performing WORK_HUNT at some point, "
                     + "not just have the output appear while idle");
+            helper.assertTrue(sawSyncedBowUse[0],
+                "the draw must use the server-synced vanilla bow-use state");
+            int arrows = orn.carriedArrowCount();
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                if (chest.getItem(slot).is(Items.ARROW)) {
+                    arrows += chest.getItem(slot).getCount();
+                }
+            }
+            helper.assertTrue(sawPhysicalArrow[0] && arrows < 16,
+                "the kill must pass through a spawned real Arrow and consume "
+                    + "at least one lodge-owned shaft; sawArrow="
+                    + sawPhysicalArrow[0] + "; remaining=" + arrows);
         });
+    }
+
+    /** Read-only timeout context; this does not assert a kill or complete a delivery. */
+    private static String hunterDeliveryDiagnostic(GameTestHelper helper, SettlerEntity hunter,
+                                                    Container chest, List<Cow> herd,
+                                                    boolean sawHunting, boolean sawArrow,
+                                                    boolean sawBowUse) {
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        int droppedOwnedLoot = helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(origin).inflate(32.0D),
+                item -> item.isAlive() && hunter.getUUID().equals(item.getTarget()))
+            .stream().mapToInt(item -> meatOrHide(item.getItem())).sum();
+        StringBuilder cows = new StringBuilder();
+        for (int index = 0; index < herd.size(); index++) {
+            Cow cow = herd.get(index);
+            cows.append(index).append(":alive=").append(cow.isAlive())
+                .append(",removed=").append(cow.isRemoved())
+                .append(",health=").append(cow.getHealth())
+                .append(",pos=").append(cow.position()).append(';');
+        }
+        int bagLoot = 0;
+        for (int slot = 0; slot < hunter.bag.getContainerSize(); slot++) {
+            bagLoot += meatOrHide(hunter.bag.getItem(slot));
+        }
+        int chestArrows = 0;
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            if (chest.getItem(slot).is(Items.ARROW)) {
+                chestArrows += chest.getItem(slot).getCount();
+            }
+        }
+        int carcasses = helper.getLevel().getEntitiesOfClass(ItemEntity.class,
+                new net.minecraft.world.phys.AABB(origin).inflate(32.0D),
+                item -> item.isAlive() && com.hearthstead.item.CarcassItem.isCarcass(item.getItem())).size()
+            + (com.hearthstead.item.CarcassItem.isCarcass(hunter.getOffhandItem()) ? 1 : 0);
+        return "; carcassesLooseOrCarried=" + carcasses
+            + ", activityNow=" + hunter.getActivity()
+            + ", bagMeatOrHide=" + bagLoot
+            + ", offhandMeatOrHide=" + meatOrHide(hunter.getOffhandItem())
+            + ", targetOwnedDroppedMeatOrHideWithinOrigin32=" + droppedOwnedLoot
+            + ", sawHunting=" + sawHunting + ", sawPhysicalArrow=" + sawArrow
+            + ", sawSyncedBowUse=" + sawBowUse
+            + ", carriedArrows=" + hunter.carriedArrowCount() + ", chestArrows=" + chestArrows
+            + ", hunterPos=" + hunter.position() + ", navDone=" + hunter.getNavigation().isDone()
+            + ", navTarget=" + hunter.getNavigation().getTargetPos()
+            + ", route=" + hunter.routeFailureNote() + ", origin=" + origin
+            + ", lodgeChest=" + helper.absolutePos(new BlockPos(5, 1, 4))
+            + ", fixtureCows=[" + cows + "]";
+    }
+
+    private static int meatOrHide(ItemStack stack) {
+        return stack.is(Items.BEEF) || stack.is(Items.LEATHER) ? stack.getCount() : 0;
     }
 }

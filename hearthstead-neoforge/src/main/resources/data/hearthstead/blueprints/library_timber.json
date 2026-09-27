@@ -1,0 +1,190 @@
+{
+  "id": "library_timber",
+  "name": "Reading Room (Whitewashed Timber)",
+  "category": "common",
+  "kind": "building",
+  "building_type": "library",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber",
+  "requires": "builders_hut",
+  "group": "library",
+  "size": [
+    13,
+    10,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      6,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      7,
+      1,
+      4
+    ]
+  ],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        5,
+        1,
+        4
+      ],
+      "to": "another_furniture:spruce_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        5,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        4,
+        1,
+        4
+      ],
+      "to": "another_furniture:spruce_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        4
+      ],
+      "to": "another_furniture:spruce_chair[facing=west,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        2,
+        1,
+        9
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        8,
+        1,
+        9
+      ],
+      "to": "another_furniture:spruce_chair[facing=north,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 100
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 64
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 48
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 35
+    },
+    {
+      "item": "minecraft:white_concrete",
+      "count": 31
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 30
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 29
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 28
+    },
+    {
+      "item": "minecraft:bookshelf",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 6
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 3
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 3
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lectern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    }
+  ],
+  "block_count": 403,
+  "cells": 614
+}

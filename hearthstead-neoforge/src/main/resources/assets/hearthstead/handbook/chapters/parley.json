@@ -1,0 +1,29 @@
+{
+  "id": "parley",
+  "title": "hearthstead.guide.parley.title",
+  "icon": "minecraft:iron_sword",
+  "pages": [
+    {
+      "id": "parley.prepare",
+      "title": "hearthstead.guide.parley.prepare.title",
+      "bullets": [
+        "hearthstead.guide.parley.prepare.b1",
+        "hearthstead.guide.parley.prepare.b2",
+        "hearthstead.guide.parley.prepare.b3"
+      ],
+      "tip": "hearthstead.guide.parley.prepare.tip",
+      "image_wanted": "Banner raid warning beside stocked weapons and defenders at the entrance."
+    },
+    {
+      "id": "parley.talk",
+      "title": "hearthstead.guide.parley.talk.title",
+      "bullets": [
+        "hearthstead.guide.parley.talk.b1",
+        "hearthstead.guide.parley.talk.b2",
+        "hearthstead.guide.parley.talk.b3"
+      ],
+      "tip": "hearthstead.guide.parley.talk.tip",
+      "image_wanted": "Captain's parley dialogue with tribute, truce and duel choices."
+    }
+  ]
+}

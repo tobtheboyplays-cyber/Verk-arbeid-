@@ -1,0 +1,166 @@
+*** Update File: src/main/java/com/hearthstead/gametest/PathGameTests.java
+@@
+ import net.minecraft.world.level.pathfinder.PathType;
++import net.minecraft.world.phys.AABB;
++import net.minecraft.world.phys.Vec3;
+@@
+     public void settlersReliablyCrossAndCloseAClosedDoor(GameTestHelper helper) {
+@@
+     }
++
++    /**
++     * Two normal settlers use one physical, one-cell doorway in opposite
++     * directions. Each route is issued once; a retry here would hide queue
++     * starvation instead of proving passage ownership.
++     */
++    @GameTest(batch = "path", template = "empty16", timeoutTicks = 500)
++    public void oppositeSettlersQueueThroughOneDoorWithoutPushing(GameTestHelper helper) {
++        DoorCorridor corridor = doorCorridor(helper);
++        SettlerEntity northbound = settler(helper, new BlockPos(8, 1, 3));
++        SettlerEntity southbound = settler(helper, new BlockPos(8, 1, 11));
++        BlockPos northTarget = helper.absolutePos(new BlockPos(8, 1, 11));
++        BlockPos southTarget = helper.absolutePos(new BlockPos(8, 1, 3));
++        OneShotMoveGoal northRoute = new OneShotMoveGoal(northbound, northTarget);
++        OneShotMoveGoal southRoute = new OneShotMoveGoal(southbound, southTarget);
++        boolean[] sawOpen = {false};
++        int[] quietTicks = {0};
++        Vec3[] northPrevious = {northbound.position()};
++        Vec3[] southPrevious = {southbound.position()};
++
++        helper.runAtTickTime(5L, () -> {
++            northbound.goalSelector.addGoal(0, northRoute);
++            southbound.goalSelector.addGoal(0, southRoute);
++        });
++        helper.onEachTick(() -> {
++            helper.assertTrue(doorwayBodies(corridor.door(), northbound, southbound) <= 1,
++                "only one physical settler may occupy the door cell"
++                    + " [north=" + northbound.position()
++                    + " south=" + southbound.position() + "]");
++            assertNormalHorizontalStep(helper, northPrevious[0], northbound.position(), "northbound");
++            assertNormalHorizontalStep(helper, southPrevious[0], southbound.position(), "southbound");
++            northPrevious[0] = northbound.position();
++            southPrevious[0] = southbound.position();
++            sawOpen[0] |= doorOpen(helper, corridor.door());
++        });
++        helper.succeedWhen(() -> {
++            boolean crossed = northbound.distanceToSqr(northTarget.getX() + .5D,
++                    northTarget.getY(), northTarget.getZ() + .5D) <= 2.25D
++                && southbound.distanceToSqr(southTarget.getX() + .5D,
++                    southTarget.getY(), southTarget.getZ() + .5D) <= 2.25D;
++            quietTicks[0] = crossed && !doorOpen(helper, corridor.door())
++                ? quietTicks[0] + 1 : 0;
++            helper.assertTrue(northRoute.attempted() && northRoute.accepted()
++                    && southRoute.attempted() && southRoute.accepted(),
++                "both opposite routes must be issued exactly once");
++            helper.assertTrue(sawOpen[0] && crossed && quietTicks[0] >= 20,
++                "both settlers must cross the same opened doorway and clear it"
++                    + " [quiet=" + quietTicks[0] + "]");
++            helper.assertBlockPresent(Blocks.GRASS_BLOCK, new BlockPos(8, 0, 7));
++        });
++    }
++
++    /**
++     * A holder interrupted before entry loses its two-second lease. The
++     * waiting opposite route then crosses normally; the test never calls a
++     * queue release method or moves either entity.
++     */
++    @GameTest(batch = "path", template = "empty16", timeoutTicks = 300)
++    public void interruptedDoorHolderExpiresForOppositeSettler(GameTestHelper helper) {
++        DoorCorridor corridor = doorCorridor(helper);
++        SettlerEntity interrupted = settler(helper, new BlockPos(8, 1, 3));
++        SettlerEntity waiter = settler(helper, new BlockPos(8, 1, 11));
++        BlockPos interruptedTarget = helper.absolutePos(new BlockPos(8, 1, 11));
++        BlockPos waiterTarget = helper.absolutePos(new BlockPos(8, 1, 3));
++        OneShotMoveGoal interruptedRoute = new OneShotMoveGoal(interrupted, interruptedTarget);
++        OneShotMoveGoal waiterRoute = new OneShotMoveGoal(waiter, waiterTarget);
++        int[] interruptedAt = {-1};
++        int[] waiterDoorAt = {-1};
++        Vec3[] interruptedPrevious = {interrupted.position()};
++        Vec3[] waiterPrevious = {waiter.position()};
++
++        helper.runAtTickTime(5L, () -> {
++            interrupted.goalSelector.addGoal(0, interruptedRoute);
++            waiter.goalSelector.addGoal(0, waiterRoute);
++        });
++        helper.runAtTickTime(25L, () -> {
++            helper.assertTrue(interrupted.distanceToSqr(corridor.door().getX() + .5D,
++                    interrupted.getY(), corridor.door().getZ() + .5D) <= 9.0D,
++                "the interrupted actor must first have reached reservation range");
++            interrupted.getNavigation().stop();
++            interruptedAt[0] = (int) helper.getTick();
++        });
++        helper.onEachTick(() -> {
++            helper.assertTrue(doorwayBodies(corridor.door(), interrupted, waiter) <= 1,
++                "expiry must not permit two physical bodies in the doorway");
++            assertNormalHorizontalStep(helper, interruptedPrevious[0], interrupted.position(), "interrupted");
++            assertNormalHorizontalStep(helper, waiterPrevious[0], waiter.position(), "waiter");
++            interruptedPrevious[0] = interrupted.position();
++            waiterPrevious[0] = waiter.position();
++            if (waiterDoorAt[0] < 0 && waiter.getBoundingBox().intersects(
++                    new AABB(corridor.door()).inflate(.02D))) {
++                waiterDoorAt[0] = (int) helper.getTick();
++            }
++        });
++        helper.succeedWhen(() -> {
++            boolean waiterReached = waiter.distanceToSqr(waiterTarget.getX() + .5D,
++                waiterTarget.getY(), waiterTarget.getZ() + .5D) <= 2.25D;
++            helper.assertTrue(interruptedRoute.attempted() && waiterRoute.attempted()
++                    && waiterRoute.accepted() && interruptedAt[0] >= 0,
++                "fixture must issue both routes and interrupt only the first");
++            helper.assertTrue(waiterDoorAt[0] >= interruptedAt[0] + 40,
++                "opposite passage must wait for the complete two-second lease"
++                    + " [interruptedAt=" + interruptedAt[0]
++                    + " waiterDoorAt=" + waiterDoorAt[0] + "]");
++            helper.assertTrue(waiterReached
++                    && interrupted.distanceToSqr(interruptedTarget.getX() + .5D,
++                        interruptedTarget.getY(), interruptedTarget.getZ() + .5D) > 2.25D,
++                "expiry must free only the waiting actor; it must not restart the interruption");
++            helper.assertBlockPresent(Blocks.GRASS_BLOCK, new BlockPos(8, 0, 7));
++        });
++    }
++
++    private static DoorCorridor doorCorridor(GameTestHelper helper) {
++        meadow(helper, 16);
++        for (int edge = 0; edge < 16; edge++) {
++            for (int y = 1; y <= 2; y++) {
++                helper.setBlock(new BlockPos(edge, y, 0), Blocks.STONE_BRICKS);
++                helper.setBlock(new BlockPos(edge, y, 15), Blocks.STONE_BRICKS);
++                helper.setBlock(new BlockPos(0, y, edge), Blocks.STONE_BRICKS);
++                helper.setBlock(new BlockPos(15, y, edge), Blocks.STONE_BRICKS);
++            }
++        }
++        for (int z = 1; z < 15; z++) {
++            for (int y = 1; y <= 2; y++) {
++                helper.setBlock(new BlockPos(7, y, z), Blocks.STONE_BRICKS);
++                helper.setBlock(new BlockPos(9, y, z), Blocks.STONE_BRICKS);
++            }
++        }
++        BlockPos doorRel = new BlockPos(8, 1, 7);
++        var lower = Blocks.OAK_DOOR.defaultBlockState()
++            .setValue(DoorBlock.FACING, Direction.NORTH)
++            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
++            .setValue(DoorBlock.OPEN, false);
++        helper.setBlock(doorRel, lower);
++        helper.setBlock(doorRel.above(), lower.setValue(DoorBlock.HALF,
++            DoubleBlockHalf.UPPER));
++        return new DoorCorridor(helper.absolutePos(doorRel));
++    }
++
++    private record DoorCorridor(BlockPos door) {}
++
++    private static int doorwayBodies(BlockPos door, SettlerEntity first,
++                                     SettlerEntity second) {
++        AABB doorway = new AABB(door).inflate(.02D);
++        return (first.getBoundingBox().intersects(doorway) ? 1 : 0)
++            + (second.getBoundingBox().intersects(doorway) ? 1 : 0);
++    }
++
++    private static void assertNormalHorizontalStep(GameTestHelper helper,
++                                                    Vec3 previous, Vec3 current,
++                                                    String actor) {
++        double dx = current.x - previous.x;
++        double dz = current.z - previous.z;
++        helper.assertTrue(dx * dx + dz * dz <= .36D,
++            "door queue must not teleport " + actor + " [from=" + previous
++                + " to=" + current + "]");
++    }

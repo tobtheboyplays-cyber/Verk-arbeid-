@@ -3,6 +3,8 @@ package com.hearthstead.settlement.development;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,12 +30,16 @@ class DevelopmentStateTest {
         assertNotNull(archer);
         assertEquals(DevelopmentNode.ARM_THE_WATCH, archer.unlock());
 
+        // Shield still owns no BASELINE defence (no plans, no Guard/Archer):
+        // since BATTLE-ROLES it teaches only the two specialist blades, whose
+        // halls open through RoleUnlocks (plan/BATTLE-ROLES.md section 5).
         assertTrue(DevelopmentNode.SHIELD_DOCTRINE.buildings().isEmpty());
-        assertTrue(DevelopmentNode.SHIELD_DOCTRINE.professions().isEmpty());
+        assertEquals(java.util.List.of(Profession.SPEARMAN, Profession.LONGSWORDSMAN),
+            DevelopmentNode.SHIELD_DOCTRINE.professions());
         assertTrue(DevelopmentNode.SHIELD_DOCTRINE.knowledge().buildPlans()
             .isEmpty());
-        assertTrue(DevelopmentNode.SHIELD_DOCTRINE.knowledge().jobEmblems()
-            .isEmpty());
+        assertEquals(java.util.List.of(Profession.SPEARMAN, Profession.LONGSWORDSMAN),
+            DevelopmentNode.SHIELD_DOCTRINE.knowledge().jobEmblems());
     }
 
     @Test
@@ -49,9 +55,10 @@ class DevelopmentStateTest {
         assertEquals(9, DevelopmentNode.HOME.wireId());
         assertEquals(java.util.List.of("timber_rights"),
             DevelopmentNode.STORES_AND_ROADS.prerequisites());
-        assertEquals(java.util.List.of("stores_and_roads"),
+        // Fields & Farmer is a founding trade (Option 2): only the founding.
+        assertEquals(java.util.List.of("shelter"),
             DevelopmentNode.CULTIVATED_GROUND.prerequisites());
-        assertEquals(java.util.List.of("cultivated_ground"),
+        assertEquals(java.util.List.of("shelter"),
             DevelopmentNode.HOME.prerequisites());
         assertEquals(java.util.List.of("home"),
             DevelopmentNode.HOSPITALITY.prerequisites());
@@ -65,6 +72,7 @@ class DevelopmentStateTest {
             DevelopmentNode.TIMBER_RIGHTS,
             DevelopmentNode.STORES_AND_ROADS,
             DevelopmentNode.CULTIVATED_GROUND,
+            DevelopmentNode.SHORE_PROVISIONS,
             DevelopmentNode.HOME,
             DevelopmentNode.HOSPITALITY,
             DevelopmentNode.FIRST_WATCH,
@@ -167,6 +175,32 @@ class DevelopmentStateTest {
         missingDeliveryLedger.remove("PendingPlayerDeliveries");
         assertTrue(DevelopmentState.readNbt(missingDeliveryLedger).quarantined(),
             "current paid-output ownership cannot migrate from a missing outbox");
+    }
+
+    @Test
+    void obsoleteHomeFarmBaselineStaysInertAcrossReloadWhileUnknownNodeFailsClosed() {
+        CompoundTag historical = throughFirstWatch().writeNbt();
+        historical.getCompound("QuestCounters").putInt("FarmCropsStored", 37);
+        CompoundTag baseline = new CompoundTag();
+        baseline.putString("Key", "home/farm_crops_stored");
+        baseline.putInt("Value", 0);
+        historical.getList("QuestBaselines", Tag.TAG_COMPOUND).add(baseline);
+
+        DevelopmentState migrated = DevelopmentState.readNbt(historical);
+        assertFalse(migrated.quarantined());
+        assertTrue(migrated.unlocked(DevelopmentNode.HOME));
+        assertEquals(37, migrated.counter(DevelopmentObjective.FARM_CROPS_STORED));
+
+        CompoundTag rewritten = migrated.writeNbt();
+        DevelopmentState reloaded = DevelopmentState.readNbt(rewritten);
+        assertFalse(reloaded.quarantined());
+        assertTrue(reloaded.unlocked(DevelopmentNode.HOME));
+        assertEquals(37, reloaded.counter(DevelopmentObjective.FARM_CROPS_STORED));
+
+        rewritten.getList("Unlocked", Tag.TAG_STRING).add(
+            StringTag.valueOf("forged_unknown_development_node"));
+        assertTrue(DevelopmentState.readNbt(rewritten).quarantined(),
+            "only the exact retired Home baseline may migrate; unknown knowledge remains corrupt");
     }
 
     private static DevelopmentState throughFirstWatch() {

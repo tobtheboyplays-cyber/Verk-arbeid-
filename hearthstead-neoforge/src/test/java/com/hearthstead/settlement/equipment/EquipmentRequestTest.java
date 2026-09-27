@@ -22,6 +22,47 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class EquipmentRequestTest {
 
+    @Test
+    void onlyUnclaimedUntracedNeedsMaySayItemNotYetSourced() {
+        EquipmentRequest request = new EquipmentRequest(UUID.randomUUID(),
+            UUID.randomUUID(), Profession.LUMBERER,
+            new EquipmentRequirement(Items.IRON_AXE,
+                ResourceLocation.withDefaultNamespace("axes"), 8), 1,
+            EquipmentRequest.Priority.HIGH, EquipmentRequest.Reason.WORN, 70L);
+        assertTrue(request.awaitingSource());
+        CompoundTag before = request.writeNbt();
+        assertTrue(request.awaitingSource());
+        assertEquals(before, request.writeNbt(), "display projection must not mutate authority");
+        EquipmentRequest restored = EquipmentRequest.readNbt(before);
+        assertNotNull(restored);
+        assertTrue(restored.awaitingSource());
+        assertEquals(EquipmentRequest.Reason.WORN, restored.reason());
+        for (String flag : new String[] {"LegacyClaimLocked", "TraceQuarantined", "CancelPending"}) {
+            CompoundTag unsafe = before.copy();
+            unsafe.putBoolean(flag, true);
+            EquipmentRequest guarded = EquipmentRequest.readNbt(unsafe);
+            assertNotNull(guarded);
+            assertFalse(guarded.awaitingSource(), flag + " must retain uncertainty");
+        }
+        UUID courier = UUID.randomUUID();
+        assertTrue(request.claim(courier, 100L, 100L));
+        assertFalse(request.awaitingSource(), "even an untraced assigned claim is not unsourced proof");
+        assertTrue(request.bindRoute(courier, UUID.randomUUID(),
+            new BlockPos(1, 64, 1), 0, 1, new BlockPos(8, 64, 8), 0,
+            fingerprint(new ItemStack(Items.IRON_AXE))));
+        assertFalse(request.awaitingSource());
+        assertTrue(request.markPickedUp(courier));
+        assertFalse(request.awaitingSource());
+        assertTrue(request.markReturned(courier));
+        assertEquals(EquipmentRequest.Status.OPEN, request.status());
+        assertNull(request.claimedBy());
+        assertFalse(request.awaitingSource(), "OPEN returned traces still have physical history");
+        CompoundTag partial = request.writeNbt();
+        partial.getCompound("Trace").remove("SourceBuilding");
+        EquipmentRequest malformed = EquipmentRequest.readNbt(partial);
+        assertNotNull(malformed);
+        assertFalse(malformed.awaitingSource(), "a malformed partial trace is not an ordinary new need");
+    }
     private static RequestItemFingerprint fingerprint(ItemStack stack) {
         return RequestItemFingerprint.capture(RegistryAccess.EMPTY, stack, 1);
     }

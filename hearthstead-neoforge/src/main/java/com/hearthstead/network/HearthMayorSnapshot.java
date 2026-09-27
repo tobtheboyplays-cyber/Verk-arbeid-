@@ -40,14 +40,17 @@ import java.util.UUID;
 public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                                   String mayorName, String boonKey, long mayorSince,
                                   boolean mourning, long mourningUntil,
-                                  List<Candidate> candidates, boolean mayManage,
+                                  List<Candidate> candidates, List<Resident> residents, int residentTotal, boolean mayManage,
                                   RecruitmentCard recruitment,
                                   RequestView requests,
                                   ReadinessView readiness,
+                                  RecurringStatusView recurringStatus,
                                   AftermathView aftermath)
     implements CustomPacketPayload {
 
     private static final int MAX_MAYOR_CANDIDATES = 64;
+    /** Bounded persisted settlement roster; a client cannot request an unlimited cast. */
+    public static final int MAX_RESIDENTS = 100;
 
     public HearthMayorSnapshot {
         mayorId = mayorId == null ? HearthMayorAction.NO_ID : mayorId;
@@ -56,9 +59,14 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
         candidates = candidates == null ? List.of()
             : List.copyOf(candidates.subList(0,
                 Math.min(MAX_MAYOR_CANDIDATES, candidates.size())));
+        residents = residents == null ? List.of()
+            : List.copyOf(residents.subList(0, Math.min(MAX_RESIDENTS, residents.size())));
+        residentTotal = Math.max(residents.size(), residentTotal);
         recruitment = recruitment == null ? RecruitmentCard.empty() : recruitment;
         requests = requests == null ? RequestView.closed() : requests;
         readiness = readiness == null ? ReadinessView.closed() : readiness;
+        recurringStatus = recurringStatus == null
+            ? RecurringStatusView.closed() : recurringStatus;
         aftermath = aftermath == null ? AftermathView.closed() : aftermath;
     }
 
@@ -86,6 +94,25 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                 buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readVarInt()));
     }
 
+    /**
+     * One persisted settlement member. Name and profession come from the
+     * settlement record; activity and runtime entity id are emitted only for a loaded live entity.
+     * An unloaded record uses runtime entity id -1 and never causes a chunk/entity lookup beyond getEntity.
+     */
+    public record Resident(UUID id, int runtimeEntityId, String name, String professionId,
+                           String statusKey, boolean loaded) {
+        public static final StreamCodec<RegistryFriendlyByteBuf, Resident> CODEC =
+            StreamCodec.of((buf, resident) -> {
+                UUIDUtil.STREAM_CODEC.encode(buf, resident.id());
+                buf.writeVarInt(resident.runtimeEntityId());
+                buf.writeUtf(resident.name());
+                buf.writeUtf(resident.professionId());
+                buf.writeUtf(resident.statusKey());
+                buf.writeBoolean(resident.loaded());
+            }, buf -> new Resident(UUIDUtil.STREAM_CODEC.decode(buf), buf.readVarInt(),
+                buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readBoolean()));
+    }
+
     /** One bounded, entirely server-authored natural-recruit candidate card. */
     public record RecruitmentCard(boolean present, UUID travelerId, String name,
                                   int revision, int statusWireId,
@@ -94,10 +121,27 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                                   long patienceUntil,
                                   List<CostLine> costLines,
                                   boolean mayAdmit,
-                                  boolean mayDismiss) {
+                                  boolean mayDismiss,
+                                  int quoteVersion, int firstAttribute, int firstValue,
+                                  int secondAttribute, int secondValue, int aptitudePremium, int quoteDiscountPercent) {
         public static final int MAX_COST_LINES = 4;
 
         public RecruitmentCard {
+            if (quoteVersion < -1 || quoteVersion > 2 || aptitudePremium < 0 || aptitudePremium > 2
+                    || quoteDiscountPercent < 0 || quoteDiscountPercent > 50
+                    || quoteVersion >= 1 && (firstAttribute < 0 || firstAttribute >= 8
+                        || secondAttribute < 0 || secondAttribute >= 8 || firstAttribute == secondAttribute
+                        || firstValue < 1 || firstValue > 15 || secondValue < 1 || secondValue > firstValue
+                        || aptitudePremium != com.hearthstead.settlement.RecruitmentQuote.premiumFor(firstValue + secondValue))
+                    || quoteVersion == -1 && (firstAttribute != -1 || secondAttribute != -1
+                        || firstValue != 0 || secondValue != 0 || aptitudePremium != 0)
+                    || quoteVersion == 0 && (aptitudePremium != 0
+                        || firstAttribute == -1 && (secondAttribute != -1 || firstValue != 0 || secondValue != 0)
+                        || firstAttribute != -1 && (firstAttribute < 0 || firstAttribute >= 8
+                            || secondAttribute < 0 || secondAttribute >= 8 || firstAttribute == secondAttribute
+                            || firstValue < 1 || firstValue > 99 || secondValue < 1 || secondValue > firstValue))) {
+                throw new IllegalArgumentException("invalid recruitment aptitude projection");
+            }
             travelerId = travelerId == null ? HearthMayorAction.NO_ID : travelerId;
             name = name == null ? "" : name;
             costLines = costLines == null ? List.of()
@@ -107,11 +151,12 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
 
         public static RecruitmentCard empty() {
             return new RecruitmentCard(false, HearthMayorAction.NO_ID, "", -1,
-                -1, -1, 0, 0, 0, 0L, List.of(), false, false);
+                -1, -1, 0, 0, 0, 0L, List.of(), false, false, -1, -1, 0, -1, 0, 0, 0);
         }
 
         public static final StreamCodec<RegistryFriendlyByteBuf, RecruitmentCard> CODEC =
             StreamCodec.of((buf, card) -> {
+                buf.writeVarInt(1); // Recruitment card wire version.
                 buf.writeBoolean(card.present());
                 UUIDUtil.STREAM_CODEC.encode(buf, card.travelerId());
                 buf.writeUtf(card.name(), 64);
@@ -128,7 +173,12 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                 }
                 buf.writeBoolean(card.mayAdmit());
                 buf.writeBoolean(card.mayDismiss());
+                buf.writeVarInt(card.quoteVersion()); buf.writeVarInt(card.firstAttribute());
+                buf.writeVarInt(card.firstValue()); buf.writeVarInt(card.secondAttribute());
+                buf.writeVarInt(card.secondValue()); buf.writeVarInt(card.aptitudePremium());
+                buf.writeVarInt(card.quoteDiscountPercent());
             }, buf -> {
+                if (buf.readVarInt() != 1) throw new IllegalArgumentException("unsupported recruitment card version");
                 boolean present = buf.readBoolean();
                 UUID travelerId = UUIDUtil.STREAM_CODEC.decode(buf);
                 String name = buf.readUtf(64);
@@ -150,7 +200,8 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                 return new RecruitmentCard(present, travelerId, name, revision,
                     status, blocker, freeBeds, readyFood, requiredFood,
                     patienceUntil, List.copyOf(lines), buf.readBoolean(),
-                    buf.readBoolean());
+                    buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+                    buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
             });
     }
 
@@ -178,7 +229,7 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                               long typedRevision, long equipmentRevision,
                               boolean quarantined, String quarantineReason,
                               boolean truncated, List<RequestRow> rows) {
-        public static final int WIRE_VERSION = 2;
+        public static final int WIRE_VERSION = 3;
         public static final int MAX_ROWS = 64;
 
         public RequestView {
@@ -297,7 +348,8 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                              int blockerWireId, int physicalOwnerWireId,
                              boolean stockAvailable, boolean targetExact,
                              boolean fullTransportTrace,
-                             boolean equipmentAdapter) {
+                             boolean equipmentAdapter, int equipmentReasonWireId,
+                             boolean awaitingSource) {
         private static final int MAX_NAME = 64;
         private static final int MAX_KEY = 128;
         private static final int MAX_ITEM = 96;
@@ -308,7 +360,10 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                 || RequestState.fromWireId(stateWireId).isEmpty()
                 || RequestPriority.fromWireId(priorityWireId).isEmpty()
                 || RequestBlocker.fromWireId(blockerWireId).isEmpty()
-                || physicalOwnerWireId < 0 || physicalOwnerWireId > 3) {
+                || physicalOwnerWireId < 0 || physicalOwnerWireId > 3
+                || equipmentReasonWireId < -1 || equipmentReasonWireId > 2
+                || equipmentReasonWireId >= 0
+                    && typeWireId != RequestType.EQUIPMENT.wireId()) {
                 throw new IllegalArgumentException("unknown request row wire id");
             }
             requesterName = bounded(requesterName, MAX_NAME, "Unknown");
@@ -322,6 +377,14 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
             courierId = courierId == null ? HearthMayorAction.NO_ID : courierId;
             courierName = bounded(courierName, MAX_NAME, "");
             itemId = bounded(itemId, MAX_ITEM, "minecraft:air");
+            if (awaitingSource && (equipmentReasonWireId < 0
+                    || !equipmentAdapter || stateWireId != RequestState.OPEN.wireId()
+                    || !HearthMayorAction.NO_ID.equals(courierId)
+                    || movedCount != 0 || deliveredCount != 0 || stockAvailable
+                    || targetExact || fullTransportTrace || physicalOwnerWireId != 3
+                    || blockerWireId != RequestBlocker.EQUIPMENT_ADAPTER_LIMITED.wireId())) {
+                throw new IllegalArgumentException("contradictory unsourced equipment row");
+            }
             if (requestedCount <= 0 || requestedCount > 64
                 || movedCount < 0 || movedCount > requestedCount
                 || deliveredCount < 0 || deliveredCount > movedCount
@@ -359,6 +422,8 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                 buf.writeBoolean(row.targetExact());
                 buf.writeBoolean(row.fullTransportTrace());
                 buf.writeBoolean(row.equipmentAdapter());
+                buf.writeVarInt(row.equipmentReasonWireId());
+                buf.writeBoolean(row.awaitingSource());
             }, buf -> new RequestRow(
                 UUIDUtil.STREAM_CODEC.decode(buf), buf.readVarInt(),
                 buf.readVarInt(), buf.readVarInt(), buf.readUtf(MAX_NAME),
@@ -369,7 +434,8 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
                 buf.readUtf(MAX_ITEM), buf.readVarInt(), buf.readVarInt(),
                 buf.readVarInt(), buf.readVarLong(), buf.readVarInt(),
                 buf.readVarInt(), buf.readBoolean(), buf.readBoolean(),
-                buf.readBoolean(), buf.readBoolean()));
+                buf.readBoolean(), buf.readBoolean(), buf.readVarInt(),
+                buf.readBoolean()));
     }
 
     /**
@@ -521,6 +587,90 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
 
         private static int nonNegative(int value) {
             return Math.max(0, value);
+        }
+    }
+
+    /**
+     * Compact server-authored state for the next recurring raid. The cooldown
+     * is already a server-measured remaining-tick value so the client never
+     * derives a deadline from its local clock.
+     */
+    public record RecurringStatusView(int statusWireId, long plannedNight,
+                                      long cooldownRemainingTicks) {
+        public static final int WIRE_VERSION = 1;
+
+        public RecurringStatusView {
+            Status status = Status.fromWireId(statusWireId);
+            if (status == null) {
+                throw new IllegalArgumentException("unknown recurring raid status");
+            }
+            boolean planned = status == Status.WARNED
+                || status == Status.QUEUED || status == Status.ACTIVE;
+            if (planned && (plannedNight < 0L || cooldownRemainingTicks != 0L)
+                || status == Status.RECOVERING
+                    && (plannedNight != -1L || cooldownRemainingTicks <= 0L)
+                || (status == Status.NONE || status == Status.BLOCKED)
+                    && (plannedNight != -1L || cooldownRemainingTicks != 0L)) {
+                throw new IllegalArgumentException("malformed recurring raid status");
+            }
+        }
+
+        public static RecurringStatusView closed() {
+            return new RecurringStatusView(Status.NONE.wireId(), -1L, 0L);
+        }
+
+        public Status status() {
+            return Status.fromWireId(statusWireId);
+        }
+
+        public static final StreamCodec<RegistryFriendlyByteBuf,
+                RecurringStatusView> CODEC = StreamCodec.of((buf, view) -> {
+                    buf.writeVarInt(WIRE_VERSION);
+                    buf.writeVarInt(view.statusWireId());
+                    buf.writeVarLong(view.plannedNight());
+                    buf.writeVarLong(view.cooldownRemainingTicks());
+                }, buf -> {
+                    int version = buf.readVarInt();
+                    if (version != WIRE_VERSION) {
+                        throw new IllegalArgumentException(
+                            "unsupported recurring raid status version " + version);
+                    }
+                    return new RecurringStatusView(buf.readVarInt(),
+                        buf.readVarLong(), buf.readVarLong());
+                });
+
+        public enum Status {
+            NONE(0, "none"),
+            RECOVERING(1, "recovering"),
+            WARNED(2, "warned"),
+            QUEUED(3, "queued"),
+            ACTIVE(4, "active"),
+            BLOCKED(5, "blocked");
+
+            private final int wireId;
+            private final String id;
+
+            Status(int wireId, String id) {
+                this.wireId = wireId;
+                this.id = id;
+            }
+
+            public int wireId() {
+                return wireId;
+            }
+
+            public String id() {
+                return id;
+            }
+
+            public static Status fromWireId(int wireId) {
+                for (Status status : values()) {
+                    if (status.wireId == wireId) {
+                        return status;
+                    }
+                }
+                return null;
+            }
         }
     }
 
@@ -713,10 +863,16 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
         for (Candidate candidate : snapshot.candidates) {
             Candidate.CODEC.encode(buf, candidate);
         }
+        buf.writeVarInt(snapshot.residents.size());
+        for (Resident resident : snapshot.residents) {
+            Resident.CODEC.encode(buf, resident);
+        }
+        buf.writeVarInt(snapshot.residentTotal);
         buf.writeBoolean(snapshot.mayManage);
         RecruitmentCard.CODEC.encode(buf, snapshot.recruitment);
         RequestView.CODEC.encode(buf, snapshot.requests);
         ReadinessView.CODEC.encode(buf, snapshot.readiness);
+        RecurringStatusView.CODEC.encode(buf, snapshot.recurringStatus);
         AftermathView.CODEC.encode(buf, snapshot.aftermath);
     }
 
@@ -737,11 +893,24 @@ public record HearthMayorSnapshot(int revision, boolean hasMayor, UUID mayorId,
         for (int i = 0; i < candidateCount; i++) {
             candidates.add(Candidate.CODEC.decode(buf));
         }
+        int residentCount = buf.readVarInt();
+        if (residentCount < 0 || residentCount > MAX_RESIDENTS) {
+            throw new IllegalArgumentException("unbounded settlement residents");
+        }
+        List<Resident> residents = new ArrayList<>(residentCount);
+        for (int i = 0; i < residentCount; i++) {
+            residents.add(Resident.CODEC.decode(buf));
+        }
+        int residentTotal = buf.readVarInt();
+        if (residentTotal < residentCount) {
+            throw new IllegalArgumentException("resident total below bounded page");
+        }
         boolean mayManage = buf.readBoolean();
         return new HearthMayorSnapshot(revision, hasMayor, mayorId, mayorName, boonKey,
-            mayorSince, mourning, mourningUntil, List.copyOf(candidates), mayManage,
-            RecruitmentCard.CODEC.decode(buf), RequestView.CODEC.decode(buf),
-            ReadinessView.CODEC.decode(buf), AftermathView.CODEC.decode(buf));
+            mayorSince, mourning, mourningUntil, List.copyOf(candidates), List.copyOf(residents),
+            residentTotal, mayManage, RecruitmentCard.CODEC.decode(buf), RequestView.CODEC.decode(buf),
+            ReadinessView.CODEC.decode(buf),
+            RecurringStatusView.CODEC.decode(buf), AftermathView.CODEC.decode(buf));
     }
 
     @Override

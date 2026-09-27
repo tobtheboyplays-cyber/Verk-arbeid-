@@ -115,7 +115,17 @@ public class HearthMenu extends AbstractContainerMenu {
         for (int row = 0; row < 4; row++) {
             for (int col = 0; col < 6; col++) {
                 addSlot(new SlotItemHandler(communal, col + row * 6,
-                    COMMUNAL_X + col * 18 + 1, COMMUNAL_Y + row * 18 + 1));
+                    COMMUNAL_X + col * 18 + 1, COMMUNAL_Y + row * 18 + 1) {
+                    @Override
+                    public void setChanged() {
+                        super.setChanged();
+                        // A merge (moveItemStackTo) or a partial shift-click changes the live
+                        // stack in place, which the handler never sees (QA-UI-05).
+                        if (hearth != null) {
+                            hearth.noteContentsChanged();
+                        }
+                    }
+                });
             }
         }
         // Player inventory.

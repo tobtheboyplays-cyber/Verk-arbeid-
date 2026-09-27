@@ -1,0 +1,120 @@
+{
+  "id": "rune_hall_small",
+  "name": "Rune Hall",
+  "category": "military",
+  "kind": "building",
+  "building_type": "rune_hall",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "rune_hall",
+  "size": [
+    12,
+    10,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 5,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      3,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:cobblestone",
+      "count": 108
+    },
+    {
+      "item": "minecraft:cobblestone_stairs",
+      "count": 88
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 55
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 35
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 33
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 31
+    },
+    {
+      "item": "minecraft:cobblestone_slab",
+      "count": 11
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 8
+    },
+    {
+      "item": "minecraft:amethyst_block",
+      "count": 6
+    },
+    {
+      "item": "minecraft:bookshelf",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 2
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:enchanting_table",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 1
+    }
+  ],
+  "block_count": 397,
+  "cells": 626
+}

@@ -261,6 +261,17 @@ public final class DeferredItemMaterializationSavedData extends SavedData {
     }
 
     /**
+     * Read-only ownership seam for a consumer waiting on physical creation.
+     * It exposes neither the stack nor mutable row state; the stable UUID and
+     * intended entity target must both match the still-pending transfer.
+     */
+    public boolean pendingForTarget(UUID stableId, UUID target) {
+        PendingDrop row = stableId == null ? null : pending.get(stableId);
+        return !quarantined && row != null && target != null
+            && target.equals(row.options.target());
+    }
+
+    /**
      * Proves an already materialized exact transfer after its pending row was
      * consumed. This is read-only and deliberately accepts normal bounded
      * ItemEntity movement while requiring the stable UUID, exact stack,
@@ -329,6 +340,10 @@ public final class DeferredItemMaterializationSavedData extends SavedData {
             || !level.dimension().location().equals(loadedDimension)) {
             return false;
         }
+        // Queued authority survives the visual fall; both explicit calls and
+        // the level retry loop obey this saved absolute deadline after reload.
+        if (row.options.persistentData().getLong("HearthsteadMaterializeNotBefore")
+                > level.getGameTime()) return false;
         BlockPos pos = BlockPos.containing(row.x, row.y, row.z);
         if (!level.isLoaded(pos)) {
             return false;
@@ -384,14 +399,26 @@ public final class DeferredItemMaterializationSavedData extends SavedData {
             return;
         }
         data.bindDimension(level.dimension().location());
-        int attempted = 0;
-        for (UUID id : List.copyOf(data.pending.keySet())) {
-            if (attempted++ >= RETRIES_PER_TICK) {
-                break;
-            }
-            data.materialize(level, id);
+        if (data.pending.isEmpty()) {
+            return;
         }
+        // Round-robin (BH-18): restarting from the first row every tick let
+        // eight rows in unloaded chunks spend the whole budget forever, so a
+        // loadable row queued behind them never materialized. The cursor is
+        // runtime only; after a restart it simply starts again at row 0 and
+        // still reaches every row within size/RETRIES_PER_TICK ticks.
+        List<UUID> ids = List.copyOf(data.pending.keySet());
+        int size = ids.size();
+        int start = Math.floorMod(data.retryCursor, size);
+        int attempts = Math.min(RETRIES_PER_TICK, size);
+        for (int i = 0; i < attempts; i++) {
+            data.materialize(level, ids.get((start + i) % size));
+        }
+        data.retryCursor = (start + attempts) % size;
     }
+
+    /** Next pending row index the level retry starts from (runtime only). */
+    private int retryCursor;
 
     public int pendingRows() {
         return pending.size();

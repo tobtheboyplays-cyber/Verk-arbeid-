@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "tools",
+  "ingredients": [
+    { "item": "minecraft:stick" },
+    { "item": "minecraft:stick" },
+    { "item": "minecraft:string" },
+    { "item": "minecraft:iron_nugget" }
+  ],
+  "result": {
+    "id": "hearthstead:survey_rod",
+    "count": 1
+  }
+}

@@ -18,10 +18,12 @@ public final class ModBlocks {
 
     public static final DeferredHolder<Block, HearthBlock> HEARTH = BLOCKS.register("hearth",
         () -> new HearthBlock(BlockBehaviour.Properties.of()
-            .mapColor(MapColor.STONE)
+            // The settlement Banner: a wooden ledger stand whose lantern keeps
+            // the old hearth's light level 13 for anything that relies on it.
+            .mapColor(MapColor.WOOD)
             .strength(3.5F)
             .requiresCorrectToolForDrops()
-            .sound(SoundType.STONE)
+            .sound(SoundType.WOOD)
             .lightLevel(state -> 13)
             .noOcclusion()));
 
@@ -37,6 +39,21 @@ public final class ModBlocks {
                 == PlaqueBlock.Glow.GREEN ? 5 : 3)
             .noOcclusion()
             .noCollission()));
+
+    public static final DeferredHolder<Block, com.hearthstead.block.AleTapBlock> ALE_TAP = BLOCKS.register("ale_tap",
+        () -> new com.hearthstead.block.AleTapBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.WOOD).strength(1.5F).sound(SoundType.WOOD).noOcclusion()));
+
+    public static final DeferredHolder<Block, com.hearthstead.block.FishRackBlock> FISH_RACK = BLOCKS.register("fish_rack",
+        () -> new com.hearthstead.block.FishRackBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.WOOD).strength(1.5F).sound(SoundType.WOOD).noOcclusion()));
+    public static final DeferredHolder<Block, com.hearthstead.block.FishersChairBlock> FISHERS_CHAIR = BLOCKS.register("fishers_chair",
+        () -> new com.hearthstead.block.FishersChairBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.WOOD).strength(1.5F).sound(SoundType.WOOD).noOcclusion()));
+
+    public static final DeferredHolder<Block, com.hearthstead.block.ButcheringTableBlock> BUTCHERING_TABLE = BLOCKS.register("butchering_table",
+        () -> new com.hearthstead.block.ButcheringTableBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.WOOD).strength(2.0F).sound(SoundType.WOOD).noOcclusion()));
 
     public static void register(IEventBus bus) {
         BLOCKS.register(bus);

@@ -18,13 +18,14 @@ import java.util.UUID;
  * One persisted request intent and its bounded state trace.
  *
  * <p>Physical ownership is never stored here. OPEN/RESERVED point at the
- * exact source stack; IN_TRANSIT points at the named Courier's real bag;
+ * exact source stack; PICKUP may span its exact remainder and the named
+ * Courier's real bag; IN_TRANSIT points at that bag;
  * DELIVERED/SATISFIED point at the exact target container. Callers must
  * re-observe that physical truth before invoking any state edge.
  */
 public final class RequestRecord {
-    public static final int DATA_VERSION = 1;
-    public static final int MAX_TRANSITIONS = 32;
+    public static final int DATA_VERSION = 2;
+    public static final int MAX_TRANSITIONS = 2 * RequestItemFingerprint.MAX_COUNT + 32;
     public static final long MAX_REVISION = 1_000_000_000L;
     public static final int MAX_SOURCE_SLOT = 1_024;
     public static final int MAX_OBSERVED_CONTAINER_COUNT = 1_000_000;
@@ -127,6 +128,64 @@ public final class RequestRecord {
                                            long gameTime) {
         return new RequestRecord(UUID.randomUUID(), settlementId,
             RequestType.OUTPUT_PICKUP, priority, sourceBuildingId,
+            Profession.NONE, dimensionId, sourceBuildingId, sourceContainer,
+            sourceSlot, targetBuildingId, targetContainer, fingerprint,
+            sourceCountBefore, targetCountBefore, gameTime,
+            RequestState.OPEN, null, RequestBlocker.NONE, null,
+            0L, gameTime, 1L, 0, 0, List.of());
+    }
+
+    /** FOOD uses the settlement identity for its exact Hearth endpoint, not a synthetic Building. */
+    public static RequestRecord openFood(UUID settlementId,
+                                        ResourceLocation dimensionId,
+                                        UUID sourceBuildingId, BlockPos sourceContainer,
+                                        int sourceSlot, BlockPos hearth,
+                                        RequestItemFingerprint fingerprint,
+                                        int sourceCountBefore, int targetCountBefore,
+                                        long gameTime) {
+        return new RequestRecord(UUID.randomUUID(), settlementId,
+            RequestType.FOOD, RequestPriority.HIGH, sourceBuildingId,
+            Profession.NONE, dimensionId, sourceBuildingId, sourceContainer,
+            sourceSlot, settlementId, hearth, fingerprint,
+            sourceCountBefore, targetCountBefore, gameTime,
+            RequestState.OPEN, null, RequestBlocker.NONE, null,
+            0L, gameTime, 1L, 0, 0, List.of());
+    }
+
+    /** MATERIAL_INPUT carries one permitted Warehouse service item to one staffed Tavern. */
+    public static RequestRecord openMaterialInput(UUID settlementId,
+                                                  ResourceLocation dimensionId,
+                                                  UUID sourceBuildingId,
+                                                  BlockPos sourceContainer,
+                                                  int sourceSlot,
+                                                  UUID targetBuildingId,
+                                                  BlockPos targetContainer,
+                                                  RequestItemFingerprint fingerprint,
+                                                  int sourceCountBefore,
+                                                  int targetCountBefore,
+                                                  long gameTime) {
+        return new RequestRecord(UUID.randomUUID(), settlementId,
+            RequestType.MATERIAL_INPUT, RequestPriority.NORMAL, sourceBuildingId,
+            Profession.NONE, dimensionId, sourceBuildingId, sourceContainer,
+            sourceSlot, targetBuildingId, targetContainer, fingerprint,
+            sourceCountBefore, targetCountBefore, gameTime,
+            RequestState.OPEN, null, RequestBlocker.NONE, null,
+            0L, gameTime, 1L, 0, 0, List.of());
+    }
+    /** AMMUNITION carries one exact Warehouse Arrow stack to one exact Hunter Lodge. */
+    public static RequestRecord openAmmunition(UUID settlementId,
+                                               ResourceLocation dimensionId,
+                                               UUID sourceBuildingId,
+                                               BlockPos sourceContainer,
+                                               int sourceSlot,
+                                               UUID targetBuildingId,
+                                               BlockPos targetContainer,
+                                               RequestItemFingerprint fingerprint,
+                                               int sourceCountBefore,
+                                               int targetCountBefore,
+                                               long gameTime) {
+        return new RequestRecord(UUID.randomUUID(), settlementId,
+            RequestType.AMMUNITION, RequestPriority.NORMAL, sourceBuildingId,
             Profession.NONE, dimensionId, sourceBuildingId, sourceContainer,
             sourceSlot, targetBuildingId, targetContainer, fingerprint,
             sourceCountBefore, targetCountBefore, gameTime,
@@ -269,6 +328,32 @@ public final class RequestRecord {
         return true;
     }
 
+    /** Preflight all remaining unit pickup/delivery evidence before touching cargo. */
+    boolean canNotePickup(UUID courier, int expectedMoved, int amount, long now) {
+        int remaining = fingerprint.count() - movedCount;
+        int completionEdges = remaining + fingerprint.count() + 2;
+        return state == RequestState.PICKUP && Objects.equals(courierId, courier)
+            && courier != null && movedCount == expectedMoved && amount > 0
+            && amount <= remaining && now >= updatedAt
+            && transitions.size() <= MAX_TRANSITIONS - completionEdges
+            && revision <= MAX_REVISION - completionEdges;
+    }
+
+    /** A PICKUP self-edge is one real unit; the final unit enters IN_TRANSIT. */
+    boolean notePickedUp(UUID courier, int expectedMoved, int amount, long now) {
+        if (!canNotePickup(courier, expectedMoved, amount, now)
+            || amount != 1 && amount != fingerprint.count() - movedCount) {
+            return false;
+        }
+        int next = movedCount + amount;
+        if (next == fingerprint.count()) {
+            return markInTransit(courier, next, now);
+        }
+        movedCount = next;
+        applyTransition(RequestState.PICKUP, RequestBlocker.NONE, now);
+        return true;
+    }
+
     boolean markInTransit(UUID courier, int physicallyMoved, long now) {
         if (state != RequestState.PICKUP || courierId == null
             || !courierId.equals(courier)
@@ -366,6 +451,19 @@ public final class RequestRecord {
         return true;
     }
 
+    /** Only the service may call this after proving bag empty and source intact. */
+    boolean cancelUnstartedPickup(UUID courier, long now) {
+        if (effectiveState() != RequestState.PICKUP || courierId == null
+            || !courierId.equals(courier) || movedCount != 0 || deliveredCount != 0
+            || !canTransition(RequestState.CANCELLED, now)) {
+            return false;
+        }
+        applyTransition(RequestState.CANCELLED, RequestBlocker.NONE, now);
+        leaseUntil = 0L;
+        blockedFrom = null;
+        return true;
+    }
+
     boolean expire(long now) {
         RequestState effective = effectiveState();
         if (effective != RequestState.OPEN && effective != RequestState.RESERVED) {
@@ -376,6 +474,7 @@ public final class RequestRecord {
         }
         applyTransition(RequestState.EXPIRED, RequestBlocker.NONE, now);
         leaseUntil = 0L;
+        blockedFrom = null;
         return true;
     }
 
@@ -456,8 +555,70 @@ public final class RequestRecord {
     public static RequestRecord readNbt(CompoundTag tag,
                                         HolderLookup.Provider registries,
                                         UUID expectedSettlementId) {
+        return readNbt(tag, registries, expectedSettlementId, false);
+    }
+
+    /** Ledger-load seam: only returns a terminal EXPIRED legacy row. */
+    @Nullable
+    static RequestRecord readLegacyZeroCargoOutputAsExpiredNbt(
+            CompoundTag tag, HolderLookup.Provider registries,
+            UUID expectedSettlementId) {
+        if (!isLegacyZeroCargoOutputDigest(tag, registries)) {
+            return null;
+        }
+        RequestRecord row = readNbt(tag, registries, expectedSettlementId, true);
+        return row != null && row.expire(row.updatedAt()) ? row : null;
+    }
+
+    @Nullable
+    static RequestRecord readLegacyTerminalNbt(CompoundTag tag,
+                                               HolderLookup.Provider registries,
+                                               UUID expectedSettlementId) {
         if (tag == null || registries == null || expectedSettlementId == null
             || tag.getInt("DataVersion") != DATA_VERSION
+            || !tag.contains("State", Tag.TAG_INT)
+            || !RequestState.fromWireId(tag.getInt("State"))
+                .map(RequestState::terminal).orElse(false)
+            || !(tag.get("Fingerprint") instanceof CompoundTag fingerprintTag)) return null;
+        boolean legacyDigest = RequestItemFingerprint.readNbt(fingerprintTag, registries) == null;
+        if (legacyDigest && RequestItemFingerprint.readLegacyZeroCargoOutputNbt(
+                fingerprintTag, registries) == null) return null;
+        CompoundTag normalized = tag;
+        // Historical expiry closed the trace but left its zero-cargo reservation
+        // marker behind. Normalize only this terminal shape, then validate all
+        // identities, counts and transition evidence through the constructor.
+        ListTag transitions = tag.getList("Transitions", Tag.TAG_COMPOUND);
+        if (tag.getInt("State") == RequestState.EXPIRED.wireId()
+            && tag.contains("BlockedFrom", Tag.TAG_INT)
+            && tag.getInt("BlockedFrom") == RequestState.RESERVED.wireId()
+            && tag.getInt("Moved") == 0 && tag.getInt("Delivered") == 0
+            && !transitions.isEmpty()) {
+            CompoundTag last = transitions.getCompound(transitions.size() - 1);
+            if (last.getInt("From") == RequestState.BLOCKED.wireId()
+                && last.getInt("To") == RequestState.EXPIRED.wireId()
+                && last.getInt("Moved") == 0 && last.getInt("Delivered") == 0
+                && last.getInt("Blocker") == RequestBlocker.NONE.wireId()) {
+                normalized = tag.copy();
+                normalized.remove("BlockedFrom");
+            }
+        }
+        // Marker migration is independent of fingerprint format. A canonical
+        // fingerprint must retain strict validation; only existing legacy history
+        // uses the historical checksum path. No active row enters this method.
+        if (!legacyDigest && normalized == tag) return null;
+        RequestRecord row = readNbt(normalized, registries, expectedSettlementId, legacyDigest);
+        return row != null && row.state().terminal() ? row : null;
+    }
+
+    @Nullable
+    private static RequestRecord readNbt(CompoundTag tag,
+                                         HolderLookup.Provider registries,
+                                         UUID expectedSettlementId,
+                                         boolean allowLegacyZeroCargoDigest) {
+        if (tag == null || registries == null || expectedSettlementId == null
+            || !tag.contains("DataVersion", Tag.TAG_INT)
+            || (tag.getInt("DataVersion") != 1
+                && tag.getInt("DataVersion") != DATA_VERSION)
             || !tag.hasUUID("Id") || !tag.hasUUID("Settlement")
             || !expectedSettlementId.equals(tag.getUUID("Settlement"))
             || !tag.contains("Type", Tag.TAG_INT)
@@ -497,22 +658,32 @@ public final class RequestRecord {
         Profession profession = profession(tag.getString("Profession"));
         ResourceLocation dimension = ResourceLocation.tryParse(
             tag.getString("Dimension"));
-        RequestItemFingerprint fingerprint = RequestItemFingerprint.readNbt(
-            fingerprintTag, registries);
+        // The former presentation checksum encoded the same parsed stack
+        // differently. Only a zero-cargo OUTPUT row already blocked from its
+        // reservation may reconstruct that checksum: recovery can then expire
+        // its stale intent but can never revive or move an item.
+        RequestItemFingerprint fingerprint = allowLegacyZeroCargoDigest
+            ? RequestItemFingerprint.readLegacyZeroCargoOutputNbt(
+                fingerprintTag, registries)
+            : RequestItemFingerprint.readNbt(fingerprintTag, registries);
         if (type.isEmpty() || priority.isEmpty() || state.isEmpty()
             || blocker.isEmpty() || profession == null || dimension == null
             || fingerprint == null) {
             return null;
         }
         ListTag savedTransitions = tag.getList("Transitions", Tag.TAG_COMPOUND);
-        if (savedTransitions.size() > MAX_TRANSITIONS) {
+        if (savedTransitions.size() > (tag.getInt("DataVersion") == 1
+                ? 32 : MAX_TRANSITIONS)) {
             return null;
         }
         List<RequestTransition> transitions = new ArrayList<>(savedTransitions.size());
         for (int i = 0; i < savedTransitions.size(); i++) {
             RequestTransition transition = RequestTransition.readNbt(
                 savedTransitions.getCompound(i));
-            if (transition == null) {
+            if (transition == null || tag.getInt("DataVersion") == 1
+                    && transition.to() == RequestState.PICKUP
+                    && (transition.movedCount() != 0
+                        || transition.from() == RequestState.PICKUP)) {
                 return null;
             }
             transitions.add(transition);
@@ -536,6 +707,30 @@ public final class RequestRecord {
         } catch (IllegalArgumentException malformed) {
             return null;
         }
+    }
+
+    /**
+     * Only the historic no-cargo output shape may be migrated, and only into
+     * terminal history. A changed digest never becomes authority to reserve or
+     * pick up its prototype again.
+     */
+    static boolean isLegacyZeroCargoOutputDigest(CompoundTag tag,
+                                                  HolderLookup.Provider registries) {
+        if (tag == null || registries == null
+            || tag.getInt("DataVersion") != DATA_VERSION
+            || tag.getInt("Type") != RequestType.OUTPUT_PICKUP.wireId()
+            || tag.getInt("State") != RequestState.BLOCKED.wireId()
+            || !tag.contains("BlockedFrom", Tag.TAG_INT)
+            || tag.getInt("BlockedFrom") != RequestState.RESERVED.wireId()
+            || tag.getInt("Blocker") != RequestBlocker.FINGERPRINT_MISMATCH.wireId()
+            || !tag.hasUUID("Courier") || tag.getInt("Moved") != 0
+            || tag.getInt("Delivered") != 0
+            || !(tag.get("Fingerprint") instanceof CompoundTag fingerprintTag)) {
+            return false;
+        }
+        return RequestItemFingerprint.readNbt(fingerprintTag, registries) == null
+            && RequestItemFingerprint.readLegacyZeroCargoOutputNbt(
+                fingerprintTag, registries) != null;
     }
 
     private boolean canTransition(RequestState to, long now) {
@@ -569,10 +764,16 @@ public final class RequestRecord {
     }
 
     private void validateStatic() {
-        if (type != RequestType.OUTPUT_PICKUP
+        if ((type != RequestType.OUTPUT_PICKUP && type != RequestType.FOOD
+                && type != RequestType.AMMUNITION && type != RequestType.MATERIAL_INPUT)
+            || (type == RequestType.FOOD && !targetBuildingId.equals(settlementId))
+            || (type == RequestType.AMMUNITION
+                && !fingerprint.itemId().equals(
+                    ResourceLocation.withDefaultNamespace("arrow")))
             || !requesterId.equals(sourceBuildingId)
             || requesterProfession != Profession.NONE
             || sourceBuildingId.equals(targetBuildingId)
+                && (type != RequestType.OUTPUT_PICKUP || sourceContainer.equals(targetContainer))
             || createdAt < 0L || updatedAt < createdAt
             || sourceCountBefore < fingerprint.count()
             || sourceCountBefore > MAX_OBSERVED_CONTAINER_COUNT
@@ -616,7 +817,11 @@ public final class RequestRecord {
                 replayCourier = transition.courierId();
             }
             if (transition.to() == RequestState.PICKUP
-                && (transition.movedCount() != 0
+                && (transition.movedCount() >= fingerprint.count()
+                    || transition.from() == RequestState.PICKUP
+                        && transition.movedCount() != replayMoved + 1
+                    || transition.from() == RequestState.RESERVED
+                        && transition.movedCount() != 0
                     || transition.deliveredCount() != 0
                     || replayCourier == null
                     || !replayCourier.equals(transition.courierId()))) {
@@ -658,7 +863,7 @@ public final class RequestRecord {
             if (transition.to() == RequestState.BLOCKED) {
                 replayBlockedFrom = replay;
             } else if (replay == RequestState.BLOCKED
-                && transition.to() == replayBlockedFrom) {
+                && (transition.to() == replayBlockedFrom || transition.to().terminal())) {
                 replayBlockedFrom = null;
             }
             replayMoved = transition.movedCount();
@@ -685,7 +890,7 @@ public final class RequestRecord {
             || (effective == RequestState.RESERVED
                 && (courierId == null || movedCount != 0 || leaseUntil <= 0L))
             || (effective == RequestState.PICKUP
-                && (courierId == null || movedCount != 0
+                && (courierId == null || movedCount >= fingerprint.count()
                     || deliveredCount != 0 || leaseUntil <= 0L))
             || (effective == RequestState.IN_TRANSIT
                 && (courierId == null || movedCount != fingerprint.count()
@@ -720,7 +925,8 @@ public final class RequestRecord {
             case RESERVED -> to == RequestState.PICKUP
                 || to == RequestState.OPEN || to == RequestState.BLOCKED
                 || to == RequestState.CANCELLED || to == RequestState.EXPIRED;
-            case PICKUP -> to == RequestState.IN_TRANSIT
+            case PICKUP -> to == RequestState.PICKUP
+                || to == RequestState.IN_TRANSIT
                 || to == RequestState.BLOCKED || to == RequestState.CANCELLED;
             case IN_TRANSIT -> to == RequestState.IN_TRANSIT
                 || to == RequestState.DELIVERED

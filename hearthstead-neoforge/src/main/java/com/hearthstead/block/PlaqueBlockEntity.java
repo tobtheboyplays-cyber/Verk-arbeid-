@@ -65,6 +65,9 @@ public class PlaqueBlockEntity extends BlockEntity {
 
     /** How often a hung plaque re-checks its room, in ticks (10 s). */
     private static final int SURVEY_INTERVAL = 200;
+    /** A just-fitted plan gets three short retries after its synchronous reading. */
+    private static final int INITIAL_SURVEY_RETRIES = 3;
+    private static final int INITIAL_SURVEY_RETRY_DELAY = 2;
     /** Runtime-only sentinel: the first tick assigns this plaque its position phase. */
     private static final long SURVEY_UNSCHEDULED = Long.MIN_VALUE;
 
@@ -75,12 +78,23 @@ public class PlaqueBlockEntity extends BlockEntity {
     @Nullable
     private UUID buildingId;
     /**
+     * City identity chosen when this Build Plan is fitted.  It is independent
+     * of {@link Settlement#radius}: radius remains the local settlement
+     * boundary for encounters and scoped systems, while a finished building
+     * keeps the city it was explicitly linked to after the player builds
+     * beyond that boundary.
+     */
+    @Nullable
+    private UUID settlementId;
+    /**
      * Bumped on every server-side change. A screen sends the revision it was
      * drawn from, so a click made against a stale view is refused instead of
      * quietly acting on outdated information.
      */
     private int revision;
     private long nextSurveyTick = SURVEY_UNSCHEDULED;
+    /** Runtime-only retries for a new plan; never revive from disk or on chunk load. */
+    private int initialSurveyRetriesRemaining;
     private List<Requirement.Status> lastSurvey = List.of();
     /**
      * Why the LAST outright scan failure happened — {@code null} whenever
@@ -275,6 +289,10 @@ public class PlaqueBlockEntity extends BlockEntity {
      * therefore safe for the seal item to treat as "do not consume".
      */
     public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing) {
+        return applyBlessing(blessing, 1);
+    }
+
+    public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing, int rankUnits) {
         if (!(level instanceof ServerLevel serverLevel) || isRemoved()
             || buildingId == null) {
             return TargetBlessingState.ApplyResult.INVALID;
@@ -284,7 +302,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         if (target == null) {
             return TargetBlessingState.ApplyResult.INVALID;
         }
-        TargetBlessingState.ApplyResult result = target.applyBlessing(blessing);
+        TargetBlessingState.ApplyResult result = target.applyBlessing(blessing, rankUnits);
         if (result == TargetBlessingState.ApplyResult.APPLIED) {
             owner.invalidateBuildingBlessingIndex();
             SettlementSavedData.get(serverLevel).setDirty();
@@ -409,6 +427,18 @@ public class PlaqueBlockEntity extends BlockEntity {
         return SURVEY_INTERVAL;
     }
 
+    int initialSurveyRetriesRemainingForTest() {
+        return initialSurveyRetriesRemaining;
+    }
+
+    static int initialSurveyRetriesForTest() {
+        return INITIAL_SURVEY_RETRIES;
+    }
+
+    static int initialSurveyRetryDelayForTest() {
+        return INITIAL_SURVEY_RETRY_DELAY;
+    }
+
     /**
      * Announce this plaque to the level's registry so nearby block changes can
      * find it. Done on load rather than on placement so plaques that come back
@@ -447,10 +477,24 @@ public class PlaqueBlockEntity extends BlockEntity {
             return false;
         }
         type = PlaqueItemData.buildingType(plan);
+        // Resolve one persisted city identity at the physical plan-fit
+        // boundary.  This consults only the finite same-dimension settlement
+        // registry; it does not scan terrain, chunks, or an expanding radius.
+        Settlement settlement = settlementFor(level);
+        settlementId = settlement == null ? null : settlement.id;
         insertedPlan = plan.copyWithCount(1);
         state = PlaqueState.PLAN_INSERTED_UNLINKED;
         setChanged();
         survey(level);
+        // A finished room can still be observed before the server has applied
+        // the plaque/plan interaction's neighbour and block-entity updates.
+        // Only an incomplete first reading gets short retries. A confirmed
+        // valid building resumes the cheap position phase immediately.
+        initialSurveyRetriesRemaining = state == PlaqueState.LINKED_VALID
+            ? 0 : INITIAL_SURVEY_RETRIES;
+        nextSurveyTick = initialSurveyRetriesRemaining > 0
+            ? level.getGameTime() + INITIAL_SURVEY_RETRY_DELAY
+            : firstSurveyTick(level.getGameTime(), worldPosition);
         return true;
     }
 
@@ -469,6 +513,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             return ItemStack.EMPTY;
         }
         insertedPlan = ItemStack.EMPTY;
+        settlementId = null;
+        initialSurveyRetriesRemaining = 0;
         lastSurvey = List.of();
         lastScanReason = null;
         clearLogisticsRuntime();
@@ -496,8 +542,17 @@ public class PlaqueBlockEntity extends BlockEntity {
                 plaque.nextSurveyTick = firstSurveyTick(now, pos);
             }
             if (now >= plaque.nextSurveyTick) {
-                plaque.nextSurveyTick = now + SURVEY_INTERVAL;
                 plaque.survey(serverLevel);
+                if (plaque.initialSurveyRetriesRemaining > 0
+                    && plaque.state != PlaqueState.LINKED_VALID) {
+                    plaque.initialSurveyRetriesRemaining--;
+                    plaque.nextSurveyTick = plaque.initialSurveyRetriesRemaining > 0
+                        ? now + INITIAL_SURVEY_RETRY_DELAY
+                        : firstSurveyTick(now, pos);
+                } else {
+                    plaque.initialSurveyRetriesRemaining = 0;
+                    plaque.nextSurveyTick = now + SURVEY_INTERVAL;
+                }
             }
         }
     }
@@ -568,7 +623,7 @@ public class PlaqueBlockEntity extends BlockEntity {
             || building.type != type) {
             return false;
         }
-        capacity = com.hearthstead.settlement.BuildingManager.capacityOf(type, building);
+        capacity = com.hearthstead.settlement.techtree.effects.CommonsEffects.capacityOf(level, settlement, type, building);
         occupants = com.hearthstead.settlement.BuildingManager
             .occupantsOf(level, settlement, building);
         return true;
@@ -653,6 +708,17 @@ public class PlaqueBlockEntity extends BlockEntity {
         }
         scanAttempts++;
         RoomScanner.Result result = surveyRoom(level);
+        com.hearthstead.settlement.work.FishingGrounds.Result fishing = null;
+        if (type == BuildingType.FISHERY && result != null) {
+            fishing = com.hearthstead.settlement.work.FishingGrounds.scan(level, worldPosition);
+            java.util.Map<net.minecraft.world.level.block.Block, Integer> counts = new java.util.HashMap<>(result.blockCounts());
+            counts.put(net.minecraft.world.level.block.Blocks.WATER, fishing.waterCount());
+            counts.put(com.hearthstead.registry.ModBlocks.FISHERS_CHAIR.get(), fishing.ready() ? 1 : 0);
+            result = new RoomScanner.Result(result.bounds(), result.volume(), result.beds(), result.doors(),
+                result.lights(), result.furnishingScore(), result.enclosed(), result.skyLeak(), counts,
+                result.leakPos(), result.skyLeakPos(), result.connectedAleTaps(), result.floorCounts(),
+                result.lowStairStep());
+        }
         PlaqueState previous = state;
         List<Requirement.Status> previousSurvey = lastSurvey;
         Component previousScanReason = lastScanReason;
@@ -687,7 +753,11 @@ public class PlaqueBlockEntity extends BlockEntity {
                     PlaqueState.PLAN_INSERTED_UNLINKED);
             }
         } else {
-            lastScanReason = null;
+            // Non-blocking notes on a valid room: the fishing grounds first,
+            // then a stair settlers cannot climb for lack of headroom.
+            lastScanReason = fishing != null && !fishing.ready()
+                ? Component.translatable("hearthstead.fisher.scan." + fishing.blocker())
+                : result.stairWarning();
             List<Requirement.Status> statuses = new ArrayList<>();
             boolean allMet = true;
             for (Requirement requirement : type.requirements()) {
@@ -701,6 +771,9 @@ public class PlaqueBlockEntity extends BlockEntity {
                 LinkResult linkResult = link(level, result);
                 settlementChanged = linkResult.changed();
                 buildingLinkCommit = linkResult.commit();
+                BuildingLinkCommit linked = linkResult.commit();
+                settlementChanged |= applyChecklistLevel(level, result, linked != null
+                    && linked.buildingCountAfter() > linked.buildingCountBefore());
             } else if (!graceHolds(level, PlaqueState.LINKED_INCOMPLETE)) {
                 settlementChanged = unlink(level, PlaqueState.LINKED_INCOMPLETE);
             }
@@ -728,6 +801,71 @@ public class PlaqueBlockEntity extends BlockEntity {
                     revisionBefore);
             }
         }
+    }
+
+    /**
+     * Builder lane (checklist levels, owner 26 Sep): the building's level is
+     * what this same scan found in the room, and the unmet items of the next
+     * level ride along for the plaque, the Banner screen and Upgrade Orders.
+     * Never tech-capped here -- readers such as the warehouse apply their own
+     * cap. Only a registered (linked) building has a level at all.
+     */
+    private boolean applyChecklistLevel(ServerLevel level, RoomScanner.Result result,
+                                        boolean freshlyRegistered) {
+        Building building = building(level);
+        if (building == null) {
+            return false;
+        }
+        int checklist = Math.max(1,
+            com.hearthstead.building.BuildingLevels.levelOf(type, result));
+        List<com.hearthstead.building.BuildingLevelChecklist.Gap> gap =
+            com.hearthstead.building.BuildingLevels.gap(type, result, checklist);
+        boolean changed = building.level != checklist
+            || !gap.equals(building.nextLevelGap);
+        int levelBefore = building.level;
+        building.level = checklist;
+        building.nextLevelGap = gap;
+        if (checklist > levelBefore) {
+            com.hearthstead.fx.FxHooks.buildingLevelUp(level, worldPosition, type,
+                building.bounds, checklist);
+            // Town chat, once per new height: a room that just registered is
+            // not an upgrade, and a level lost and regained (a torch moved)
+            // is not told twice while this plaque stays loaded.
+            if (!freshlyRegistered && checklist > announcedLevel) {
+                announceUpgrade(level, building, levelBefore, checklist);
+            }
+        }
+        announcedLevel = Math.max(announcedLevel, Math.max(levelBefore, checklist));
+        if (changed) {
+            com.hearthstead.settlement.SettlementSavedData.get(level).setDirty();
+        }
+        return changed;
+    }
+
+    /** Highest level already told in town chat while loaded (not saved: a reload re-reads the building). */
+    private int announcedLevel;
+
+    /** One town chat upgrade line: "Home: Cottage" for a new home tier, else "Warehouse level 2". */
+    private void announceUpgrade(ServerLevel level, Building building, int levelBefore, int levelAfter) {
+        Settlement settlement = settlementFor(level);
+        if (settlement == null) {
+            return;
+        }
+        Component item = null;
+        if (type == BuildingType.HOUSE) {
+            java.util.function.Predicate<String> learned = id ->
+                com.hearthstead.settlement.development.TechTree.has(level, settlement, id);
+            com.hearthstead.building.HomeTier before = com.hearthstead.building.HomeTier.of(levelBefore, learned);
+            com.hearthstead.building.HomeTier after = com.hearthstead.building.HomeTier.of(levelAfter, learned);
+            if (after != null && after != before) {
+                item = Component.translatable("hearthstead.requirement.home_tier." + after.id());
+            }
+        }
+        if (item == null) {
+            item = Component.translatable("hearthstead.chat.upgrade.level", type.displayName(), levelAfter);
+        }
+        com.hearthstead.settlement.TownChat.send(level, settlement,
+            com.hearthstead.settlement.TownChat.Kind.UPGRADE, item);
     }
 
     /** Persists and publishes one materially changed survey, never a heartbeat. */
@@ -759,7 +897,7 @@ public class PlaqueBlockEntity extends BlockEntity {
         if (building == null || settlement == null) {
             return;
         }
-        capacity = com.hearthstead.settlement.BuildingManager.capacityOf(type, building);
+        capacity = com.hearthstead.settlement.techtree.effects.CommonsEffects.capacityOf(level, settlement, type, building);
         occupants = com.hearthstead.settlement.BuildingManager
             .occupantsOf(level, settlement, building);
     }
@@ -827,6 +965,35 @@ public class PlaqueBlockEntity extends BlockEntity {
                 bestScore = score;
             }
         }
+        // Work-yard lane: an open-air trade (a woodcutter's camp, a masons'
+        // yard, an open forge) may register as a bounded yard with a covered
+        // tool shelter once no ROOM candidate won. Rooms are tried first, so
+        // every building that registers as a room today still does.
+        if (type.validationMode() == BuildingType.ValidationMode.YARD_OR_ROOM) {
+            for (BlockPos seed : candidates) {
+                com.hearthstead.settlement.YardScanner.Yard yard =
+                    com.hearthstead.settlement.YardScanner.scan(level, seed);
+                if (yard == null) {
+                    continue;
+                }
+                RoomScanner.Result result = yard.result();
+                boolean geometric = result.enclosed() && result.volume() <= RoomScanner.MAX_HOME_VOLUME;
+                int met = 0;
+                for (com.hearthstead.building.Requirement requirement : type.requirements()) {
+                    if (requirement.measure(result).met()) {
+                        met++;
+                    }
+                }
+                if (geometric && met == type.requirements().size()) {
+                    return result;
+                }
+                int score = met * 2 + (geometric ? 1 : 0);
+                if (score > bestScore) {
+                    best = result;
+                    bestScore = score;
+                }
+            }
+        }
         return best;
     }
 
@@ -855,6 +1022,8 @@ public class PlaqueBlockEntity extends BlockEntity {
             }
         }
         SettlementSavedData data = SettlementSavedData.get(level);
+        boolean settlementIdentityChanged = !settlement.id.equals(settlementId);
+        settlementId = settlement.id;
         int buildingCountBefore = settlement.buildings.size();
         boolean plaqueWasLinkedValid = state == PlaqueState.LINKED_VALID;
         Building building = building(level);
@@ -910,7 +1079,7 @@ public class PlaqueBlockEntity extends BlockEntity {
                 typeChanged, bedsChanged)) {
             FoundingJourneyProgress.noteLumberCampLinked(level, settlement, building);
         }
-        if (materialChanged) {
+        if (materialChanged || settlementIdentityChanged) {
             data.setDirty();
         }
 
@@ -923,11 +1092,12 @@ public class PlaqueBlockEntity extends BlockEntity {
         // its Plaque truthfully shows LINKED_INCOMPLETE. Returning to a valid
         // physical room is still a persisted Plaque revalidation, even when
         // the building geometry itself did not change.
-        BuildingLinkCommit commit = materialChanged || !plaqueWasLinkedValid
+        BuildingLinkCommit commit = materialChanged || settlementIdentityChanged
+            || !plaqueWasLinkedValid
             ? new BuildingLinkCommit(settlement.id, building.id, type.id(),
                 buildingCountBefore, settlement.buildings.size())
             : null;
-        return new LinkResult(materialChanged, commit);
+        return new LinkResult(materialChanged || settlementIdentityChanged, commit);
     }
 
     /**
@@ -1014,19 +1184,34 @@ public class PlaqueBlockEntity extends BlockEntity {
     private boolean unlink(ServerLevel level, PlaqueState newState) {
         Building building = building(level);
         boolean settlementChanged = false;
-        if (building != null && building.valid) {
+        if (building != null && (building.valid || !building.workers.isEmpty())) {
             Settlement owner = settlementFor(level);
-            if (owner != null
-                && !Employment.freeWorkers(level, owner, building)) {
-                return false;
+            // A raid may physically scar its Barracks or Watchtower before
+            // its sealed participants resolve. Keep the existing armed post
+            // and its player order through that one combat window; the Plaque
+            // still truthfully shows the failed scan, and the ordinary unlink
+            // runs on the next survey after RAID_RESOLVED. This does not apply
+            // to a missing plaque or an explicit player dissolve.
+            boolean deferMartialTeardown = owner != null
+                && Employment.defersMartialUnlinkForActiveFirstRaid(owner, building);
+            if (!deferMartialTeardown) {
+                // Keep the one saved job relationship while this workplace's
+                // recorded raid damage is repairable. It is still invalid:
+                // ordinary logistics must wait for a successful real survey.
+                boolean retainWorkers = owner != null
+                    && Employment.retainsWorkersForRaidRepair(level, owner, building);
+                if (!retainWorkers && owner != null
+                    && !Employment.freeWorkers(level, owner, building)) {
+                    return false;
+                }
+                building.valid = false;
+                releaseResidents(level, building);
+                if (owner != null) {
+                    owner.invalidateBuildingBlessingIndex();
+                }
+                SettlementSavedData.get(level).setDirty();
+                settlementChanged = true;
             }
-            building.valid = false;
-            releaseResidents(level, building);
-            if (owner != null) {
-                owner.invalidateBuildingBlessingIndex();
-            }
-            SettlementSavedData.get(level).setDirty();
-            settlementChanged = true;
         }
         clearLogisticsRuntime();
         state = newState;
@@ -1133,20 +1318,76 @@ public class PlaqueBlockEntity extends BlockEntity {
     @Nullable
     public Settlement settlementFor(ServerLevel level) {
         SettlementSavedData data = SettlementSavedData.get(level);
+        // A fitted plan or an existing building must never be re-owned merely
+        // because a second city is founded nearer to this plaque later.
+        if (settlementId != null) {
+            return data.settlements.get(settlementId);
+        }
+        // Old plaque disk rows did not persist their city. An exact valid
+        // legacy building row proves the owner; ambiguity and malformed data
+        // fail closed. A genuinely absent old row retains the pre-city-id
+        // in-radius resolver so the existing complete-survey repair path can
+        // create one new, revisioned building identity.
+        LegacyOwnerResolution legacy = legacyBuildingOwner(data);
+        if (legacy.invalid()) {
+            return null;
+        }
+        if (legacy.owner() != null) {
+            return legacy.owner();
+        }
+        boolean legacyRecovery = buildingId != null;
+        // A blank/new plan selects the closest registered city in this
+        // dimension without requiring this position to lie inside its radius.
+        // The scan is bounded by the already-loaded settlement registry, not
+        // by world distance or chunks, and the chosen UUID is persisted above.
+        // A missing legacy building is different: it retains the old local
+        // radius boundary before its full survey performs disk repair.
         Settlement nearest = null;
         double best = Double.MAX_VALUE;
         for (Settlement settlement : data.settlements.values()) {
-            if (settlement.inside(worldPosition)) {
-                double distance = settlement.center.distSqr(worldPosition);
-                if (distance < best) {
-                    best = distance;
-                    nearest = settlement;
-                }
+            if (legacyRecovery && !settlement.inside(worldPosition)) {
+                continue;
+            }
+            double distance = settlement.center.distSqr(worldPosition);
+            if (distance < best) {
+                best = distance;
+                nearest = settlement;
             }
         }
         return nearest;
     }
 
+    /** Exact pre-city-id migration lookup with explicit absent/invalid states. */
+    private LegacyOwnerResolution legacyBuildingOwner(SettlementSavedData data) {
+        if (buildingId == null) {
+            return LegacyOwnerResolution.NONE;
+        }
+        Settlement owner = null;
+        for (Settlement settlement : data.settlements.values()) {
+            int matches = buildingIdMatches(settlement, buildingId);
+            if (matches < 0 || matches > 1) {
+                return LegacyOwnerResolution.INVALID;
+            }
+            if (matches == 0) {
+                continue;
+            }
+            Building building = exactBuilding(settlement);
+            if (building == null || !worldPosition.equals(building.plaquePos)
+                || building.type != type || owner != null) {
+                return LegacyOwnerResolution.INVALID;
+            }
+            owner = settlement;
+        }
+        return owner == null ? LegacyOwnerResolution.NONE
+            : new LegacyOwnerResolution(owner, false);
+    }
+
+    private record LegacyOwnerResolution(Settlement owner, boolean invalid) {
+        private static final LegacyOwnerResolution NONE =
+            new LegacyOwnerResolution(null, false);
+        private static final LegacyOwnerResolution INVALID =
+            new LegacyOwnerResolution(null, true);
+    }
     // ------------------------------------------------------ presentation ---
 
     private boolean updateGlow(ServerLevel level) {
@@ -1302,6 +1543,9 @@ public class PlaqueBlockEntity extends BlockEntity {
         if (buildingId != null) {
             tag.putUUID("Building", buildingId);
         }
+        if (settlementId != null) {
+            tag.putUUID("Settlement", settlementId);
+        }
         if (!insertedPlan.isEmpty()) {
             tag.put("Plan", insertedPlan.saveOptional(provider));
         }
@@ -1320,8 +1564,10 @@ public class PlaqueBlockEntity extends BlockEntity {
         // Contact VFX are transient feedback, not world state. A chunk reload
         // must never replay a seal that was already bound.
         pendingBlessingCues = null;
+        initialSurveyRetriesRemaining = 0;
         type = BuildingType.byId(tag.getString("Type"));
         buildingId = tag.hasUUID("Building") ? tag.getUUID("Building") : null;
+        settlementId = tag.hasUUID("Settlement") ? tag.getUUID("Settlement") : null;
         state = PlaqueState.byId(tag.getString("State"), buildingId != null);
         revision = tag.getInt("Revision");
         failedSurveys = tag.getInt("FailedSurveys");
@@ -1359,6 +1605,9 @@ public class PlaqueBlockEntity extends BlockEntity {
         // so resolve toward LINKED_VALID and let the next survey correct it.
         if (state == PlaqueState.EMPTY && buildingId != null) {
             state = PlaqueState.LINKED_VALID;
+        }
+        if (state == PlaqueState.EMPTY) {
+            settlementId = null;
         }
         loadProjectionHydrationPending = !hasWireProjection;
         if (loadProjectionHydrationPending) {

@@ -8,6 +8,10 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.ai.ArcherAttackGoal;
+import com.hearthstead.entity.ai.ArcherTowerPost;
+import com.hearthstead.entity.ai.GuardRespondToAlertGoal;
+import com.hearthstead.settlement.development.Development;
+import com.hearthstead.settlement.guard.GuardAssignmentService;
 import com.hearthstead.item.JobEmblemItem;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
@@ -84,6 +88,31 @@ public class ArcherGameTests {
         }
     }
 
+    /** Independent zero-noise air integration: move, .99 drag, then .05 gravity. */
+    private static double arrowHeightAtDistance(double horizontal, double verticalInput) {
+        double length = Math.hypot(horizontal, verticalInput);
+        double vx = 1.6D * horizontal / length, vy = 1.6D * verticalInput / length;
+        double x = 0.0D, y = 0.0D;
+        for (int tick = 0; tick < 160; tick++) {
+            double nextX = x + vx, nextY = y + vy;
+            if (nextX >= horizontal) {
+                double fraction = (horizontal - x) / (nextX - x);
+                return y + (nextY - y) * fraction;
+            }
+            x = nextX; y = nextY;
+            vx *= .99D; vy = vy * .99D - .05D;
+        }
+        return Double.NaN;
+    }
+
+    private static void assertTowerArc(GameTestHelper helper, double horizontal, double targetDeltaY) {
+        double vertical = ArcherAttackGoal.towerBallisticVerticalInput(horizontal, targetDeltaY);
+        double landed = arrowHeightAtDistance(horizontal, vertical);
+        helper.assertTrue(Double.isFinite(landed) && Math.abs(landed - targetDeltaY) < .015D,
+            "Tower Post zero-noise arc must reach " + horizontal + " blocks at dY=" + targetDeltaY
+                + "; input=" + vertical + "; landed=" + landed);
+    }
+
     /** See {@link GuardTrainingGameTests#settlement}: registered, and small,
      *  for exactly the same reasons. */
     private static Settlement settlement(GameTestHelper helper) {
@@ -94,6 +123,12 @@ public class ArcherGameTests {
         s.radius = 6;
         data.settlements.put(s.id, s);
         data.setDirty();
+        // Morning, always: these tests never set the time, and in a full suite
+        // the clock is wherever earlier tests left it. At night the archer is
+        // asleep on its watch rota, and a sleeping archer never fetches the
+        // bow from its rack (RestAtNight holds priority 5 against the equal
+        // acquisition goal), so it never looses a single arrow.
+        helper.getLevel().setDayTime(1000);
         return s;
     }
 
@@ -175,6 +210,21 @@ public class ArcherGameTests {
         return goal;
     }
 
+    /** Why an archer is not shooting: activity, bow, target and running goals. */
+    private static String diag(SettlerEntity archer) {
+        StringBuilder goals = new StringBuilder();
+        for (WrappedGoal wrapped : archer.goalSelector.getAvailableGoals()) {
+            if (wrapped.isRunning()) {
+                goals.append(wrapped.getGoal().getClass().getSimpleName()).append('@')
+                    .append(wrapped.getPriority()).append(' ');
+            }
+        }
+        return "[activity=" + archer.getActivity() + " main=" + archer.getMainHandItem()
+            + " target=" + (archer.getTarget() == null ? "none" : archer.getTarget().getType().toShortString())
+            + " pos=" + archer.blockPosition() + " goals=" + goals.toString().trim()
+            + " route=" + archer.routeFailureNote() + "]";
+    }
+
     // --------------------------------------------------- chest-true ammo ---
 
     /**
@@ -213,12 +263,114 @@ public class ArcherGameTests {
                     + goal.quiverCount() + " + loosed " + goal.shotsFired()
                     + " != the 16 the tower started with");
             helper.assertTrue(inChest < 16,
-                "the tower's own chest must be what the quiver drains");
+                "the tower's own chest must be what the quiver drains " + diag(archer));
             helper.assertTrue(pell.getHealth() < pellMax,
                 "an archer with arrows and a clear shot must hurt the raider"
                     + " (still " + pell.getHealth() + "/" + pellMax
                     + " after " + goal.shotsFired() + " volleys)");
         });
+    }
+
+    /** Regression for actual native feedback: 128 arrows in bag, empty quiver/rack. */
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 300)
+    public void archerUsesSuppliedBagArrowsWithoutMintingOrStrippingComponents(GameTestHelper helper) {
+        floor(helper,16);
+        Settlement settlement = settlement(helper);
+        Building tower = tower(helper,settlement,2,2);
+        Container rack = chestAt(helper,new BlockPos(3,1,3));
+        stockArcherRack(rack,0);
+        SettlerEntity archer = settler(helper,settlement,"Supplied defender",4,4);
+        helper.assertTrue(Employment.hire(helper.getLevel(),settlement,tower,archer).ok(),"actual Archer employment");
+        archer.setItemSlot(EquipmentSlot.MAINHAND,rack.removeItem(0,1));
+        trainDexterityTo(archer,ArcherRank.MARKSMAN.threshold());
+        ItemStack named = new ItemStack(Items.ARROW,3);
+        named.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+            net.minecraft.network.chat.Component.literal("Keep this named ammunition"));
+        archer.bag.setItem(0,named.copy());
+        archer.bag.setItem(1,new ItemStack(Items.ARROW,64));
+        archer.bag.setItem(2,new ItemStack(Items.ARROW,64));
+        for (int slot=3;slot<archer.bag.getContainerSize();slot++)
+            archer.bag.setItem(slot,new ItemStack(Items.DIRT,64));
+        int unrelatedDirt=(archer.bag.getContainerSize()-3)*64;
+        RaiderEntity target = helper.spawn(ModEntities.RAIDER.get(),new BlockPos(13,1,4));
+        target.setNoAi(true); // Stationary target isolates ammunition ownership, not combat balance.
+        float originalHealth=target.getHealth();
+        ArcherAttackGoal goal=arm(archer);
+        archer.setTarget(target);
+        helper.onEachTick(() -> {
+            helper.assertTrue(countOf(archer.bag,Items.ARROW)+countOf(rack,Items.ARROW)
+                +goal.quiverCount()+goal.shotsFired()==131,"bag/rack/quiver/released arrow conservation");
+            helper.assertTrue(countOf(archer.bag,Items.DIRT)==unrelatedDirt,"full-bag unrelated goods stay untouched");
+            helper.assertTrue(ItemStack.matches(named,archer.bag.getItem(0)),"unsupported named arrows remain exact and unconsumed");
+            if (goal.shotsFired()>0 && target.getHealth()<originalHealth) {
+                helper.assertTrue(goal.quiverCount()>0 && archer.archerQuiverOwnedBy(tower.id),"actual supplied arrows bind to current employer");
+                helper.assertTrue(countOf(archer.bag,Items.ARROW)==131-ArcherAttackGoal.QUIVER_SIZE,
+                    "only the bounded quiver load leaves the full bag; all excess stays carried");
+                CompoundTag saved=new CompoundTag(); archer.saveWithoutId(saved);
+                SettlerEntity loaded=ModEntities.SETTLER.get().create(helper.getLevel());
+                helper.assertTrue(loaded!=null,"decode-only entity available");
+                loaded.load(saved);
+                helper.assertTrue(loaded.archerQuiverCount()==archer.archerQuiverCount()
+                    && loaded.archerQuiverOwnedBy(tower.id)
+                    && countOf(loaded.bag,Items.ARROW)==countOf(archer.bag,Items.ARROW)
+                    && countOf(loaded.bag,Items.DIRT)==unrelatedDirt
+                    && ItemStack.matches(named,loaded.bag.getItem(0)),"save/load preserves enlisted and untouched physical ammunition");
+                helper.succeed();
+            }
+        });
+    }
+
+    /** A real approaching zombie must not reset every draw inside six blocks. */
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 160)
+    public void approachingZombieCannotStarveCloseRangeDraw(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement settlement = settlement(helper);
+        Building watchtower = tower(helper, settlement, 2, 2);
+        Container rack = chestAt(helper, new BlockPos(3, 1, 3));
+        stockArcherRack(rack, 16);
+        // A clear five-by-five interior keeps both bodies inside six blocks.
+        // The roof prevents sunlight damage; neither actor is invulnerable.
+        for (int x = 5; x <= 11; x++) {
+            for (int z = 5; z <= 11; z++) {
+                helper.setBlock(new BlockPos(x, 4, z), Blocks.STONE_BRICKS);
+                if (x == 5 || x == 11 || z == 5 || z == 11) {
+                    for (int y = 1; y <= 3; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                    }
+                }
+            }
+        }
+        SettlerEntity archer = settler(helper, settlement, "Close defense", 6, 8);
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
+            watchtower, archer).ok(), "fixture: actual Watchtower employment");
+        archer.setItemSlot(EquipmentSlot.MAINHAND, rack.removeItem(0, 1));
+        var zombie = helper.spawn(net.minecraft.world.entity.EntityType.ZOMBIE,
+            new BlockPos(10, 1, 8));
+        zombie.setTarget(archer);
+        archer.setTarget(zombie);
+        ArcherAttackGoal goal = arm(archer);
+        net.minecraft.world.phys.Vec3 initialArcherPosition = archer.position();
+        double initialApproachDistance = zombie.position().distanceTo(initialArcherPosition);
+        float initialHealth = zombie.getHealth();
+        boolean[] drewInsideRetreatRange = {false};
+        boolean[] zombieApproached = {false};
+        helper.onEachTick(() -> {
+            helper.assertTrue(countOf(rack, Items.ARROW) + goal.quiverCount()
+                    + goal.shotsFired() == 16,
+                "close defense must conserve physical rack/quiver/released arrows");
+            zombieApproached[0] |= zombie.position().distanceTo(initialArcherPosition) < initialApproachDistance - 0.25;
+            drewInsideRetreatRange[0] |= archer.isUsingItem()
+                && archer.distanceTo(zombie) < ArcherAttackGoal.BACK_AWAY_UNDER;
+            if (goal.shotsFired() > 0 && zombie.getHealth() < initialHealth
+                    && drewInsideRetreatRange[0] && zombieApproached[0]) {
+                helper.assertTrue(archer.isAlive(), "defender must survive its first release");
+                helper.succeed();
+            }
+        });
+        GameTestTicks.at(helper, 150, () -> com.hearthstead.Hearthstead.LOGGER.info(
+            "close defense late witness: draw="+drewInsideRetreatRange[0]+", approach="+zombieApproached[0]
+                +", shots="+goal.shotsFired()+", archer="+archer.position()+", zombie="+zombie.position()
+                +", using="+archer.isUsingItem()+", zombieTarget="+zombie.getTarget()));
     }
 
     /**
@@ -674,6 +826,7 @@ public class ArcherGameTests {
                 helper.succeed();
             }
         });
+        helper.runAfterDelay(395, () -> helper.fail("no release within 395 ticks " + diag(archer)));
     }
 
     /**
@@ -681,7 +834,7 @@ public class ArcherGameTests {
      * above, and the pressure that makes the fletcher worth hiring: the
      * archer stands the post empty-handed rather than conjuring ammunition.
      */
-    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 600)
     public void anEmptyTowerMeansNoShots(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -692,6 +845,10 @@ public class ArcherGameTests {
         SettlerEntity archer = settler(helper, s, "Tomhendt", 4, 4);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, archer).ok(),
             "fixture: the watchtower must hire an archer");
+        // This regression isolates ammunition, not the independent bow
+        // acquisition goal. Equip the physical bow already stocked above.
+        archer.setItemSlot(EquipmentSlot.MAINHAND, rack.removeItem(0, 1));
+        rack.setChanged();
 
         RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
         pell.setNoAi(true);
@@ -699,16 +856,55 @@ public class ArcherGameTests {
         ArcherAttackGoal goal = arm(archer);
         archer.setTarget(pell);
 
+        boolean[] returning = {false};
+        // Register observers before ticking starts: adding scheduled callbacks
+        // inside a scheduled callback mutates GameTest's active iterator.
+        helper.onEachTick(() -> {
+            if (!returning[0]) return;
+            helper.assertTrue(!goal.outOfAmmoAnnounced(),
+                "returning to stocked storage must not announce empty storage");
+            helper.assertTrue(countOf(rack, Items.ARROW) + goal.quiverCount()
+                    + goal.shotsFired() == 16,
+                "return/refill/fire must conserve the same sixteen arrows");
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(returning[0] && goal.shotsFired() > 0
+                    && pell.getHealth() < pellMax,
+                "normal AI must return, physically refill and hit the hostile");
+        });
         helper.runAfterDelay(250, () -> {
             helper.assertTrue(goal.shotsFired() == 0,
                 "no arrows in the tower must mean no shots, yet "
                     + goal.shotsFired() + " were loosed");
-            helper.assertTrue(rack.isEmpty(),
-                "an empty rack must stay empty -- nothing may mint arrows");
+            helper.assertTrue(countOf(rack, Items.ARROW) == 0,
+                "a rack without arrows must not mint arrows");
             helper.assertTrue(pell.isAlive() && pell.getHealth() >= pellMax,
                 "the raider must be untouched, at " + pell.getHealth()
                     + "/" + pellMax);
-            helper.succeed();
+            helper.assertTrue(goal.outOfAmmoAnnounced(),
+                "a confirmed empty rack must explain why no shots are fired");
+            goal.stop();
+            goal.start();
+            helper.assertTrue(goal.outOfAmmoAnnounced(),
+                "goal restart must not announce the same empty rack again");
+            rack.setItem(0, new ItemStack(Items.ARROW, 16));
+            archer.setTarget(pell);
+            goal.tick();
+            helper.assertTrue(!goal.outOfAmmoAnnounced() && goal.quiverCount() == 16,
+                "physical restock must end the starvation episode");
+            // Move the SAME physical ammunition back to the rack and put the
+            // archer outside refill reach. Normal AI must return and fire;
+            // no test tick, teleport or navigation command drives the recovery.
+            int returned = archer.takeArcherQuiverArrows(16);
+            rack.setItem(0, new ItemStack(Items.ARROW, returned));
+            tower.bounds = BoundingBox.fromCorners(
+                helper.absolutePos(new BlockPos(1, 1, 1)),
+                helper.absolutePos(new BlockPos(3, 4, 3)));
+            BlockPos away = helper.absolutePos(new BlockPos(15, 1, 14));
+            archer.moveTo(away.getX() + 0.5, away.getY(), away.getZ() + 0.5);
+            helper.assertTrue(goal.quiverCount() == 0 && !goal.outOfAmmoAnnounced(),
+                "fixture must begin the return with an empty quiver and no warning");
+            returning[0] = true;
         });
     }
 
@@ -742,7 +938,35 @@ public class ArcherGameTests {
             archer.attribute(Attribute.DEXTERITY) > before,
             "loosing arrows must train Dexterity -- the rank ladder reads it"
                 + " (started " + before + ", still "
-                + archer.attribute(Attribute.DEXTERITY) + ")"));
+                + archer.attribute(Attribute.DEXTERITY) + ") " + diag(archer)));
+    }
+
+    /**
+     * W3b, a real Sunday risk: an off-watch archer asleep at night, its bow
+     * still in the tower rack, and an enemy it is aimed at. It must wake,
+     * fetch the bow and loose -- never sleep through the fight unarmed.
+     */
+    @GameTest(batch = "archer_night", template = "empty16", timeoutTicks = 600)
+    public void aSleepingArcherWakesArmsFromTheRackAndLooses(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building tower = tower(helper, s, 2, 2);
+        stockArcherRack(chestAt(helper, new BlockPos(3, 1, 3)), 16);
+        SettlerEntity archer = settler(helper, s, "Nattvakt", 4, 4);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, archer).ok(),
+            "fixture: the watchtower must hire an archer");
+        helper.getLevel().setDayTime(18000); // midnight, after settlement() pinned the morning
+        helper.assertTrue(com.hearthstead.settlement.Schedule.shouldSleep(s, archer, archer.dayPhase()),
+            "fixture: this archer is off watch at midnight, so it would be asleep");
+        RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
+        pell.setNoAi(true);
+        ArcherAttackGoal goal = arm(archer);
+        helper.runAfterDelay(40, () -> archer.setTarget(pell)); // it has lain down by now
+        helper.succeedWhen(() -> {
+            helper.assertTrue(archer.getMainHandItem().is(Items.BOW),
+                "the woken archer must fetch its bow from the rack " + diag(archer));
+            helper.assertTrue(goal.shotsFired() > 0, "the armed archer must loose " + diag(archer));
+        });
     }
 
     // ---------------------------------------------------- the power shot ---
@@ -782,7 +1006,7 @@ public class ArcherGameTests {
                     + ArcherRank.POWER_SHOT_EVERY + "th");
             helper.assertTrue(goal.powerShotsFired() >= 1,
                 "a Sharpshooter's 4th volley must be a Power Shot ("
-                    + goal.shotsFired() + " volleys so far)");
+                    + goal.shotsFired() + " volleys so far) " + diag(archer));
         });
     }
 
@@ -842,11 +1066,164 @@ public class ArcherGameTests {
             helper.assertTrue(goal.tripleShotsFired() >= 1,
                 "a Master's 5th volley must be a Triple Shot ("
                     + goal.shotsFired() + " volleys so far, "
-                    + goal.powerShotsFired() + " power)");
+                    + goal.powerShotsFired() + " power) " + diag(archer));
             helper.assertTrue(pell.getHealth() < pellMax,
                 "a Master archer firing its real cadence must still hurt the "
                     + "raider (still " + pell.getHealth() + "/" + pellMax + ")");
         });
+    }
+
+    // ------------------------------------------------ tower-post sniper ---
+
+    /**
+     * A 32-block post must correct the existing real Arrow's air drop rather
+     * than merely authorizing a longer target scan. These values include the
+     * same-target, uphill and downhill cases without spawning a synthetic hit.
+     */
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 20)
+    public void towerPostBallisticsReachLongTargetsWithTheRealArrowArc(GameTestHelper helper) {
+        assertTowerArc(helper, 18.0D, -.93D);
+        assertTowerArc(helper, 30.0D, -.93D);
+        assertTowerArc(helper, 32.0D, -.93D);
+        assertTowerArc(helper, 30.0D, 2.4D);
+        assertTowerArc(helper, 30.0D, -2.8D);
+        assertTowerArc(helper, 25.0D, 12.0D);
+        assertTowerArc(helper, 30.0D, -10.0D);
+        helper.succeed();
+    }
+
+    /**
+     * A Tower Post is a physical firing position, not a Watchtower-wide buff:
+     * this archer acquires and hurts a visible raider beyond the normal
+     * 18-block shot range only after it is standing on its elevated own post.
+     * It then holds through a blocked sight line instead of descending to
+     * chase. Clearing that authored post releases the extension and ordinary
+     * movement may resume, but cannot loose from the old long distance.
+     */
+    @GameTest(batch = "archer", template = "empty64", timeoutTicks = 900)
+    public void towerPostedArcherCoversVisibleRangeWithoutDescending(GameTestHelper helper) {
+        floor(helper, 64);
+        Settlement s = settlement(helper);
+        // The board's bounded settlement scan is radius + 8. Thirty blocks
+        // from the post remains a real in-settlement threat, but exceeds the
+        // ordinary 18-block release rule.
+        s.radius = 24;
+        Building tower = tower(helper, s, 2, 2);
+        Container rack = chestAt(helper, new BlockPos(3, 1, 3));
+        stockArcherRack(rack, 32);
+
+        // The post is one real level above the floor: solid support below,
+        // clear body/head cells, and still inside the surveyed Watchtower.
+        helper.setBlock(new BlockPos(4, 2, 4), Blocks.STONE_BRICKS);
+        helper.setBlock(new BlockPos(4, 3, 4), Blocks.AIR);
+        helper.setBlock(new BlockPos(4, 4, 4), Blocks.AIR);
+        // One-block physical descent keeps explicit release independently walkable.
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.STONE_BRICKS);
+        BlockPos post = helper.absolutePos(new BlockPos(4, 3, 4));
+
+        SettlerEntity archer = settler(helper, s, "Tower Warden", 4, 4);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, tower, archer).ok(),
+            "fixture: the surveyed watchtower must employ its Archer");
+        archer.setItemSlot(EquipmentSlot.MAINHAND, rack.removeItem(0, 1));
+        rack.setChanged();
+        // The Tower Post changes acquisition/release range, not the existing
+        // rank accuracy contract. Use the established Marksman fixture rank so
+        // this 30-block proof cannot be a Recruit-spread coin toss.
+        trainDexterityTo(archer, ArcherRank.MARKSMAN.threshold());
+        helper.assertTrue(ArcherRank.of(archer).atLeast(ArcherRank.MARKSMAN),
+            "fixture: long-range coverage needs the established Marksman accuracy");
+        Development.of(helper.getLevel(), s);
+        UUID issuer = UUID.randomUUID();
+        GuardOrder order = s.guardOrders.orderForMutation(s.id, archer.getUUID(),
+            helper.getLevel().dimension().location()).orElseThrow();
+        helper.assertTrue(order.issueTower(post, Direction.EAST,
+                GuardOrder.DEFAULT_FACING_ARC, issuer, tower.id,
+                helper.getLevel().getGameTime()),
+            "fixture: Archer needs its exact authored Tower Post");
+        helper.assertTrue(GuardAssignmentService.validate(helper.getLevel(), s, archer,
+                false).valid(), "fixture: elevated Tower Post must validate");
+        archer.moveTo(post.getX() + 0.5D, post.getY(), post.getZ() + 0.5D);
+        archer.getNavigation().stop();
+
+        RaiderEntity threat = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(34, 3, 4));
+        threat.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+        threat.setNoAi(true);
+        threat.getAttribute(Attributes.MAX_HEALTH).setBaseValue(200.0D);
+        threat.setHealth(threat.getMaxHealth());
+        helper.assertTrue(archer.distanceTo(threat) > ArcherAttackGoal.NORMAL_SHOT_RANGE
+                && archer.distanceTo(threat) < ArcherTowerPost.SHOT_RANGE,
+            "fixture target must be outside normal but inside Tower Post range");
+        float threatMax = threat.getMaxHealth();
+        ArcherAttackGoal goal = arm(archer);
+        int[] shotsBeforeBlockedSight = {-1};
+        float[] healthBeforeBlockedSight = {-1.0F};
+        int[] shotsBeforeRelease = {-1};
+
+        helper.onEachTick(() -> {
+            if (shotsBeforeRelease[0] < 0) {
+                helper.assertTrue(archer.blockPosition().distSqr(post) <= 2.25D,
+                    "active Tower Post must keep the Archer on its elevated firing cell");
+                helper.assertTrue(archer.getNavigation().isDone(),
+                    "Tower Post sniper must not navigate down to chase or kite");
+            }
+        });
+        helper.startSequence()
+            .thenWaitUntil(() -> {
+                helper.assertTrue(archer.getTarget() == threat,
+                    "posted Archer must acquire the real visible in-range raider itself");
+                helper.assertTrue(goal.shotsFired() > 0 && threat.getHealth() < threatMax,
+                    "Tower Post must loose a chest-backed arrow beyond normal range"
+                        + "; shots=" + goal.shotsFired() + "; health="
+                        + threat.getHealth() + "/" + threatMax);
+            })
+            .thenExecute(() -> {
+                shotsBeforeBlockedSight[0] = goal.shotsFired();
+                healthBeforeBlockedSight[0] = threat.getHealth();
+                // Build a full physical wall between the already-acquired
+                // actors. Coverage must stop here: no wall vision, no route
+                // down from the tower, and no delayed old draw.
+                for (int y = 1; y <= 6; y++) {
+                    for (int z = 2; z <= 6; z++) {
+                        helper.getLevel().setBlockAndUpdate(
+                            helper.absolutePos(new BlockPos(19, y, z)),
+                            Blocks.STONE_BRICKS.defaultBlockState());
+                    }
+                }
+                helper.assertTrue(!archer.hasLineOfSight(threat),
+                    "fixture wall must physically block the posted Archer's sight");
+            })
+            .thenIdle(50)
+            .thenExecute(() -> {
+                helper.assertTrue(goal.shotsFired() == shotsBeforeBlockedSight[0]
+                        && threat.getHealth() == healthBeforeBlockedSight[0],
+                    "blocked Tower Post sight must not loose or damage through the wall");
+                helper.assertTrue(archer.blockPosition().distSqr(post) <= 2.25D
+                        && archer.getNavigation().isDone(),
+                    "blocked Tower Post sight must hold the firing cell rather than descend");
+                for (int y = 1; y <= 6; y++) {
+                    for (int z = 2; z <= 6; z++) {
+                        helper.getLevel().setBlockAndUpdate(
+                            helper.absolutePos(new BlockPos(19, y, z)),
+                            Blocks.AIR.defaultBlockState());
+                    }
+                }
+                helper.assertTrue(order.clear(issuer, tower.id,
+                        helper.getLevel().getGameTime()),
+                    "fixture: explicit player release must clear Tower Post authority");
+                shotsBeforeRelease[0] = goal.shotsFired();
+            })
+            .thenIdle(25)
+            .thenExecute(() -> {
+                helper.assertTrue(goal.shotsFired() == shotsBeforeRelease[0],
+                    "released Archer must not retain the old Tower Post shot range");
+                helper.assertTrue(archer.distanceTo(threat) > ArcherAttackGoal.NORMAL_SHOT_RANGE,
+                    "fixture must observe ordinary movement before normal-range firing resumes");
+                helper.assertTrue(archer.blockPosition().distSqr(post) > 2.25D,
+                    "explicit release must actually allow ordinary movement away from Tower Post " + diag(archer));
+                threat.discard();
+            })
+            .thenSucceed();
     }
 
     // ------------------------------------------------- self-acquisition ---
@@ -867,10 +1244,11 @@ public class ArcherGameTests {
      * and given no AI so it cannot wander out of the settlement ring before
      * the archer's own {@code RETARGET_INTERVAL} scan finds it.
      */
-    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 400)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 800)
     public void archerFindsAndLoosesAtARaiderWithNoHelp(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
+        s.radius = 8;
         Building tower = tower(helper, s, 2, 2);
         Container rack = chestAt(helper, new BlockPos(3, 1, 3));
         stockArcherRack(rack, 16);
@@ -880,29 +1258,261 @@ public class ArcherGameTests {
             "fixture: the watchtower must hire an archer");
         helper.assertTrue(archer.getTarget() == null,
             "fixture sanity: nothing may hand the archer a target");
+        archer.setItemSlot(EquipmentSlot.MAINHAND, rack.removeItem(0, 1));
+        rack.setChanged();
+        Development.of(helper.getLevel(), s);
+        var alertWrapped = archer.goalSelector.getAvailableGoals().stream()
+            .filter(w -> w.getGoal() instanceof GuardRespondToAlertGoal).findFirst().orElseThrow();
+        GuardRespondToAlertGoal alert = (GuardRespondToAlertGoal) alertWrapped.getGoal();
+        s.alertPos = helper.absolutePos(new BlockPos(15, 1, 15));
+        s.alertUntilGameTime = helper.getLevel().getGameTime() + 1000;
+        helper.assertTrue(alert.canUse(), "an absent order must preserve ordinary alarm response");
+        BlockPos post = helper.absolutePos(new BlockPos(9, 1, 8));
+        UUID issuer = UUID.randomUUID();
+        int[] phase = {0};
+        int[] authoredRevision = {-1};
+        long[] contactPhaseStarted = {-1};
+        double[] retreatStartX = {0};
+        long setupTick = helper.getLevel().getGameTime();
+        int[] shotsBeforeExcludedRack = {0};
+        RaiderEntity[] excludedRackTarget = {null};
+        float[] healthAtCover = {0};
+        int[] shotsAtCover = {0};
 
-        RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(13, 1, 4));
+        RaiderEntity pell = helper.spawn(ModEntities.RAIDER.get(), new BlockPos(15, 1, 15));
         pell.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
         pell.setNoAi(true);
+        // No eligible threat during the alarm phase. Its real settlement
+        // identity is restored when the close-threat phase begins.
+        pell.assign(UUID.randomUUID(), UUID.randomUUID(), RaidObjective.BLOD, 1.0F, false);
         float pellMax = pell.getMaxHealth();
         // Armed only so the fixture can read shotsFired()/quiverCount() --
         // the SAME lookup-first helper every other test in this file uses,
         // never a second goal instance. Never armed with a target.
         ArcherAttackGoal goal = arm(archer);
 
-        helper.succeedWhen(() -> {
-            int inChest = countOf(rack, Items.ARROW);
-            helper.assertTrue(inChest + goal.quiverCount() + goal.shotsFired() == 16,
-                "ammo conservation broke: chest " + inChest + " + quiver "
-                    + goal.quiverCount() + " + loosed " + goal.shotsFired()
-                    + " != the 16 the tower started with");
-            helper.assertTrue(archer.getTarget() == pell,
-                "the archer must find the raider through its OWN goal (never "
-                    + "setTarget from the test), got " + archer.getTarget());
-            helper.assertTrue(pell.getHealth() < pellMax,
-                "an archer that finds its own target must still hurt the raider"
-                    + " (still " + pell.getHealth() + "/" + pellMax
-                    + " after " + goal.shotsFired() + " volleys)");
+        helper.onEachTick(() -> {
+            if (phase[0] < 4) {
+                helper.assertTrue(helper.getLevel().getGameTime() - setupTick < 240,
+                    "alarm, retreat and physical recovery each have a bounded test window");
+            }
+            helper.assertTrue(countOf(rack, Items.ARROW) + goal.quiverCount()
+                    + goal.shotsFired() == 16,
+                "ordered movement must conserve every physical arrow");
+            if (phase[0] < 1) return;
+            GuardOrder current = s.guardOrders.order(archer.getUUID()).orElseThrow();
+            helper.assertTrue(current.revision() == authoredRevision[0],
+                "AI must not rewrite the authored defensive order");
+            if (helper.getLevel().getGameTime() - setupTick < 25) return;
+            BlockPos currentPost = current.pos().orElseThrow();
+            double radiusSqr = (double) current.leashRadius() * current.leashRadius();
+            if (phase[0] != 3) {
+                helper.assertTrue(archer.blockPosition().distSqr(currentPost) <= radiusSqr,
+                    "ordinary AI must not voluntarily leave the Stand region");
+            }
+            var path = archer.getNavigation().getPath();
+            if (path != null && !path.isDone() && phase[0] != 3) {
+                for (int i = path.getNextNodeIndex(); i < path.getNodeCount(); i++) {
+                    helper.assertTrue(path.getNode(i).asBlockPos().distSqr(currentPost) <= radiusSqr,
+                        "an inside endpoint must not hide an outside path detour");
+                }
+            }
+            if (contactPhaseStarted[0] >= 0 && phase[0] == 4) {
+                helper.assertTrue(helper.getLevel().getGameTime() - contactPhaseStarted[0] < 400,
+                    "original acquire/cover/contact behavior retains its 400-tick allowance");
+            }
         });
+        helper.runAfterDelay(20, () -> {
+            helper.assertTrue(alertWrapped.isRunning() && !archer.getNavigation().isDone(),
+                "ordinary scheduler must actually begin the unordered alarm route");
+            GuardOrder order = s.guardOrders.orderForMutation(s.id, archer.getUUID(),
+                helper.getLevel().dimension().location()).orElseThrow();
+            long now = helper.getLevel().getGameTime();
+            helper.assertTrue(order.issueStand(post, Direction.SOUTH, 8, issuer, tower.id, now),
+                "fixture must author Stand during a running alarm");
+            helper.assertTrue(!alert.canContinueToUse() && !alert.canUse(),
+                "active Stand must reject alarm start and continuation");
+            helper.assertTrue(order.issueTower(helper.absolutePos(new BlockPos(5, 1, 5)),
+                    Direction.SOUTH, GuardOrder.DEFAULT_FACING_ARC, issuer, tower.id, now)
+                    && GuardAssignmentService.validate(helper.getLevel(), s, archer, false).valid()
+                    && !alert.canUse(), "valid Tower must also reject alarm movement");
+            helper.assertTrue(order.issueStand(post, Direction.SOUTH, 8, issuer, UUID.randomUUID(), now)
+                    && !alert.canUse(), "invalid persisted employer must fail closed");
+            helper.assertTrue(order.issueStand(post, Direction.SOUTH, 8, issuer, tower.id, now)
+                    && order.clear(issuer, tower.id, now) && alert.canUse(),
+                "valid inactive order must preserve alarm response");
+            helper.assertTrue(order.appendPatrolPoint(post, issuer, tower.id, now)
+                    && order.appendPatrolPoint(post.east(), issuer, tower.id, now)
+                    && order.issuePatrol(GuardOrder.Traversal.LOOP, issuer, tower.id, now)
+                    && alert.canUse(), "valid Patrol retains existing alarm behavior");
+            helper.assertTrue(order.issueStand(post, Direction.SOUTH, 8, issuer, tower.id, now),
+                "fixture must restore the authored Stand");
+            authoredRevision[0] = order.revision();
+            phase[0] = 1;
+        });
+        helper.runAfterDelay(60, () -> {
+            helper.assertTrue(!alertWrapped.isRunning(),
+                "scheduler must relinquish the old alarm goal after Stand is imposed");
+            // Controlled initial condition at the edge; all subsequent retreat
+            // is driven by ordinary entity AI, never direct goal ticks.
+            BlockPos edge = helper.absolutePos(new BlockPos(2, 1, 8));
+            archer.moveTo(edge.getX() + 0.5, edge.getY(), edge.getZ() + 0.5);
+            archer.getNavigation().stop();
+            retreatStartX[0] = archer.getX();
+            BlockPos close = helper.absolutePos(new BlockPos(4, 1, 8));
+            pell.moveTo(close.getX() + 0.5, close.getY(), close.getZ() + 0.5);
+            pell.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+            // Block the direct retreat cell; a reachable sideways alternative
+            // is required rather than merely clamping a destination.
+            helper.setBlock(new BlockPos(1, 1, 8), Blocks.STONE_BRICKS);
+            helper.setBlock(new BlockPos(1, 2, 8), Blocks.STONE_BRICKS);
+            phase[0] = 2;
+        });
+        helper.runAfterDelay(120, () -> {
+            helper.assertTrue(Math.abs(archer.getX() - retreatStartX[0]) > 0.5
+                    || Math.abs(archer.getZ() - (post.getZ() + 0.5)) > 0.5,
+                "close-threat defense must find real movement around the blocked retreat");
+            helper.setBlock(new BlockPos(1, 1, 8), Blocks.AIR);
+            helper.setBlock(new BlockPos(1, 2, 8), Blocks.AIR);
+            // Simulate outside displacement once. Recovery must use navigation.
+            BlockPos outside = helper.absolutePos(new BlockPos(0, 1, 8));
+            archer.moveTo(outside.getX() + 0.5, outside.getY(), outside.getZ() + 0.5);
+            archer.getNavigation().stop();
+            phase[0] = 3;
+        });
+
+        helper.startSequence()
+            .thenWaitUntil(() -> {
+                helper.assertTrue(phase[0] == 3,
+                    "the displacement phase must begin before reading its order");
+                GuardOrder current = s.guardOrders.order(archer.getUUID()).orElse(null);
+                helper.assertTrue(current != null,
+                    "the displaced Archer must retain its authored order");
+                int inset = Math.max(0, current.leashRadius() - 1);
+                helper.assertTrue(archer.onGround()
+                        && archer.blockPosition().distSqr(post)
+                            <= (double) inset * inset,
+                    "displaced Archer must return grounded and one block inside "
+                        + "its authored region before the contact phase");
+            })
+            .thenExecute(() -> {
+                helper.assertTrue(helper.getLevel().getGameTime() - setupTick < 240,
+                    "added alarm/retreat/recovery phases must complete within 240 ticks");
+                BlockPos firing = helper.absolutePos(new BlockPos(13, 1, 4));
+                pell.moveTo(firing.getX() + 0.5, firing.getY(), firing.getZ() + 0.5);
+                phase[0] = 4;
+                contactPhaseStarted[0] = helper.getLevel().getGameTime();
+            })
+            .thenWaitUntil(() -> helper.assertTrue(archer.getTarget() == pell,
+                "the archer must find the raider through its OWN goal (never "
+                    + "setTarget from the test), got " + archer.getTarget()))
+            .thenExecute(() -> {
+                // Once self-acquisition is proven, a three-block-high wall
+                // interrupts the current draw while leaving a real route
+                // around either end. The Archer must physically reposition
+                // to regain line of sight instead of freezing inside
+                // PREFER_MAX. Building it before acquisition would test the
+                // intentional initial-visibility predicate instead.
+                // Recovery may finish at a different grounded point inside
+                // Stand on each navigation run. Centre the finite cover on
+                // the actual sight line, rather than assuming the Archer
+                // returned to a particular x/z before self-acquisition.
+                double dx = pell.getX() - archer.getX();
+                double dz = pell.getZ() - archer.getZ();
+                helper.assertTrue(Math.max(Math.abs(dx), Math.abs(dz)) >= 5.0D,
+                    "fixture must leave room for cover between the live combatants");
+                BlockPos midpoint = BlockPos.containing(
+                    archer.position().lerp(pell.position(), 0.5D));
+                boolean spanZ = Math.abs(dx) >= Math.abs(dz);
+                int floorY = Math.min(archer.blockPosition().getY(),
+                    pell.blockPosition().getY());
+                for (int y = floorY; y < floorY + 3; y++) {
+                    for (int offset = -2; offset <= 2; offset++) {
+                        BlockPos cover = new BlockPos(
+                            midpoint.getX() + (spanZ ? 0 : offset), y,
+                            midpoint.getZ() + (spanZ ? offset : 0));
+                        helper.getLevel().setBlockAndUpdate(cover,
+                            Blocks.STONE_BRICKS.defaultBlockState());
+                    }
+                }
+                helper.assertTrue(!archer.hasLineOfSight(pell),
+                    "fixture wall must interrupt the acquired Archer's line of sight");
+                healthAtCover[0] = pell.getHealth();
+                shotsAtCover[0] = goal.shotsFired();
+            })
+            .thenWaitUntil(() -> {
+                int inChest = countOf(rack, Items.ARROW);
+                helper.assertTrue(inChest + goal.quiverCount()
+                        + goal.shotsFired() == 16,
+                    "ammo conservation broke: chest " + inChest + " + quiver "
+                        + goal.quiverCount() + " + loosed " + goal.shotsFired()
+                        + " != the 16 the tower started with");
+                helper.assertTrue(pell.getHealth() < healthAtCover[0]
+                        && goal.shotsFired() > shotsAtCover[0],
+                    "an archer that finds its own target must path around reachable "
+                        + "cover and still hurt the raider"
+                        + " (still " + pell.getHealth() + "/" + pellMax
+                        + " after " + goal.shotsFired() + " volleys)");
+            })
+            .thenExecute(() -> {
+                int inChest = countOf(rack, Items.ARROW);
+                helper.assertTrue(inChest + goal.quiverCount()
+                        + goal.shotsFired() == 16,
+                    "final ammo conservation broke after the cover shot");
+                // A new post excludes even the tower's expanded refill reach.
+                // Set up physical ownership once; ordinary AI must then hold
+                // without crossing the order or manufacturing ammunition.
+                int returned = archer.takeArcherQuiverArrows(goal.quiverCount());
+                rack.setItem(1, new ItemStack(Items.ARROW, inChest + returned));
+                rack.setChanged();
+                tower.bounds = BoundingBox.fromCorners(tower.anchor,
+                    helper.absolutePos(new BlockPos(3, 4, 3)));
+                BlockPos dryPost = helper.absolutePos(new BlockPos(13, 1, 13));
+                GuardOrder order = s.guardOrders.order(archer.getUUID()).orElseThrow();
+                helper.assertTrue(order.issueStand(dryPost, Direction.SOUTH, 2,
+                        issuer, tower.id, helper.getLevel().getGameTime()),
+                    "fixture must author the incompatible refill post");
+                authoredRevision[0] = order.revision();
+                archer.moveTo(dryPost.getX() + 0.5, dryPost.getY(), dryPost.getZ() + 0.5);
+                archer.getNavigation().stop();
+                // End the positive-shot fixture before the independent no-ammo phase.
+                // Already released arrows remain counted as spent; retiring only
+                // this archer's projectiles prevents a delayed earlier hit from
+                // invalidating the new phase's live-threat precondition.
+                for (var arrow : helper.getLevel().getEntitiesOfClass(
+                        net.minecraft.world.entity.projectile.AbstractArrow.class,
+                        new AABB(net.minecraft.world.phys.Vec3.atLowerCornerOf(helper.absolutePos(BlockPos.ZERO)),
+                            net.minecraft.world.phys.Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(16, 8, 16)))),
+                        arrow -> arrow.getOwner() == archer)) {
+                    arrow.discard();
+                }
+                pell.discard();
+                RaiderEntity fresh = helper.spawn(ModEntities.RAIDER.get(),
+                    new BlockPos(13, 1, 14));
+                fresh.assign(UUID.randomUUID(), s.id, RaidObjective.BLOD, 1.0F, false);
+                fresh.setNoAi(true);
+                excludedRackTarget[0] = fresh;
+                helper.assertTrue(fresh.isAlive() && fresh.getHealth() == fresh.getMaxHealth(),
+                    "negative ammo phase must begin with a fresh real live threat");
+                shotsBeforeExcludedRack[0] = goal.shotsFired();
+                phase[0] = 5;
+            })
+            .thenIdle(40)
+            .thenExecute(() -> helper.assertTrue(goal.quiverCount() == 0
+                    && goal.shotsFired() == shotsBeforeExcludedRack[0]
+                    && excludedRackTarget[0].isAlive() && archer.getTarget() == excludedRackTarget[0]
+                    && archer.getActivity() == com.hearthstead.entity.SettlerActivity.OUT_OF_AMMO
+                    && archer.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(w -> w.getGoal() == goal && w.isRunning()),
+                "an inaccessible rack must not override the post or invent arrows"
+                    + "; quiver=" + goal.quiverCount() + "; shots=" + goal.shotsFired()
+                    + "; shotsBefore=" + shotsBeforeExcludedRack[0]
+                    + "; targetAlive=" + excludedRackTarget[0].isAlive()
+                    + "; targetHealth=" + excludedRackTarget[0].getHealth()
+                    + "; health=" + archer.getHealth()
+                    + "; activity=" + archer.getActivity() + "; target=" + archer.getTarget()
+                    + "; goalRunning=" + archer.goalSelector.getAvailableGoals().stream()
+                        .anyMatch(w -> w.getGoal() == goal && w.isRunning())))
+            .thenSucceed();
     }
 }

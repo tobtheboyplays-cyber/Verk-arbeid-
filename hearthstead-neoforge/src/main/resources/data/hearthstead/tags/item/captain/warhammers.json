@@ -1,0 +1,11 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:wooden_warhammer",
+    "hearthstead:stone_warhammer",
+    "hearthstead:iron_warhammer",
+    "hearthstead:golden_warhammer",
+    "hearthstead:diamond_warhammer",
+    "hearthstead:netherite_warhammer"
+  ]
+}

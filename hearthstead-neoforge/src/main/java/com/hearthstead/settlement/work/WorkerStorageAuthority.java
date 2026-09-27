@@ -1,6 +1,7 @@
 package com.hearthstead.settlement.work;
 
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.settlement.workzone.WorkZoneService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -23,7 +24,6 @@ import java.util.function.UnaryOperator;
 /** Exact, loaded, no-force-load workplace container transactions. */
 public final class WorkerStorageAuthority {
     private static final int MAX_SCAN_VOLUME = 16_384;
-    private static final int MAX_CONTAINERS = 64;
 
     public record Source(BlockPos pos, int slot, ItemStack observed) {
         public Source {
@@ -67,24 +67,18 @@ public final class WorkerStorageAuthority {
         if (!withinScanBudget(bounds)) {
             return List.of();
         }
+        // One authority for "which containers does this building manage":
+        // the cached WarehouseIndex (level capacity, nearest-to-plaque, scan
+        // order). Only live chests/barrels are handed to workers here.
         List<BlockPos> result = new ArrayList<>();
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-        for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
-            for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
-                for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
-                    cursor.set(x, y, z);
-                    if (!WorkZoneService.livePositionAvailable(level, cursor)) {
-                        continue;
-                    }
-                    BlockEntity blockEntity = level.getBlockEntity(cursor);
-                    if (blockEntity instanceof ChestBlockEntity
-                        || blockEntity instanceof BarrelBlockEntity) {
-                        result.add(cursor.immutable());
-                        if (result.size() >= MAX_CONTAINERS) {
-                            return List.copyOf(result);
-                        }
-                    }
-                }
+        for (BlockPos pos : WarehouseIndex.containers(level, building)) {
+            if (!WorkZoneService.livePositionAvailable(level, pos)) {
+                continue;
+            }
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof ChestBlockEntity
+                || blockEntity instanceof BarrelBlockEntity) {
+                result.add(pos);
             }
         }
         return List.copyOf(result);
@@ -235,7 +229,9 @@ public final class WorkerStorageAuthority {
             return null;
         }
         container.setChanged();
-        int sourceAfter = countItem(container, live.getItem());
+        // removeItem can empty the original stack in place. Its getItem()
+        // then becomes AIR, hiding other source rows of the transferred item.
+        int sourceAfter = countItem(container, sourceBeforeStack.getItem());
         int bagAfter = countItem(bag, removed.getItem());
         Transfer transfer = new Transfer(sourceBefore, sourceAfter, bagBefore,
             bagAfter, removed);

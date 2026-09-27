@@ -1,0 +1,91 @@
+--- a/hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedger.java
++++ b/hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestLedger.java
+@@ -240,8 +240,13 @@
+             decoded.active.put(row.id(), row);
+         }
+         for (int i = 0; i < terminalRows.size(); i++) {
+-            RequestRecord row = RequestRecord.readNbt(terminalRows.getCompound(i),
+-                registries, expectedSettlementId);
++            CompoundTag raw = terminalRows.getCompound(i);
++            RequestRecord row = RequestRecord.readNbt(raw, registries,
++                expectedSettlementId);
++            if (row == null) {
++                row = RequestRecord.readLegacyTerminalNbt(raw, registries,
++                    expectedSettlementId);
++            }
+             if (row == null || !row.state().terminal() || !ids.add(row.id())
+                 || decoded.terminal.size() >= MAX_TERMINAL) {
+                 return quarantined(expectedSettlementId, "malformed_terminal_row");
+--- a/hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestRecord.java
++++ b/hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestRecord.java
+@@ -461,6 +461,9 @@
+         }
+         applyTransition(RequestState.EXPIRED, RequestBlocker.NONE, now);
+         leaseUntil = 0L;
++        // A BLOCKED -> EXPIRED edge closes the interruption; terminal rows
++        // must never retain a resumable blocked state on the next load.
++        blockedFrom = null;
+         return true;
+     }
+ 
+@@ -554,6 +557,33 @@
+         }
+         RequestRecord row = readNbt(tag, registries, expectedSettlementId, true);
+         return row != null && row.expire(row.updatedAt()) ? row : null;
++    }
++
++    /**
++     * Ledger-load seam for an already terminal historic record whose former
++     * presentation checksum no longer has the current representation. This is
++     * deliberately package-private: callers can retain an audit row only; it
++     * never yields a live reservation, source authority, or physical item.
++     */
++    @Nullable
++    static RequestRecord readLegacyTerminalNbt(CompoundTag tag,
++                                               HolderLookup.Provider registries,
++                                               UUID expectedSettlementId) {
++        if (tag == null || registries == null || expectedSettlementId == null
++            || tag.getInt("DataVersion") != DATA_VERSION
++            || !tag.contains("State", Tag.TAG_INT)
++            || RequestState.fromWireId(tag.getInt("State"))
++                .map(RequestState::terminal).orElse(false) == false
++            || !(tag.get("Fingerprint") instanceof CompoundTag fingerprintTag)
++            // The public reader remains strict. This fallback is only for the
++            // known obsolete digest representation, never for a valid row.
++            || RequestItemFingerprint.readNbt(fingerprintTag, registries) != null
++            || RequestItemFingerprint.readLegacyZeroCargoOutputNbt(
++                fingerprintTag, registries) == null) {
++            return null;
++        }
++        RequestRecord row = readNbt(tag, registries, expectedSettlementId, true);
++        return row != null && row.state().terminal() ? row : null;
+     }
+ 
+     @Nullable
+@@ -608,15 +638,7 @@
+         // differently. Only a zero-cargo OUTPUT row already blocked from its
+         // reservation may reconstruct that checksum: recovery can then expire
+         // its stale intent but can never revive or move an item.
+-        boolean legacyZeroCargoOutput = allowLegacyZeroCargoDigest
+-            && tag.getInt("DataVersion") == DATA_VERSION
+-            && type.orElse(null) == RequestType.OUTPUT_PICKUP
+-            && state.orElse(null) == RequestState.BLOCKED
+-            && blockedFrom == RequestState.RESERVED
+-            && blocker.orElse(null) == RequestBlocker.FINGERPRINT_MISMATCH
+-            && tag.hasUUID("Courier") && tag.getInt("Moved") == 0
+-            && tag.getInt("Delivered") == 0;
+-        RequestItemFingerprint fingerprint = legacyZeroCargoOutput
++        RequestItemFingerprint fingerprint = allowLegacyZeroCargoDigest
+             ? RequestItemFingerprint.readLegacyZeroCargoOutputNbt(
+                 fingerprintTag, registries)
+             : RequestItemFingerprint.readNbt(fingerprintTag, registries);
+@@ -817,7 +839,8 @@
+             if (transition.to() == RequestState.BLOCKED) {
+                 replayBlockedFrom = replay;
+             } else if (replay == RequestState.BLOCKED
+-                && transition.to() == replayBlockedFrom) {
++                && (transition.to() == replayBlockedFrom
++                    || transition.to().terminal())) {
+                 replayBlockedFrom = null;
+             }
+             replayMoved = transition.movedCount();

@@ -49,10 +49,14 @@ public final class WorkerProvenanceSavedData extends SavedData {
         INPUT_HELD,
         WORK_COMMITTED,
         OUTPUT_COMMITTED,
-        QUARANTINED;
+        /** Physical output is unavailable; preserve all production/deposit evidence. */
+        OUTPUT_UNAVAILABLE,
+        QUARANTINED,
+        RETIRED;
 
         public boolean workTerminal() {
-            return this == WORK_COMMITTED || this == OUTPUT_COMMITTED;
+            return this == WORK_COMMITTED || this == OUTPUT_COMMITTED
+                || this == OUTPUT_UNAVAILABLE;
         }
     }
 
@@ -202,6 +206,12 @@ public final class WorkerProvenanceSavedData extends SavedData {
                 && (planned.isEmpty() || resolved.size() != planned.size()
                     || pendingOperation != null
                     || appliedToolDamage != resolved.size())) {
+                return false;
+            }
+            // Retirement is not completed work: retain the original plan and
+            // exact resolved subset, and never forget an in-flight tool receipt.
+            if (phase == Phase.RETIRED && (kind != Kind.LUMBER_TREE
+                || pendingOperation != null || appliedToolDamage != resolved.size())) {
                 return false;
             }
             if (kind == Kind.FARM_PLANT
@@ -373,6 +383,41 @@ public final class WorkerProvenanceSavedData extends SavedData {
         return found == null ? null : found.view();
     }
 
+    /** Close only an obsolete, quiescent Lumber action. No item/world mutation. */
+    boolean retireLumber(UUID workerId, @Nullable WorkZone liveZone, long tick) {
+        ActionView active = activeFor(workerId, Kind.LUMBER_TREE);
+        if (active == null || active.zone().equals(liveZone)) return false;
+        Action action = mutable(active.id());
+        if (action == null || action.pendingOperation != null
+            || action.appliedToolDamage != action.resolved.size()) return false;
+        action.phase = Phase.RETIRED;
+        changed(action, tick);
+        return !quarantined;
+    }
+
+    /** Caller proves loaded-world absence. No fabricated deposit or replacement output. */
+    boolean suspendUnavailableLumberOutput(UUID actionId, UUID workerId, long tick) {
+        return suspendUnavailableOutput(actionId, workerId, Kind.LUMBER_TREE, tick);
+    }
+
+    boolean suspendUnavailableFarmOutput(UUID actionId, UUID workerId, long tick) {
+        return suspendUnavailableOutput(actionId, workerId, Kind.FARM_HARVEST, tick);
+    }
+
+    private boolean suspendUnavailableOutput(UUID actionId, UUID workerId, Kind kind, long tick) {
+        Action action = mutable(actionId);
+        if (action == null || !action.workerId.equals(workerId)
+            || action.kind != kind
+            || (action.phase != Phase.WORK_COMMITTED && action.phase != Phase.OUTPUT_COMMITTED)
+            || action.pendingOperation != null || tick < action.updatedTick
+            || tick - action.updatedTick < 600
+            || action.produced.entrySet().stream().noneMatch(row ->
+                row.getValue() > action.deposited.getOrDefault(row.getKey(), 0))) return false;
+        action.phase = Phase.OUTPUT_UNAVAILABLE;
+        changed(action, tick);
+        return !quarantined;
+    }
+
     @Nullable
     public DepositReceipt receipt(UUID id) {
         return id == null ? null : receipts.get(id);
@@ -500,7 +545,9 @@ public final class WorkerProvenanceSavedData extends SavedData {
         var iterator = actions.entrySet().iterator();
         while (actions.size() >= MAX_ACTIONS && iterator.hasNext()) {
             Action action = iterator.next().getValue();
-            if (action.phase == Phase.OUTPUT_COMMITTED) {
+            if ((action.phase == Phase.OUTPUT_COMMITTED || action.phase == Phase.RETIRED)
+                && action.produced.entrySet().stream().allMatch(row ->
+                    action.deposited.getOrDefault(row.getKey(), 0).equals(row.getValue()))) {
                 iterator.remove();
                 receipts.entrySet().removeIf(
                     row -> row.getValue().actionId().equals(action.id));

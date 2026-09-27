@@ -1,0 +1,55 @@
+{
+  "id": "logistics",
+  "title": "hearthstead.guide.logistics.title",
+  "icon": "hearthstead:courier_emblem",
+  "pages": [
+    {
+      "id": "logistics.p1",
+      "title": "hearthstead.guide.logistics.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/storage_page.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.logistics.p1.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.logistics.p1.b1",
+        "hearthstead.guide.logistics.p1.b2",
+        "hearthstead.guide.logistics.p1.b3",
+        "hearthstead.guide.logistics.p1.b4"
+      ],
+      "items": [
+        "hearthstead:courier_emblem",
+        "minecraft:chest",
+        "minecraft:barrel"
+      ],
+      "tip": "hearthstead.guide.logistics.p1.tip",
+      "text": [
+        "hearthstead.guide.logistics.body"
+      ],
+      "journey": [
+        "fj_200_unlock_warehouse",
+        "fj_210_link_warehouse",
+        "fj_220_staff_warehouse",
+        "fj_230_open_request_ledger",
+        "fj_240_request_first_pickup",
+        "fj_250_courier_claims_pickup",
+        "fj_260_warehouse_receives_log",
+        "fj_380_warehouse_receives_crop"
+      ]
+    },
+    {
+      "id": "logistics.tidy",
+      "title": "hearthstead.guide.logistics.tidy.title",
+      "bullets": [
+        "hearthstead.guide.logistics.tidy.b1",
+        "hearthstead.guide.logistics.tidy.b2",
+        "hearthstead.guide.logistics.tidy.b3",
+        "hearthstead.guide.logistics.tidy.b4"
+      ],
+      "tip": "hearthstead.guide.logistics.tidy.tip",
+      "image_wanted": "A Courier carrying logs from a mixed chest to the Wood-labelled chest inside a Warehouse."
+    }
+  ]
+}

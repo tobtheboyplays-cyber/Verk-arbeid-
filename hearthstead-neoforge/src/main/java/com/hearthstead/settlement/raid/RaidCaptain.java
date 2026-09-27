@@ -15,8 +15,8 @@ import java.util.UUID;
  * (#113, #129) are, at root, asking for consequences that outlive the
  * fight. A raid that leaves no scar cannot make the next one feel closer.
  *
- * <p>A captain carries that tail. Beaten, they come back harder and by a
- * different road; successful, they grow bolder. They remember one settler
+ * <p>A captain carries that tail. A successful raid makes them grow modestly bolder;
+ * a held raid does not add menace. They remember one settler
  * by name — whoever hurt them most — which is what turns a wave of mobs
  * into somebody with a grievance.
  *
@@ -102,12 +102,11 @@ public final class RaidCaptain {
     }
 
     /**
-     * How much harder this captain has become. Grows with wins and, more
-     * slowly, with defeats — being beaten teaches them something too, which
-     * is the opposite of MineColonies lowering difficulty after a bad night.
+     * How much harder this captain has become. Grows modestly with captain wins;
+     * a held raid adds no menace.
      */
     public float menace() {
-        return 1.0F + victories * 0.15F + defeats * 0.05F;
+        return 1.0F + victories * 0.05F;
     }
 
     public void recordVictory() {

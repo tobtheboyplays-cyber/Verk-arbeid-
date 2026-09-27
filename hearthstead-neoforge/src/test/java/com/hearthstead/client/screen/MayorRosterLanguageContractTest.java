@@ -26,12 +26,10 @@ class MayorRosterLanguageContractTest {
     );
 
     @Test
-    void rosterHasEnglishAndNorwegianCopy() throws Exception {
+    void rosterHasEnglishCopy() throws Exception {
         JsonObject english = language("en_us");
-        JsonObject norwegian = language("nb_no");
         for (String key : ROSTER_KEYS) {
             assertText(english, key);
-            assertText(norwegian, key);
         }
     }
 

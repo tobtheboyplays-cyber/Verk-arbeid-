@@ -1,0 +1,55 @@
+{
+  "id": "stone_wall_gate",
+  "name": "Stone Wall Gate",
+  "category": "defense",
+  "kind": "defense",
+  "building_type": null,
+  "variant": "gate",
+  "style": "stone",
+  "preset": "Stone",
+  "requires": "masonry",
+  "group": "stone_wall_gate",
+  "size": [
+    5,
+    6,
+    2
+  ],
+  "ground_level": 0,
+  "eave_y": null,
+  "plaque": null,
+  "work": [],
+  "segment": "gate",
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:stone_bricks",
+      "count": 16
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 15
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 6
+    },
+    {
+      "item": "minecraft:stone_brick_stairs",
+      "count": 4
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 3
+    },
+    {
+      "item": "minecraft:cobblestone_wall",
+      "count": 3
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 1
+    }
+  ],
+  "block_count": 48,
+  "cells": 55
+}

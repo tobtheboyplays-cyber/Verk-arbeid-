@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "minecraft:paper" },
+    { "item": "minecraft:paper" },
+    { "item": "minecraft:string" }
+  ],
+  "result": {
+    "id": "hearthstead:resource_scroll",
+    "count": 1
+  }
+}

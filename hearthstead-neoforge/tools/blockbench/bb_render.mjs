@@ -34,6 +34,11 @@ const clip = compositeMode ? renderArgs[2] : renderArgs[0];
 const times = (compositeMode ? renderArgs.slice(3) : renderArgs.slice(1)).map(Number);
 const propContract = JSON.parse(fs.readFileSync(PROP_CONTRACT, 'utf8'));
 const context = String(process.env.BB_CONTEXT || '').trim().toLowerCase();
+const travelerSnapshots = process.env.BB_TRAVELER_SNAPSHOTS
+    ? JSON.parse(fs.readFileSync(process.env.BB_TRAVELER_SNAPSHOTS,'utf8')) : null;
+if (context === 'traveler' && !travelerSnapshots) throw new Error('Traveler requires recorded Java snapshots.');
+if (travelerSnapshots && (context !== 'traveler' || travelerSnapshots.frames.length !== times.length))
+    throw new Error('Traveler snapshot context/frame count mismatch.');
 const carryFill = Number(process.env.BB_CARRY_FILL || 0);
 const limbSwingAmount = Number(process.env.BB_LIMB_SWING_AMOUNT || 0);
 const compositeBasePhase = Number(process.env.BB_BASE_PHASE || 0);
@@ -42,7 +47,15 @@ const martialBasePhase = Number(process.env.BB_MARTIAL_PHASE || 0);
 const captureMode = String(process.env.BB_CAPTURE || 'full').trim().toLowerCase();
 const evidenceLabel = String(process.env.BB_EVIDENCE_LABEL || '').trim();
 const evidenceState = String(process.env.BB_STATE || '').trim();
-const textureOverride = String(process.env.BB_TEXTURE || '').trim();
+// Explicit defender contexts use their actual authored profession sheets.
+// An explicit texture still wins; Hunter and context-free previews retain
+// their previous material selection and never infer an Archer from a clip.
+const contextTexture = context === 'guard' ? 'settler_guard.png'
+    : context === 'archer' || context === 'archer_draw' ? 'settler_archer.png' : '';
+const textureOverride = String(process.env.BB_TEXTURE || '').trim()
+    || (contextTexture ? fileURLToPath(new globalThis.URL(
+        '../../src/main/resources/assets/hearthstead/textures/entity/settler/' + contextTexture,
+        import.meta.url)) : '');
 const rig = String(process.env.BB_RIG || 'settler').trim().toLowerCase();
 
 function canonicalClipName(name) {
@@ -67,7 +80,11 @@ function contractedProp(clipName) {
     return contextual[context];
 }
 
-const inferredProp = contractedProp(clip);
+const runtimeProp = contractedProp(clip);
+const heldItemPresentationSuppressed = Boolean(clip
+    && propContract.suppressedHeldItemPresentationClips?.includes(
+        canonicalClipName(clip)));
+const inferredProp = heldItemPresentationSuppressed ? 'none' : runtimeProp;
 const conditionalRuntimeOffhand = clip
     ? propContract.conditionalRuntimeOffhandClips?.[canonicalClipName(clip)]
     : null;
@@ -85,7 +102,8 @@ const supportedProps = new Set([
     'none', ...Object.values(propContract.clips), ...contextualProps,
 ]);
 const view = String(process.env.BB_VIEW || 'front34').trim().toLowerCase();
-const supportedViews = new Set(['front34', 'back34', 'left', 'right', 'oblique_left']);
+const supportedViews = new Set(['front34', 'back34', 'left', 'right',
+    'oblique_left', 'top34', 'storage_close']);
 if (!supportedProps.has(prop)) {
     throw new Error(`Unsupported BB_PROP ${JSON.stringify(prop)}; expected one of: ` +
         [...supportedProps].sort().join(', '));
@@ -296,6 +314,10 @@ function findChromium() {
 }
 
 fs.mkdirSync(outDir, { recursive: true });
+if (heldItemPresentationSuppressed) {
+    console.log(`held-item presentation suppressed for ${canonicalClipName(clip)}; `
+        + `authoritative runtime item remains ${runtimeProp}`);
+}
 if (contractWasOverridden) {
     console.warn(`CONTRACT OVERRIDE: ${canonicalClipName(clip)} normally resolves to ` +
         `${inferredProp}, but BB_PROP selected ${prop}; this render is not K1 approval evidence.`);
@@ -325,6 +347,10 @@ console.log('browser:', chromiumExecutable);
 const browser = await chromium.launch({
     executablePath: chromiumExecutable,
     headless: true,
+    // Controller timeout/interrupt must enter Playwright's browser cleanup.
+    handleSIGTERM: true,
+    handleSIGINT: true,
+    handleSIGHUP: true,
     args: [
         ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
         '--use-angle=swiftshader',
@@ -333,7 +359,20 @@ const browser = await chromium.launch({
     ],
 });
 try {
-    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
+    const page = await browser.newPage({ viewport: { width: 1400, height: 1000 },
+        ...(process.env.BB_LOCAL_ONLY === '1' ? { serviceWorkers: 'block' } : {}) });
+    if (process.env.BB_LOCAL_ONLY === '1') {
+        const allowed = new globalThis.URL(URL);
+        if (allowed.protocol !== 'http:' || allowed.hostname !== '127.0.0.1') {
+            throw new Error('Controller Blockbench preview requires an HTTP loopback URL.');
+        }
+        await page.context().route('**/*', route => {
+            const requested = new globalThis.URL(route.request().url());
+            return requested.origin === allowed.origin
+                || requested.protocol === 'data:' || requested.protocol === 'blob:'
+                ? route.continue() : route.abort('blockedbyclient');
+        });
+    }
     page.on('pageerror', e => console.error('[pageerror]', e.message));
     await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => globalThis.Blockbench && Blockbench.version,
@@ -412,7 +451,6 @@ try {
             throw new Error(`right_arm origin drifted: ${JSON.stringify(arm.origin)}; ` +
                 `contract expects ${JSON.stringify(bb.rightArmOrigin)}`);
         }
-
         let origin = [...arm.origin];
         let parent = arm;
         for (const [index, step] of layer.rotateSequence.entries()) {
@@ -610,21 +648,24 @@ try {
             [displayMatrix[1], displayMatrix[5], displayMatrix[9]],
             [displayMatrix[2], displayMatrix[6], displayMatrix[10]],
         ];
-        if (!almostEqual(layerOrigin, bb.expectedNeutralLayerOrigin)) {
+        const expectedLayerOrigin = bb.expectedNeutralLayerOrigin;
+        const expectedDisplayOrigin = expectedDisplay.origin;
+        if (!almostEqual(layerOrigin, expectedLayerOrigin)) {
             throw new Error(`ItemInHandLayer matrix mismatch: got ` +
                 `${JSON.stringify(layerOrigin)}, expected ` +
-                `${JSON.stringify(bb.expectedNeutralLayerOrigin)}`);
+                `${JSON.stringify(expectedLayerOrigin)}`);
         }
-        if (!almostEqual(displayOrigin, expectedDisplay.origin)) {
+        if (!almostEqual(displayOrigin, expectedDisplayOrigin)) {
             throw new Error(`${displayProfile} display origin mismatch: got ` +
                 `${JSON.stringify(displayOrigin)}, expected ` +
-                `${JSON.stringify(expectedDisplay.origin)}`);
+                `${JSON.stringify(expectedDisplayOrigin)}`);
         }
+        const expectedBasisRows = expectedDisplay.basisRows;
         if (!displayBasisRows.every((row, index) =>
-            almostEqual(row, expectedDisplay.basisRows[index]))) {
+            almostEqual(row, expectedBasisRows[index]))) {
             throw new Error(`${displayProfile} display basis mismatch: got ` +
                 `${JSON.stringify(displayBasisRows)}, expected ` +
-                `${JSON.stringify(expectedDisplay.basisRows)}`);
+                `${JSON.stringify(expectedBasisRows)}`);
         }
         return {
             kind,
@@ -640,7 +681,8 @@ try {
         };
     }, { kind: prop, contract: propContract });
     if (attachedProp) {
-        console.log(`prop: ${attachedProp.kind} on ${attachedProp.group} ` +
+        console.log(`prop: ${attachedProp.kind} `
+            + `on ${attachedProp.group} ` +
             `(${attachedProp.cubes.join(', ')})`);
         console.log('verified neutral origins:', JSON.stringify({
             layer: attachedProp.layerOrigin,
@@ -969,16 +1011,25 @@ try {
         output.name = 'hs_craft_output_wooden_axe';
         const outputPosition = clipName === 'LUMBER_CRAFT'
             ? [cx, cy + 9.05, cz]
-            : [cx, 15.1, cz + 5.4];
+            // Chest-side projection sits above the rim, not inside the lid,
+            // so the real output owner remains auditable on contact.
+            : [cx - 0.6, 16.1, cz + 2.1];
         output.position.set(...outputPosition);
-        output.rotation.y = -Math.PI / 4;
+        output.rotation.y = clipName === 'CRAFT_OUTPUT_STORE'
+            ? Math.PI / 4 : -Math.PI / 4;
         const handle = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 7.0), stick);
         handle.name = 'hs_craft_output_handle';
-        const head = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.72, 2.2), oakTop);
+        const head = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.72, 2.2),
+            clipName === 'CRAFT_OUTPUT_STORE' ? iron : oakTop);
         head.name = 'hs_craft_output_head';
         head.position.z = -2.6;
         head.position.x = 1.45;
-        output.add(handle, head);
+        const beard = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.72, 2.4),
+            clipName === 'CRAFT_OUTPUT_STORE' ? iron : oakTop);
+        beard.name = 'hs_craft_output_beard';
+        beard.position.z = -1.65;
+        beard.position.x = 3.0;
+        output.add(handle, head, beard);
         root.add(output);
 
         Canvas.scene.add(root);
@@ -1017,6 +1068,13 @@ try {
                     ? { position: [58, 30, -42], target: [-1, 14, -5] }
                 : viewName === 'back34'
                     ? { position: [40, 32, 55], target: [0, 14, 0] }
+                : viewName === 'top34'
+                    // Evidence-only overhead: exposes the output between the
+                    // contacting hand and open storage rim when body/forearms
+                    // occlude that ownership fact in all human-height views.
+                    ? { position: [-22, 78, -36], target: [0, 12, -9] }
+                : viewName === 'storage_close'
+                    ? { position: [-30, 31, -27], target: [-3, 16, -7] }
                     : { position: [-45, 30, -50], target: [0, 14, 0] };
         p.camera.position.set(...camera.position);
         p.controls.target.set(...camera.target);
@@ -1033,6 +1091,81 @@ try {
         }
     };
 
+    // Record the actual Three transforms used by the existing screenshot path.
+    // This is observational only: it runs after animation and preview overlays,
+    // immediately before the PNG capture, and does not alter the pose or view.
+    const writePoseDiagnostic = async (pngPath, clipName, time, observedView) => {
+        const record = await page.evaluate(({
+            clipName: observedClip, observedTime, workerContext, fill, viewName, mode,
+        }) => {
+            const vector = value => [value.x, value.y, value.z];
+            const group = name => Group.all.find(candidate => candidate.name === name);
+            const preview = Preview.selected;
+            Canvas.scene.updateMatrixWorld(true);
+            preview.camera.updateMatrixWorld(true);
+
+            const inspect = name => {
+                const bone = group(name);
+                if (!bone?.mesh) throw new Error(`Pose diagnostic missing mesh for ${name}`);
+                const mesh = bone.mesh;
+                const worldPosition = mesh.getWorldPosition(new THREE.Vector3());
+                const worldQuaternion = mesh.getWorldQuaternion(new THREE.Quaternion());
+                const worldScale = mesh.getWorldScale(new THREE.Vector3());
+                return {
+                    localEulerRadians: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z],
+                    localEulerDegrees: [
+                        THREE.MathUtils.radToDeg(mesh.rotation.x),
+                        THREE.MathUtils.radToDeg(mesh.rotation.y),
+                        THREE.MathUtils.radToDeg(mesh.rotation.z),
+                    ],
+                    worldMatrixColumnMajor: mesh.matrixWorld.elements.slice(),
+                    worldPosition: vector(worldPosition),
+                    worldQuaternion: [worldQuaternion.x, worldQuaternion.y, worldQuaternion.z, worldQuaternion.w],
+                    worldScale: vector(worldScale),
+                    worldForwardNegativeZ: vector(new THREE.Vector3(0, 0, -1).transformDirection(mesh.matrixWorld)),
+                    worldUpPositiveY: vector(new THREE.Vector3(0, 1, 0).transformDirection(mesh.matrixWorld)),
+                };
+            };
+
+            const eye = preview.camera.getWorldPosition(new THREE.Vector3());
+            const target = preview.controls.target.clone();
+            const lookDirection = target.clone().sub(eye).normalize();
+            return {
+                schema: 1,
+                observedAt: 'post-animation-post-overlay-before-screenshot',
+                clip: observedClip,
+                timeSeconds: observedTime,
+                context: workerContext || null,
+                carryFill: fill,
+                view: viewName,
+                captureMode: mode,
+                camera: {
+                    eye: vector(eye),
+                    target: vector(target),
+                    lookDirection: vector(lookDirection),
+                    right: vector(new THREE.Vector3(1, 0, 0).transformDirection(preview.camera.matrixWorld)),
+                    up: vector(new THREE.Vector3(0, 1, 0).transformDirection(preview.camera.matrixWorld)),
+                },
+                parts: Object.fromEntries([
+                    'torso', 'head', 'right_arm', 'left_arm', 'right_leg', 'left_leg',
+                ].map(name => [name, inspect(name)])),
+            };
+        }, {
+            clipName,
+            observedTime: time,
+            workerContext: context,
+            fill: carryFill,
+            viewName: observedView,
+            mode: captureMode,
+        });
+        if (travelerSnapshots) {
+            record.recordedJavaSnapshot = travelerSnapshots.frames[times.indexOf(time)];
+            record.parts = {}; // hidden Blockbench skeleton is not the displayed captured mesh
+            record.observedAt = 'recorded-final-Java-vertices-replayed-before-screenshot';
+        }
+        fs.writeFileSync(pngPath.replace(/\.png$/, '.pose.json'), `${JSON.stringify(record, null, 2)}\n`, 'utf8');
+    };
+
     // Preview-only reconstruction of SettlerModel.applyWorkContainer. It
     // never writes model or animation data. Lumberers use a rigid wooden frame
     // with discrete visible logs; couriers and produce-laden farmers use a
@@ -1041,7 +1174,7 @@ try {
     // fixed ground anchor. Attached props have no secondary sway or lag.
     const applyPreviewRuntime = async (time) => page.evaluate(({
         fill, t, walkAmount, clipName, workerContext, previewRig,
-        craftContract,
+        craftContract, transitionItemContract,
     }) => {
         const group = name => Group.all.find(candidate => candidate.name === name);
         if (previewRig === 'raider') {
@@ -1087,17 +1220,45 @@ try {
             group('ground_log_center'), group('ground_log_right')];
         const wateringCan = group('watering_can');
         const backpack = group('backpack');
+        const archerQuiver = group('archer_quiver');
         const root = group('root');
         const torso = group('torso');
         const head = group('head');
+        const guardRim = group('guard_rim');
+        if (!guardRim) throw new Error('Guard rim preview group is required');
+        // Explicit context wins. Shared stance clips do not identify profession.
+        // No head-equipment state is fabricated by this offline context.
+        guardRim.mesh.visible = workerContext === 'guard';
+        if (guardRim.mesh.visible) {
+            const hatBrim = group('hat_brim');
+            if (!hatBrim) throw new Error('Guard preview requires the shared hat group');
+            hatBrim.mesh.visible = false;
+        }
         const rightArm = group('right_arm');
         const leftArm = group('left_arm');
         if (!sack || !groundSack || !lumberFrame || !groundLumberFrame
                 || lumberLogs.some(candidate => !candidate)
                 || groundLumberLogs.some(candidate => !candidate)
-                || !wateringCan || !backpack || !root || !torso || !head
+                || !wateringCan || !backpack || !archerQuiver || !root || !torso || !head
                 || !rightArm || !leftArm) {
             throw new Error('work-container preview groups are required');
+        }
+
+        // Mirror SettlerRenderer's real entity-aware ItemInHandLayer gate.
+        // WORK_CONTAINER_* run under GATHERING_LOG rather than HAULING_LOG,
+        // so clip identity plus the one-shot clock -- not activity alone --
+        // owns these exact visible/suppressed boundary frames.
+        const heldAxe = group('k1_vanilla_hand_axe');
+        if (heldAxe?.mesh) {
+            let visible = true;
+            if (clipName === 'WORK_CONTAINER_DOWN') {
+                visible = t >= transitionItemContract.WORK_CONTAINER_DOWN
+                    .restoredAtOrAfterSeconds;
+            } else if (clipName === 'WORK_CONTAINER_UP') {
+                visible = t < transitionItemContract.WORK_CONTAINER_UP
+                    .suppressedAtOrAfterSeconds;
+            }
+            heldAxe.mesh.visible = visible;
         }
 
         const craftRoot = Canvas.scene.getObjectByName(
@@ -1117,10 +1278,20 @@ try {
                         && t < craftContract.transformContactSeconds;
                 });
                 output.visible = t >= craftContract.transformContactSeconds
-                    && t < craftContract.pickupContactSeconds;
+                    && t <= craftContract.pickupContactSeconds;
             } else if (clipName === 'CRAFT_OUTPUT_STORE') {
                 slots.forEach(slot => { slot.visible = false; });
-                output.visible = t < craftContract.storageContactSeconds;
+                output.visible = t <= craftContract.storageContactSeconds;
+                const lid = Canvas.scene.getObjectByName('hs_craft_storage_lid');
+                if (!lid) throw new Error('CRAFT receiving storage lid is missing');
+                // Evidence mirrors the server block-event opened container:
+                // lift and retreat the simple lid proxy so both the receiving
+                // interface and output owner are visible at contact.
+                const open = t >= 0.20 && t <= 0.90;
+                lid.rotation.x = open ? -Math.PI / 2 : 0;
+                lid.position.y = open ? 18.5 : 13.1;
+                lid.position.z = open ? craftContract.tableCenterModelPixels[2] - 7.0
+                    : craftContract.tableCenterModelPixels[2];
             }
         }
 
@@ -1175,6 +1346,16 @@ try {
         groundSack.mesh.visible = detached && !groundLumberFrame.mesh.visible;
         backpack.mesh.visible = !lumberFrame.mesh.visible && !sack.mesh.visible
             && !groundLumberFrame.mesh.visible && !groundSack.mesh.visible;
+        // Explicit profession context always wins: a Hunter can use shared
+        // bow clips without becoming an Archer. Only legacy context-free
+        // previews infer Archer from these clip names; that inference does
+        // not establish the profession of an actual runtime entity.
+        const archer = workerContext
+            ? workerContext === 'archer' || workerContext === 'archer_draw'
+            : clipName === 'ARCHER_STANCE' || clipName === 'ARCHER_PATROL'
+                || clipName === 'IDLE_ARCHER';
+        archerQuiver.mesh.visible = backpack.mesh.visible && archer;
+        backpack.mesh.visible = backpack.mesh.visible && !archerQuiver.mesh.visible;
 
         const showLogs = (parts, frameVisible) => {
             const thresholds = [0.001, 0.34, 0.67];
@@ -1190,8 +1371,12 @@ try {
             sack.mesh.scale.set(size, size, size);
         }
         if (lumberFrame.mesh.visible || sack.mesh.visible) {
-            torso.mesh.rotation.x += 0.16 * fill;
-            head.mesh.rotation.x -= 0.16 * 0.6 * fill;
+            // Java model rotations map to (-x,-y,+z) in Blockbench. Runtime
+            // adds positive X for a forward hinge, so the preview must apply
+            // the inverse sign. The former +0.16 made the evidence actor arch
+            // backward even though SettlerModel was leaning forward in game.
+            torso.mesh.rotation.x -= 0.22 * fill;
+            head.mesh.rotation.x += 0.22 * 0.6 * fill;
         }
 
         // Exact diagnostic projection of SettlerModel.applyArcherBowMotion.
@@ -1200,26 +1385,35 @@ try {
         // EV_ARCHER_LOOSE recovery. Java channels map to (-x,-y,+z) here.
         // This is Candidate evidence only: the real client still owns final
         // item transform, arrow spawn and draw/release acceptance.
-        if (workerContext === 'archer_draw' && clipName === 'ARCHER_STANCE') {
+        const hunterDraw = workerContext === 'hunter_draw' && clipName === 'HUNTER_LOOSE';
+        if ((workerContext === 'archer_draw' && clipName === 'ARCHER_STANCE')
+            || hunterDraw) {
             const smoothUnit = value => {
                 const clamped = Math.max(0, Math.min(1, value));
                 return clamped * clamped * (3 - 2 * clamped);
             };
-            const blend = t <= 1.0
-                ? smoothUnit(t)
-                : t <= 1.4
-                    ? 1 - smoothUnit((t - 1.0) / 0.4)
-                    : 0;
+            // Hunter uses the same server-backed helper with a 14-tick draw;
+            // include Java's +1 use tick before the successful release at .70.
+            // Archer's pre-existing diagnostic projection remains unchanged.
+            const blend = hunterDraw
+                ? t < 0.70
+                    ? smoothUnit((t + 0.05) / 0.70)
+                    : t <= 1.10 ? 1 - smoothUnit((t - 0.70) / 0.40) : 0
+                : t <= 1.0
+                    ? smoothUnit(t)
+                    : t <= 1.4 ? 1 - smoothUnit((t - 1.0) / 0.4) : 0;
+            const supportX = hunterDraw ? torso.mesh.rotation.x : 0;
+            const supportY = hunterDraw ? torso.mesh.rotation.y : 0;
             const lerp = (start, end, alpha) => start + (end - start) * alpha;
             rightArm.mesh.rotation.x = lerp(rightArm.mesh.rotation.x,
-                Math.PI / 2, blend);
+                Math.PI / 2 - supportX, blend);
             rightArm.mesh.rotation.y = lerp(rightArm.mesh.rotation.y,
-                0.10, blend);
+                0.10 - supportY, blend);
             rightArm.mesh.rotation.z = lerp(rightArm.mesh.rotation.z, 0, blend);
             leftArm.mesh.rotation.x = lerp(leftArm.mesh.rotation.x,
-                Math.PI / 2, blend);
+                Math.PI / 2 - supportX, blend);
             leftArm.mesh.rotation.y = lerp(leftArm.mesh.rotation.y,
-                -0.50, blend);
+                -0.50 - supportY, blend);
             leftArm.mesh.rotation.z = lerp(leftArm.mesh.rotation.z, 0, blend);
         }
         const groundContainer = groundLumberFrame.mesh.visible
@@ -1238,10 +1432,11 @@ try {
                 : clipName === 'WALK_CARRY_ITEM'
                     ? [0, 8, 48]
                     : [0, 8, -19];
-            // Root channels move the body; express all three physical anchors
-            // in root-local coordinates before staging shoulder -> guiding
-            // hand -> fixed world position. This mirrors SettlerModel and
-            // prevents the container crossing empty air without contact.
+            // Root channels move the body; express both physical anchors in
+            // root-local coordinates before applying the same monotonic
+            // shoulder <-> fixed-world path as SettlerModel. The authored
+            // arms track this route; no moving hand waypoint can pull the
+            // frame backward to the torso or create a teleport.
             Canvas.scene.updateMatrixWorld(true);
             const rootLocal = (part, local) => {
                 const world = part.mesh.localToWorld(new THREE.Vector3(...local));
@@ -1249,8 +1444,6 @@ try {
             };
             const carrier = lumberer ? lumberFrame : sack;
             const shoulder = rootLocal(carrier, [0, 0, 0]);
-            // Exported Java Y is flipped in Blockbench; arm y=+9 becomes -9.
-            const hand = rootLocal(leftArm, [0, -9, 0]);
             const fixedLocal = new THREE.Vector3(
                 fixed[0] - root.mesh.position.x,
                 fixed[1] - root.mesh.position.y,
@@ -1262,28 +1455,18 @@ try {
             };
             let target = fixedLocal.clone();
             if (clipName === 'WORK_CONTAINER_DOWN') {
-                if (t <= 0.20) {
+                if (t <= 0.25) {
                     target = shoulder.clone();
-                } else if (t < 0.38) {
-                    target = shoulder.clone().lerp(hand,
-                        smoothUnit((t - 0.20) / 0.18));
-                } else if (t <= 0.88) {
-                    target = hand.clone();
-                } else if (t < 1.05) {
-                    target = hand.clone().lerp(fixedLocal,
-                        smoothUnit((t - 0.88) / 0.17));
+                } else if (t < 1.00) {
+                    target = shoulder.clone().lerp(fixedLocal,
+                        smoothUnit((t - 0.25) / 0.75));
                 }
             } else if (clipName === 'WORK_CONTAINER_UP') {
                 if (t < 0.60) {
                     target = fixedLocal.clone();
-                } else if (t < 0.78) {
-                    target = fixedLocal.clone().lerp(hand,
-                        smoothUnit((t - 0.60) / 0.18));
-                } else if (t <= 1.25) {
-                    target = hand.clone();
-                } else if (t < 1.45) {
-                    target = hand.clone().lerp(shoulder,
-                        smoothUnit((t - 1.25) / 0.20));
+                } else if (t < 1.35) {
+                    target = fixedLocal.clone().lerp(shoulder,
+                        smoothUnit((t - 0.60) / 0.75));
                 } else {
                     target = shoulder.clone();
                 }
@@ -1300,8 +1483,50 @@ try {
         workerContext: context,
         previewRig: rig,
         craftContract: propContract.craftingEvidenceTarget,
+        transitionItemContract: propContract.transitionHeldItemPresentation,
     });
 
+    // Recorded final Java vertices and UVs; no JS staff solver or transcribed guest geometry.
+    const applyTravelerSnapshot = async (index) => {
+        if (!travelerSnapshots) return;
+        await page.evaluate(async ({ frame, origin }) => {
+            const old = Canvas.scene.getObjectByName('hsqa_recorded_traveler');
+            if (old) {
+                old.traverse(item => { item.geometry?.dispose(); if(item.material) { item.material.map?.dispose(); item.material.dispose(); } });
+                Canvas.scene.remove(old);
+            }
+            for (const group of Group.all) if (group.mesh) group.mesh.visible = false;
+            const scene = new THREE.Group(); scene.name='hsqa_recorded_traveler';
+            const positions=[],uv=[];
+            const yaw=(180-frame.bodyYaw)*Math.PI/180,c=Math.cos(yaw),s=Math.sin(yaw);
+            const point = p => [-16*(p[0]-origin[0]),16*(p[1]-origin[1]),-16*(p[2]-origin[2])];
+            for(let q=0;q<frame.vertices.length;q+=4) for(const k of [0,1,2,0,2,3]) {
+                const v=frame.vertices[q+k];
+                const p=[frame.position[0]+(-c*v[0]+s*v[2])*frame.scale,
+                    frame.position[1]+(1.501-v[1])*frame.scale,
+                    frame.position[2]+(s*v[0]+c*v[2])*frame.scale];
+                positions.push(...point(p)); uv.push(v[3],1-v[4]);
+            }
+            const geometry=new THREE.BufferGeometry();
+            geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+            geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+            geometry.computeVertexNormals();
+            const texture=await new Promise((resolve,reject)=>new THREE.TextureLoader().load(
+                'data:image/png;base64,'+frame.textureBase64,resolve,undefined,reject));
+            texture.magFilter=THREE.NearestFilter; texture.minFilter=THREE.NearestFilter;
+            const material=new THREE.MeshBasicMaterial({map:texture,transparent:true,alphaTest:.1,side:THREE.DoubleSide});
+            scene.add(new THREE.Mesh(geometry,material));
+            // These are actual recorded collision boxes, deliberately labelled collision context.
+            for(const b of frame.supportCollisionBoxes) {
+                const size=[16*(b[3]-b[0]),16*(b[4]-b[1]),16*(b[5]-b[2])];
+                if(size.some(n=>n<=0)) continue;
+                const box=new THREE.Mesh(new THREE.BoxGeometry(...size),new THREE.MeshBasicMaterial({color:0x74705c,wireframe:true}));
+                box.position.fromArray(point([(b[0]+b[3])/2,(b[1]+b[4])/2,(b[2]+b[5])/2]));
+                scene.add(box);
+            }
+            Canvas.scene.add(scene); Canvas.scene.updateMatrixWorld(true);
+        },{frame:travelerSnapshots.frames[index],origin:travelerSnapshots.frames[0].position});
+    };
     // Emulate the runtime values supplied to SettlerModel by MobRenderer and
     // MeleeAttackGoal: the actor body yaw establishes model-local forward,
     // LookControl tracks the target with 30-degree yaw/pitch limits, and the
@@ -1335,7 +1560,9 @@ try {
             badge.textContent = `${label}\n${state} | ${viewName} | t=${t.toFixed(2)}s`;
         }, {
             label: evidenceLabel,
-            state: evidenceState || stateName,
+            state: travelerSnapshots
+                ? `${travelerSnapshots.frames[times.indexOf(time)].activity} | actual tick ${travelerSnapshots.frames[times.indexOf(time)].tick} | ${travelerSnapshots.frames[times.indexOf(time)].planted ? 'PLANTED' : 'RECOVERY'} | recorded collision context`
+                : evidenceState || stateName,
             viewName: cameraView,
             t: time,
         });
@@ -1344,7 +1571,9 @@ try {
     if (!clip) {
         await applyPreviewRuntime(0);
         await updateEvidenceLabel(0, 'MODEL');
-        await writeScreenshot(path.join(outDir, 'model-front34.png'));
+        const frontPath = path.join(outDir, 'model-front34.png');
+        await writePoseDiagnostic(frontPath, 'MODEL', 0, 'front34');
+        await writeScreenshot(frontPath);
         await page.evaluate(() => {
             const p = Preview.selected;
             p.camera.position.set(-45, 30, -50);
@@ -1354,7 +1583,9 @@ try {
         await page.waitForTimeout(400);
         await applyPreviewRuntime(0);
         await updateEvidenceLabel(0, 'MODEL');
-        await writeScreenshot(path.join(outDir, 'model-back34.png'));
+        const backPath = path.join(outDir, 'model-back34.png');
+        await writePoseDiagnostic(backPath, 'MODEL', 0, 'back34');
+        await writeScreenshot(backPath);
         console.log('wrote model-front34.png, model-back34.png');
     } else {
         const wantedClip = canonicalClipName(clip);
@@ -1488,13 +1719,113 @@ try {
             : wantedClip).toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
         const meleeEvidenceRecords = [];
         const craftEvidenceRecords = [];
+        const transitionEvidenceRecords = [];
         for (const t of frameTimes) {
             await page.evaluate((time) => {
                 Timeline.setTime(time);
                 Animator.preview();
             }, t);
             await applyPreviewRuntime(t);
+            await applyTravelerSnapshot(frameTimes.indexOf(t));
             const runtimeLook = await applyMeleeRuntimeLook();
+            if (wantedClip === 'WORK_CONTAINER_DOWN'
+                    || wantedClip === 'WORK_CONTAINER_UP') {
+                const transitionContact = await page.evaluate(({
+                    time, clipName, gripContract,
+                }) => {
+                    Canvas.scene.updateMatrixWorld(true);
+                    const part = name => Group.all.find(candidate => candidate.name === name);
+                    const rightArm = part('right_arm');
+                    const leftArm = part('left_arm');
+                    const frame = part('ground_lumber_frame');
+                    if (!rightArm?.mesh || !leftArm?.mesh || !frame?.mesh) {
+                        throw new Error('work-container contact diagnostic groups are missing');
+                    }
+                    const point = (owner, local) => owner.mesh.localToWorld(
+                        new THREE.Vector3(...local));
+                    const rightHand = point(rightArm, [0, -9, 0]);
+                    const leftHand = point(leftArm, [0, -9, 0]);
+                    // Centres of the two short palm-depth grip cuboids from
+                    // lumberFrameBuilder, mapped into Blockbench's flipped Y.
+                    const negativeXGrip = point(frame, [-4.25, -9.5, 3.5]);
+                    const positiveXGrip = point(frame, [4.25, -9.5, 3.5]);
+                    const lowerCarryGripDistances = {
+                        rightToNegative: rightHand.distanceTo(negativeXGrip),
+                        rightToPositive: rightHand.distanceTo(positiveXGrip),
+                        leftToNegative: leftHand.distanceTo(negativeXGrip),
+                        leftToPositive: leftHand.distanceTo(positiveXGrip),
+                    };
+                    const upperNegative = point(frame,
+                        gripContract.blockbenchModelPixels.negativeXUpperSideRail);
+                    const upperPositive = point(frame,
+                        gripContract.blockbenchModelPixels.positiveXUpperSideRail);
+                    const transitionGripDistances = {
+                        rightToNegative: rightHand.distanceTo(upperNegative),
+                        rightToPositive: rightHand.distanceTo(upperPositive),
+                        leftToNegative: leftHand.distanceTo(upperNegative),
+                        leftToPositive: leftHand.distanceTo(upperPositive),
+                    };
+                    const pairing = distances => {
+                        const uncrossed = distances.rightToNegative
+                            + distances.leftToPositive;
+                        const crossed = distances.rightToPositive
+                            + distances.leftToNegative;
+                        return uncrossed <= crossed
+                            ? { name: 'right-negative_left-positive', total: uncrossed,
+                                each: [distances.rightToNegative,
+                                    distances.leftToPositive] }
+                            : { name: 'right-positive_left-negative', total: crossed,
+                                each: [distances.rightToPositive,
+                                    distances.leftToNegative] };
+                    };
+                    const lowerPairing = pairing(lowerCarryGripDistances);
+                    const transitionPairing = pairing(transitionGripDistances);
+                    const axe = part('k1_vanilla_hand_axe');
+                    return {
+                        time,
+                        clipName,
+                        frameOrigin: point(frame, [0, 0, 0]).toArray(),
+                        rightHand: rightHand.toArray(),
+                        leftHand: leftHand.toArray(),
+                        negativeXGrip: negativeXGrip.toArray(),
+                        positiveXGrip: positiveXGrip.toArray(),
+                        negativeXTransitionGrip: upperNegative.toArray(),
+                        positiveXTransitionGrip: upperPositive.toArray(),
+                        lowerCarryGripDistancesModelPixels: lowerCarryGripDistances,
+                        transitionGripDistancesModelPixels: transitionGripDistances,
+                        lowerCarryGripBestPairing: lowerPairing,
+                        transitionGripBestPairing: transitionPairing,
+                        heldAxeVisible: Boolean(axe?.mesh?.visible),
+                    };
+                }, {
+                    time: t,
+                    clipName: wantedClip,
+                    gripContract: propContract.workContainerTransitionGripAnchors,
+                });
+                const exactGroundContact = wantedClip === 'WORK_CONTAINER_DOWN'
+                    ? Math.abs(t - propContract.workContainerTransitionGripAnchors
+                        .downGroundContactSeconds) < 1e-6
+                    : Math.abs(t - propContract.workContainerTransitionGripAnchors
+                        .upGroundContactSeconds) < 1e-6;
+                const transitionDistances = transitionContact
+                    .transitionGripBestPairing.each;
+                transitionContact.expectedGroundContact = exactGroundContact;
+                transitionContact.transitionGripContact = exactGroundContact
+                    ? transitionDistances.every(distance => distance <= propContract
+                        .workContainerTransitionGripAnchors
+                        .maximumHandCenterDistanceModelPixels + 1e-6)
+                    : null;
+                transitionEvidenceRecords.push(transitionContact);
+                console.log(`WORK CONTAINER contact evidence t=${t.toFixed(3)}:`,
+                    JSON.stringify(transitionContact));
+                if (exactGroundContact && !transitionContact.transitionGripContact) {
+                    throw new Error(`${wantedClip} hands miss the upper side-rail `
+                        + `transition grips at ${t.toFixed(2)}s: `
+                        + `${transitionDistances.map(value => value.toFixed(2)).join(', ')} `
+                        + `model px > ${propContract.workContainerTransitionGripAnchors
+                            .maximumHandCenterDistanceModelPixels.toFixed(2)}`);
+                }
+            }
             if (wantedClip === 'LUMBER_CRAFT' || wantedClip === 'CRAFT_OUTPUT_STORE') {
                 const craftContact = await page.evaluate(({ time, targetContract, clipName }) => {
                     Canvas.scene.updateMatrixWorld(true);
@@ -1798,7 +2129,9 @@ try {
             await updateEvidenceLabel(t, contactLabel);
             await page.waitForTimeout(300);
             const name = `${clipSlug}-t${String(t).replace('.', '_')}.png`;
-            await writeScreenshot(path.join(outDir, name));
+            const framePath = path.join(outDir, name);
+            await writePoseDiagnostic(framePath, wantedClip, t, cameraView);
+            await writeScreenshot(framePath);
             console.log('wrote', name);
         }
         if (wantedClip === 'MELEE') {
@@ -1841,6 +2174,21 @@ try {
                 records: craftEvidenceRecords,
             };
             const reportName = `${clipSlug}-${cameraView}-craft-contact.json`;
+            fs.writeFileSync(path.join(outDir, reportName),
+                `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+            console.log('wrote', reportName);
+        }
+        if (wantedClip === 'WORK_CONTAINER_DOWN'
+                || wantedClip === 'WORK_CONTAINER_UP') {
+            const report = {
+                schema: 1,
+                status: 'Diagnostic - visual review required',
+                state: evidenceState || wantedClip,
+                view: cameraView,
+                units: 'Blockbench model pixels',
+                records: transitionEvidenceRecords,
+            };
+            const reportName = `${clipSlug}-${cameraView}-frame-contact.json`;
             fs.writeFileSync(path.join(outDir, reportName),
                 `${JSON.stringify(report, null, 2)}\n`, 'utf8');
             console.log('wrote', reportName);

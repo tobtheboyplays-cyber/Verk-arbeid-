@@ -1,0 +1,59 @@
+{
+  "id": "guildmaster",
+  "title": "hearthstead.guide.guildmaster.title",
+  "icon": "hearthstead:lumberer_emblem",
+  "pages": [
+    {
+      "id": "guildmaster.p1",
+      "title": "hearthstead.guide.guildmaster.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/guildmaster_trade.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.guildmaster.p1.b1",
+        "hearthstead.guide.guildmaster.p1.b2",
+        "hearthstead.guide.guildmaster.p1.b3",
+        "hearthstead.guide.guildmaster.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.guildmaster.p1.k1"
+        }
+      ],
+      "tip": "hearthstead.guide.guildmaster.p1.tip",
+      "text": [
+        "hearthstead.guide.guildmaster.body"
+      ]
+    },
+    {
+      "id": "guildmaster.p2",
+      "title": "hearthstead.guide.guildmaster.p2.title",
+      "bullets": [
+        "hearthstead.guide.guildmaster.p2.b1",
+        "hearthstead.guide.guildmaster.p2.b2",
+        "hearthstead.guide.guildmaster.p2.b3",
+        "hearthstead.guide.guildmaster.p2.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.guildmaster.p2.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:lumberer_emblem",
+        "hearthstead:farmer_emblem",
+        "hearthstead:courier_emblem",
+        "hearthstead:guard_emblem",
+        "hearthstead:archer_emblem",
+        "hearthstead:gold_coin"
+      ],
+      "tip": "hearthstead.guide.guildmaster.p2.tip",
+      "link": "jobs_directory.list1"
+    }
+  ]
+}

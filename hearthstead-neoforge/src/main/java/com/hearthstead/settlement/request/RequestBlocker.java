@@ -21,7 +21,11 @@ public enum RequestBlocker {
     RETURNED_TO_SOURCE(14, "returned_to_source"),
     MALFORMED(15, "malformed"),
     /** Existing equipment rows expose intent, not a fabricated output trace. */
-    EQUIPMENT_ADAPTER_LIMITED(16, "equipment_adapter_limited");
+    EQUIPMENT_ADAPTER_LIMITED(16, "equipment_adapter_limited"),
+    /** A crafting order is waiting on its workshop to make the item. */
+    AWAITING_CRAFT(17, "awaiting_craft"),
+    /** No staffed workshop can make the item: a player must supply it. */
+    NEEDS_PLAYER(18, "needs_player");
 
     private final int wireId;
     private final String id;

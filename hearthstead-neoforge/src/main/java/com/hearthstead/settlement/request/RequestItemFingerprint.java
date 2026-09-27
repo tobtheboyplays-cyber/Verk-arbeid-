@@ -126,6 +126,24 @@ public final class RequestItemFingerprint {
     @Nullable
     public static RequestItemFingerprint readNbt(CompoundTag tag,
                                                   HolderLookup.Provider registries) {
+        return readNbt(tag, registries, false);
+    }
+
+    /**
+     * Decodes one historic zero-cargo output fingerprint after its former
+     * presentation digest changed format. The caller may opt in only after it
+     * has established that the row owns no physical item and can only expire.
+     */
+    @Nullable
+    static RequestItemFingerprint readLegacyZeroCargoOutputNbt(
+            CompoundTag tag, HolderLookup.Provider registries) {
+        return readNbt(tag, registries, true);
+    }
+
+    @Nullable
+    private static RequestItemFingerprint readNbt(CompoundTag tag,
+                                                   HolderLookup.Provider registries,
+                                                   boolean allowLegacyDigest) {
         if (tag == null || registries == null
             || !tag.contains("Item", Tag.TAG_STRING)
             || !(tag.get("Prototype") instanceof CompoundTag prototype)
@@ -137,19 +155,38 @@ public final class RequestItemFingerprint {
         if (itemId == null) {
             return null;
         }
+        int count = tag.getInt("Count");
         try {
-            RequestItemFingerprint decoded = new RequestItemFingerprint(itemId,
-                prototype, tag.getString("Digest"), tag.getInt("Count"));
-            ItemStack parsed = decoded.prototype(registries);
-            if (parsed.isEmpty()
-                || !BuiltInRegistries.ITEM.getKey(parsed.getItem()).equals(itemId)
-                || decoded.count > parsed.getMaxStackSize()) {
+            return decoded(itemId, prototype, tag.getString("Digest"), count,
+                registries);
+        } catch (IllegalArgumentException malformed) {
+            if (!allowLegacyDigest) {
                 return null;
             }
-            return decoded;
-        } catch (IllegalArgumentException malformed) {
-            return null;
+            try {
+                // The parsed prototype and registry item must still agree. Only
+                // its obsolete checksum representation is reconstructed.
+                return decoded(itemId, prototype, sha256(canonical(itemId, prototype)),
+                    count, registries);
+            } catch (IllegalArgumentException stillMalformed) {
+                return null;
+            }
         }
+    }
+
+    private static RequestItemFingerprint decoded(ResourceLocation itemId,
+                                                  CompoundTag prototype,
+                                                  String digest, int count,
+                                                  HolderLookup.Provider registries) {
+        RequestItemFingerprint decoded = new RequestItemFingerprint(itemId,
+            prototype, digest, count);
+        ItemStack parsed = decoded.prototype(registries);
+        if (parsed.isEmpty()
+            || !BuiltInRegistries.ITEM.getKey(parsed.getItem()).equals(itemId)
+            || decoded.count > parsed.getMaxStackSize()) {
+            throw new IllegalArgumentException("invalid fingerprint prototype");
+        }
+        return decoded;
     }
 
     private static String canonical(ResourceLocation itemId, CompoundTag prototype) {

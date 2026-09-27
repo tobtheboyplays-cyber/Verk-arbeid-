@@ -12,10 +12,26 @@ public final class ClientHooks {
             new com.hearthstead.client.screen.HandbookScreen());
     }
 
+    /** BUILDER lane: the Resource Scroll -- the linked Builder's site (or all sites). */
+    public static void openBuilderSites(java.util.UUID builder) {
+        com.hearthstead.client.builder.BuilderPlanScreen.openSites(builder);
+    }
+
+    /** BUILDER lane: the Builder's Plan screen. */
+    public static void openBuilderPlan() {
+        com.hearthstead.client.builder.BuilderPlanClient.open();
+    }
+
+    /** Right-click with a Building Plan: the style picker, or the pending placement's panel. */
+    public static void openBuildingPlan(String typeId) {
+        com.hearthstead.client.builder.PlanPlacement.openFor(typeId);
+    }
+
     public static void openSettlerScreen(int entityId) {
         var mc = net.minecraft.client.Minecraft.getInstance();
         if (mc.level != null
             && mc.level.getEntity(entityId) instanceof com.hearthstead.entity.SettlerEntity settler) {
+            leaveContainerScreen(mc);
             mc.setScreen(new com.hearthstead.client.screen.SettlerScreen(settler));
         }
     }
@@ -34,6 +50,7 @@ public final class ClientHooks {
             open.update(snapshot);
         } else if (snapshot.delivery()
                 == com.hearthstead.network.PlaqueSnapshot.Delivery.OPEN) {
+            leaveContainerScreen(mc);
             mc.setScreen(new com.hearthstead.client.screen.PlaqueScreen(snapshot));
         }
     }
@@ -47,6 +64,7 @@ public final class ClientHooks {
         if (mc.screen instanceof com.hearthstead.client.screen.StorageScreen open) {
             open.update(payload);
         } else {
+            leaveContainerScreen(mc);
             mc.setScreen(new com.hearthstead.client.screen.StorageScreen(payload));
         }
     }
@@ -105,6 +123,7 @@ public final class ClientHooks {
         if (mc.screen instanceof com.hearthstead.client.screen.ResearchScreen open) {
             open.update(snapshot);
         } else {
+            leaveContainerScreen(mc);
             mc.setScreen(new com.hearthstead.client.screen.ResearchScreen(snapshot));
         }
     }
@@ -119,6 +138,7 @@ public final class ClientHooks {
                 && open.accepts(snapshot)) {
                 open.update(snapshot);
             } else {
+                leaveContainerScreen(mc);
                 mc.setScreen(new com.hearthstead.client.screen.DevelopmentScreen(snapshot));
             }
             return;
@@ -129,6 +149,7 @@ public final class ClientHooks {
                 && open.accepts(snapshot)) {
                 open.update(snapshot);
             } else {
+                leaveContainerScreen(mc);
                 mc.setScreen(new com.hearthstead.client.screen.EmblemShopScreen(snapshot));
             }
         }
@@ -158,6 +179,7 @@ public final class ClientHooks {
                 ((com.hearthstead.client.screen.BlessingScreen) mc.screen)
                     .update(snapshot);
             } else {
+                leaveContainerScreen(mc);
                 mc.setScreen(new com.hearthstead.client.screen.BlessingScreen(snapshot));
             }
             return;
@@ -180,5 +202,19 @@ public final class ClientHooks {
     }
 
     private ClientHooks() {
+    }
+    /**
+     * Super-QA Q-011: a plain screen (Tech Tree, Stores, settler sheet, ...)
+     * opened on top of a container screen such as the Banner must close that
+     * container on the server too. Otherwise the server keeps the Banner menu
+     * open, and the next vanilla inventory clicks are ignored (container-id
+     * mismatch) until the player walks out of reach.
+     */
+    private static void leaveContainerScreen(net.minecraft.client.Minecraft mc) {
+        if (mc.player != null
+            && mc.screen instanceof net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?>
+            && mc.player.containerMenu != mc.player.inventoryMenu) {
+            mc.player.closeContainer();
+        }
     }
 }

@@ -30,18 +30,21 @@ import java.util.EnumSet;
  * <p>Interrupted rather than cancelled: losing the movement flag to
  * something above it (hunger, a target, panic) does not clear the summons —
  * {@link Summons#active} is still true afterwards, so this goal simply picks
- * the walk back up once whatever preempted it is done. Only arrival, or the
- * call's own ~90 s clock running out, ends it for real; see {@link Summons}
- * for the guarantee that the glow always comes off even if this goal never
- * gets another turn to run.
+ * the walk back up once whatever preempted it is done. Arrival, a route this
+ * goal has proved unreachable, or the call's own ~90 s clock ends it for
+ * real; see {@link Summons} for the guarantee that the glow always comes off
+ * even if this goal never gets another turn to run.
  */
 public class RespondToSummonsGoal extends Goal {
 
     /** Re-path this often while walking; mirrors {@link GoToPostGoal}. */
     private static final int REPATH_INTERVAL = 40;
-    /** Give up on this attempt after this long and say why — not the same as
-     * giving up on the summons itself, which only its own clock can end. */
+    /** Give up after this much uninterrupted failed travel and say why. */
     private static final int PATIENCE = 300;
+    /** A freshly spawned/reloaded navigator can reject its first path before its ground node settles. */
+    private static final int INITIAL_PATH_RETRY_TICKS = 5;
+    /** Three bounded attempts distinguish that transient setup from a sealed caller. */
+    private static final int MAX_INITIAL_PATH_ATTEMPTS = 3;
     /** Close enough to call it arrived. */
     private static final double ARRIVE_RADIUS = 2.0;
     /**
@@ -57,7 +60,9 @@ public class RespondToSummonsGoal extends Goal {
     private final SettlerEntity settler;
     private int repathTimer;
     private int walkedTicks;
+    private int initialPathAttempts;
     private boolean arrived;
+    private boolean unreachable;
 
     public RespondToSummonsGoal(SettlerEntity settler) {
         this.settler = settler;
@@ -90,7 +95,9 @@ public class RespondToSummonsGoal extends Goal {
     public void start() {
         walkedTicks = 0;
         repathTimer = 0;
+        initialPathAttempts = 0;
         arrived = false;
+        unreachable = false;
         settler.setActivity(SettlerActivity.TRAVELING);
         path();
     }
@@ -110,6 +117,10 @@ public class RespondToSummonsGoal extends Goal {
             return;
         }
         walkedTicks++;
+        if (walkedTicks > PATIENCE) {
+            abandonUnreachable();
+            return;
+        }
         if (--repathTimer <= 0) {
             repathTimer = REPATH_INTERVAL;
             path();
@@ -121,24 +132,41 @@ public class RespondToSummonsGoal extends Goal {
         if (where == null) {
             return;
         }
-        boolean moving = settler.getNavigation().moveTo(
-            where.getX() + 0.5, where.getY(), where.getZ() + 0.5, 1.0);
-        if (!moving) {
-            // No path at all is worth saying immediately, same as GoToPostGoal:
-            // waiting out the patience timer would just delay the same answer.
-            settler.recordRouteFailure("summons_unreachable");
-            walkedTicks = PATIENCE + 1;
+        var path = settler.getNavigation().createPath(where, 0);
+        if (path != null && path.canReach()) {
+            settler.getNavigation().moveTo(path, 1.0);
+            initialPathAttempts = 0;
+            return;
         }
+        // A freshly spawned/reloaded navigator can reject its first route while
+        // its grounded node has not settled. Retry twice on a short clock, then
+        // end this one exact call: a sealed settler still clears its glow quickly
+        // and cannot burn through the call's full ninety-second lifetime.
+        if (++initialPathAttempts >= MAX_INITIAL_PATH_ATTEMPTS) {
+            abandonUnreachable();
+        } else {
+            repathTimer = INITIAL_PATH_RETRY_TICKS;
+        }
+    }
+
+    /** Ends only a route this goal itself has proved unavailable. */
+    private void abandonUnreachable() {
+        if (unreachable) {
+            return;
+        }
+        unreachable = true;
+        settler.recordRouteFailure("summons_unreachable");
+        settler.getNavigation().stop();
+        Summons.clear(settler);
     }
 
     @Override
     public void stop() {
         settler.getNavigation().stop();
         settler.setActivity(SettlerActivity.IDLE);
-        if (!arrived && walkedTicks > PATIENCE) {
-            settler.recordRouteFailure("summons_unreachable");
-        }
         arrived = false;
+        unreachable = false;
+        initialPathAttempts = 0;
         walkedTicks = 0;
     }
 }

@@ -79,7 +79,7 @@ public class InspectionRefreshGameTests {
         SettlerSnapshotPayload secondOpen = secondPackets.onlySettler().getFirst();
         clear(firstPackets, secondPackets, unrelatedPackets, movedPackets);
 
-        moved.setPos(target.getX() + 10.0D, target.getY(), target.getZ());
+        moved.setPos(target.getX() + 30.0D, target.getY(), target.getZ());
         helper.assertTrue(target.applyBlessing(BlessingId.WARDEN_OATH)
                 == TargetBlessingState.ApplyResult.APPLIED,
             "setup: the first physical rank must apply");
@@ -388,6 +388,9 @@ public class InspectionRefreshGameTests {
     public void settlerActionsRequireExactLiveSession(GameTestHelper helper) {
         InspectionViewers.clear(helper.getLevel().getServer());
         Settlement settlement = settlement(helper, "Lockstead");
+        // Exercise the active ordinary Journey; generic legacy fixtures skip it.
+        settlement.journeyState =
+            com.hearthstead.settlement.journey.JourneyState.fresh(settlement.id);
         SettlerEntity target = settler(helper, settlement, "Runa",
             new BlockPos(7, 1, 7));
         ServerPlayer player = viewer(helper, target.position());
@@ -446,6 +449,9 @@ public class InspectionRefreshGameTests {
                 && !InspectionViewers.hasSettlerForTest(player, target.getUUID()),
             "an expired sheet must not authorize a delayed mutation");
 
+        helper.assertTrue(settlement.journeyState.evidence().isEmpty(),
+            "unopened, forged, wrong-target and expired appointment packets must earn no Journey evidence");
+
         UUID liveSession = SettlerNetwork.openFor(player, target);
         flush(packets);
         SettlerSnapshotPayload liveOpen = packets.onlySettler().getLast();
@@ -454,8 +460,14 @@ public class InspectionRefreshGameTests {
             target.getUUID(), liveSession, SettlerActionPayload.Kind.APPOINT,
             liveOpen.revision()));
         flush(packets);
-        helper.assertTrue(target.getUUID().equals(settlement.mayorId),
-            "the exact current session, stable target and revision must still work normally");
+        // The exact live session is authorized (the server answers), but the
+        // Mayor office is retired: the answer is a refusal and nothing changes.
+        helper.assertTrue(settlement.mayorId == null
+                && !packets.onlySettler().isEmpty()
+                && packets.onlySettler().getLast().refusal().isPresent(),
+            "the exact current session must be answered with the retired-office refusal");
+        helper.assertTrue(settlement.journeyState.evidence().isEmpty(),
+            "a refused appointment must earn no Journey evidence");
         SettlerNetwork.handle(player, new SettlerActionPayload(target.getId(),
             target.getUUID(), liveSession, SettlerActionPayload.Kind.CLOSE,
             liveOpen.revision()));
@@ -616,6 +628,7 @@ public class InspectionRefreshGameTests {
         plaqueWire.writeVarInt(Integer.MAX_VALUE);
         plaqueWire.writeUUID(targetId);
         plaqueWire.writeVarInt(17);
+        plaqueWire.writeVarLong(0L);
         PlaqueAction plaqueAction = PlaqueAction.CODEC.decode(plaqueWire);
         helper.assertTrue(plaqueAction.kind() == PlaqueAction.Kind.UNKNOWN
                 && plaqueAction.pos().equals(pos)

@@ -18,11 +18,13 @@ class RequestLedgerTest {
 
     @Test
     void stableWireIdsAreExplicitUniqueAndAppendOnly() {
-        assertWireIds(RequestType.values(), 0, 1, 2, 3, 4, 5);
+        // CRAFT_ORDER (6) appended for crafting orders; append-only rule unchanged.
+        assertWireIds(RequestType.values(), 0, 1, 2, 3, 4, 5, 6);
         assertWireIds(RequestState.values(), 0, 1, 2, 3, 4, 5, 6, 7, 8);
         assertWireIds(RequestPriority.values(), 0, 1, 2);
+        // AWAITING_CRAFT (17) and NEEDS_PLAYER (18) appended for crafting orders.
         assertWireIds(RequestBlocker.values(), 0, 1, 2, 3, 4, 5, 6, 7,
-            8, 9, 10, 11, 12, 13, 14, 15, 16);
+            8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18);
         for (RequestType value : RequestType.values()) {
             assertSame(value, RequestType.fromWireId(value.wireId()).orElseThrow());
         }
@@ -143,6 +145,44 @@ class RequestLedgerTest {
         assertEquals(plain, RequestItemFingerprint.synthetic(OAK_LOG,
             "plain", 4));
         assertTrue(plain.stableKey().endsWith("x4"));
+    }
+
+    @Test
+    void unitPickupAndDeliveryFitMaximumTraceWithInterruptions() {
+        RequestRecord r = row(RequestItemFingerprint.MAX_COUNT, 0, 1L, BlockPos.ZERO);
+        UUID worker = UUID.randomUUID();
+        assertTrue(r.reserve(worker, 2L, 100L));
+        assertTrue(r.markPickup(worker, 3L));
+        for (int n = 0; n < RequestItemFingerprint.MAX_COUNT; n++) {
+            assertTrue(r.notePickedUp(worker, n, 1, 4L + n));
+            if (n == 10) {
+                assertTrue(r.block(RequestBlocker.NO_PATH, 14L));
+                assertTrue(r.resume(14L));
+            }
+        }
+        for (int n = 0; n < RequestItemFingerprint.MAX_COUNT; n++) {
+            assertTrue(r.noteDelivered(worker, 1, 100L + n));
+        }
+        assertTrue(r.markSatisfied(worker, 200L));
+        assertTrue(r.hasFullTransportTrace());
+        assertTrue(r.transitions().size() <= RequestRecord.MAX_TRANSITIONS);
+        assertEquals(64, r.movedCount());
+        assertEquals(64, r.deliveredCount());
+    }
+
+    @Test
+    void unitReceiptReplayWrongOwnerAndSkippedUnitDoNotChangeTrace() {
+        RequestRecord r = row(4, 0, 1L, BlockPos.ZERO);
+        UUID worker = UUID.randomUUID();
+        assertTrue(r.reserve(worker, 2L, 100L));
+        assertTrue(r.markPickup(worker, 3L));
+        assertTrue(r.notePickedUp(worker, 0, 1, 4L));
+        String before = r.writeNbt().toString();
+        assertFalse(r.notePickedUp(worker, 0, 1, 5L));
+        assertFalse(r.notePickedUp(UUID.randomUUID(), 1, 1, 5L));
+        assertFalse(r.notePickedUp(worker, 1, 2, 5L));
+        assertEquals(before, r.writeNbt().toString());
+        assertEquals(4, r.fingerprint().count());
     }
 
     private static RequestRecord row(int count, int targetBefore, long tick,

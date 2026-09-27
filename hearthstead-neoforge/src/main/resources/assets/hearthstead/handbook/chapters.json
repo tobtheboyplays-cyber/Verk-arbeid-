@@ -1,0 +1,179 @@
+{
+  "schema": 1,
+  "groups": [
+    {
+      "id": "start",
+      "title": "hearthstead.guide.group.start",
+      "chapters": [
+        "start_here"
+      ]
+    },
+    {
+      "id": "items",
+      "title": "hearthstead.guide.group.items",
+      "chapters": [
+        "items"
+      ]
+    },
+    {
+      "id": "settlement",
+      "title": "hearthstead.guide.group.settlement",
+      "chapters": [
+        "founding",
+        "coins",
+        "guildmaster",
+        "plaque",
+        "tech_tree",
+        "day",
+        "housing_limits",
+        "food_overflow",
+        "research"
+      ]
+    },
+    {
+      "id": "workers",
+      "title": "hearthstead.guide.group.workers",
+      "chapters": [
+        "jobs",
+        "work_zones",
+        "logistics",
+        "crafting_orders",
+        "summons",
+        "attributes",
+        "attribute_effects",
+        "jobs_directory",
+        "trade_levels",
+        "dagsverk",
+        "gear_tiers",
+        "quality"
+      ]
+    },
+    {
+      "id": "building",
+      "title": "hearthstead.guide.group.building",
+      "chapters": [
+        "builder",
+        "work_yards",
+        "buildings_directory"
+      ]
+    },
+    {
+      "id": "people",
+      "title": "hearthstead.guide.group.people",
+      "chapters": [
+        "recruiting",
+        "tavern",
+        "conversation",
+        "realm_map",
+        "world_events",
+        "visitor_departure",
+        "events_directory",
+        "taverns_ale"
+      ]
+    },
+    {
+      "id": "defence",
+      "title": "hearthstead.guide.group.defence",
+      "chapters": [
+        "watch",
+        "command",
+        "battle_roles",
+        "patrols",
+        "finisher_revive",
+        "threat",
+        "raids",
+        "parley",
+        "hero_captain",
+        "weapons",
+        "saga"
+      ]
+    },
+    {
+      "id": "techtree",
+      "title": "hearthstead.guide.group.techtree",
+      "chapters": [
+        "tech_branches"
+      ]
+    },
+    {
+      "id": "settings",
+      "title": "hearthstead.guide.group.settings",
+      "chapters": [
+        "options"
+      ]
+    }
+  ],
+  "hints": {
+    "hearthstead:builders_plan": "builder.hut",
+    "hearthstead:survey_rod": "builder.designs",
+    "hearthstead:resource_scroll": "builder.sites",
+    "hearthstead:guard_emblem": "watch.p1",
+    "hearthstead:archer_emblem": "watch.p1",
+    "hearthstead:work_scepter": "work_zones.p1",
+    "hearthstead:spearman_emblem": "battle_roles.front",
+    "hearthstead:longswordsman_emblem": "battle_roles.front",
+    "hearthstead:healer_emblem": "battle_roles.support",
+    "hearthstead:rune_mage_emblem": "battle_roles.support"
+  },
+  "journey": {
+    "fj_300_unlock_farmhouse": "tech_tree.p1",
+    "fj_310_link_farmhouse": "plaque.p1",
+    "fj_320_staff_farmhouse": "jobs.p1",
+    "fj_340_farmer_requests_hoe": "jobs.p1",
+    "fj_350_equip_farmer": "jobs.p1",
+    "fj_360_supply_first_seed": "work_zones.p2",
+    "fj_370_farmhouse_stores_crop": "logistics.p1"
+  },
+  "links": {
+    "start_here.plaque": "items.plaque",
+    "start_here.hire": "items.emblems",
+    "start_here.zone": "items.work_scepter",
+    "start_here.banner": "items.banner",
+    "start_here.guildmaster": "items.coins",
+    "founding.p1": "items.banner",
+    "coins.p1": "items.coins",
+    "plaque.p1": "items.plaque",
+    "work_zones.p1": "items.work_scepter",
+    "jobs.p1": "items.emblems",
+    "watch.p1": "items.weapons",
+    "tavern.p1": "items.workplace",
+    "raids.p1": "items.seals",
+    "builder.hut": "items.builders_plan",
+    "builder.designs": "items.survey_rod",
+    "builder.sites": "items.resource_scroll",
+    "patrols.watch": "items.patrol_map",
+    "battle_roles.front": "items.weapons",
+    "battle_roles.support": "items.battle_supplies",
+    "quality.grades": "items.goods"
+  },
+  "images": {
+    "finisher_revive.finish": {
+      "texture": "hearthstead:textures/gui/handbook/finisher_glow.png",
+      "width": 256,
+      "height": 144,
+      "caption": "hearthstead.guide.ui.caption.finisher_revive_finish",
+      "placement": "auto"
+    },
+    "conversation.talk": {
+      "texture": "hearthstead:textures/gui/handbook/talk.png",
+      "width": 256,
+      "height": 144,
+      "caption": "hearthstead.guide.ui.caption.conversation_talk",
+      "placement": "auto"
+    },
+    "parley.talk": {
+      "texture": "hearthstead:textures/gui/handbook/parley.png",
+      "width": 256,
+      "height": 144,
+      "caption": "hearthstead.guide.ui.caption.parley_talk",
+      "placement": "auto"
+    },
+    "realm_map.locate": {
+      "texture": "hearthstead:textures/gui/handbook/realm_map.png",
+      "width": 256,
+      "height": 144,
+      "caption": "hearthstead.guide.ui.caption.realm_map_locate",
+      "placement": "auto"
+    }
+  }
+}

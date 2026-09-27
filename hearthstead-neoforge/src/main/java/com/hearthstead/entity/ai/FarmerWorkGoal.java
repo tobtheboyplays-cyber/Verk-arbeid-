@@ -13,6 +13,7 @@ import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.development.DevelopmentQuests;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.work.ContainerApproach;
+import com.hearthstead.settlement.work.FarmWorkApproach;
 import com.hearthstead.settlement.work.WorkerProvenanceSavedData;
 import com.hearthstead.settlement.work.WorkerProvenanceService;
 import com.hearthstead.settlement.work.WorkerStackProvenance;
@@ -41,7 +42,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
 import javax.annotation.Nullable;
@@ -116,31 +120,32 @@ public class FarmerWorkGoal extends Goal {
     /** Bootstrap withdrawal cap: how many seeds one visit to the
      *  farmhouse's own chests may move into the bag. See ensureSeedInBag()
      *  for why the effective cap also stays under {@link #BAG_TRIGGER}. */
-    /**
-     * Farm work is rooted in the confirmed floor and the crop cell directly
-     * above it.  One survey unit is therefore a column pair, not an arbitrary
-     * voxel in the selected headroom.  Keeping this at 128 means the ordinary
-     * soil/crop reads stay well below the old 512-voxel pass while a tall,
-     * valid Farm Zone cannot hide its actual field behind empty sky blocks.
-     */
-    private static final int FIELD_SURVEY_COLUMN_BUDGET = 128;
+    /** Adjacent soil/crop pairs examined per resumable 3D survey batch. */
+    private static final int FIELD_SURVEY_CELL_BUDGET = 512;
     private static final int FIELD_SURVEY_COOLDOWN_MIN = 20;
     private static final int FIELD_SURVEY_COOLDOWN_JITTER = 20;
     /** A blocked farmhouse chest is a logistics wait, not a per-tick scan. */
     private static final int DEPOSIT_RETRY_TICKS = 100;
+    private long seedReturnRetryAt;
+    /** Bounded memory and finite progress credit even if a route wanders. */
+    private static final int MAX_STORAGE_PROGRESS_NODES = 256;
     /** One effort unit per this many completed plant/till/water actions —
      *  batch-counted so the light work does not spend as fast as a harvest. */
     private static final int LIGHT_ACTIONS_PER_EFFORT = 4;
 
     private enum Mode {
         TO_WORK, HARVESTING, PLANTING, TO_MAINTAIN, TILLING, WATERING,
-        TO_STORAGE, TO_INPUT, TO_REPLANT, TO_RETURN_INPUT
+        TO_STORAGE, TO_INPUT, TO_REPLANT, TO_RETURN_INPUT, BAG_WORK
     }
 
     /** Why one exact Farmhouse input visit is in progress. */
     private enum InputPurpose { MAINTAIN, CANE, REPLANT }
 
     private final SettlerEntity settler;
+    private final GroundCollectionSession groundCollection;
+    private final GroundedBagSession fieldBag;
+    private final GroundedBagUnload chestBag = new GroundedBagUnload();
+    private boolean finishingFieldBag;
     private final Deque<BlockPos> queue = new ArrayDeque<>();
     private final Deque<BlockPos> maintainQueue = new ArrayDeque<>();
     private final Deque<BlockPos> caneQueue = new ArrayDeque<>();
@@ -149,6 +154,11 @@ public class FarmerWorkGoal extends Goal {
     private BlockPos maintainTarget;
     /** Real chest in this farmer's own farmhouse; never the Hearth. */
     private BlockPos depositTarget;
+    /** Containers whose complete seven-repath storage route failed for the
+     * current carried load. A candidate stays sticky until its own route
+     * exhausts; this bounded set only permits the next physical chest after
+     * that terminal result. */
+    private final Set<BlockPos> failedDepositTargets = new LinkedHashSet<>();
     /** Exact Farmhouse container selected for one physical seed/cane pickup. */
     @Nullable
     private BlockPos inputTarget;
@@ -178,7 +188,7 @@ public class FarmerWorkGoal extends Goal {
     private int plantDuration;
     private int workTicks;
     private int scanCooldown;
-    /** Resumable X/Z cursor for the confirmed Farm Zone's floor/crop pairs. */
+    /** Resumable layer-major cursor for all authorised soil/crop pairs. */
     private int fieldColumnCursor;
     @Nullable
     private WorkZone surveyedFieldZone;
@@ -188,8 +198,25 @@ public class FarmerWorkGoal extends Goal {
     private int equipmentRetryCooldown;
     /** Full or missing farmhouse storage is retried at a bounded cadence. */
     private int depositRetryCooldown;
+    private long nextMissingOutputCheck;
     private int repathTimer;
     private int stuckChecks;
+    /**
+     * Input-route headway (soak 2026-09-25): the Farmhouse-chest legs counted
+     * every 40-tick check against a seven-check budget even while the farmer
+     * was striding towards a distant chest, so a 40-block walk was abandoned
+     * as "unreachable" a few blocks short of the door and the seed or crop
+     * rode in the bag overnight. Only a check without headway now counts;
+     * {@link #INPUT_ROUTE_MAX_CHECKS} still bounds a route that circles.
+     */
+    private net.minecraft.world.phys.Vec3 inputProgressPos;
+    private int inputRouteChecks;
+    private static final double INPUT_PROGRESS_SQR = 2.25D;
+    private static final int INPUT_ROUTE_MAX_CHECKS = 45;
+    @Nullable
+    private BlockPos storageProgressTarget;
+    /** Consumed nodes survive repaths so revisiting the same doorway cannot renew a route forever. */
+    private final Set<BlockPos> storageProgressNodes = new LinkedHashSet<>();
     private boolean done;
     /** Batch counter for the light work's effort cost; see harvest()'s own
      *  per-crop spend for why planting/tilling/watering are counted apart. */
@@ -208,6 +235,15 @@ public class FarmerWorkGoal extends Goal {
 
     public FarmerWorkGoal(SettlerEntity settler) {
         this.settler = settler;
+        this.groundCollection = new GroundCollectionSession(settler,
+            stack -> WorkerStackProvenance.readTransit(stack)
+                .map(transit -> transit.kind() == TransitKind.FARM_CROP).orElse(false), 128);
+        // Farm output is already a physical, authenticated stack. Moving the
+        // selected stack portion at the existing contacts avoids replaying a
+        // full PICK/STOW pose for every seed in that one world stack; inputs
+        // still use supplyOneSeedAt from this Farmhouse only.
+        this.fieldBag = new GroundedBagSession(settler, groundCollection,
+            Integer.MAX_VALUE);
         setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
     }
 
@@ -221,14 +257,73 @@ public class FarmerWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
-        if (!workConditions()) {
-            return false;
+        if (settler.getProfession() != Profession.FARMER || !settler.isBound()) return false;
+        if (settler.level() instanceof ServerLevel recoveryLevel && settler.settlement() != null) {
+            Settlement recoveryOwner = settler.settlement();
+            if (fieldBag.corrupt()) { settler.recordRouteFailure("farm_ground_bag_intent_invalid"); return false; }
+            activeZone = authoritativeZone(recoveryLevel, recoveryOwner,
+                Employment.employerOf(recoveryOwner, settler.getUUID()));
+            // A saved chest broken mid-animation must not pin every retry to it;
+            // release only the visual claim (bag contents stay) and choose afresh.
+            if (GroundedBagUnload.presentationTargetGone(recoveryLevel, settler, settler.bagTransferPresentation()))
+                GroundedBagUnload.clearPresentation(settler, settler.bagTransferPresentation());
+            if (settler.bagTransferPresentation().active()) {
+                if (depositRetryCooldown > 0) { depositRetryCooldown--; return false; }
+                depositTarget = settler.bagTransferPresentation().containerPos();
+                mode = Mode.TO_STORAGE; return true;
+            }
+            if (fieldBag.active()) {
+                if (depositRetryCooldown > 0) { depositRetryCooldown--; return false; }
+                if (fieldBag.away() && bagHoldsProduce()) { mode=Mode.TO_STORAGE; return true; }
+                fieldBag.returnFromStorage();
+                if ((!settler.dayPhase().work() || activeZone == null) && !fieldBag.harvested()) fieldBag.cancelUnharvested();
+                mode=Mode.BAG_WORK; return true;
+            }
         }
+        // Off shift a marked plant input must not ride in the bag until
+        // morning (the evening now opens at 11000, while a plant may be in
+        // hand): walk it back to its exact source chest, as the in-shift
+        // recovery below does. Nothing else changes off shift.
+        if (!settler.dayPhase().work()
+            && settler.level() instanceof ServerLevel offShiftLevel
+            && settler.settlement() != null
+            && offShiftLevel.getGameTime() >= seedReturnRetryAt) {
+            WorkerProvenanceSavedData.ActionView offShiftInput =
+                WorkerProvenanceService.recoverableFarmPlant(offShiftLevel,
+                    settler.settlement(), settler);
+            if (offShiftInput != null) {
+                if (beginInputReturn(offShiftInput)) return true;
+                seedReturnRetryAt = offShiftLevel.getGameTime() + DEPOSIT_RETRY_TICKS;
+            }
+        }
+        // End of shift: the day's harvest and loose seed go into the
+        // Farmhouse, not to bed. They used to ride in the bag all night
+        // (and through any raid) whenever the last field action ended after
+        // the bell (reliability soak: ORPHANED_ITEMS on most farmers, most
+        // nights). Same deposit leg and chest authority as in-shift work.
+        if (!settler.dayPhase().work() && bagHoldsProduce()) {
+            if (depositRetryCooldown > 0) {
+                depositRetryCooldown--;
+                return false;
+            }
+            mode = Mode.TO_STORAGE;
+            return true;
+        }
+        if (!workConditions()) return false;
         Settlement s = settler.settlement();
         if (s == null) {
             return false;
         }
+        // Paid Worker Packs raise the entity-owned trip budget (8 to 12).
+        if (settler.level() instanceof ServerLevel packLevel) {
+            com.hearthstead.settlement.development.WorkerPacks.apply(packLevel, s, settler);
+        }
         Building employer = Employment.employerOf(s, settler.getUUID());
+        if (settler.level() instanceof ServerLevel recoveryLevel
+            && recoveryLevel.getGameTime() >= nextMissingOutputCheck) {
+            nextMissingOutputCheck = recoveryLevel.getGameTime() + 200;
+            WorkerProvenanceService.reconcileUnavailableFarmOutput(recoveryLevel, s, employer, settler);
+        }
         WorkZone zone = settler.level() instanceof ServerLevel level
             ? authoritativeZone(level, s, employer) : null;
         // Hauling already-produced food never requires a working hoe. This
@@ -241,7 +336,7 @@ public class FarmerWorkGoal extends Goal {
         // Only a genuinely active pass for the CURRENT authoritative zone may
         // defer a small load. A missing/replaced/quarantined zone, or the
         // default never-surveyed state, must never strand physical produce.
-        if (bagCount() >= BAG_TRIGGER || (bagHoldsProduce()
+        if (bagCount() >= bagTrigger() || (bagHoldsProduce()
             && !activeSurveyFor(zone))) {
             if (depositRetryCooldown > 0) {
                 depositRetryCooldown--;
@@ -269,6 +364,9 @@ public class FarmerWorkGoal extends Goal {
                 // Returning already-owned cargo is logistics, so it must not
                 // be blocked by a hoe that broke or disappeared during reload.
                 if (!preparedResume) {
+                    // A refused/unreachable return backs off instead of
+                    // restarting the same failing walk every goal tick.
+                    if (level.getGameTime() < seedReturnRetryAt) return false;
                     return beginInputReturn(recovery);
                 }
             }
@@ -294,15 +392,18 @@ public class FarmerWorkGoal extends Goal {
         if (preparedResume) {
             return true;
         }
-        if (queue.isEmpty() && maintainQueue.isEmpty() && caneQueue.isEmpty()) {
+        if (queue.isEmpty()
+            && (!fieldSweepComplete
+                || (maintainQueue.isEmpty() && caneQueue.isEmpty()))) {
             // A new/unfinished confirmed field must advance on every selection
             // evaluation.  Applying the ordinary 20-39 tick idle cooldown to
             // every partial batch is what made a real distant crop look like
             // "nothing workable" for a large, tall but perfectly valid zone.
             if (!zone.equals(surveyedFieldZone) || !fieldSweepComplete) {
                 if (surveyTendedField(zone)) {
-                    scanCooldown = FIELD_SURVEY_COOLDOWN_MIN
-                        + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER);
+                    scanCooldown = com.hearthstead.entity.SkillLevels.shortenWait(settler,
+                        FIELD_SURVEY_COOLDOWN_MIN
+                        + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER));
                 }
             } else if (scanCooldown > 0) {
                 scanCooldown--;
@@ -314,8 +415,9 @@ public class FarmerWorkGoal extends Goal {
                 fieldColumnCursor = 0;
                 fieldSweepComplete = false;
                 if (surveyTendedField(zone)) {
-                    scanCooldown = FIELD_SURVEY_COOLDOWN_MIN
-                        + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER);
+                    scanCooldown = com.hearthstead.entity.SkillLevels.shortenWait(settler,
+                        FIELD_SURVEY_COOLDOWN_MIN
+                        + settler.getRandom().nextInt(FIELD_SURVEY_COOLDOWN_JITTER));
                 }
             }
         }
@@ -327,6 +429,31 @@ public class FarmerWorkGoal extends Goal {
                 clearWorkZoneStop();
                 return true;
             }
+        }
+        // A confirmed bare farmland tile already names an exact plant cell.
+        // If this bounded batch can also name one exact linked source chest,
+        // that source-to-cell route is authoritative work even while higher
+        // layers of a large 3D zone remain to be surveyed. Deferring it until
+        // the complete 16x16x16 fixture sweep made ordinary bootstrap appear
+        // idle for seven canUse() calls and, more importantly, left no selected
+        // source for the exact-source failure/recovery state machine to own.
+        //
+        // Keep dirt, watering and cane behind the full-sweep priority barrier:
+        // a low maintenance candidate must still never hide a mature crop on
+        // a later terrace. This exception is deliberately the narrow route
+        // that is already fully determined at both ends.
+        if (!fieldSweepComplete && beginSurveyedBareFieldInput()) {
+            clearWorkZoneStop();
+            return true;
+        }
+        // Harvest is the highest-priority field obligation. Do not consume a
+        // dirt/watering/cane candidate from an early height batch while later
+        // authorised layers are still unseen; that recreated the same
+        // "nothing workable" experience as a min-Y scan on terraced farms.
+        // canUse() is evaluated again next tick and resumes this exact cursor.
+        if (!fieldSweepComplete) {
+            clearWorkZoneStop();
+            return false;
         }
         // Nothing ripe right now: use the lower-priority field-maintenance
         // results from the same exact, bounded survey.
@@ -428,6 +555,34 @@ public class FarmerWorkGoal extends Goal {
         return false;
     }
 
+    /**
+     * Selects one exact linked seed route for bare farmland already observed
+     * by the current resumable survey. No storage mutation happens here; the
+     * chosen chest remains sticky until physical contact or explicit failure.
+     */
+    private boolean beginSurveyedBareFieldInput() {
+        Iterator<BlockPos> candidates = maintainQueue.iterator();
+        while (candidates.hasNext()) {
+            BlockPos soil = candidates.next();
+            if (!isWithinTendedPlot(soil)
+                || !isWithinTendedPlot(soil.above())
+                || !settler.level().getBlockState(soil).is(Blocks.FARMLAND)
+                || !settler.level().getBlockState(soil.above()).isAir()) {
+                continue;
+            }
+            maintainTarget = soil;
+            maintainIsWater = false;
+            maintainIsPlant = true;
+            maintainIsCane = false;
+            if (beginInputAcquisition(InputPurpose.MAINTAIN, null)) {
+                candidates.remove();
+                return true;
+            }
+            maintainTarget = null;
+        }
+        return false;
+    }
+
     /** True only while unfinished survey/queue state belongs to this zone. */
     private boolean activeSurveyFor(@Nullable WorkZone zone) {
         return zone != null && zone.equals(surveyedFieldZone)
@@ -484,14 +639,13 @@ public class FarmerWorkGoal extends Goal {
     }
 
     /**
-     * Surveys the confirmed farm's floor and the crop cell immediately above
-     * it, classifying the same three existing priority queues as before.
+     * Surveys every possible soil/crop pair in the confirmed 3D farm,
+     * classifying the same three existing priority queues as before.
      *
-     * <p>A Farm Zone is selected from two horizontal floor corners and one
-     * explicit height click.  The height is growing headroom/authority, not a
-     * reason to walk every empty air voxel before looking at the field.  This
-     * cursor is exact in X/Z, resumes across calls and never constructs a
-     * position outside the committed volume.
+     * <p>Traversal is layer-major. The lowest, ordinary field remains the
+     * first cheap pass across all X/Z columns, while later batches cover
+     * raised terraces and underground fields without ever reading outside
+     * the committed volume.
      *
      * @return whether this call completed one full confirmed-zone sweep
      */
@@ -514,13 +668,16 @@ public class FarmerWorkGoal extends Goal {
         int sizeX = zone.sizeX();
         int sizeZ = zone.sizeZ();
         int totalColumns = sizeX * sizeZ;
+        int verticalLayers = Math.max(0, zone.sizeY() - 1);
+        int totalCells = totalColumns * verticalLayers;
         int examined = 0;
-        while (examined < FIELD_SURVEY_COLUMN_BUDGET
-            && fieldColumnCursor < totalColumns) {
+        while (examined < FIELD_SURVEY_CELL_BUDGET
+            && fieldColumnCursor < totalCells) {
             int index = fieldColumnCursor++;
-            int x = zone.min().getX() + index / sizeZ;
-            int z = zone.min().getZ() + index % sizeZ;
-            BlockPos soil = new BlockPos(x, zone.min().getY(), z);
+            BlockPos soil = fieldSurveyCell(zone, index);
+            if (soil == null) {
+                break;
+            }
             BlockPos crop = soil.above();
             examined++;
 
@@ -557,7 +714,7 @@ public class FarmerWorkGoal extends Goal {
                 }
             }
         }
-        fieldSweepComplete = fieldColumnCursor >= totalColumns;
+        fieldSweepComplete = fieldColumnCursor >= totalCells;
 
         Comparator<BlockPos> nearestFirst = Comparator.comparingDouble(
             pos -> pos.distSqr(settler.blockPosition()));
@@ -568,6 +725,29 @@ public class FarmerWorkGoal extends Goal {
         maintainQueue.addAll(maintain);
         caneQueue.addAll(cane);
         return fieldSweepComplete;
+    }
+
+    /**
+     * Pure layer-major mapping used by deterministic regression tests. The
+     * highest Y layer is excluded because it has no authorised crop cell
+     * above it.
+     */
+    @Nullable
+    static BlockPos fieldSurveyCell(@Nullable WorkZone zone, int cursor) {
+        if (zone == null || cursor < 0 || zone.sizeY() < 2) {
+            return null;
+        }
+        int columns = zone.sizeX() * zone.sizeZ();
+        int layers = zone.sizeY() - 1;
+        int total = columns * layers;
+        if (cursor >= total) {
+            return null;
+        }
+        int layer = cursor / columns;
+        int column = cursor % columns;
+        int x = zone.min().getX() + column / zone.sizeZ();
+        int z = zone.min().getZ() + column % zone.sizeZ();
+        return new BlockPos(x, zone.min().getY() + layer, z);
     }
 
     private boolean isMatureCrop(BlockPos pos) {
@@ -771,6 +951,15 @@ public class FarmerWorkGoal extends Goal {
             && WorkZoneService.livePositionAllowed(level, activeZone, pos);
     }
 
+    /** Collection follows the stamped crop source; it never expands the harvest zone. */
+    private boolean collectableFieldOutput(net.minecraft.world.entity.item.ItemEntity item) {
+        if (!(settler.level() instanceof ServerLevel level)) return false;
+        Settlement owner = settler.settlement();
+        Building farm = owner == null ? null : Employment.employerOf(owner, settler.getUUID());
+        return WorkerProvenanceService.collectableFarmOutput(level, owner, farm,
+            settler, activeZone, item.getItem(), item.blockPosition());
+    }
+
     /**
      * Tilling stays anchored to real fields: bare ground converts only
      * within reach of an existing planted crop. Tilling itself never adds
@@ -793,6 +982,12 @@ public class FarmerWorkGoal extends Goal {
         return false;
     }
 
+    /** Storage-walk trigger; follows a Worker Packs budget up to 12. */
+    private int bagTrigger() {
+        return com.hearthstead.settlement.development.WorkerPacks
+            .farmerBagTrigger(settler, BAG_TRIGGER);
+    }
+
     private int bagCount() {
         int n = 0;
         for (int i = 0; i < settler.bag.getContainerSize(); i++) {
@@ -809,13 +1004,18 @@ public class FarmerWorkGoal extends Goal {
         plantContactCommitted = false;
         waterContactCommitted = false;
         stuckChecks = 0;
+        inputProgressPos = null;
+        inputRouteChecks = 0;
         repathTimer = 0;
-        if (mode == Mode.TO_STORAGE) {
+        if (mode == Mode.BAG_WORK && settler.level() instanceof ServerLevel level) {
+            fieldBag.resume(level, pos -> WorkerProvenanceService
+                .farmOutputRecoveryPositionAllowed(level, activeZone, pos));
+            settler.setActivity(SettlerActivity.COLLECTING_ITEMS);
+        } else if (mode == Mode.TO_STORAGE) {
             // Produce is a physical back load. CARRYING is server-authored
             // presentation truth: it selects WALK_LADEN plus the Farmer's
             // tool-safe sack hold instead of an empty ordinary WALK.
-            settler.setActivity(SettlerActivity.CARRYING);
-            pathToStorage();
+            beginStorageRoute();
         } else if (mode == Mode.TO_INPUT || mode == Mode.TO_RETURN_INPUT) {
             settler.setActivity(SettlerActivity.COLLECTING_ITEMS);
             pathToInput();
@@ -827,17 +1027,59 @@ public class FarmerWorkGoal extends Goal {
     }
 
     private void pathToTarget() {
-        if (target != null) {
-            settler.getNavigation().moveTo(target.getX() + 0.5, target.getY(),
-                target.getZ() + 0.5, 1.0);
+        if (settler.level() instanceof ServerLevel level) {
+            FarmWorkApproach.moveToDryPlantContact(level, settler, tendedFarmhouse(), target, 1.0D);
         }
     }
 
     private void pathToMaintainTarget() {
-        if (maintainTarget != null) {
-            settler.getNavigation().moveTo(maintainTarget.getX() + 0.5, maintainTarget.getY() + 1,
-                maintainTarget.getZ() + 0.5, 1.0);
+        if (settler.level() instanceof ServerLevel level) {
+            BlockPos contactTarget = maintainContactTarget();
+            FarmWorkApproach.Contact contact = maintainContactKind();
+            if (contact == FarmWorkApproach.Contact.PLANT) {
+                FarmWorkApproach.moveToDryPlantContact(level, settler, tendedFarmhouse(),
+                    contactTarget, 1.0D);
+            } else {
+                FarmWorkApproach.moveToContact(level, settler, tendedFarmhouse(),
+                    contactTarget, contact, 1.0D);
+            }
         }
+    }
+
+    private BlockPos maintainContactTarget() {
+        return maintainTarget != null && maintainIsPlant && !maintainIsCane
+            ? maintainTarget.above() : maintainTarget;
+    }
+
+    private FarmWorkApproach.Contact maintainContactKind() {
+        return maintainIsCane || maintainIsPlant ? FarmWorkApproach.Contact.PLANT
+            : FarmWorkApproach.Contact.SOIL;
+    }
+
+    private boolean farmContact(BlockPos position, FarmWorkApproach.Contact contact) {
+        return settler.level() instanceof ServerLevel level
+            && (contact == FarmWorkApproach.Contact.PLANT
+                ? FarmWorkApproach.canDryPlantContact(level, settler, position)
+                : FarmWorkApproach.canContact(level, settler, position, contact));
+    }
+
+    /** A new route leg owns a fresh budget; repaths never call this. */
+    private void resetFreshRouteBudget() {
+        stuckChecks = 0;
+        inputProgressPos = null;
+        inputRouteChecks = 0;
+        // The initial path is submitted immediately by the caller. Give it
+        // the normal full interval before counting the first retry.
+        repathTimer = 40;
+    }
+
+    private void beginStorageRoute() {
+        storageProgressTarget = null;
+        storageProgressNodes.clear();
+        resetFreshRouteBudget();
+        mode = Mode.TO_STORAGE;
+        settler.setActivity(SettlerActivity.CARRYING);
+        pathToStorage();
     }
 
     private void pathToStorage() {
@@ -856,13 +1098,27 @@ public class FarmerWorkGoal extends Goal {
         // nearest container on every repath can make a farmer oscillate
         // between opposite sides of a doorway and never finish either route.
         if (depositTarget == null) {
-            depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
-                farmhouse, settler.blockPosition());
+            depositTarget = nextStorageTarget(level, farmhouse);
         }
         if (depositTarget == null) {
             settler.recordRouteFailure("farmhouse_storage_missing");
             depositRetryCooldown = DEPOSIT_RETRY_TICKS;
             done = true;
+            return;
+        }
+        if (!depositTarget.equals(storageProgressTarget)) {
+            storageProgressTarget = depositTarget.immutable();
+            storageProgressNodes.clear();
+            // A path's starting cell is not evidence that the farmer has travelled.
+            storageProgressNodes.add(settler.blockPosition().immutable());
+        }
+        // A saved unload owns both the chest and the stationary sack. After
+        // interruption, another exposed chest face is not enough: return to
+        // the original bag before advancing its retained contact clock.
+        if (!atDepositBag()) {
+            BlockPos anchor = settler.bagTransferPresentation().bagAnchor();
+            settler.getNavigation().moveTo(anchor.getX() + 0.5D,
+                anchor.getY(), anchor.getZ() + 0.5D, 1.0D);
             return;
         }
         ContainerApproach.Result approach = ContainerApproach.moveToContact(
@@ -878,7 +1134,7 @@ public class FarmerWorkGoal extends Goal {
     @Override
     public boolean canContinueToUse() {
         return !done && (mode == Mode.TO_STORAGE || mode == Mode.TO_INPUT
-            || mode == Mode.TO_RETURN_INPUT || workConditions());
+            || mode == Mode.TO_RETURN_INPUT || mode == Mode.BAG_WORK || workConditions());
     }
 
     @Override
@@ -888,6 +1144,12 @@ public class FarmerWorkGoal extends Goal {
 
     @Override
     public void tick() {
+        // Mob can tick running goals once more before the next selector cleanup.
+        // A completed/refused leg must not repeat its physical contact in that gap.
+        if (done) return;
+        if (fieldBag.active() && settler.level() instanceof ServerLevel level) groundCollection.heartbeat(level);
+        // GREEN_FINGERS: the field they work grows a little faster (AttributeRuntime.tendField).
+        com.hearthstead.entity.AttributeRuntime.tendField(settler, activeZone);
         switch (mode) {
             case TO_WORK -> tickTravel();
             case HARVESTING -> tickHarvest();
@@ -899,6 +1161,7 @@ public class FarmerWorkGoal extends Goal {
             case TO_INPUT -> tickInputAcquisition();
             case TO_REPLANT -> tickReplantTravel();
             case TO_RETURN_INPUT -> tickInputReturn();
+            case BAG_WORK -> tickFieldBag();
         }
     }
 
@@ -926,6 +1189,9 @@ public class FarmerWorkGoal extends Goal {
         inputCrop = requestedCrop;
         inputPurpose = purpose;
         inputReturnAction = null;
+        // This exact source journey starts after crop work as well as from
+        // canUse. It must not inherit retries spent reaching the crop.
+        resetFreshRouteBudget();
         mode = Mode.TO_INPUT;
         return true;
     }
@@ -996,6 +1262,9 @@ public class FarmerWorkGoal extends Goal {
                 abandonInputAcquisition();
                 return;
             }
+            // Source contact completed; travel to the exact planting cell
+            // is a different route, even when this goal instance continues.
+            resetFreshRouteBudget();
             inputTarget = null;
             inputCrop = null;
             inputPurpose = null;
@@ -1013,6 +1282,9 @@ public class FarmerWorkGoal extends Goal {
             repathTimer = 40;
             if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
                 inputTarget = null;
+            }
+            if (!inputRouteStalled()) {
+                stuckChecks = 0;
             }
             if (++stuckChecks > 6) {
                 settler.recordRouteFailure("farmhouse_input_unreachable");
@@ -1046,14 +1318,19 @@ public class FarmerWorkGoal extends Goal {
                 nextOrFinish();
             } else {
                 settler.recordRouteFailure("farm_seed_recovery_storage_refused");
+                seedReturnRetryAt = level.getGameTime() + DEPOSIT_RETRY_TICKS;
                 done = true;
             }
             return;
         }
         if (--repathTimer <= 0) {
             repathTimer = 40;
+            if (!inputRouteStalled()) {
+                stuckChecks = 0;
+            }
             if (++stuckChecks > 6) {
                 settler.recordRouteFailure("farm_seed_recovery_unreachable");
+                seedReturnRetryAt = settler.level().getGameTime() + DEPOSIT_RETRY_TICKS;
                 done = true;
             } else {
                 pathToInput();
@@ -1089,7 +1366,7 @@ public class FarmerWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(target.getX() + 0.5D,
             target.getY() + 0.1D, target.getZ() + 0.5D);
-        if (settler.blockPosition().distSqr(target) <= 6.5D) {
+        if (farmContact(target, FarmWorkApproach.Contact.PLANT)) {
             settler.getNavigation().stop();
             mode = Mode.PLANTING;
             workTicks = 0;
@@ -1119,13 +1396,10 @@ public class FarmerWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(target.getX() + 0.5, target.getY() + 0.3,
             target.getZ() + 0.5);
-        double distSqr = settler.blockPosition().distSqr(target);
-        if (distSqr <= 6.5) {
-            mode = Mode.HARVESTING;
-            workTicks = 0;
-            harvestContactCommitted = false;
+        if (farmContact(target, FarmWorkApproach.Contact.PLANT)) {
+            fieldBag.begin(target, BuiltInRegistries.BLOCK.getKey(settler.level().getBlockState(target).getBlock()).toString());
+            mode = Mode.BAG_WORK;
             settler.getNavigation().stop();
-            settler.setActivity(SettlerActivity.WORK_HARVEST);
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
             if (++stuckChecks > 6) {
@@ -1136,14 +1410,21 @@ public class FarmerWorkGoal extends Goal {
         }
     }
 
+    private void finishOrRecoverField() {
+        if (!fieldBag.active()) { nextOrFinish(); return; }
+        if (fieldBag.harvested()) fieldBag.collectAfterHarvest();
+        else fieldBag.cancelUnharvested();
+        mode=Mode.BAG_WORK;
+    }
+
     private void tickHarvest() {
         if (target == null) {
-            nextOrFinish();
+            finishOrRecoverField();
             return;
         }
         if (settler.level() instanceof ServerLevel level
             && !zoneAllowsMutation(level, target, "harvest")) {
-            nextOrFinish();
+            finishOrRecoverField();
             return;
         }
         settler.getLookControl().setLookAt(target.getX() + 0.5, target.getY() + 0.2,
@@ -1153,24 +1434,20 @@ public class FarmerWorkGoal extends Goal {
             if (!harvestContactCommitted
                 && workTicks % HARVEST_DURATION == HARVEST_CONTACT_TICK) {
                 if (!harvest()) {
-                    nextOrFinish();
+                    finishOrRecoverField();
                     return;
                 }
                 harvestContactCommitted = true;
-                serverLevel.playSound(null, target, ModSounds.CROP_PULL.get(),
-                    SoundSource.NEUTRAL, 0.7F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
-            } else if (harvestContactCommitted
-                && workTicks % HARVEST_DURATION == HARVEST_STOW_TICK) {
-                // The physical crop and every drop already committed on the
-                // pull. This is only the cloth/hand settle at the sack -- it
-                // is never a late inventory mutation disguised as a sound.
-                serverLevel.playSound(null, target, ModSounds.BAG_STOW.get(),
-                    SoundSource.NEUTRAL, 0.65F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
+                WorkSoundSync.play(serverLevel, target, ModSounds.CROP_PULL.get(), 0.5F, 1.0F);
             }
+            // Actual BAG_STOW now belongs to GroundedBagSession's hand-to-bag contact.
         }
         if (workTicks >= HARVEST_DURATION) {
+            if (fieldBag.active() && fieldBag.harvested() && !finishingFieldBag) {
+                fieldBag.collectAfterHarvest(); mode=Mode.BAG_WORK; return;
+            }
             if (!harvestContactCommitted) {
-                nextOrFinish();
+                finishOrRecoverField();
                 return;
             }
             // The FARMLAND check is what keeps this branch crop-only after a
@@ -1197,6 +1474,18 @@ public class FarmerWorkGoal extends Goal {
                 return;
             }
             if (replantableCrop && hasSeedFor(harvestedCrop)) {
+                if (!farmContact(target, FarmWorkApproach.Contact.PLANT)) {
+                    // Displacement/obstruction during harvest recovery must
+                    // not start a fresh sow pose at the old contact point.
+                    mode = Mode.TO_REPLANT;
+                    workTicks = 0;
+                    stuckChecks = 0;
+                    repathTimer = 40;
+                    harvestContactCommitted = false;
+                    settler.setActivity(SettlerActivity.IDLE);
+                    pathToTarget();
+                    return;
+                }
                 mode = Mode.PLANTING;
                 workTicks = 0;
                 plantContactCommitted = false;
@@ -1206,18 +1495,25 @@ public class FarmerWorkGoal extends Goal {
                 // hand reads at fifty blocks; pressing one seed into
                 // one hole does not.
                 settler.setActivity(SettlerActivity.WORK_SOW);
-            } else if (bagCount() >= BAG_TRIGGER) {
-                mode = Mode.TO_STORAGE;
-                settler.setActivity(SettlerActivity.CARRYING);
-                pathToStorage();
+            } else if (bagCount() >= bagTrigger()) {
+                beginStorageRoute();
             } else {
-                nextOrFinish();
+                finishOrRecoverField();
             }
             harvestContactCommitted = false;
         }
     }
 
     /** Starts a bounded route to the already-selected Farmhouse input source. */
+    /** Whether this input-route check made no headway (see {@link #inputProgressPos}). */
+    private boolean inputRouteStalled() {
+        net.minecraft.world.phys.Vec3 here = settler.position();
+        boolean moved = inputProgressPos != null
+            && here.distanceToSqr(inputProgressPos) >= INPUT_PROGRESS_SQR;
+        inputProgressPos = here;
+        return !moved || ++inputRouteChecks > INPUT_ROUTE_MAX_CHECKS;
+    }
+
     private void pathToInput() {
         if (!(settler.level() instanceof ServerLevel level) || inputTarget == null) {
             abandonInputAcquisition();
@@ -1259,9 +1555,7 @@ public class FarmerWorkGoal extends Goal {
                 return;
             }
             plantContactCommitted = true;
-            serverLevel.playSound(null, target, ModSounds.SEED_PRESS.get(),
-                SoundSource.NEUTRAL, 0.6F,
-                0.95F + settler.getRandom().nextFloat() * 0.1F);
+            WorkSoundSync.play(serverLevel, target, ModSounds.SEED_PRESS.get(), 0.45F, 1.0F);
         }
         if (workTicks >= plantDuration) {
             if (!plantContactCommitted) {
@@ -1273,10 +1567,8 @@ public class FarmerWorkGoal extends Goal {
             harvestedCrop = null;
             plantContactCommitted = false;
             chargeLightAction();
-            if (bagCount() >= BAG_TRIGGER) {
-                mode = Mode.TO_STORAGE;
-                settler.setActivity(SettlerActivity.CARRYING);
-                pathToStorage();
+            if (bagCount() >= bagTrigger()) {
+                beginStorageRoute();
             } else {
                 nextOrFinish();
             }
@@ -1302,7 +1594,7 @@ public class FarmerWorkGoal extends Goal {
         }
         settler.getLookControl().setLookAt(maintainTarget.getX() + 0.5, maintainTarget.getY() + 0.5,
             maintainTarget.getZ() + 0.5);
-        if (settler.blockPosition().distSqr(maintainTarget) <= 6.5) {
+        if (farmContact(maintainContactTarget(), maintainContactKind())) {
             settler.getNavigation().stop();
             if (maintainIsCane) {
                 // Standing at a legal, still-empty cane site: plant a fresh
@@ -1355,11 +1647,21 @@ public class FarmerWorkGoal extends Goal {
         settler.getLookControl().setLookAt(maintainTarget.getX() + 0.5, maintainTarget.getY() + 0.3,
             maintainTarget.getZ() + 0.5);
         workTicks++;
-        if (workTicks % TILL_DURATION == 12 && settler.level() instanceof ServerLevel serverLevel) {
-            serverLevel.playSound(null, maintainTarget, ModSounds.FARMER_WORK.get(),
-                SoundSource.NEUTRAL, 0.8F, 0.9F + settler.getRandom().nextFloat() * 0.2F);
+        // Contact audio requires reachable, still-workable soil at this exact beat.
+        // The later mutation keeps its own existing revalidation and ownership.
+        if (workTicks % TILL_DURATION == 12
+            && settler.level() instanceof ServerLevel serverLevel
+            && farmContact(maintainTarget, FarmWorkApproach.Contact.SOIL)
+            && isMaintainable(maintainTarget)) {
+            WorkSoundSync.play(serverLevel, maintainTarget, ModSounds.FARMER_WORK.get(), 0.55F, 1.0F);
         }
         if (workTicks >= TILL_DURATION) {
+            if (!farmContact(maintainTarget, FarmWorkApproach.Contact.SOIL)) {
+                settler.recordRouteFailure("farm_till_contact_blocked");
+                maintainTarget = null;
+                nextOrFinish();
+                return;
+            }
             boolean tilled = false;
             if (settler.level() instanceof ServerLevel serverLevel && isMaintainable(maintainTarget)
                 && (hasNearbyCropAnchor(maintainTarget)
@@ -1401,6 +1703,24 @@ public class FarmerWorkGoal extends Goal {
         if (slot < 0) {
             return false;
         }
+        if (!farmContact(pos, FarmWorkApproach.Contact.PLANT)) {
+            // Tilling can finish within soil reach while the plant cell one
+            // block higher still needs another stand. Keep the exact newly
+            // tilled target and physical seed, then use ordinary bounded
+            // planting travel instead of restarting at a soil-only contact.
+            maintainTarget = pos.below();
+            maintainIsPlant = true;
+            maintainIsCane = false;
+            maintainIsWater = false;
+            target = null;
+            mode = Mode.TO_MAINTAIN;
+            workTicks = 0;
+            stuckChecks = 0;
+            repathTimer = 40;
+            settler.setActivity(SettlerActivity.IDLE);
+            pathToMaintainTarget();
+            return true;
+        }
         plantActionId = farmSeedAction(settler.bag.getItem(slot)).orElse(null);
         plantCrop = ((BlockItem) settler.bag.getItem(slot).getItem()).getBlock();
         plantDuration = FIRST_PLANT_DURATION;
@@ -1423,6 +1743,9 @@ public class FarmerWorkGoal extends Goal {
      *         back to nextOrFinish().
      */
     private boolean beginCanePlant(BlockPos pos) {
+        if (!farmContact(pos, FarmWorkApproach.Contact.PLANT)) {
+            return false;
+        }
         plantActionId = null;
         plantContactCommitted = false;
         int slot = isWithinTendedPlot(pos) ? provenanceSeedSlot(true) : -1;
@@ -1463,8 +1786,7 @@ public class FarmerWorkGoal extends Goal {
                 return;
             }
             waterContactCommitted = true;
-            serverLevel.playSound(null, maintainTarget, ModSounds.WATER_POUR.get(),
-                SoundSource.NEUTRAL, 0.6F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
+            WorkSoundSync.play(serverLevel, maintainTarget, ModSounds.WATER_POUR.get(), 0.45F, 1.0F);
         }
         if (workTicks >= WATER_DURATION) {
             if (!waterContactCommitted) {
@@ -1481,7 +1803,7 @@ public class FarmerWorkGoal extends Goal {
 
     /** Moistens the exact tended farmland on FARM_WATER's pour-contact tick. */
     private boolean commitWaterAtContact(ServerLevel serverLevel) {
-        if (maintainTarget == null) {
+        if (!farmContact(maintainTarget, FarmWorkApproach.Contact.SOIL)) {
             return false;
         }
         BlockState state = serverLevel.getBlockState(maintainTarget);
@@ -1535,7 +1857,8 @@ public class FarmerWorkGoal extends Goal {
      *  (see {@link #isMatureCane}) and is not a CropBlock at all, so a cast
      *  would throw the instant a cane top segment matured. */
     private boolean harvest() {
-        if (!(settler.level() instanceof ServerLevel serverLevel) || !isHarvestable(target)) {
+        if (!(settler.level() instanceof ServerLevel serverLevel) || !isHarvestable(target)
+            || !farmContact(target, FarmWorkApproach.Contact.PLANT)) {
             return false;
         }
         Settlement settlement = settler.settlement();
@@ -1552,11 +1875,29 @@ public class FarmerWorkGoal extends Goal {
             return false;
         }
         List<ItemStack> drops = new ArrayList<>();
+        boolean seedBonusRolled = false;
+        // Perception: 0..10% chance the first real drop yields one more of
+        // the same item (AttributeRuntime.extraFind, plan/ATTRIBUTES.md).
+        boolean extraFound = com.hearthstead.entity.AttributeRuntime.extraFind(settler);
         for (ItemStack raw : Block.getDrops(state, serverLevel, target, null)) {
             if (raw.isEmpty()) {
                 continue;
             }
             ItemStack stamped = raw.copy();
+            if (extraFound && stamped.getCount() < stamped.getMaxStackSize()) {
+                extraFound = false;
+                stamped.grow(1);
+            }
+            // Trade skill (secondary, Stamina, level 5+): a small chance the
+            // crop's OWN seed drop -- only when vanilla loot already gave one
+            // -- yields one more. Never an item the loot could not produce.
+            if (!seedBonusRolled && isOwnSeed(stamped, harvestedCrop)) {
+                seedBonusRolled = true;
+                if (stamped.getCount() < stamped.getMaxStackSize()
+                    && com.hearthstead.entity.SkillLevels.rollSide(settler)) {
+                    stamped.grow(1);
+                }
+            }
             if (!WorkerProvenanceService.stampOutput(serverLevel, settlement,
                     farmhouse, settler, actionId, stamped, target)) {
                 settler.recordRouteFailure("farm_harvest_output_prepare_failed");
@@ -1569,43 +1910,63 @@ public class FarmerWorkGoal extends Goal {
             return false;
         }
 
-        List<ItemStack> bagBefore = snapshotBag();
-        if (!WorkerStorageAuthority.storeAllInBag(settler.bag, drops)) {
-            // Keep the mature crop physical. The pending one-point hoe receipt
-            // is replay-safe, so a later retry cannot charge durability twice.
-            settler.recordRouteFailure("farm_harvest_bag_full");
-            return false;
+        List<UUID> queued = new ArrayList<>();
+        for (ItemStack drop : drops) {
+            UUID id = groundCollection.queuePhysical(serverLevel, target, drop);
+            if (id == null) {
+                for (UUID previous : queued) {
+                    if (!groundCollection.cancelQueued(serverLevel, previous)) throw new IllegalStateException("Unmaterialized farm output rollback refused");
+                }
+                settler.recordRouteFailure("farm_harvest_output_queue_full");
+                return false; // The mature crop remains the sole source.
+            }
+            queued.add(id);
         }
+        // Persist UUID+exact-stack intent before consuming the crop. It only
+        // permits future recovery of these same authenticated ItemEntities.
+        fieldBag.recordExpectedDrops(serverLevel, queued, drops);
         if (!serverLevel.removeBlock(target, false)) {
-            restoreBag(bagBefore);
+            fieldBag.clearExpectedDrops();
+            for (UUID id : queued) {
+                if (!groundCollection.cancelQueued(serverLevel, id)) throw new IllegalStateException("Unmaterialized farm output rollback refused");
+            }
             settler.recordRouteFailure("farm_harvest_block_changed");
             return false;
         }
-        if (!WorkerProvenanceService.commitFarmHarvest(serverLevel, settlement,
-                farmhouse, settler, actionId, target, drops)) {
-            // No unreceipted duplicate may survive a rejected terminal
-            // commit. Restore both physical sides if the crop position is
-            // still ours; if the world changed during this server-thread
-            // transaction, keep the stamped bag output as the only physical
-            // side and quarantine the route instead of minting the crop too.
-            boolean worldRolledBack = serverLevel.getBlockState(target).isAir()
-                && serverLevel.setBlock(target, state, Block.UPDATE_ALL);
-            if (worldRolledBack) {
-                restoreBag(bagBefore);
-                settler.recordRouteFailure("farm_harvest_receipt_failed");
-            } else {
-                settler.recordRouteFailure(
-                    "farm_harvest_world_rollback_failed");
-            }
+        // Durable queue now owns all produced matter, not a second bag copy.
+        fieldBag.markHarvested();
+        boolean receipted = WorkerProvenanceService.commitFarmHarvest(serverLevel, settlement,
+            farmhouse, settler, actionId, target, drops);
+        for (UUID id : queued) groundCollection.materializeQueued(serverLevel, target, id);
+        if (!receipted) {
+            // Preserve one physical side on authority failure; never restore the crop as well.
+            settler.recordRouteFailure("farm_harvest_receipt_failed_physical_output_retained");
             return false;
         }
+        // Soft rustle under CROP_PULL (the contact accent) -- not a second full hit.
         serverLevel.playSound(null, target, state.getSoundType().getBreakSound(),
-            SoundSource.BLOCKS, 0.8F, 1.0F);
+            SoundSource.BLOCKS, 0.35F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
         // One crop pulled by hand is one unit of the daily pool -- charged
         // whether or not there is a seed to replant, since the labor is the
         // same either way (PLAN_EFFORT.md §2).
         settler.spendEffort(1);
+        // Stamina is a Farmer core stat, credited only after the crop,
+        // provenance receipt and physical output have all committed.
+        settler.train(com.hearthstead.entity.Attribute.STAMINA, 0.5F);
+        // Trade skill: one crop harvested and committed is one unit (DEX is
+        // trained at planting, STA just above -- XP only here).
+        com.hearthstead.entity.SkillLevels.completeUnit(settler, 1,
+            com.hearthstead.entity.Attribute.STAMINA, com.hearthstead.entity.Attribute.DEXTERITY);
         return true;
+    }
+
+    /** True when {@code stack} is the item that plants {@code crop} (wheat
+     *  seeds for wheat, carrot for carrots...). Real crops only: cane and
+     *  other non-CropBlock harvests never get the seed bonus. */
+    public static boolean isOwnSeed(ItemStack stack, Block crop) {
+        return crop instanceof CropBlock
+            && stack.getItem() instanceof BlockItem blockItem
+            && blockItem.getBlock() == crop;
     }
 
     private List<ItemStack> snapshotBag() {
@@ -1636,7 +1997,8 @@ public class FarmerWorkGoal extends Goal {
         Settlement settlement = settler.settlement();
         Building farmhouse = tendedFarmhouse();
         if (settlement == null || farmhouse == null || target == null
-            || plantActionId == null) {
+            || plantActionId == null
+            || !farmContact(target, FarmWorkApproach.Contact.PLANT)) {
             settler.recordRouteFailure("farm_seed_plant_authority_missing");
             return false;
         }
@@ -1717,7 +2079,7 @@ public class FarmerWorkGoal extends Goal {
     private void nextOrFinish() {
         settler.setActivity(SettlerActivity.IDLE);
         workTicks = 0;
-        stuckChecks = 0;
+        resetFreshRouteBudget();
         while (!queue.isEmpty()) {
             BlockPos candidate = queue.poll();
             if (isHarvestable(candidate)) {
@@ -1746,9 +2108,7 @@ public class FarmerWorkGoal extends Goal {
         // Harvested/ordinary seed is output like any other crop: it returns
         // to the Farmhouse before a later action can withdraw one exact unit.
         if (bagHoldsProduce()) {
-            mode = Mode.TO_STORAGE;
-            settler.setActivity(SettlerActivity.CARRYING);
-            pathToStorage();
+            beginStorageRoute();
         } else {
             done = true;
         }
@@ -1780,6 +2140,12 @@ public class FarmerWorkGoal extends Goal {
             : transit.kind() == TransitKind.FARM_CROP;
     }
 
+    private boolean atDepositBag() {
+        var presentation = settler.bagTransferPresentation();
+        return !presentation.active() || settler.position().distanceToSqr(
+            net.minecraft.world.phys.Vec3.atBottomCenterOf(presentation.bagAnchor())) <= 2.25D;
+    }
+
     private void tickDeposit() {
         if (!(settler.level() instanceof ServerLevel level)) {
             done = true;
@@ -1794,8 +2160,7 @@ public class FarmerWorkGoal extends Goal {
             return;
         }
         if (depositTarget == null) {
-            depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
-                farmhouse, settler.blockPosition());
+            depositTarget = nextStorageTarget(level, farmhouse);
         }
         if (depositTarget == null) {
             settler.recordRouteFailure("farmhouse_storage_missing");
@@ -1807,52 +2172,50 @@ public class FarmerWorkGoal extends Goal {
             depositTarget.getY() + 0.6, depositTarget.getZ() + 0.5);
         ContainerApproach.Result contact = ContainerApproach.inspect(level,
             settler, depositTarget);
-        if (contact.canInteract()) {
+        if (contact.canInteract() && atDepositBag()) {
             settler.getNavigation().stop();
             stuckChecks = 0;
-            // The exact active input unit remains in the bag until planting;
-            // every output unit, including harvested seeds, goes to this
-            // linked Farmhouse for later Courier collection.
-            for (int i = 0; i < settler.bag.getContainerSize(); i++) {
-                ItemStack stack = settler.bag.getItem(i);
-                if (stack.isEmpty()) {
-                    continue;
-                }
-                if (!isDepositableFarmerCargo(stack)) {
-                    continue;
-                }
-                ItemStack send = stack.copy();
-                ItemStack offered = send.copy();
-                WorkerProvenanceService.DepositResult result =
-                    WorkerStackProvenance.readTransit(send).isPresent()
-                        ? WorkerProvenanceService.depositOutput(level,
-                            settlement, farmhouse, settler, depositTarget, send)
-                        : WorkerProvenanceService.depositOrdinary(level,
-                            settlement, farmhouse, settler, depositTarget, send,
-                            BuildingType.FARMHOUSE, WorkZone.Type.FARM);
-                ItemStack leftover = result.remainder();
-                int inserted = offered.getCount() - leftover.getCount();
-                if (result.receipt() != null && inserted > 0) {
-                    DevelopmentQuests.noteFarmCropsStored(level, settlement,
-                        farmhouse, settler, offered, inserted);
-                }
-                settler.bag.setItem(i, leftover);
-            }
-            depositTarget = null;
-            if (bagCount() >= BAG_TRIGGER || bagHoldsProduce()) {
-                settler.recordRouteFailure("farmhouse_storage_full");
+            GroundedBagUnload.Result result = chestBag.tick(level, settler, depositTarget,
+                FarmerWorkGoal::isDepositableFarmerCargo, unit -> {
+                    WorkerProvenanceService.DepositResult delivery =
+                        WorkerStackProvenance.readTransit(unit).isPresent()
+                            ? WorkerProvenanceService.depositOutput(level, settlement, farmhouse, settler, depositTarget, unit.copy())
+                            : WorkerProvenanceService.depositOrdinary(level, settlement, farmhouse, settler, depositTarget,
+                                unit.copy(), BuildingType.FARMHOUSE, WorkZone.Type.FARM);
+                    int inserted = 1 - delivery.remainder().getCount();
+                    if (inserted == 1 && delivery.receipt() != null)
+                        DevelopmentQuests.noteFarmCropsStored(level, settlement, farmhouse, settler, unit, 1);
+                    return inserted == 1;
+                });
+            if (result == GroundedBagUnload.Result.WAITING) return;
+            if (result == GroundedBagUnload.Result.BLOCKED) {
+                settler.recordRouteFailure("farmhouse_storage_full_or_changed");
                 depositRetryCooldown = DEPOSIT_RETRY_TICKS;
             } else {
+                depositTarget = null;
                 depositRetryCooldown = 0;
+                // The carried crop is gone; stale failed paths must not bias a
+                // later, independent harvest after the world has changed.
+                failedDepositTargets.clear();
             }
             done = true;
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
             if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
                 depositTarget = null;
+                // A claim on the vanished chest would reject every new one.
+                if (GroundedBagUnload.presentationTargetGone(level, settler, settler.bagTransferPresentation()))
+                    GroundedBagUnload.clearPresentation(settler, settler.bagTransferPresentation());
             }
-            if (++stuckChecks > 6) {
-                settler.recordRouteFailure("farmhouse_storage_unreachable");
+            stuckChecks = noteStoragePathProgress(level) ? 0 : stuckChecks + 1;
+            if (stuckChecks > 6) {
+                BlockPos failedTarget = depositTarget;
+                if (failedTarget != null) {
+                    failedDepositTargets.add(failedTarget.immutable());
+                    depositTarget = null;
+                }
+                settler.recordRouteFailure("farmhouse_storage_unreachable:"
+                    + (failedTarget == null ? "none" : failedTarget.toShortString()));
                 depositRetryCooldown = DEPOSIT_RETRY_TICKS;
                 done = true;
                 return;
@@ -1861,10 +2224,94 @@ public class FarmerWorkGoal extends Goal {
         }
     }
 
+    /**
+     * Sample before replacing the current path. Only newly consumed nodes of
+     * an accepted route renew its no-progress budget: elapsed repaths, planned
+     * nodes and motion back over an already visited prefix are not progress.
+     */
+    private boolean noteStoragePathProgress(ServerLevel level) {
+        if (depositTarget == null || !depositTarget.equals(storageProgressTarget)) return false;
+        var path = settler.getNavigation().getPath();
+        if (path == null || (!path.canReach()
+            && !SettlerDoorGoal.canRecoverPartialPathThroughClosedDoor(level, path))) return false;
+        boolean progressed = false;
+        int consumed = Math.min(path.getNextNodeIndex(), path.getNodeCount());
+        for (int index = 0; index < consumed
+            && storageProgressNodes.size() < MAX_STORAGE_PROGRESS_NODES; index++) {
+            progressed |= storageProgressNodes.add(path.getNode(index).asBlockPos().immutable());
+        }
+        return progressed;
+    }
+
+    /**
+     * Select the nearest loaded Farmhouse chest that has not exhausted a full
+     * physical contact route for the current carried load. This deliberately
+     * does not preflight or alter navigation: ContainerApproach remains the
+     * single door-aware route authority, and one selected chest remains sticky
+     * through its complete retry budget.
+     */
+    @Nullable
+    private BlockPos nextStorageTarget(ServerLevel level, Building farmhouse) {
+        List<BlockPos> candidates = new ArrayList<>(
+            WorkerStorageAuthority.loadedContainers(level, farmhouse));
+        candidates.sort(Comparator.comparingDouble(settler.blockPosition()::distSqr));
+        for (BlockPos candidate : candidates) {
+            if (!failedDepositTargets.contains(candidate)) {
+                return candidate;
+            }
+        }
+        // Every loaded candidate has failed once. Retain the established
+        // 100-tick cooldown, then permit a repaired door or chest to recover.
+        if (!candidates.isEmpty()) {
+            failedDepositTargets.clear();
+            return candidates.get(0);
+        }
+        return null;
+    }
+
+    private void tickFieldBag() {
+        if (!(settler.level() instanceof ServerLevel level) || !fieldBag.active()) { done=true; return; }
+        GroundedBagSession.Result result=fieldBag.tick(level,this::collectableFieldOutput,
+            tendedFarmhouse());
+        if (result==GroundedBagSession.Result.HARVEST_READY) {
+            target=fieldBag.crop();
+            if (!isHarvestable(target) || !farmContact(target,FarmWorkApproach.Contact.PLANT)
+                || !zoneAllowsMutation(level,target,"ground_bag_harvest")) {
+                fieldBag.cancelUnharvested(); return;
+            }
+            mode=Mode.HARVESTING;workTicks=0;harvestContactCommitted=false;
+            settler.setActivity(SettlerActivity.WORK_HARVEST);
+        } else if(result==GroundedBagSession.Result.NEEDS_UNLOAD) {
+            beginStorageRoute();
+        } else if(result==GroundedBagSession.Result.BLOCKED) {
+            String failure = "farm_ground_bag_recovery_blocked:" + fieldBag.diagnostic(level);
+            settler.recordRouteFailure(failure);
+            com.hearthstead.util.QaTrace.event(settler, "farm_ground_bag_blocked", failure);
+            depositRetryCooldown=DEPOSIT_RETRY_TICKS;done=true;
+        } else if(result==GroundedBagSession.Result.COLLECTED) {
+            target=fieldBag.crop();
+            harvestedCrop=BuiltInRegistries.BLOCK.get(net.minecraft.resources.ResourceLocation.parse(fieldBag.cropId()));
+            boolean pulled=fieldBag.harvested();
+            fieldBag.clear();
+            if (!pulled) { nextOrFinish(); return; }
+            // Continue the original exact-crop seed/input route only after physical collection/pickup.
+            mode=Mode.HARVESTING;workTicks=HARVEST_DURATION-1;harvestContactCommitted=true;
+            finishingFieldBag=true;
+            try { tickHarvest(); } finally { finishingFieldBag=false; }
+        }
+    }
+
     @Override
     public void stop() {
         settler.setActivity(SettlerActivity.IDLE);
         settler.getNavigation().stop();
+        // A priority preemption or profession reassignment must not leave a
+        // bounded field-output stack hidden in the transient offhand. The
+        // existing physical return path keeps the exact stack recoverable by
+        // its saved field session without changing any Farmhouse receipt.
+        if (fieldBag.active() && settler.level() instanceof ServerLevel level) {
+            fieldBag.suspend(level);
+        }
         if (mode == Mode.TO_INPUT || mode == Mode.TO_RETURN_INPUT) {
             // Source selection itself owns no inventory. Drop transient route
             // state on preemption; any already-withdrawn action is persisted

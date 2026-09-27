@@ -1,5 +1,6 @@
 package com.hearthstead.settlement.request;
 
+import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.building.BuildingType;
@@ -72,7 +73,9 @@ public record RequestLedgerSnapshot(UUID settlementId, long generatedTick,
                       int distanceBlocks, boolean stockAvailable,
                       RequestBlocker blocker, PhysicalOwner physicalOwner,
                       boolean targetExact, boolean fullTransportTrace,
-                      boolean equipmentAdapter) {
+                      boolean equipmentAdapter,
+                      @Nullable EquipmentRequest.Reason equipmentReason,
+                      boolean awaitingSource) {
         public Row {
             requestId = requireUuid(requestId);
             type = java.util.Objects.requireNonNull(type, "type");
@@ -141,6 +144,13 @@ public record RequestLedgerSnapshot(UUID settlementId, long generatedTick,
             rows.add(fromEquipment(level, settlement, request));
         }
 
+        // Logistics M1: crafting orders and "needs you" rows, in the same
+        // Row shape the Tasks page already renders (type craft_order).
+        if (rows.size() < MAX_ROWS) {
+            rows.addAll(CraftingOrderService.snapshotRows(level, settlement,
+                MAX_ROWS - rows.size()));
+        }
+
         if (ledger != null && rows.size() < MAX_ROWS) {
             List<RequestRecord> terminal = new ArrayList<>(ledger.terminalHistory());
             terminal.sort(Comparator.comparingLong(RequestRecord::updatedAt)
@@ -195,7 +205,7 @@ public record RequestLedgerSnapshot(UUID settlementId, long generatedTick,
             Math.max(0L, level.getGameTime() - record.createdAt()),
             distance(record.sourceContainer(), record.targetContainer()),
             available, blocker, owner, true, record.hasFullTransportTrace(),
-            false);
+            false, null, false);
     }
 
     private static Row fromEquipment(ServerLevel level, Settlement settlement,
@@ -249,7 +259,7 @@ public record RequestLedgerSnapshot(UUID settlementId, long generatedTick,
             request.createdAtTick() < 0L ? UNKNOWN_AGE
                 : Math.max(0L, level.getGameTime() - request.createdAtTick()),
             distance(request.sourceContainer(), request.targetContainer()),
-            available, blocker, owner, true, true, false);
+            available, blocker, owner, true, true, false, request.reason(), false);
     }
 
     private static Row legacyEquipmentRow(ServerLevel level,
@@ -278,7 +288,7 @@ public record RequestLedgerSnapshot(UUID settlementId, long generatedTick,
                 ? RequestBlocker.MALFORMED
                 : RequestBlocker.EQUIPMENT_ADAPTER_LIMITED,
             PhysicalOwner.UNKNOWN,
-            false, false, true);
+            false, false, true, request.reason(), request.awaitingSource());
     }
 
     private static PhysicalOwner equipmentOwner(
@@ -486,6 +496,27 @@ public record RequestLedgerSnapshot(UUID settlementId, long generatedTick,
 
     private static boolean targetOwnsDelivered(ServerLevel level,
                                                RequestRecord record) {
+        if (record.type() == RequestType.FOOD) {
+            Settlement settlement = SettlementManager.byId(level, record.settlementId());
+            if (settlement == null || !record.targetBuildingId().equals(settlement.id)
+                || !record.targetContainer().equals(settlement.center)
+                || !level.hasChunkAt(record.targetContainer())
+                || !(level.getBlockEntity(record.targetContainer()) instanceof HearthBlockEntity hearth)
+                || !record.settlementId().equals(hearth.getSettlementId())) {
+                return false;
+            }
+            long count = 0;
+            var inventory = hearth.getInventory();
+            for (int slot = 0; slot < inventory.getSlots(); slot++) {
+                ItemStack stack = inventory.getStackInSlot(slot);
+                if (record.fingerprint().matches(level.registryAccess(), stack)) {
+                    count += stack.getCount();
+                }
+            }
+            // This is live stock availability, not the delivery receipt. Meals
+            // eaten later may make it false without invalidating SATISFIED.
+            return count >= (long) record.targetCountBefore() + record.deliveredCount();
+        }
         Container container = containerAtLoaded(level, record.targetContainer());
         if (container == null) {
             return false;

@@ -4,8 +4,12 @@ import com.hearthstead.Hearthstead;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.OwnedProjectileLedger;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModEntities;
+import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.raid.RaidObjective;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -19,8 +23,14 @@ import net.minecraft.world.entity.projectile.Arrow;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.UUID;
+import java.util.function.Consumer;
 
 /** Native-server scenarios for final combat-event observation. */
 @GameTestHolder(Hearthstead.MODID)
@@ -183,10 +193,27 @@ public final class CombatTerminalTelemetryGameTests {
             new BlockPos(3, 1, 5));
         archer.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
         archer.attributes().pinForTest(Attribute.DEXTERITY, 0);
+        Settlement settlement = new Settlement(UUID.randomUUID(), "Pilvik",
+            helper.absolutePos(new BlockPos(6, 1, 6)));
+        settlement.radius = 8;
+        SettlementSavedData.get(helper.getLevel()).settlements.put(
+            settlement.id, settlement);
+        archer.bindTo(settlement.id, settlement.center);
         Zombie firstVictim = zombie(helper, new BlockPos(6, 1, 5));
         Zombie secondVictim = zombie(helper, new BlockPos(8, 1, 5));
         Zombie thirdVictim = zombie(helper, new BlockPos(8, 1, 7));
         Zombie fourthVictim = zombie(helper, new BlockPos(6, 1, 7));
+
+        // Prove the counter at the real incoming-damage boundary, not only
+        // through the pure multiplier helper. It is deliberately applied on
+        // impact rather than at arrow creation so the exact victim class and
+        // captain flag remain authoritative.
+        assertArcherCounter(helper, archer, settlement,
+            RaiderEntity.Variant.SKIRMISHER, false, 3.75F);
+        assertArcherCounter(helper, archer, settlement,
+            RaiderEntity.Variant.BRUTE, false, 3.0F);
+        assertArcherCounter(helper, archer, settlement,
+            RaiderEntity.Variant.SKIRMISHER, true, 3.0F);
 
         Arrow arrow = new Arrow(helper.getLevel(), archer,
             new ItemStack(Items.ARROW), archer.getMainHandItem());
@@ -283,12 +310,126 @@ public final class CombatTerminalTelemetryGameTests {
             "restored persistent authority must commit four distinct victims");
         helper.assertTrue(dexterityTrainingStamp(archer) > trainingAfterSecond,
             "later restored contacts must keep training monotonically");
+
+        // The projectile ledger must remain security authority even when its
+        // owning Archer is not currently resolvable. This is the exact
+        // chunk-unload/restart gap that a live-owner-only predicate misses:
+        // a claimed settlement arrow may not silently become ordinary
+        // friendly-fire damage merely because getOwner() returns null.
+        SettlerEntity friendly = settler(helper, Profession.NONE,
+            new BlockPos(5, 1, 9));
+        helper.assertTrue(OwnedProjectileLedger.inspect(reloaded) != null,
+            "fixture: the restored arrow must still carry strict authority");
+        reloaded.setOwner(null);
+        friendly.invulnerableTime = 0;
+        float friendlyBefore = friendly.getHealth();
+        long contactsBeforeOrphan = OwnedProjectileLedger.committedCount(reloaded);
+        float trainingBeforeOrphan = dexterityTrainingStamp(archer);
+        helper.assertFalse(friendly.hurt(
+                helper.getLevel().damageSources().arrow(reloaded, null), 4.0F),
+            "an owned arrow with no resolvable damage-source owner must be canceled");
+        helper.assertTrue(friendly.getHealth() == friendlyBefore
+                && OwnedProjectileLedger.committedCount(reloaded)
+                    == contactsBeforeOrphan
+                && dexterityTrainingStamp(archer) == trainingBeforeOrphan,
+            "an unavailable exact Archer must mean zero health loss, zero "
+                + "contact commit and zero Dexterity training");
+
+        Arrow malformed = new Arrow(helper.getLevel(), archer,
+            new ItemStack(Items.ARROW), archer.getMainHandItem());
+        malformed.getPersistentData().put(OwnedProjectileLedger.ROOT_KEY,
+            new CompoundTag());
+        malformed.setOwner(archer);
+        friendly.invulnerableTime = 0;
+        float beforeMalformed = friendly.getHealth();
+        helper.assertFalse(friendly.hurt(
+                helper.getLevel().damageSources().arrow(malformed, archer), 4.0F)
+                || friendly.getHealth() != beforeMalformed,
+            "a malformed Hearthstead arrow claim must fail closed through the "
+                + "real damage pipeline, not fall through");
         helper.succeed();
     }
 
     private static float dexterityTrainingStamp(SettlerEntity archer) {
         return archer.attribute(Attribute.DEXTERITY)
             + archer.attributes().trainingProgress(Attribute.DEXTERITY);
+    }
+
+    private static void assertArcherCounter(GameTestHelper helper,
+                                            SettlerEntity archer,
+                                            Settlement settlement,
+                                            RaiderEntity.Variant variant,
+                                            boolean captain,
+                                            float expectedDamage) {
+        RaiderEntity raider = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(captain ? 10 : variant == RaiderEntity.Variant.BRUTE
+                ? 9 : 8, 1, 9));
+        raider.setNoAi(true);
+        raider.setVariant(variant);
+        raider.assign(UUID.randomUUID(), settlement.id, RaidObjective.BLOD,
+            1.0F, captain);
+        Arrow arrow = new Arrow(helper.getLevel(), archer,
+            new ItemStack(Items.ARROW), archer.getMainHandItem());
+        helper.assertTrue(OwnedProjectileLedger.issue(arrow, archer),
+            "fixture counter arrow must receive persisted ownership");
+        float[] observedIncoming = {Float.NaN};
+        int[] observedEvents = {0};
+        Consumer<LivingIncomingDamageEvent> observeRealPipeline = event -> {
+            if (event.getEntity() == raider
+                && event.getSource().getDirectEntity() == arrow) {
+                observedIncoming[0] = event.getAmount();
+                observedEvents[0]++;
+            }
+        };
+        NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST,
+            LivingIncomingDamageEvent.class, observeRealPipeline);
+        float healthBefore = raider.getHealth();
+        float trainingBefore = dexterityTrainingStamp(archer);
+        try {
+            raider.invulnerableTime = 0;
+            helper.assertTrue(raider.hurt(
+                    helper.getLevel().damageSources().arrow(arrow, archer), 3.0F),
+                "counter fixture must execute one real owned-arrow hurt");
+            float applied = healthBefore - raider.getHealth();
+            helper.assertTrue(observedEvents[0] == 1
+                    && Math.abs(observedIncoming[0] - expectedDamage) < 0.001F
+                    && applied > 0.0F
+                    && OwnedProjectileLedger.committedCount(arrow) == 1L
+                    && dexterityTrainingStamp(archer) > trainingBefore,
+                "real Archer damage pipeline mismatch for " + variant
+                    + " captain=" + captain + ": incoming="
+                    + observedIncoming[0] + " expected=" + expectedDamage
+                    + ", final health delta=" + applied + ", commits="
+                    + OwnedProjectileLedger.committedCount(arrow)
+                    + ", events=" + observedEvents[0]);
+
+            // A second genuine hurt proves the event-bus counter is not
+            // compounded by duplicate registration, while the victim receipt
+            // prevents XP / attribute training from replaying for the same
+            // arrow contact. Final HP is intentionally checked separately
+            // because normal armour mitigation follows IncomingDamageEvent.
+            float trainingAfterFirst = dexterityTrainingStamp(archer);
+            float replayHealthBefore = raider.getHealth();
+            raider.invulnerableTime = 0;
+            helper.assertTrue(raider.hurt(
+                    helper.getLevel().damageSources().arrow(arrow, archer), 3.0F),
+                "counter replay fixture must remain a real gameplay hurt");
+            float replayApplied = replayHealthBefore - raider.getHealth();
+            helper.assertTrue(observedEvents[0] == 2
+                    && Math.abs(observedIncoming[0] - expectedDamage) < 0.001F
+                    && replayApplied > 0.0F
+                    && OwnedProjectileLedger.committedCount(arrow) == 1L
+                    && dexterityTrainingStamp(archer) == trainingAfterFirst,
+                "counter must apply exactly once per real event and contact "
+                    + "training must commit once; incoming="
+                    + observedIncoming[0] + ", final replay delta="
+                    + replayApplied + ", commits="
+                    + OwnedProjectileLedger.committedCount(arrow)
+                    + ", events=" + observedEvents[0]);
+        } finally {
+            NeoForge.EVENT_BUS.unregister(observeRealPipeline);
+        }
+        raider.discard();
     }
 
     public CombatTerminalTelemetryGameTests() {

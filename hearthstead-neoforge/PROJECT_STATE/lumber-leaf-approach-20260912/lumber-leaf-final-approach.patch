@@ -1,0 +1,193 @@
+diff --git a/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java b/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java
+--- a/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/LumbererWorkGoal.java
+@@ -135,6 +135,12 @@
+      */
+     private static final double ITEM_APPROACH_ARRIVAL_DISTANCE_SQR = 2.25;
+     private static final double CANOPY_CLEAR_REACH_SQR = 20.25;
++    /**
++     * A claimed tree's fixed stand can remain just beyond the entity's normal
++     * collision box after a failed route. Scan only that final direct lane;
++     * this does not expand clearance while collecting physical output.
++     */
++    private static final double TREE_FINAL_LEAF_APPROACH_REACH = 3.0D;
+     private static final double CONTAINER_CONTACT_DISTANCE_SQR = 2.25;
+     private static final double RECOVERY_HORIZONTAL = 64.0;
+     private static final double RECOVERY_VERTICAL = 128.0;
+@@ -1060,7 +1066,8 @@
+         }
+         if (settler.level() instanceof ServerLevel level && workActionId != null
+             && settler.getUUID().equals(treeClaimant(level, treeBase))) {
+-            clearObstructingLeaf(level, treeBase.relative(standSide()));
++            clearObstructingLeaf(level, treeBase.relative(standSide()),
++                TREE_FINAL_LEAF_APPROACH_REACH);
+         }
+         settler.getLookControl().setLookAt(treeBase.getX() + 0.5, treeBase.getY() + 1.0,
+             treeBase.getZ() + 0.5);
+@@ -1093,7 +1100,7 @@
+     }
+ 
+     /** Clears only the first physical obstruction in a short, blocked work approach. */
+-    private void clearObstructingLeaf(ServerLevel level, BlockPos destination) {
++    private void clearObstructingLeaf(ServerLevel level, BlockPos destination, double maximumReach) {
+         long now = level.getGameTime();
+         if (now < nextLeafClearTick || (!settler.horizontalCollision
+                 && !settler.getNavigation().isDone())
+@@ -1107,7 +1114,8 @@
+         Vec3 direction = Vec3.atBottomCenterOf(destination).subtract(settler.position());
+         direction = new Vec3(direction.x, 0, direction.z);
+         if (direction.lengthSqr() < 0.01) return;
+-        Vec3 reach = direction.normalize().scale(0.85);
++        Vec3 reach = direction.normalize().scale(Math.min(maximumReach,
++            Math.sqrt(direction.lengthSqr())));
+         AABB corridor = settler.getBoundingBox().deflate(0.01).expandTowards(reach);
+         BlockPos obstruction = null;
+         double nearest = Double.MAX_VALUE;
+@@ -1873,7 +1881,7 @@
+             return;
+         }
+         clearCanopyLeafForSelectedOutput(level, zone, target);
+-        clearObstructingLeaf(level, target.blockPosition());
++        clearObstructingLeaf(level, target.blockPosition(), 0.85D);
+         unresolvedDropTicks = 0;
+         settler.getLookControl().setLookAt(target, 30.0F, 30.0F);
+         // Euclidean reach alone is not authority: it can be short through a
+diff --git a/src/main/java/com/hearthstead/gametest/LumbererGameTests.java b/src/main/java/com/hearthstead/gametest/LumbererGameTests.java
+--- a/src/main/java/com/hearthstead/gametest/LumbererGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/LumbererGameTests.java
+@@ -114,13 +114,30 @@
+         runActualTreeReturn(helper, true, Direction.EAST);
+     }
+ 
++    /**
++     * A real claimed Lumberer starts 2.5 blocks before a natural leaf in the
++     * only north approach. The first production goal tick is deliberately
++     * held at that physical location, so this fails with the former 0.85
++     * collision corridor; normal AI resumes only after the real leaf break.
++     */
++    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "lumberer_leaf_access")
++    public void hiredLumbererClearsNaturalLeafInFinalThreeBlockApproachAndStartsWork(
++        GameTestHelper helper) {
++        runActualTreeReturn(helper, true, Direction.NORTH, true);
++    }
++
+     private void runActualTreeReturn(GameTestHelper helper, boolean leafDoorway) {
+-        runActualTreeReturn(helper, leafDoorway, null);
++        runActualTreeReturn(helper, leafDoorway, null, false);
+     }
+ 
+     /** A leaf doorway fixes the goal's UUID-derived approach before the actor joins the level. */
+     private void runActualTreeReturn(GameTestHelper helper, boolean leafDoorway,
+                                      Direction forcedApproach) {
++        runActualTreeReturn(helper, leafDoorway, forcedApproach, false);
++    }
++
++    private void runActualTreeReturn(GameTestHelper helper, boolean leafDoorway,
++                                     Direction forcedApproach, boolean finalApproachLeaf) {
+         helper.getLevel().setDayTime(2000);
+         buildArena(helper, 16);
+ 
+@@ -159,9 +176,11 @@
+             }
+         }
+ 
++        BlockPos lumbererStartRel = finalApproachLeaf
++            ? new BlockPos(8, 1, 4) : new BlockPos(4, 1, 4);
+         SettlerEntity ulf;
+         if (forcedApproach == null) {
+-            ulf = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(4, 1, 4));
++            ulf = helper.spawn(ModEntities.SETTLER.get(), lumbererStartRel);
+         } else {
+             ulf = ModEntities.SETTLER.get().create(helper.getLevel());
+             helper.assertTrue(ulf != null, "fixture: deterministic lumberer must construct");
+@@ -169,8 +188,9 @@
+             UUID actorId = new UUID(uniqueId.getMostSignificantBits(),
+                 (uniqueId.getLeastSignificantBits() & ~3L) | forcedApproach.get2DDataValue());
+             ulf.setUUID(actorId);
+-            BlockPos ulfAbs = helper.absolutePos(new BlockPos(4, 1, 4));
+-            ulf.setPos(ulfAbs.getX() + 0.5D, ulfAbs.getY(), ulfAbs.getZ() + 0.5D);
++            BlockPos ulfAbs = helper.absolutePos(lumbererStartRel);
++            ulf.setPos(ulfAbs.getX() + 0.5D, ulfAbs.getY(),
++                ulfAbs.getZ() + (finalApproachLeaf ? 0.0D : 0.5D));
+             helper.assertTrue(helper.getLevel().addFreshEntity(ulf),
+                 "fixture: deterministic lumberer must enter ServerLevel once");
+             helper.assertTrue(actorId.equals(ulf.getUUID())
+@@ -212,12 +232,49 @@
+             for (int x = 1; x <= 14; x++) for (int y = 1; y <= 4; y++) {
+                 helper.setBlock(new BlockPos(x, y, 6), Blocks.STONE_BRICKS);
+             }
+-            for (int x = 7; x <= 9; x++) for (int y = 1; y <= 2; y++) {
+-                helper.setBlock(new BlockPos(x, y, 6), Blocks.OAK_LEAVES.defaultBlockState()
+-                    .setValue(net.minecraft.world.level.block.LeavesBlock.DISTANCE, 2));
++            if (finalApproachLeaf) {
++                // Actor (8.5, 1.0, 4.0) to the blocking leaf centre
++                // (8.5, 1.5, 6.5) is exactly 2.5 blocks horizontally.
++                // The fixed north stand remains farther ahead.
++                for (int y = 1; y <= 2; y++) {
++                    helper.setBlock(new BlockPos(8, y, 6), Blocks.OAK_LEAVES.defaultBlockState()
++                        .setValue(net.minecraft.world.level.block.LeavesBlock.DISTANCE, 2));
++                }
++                // Natural but outside the three-block direct lane: leave it.
++                for (int y = 1; y <= 2; y++) {
++                    helper.setBlock(new BlockPos(4, y, 6), Blocks.OAK_LEAVES.defaultBlockState()
++                        .setValue(net.minecraft.world.level.block.LeavesBlock.DISTANCE, 2));
++                }
++            } else {
++                for (int x = 7; x <= 9; x++) for (int y = 1; y <= 2; y++) {
++                    helper.setBlock(new BlockPos(x, y, 6), Blocks.OAK_LEAVES.defaultBlockState()
++                        .setValue(net.minecraft.world.level.block.LeavesBlock.DISTANCE, 2));
++                }
+             }
+             helper.setBlock(new BlockPos(5, 1, 4), Blocks.OAK_LEAVES.defaultBlockState()
+                 .setValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT, true));
++        }
++        final boolean[] finalApproachClaimed = {!finalApproachLeaf};
++        final boolean[] finalApproachLeafCleared = {!finalApproachLeaf};
++        if (finalApproachLeaf) {
++            // Exercise the exact production action/claim and physical break at
++            // the stalled body position. No fixture block is removed directly.
++            ulf.setNoAi(true);
++            LumbererWorkGoal stalledGoal = new LumbererWorkGoal(ulf);
++            helper.onEachTick(() -> {
++                if (finalApproachClaimed[0] || !stalledGoal.canUse()) {
++                    return;
++                }
++                finalApproachClaimed[0] = true;
++                stalledGoal.start();
++                ulf.getNavigation().stop();
++                stalledGoal.tick();
++                finalApproachLeafCleared[0] = helper.getLevel().getBlockState(
++                    helper.absolutePos(new BlockPos(8, 1, 6))).isAir();
++                // Let the ordinary registered Lumberer goal resume the
++                // authenticated action and prove actual WORK_CHOP/haul.
++                ulf.setNoAi(false);
++            });
+         }
+         final boolean[] sawChopping = {false};
+         final boolean[] sawHauling = {false};
+@@ -292,12 +349,22 @@
+                     + " route=" + ulf.routeFailureNote() + ")");
+             if (leafDoorway) {
+                 boolean openDoorway = false;
+-                for (int x = 7; x <= 9; x++) {
++                int doorwayMinX = finalApproachLeaf ? 8 : 7;
++                int doorwayMaxX = finalApproachLeaf ? 8 : 9;
++                for (int x = doorwayMinX; x <= doorwayMaxX; x++) {
+                     openDoorway |= helper.getLevel().getBlockState(helper.absolutePos(new BlockPos(x, 1, 6))).isAir()
+                         && helper.getLevel().getBlockState(helper.absolutePos(new BlockPos(x, 2, 6))).isAir();
+                 }
+-                helper.assertTrue(openDoorway,
+-                    "an actual two-block leaf access must open before the complete real tree return");
++                helper.assertTrue(openDoorway, finalApproachLeaf
++                    ? "the 2.5-block natural final-approach leaf must open before real chopping and return"
++                    : "an actual two-block leaf access must open before the complete real tree return");
++                if (finalApproachLeaf) {
++                    helper.assertTrue(finalApproachClaimed[0] && finalApproachLeafCleared[0],
++                        "the claimed production goal must clear at the original stalled 2.5-block reach");
++                    helper.assertTrue(helper.getLevel().getBlockState(
++                            helper.absolutePos(new BlockPos(4, 1, 6))).is(Blocks.OAK_LEAVES),
++                        "a natural leaf outside the three-block direct lane must remain");
++                }
+                 helper.assertTrue(helper.getLevel().getBlockState(helper.absolutePos(new BlockPos(5, 1, 4)))
+                     .getValue(net.minecraft.world.level.block.LeavesBlock.PERSISTENT),
+                     "player-placed persistent leaf must remain");

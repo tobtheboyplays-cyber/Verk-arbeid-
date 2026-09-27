@@ -1,0 +1,30 @@
+{
+  "id": "summons",
+  "title": "hearthstead.guide.summons.title",
+  "icon": "minecraft:goat_horn",
+  "pages": [
+    {
+      "id": "summons.p1",
+      "title": "hearthstead.guide.summons.p1.title",
+      "bullets": [
+        "hearthstead.guide.summons.p1.b1",
+        "hearthstead.guide.summons.p1.b2",
+        "hearthstead.guide.summons.p1.b3"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.summons.p1.k1"
+        },
+        {
+          "key": "key.hearthstead.command_melee",
+          "action": "hearthstead.guide.summons.p1.k2"
+        }
+      ],
+      "tip": "hearthstead.guide.summons.p1.tip",
+      "text": [
+        "hearthstead.guide.summons.body"
+      ]
+    }
+  ]
+}

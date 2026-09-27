@@ -1,0 +1,55 @@
+{
+  "id": "work_zones",
+  "title": "hearthstead.guide.work_zones.title",
+  "icon": "hearthstead:work_scepter",
+  "pages": [
+    {
+      "id": "work_zones.p1",
+      "title": "hearthstead.guide.work_zones.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/work_zone.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.work_zones.p1.b1",
+        "hearthstead.guide.work_zones.p1.b2",
+        "hearthstead.guide.work_zones.p1.b3",
+        "hearthstead.guide.work_zones.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.work_zones.p1.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:work_scepter",
+        "minecraft:flint",
+        "minecraft:copper_ingot",
+        "minecraft:stick"
+      ],
+      "tip": "hearthstead.guide.work_zones.p1.tip",
+      "text": [
+        "hearthstead.guide.work_zones.body"
+      ],
+      "journey": [
+        "fj_330_set_farm_zone"
+      ]
+    },
+    {
+      "id": "work_zones.p2",
+      "title": "hearthstead.guide.work_zones.p2.title",
+      "bullets": [
+        "hearthstead.guide.work_zones.p2.b1",
+        "hearthstead.guide.work_zones.p2.b2",
+        "hearthstead.guide.work_zones.p2.b3"
+      ],
+      "tip": "hearthstead.guide.work_zones.p2.tip",
+      "text": [
+        "hearthstead.guide.work_zones.body2"
+      ]
+    }
+  ]
+}

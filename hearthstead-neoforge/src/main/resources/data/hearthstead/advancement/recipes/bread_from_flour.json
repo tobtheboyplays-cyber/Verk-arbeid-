@@ -1,0 +1,11 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_flour": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": { "items": [{ "items": "hearthstead:flour" }] }
+    }
+  },
+  "requirements": [["has_flour"]],
+  "rewards": { "recipes": ["hearthstead:bread_from_flour"] }
+}

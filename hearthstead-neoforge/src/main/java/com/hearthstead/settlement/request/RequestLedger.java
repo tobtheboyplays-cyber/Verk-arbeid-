@@ -199,11 +199,16 @@ public final class RequestLedger {
             || reason.length() > MAX_QUARANTINE_REASON) {
             return quarantined(expectedSettlementId, "ledger_bounds");
         }
-        RequestLedger decoded = new RequestLedger(expectedSettlementId,
-            revision, tag.getBoolean("Quarantined"), reason);
-        if (decoded.quarantined) {
-            return decoded;
+        boolean savedQuarantine = tag.getBoolean("Quarantined");
+        if (savedQuarantine && !repairableSavedQuarantine(reason)) {
+            return new RequestLedger(expectedSettlementId, revision, true,
+                reason);
         }
+        // A runtime quarantine persisted by an earlier session still carries
+        // every row, strictly decoded below. It is repaired after decoding
+        // instead of freezing the settlement's Couriers forever.
+        RequestLedger decoded = new RequestLedger(expectedSettlementId,
+            revision, false, "none");
         ListTag activeRows = tag.getList("Active", Tag.TAG_COMPOUND);
         ListTag terminalRows = tag.getList("Terminal", Tag.TAG_COMPOUND);
         if (activeRows.size() > MAX_ACTIVE || terminalRows.size() > MAX_TERMINAL) {
@@ -212,8 +217,27 @@ public final class RequestLedger {
         Set<UUID> ids = new HashSet<>();
         Set<String> duplicateKeys = new HashSet<>();
         for (int i = 0; i < activeRows.size(); i++) {
-            RequestRecord row = RequestRecord.readNbt(activeRows.getCompound(i),
-                registries, expectedSettlementId);
+            CompoundTag raw = activeRows.getCompound(i);
+            boolean legacyZeroCargo = RequestRecord.isLegacyZeroCargoOutputDigest(
+                raw, registries);
+            RequestRecord row = legacyZeroCargo
+                ? RequestRecord.readLegacyZeroCargoOutputAsExpiredNbt(raw,
+                    registries, expectedSettlementId)
+                : RequestRecord.readNbt(raw, registries, expectedSettlementId);
+            if (legacyZeroCargo) {
+                // The saved row cannot be resumed: its old checksum describes
+                // presentation only, it owns zero items, and the prior state
+                // already records a fingerprint mismatch. Preserve its trace as
+                // EXPIRED so a new scan may observe the real source safely.
+                if (row == null || !ids.add(row.id())
+                    || decoded.terminal.size() >= MAX_TERMINAL
+                    || row.state() != RequestState.EXPIRED) {
+                    return quarantined(expectedSettlementId,
+                        "legacy_zero_cargo_expiry_failed");
+                }
+                decoded.terminal.put(row.id(), row);
+                continue;
+            }
             if (row == null || row.state().terminal() || !ids.add(row.id())
                 || !duplicateKeys.add(row.duplicateKey())) {
                 return quarantined(expectedSettlementId, "malformed_active_row");
@@ -221,14 +245,119 @@ public final class RequestLedger {
             decoded.active.put(row.id(), row);
         }
         for (int i = 0; i < terminalRows.size(); i++) {
-            RequestRecord row = RequestRecord.readNbt(terminalRows.getCompound(i),
-                registries, expectedSettlementId);
-            if (row == null || !row.state().terminal() || !ids.add(row.id())) {
+            CompoundTag raw = terminalRows.getCompound(i);
+            RequestRecord row = RequestRecord.readNbt(raw, registries, expectedSettlementId);
+            if (row == null) {
+                row = RequestRecord.readLegacyTerminalNbt(raw, registries, expectedSettlementId);
+            }
+            if (row == null || !row.state().terminal() || !ids.add(row.id())
+                || decoded.terminal.size() >= MAX_TERMINAL) {
                 return quarantined(expectedSettlementId, "malformed_terminal_row");
             }
             decoded.terminal.put(row.id(), row);
         }
+        if (savedQuarantine
+            && !decoded.repairAfterRuntimeQuarantine(reason)) {
+            return new RequestLedger(expectedSettlementId, revision, true,
+                reason);
+        }
         return decoded;
+    }
+
+    /**
+     * Reasons written by strict loading or structural bounds. Their rows were
+     * never decoded (a load-time quarantine persists no rows), so nothing can
+     * be proven about Courier bags and the ledger stays fail-closed.
+     */
+    private static final Set<String> NON_REPAIRABLE_REASONS = Set.of(
+        "unknown", "malformed_ledger_header", "ledger_bounds",
+        "ledger_cardinality", "legacy_zero_cargo_expiry_failed",
+        "malformed_active_row", "malformed_terminal_row", "revision_bound",
+        "malformed_root", "missing_root_version", "legacy_rows_not_supported",
+        "future_root_version", "root_bounds",
+        "duplicate_or_malformed_settlement", "settlement_bound");
+
+    static boolean repairableSavedQuarantine(String reason) {
+        return reason != null && !reason.isBlank()
+            && !reason.equals("none")
+            && !NON_REPAIRABLE_REASONS.contains(reason);
+    }
+
+    private boolean repairedFromQuarantine;
+    private String repairedReason = "none";
+
+    /** True when this instance was loaded from a runtime-quarantined image and repaired. */
+    public boolean repairedFromQuarantine() {
+        return repairedFromQuarantine;
+    }
+
+    public String repairedReason() {
+        return repairedReason;
+    }
+
+    /**
+     * Bookkeeping-only recovery for a ledger an earlier session quarantined
+     * at runtime (for example {@code deliver_satisfaction_proof_failed}).
+     * Physical items never live in the ledger: they are in containers or
+     * Courier bags, and this repair moves none of them.
+     *
+     * <ul>
+     *   <li>DELIVERED rows already proved every deposit's exact bag/target
+     *       delta, so they close as SATISFIED under their own Courier.</li>
+     *   <li>Cargo-free self-loop rows (source container == target container,
+     *       which older builds opened when a producer building overlapped
+     *       the Warehouse) can never complete, so they expire; the items
+     *       never left that container.</li>
+     *   <li>Every other row, including any with cargo in a Courier bag,
+     *       stays active under its normal owner and recovery rules.</li>
+     * </ul>
+     * Returns false (the caller then keeps the quarantine) if any edge is
+     * refused.
+     */
+    boolean repairAfterRuntimeQuarantine(String reason) {
+        if (!repairableSavedQuarantine(reason)) {
+            return false;
+        }
+        List<RequestRecord> rows = new ArrayList<>(active.values());
+        for (RequestRecord row : rows) {
+            RequestState effective = row.effectiveState();
+            boolean closed;
+            if (row.state() == RequestState.DELIVERED) {
+                closed = row.courierId() != null
+                    && row.markSatisfied(row.courierId(), row.updatedAt());
+            } else if (row.sourceContainer().equals(row.targetContainer())
+                && row.movedCount() == 0
+                && (effective == RequestState.OPEN
+                    || effective == RequestState.RESERVED)) {
+                closed = row.expire(row.updatedAt());
+            } else {
+                continue;
+            }
+            if (!closed || !row.state().terminal()) {
+                return false;
+            }
+            retire(row);
+        }
+        quarantined = false;
+        quarantineReason = "none";
+        repairedFromQuarantine = true;
+        repairedReason = boundedReason(reason);
+        bumpRevision();
+        return !quarantined;
+    }
+
+    private void retire(RequestRecord record) {
+        active.remove(record.id());
+        if (terminal.size() >= MAX_TERMINAL) {
+            UUID oldest = terminal.values().stream()
+                .min(Comparator.comparingLong(RequestRecord::updatedAt)
+                    .thenComparing(row -> row.id().toString()))
+                .map(RequestRecord::id).orElse(null);
+            if (oldest != null) {
+                terminal.remove(oldest);
+            }
+        }
+        terminal.put(record.id(), record);
     }
 
     public static RequestLedger quarantined(UUID settlementId, String reason) {

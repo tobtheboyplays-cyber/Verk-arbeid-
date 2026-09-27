@@ -5,6 +5,8 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.JobEffects;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.BagTransferPresentation;
+import com.hearthstead.entity.animation.BagToChestAnimationContract;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.Trait;
@@ -35,6 +37,7 @@ import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.ai.goal.Goal;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
@@ -42,6 +45,8 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LeavesBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
@@ -99,7 +104,16 @@ public class LumbererWorkGoal extends Goal {
     private static final int ARRIVAL_REPATH_TICKS = 20;
     private static final int CAMP_REPATH_TICKS = 40;
     private static final int MAX_PATH_FAILURES = 8;
-    private static final int RECOVERY_RETRY_TICKS = 100;
+    /**
+     * Retained drops own a finite lease. Wake with two normal heartbeat
+     * windows still available; using the full lease duration made the exact
+     * retry tick lose authority before it could reclaim the physical item.
+     */
+    private static final int RECOVERY_RETRY_TICKS =
+        GroundCollectionSession.OWNERSHIP_LEASE_TICKS
+            - 2 * GroundCollectionSession.OWNERSHIP_REFRESH_TICKS;
+    /** Approach changes may reset progress, but never this absolute budget. */
+    private static final int MAX_ITEM_ROUTE_ATTEMPTS = 24;
     private static final int UNLOADED_DROP_WAIT_TICKS = 100;
     /**
      * Ground navigation stops an adult mob on an adjacent standing node, not
@@ -120,6 +134,19 @@ public class LumbererWorkGoal extends Goal {
      * and clear-ray gates below still own physical contact.
      */
     private static final double ITEM_APPROACH_ARRIVAL_DISTANCE_SQR = 2.25;
+    /**
+     * A stamped output can land above the final reachable ground node after a
+     * real tree fall. Eight blocks is still a local axe action, while the
+     * provenance, exact work-zone, first-hit ray, natural-leaf and building
+     * guards below keep it from becoming broad canopy clearance.
+     */
+    private static final double CANOPY_CLEAR_REACH_SQR = 64.0;
+    /**
+     * A claimed tree's fixed stand can remain just beyond the entity's normal
+     * collision box after a failed route. Scan only that final direct lane;
+     * this does not expand clearance while collecting physical output.
+     */
+    private static final double TREE_FINAL_LEAF_APPROACH_REACH = 3.0D;
     private static final double CONTAINER_CONTACT_DISTANCE_SQR = 2.25;
     private static final double RECOVERY_HORIZONTAL = 64.0;
     private static final double RECOVERY_VERTICAL = 128.0;
@@ -203,6 +230,7 @@ public class LumbererWorkGoal extends Goal {
     /** Missing-tool chest/request retry is bounded; AI selection itself may run every tick. */
     private int equipmentRetryCooldown;
     private int repathTimer;
+    private long nextLeafClearTick;
     private int stuckChecks;
     /** The generic route budget is rebased only for a genuinely new target. */
     @Nullable
@@ -213,7 +241,10 @@ public class LumbererWorkGoal extends Goal {
     private int campStuckChecks;
     @Nullable
     private BlockPos campBudgetTarget;
-    private double bestCampDistanceSqr = Double.MAX_VALUE;
+    /** Last real body sample; valid routes may initially move away around a wall. */
+    private double campSampleX;
+    private double campSampleY;
+    private double campSampleZ;
     /** Best real distance reached for the selected physical drop. */
     private double bestItemDistanceSqr = Double.MAX_VALUE;
     /** Exact reachable feet node selected for the current physical drop. */
@@ -222,9 +253,12 @@ public class LumbererWorkGoal extends Goal {
     /** Last block occupied by the selected physical ItemEntity. */
     @Nullable
     private BlockPos selectedItemTargetBlock;
+    /** Repath calls spent on this physical UUID during the current attempt. */
+    private int itemRouteAttempts;
     private boolean done;
     /** Real chest in the lumber camp; no output is posted to the Hearth. */
     private BlockPos depositTarget;
+    private long lastUnloadTick = Long.MIN_VALUE;
     @Nullable
     private BlockPos containerPos;
     private boolean contactTransferred;
@@ -285,6 +319,14 @@ public class LumbererWorkGoal extends Goal {
         settler.getPersistentData().putLong(RECOVERY_RETRY_AFTER_TAG,
             level.getGameTime() + RECOVERY_RETRY_TICKS);
         settler.getNavigation().stop();
+        // This attempt has deliberately yielded and the persisted wall-clock
+        // gate owns the bounded backoff.  Its exhausted transient progress
+        // counters must not poison the next attempt after the environment has
+        // changed (for example, a sealed camp being opened); otherwise start()
+        // immediately re-yields forever while the real cargo remains safe in
+        // the bag.  Destination and collection ownership stay untouched.
+        resetPathBudget();
+        resetCampBudget();
         done = true;
     }
 
@@ -296,6 +338,8 @@ public class LumbererWorkGoal extends Goal {
 
     @Override
     public boolean canUse() {
+        if (settler.level() instanceof ServerLevel server)
+            WorkerProvenanceService.reconcileLumberWork(server, settler);
         if (!(settler.level() instanceof ServerLevel level)
             || settler.getProfession() != Profession.LUMBERER
             || !settler.isBound()) {
@@ -313,6 +357,8 @@ public class LumbererWorkGoal extends Goal {
             && strengthCapacity > settler.getCarryCapacity()) {
             settler.setCarryCapacity(strengthCapacity);
         }
+        // Paid Worker Packs: the same budget, half again (WorkerPacks).
+        com.hearthstead.settlement.development.WorkerPacks.apply(level, s, settler);
         Building employer = Employment.employerOf(s, settler.getUUID());
         WorkZone zone = authoritativeZone(level, s, employer);
 
@@ -324,6 +370,15 @@ public class LumbererWorkGoal extends Goal {
             : WorkerProvenanceService.resumableLumberTree(level, s, employer,
                 settler);
         if (resume != null) {
+            // A provenance action is intentionally resumable, but a failed
+            // attempt may also have authored the persisted bounded retry gate
+            // below. Checking cargo recovery only after this branch bypassed
+            // that gate and could restart the same blocked log action every
+            // tick. Ordinary combat/reload resumes have no tag and still
+            // continue immediately.
+            if (!recoveryRetryReady(level)) {
+                return false;
+            }
             List<BlockPos> remaining = new ArrayList<>();
             for (BlockPos planned : resume.planned()) {
                 if (!resume.resolved().contains(planned)) {
@@ -363,6 +418,9 @@ public class LumbererWorkGoal extends Goal {
             return true;
         }
 
+        var recovery = WorkerProvenanceService.recoverableLumberWork(level, s,
+            employer, settler);
+        WorkZone recoveryZone = recovery == null ? zone : recovery.zone();
         BlockPos rememberedSite = persistedCollectionSite(level);
         BlockPos placed = settler.placedWorkContainerPos();
         boolean hasRecoveryWork = bagCount() > 0
@@ -372,17 +430,35 @@ public class LumbererWorkGoal extends Goal {
             return false;
         }
 
+        // Camp unloading owns a separate fixed bag, not the original collection
+        // site. Resume its saved contact clock without reclassifying the camp
+        // anchor as the tree/drop collection origin.
+        // If that saved chest was broken mid-animation, forcing it again would
+        // loop forever against tickDeposit's replacement chest. Release only
+        // the visual claim (bag contents stay) so a fresh cycle can choose.
+        if (GroundedBagUnload.presentationTargetGone(level, settler,
+                settler.bagTransferPresentation())) {
+            GroundedBagUnload.clearPresentation(settler,
+                settler.bagTransferPresentation());
+        }
+        if (settler.bagTransferPresentation().active()) {
+            depositTarget = settler.bagTransferPresentation().containerPos();
+            containerPos = rememberedSite;
+            mode = Mode.TO_CAMP;
+            return true;
+        }
+
         // A persisted placed container is physical authority after an AI
         // interruption or chunk reload. Go back to it before doing anything
         // else; never make its contents jump onto the worker at canUse().
         if (placed != null && settler.placedWorkContainerKind() == WorkContainerKind.SACK) {
             containerPos = placed.immutable();
             persistCollectionSite(level, containerPos);
-            if (collectionTargetAllowed(level, zone, placed)) {
-                recoverOwnedInsideZone(level, zone, placed);
+            if (collectionTargetAllowed(level, recoveryZone, placed)) {
+                recoverOwnedInsideZone(level, recoveryZone, placed);
             }
             collection.adoptLegacyEligibleOffhandAtPlacedContainer();
-            if (bagCount() > 0 || (zone != null && collection.hasTrackedDrops())
+            if (bagCount() > 0 || (recoveryZone != null && collection.hasTrackedDrops())
                 || collection.ownsOffhandItem()) {
                 mode = Mode.RETURNING_TO_CONTAINER;
                 return true;
@@ -399,17 +475,29 @@ public class LumbererWorkGoal extends Goal {
         // worker's back. The collection site's exact coordinate and bounded
         // UUID index remain persisted separately so a server/entity reload
         // cannot turn a 3+1 haul into an orphaned fourth log.
+        if (rememberedSite != null
+                && !collectionTargetAllowed(level, recoveryZone, rememberedSite)) {
+            // A prior version could persist a fallback at the worker's old
+            // elevation, outside the exact source zone. It is only a routing
+            // hint: discard that stale coordinate, never the authenticated
+            // physical output or its recovery action.
+            clearCollectionSite();
+            rememberedSite = null;
+            containerPos = null;
+            if (recovery == null || recoveryZone == null) {
+                pauseRecoveryRoute(level, "collection_site_outside_zone");
+                return false;
+            }
+        }
         if (rememberedSite != null) {
             containerPos = rememberedSite.immutable();
-            if (collectionTargetAllowed(level, zone, rememberedSite)) {
-                recoverOwnedInsideZone(level, zone, rememberedSite);
-            }
+            recoverOwnedInsideZone(level, recoveryZone, rememberedSite);
             collection.adoptEligibleOffhand();
             if (bagCount() > 0) {
                 mode = Mode.TO_CAMP;
                 return true;
             }
-            if ((zone != null && collection.hasTrackedDrops())
+            if ((recoveryZone != null && collection.hasTrackedDrops())
                 || collection.ownsOffhandItem()) {
                 mode = Mode.TO_COLLECTION_SITE;
                 return true;
@@ -426,10 +514,39 @@ public class LumbererWorkGoal extends Goal {
         }
         // A capacity round-trip can be interrupted after the sack was lifted
         // and emptied at camp. Resume at the exact old site, not a new tree.
-        if (zone != null && collection.hasTrackedDrops() && containerPos != null) {
+        if (recoveryZone != null && collection.hasTrackedDrops() && containerPos != null) {
             persistCollectionSite(level, containerPos);
             mode = Mode.TO_COLLECTION_SITE;
             return true;
+        }
+        if (recovery != null) {
+            // A zone change can interrupt before the original tree ever chose
+            // a collection site. Recover only its indexed physical outputs.
+            BlockPos anchor = chooseContainerAnchor(recovery.source());
+            if (anchor == null) {
+                pauseRecoveryRoute(level, "collection_site_no_legal_anchor");
+                return false;
+            }
+            containerPos = anchor;
+            persistCollectionSite(level, containerPos);
+            recoverOwnedInsideZone(level, recoveryZone, recovery.source());
+            if (collection.hasTrackedDrops() || collection.ownsOffhandItem()) {
+                mode = Mode.TO_COLLECTION_SITE;
+                resetPathBudget();
+                return true;
+            }
+            // Missing loaded output may have been picked up by a player or
+            // despawned. Preserve its ledger; suspend this blocking recovery
+            // only after the service proves no custody or unloaded uncertainty.
+            if (WorkerProvenanceService.suspendUnavailableLumberOutput(level, s,
+                    employer, settler, recovery)) {
+                clearCollectionSite();
+                containerPos = null;
+                settler.recordRouteFailure("old_output_unavailable_recovery_suspended");
+                return false;
+            }
+            pauseRecoveryRoute(level, "obsolete_output_not_loaded");
+            return false;
         }
         if (!workConditions() || !settler.getOffhandItem().isEmpty()) {
             return false;
@@ -439,7 +556,11 @@ public class LumbererWorkGoal extends Goal {
                 employer == null ? null : employer.plaquePos, "ai_idle_no_zone", null);
             return false;
         }
-        clearWorkZoneStop();
+        // A valid zone resolves NO_WORK_ZONE. Keep NO_VALID_TARGET visible
+        // until a resumed or newly claimed tree actually provides work.
+        if (workZoneState == StopReason.NO_WORK_ZONE) {
+            clearWorkZoneStop();
+        }
         if (equipmentRetryCooldown > 0) {
             equipmentRetryCooldown--;
             return false;
@@ -455,10 +576,11 @@ public class LumbererWorkGoal extends Goal {
         long now = settler.level().getGameTime();
         List<BlockPos> bases = scanner.scanBoxColumns(zone.min(), zone.max(),
             zone.min().getY(),
-            TREE_SCAN_BUDGET, TREE_SCAN_RESULTS, column -> {
+            Math.min(TREE_SCAN_BUDGET, 4096 / Math.max(1, zone.sizeY())), TREE_SCAN_RESULTS, column -> {
                 BlockPos base = trunkInColumn(column, zone);
                 return base == null || !zone.contains(base)
-                    || heldByOther(level, base, now) ? null : base;
+                    || heldByOther(level, base, now)
+                    || recentlyUnreachable(base, now) ? null : base;
             });
         scanCooldown = bases.isEmpty()
             ? TREE_SCAN_COOLDOWN_MIN
@@ -535,7 +657,10 @@ public class LumbererWorkGoal extends Goal {
         Settlement settlement = settler.settlement();
         Building employer = settlement == null ? null
             : Employment.employerOf(settlement, settler.getUUID());
-        return authoritativeZone(level, settlement, employer);
+        var recovery = WorkerProvenanceService.recoverableLumberWork(level,
+            settlement, employer, settler);
+        return recovery == null ? authoritativeZone(level, settlement, employer)
+            : recovery.zone();
     }
 
     /** Shared by runtime contact gates and adversarial GameTests. */
@@ -545,20 +670,64 @@ public class LumbererWorkGoal extends Goal {
         return WorkZoneService.livePositionAllowed(level, zone, target);
     }
 
+    /**
+     * Runtime collection adds one narrow exception for a real output whose
+     * authenticated source is inside this exact zone but whose vanilla item
+     * motion settled just across its edge.
+     */
+    private boolean currentCollectionTargetAllowed(ServerLevel level,
+                                                   @Nullable WorkZone zone,
+                                                   @Nullable ItemEntity target) {
+        if (target == null) {
+            return false;
+        }
+        Settlement settlement = settler.settlement();
+        Building employer = settlement == null ? null
+            : Employment.employerOf(settlement, settler.getUUID());
+        var recovery = WorkerProvenanceService.recoverableLumberWork(level,
+            settlement, employer, settler);
+        boolean oldZone = recovery != null && !recovery.zone().equals(
+            authoritativeZone(level, settlement, employer));
+        return (!oldZone && collectionTargetAllowed(level, zone, target.blockPosition()))
+            || WorkerProvenanceService.collectableLumberOutput(level,
+                settlement, employer, settler, zone, target.getItem(),
+                target.blockPosition());
+    }
+
     private static AABB recoveryBounds(WorkZone zone, BlockPos site) {
         AABB exactZone = new AABB(zone.min().getX(), zone.min().getY(),
             zone.min().getZ(), zone.max().getX() + 1.0D,
             zone.max().getY() + 1.0D, zone.max().getZ() + 1.0D);
         return new AABB(site).inflate(RECOVERY_HORIZONTAL, RECOVERY_VERTICAL,
-            RECOVERY_HORIZONTAL).intersect(exactZone);
+            RECOVERY_HORIZONTAL).intersect(exactZone.inflate(2.0D));
     }
 
     private void recoverOwnedInsideZone(ServerLevel level, WorkZone zone,
                                         BlockPos site) {
+        Settlement settlement = settler.settlement();
+        Building employer = settlement == null ? null
+            : Employment.employerOf(settlement, settler.getUUID());
+        // A death/reload or long interruption can outlive the public pickup
+        // lease. Reclaim only surviving physical output authenticated against
+        // this worker's outstanding action, employer, source and exact zone.
+        // Plain logs and another worker's ownership remain untouched.
+        for (ItemEntity item : level.getEntitiesOfClass(ItemEntity.class,
+                recoveryBounds(zone, site), ItemEntity::isAlive)) {
+            if (WorkerProvenanceService.collectableLumberOutput(level,
+                    settlement, employer, settler, zone, item.getItem(),
+                    item.blockPosition())) {
+                collection.reclaimExactExpiredFieldOutput(level, item.getUUID(),
+                    item.getItem().copy(), candidate ->
+                        WorkerProvenanceService.collectableLumberOutput(level,
+                            settlement, employer, settler, zone,
+                            candidate.getItem(), candidate.blockPosition()));
+            }
+        }
         collection.recoverOwned(level, recoveryBounds(zone, site),
-            pos -> zone.dimension().equals(level.dimension().location())
-                && zone.contains(pos),
-            pos -> collectionTargetAllowed(level, zone, pos));
+            pos -> WorkerProvenanceService
+                .lumberOutputRecoveryPositionAllowed(level, zone, pos),
+            pos -> WorkerProvenanceService
+                .lumberOutputRecoveryPositionAllowed(level, zone, pos));
     }
 
     private void publishWorkZoneStop(StopReason reason, @Nullable BlockPos target,
@@ -634,7 +803,7 @@ public class LumbererWorkGoal extends Goal {
         return null;
     }
 
-    private static final int TRUNK_DESCENT = 32;
+    private static final int TRUNK_DESCENT = 64;
 
     private boolean isTreeBase(BlockPos pos, WorkZone zone) {
         if (!(settler.level() instanceof ServerLevel level)
@@ -717,7 +886,8 @@ public class LumbererWorkGoal extends Goal {
         done = false;
         switch (mode) {
             case TO_CAMP -> {
-                settler.setActivity(SettlerActivity.HAULING_LOG);
+                settler.setActivity(settler.bagTransferPresentation().active()
+                    ? SettlerActivity.TRAVELING : SettlerActivity.HAULING_LOG);
                 pathToCamp();
                 if (!done && campStuckChecks > MAX_PATH_FAILURES
                     && settler.level() instanceof ServerLevel level) {
@@ -749,7 +919,7 @@ public class LumbererWorkGoal extends Goal {
         }
     }
 
-    private void pathToTree() {
+    private boolean pathToTree() {
         if (treeBase != null) {
             // Two lumberers can no longer land on the SAME tree (the claim
             // table above), but a pair of trees a stride apart could still
@@ -764,9 +934,11 @@ public class LumbererWorkGoal extends Goal {
             // anyway) means this never changes which tree gets chopped or
             // how close the settler ends up standing to it.
             BlockPos approach = treeBase.relative(standSide());
-            settler.getNavigation().moveTo(approach.getX() + 0.5, treeBase.getY(),
+            preparePathBudget(Mode.TO_TREE, approach);
+            return settler.getNavigation().moveTo(approach.getX() + 0.5, treeBase.getY(),
                 approach.getZ() + 0.5, 1.0);
         }
+        return false;
     }
 
     /** See {@link #pathToTree}. */
@@ -803,13 +975,6 @@ public class LumbererWorkGoal extends Goal {
         if (approach.state() == ContainerApproach.State.INVALID_TARGET) {
             depositTarget = null;
         }
-        // A sticky sealed/occluded target must still consume the same finite
-        // recovery budget as any other failed route attempt. Without this
-        // explicit accounting, a ContainerApproach result that never starts
-        // navigation can leave TO_CAMP owning MOVE/LOOK indefinitely.
-        if (!approach.canInteract() && !approach.startedPath()) {
-            campStuckChecks++;
-        }
         repathTimer = CAMP_REPATH_TICKS;
         return approach.canInteract() || approach.startedPath();
     }
@@ -817,15 +982,40 @@ public class LumbererWorkGoal extends Goal {
     private void prepareCampBudget(BlockPos target) {
         if (!Objects.equals(campBudgetTarget, target)) {
             campBudgetTarget = target.immutable();
-            bestCampDistanceSqr = settler.blockPosition().distSqr(target);
+            campSampleX = settler.getX();
+            campSampleY = settler.getY();
+            campSampleZ = settler.getZ();
             campStuckChecks = 0;
         }
     }
 
     private void resetCampBudget() {
         campBudgetTarget = null;
-        bestCampDistanceSqr = Double.MAX_VALUE;
+        campSampleX = settler.getX();
+        campSampleY = settler.getY();
+        campSampleZ = settler.getZ();
         campStuckChecks = 0;
+    }
+
+    /**
+     * Counts lack of physical movement, never lack of straight-line progress.
+     * A real entrance can sit on the opposite side of a workplace, so walking
+     * around its wall must not look stuck merely because the first leg moves
+     * farther from the chest. The finite consecutive-still budget still
+     * yields a genuinely sealed or failed route.
+     */
+    private void noteCampPathProgress() {
+        double dx = settler.getX() - campSampleX;
+        double dy = settler.getY() - campSampleY;
+        double dz = settler.getZ() - campSampleZ;
+        campSampleX = settler.getX();
+        campSampleY = settler.getY();
+        campSampleZ = settler.getZ();
+        if (campRouteMadeProgress(dx, dy, dz)) {
+            campStuckChecks = 0;
+        } else {
+            campStuckChecks++;
+        }
     }
 
     @Override
@@ -856,6 +1046,9 @@ public class LumbererWorkGoal extends Goal {
 
     @Override
     public void tick() {
+        // Vanilla ticks every-tick goals once more after tick() finished them,
+        // without canContinueToUse() (see CrafterWorkGoal.tick): never act again.
+        if (done) return;
         // A claim is a heartbeat, not a one-shot timer, exactly like
         // CourierWorkGoal's restock RESERVATIONS: as long as this goal is
         // actively ticking with a tree in hand, the lock cannot expire out
@@ -891,6 +1084,11 @@ public class LumbererWorkGoal extends Goal {
             abortTreeOutsideZone(level, treeBase, "travel");
             return;
         }
+        if (settler.level() instanceof ServerLevel level && workActionId != null
+            && settler.getUUID().equals(treeClaimant(level, treeBase))) {
+            clearObstructingLeaf(level, treeBase.relative(standSide()),
+                TREE_FINAL_LEAF_APPROACH_REACH);
+        }
         settler.getLookControl().setLookAt(treeBase.getX() + 0.5, treeBase.getY() + 1.0,
             treeBase.getZ() + 0.5);
         if (settler.blockPosition().distSqr(treeBase) <= 7.5) {
@@ -901,7 +1099,13 @@ public class LumbererWorkGoal extends Goal {
             settler.setActivity(SettlerActivity.WORK_CHOP);
         } else if (--repathTimer <= 0) {
             repathTimer = 40;
-            if (++stuckChecks > 6) {
+            BlockPos approach = treeBase.relative(standSide());
+            if (pathToTree()) {
+                notePathProgress(approach);
+            } else {
+                stuckChecks++;
+            }
+            if (stuckChecks > 6) {
                 // Unreachable tree; rescan later. Recorded rather than
                 // endured (SettlerEntity#recordRouteFailure's whole reason
                 // to exist, per GoToPostGoal's own use of it): a lumberer
@@ -910,14 +1114,264 @@ public class LumbererWorkGoal extends Goal {
                 // KF-020 spent real investigation time unable to tell those
                 // two apart from the outside.
                 settler.recordRouteFailure("tree_unreachable");
+                rememberUnreachable(treeBase, settler.level().getGameTime());
                 done = true;
-            } else {
-                pathToTree();
             }
         }
     }
 
+    /**
+     * Tree bases this lumberer just failed to reach, with the game time until
+     * which the scan skips them. Without it the rescan picked the same
+     * nearest trunk (below a drop, behind a ladder) every time and a whole
+     * workday went by with no logs (soak/QA 2026-09-25). Transient and small.
+     */
+    private final java.util.Map<BlockPos, Long> unreachableBases = new java.util.HashMap<>();
+    private static final long UNREACHABLE_TREE_COOLDOWN = 2_400L;
+
+    private boolean recentlyUnreachable(BlockPos base, long now) {
+        if (unreachableBases.isEmpty()) return false;
+        Long until = unreachableBases.get(base);
+        return until != null && until > now;
+    }
+
+    private void rememberUnreachable(@Nullable BlockPos base, long now) {
+        if (base == null) return;
+        if (unreachableBases.size() >= 32) {
+            unreachableBases.values().removeIf(until -> until <= now);
+            if (unreachableBases.size() >= 32) unreachableBases.clear();
+        }
+        unreachableBases.put(base.immutable(), now + UNREACHABLE_TREE_COOLDOWN);
+    }
+
+    /** Clears only the first physical obstruction in a short, blocked work approach. */
+    private void clearObstructingLeaf(ServerLevel level, BlockPos destination, double maximumReach) {
+        long now = level.getGameTime();
+        if (now < nextLeafClearTick || (!settler.horizontalCollision
+                && !settler.getNavigation().isDone())
+            || !settler.getMainHandItem().is(ItemTags.AXES)) return;
+        nextLeafClearTick = now + 10;
+        Settlement settlement = settler.settlement();
+        Building employer = settlement == null ? null
+            : Employment.employerOf(settlement, settler.getUUID());
+        WorkZone zone = authoritativeZone(level, settlement, employer);
+        if (zone == null || !WorkZoneService.livePositionAllowed(level, zone, destination)) return;
+        Vec3 direction = Vec3.atBottomCenterOf(destination).subtract(settler.position());
+        direction = new Vec3(direction.x, 0, direction.z);
+        if (direction.lengthSqr() < 0.01) return;
+        Vec3 reach = direction.normalize().scale(Math.min(maximumReach,
+            Math.sqrt(direction.lengthSqr())));
+        AABB corridor = settler.getBoundingBox().deflate(0.01).expandTowards(reach);
+        BlockPos obstruction = null;
+        double nearest = Double.MAX_VALUE;
+        for (BlockPos pos : BlockPos.betweenClosed(BlockPos.containing(corridor.minX, corridor.minY, corridor.minZ),
+                BlockPos.containing(corridor.maxX, corridor.maxY, corridor.maxZ))) {
+            if (!WorkZoneService.livePositionAvailable(level, pos)) return;
+            BlockState state = level.getBlockState(pos);
+            boolean blocks = false;
+            for (AABB box : state.getCollisionShape(level, pos).toAabbs()) {
+                if (box.move(pos).intersects(corridor)) { blocks = true; break; }
+            }
+            if (!blocks) continue;
+            double distance = Vec3.atCenterOf(pos).distanceToSqr(settler.position());
+            if (distance < nearest) { nearest = distance; obstruction = pos.immutable(); }
+        }
+        if (obstruction == null || !WorkZoneService.livePositionAllowed(level, zone, obstruction)) return;
+        BlockState leaf = level.getBlockState(obstruction);
+        if (!(leaf.getBlock() instanceof LeavesBlock) || leaf.getValue(LeavesBlock.PERSISTENT)) return;
+        // A selected natural tree is not permission to dismantle a registered room.
+        for (Building building : settlement.buildings) {
+            if (building.bounds != null && building.bounds.isInside(obstruction)) return;
+        }
+        // Vanilla entity block destruction creates ordinary physical leaf loot.
+        // It does not invent a worker log receipt or insert anything into cargo.
+        if (level.destroyBlock(obstruction, true, settler)) {
+            settler.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            settler.getNavigation().recomputePath();
+        }
+    }
+
+    /**
+     * An owned log can settle on a neighboring canopy. Clear only its first
+     * reachable natural-leaf obstruction; the original item must fall and
+     * pass the unchanged pickup/contact gates before entering the bag.
+     */
+    private void clearCanopyLeafForSelectedOutput(ServerLevel level,
+                                                   @Nullable WorkZone zone,
+                                                   ItemEntity target) {
+        if (zone == null || !settler.getMainHandItem().is(ItemTags.AXES)
+            || level.getGameTime() < nextLeafClearTick) return;
+        Settlement settlement = settler.settlement();
+        Building employer = settlement == null ? null
+            : Employment.employerOf(settlement, settler.getUUID());
+        if (settlement == null || employer == null
+            || !WorkerProvenanceService.collectableLumberOutput(level, settlement,
+                employer, settler, zone, target.getItem(), target.blockPosition())) return;
+        Vec3 eye = settler.getEyePosition();
+        Vec3 item = target.getBoundingBox().getCenter();
+        if (eye.distanceToSqr(item) > CANOPY_CLEAR_REACH_SQR
+            || !level.hasChunksAt(BlockPos.containing(eye), BlockPos.containing(item))) return;
+        BlockHitResult hit = level.clip(new ClipContext(eye, item,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, settler));
+        if (hit.getType() != HitResult.Type.BLOCK) return;
+        BlockPos obstruction = hit.getBlockPos();
+        if (!WorkZoneService.livePositionAvailable(level, obstruction)
+            || !WorkZoneService.livePositionAllowed(level, zone, obstruction)
+            || eye.distanceToSqr(Vec3.atCenterOf(obstruction)) > CANOPY_CLEAR_REACH_SQR)
+            return;
+        BlockState leaf = level.getBlockState(obstruction);
+        if (!(leaf.getBlock() instanceof LeavesBlock)
+            || leaf.getValue(LeavesBlock.PERSISTENT)) return;
+        for (Building building : settlement.buildings)
+            if (building.bounds != null && building.bounds.isInside(obstruction)) return;
+        nextLeafClearTick = level.getGameTime() + 10;
+        if (level.destroyBlock(obstruction, true, settler)) {
+            settler.swing(net.minecraft.world.InteractionHand.MAIN_HAND);
+            settler.getNavigation().recomputePath();
+        }
+    }
+
+    private BlockPos fellingDropPos;
+    private long fellingDropAt;
+    private boolean committingFell;
+
+    /** Work stays at the root; no source block is removed before final contact. */
     private void tickChop() {
+        if (treeLogs.isEmpty()) { startLimbing(); return; }
+        if (!(settler.level() instanceof ServerLevel level) || workActionId == null) return;
+        var saved = settler.getPersistentData();
+        String action = workActionId.toString();
+        if (!action.equals(saved.getString("HearthsteadFellingAction"))) {
+            saved.putString("HearthsteadFellingAction", action);
+            saved.putInt("HearthsteadFellingTicks", 0);
+        }
+        if (!zoneAllows(level, treeBase, "fell_root")) return;
+        settler.getLookControl().setLookAt(treeBase.getX()+.5, settler.getEyeY(), treeBase.getZ()+.5);
+        // Bounded without freezing the chop phase: the old Math.min(20000, ..)
+        // pinned elapsed at 20000, where 20000 % CHOP_CYCLE_TICKS never equals
+        // CHOP_CONTACT_TICK, so a tree whose first contacts had paused (a worn
+        // axe) could never be felled again - a Lumberer "chopping" one trunk
+        // for hours (captain1 soak 2026-09-26, Bramwell).
+        int elapsed = saved.getInt("HearthsteadFellingTicks") + 1;
+        if (elapsed > 20000) {
+            elapsed -= CHOP_CYCLE_TICKS;
+        }
+        saved.putInt("HearthsteadFellingTicks", elapsed);
+        if (elapsed % CHOP_CYCLE_TICKS == CHOP_CONTACT_TICK)
+            WorkSoundSync.play(level, treeBase, ModSounds.CHOP.get(), .6F, .97F);
+        int required = com.hearthstead.settlement.development.DevelopmentBonuses.fellingTicks(
+            level, settler.settlement(),
+            chopTicksForStrength(settler.attribute(Attribute.STRENGTH)) * treeLogs.size());
+        // Tech tree Mine, Smelter & Smithy (techtree-craft): iron axe -10%, diamond+ -20%.
+        required = com.hearthstead.settlement.techtree.effects.CraftEffects.toolTicks(
+            level, settler.settlement(), settler.getMainHandItem(), required);
+        if (elapsed < required || elapsed % CHOP_CYCLE_TICKS != CHOP_CONTACT_TICK) return;
+        var tool = settler.getMainHandItem();
+        if (!tool.isDamageableItem() || tool.getMaxDamage()-tool.getDamageValue() <= treeLogs.size()) {
+            // The axe cannot outlast this tree, but still counts as usable by
+            // the ordinary 8-use floor: raise this worker's floor to the tree
+            // so a replacement is requested (and shown as "Needs: axe")
+            // instead of retrying the same trunk forever.
+            com.hearthstead.settlement.equipment.EquipmentRequests.requireJobUses(settler,
+                treeLogs.size() + 1);
+            Settlement village = settler.settlement();
+            Building camp = village == null ? null : Employment.employerOf(village, settler.getUUID());
+            if (camp != null) {
+                com.hearthstead.settlement.equipment.EquipmentRequests.cancelFor(level, camp, settler.getUUID());
+                com.hearthstead.settlement.equipment.EquipmentRequests.refreshFor(level, village, camp, settler);
+            }
+            pauseRecoveryRoute(level, "tree_requires_more_axe_durability");
+            return;
+        }
+        for (BlockPos log : treeLogs) {
+            if (!zoneAllows(level, log, "fell_log") || !level.getBlockState(log).is(BlockTags.LOGS_THAT_BURN)) {
+                pauseRecoveryRoute(level, "lumber_action_target_changed"); return;
+            }
+        }
+        var logs = List.copyOf(treeLogs);
+        var leaves = fallingLeaves(level, logs);
+        Direction direction = safeFallDirection(logs);
+        if (direction == null) { pauseRecoveryRoute(level, "tree_fall_space_blocked"); return; }
+        var visual = com.hearthstead.entity.FallingTreeEntity.capture(level, treeBase, logs, leaves, direction);
+        if (visual == null) { pauseRecoveryRoute(level, "tree_fall_snapshot_blocked"); return; }
+        // Grounded output remains in durable escrow until the visible impact.
+        fellingDropPos = treeBase;
+        fellingDropAt = level.getGameTime() + com.hearthstead.entity.FallingTreeEntity.DURATION_TICKS;
+        committingFell = true;
+        try {
+            while (!treeLogs.isEmpty()) {
+                int before = treeLogs.size();
+                chopRecoveryTicks = 0;
+                chopTicks = chopTicksForStrength(settler.attribute(Attribute.STRENGTH)) - 1;
+                commitNextFelledLog();
+                if (treeLogs.size() >= before || done) return;
+            }
+        } finally { committingFell = false; }
+        // Publish only after every log has transferred to exact item custody.
+        for (BlockPos leaf : leaves) {
+            var state = level.getBlockState(leaf);
+            if (state.getBlock() instanceof LeavesBlock && !state.getValue(LeavesBlock.PERSISTENT))
+                level.destroyBlock(leaf, true, settler);
+        }
+        level.addFreshEntity(visual);
+        saved.putLong("HearthsteadFellingWaitUntil", fellingDropAt + 10);
+        saved.remove("HearthsteadFellingTicks");
+        saved.remove("HearthsteadFellingAction");
+        settler.setActivity(SettlerActivity.IDLE);
+        BlockPos back = treeBase.relative(direction.getOpposite(), 2);
+        if (level.noCollision(settler, settler.getBoundingBox().move(
+                back.getX()+.5-settler.getX(), 0, back.getZ()+.5-settler.getZ())))
+            settler.getNavigation().moveTo(back.getX()+.5, settler.getY(), back.getZ()+.5, .8);
+    }
+
+    private List<BlockPos> fallingLeaves(ServerLevel level, List<BlockPos> logs) {
+        Set<BlockPos> result = new HashSet<>();
+        var village = settler.settlement();
+        var camp = village == null ? null : Employment.employerOf(village, settler.getUUID());
+        var zone = authoritativeZone(level, village, camp);
+        if (zone == null) return List.of();
+        for (BlockPos log : logs) for (BlockPos pos : BlockPos.betweenClosed(log.offset(-3,-3,-3),log.offset(3,3,3))) {
+            if (result.size() >= 384) return List.copyOf(result);
+            if (pos.getY() < treeBase.getY() || !WorkZoneService.livePositionAllowed(level,zone,pos)) continue;
+            var state = level.getBlockState(pos);
+            if (state.getBlock() instanceof LeavesBlock && !state.getValue(LeavesBlock.PERSISTENT)) {
+                boolean foreignTrunk = false;
+                for (Direction side : Direction.values()) {
+                    BlockPos neighbor = pos.relative(side);
+                    if (level.hasChunkAt(neighbor) && level.getBlockState(neighbor).is(BlockTags.LOGS_THAT_BURN)
+                            && !logs.contains(neighbor)) { foreignTrunk=true; break; }
+                }
+                if (!foreignTrunk) result.add(pos.immutable());
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    private Direction safeFallDirection(List<BlockPos> logs) {
+        var directions = new ArrayList<Direction>(List.of(Direction.NORTH,Direction.SOUTH,Direction.EAST,Direction.WEST));
+        directions.sort(Comparator.comparingDouble(d -> -((treeBase.getX()-settler.getX())*d.getStepX()
+            +(treeBase.getZ()-settler.getZ())*d.getStepZ())));
+        int height=logs.stream().mapToInt(p -> p.getY()-treeBase.getY()+1).max().orElse(1);
+        var village=settler.settlement();
+        for (Direction direction : directions) {
+            boolean blocked=false;
+            if (village != null) for (Building building : village.buildings) {
+                if (!building.valid || building.bounds == null) continue;
+                for (int distance=1;distance<=height+2;distance++) {
+                    BlockPos point=treeBase.relative(direction,distance);
+                    if (point.getX()>=building.bounds.minX()-2 && point.getX()<=building.bounds.maxX()+2
+                            && point.getZ()>=building.bounds.minZ()-2 && point.getZ()<=building.bounds.maxZ()+2) {
+                        blocked=true; break;
+                    }
+                }
+                if (blocked) break;
+            }
+            if (!blocked) return direction;
+        }
+        return null;
+    }
+
+    private void commitNextFelledLog() {
         if (treeLogs.isEmpty()) {
             startLimbing();
             return;
@@ -941,10 +1395,9 @@ public class LumbererWorkGoal extends Goal {
             settler.getEyeY(), treeBase.getZ() + 0.5);
         chopTicks++;
         // The strike lands at the animation's impact frame (1s loop).
-        if (chopTicks % CHOP_CYCLE_TICKS == CHOP_CONTACT_TICK
+        if (!committingFell && chopTicks % CHOP_CYCLE_TICKS == CHOP_CONTACT_TICK
             && settler.level() instanceof ServerLevel serverLevel) {
-            serverLevel.playSound(null, treeBase, ModSounds.CHOP.get(),
-                SoundSource.NEUTRAL, 0.9F, 0.9F + settler.getRandom().nextFloat() * 0.2F);
+            WorkSoundSync.play(serverLevel, treeBase, ModSounds.CHOP.get(), 0.6F, 1.0F);
         }
         int requiredTicks = chopTicksForStrength(
             settler.attribute(Attribute.STRENGTH));
@@ -977,7 +1430,7 @@ public class LumbererWorkGoal extends Goal {
                     // the tree remains authoritative and this action retries;
                     // no unchecked fallback may erase a paid unit of work.
                     UUID physicalLogId = collection.queuePhysical(serverLevel,
-                        topLog, physicalLog);
+                        fellingDropPos, physicalLog, fellingDropAt);
                     if (physicalLogId == null) {
                         pauseRecoveryRoute(serverLevel,
                             "lumber_action_output_escrow_blocked");
@@ -995,11 +1448,14 @@ public class LumbererWorkGoal extends Goal {
                     // near a tree. Learning by doing is only true if doing is
                     // what gets counted.
                     settler.train(com.hearthstead.entity.Attribute.STRENGTH, 1.0F);
+                    // A felled log is also real sustained labor: the second core
+                    // stat advances only at this committed physical endpoint.
+                    settler.train(com.hearthstead.entity.Attribute.STAMINA, 0.5F);
                     // Immediate insertion is best-effort. A false result means
                     // the SavedData row still owns the only copy and will retry
                     // with this stable UUID; it is not permission to restore,
                     // duplicate or silently complete an unowned fallback.
-                    collection.materializeQueued(serverLevel, topLog,
+                    collection.materializeQueued(serverLevel, fellingDropPos,
                         physicalLogId);
                     if (!WorkerProvenanceService.completeLumberLog(serverLevel,
                             settlement, camp, settler, workActionId, topLog,
@@ -1008,6 +1464,10 @@ public class LumbererWorkGoal extends Goal {
                             "lumber_action_receipt_failed");
                         return;
                     }
+                    // Trade skill: one log felled AND banked is one unit (STR/STA
+                    // already trained above, so SkillLevels adds only the XP).
+                    com.hearthstead.entity.SkillLevels.completeUnit(settler, 1,
+                        Attribute.STRENGTH, Attribute.STAMINA);
                 } else {
                     pauseRecoveryRoute(serverLevel,
                         "lumber_action_target_changed");
@@ -1020,8 +1480,9 @@ public class LumbererWorkGoal extends Goal {
             } else {
                 // Low energy stretches the pause between physical log actions.
                 // It never invalidates an otherwise valid target or ends the day.
-                chopRecoveryTicks = fatiguePauseTicks(settler.getEnergy(),
-                    settler.attribute(Attribute.STAMINA));
+                chopRecoveryTicks = com.hearthstead.entity.SkillLevels.shortenWait(settler,
+                    fatiguePauseTicks(settler.getEnergy(),
+                    settler.attribute(Attribute.STAMINA)));
             }
         }
     }
@@ -1044,13 +1505,25 @@ public class LumbererWorkGoal extends Goal {
      *  the goal already implicitly "limbs" the tree by only chopping the log
      *  column, it just had no clip for that step. */
     private void tickLimb() {
+        if (settler.level().getGameTime() < settler.getPersistentData().getLong("HearthsteadFellingWaitUntil")) return;
+        settler.getPersistentData().remove("HearthsteadFellingWaitUntil");
+        // A resumed limbing stage starts wherever the interruption left her:
+        // walk back to the stump first, never limb (and finish) a tree from afar.
+        if (treeBase != null && settler.blockPosition().distSqr(treeBase) > 7.5D) {
+            if (--repathTimer <= 0) {
+                repathTimer = 40;
+                pathToTree();
+            }
+            settler.setActivity(SettlerActivity.TRAVELING);
+            return;
+        }
+        settler.setActivity(SettlerActivity.WORK_LIMB);
         limbTicks++;
         if (settler.level() instanceof ServerLevel serverLevel) {
             if (limbTicks % LIMB_DURATION == 6 || limbTicks % LIMB_DURATION == 19) {
                 // Reuses CHOP's synthesis at higher pitch/shorter tail per
                 // the catalogue's own suggestion -- no new sound asset.
-                serverLevel.playSound(null, treeBase, ModSounds.CHOP.get(),
-                    SoundSource.NEUTRAL, 0.6F, 1.35F + settler.getRandom().nextFloat() * 0.1F);
+                WorkSoundSync.play(serverLevel, treeBase, ModSounds.CHOP.get(), 0.4F, 1.4F);
             }
         }
         if (limbTicks >= LIMB_DURATION) {
@@ -1072,6 +1545,7 @@ public class LumbererWorkGoal extends Goal {
             done = true;
             return;
         }
+        com.hearthstead.settlement.equipment.EquipmentRequests.clearJobUses(settler);
         Settlement settlement = settler.settlement();
         Building camp = settlement == null ? null
             : Employment.employerOf(settlement, settler.getUUID());
@@ -1096,14 +1570,29 @@ public class LumbererWorkGoal extends Goal {
             return;
         }
         workActionId = null;
+        // RING-1 lane (Sharpened Axes): every 8 committed trees he whets his axe.
+        LumbererWhetGoal.noteTreeFelled(serverLevel, settlement, settler);
         // Released the moment the tree is genuinely gone -- the base no
         // longer holds a log a second lumberer's scan could even match, so
         // holding the claim any longer (through the whole haul-home leg)
         // would only waste a row in the table for nothing.
+        BlockPos completedTree = treeBase;
         releaseClaim(treeBase);
         treeBase = null;
         if (collection.hasTrackedDrops()) {
-            startContainerDown(chooseContainerAnchor());
+            BlockPos anchor = chooseContainerAnchor(completedTree);
+            if (anchor == null) {
+                pauseRecoveryRoute(serverLevel, "collection_site_no_legal_anchor");
+                return;
+            }
+            containerPos = anchor;
+            persistCollectionSite(serverLevel, containerPos);
+            // The actor must physically reach the chosen clearing before the
+            // first set-down animation can publish a grounded container.
+            mode = Mode.TO_COLLECTION_SITE;
+            settler.setActivity(SettlerActivity.COLLECTING_ITEMS);
+            resetPathBudget();
+            pathToCollectionSite();
         } else {
             settler.setActivity(SettlerActivity.IDLE);
             done = true;
@@ -1153,9 +1642,10 @@ public class LumbererWorkGoal extends Goal {
      * sturdy top face under it. The current cell is a last-resort safety
      * fallback only; it is diagnosed so a bad work site never fails silently.
      */
-    private BlockPos chooseContainerAnchor() {
+    @Nullable
+    private BlockPos chooseContainerAnchor(BlockPos completedTree) {
         if (!(settler.level() instanceof ServerLevel level)) {
-            return settler.blockPosition();
+            return null;
         }
         WorkZone zone = currentCollectionZone(level);
         Direction facing = settler.getDirection();
@@ -1166,11 +1656,43 @@ public class LumbererWorkGoal extends Goal {
             facing.getOpposite()
         };
         BlockPos origin = settler.blockPosition();
+        // The worker can have returned to the lower Hearth while a recovery
+        // action still owns an elevated tree. Collection candidates must use
+        // the physical source's Y, never the worker's unrelated current Y.
+        if (completedTree != null) {
+            for (int distance = 3; distance <= 4; distance++) {
+                for (Direction direction : order) {
+                  for (int heightOffset : new int[] {0, -1, 1}) {
+                    BlockPos candidate = completedTree.relative(direction, distance).offset(0, heightOffset, 0);
+                    if (!collectionTargetAllowed(level, zone, candidate) || !isStandable(level, candidate)) continue;
+                    Path path = settler.getNavigation().createPath(candidate, 0);
+                    if (path == null || !path.canReach() || !candidate.equals(path.getTarget())) continue;
+                    boolean loaded = true;
+                    for (int node = 0; node < path.getNodeCount(); node++) {
+                        if (!WorkZoneService.livePositionAvailable(level, path.getNode(node).asBlockPos())) {
+                            loaded = false; break;
+                        }
+                    }
+                    if (loaded) return candidate.immutable();
+                  }
+                }
+            }
+        }
+        // The source itself is the final lawful tree-side fallback only
+        // when it is a real standing cell. It precedes every worker-position
+        // fallback so a returned lower-Y worker cannot persist an off-zone
+        // anchor.
+        if (completedTree != null && collectionTargetAllowed(level, zone, completedTree)
+            && isStandable(level, completedTree)) {
+            return completedTree.immutable();
+        }
+        // Tight plots retain the existing nearby safe fallback. Distance is a
+        // preference, never permission to move a sack outside its owned zone.
         for (Direction direction : order) {
             BlockPos candidate = origin.relative(direction);
             BlockPos support = candidate.below();
             if (!collectionTargetAllowed(level, zone, candidate)
-                || !collectionTargetAllowed(level, zone, support)) {
+                || !WorkZoneService.livePositionAvailable(level, support)) {
                 continue;
             }
             BlockState at = level.getBlockState(candidate);
@@ -1181,10 +1703,11 @@ public class LumbererWorkGoal extends Goal {
                 return candidate.immutable();
             }
         }
-        settler.recordRouteFailure("work_container_anchor_fallback");
-        return collectionTargetAllowed(level, zone, origin)
-            ? origin.immutable()
-            : treeBase == null ? origin.immutable() : treeBase.immutable();
+        if (collectionTargetAllowed(level, zone, origin) && isStandable(level, origin)) {
+            return origin.immutable();
+        }
+        settler.recordRouteFailure("work_container_no_legal_anchor");
+        return null;
     }
 
     private void startContainerDown(BlockPos fixedPosition) {
@@ -1216,10 +1739,9 @@ public class LumbererWorkGoal extends Goal {
         phaseTicks++;
         if (phaseTicks == CONTAINER_DOWN_CONTACT_TICK
             && settler.level() instanceof ServerLevel level) {
-            level.playSound(null,
+            WorkSoundSync.play(level,
                 containerPos == null ? settler.blockPosition() : containerPos,
-                ModSounds.BAG_DOWN.get(), SoundSource.NEUTRAL, 0.70F,
-                0.96F + settler.getRandom().nextFloat() * 0.08F);
+                ModSounds.BAG_DOWN.get(), 0.5F, 1.0F);
         }
         if (phaseTicks >= CONTAINER_DOWN_DURATION) {
             mode = Mode.SELECTING_ITEM;
@@ -1251,8 +1773,8 @@ public class LumbererWorkGoal extends Goal {
         while (unsafeRows-- > 0) {
             next = collection.nearestLoaded(level,
                 containerPos == null ? settler.blockPosition() : containerPos);
-            if (next == null || collectionTargetAllowed(level, zone,
-                    next.blockPosition())) {
+            if (next == null || currentCollectionTargetAllowed(level, zone,
+                    next)) {
                 break;
             }
             // A persisted/moved entity outside the current exact claim is a
@@ -1288,21 +1810,37 @@ public class LumbererWorkGoal extends Goal {
     private boolean pathToSelectedItem(ServerLevel level) {
         ItemEntity target = collection.selected(level);
         WorkZone zone = currentCollectionZone(level);
-        if (target != null && collectionTargetAllowed(level, zone,
-                target.blockPosition())) {
+        if (target != null && currentCollectionTargetAllowed(level, zone,
+                target)) {
+            if (itemRouteBudgetExhausted(++itemRouteAttempts)) {
+                traceItemRoute("pause_route_budget", target,
+                    selectedItemApproach, false);
+                pauseRecoveryRoute(level, "felled_item_unreachable");
+                return false;
+            }
             BlockPos previousApproach = selectedItemApproach;
             BlockPos previousTargetBlock = selectedItemTargetBlock;
             selectedItemTargetBlock = target.blockPosition().immutable();
             Set<BlockPos> approaches = standableItemApproaches(level, target);
             BlockPos current = settler.blockPosition();
             boolean started = false;
-            if (approaches.contains(current)
+            boolean currentHasContact = approaches.contains(current)
                 && collection.hasClearPickupLine(level, target)
-                && settler.distanceToSqr(target) <= ITEM_CONTACT_DISTANCE_SQR) {
+                && settler.distanceToSqr(target) <= ITEM_CONTACT_DISTANCE_SQR;
+            if (currentHasContact) {
                 selectedItemApproach = current.immutable();
                 settler.getNavigation().stop();
                 started = true;
-            } else if (!approaches.isEmpty()) {
+            } else {
+                // The pathfinder may finish off-centre on an otherwise valid
+                // standing node. If that live pose makes the stump/floor
+                // occlude hand contact, do not keep selecting the same
+                // already-reached node forever. Route to another pre-checked
+                // side while retaining the real item and strict live ray at
+                // the eventual animation contact frame.
+                approaches.remove(current);
+            }
+            if (!started && !approaches.isEmpty()) {
                 // One bounded multi-target search chooses the nearest node it
                 // can reach exactly. The old Euclidean-only choice could keep
                 // aiming at a sealed side of a stump and eventually abandon a
@@ -1419,7 +1957,7 @@ public class LumbererWorkGoal extends Goal {
             repathTimer = 0;
         }
         WorkZone zone = currentCollectionZone(level);
-        if (!collectionTargetAllowed(level, zone, target.blockPosition())) {
+        if (!currentCollectionTargetAllowed(level, zone, target)) {
             traceItemRoute("release_outside_zone", target, null, false);
             collection.releaseSelected(level);
             selectedItemApproach = null;
@@ -1427,6 +1965,8 @@ public class LumbererWorkGoal extends Goal {
             mode = Mode.SELECTING_ITEM;
             return;
         }
+        clearCanopyLeafForSelectedOutput(level, zone, target);
+        clearObstructingLeaf(level, target.blockPosition(), 0.85D);
         unresolvedDropTicks = 0;
         settler.getLookControl().setLookAt(target, 30.0F, 30.0F);
         // Euclidean reach alone is not authority: it can be short through a
@@ -1457,12 +1997,11 @@ public class LumbererWorkGoal extends Goal {
                 stuckChecks++;
             }
             if (stuckChecks > MAX_PATH_FAILURES) {
-                traceItemRoute("release_unreachable", target, null, false);
-                settler.recordRouteFailure("felled_item_unreachable");
-                collection.releaseSelected(level);
-                selectedItemApproach = null;
-                selectedItemTargetBlock = null;
-                mode = Mode.SELECTING_ITEM;
+                traceItemRoute("pause_unreachable", target, null, false);
+                // Keep the real felled drop under this worker's persisted
+                // ownership. A transient route failure must yield and retry,
+                // not permanently orphan the fourth log after three succeed.
+                pauseRecoveryRoute(level, "felled_item_unreachable");
             } else {
                 pathToSelectedItem(level);
             }
@@ -1474,6 +2013,8 @@ public class LumbererWorkGoal extends Goal {
         if (!QaTrace.ENABLED) {
             return;
         }
+        WorkZone traceZone = settler.level() instanceof ServerLevel level
+            ? currentCollectionZone(level) : null;
         QaTrace.event(settler, "lumber_item_" + event,
             "target=" + target.blockPosition()
                 + ";targetPos=" + target.position()
@@ -1483,9 +2024,15 @@ public class LumbererWorkGoal extends Goal {
                 + ";distance=" + settler.distanceToSqr(target)
                 + ";best=" + bestItemDistanceSqr
                 + ";stuck=" + stuckChecks
+                + ";routeAttempts=" + itemRouteAttempts
                 + ";pathStarted=" + pathStarted
                 + ";navDone=" + settler.getNavigation().isDone()
-                + ";tracked=" + collection.trackedCount());
+                + ";tracked=" + collection.trackedCount()
+                + ";source=" + WorkerStackProvenance.readTransit(
+                    target.getItem()).map(transit -> BlockPos.of(
+                        transit.sourcePos()).toString()).orElse("none")
+                + ";zone=" + (traceZone == null ? "none"
+                    : traceZone.min() + ".." + traceZone.max()));
     }
 
     private double distanceToApproachSqr(BlockPos approach) {
@@ -1523,8 +2070,8 @@ public class LumbererWorkGoal extends Goal {
         if (!contactTransferred && phaseTicks == GROUND_PICKUP_CONTACT_TICK) {
             ItemEntity contactTarget = collection.selected(level);
             WorkZone zone = currentCollectionZone(level);
-            if (contactTarget != null && !collectionTargetAllowed(level, zone,
-                    contactTarget.blockPosition())) {
+            if (contactTarget != null && !currentCollectionTargetAllowed(level,
+                    zone, contactTarget)) {
                 traceItemRoute("contact_abort_outside_zone", contactTarget,
                     selectedItemApproach, false);
                 collection.releaseSelected(level);
@@ -1566,11 +2113,11 @@ public class LumbererWorkGoal extends Goal {
             }
             stuckChecks++;
             if (stuckChecks > MAX_PATH_FAILURES) {
-                traceItemRoute("release_unreachable_after_contact", retry,
+                traceItemRoute("pause_unreachable_after_contact", retry,
                     null, false);
-                settler.recordRouteFailure("felled_item_unreachable");
-                collection.releaseSelected(level);
-                mode = Mode.SELECTING_ITEM;
+                // The item remains the sole physical authority while the
+                // bounded recovery delay lets navigation/environment settle.
+                pauseRecoveryRoute(level, "felled_item_unreachable");
                 return;
             }
             mode = Mode.TO_ITEM;
@@ -1661,10 +2208,9 @@ public class LumbererWorkGoal extends Goal {
             contactTransferred = collection.stowOne()
                 == GroundCollectionSession.StowResult.STOWED;
             if (contactTransferred) {
-                level.playSound(null,
+                WorkSoundSync.play(level,
                     containerPos == null ? settler.blockPosition() : containerPos,
-                    ModSounds.BAG_STOW.get(), SoundSource.NEUTRAL, 0.65F,
-                    0.96F + settler.getRandom().nextFloat() * 0.08F);
+                    ModSounds.BAG_STOW.get(), 0.5F, 1.0F);
             }
         }
         if (phaseTicks < CONTAINER_STOW_DURATION) {
@@ -1700,10 +2246,9 @@ public class LumbererWorkGoal extends Goal {
         phaseTicks++;
         if (phaseTicks == CONTAINER_UP_CONTACT_TICK
             && settler.level() instanceof ServerLevel level) {
-            level.playSound(null,
+            WorkSoundSync.play(level,
                 containerPos == null ? settler.blockPosition() : containerPos,
-                ModSounds.BAG_UP.get(), SoundSource.NEUTRAL, 0.65F,
-                0.96F + settler.getRandom().nextFloat() * 0.08F);
+                ModSounds.BAG_UP.get(), 0.5F, 1.0F);
         }
         if (phaseTicks < CONTAINER_UP_DURATION) {
             return;
@@ -1744,8 +2289,10 @@ public class LumbererWorkGoal extends Goal {
             done = true;
             return;
         }
-        if (settler.blockPosition().distSqr(containerPos)
-            <= CONTAINER_CONTACT_DISTANCE_SQR) {
+        if (collectionTargetAllowed(level, currentCollectionZone(level), containerPos)
+            && settler.blockPosition().distSqr(containerPos) <= CONTAINER_CONTACT_DISTANCE_SQR
+            && level.noCollision(settler, settler.getBoundingBox().expandTowards(
+                Vec3.atBottomCenterOf(containerPos).subtract(settler.position())))) {
             startContainerDown(containerPos);
         } else if (--repathTimer <= 0) {
             notePathProgress(containerPos);
@@ -1762,9 +2309,24 @@ public class LumbererWorkGoal extends Goal {
     private void resetPathBudget() {
         repathTimer = 0;
         stuckChecks = 0;
+        itemRouteAttempts = 0;
         pathBudgetMode = null;
         pathBudgetTarget = null;
         bestPathDistanceSqr = Double.MAX_VALUE;
+    }
+
+    /** Package-visible deterministic seams for retry/route invariants. */
+    public static int recoveryRetryTicksForQa() {
+        return RECOVERY_RETRY_TICKS;
+    }
+
+    static boolean itemRouteBudgetExhausted(int attempts) {
+        return attempts >= MAX_ITEM_ROUTE_ATTEMPTS;
+    }
+
+    /** Package-visible deterministic seam for the camp detour regression. */
+    static boolean campRouteMadeProgress(double dx, double dy, double dz) {
+        return dx * dx + dy * dy + dz * dz > 0.0625D;
     }
 
     private void preparePathBudget(Mode budgetMode, BlockPos target) {
@@ -1837,29 +2399,7 @@ public class LumbererWorkGoal extends Goal {
         if (contact.canInteract()) {
             settler.getNavigation().stop();
             campStuckChecks = 0;
-            for (int i = 0; i < settler.bag.getContainerSize(); i++) {
-                ItemStack stack = settler.bag.getItem(i);
-                if (!stack.isEmpty()) {
-                    ItemStack offered = stack.copy();
-                    WorkerProvenanceService.DepositResult result =
-                        WorkerStackProvenance.readTransit(stack).isPresent()
-                            ? WorkerProvenanceService.depositOutput(serverLevel,
-                                settlement, camp, settler, depositTarget, stack)
-                            : WorkerProvenanceService.depositOrdinary(serverLevel,
-                                settlement, camp, settler, depositTarget, stack,
-                                BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER);
-                    ItemStack remainder = result.remainder();
-                    settler.bag.setItem(i, remainder);
-                    int inserted = offered.getCount() - remainder.getCount();
-                    if (inserted > 0 && offered.is(ItemTags.LOGS)
-                        && result.receipt() != null) {
-                            FoundingJourneyProgress.noteLogStored(serverLevel,
-                                settlement, camp, settler, offered, inserted);
-                            DevelopmentQuests.noteLumberLogsStored(serverLevel,
-                                settlement, camp, settler, offered, inserted);
-                    }
-                }
-            }
+            if (!tickCampUnload(serverLevel, settlement, camp)) return;
             depositTarget = null;
             if (bagCount() <= 0 && collection.hasTrackedDrops()
                 && containerPos != null) {
@@ -1883,21 +2423,113 @@ public class LumbererWorkGoal extends Goal {
                 }
             }
         } else if (--repathTimer <= 0) {
-            double distance = settler.blockPosition().distSqr(depositTarget);
-            if (distance + 0.25 < bestCampDistanceSqr) {
-                bestCampDistanceSqr = distance;
-                campStuckChecks = 0;
-            } else {
-                campStuckChecks++;
-            }
+            noteCampPathProgress();
             if (contact.state() == ContainerApproach.State.INVALID_TARGET) {
                 depositTarget = null;
+                // A claim on the vanished chest would reject every new one.
+                if (GroundedBagUnload.presentationTargetGone(serverLevel, settler,
+                        settler.bagTransferPresentation())) {
+                    GroundedBagUnload.clearPresentation(settler,
+                        settler.bagTransferPresentation());
+                }
             }
             pathToCamp();
             if (!done && campStuckChecks > MAX_PATH_FAILURES) {
                 pauseRecoveryRoute(serverLevel, "lumber_camp_unreachable");
             }
         }
+    }
+
+    /** One physical log per visible contact; projection is never inventory. */
+    private boolean tickCampUnload(ServerLevel level, Settlement settlement, Building camp) {
+        if (lastUnloadTick == level.getGameTime()) return false;
+        lastUnloadTick = level.getGameTime();
+        BagTransferPresentation view = settler.bagTransferPresentation();
+        if (!view.active()) {
+            if (bagCount() <= 0) return true;
+            ItemStack unit = firstUnloadUnit();
+            if (unit.isEmpty()) return false;
+            view = new BagTransferPresentation(UUID.randomUUID(), settler.blockPosition(),
+                settler.getYRot(), depositTarget, 0, false, unit);
+            settler.setActivity(SettlerActivity.SORTING);
+            settler.publishBagTransferPresentation(view);
+            settler.triggerBagToChestUnload();
+            return false;
+        }
+        if (!depositTarget.equals(view.containerPos())) {
+            pauseRecoveryRoute(level, "lumber_unload_target_changed");
+            return false;
+        }
+        settler.setActivity(SettlerActivity.SORTING);
+        int next = view.clock() + 1;
+        if (next == BagToChestAnimationContract.BAG_WORLD_CONTACT_TICK) {
+            settler.placeWorkContainer(WorkContainerKind.SACK, view.bagAnchor());
+            WorkSoundSync.play(level, view.bagAnchor(), ModSounds.BAG_DOWN.get(), 0.5F, 1.0F);
+        }
+        if (next == BagToChestAnimationContract.LID_CONTACT_TICK) {
+            level.blockEvent(depositTarget, level.getBlockState(depositTarget).getBlock(), 1, 1);
+        }
+        boolean committed = view.committed();
+        if (BagToChestAnimationContract.mayCommit(next, committed)) {
+            ItemStack unit = view.item();
+            int slot = -1;
+            for (int i=0; i<settler.bag.getContainerSize(); i++) {
+                ItemStack live = settler.bag.getItem(i);
+                if (!live.isEmpty() && unit.getCount() == 1
+                    && ItemStack.isSameItemSameComponents(live, unit)) { slot=i; break; }
+            }
+            if (slot < 0) {
+                // External inventory edits cannot authorize a replacement item.
+                settler.clearBagTransferPresentation(view.transferId());
+                return false;
+            }
+            WorkerProvenanceService.DepositResult result =
+                WorkerStackProvenance.readTransit(unit).isPresent()
+                    ? WorkerProvenanceService.depositOutput(level, settlement, camp,
+                        settler, depositTarget, unit.copy())
+                    : WorkerProvenanceService.depositOrdinary(level, settlement, camp,
+                        settler, depositTarget, unit.copy(), BuildingType.LUMBER_CAMP,
+                        WorkZone.Type.LUMBER);
+            int inserted = 1 - result.remainder().getCount();
+            if (inserted != 1) {
+                // Hold before contact; no clock or cargo advance when full/invalid.
+                pauseRecoveryRoute(level, "lumber_camp_storage_full");
+                return false;
+            }
+            ItemStack live = settler.bag.getItem(slot);
+            live.shrink(1);
+            settler.bag.setItem(slot, live);
+            committed = true;
+            if (unit.is(ItemTags.LOGS) && result.receipt() != null) {
+                FoundingJourneyProgress.noteLogStored(level, settlement, camp, settler, unit, 1);
+                DevelopmentQuests.noteLumberLogsStored(level, settlement, camp, settler, unit, 1);
+            }
+        }
+        if (next == BagToChestAnimationContract.LID_CLOSED_TICK) {
+            level.blockEvent(depositTarget, level.getBlockState(depositTarget).getBlock(), 1, 0);
+            if (BagToChestAnimationContract.continuesGroundedSession(next, committed, bagCount() <= 0)) {
+                ItemStack unit = firstUnloadUnit();
+                settler.publishBagTransferPresentation(new BagTransferPresentation(UUID.randomUUID(),
+                    view.bagAnchor(), view.bagYaw(), depositTarget,
+                    BagToChestAnimationContract.GROUNDED_REPEAT_TICK, false, unit));
+                return false;
+            }
+        }
+        if (next >= BagToChestAnimationContract.DURATION_TICKS) {
+            settler.clearBagTransferPresentation(view.transferId());
+            settler.clearWorkContainer();
+            return bagCount() <= 0;
+        }
+        settler.publishBagTransferPresentation(view.advance(next, committed));
+        return false;
+    }
+
+    private ItemStack firstUnloadUnit() {
+        for (int i=0; i<settler.bag.getContainerSize(); i++) {
+            ItemStack stack = settler.bag.getItem(i);
+            if (!stack.isEmpty()) return stack.copyWithCount(1);
+        }
+        return ItemStack.EMPTY;
     }
 
     @Override
@@ -1916,12 +2548,19 @@ public class LumbererWorkGoal extends Goal {
         collectionStarted = collectionStarted
             || (workActionId != null && collection.hasTrackedDrops());
         if (settler.level() instanceof ServerLevel level) {
-            if (stillLumberer && collectionStarted) {
+            if (stillLumberer && settler.bagTransferPresentation().active()) {
+                // Bag inventory and its actual grounded camp anchor remain.
+                // The next attempt resumes the exact visible unit/commit bit.
+            } else if (stillLumberer && collectionStarted) {
                 // The fixed sack and all inserted contents persist. A
                 // mid-carry offhand item is re-materialised before releasing
                 // movement, then the same session can resume next work tick.
                 collection.suspend(level);
             } else {
+                if (settler.bagTransferPresentation().active()) {
+                    settler.clearBagTransferPresentation(
+                        settler.bagTransferPresentation().transferId());
+                }
                 collection.abandon(level);
                 if (settler.placedWorkContainerPos() != null
                     && settler.placedWorkContainerKind() == WorkContainerKind.SACK) {

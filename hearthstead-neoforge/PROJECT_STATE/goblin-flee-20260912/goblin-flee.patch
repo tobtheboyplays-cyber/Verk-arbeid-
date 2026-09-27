@@ -1,0 +1,55 @@
+diff --git a/src/main/java/com/hearthstead/event/GoblinThiefDemo.java b/src/main/java/com/hearthstead/event/GoblinThiefDemo.java
+--- a/src/main/java/com/hearthstead/event/GoblinThiefDemo.java
++++ b/src/main/java/com/hearthstead/event/GoblinThiefDemo.java
+@@ -46,11 +46,10 @@ public final class GoblinThiefDemo {
+     private static final double PICKPOCKET_ACQUIRE_SQR = 8.0D * 8.0D;
+     private static final double PICKPOCKET_CONTACT_SQR = 1.8D * 1.8D;
+     private static final double PICKPOCKET_TRAVEL_ABANDON_SQR = 48.0D * 48.0D;
+-    /** Route multipliers are deliberately far below the old 1.5 flee value.
+-     * They shape braking and recovery; player-relative blocks per tick still
+-     * require a real movement capture rather than arithmetic alone. */
+-    static final double FLEE_CRUISE_SPEED = .31D;
+-    static final double FLEE_TIGHT_TURN_SPEED = .21D;
++    /** Navigation multipliers, rather than raw attribute values. A skirmisher
++     * flees upright just below a sprint; a tight reroute only brakes modestly. */
++    static final double FLEE_CRUISE_SPEED = 1.10D;
++    static final double FLEE_TIGHT_TURN_SPEED = .90D;
+     private static final double FLEE_BRAKE_PER_REPATH = .06D;
+     private static final double FLEE_RECOVERY_PER_REPATH = .025D;
+     private static final String FLEE_SPEED_TAG = "FleeNavigationSpeed";
+diff --git a/src/main/java/com/hearthstead/client/model/GoblinThiefModel.java b/src/main/java/com/hearthstead/client/model/GoblinThiefModel.java
+--- a/src/main/java/com/hearthstead/client/model/GoblinThiefModel.java
++++ b/src/main/java/com/hearthstead/client/model/GoblinThiefModel.java
+@@ -85,7 +85,8 @@ public final class GoblinThiefModel extends HierarchicalModel<RaiderEntity> {
+         float step=Mth.sin(limbSwing*cadence)*moving;
+         head.yRot=Mth.clamp(yaw,-55,55)*Mth.DEG_TO_RAD;
+         head.xRot=Mth.clamp(pitch,-30,30)*Mth.DEG_TO_RAD;
+-        torso.xRot=stage==2?.19F:.12F;
++        // Stage two has no crouch flag: keep its carry run visibly upright.
++        torso.xRot=stage==2?.10F:.12F;
+         leftLeg.xRot=step*(stage==2?.72F:.4F); rightLeg.xRot=-leftLeg.xRot;
+         torso.y+=(1-Mth.cos(limbSwing*(stage==2?cadence*2F:1.64F)))*.14F*moving;
+         if(stage==3) {
+diff --git a/src/test/java/com/hearthstead/event/GoblinTheftSavedDataTest.java b/src/test/java/com/hearthstead/event/GoblinTheftSavedDataTest.java
+--- a/src/test/java/com/hearthstead/event/GoblinTheftSavedDataTest.java
++++ b/src/test/java/com/hearthstead/event/GoblinTheftSavedDataTest.java
+@@ -52,10 +52,18 @@ class GoblinTheftSavedDataTest {
+         double sharpTurn=GoblinThiefDemo.fleeNavigationSpeedForHeading(cruise,-1D);
+         double recovery=GoblinThiefDemo.fleeNavigationSpeedForHeading(sharpTurn,1D);
+ 
+         assertEquals(GoblinThiefDemo.FLEE_CRUISE_SPEED,cruise,.000001D,
+-            "a straight escape retains its modest cruise pace");
++            "a straight escape keeps its normal run multiplier");
++        assertTrue(cruise >= 1.0D && cruise < 1.2D,
++            "a thief with one Coin uses a near-sprint navigation multiplier, never a burden-scaled crawl");
++        assertTrue(GoblinThiefDemo.FLEE_TIGHT_TURN_SPEED
++                >= GoblinThiefDemo.FLEE_CRUISE_SPEED * .80D,
++            "a tight reroute is a modest brake instead of reducing the thief to a sneak");
+         assertTrue(rightAngle<cruise && sharpTurn<cruise,
+             "a route corner or full reversal brakes below the straight escape modifier");
++        assertTrue(rightAngle>=GoblinThiefDemo.FLEE_TIGHT_TURN_SPEED
++                && sharpTurn>=GoblinThiefDemo.FLEE_TIGHT_TURN_SPEED,
++            "turning never falls below the bounded tight-turn multiplier");
+         assertTrue(recovery>sharpTurn && recovery<=cruise
+                 && recovery-sharpTurn<=.025001D,
+             "a straightened route recovers over route checks without an instant speed snap");

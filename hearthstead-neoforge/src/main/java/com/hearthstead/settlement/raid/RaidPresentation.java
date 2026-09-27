@@ -8,7 +8,6 @@ import com.hearthstead.settlement.state.FirstRaidState;
 import net.minecraft.network.chat.Component;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 
 import java.util.Optional;
@@ -37,8 +36,9 @@ public final class RaidPresentation {
         if (warning == null) return false;
 
         RaidBroadcast.send(level, settlement, Component.translatable(
-            "hearthstead.message.raid_omen", settlement.name));
-        RaidBroadcast.send(level, settlement, Component.translatable(
+            RaidEscalation.isOutlawBand(settlement) ? "hearthstead.message.raid_omen_outlaws"
+                : "hearthstead.message.raid_omen", settlement.name));
+        RaidBroadcast.town(level, settlement, Component.translatable(
             "hearthstead.message.raid_warning_exact",
             warning.attackNight(), Component.literal(warning.captainName()),
             settlement.name, Component.translatable(
@@ -46,8 +46,8 @@ public final class RaidPresentation {
             Component.translatable(warning.objective().translationKey())));
         level.playSound(null, settlement.center, ModSounds.GUARD_ALERT.get(),
             SoundSource.BLOCKS, 1.35F, 0.82F);
-        level.playSound(null, settlement.center, SoundEvents.BELL_BLOCK,
-            SoundSource.BLOCKS, 1.35F, 0.58F);
+        level.playSound(null, settlement.center, ModSounds.VILLAGE_BELL.get(),
+            SoundSource.BLOCKS, 1.35F, 0.9F);
         level.sendParticles(ParticleTypes.ASH,
             settlement.center.getX() + 0.5,
             settlement.center.getY() + 1.35,
@@ -128,8 +128,10 @@ public final class RaidPresentation {
     /** The sealed band is live: a restrained horn plus Hearthstead identity. */
     public static void arrival(ServerLevel level, Settlement settlement) {
         if (!valid(level, settlement)) return;
-        level.playSound(null, settlement.center, SoundEvents.RAID_HORN.value(),
-            SoundSource.HOSTILE, 3.0F, 0.96F);
+        // Volume above 1 only widens the server broadcast range (32 blocks);
+        // the original horn's own level stays restrained in sounds.json.
+        level.playSound(null, settlement.center, ModSounds.RAID_HORN.get(),
+            SoundSource.HOSTILE, 2.0F, 1.0F);
         level.playSound(null, settlement.center, ModSounds.GUARD_ALERT.get(),
             SoundSource.HOSTILE, 1.05F, 0.94F);
     }
@@ -139,11 +141,15 @@ public final class RaidPresentation {
                                 boolean held) {
         if (!valid(level, settlement)) return;
         level.playSound(null, settlement.center,
-            held ? SoundEvents.UI_TOAST_CHALLENGE_COMPLETE
-                : SoundEvents.BELL_BLOCK,
+            held ? ModSounds.RAID_WON_FANFARE.get()
+                : ModSounds.RAID_LOST_TOLL.get(),
             held ? SoundSource.PLAYERS : SoundSource.BLOCKS,
-            held ? 1.2F : 2.0F,
-            held ? 0.92F : 0.48F);
+            held ? 1.6F : 1.6F,
+            1.0F);
+        // The soundtrack's short victory / aftermath sting, under the Music slider.
+        level.playSound(null, settlement.center,
+            held ? ModSounds.MUSIC_RAID_VICTORY.get() : ModSounds.MUSIC_RAID_DEFEAT.get(),
+            SoundSource.MUSIC, 3.0F, 1.0F);
         level.sendParticles(held ? ParticleTypes.HAPPY_VILLAGER : ParticleTypes.ASH,
             settlement.center.getX() + 0.5,
             settlement.center.getY() + 1.35,

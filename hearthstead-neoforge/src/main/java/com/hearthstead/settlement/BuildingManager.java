@@ -172,18 +172,16 @@ public final class BuildingManager {
     /** A free, valid bed in this settlement (not claimed by a living member). */
     @Nullable
     public static BlockPos findFreeBed(ServerLevel level, Settlement settlement) {
-        Set<BlockPos> claimed = new HashSet<>();
-        for (SettlerEntity settler : SettlementManager.loadedMembers(level, settlement)) {
-            if (settler.getClaimedBed() != null) {
-                claimed.add(settler.getClaimedBed());
-            }
-        }
+        ResidentBedOccupancy occupancy = ResidentBedOccupancy.read(level, settlement);
         for (Building building : settlement.buildings) {
-            if (!building.valid) {
+            if (!building.valid
+                // House bed cap (tech tree: 4, Townhouses 6, Manors 8).
+                || !com.hearthstead.settlement.techtree.effects.CommonsEffects.hasRoom(
+                    settlement, building, occupancy.claims().keySet())) {
                 continue;
             }
             for (BlockPos bed : building.beds) {
-                if (!claimed.contains(bed)) {
+                if (occupancy.available(bed)) {
                     return bed;
                 }
             }
@@ -201,18 +199,20 @@ public final class BuildingManager {
             return;
         }
         List<SettlerEntity> members = SettlementManager.loadedMembers(level, settlement);
-        Set<BlockPos> claimed = new HashSet<>();
-        for (SettlerEntity member : members) {
-            if (member.getClaimedBed() != null) {
-                claimed.add(member.getClaimedBed());
-            }
-        }
+        ResidentBedOccupancy occupancy = ResidentBedOccupancy.read(level, settlement);
+        if (occupancy.unresolved()) return; // An unloaded legacy owner must first reconcile.
+        Set<BlockPos> claimed = new HashSet<>(occupancy.claims().keySet());
         for (BlockPos bed : building.beds) {
             if (claimed.contains(bed)) {
                 continue;
             }
+            // House bed cap: never evicts, only stops new claims at the cap.
+            if (!com.hearthstead.settlement.techtree.effects.CommonsEffects.hasRoom(
+                    settlement, building, claimed)) {
+                break;
+            }
             for (SettlerEntity member : members) {
-                if (member.getClaimedBed() == null) {
+                if (settlement.id.equals(member.getSettlementId()) && member.getClaimedBed() == null) {
                     member.claimBed(bed);
                     claimed.add(bed);
                     break;
@@ -248,6 +248,7 @@ public final class BuildingManager {
                                  Building building) {
         return type.housesResidents()
             ? Math.min(type.residentCapacity(), building.beds.size())
+            : building != null && building.type == type ? building.workerCapacity()
             : type.workerCapacity();
     }
 

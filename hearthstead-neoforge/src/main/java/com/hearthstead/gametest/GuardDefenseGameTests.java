@@ -12,8 +12,12 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
+import com.hearthstead.settlement.raid.RaidCaptain;
+import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidObjective;
 import com.hearthstead.settlement.raid.RaidPlan;
+import com.hearthstead.settlement.raid.RaidThreatBoard;
+import com.hearthstead.settlement.state.FirstRaidState;
 import com.hearthstead.settlement.state.GuardOrder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -21,6 +25,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -111,9 +116,50 @@ public class GuardDefenseGameTests {
         return raider;
     }
 
-    private static void activateRaid(Settlement settlement) {
-        settlement.pendingRaid = new RaidPlan(UUID.randomUUID(),
-            RaidObjective.BLOD, 0.0F, 1L);
+    private static ActiveRaid beginRaidCapture(GameTestHelper helper,
+                                                Settlement settlement) {
+        helper.assertTrue(settlement.raidLifecycle.initializeAtFounding(0L, 4, 2),
+            "fixture: authoritative first-raid schedule must initialize");
+        RaidCaptain captain = RaidDirector.pickCaptain(settlement,
+            helper.getLevel().getRandom());
+        RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 4L);
+        helper.assertTrue(settlement.raidLifecycle.queueFirstPlan(plan)
+                && settlement.raidLifecycle.beginFirstRaid(plan),
+            "fixture: authoritative first raid did not activate");
+        UUID participantId = UUID.randomUUID();
+        helper.assertTrue(settlement.raidLifecycle.recordParticipant(participantId),
+            "fixture: exact first-raid participant must enter the open capture");
+        settlement.pendingRaid = plan;
+        return new ActiveRaid(plan, participantId);
+    }
+
+    private static ActiveRaid activateRaid(GameTestHelper helper,
+                                            Settlement settlement) {
+        ActiveRaid raid = beginRaidCapture(helper, settlement);
+        helper.assertTrue(settlement.raidLifecycle.sealParticipants(),
+            "fixture: exact first-raid participant capture must seal");
+        return raid;
+    }
+
+    private static void activateRaidFor(GameTestHelper helper,
+                                        Settlement settlement,
+                                        RaiderEntity... participants) {
+        helper.assertTrue(settlement.raidLifecycle.initializeAtFounding(0L, 4, 2),
+            "fixture: authoritative first-raid schedule must initialize");
+        RaidCaptain captain = RaidDirector.pickCaptain(settlement,
+            helper.getLevel().getRandom());
+        RaidPlan plan = new RaidPlan(captain.id(), RaidObjective.BLOD, 0.0F, 4L);
+        helper.assertTrue(settlement.raidLifecycle.queueFirstPlan(plan)
+                && settlement.raidLifecycle.beginFirstRaid(plan),
+            "fixture: authoritative first raid did not activate");
+        for (RaiderEntity participant : participants) {
+            helper.assertTrue(settlement.raidLifecycle.recordParticipant(
+                    participant.getUUID()),
+                "fixture: physical raider must enter sealed roster");
+        }
+        helper.assertTrue(settlement.raidLifecycle.sealParticipants(),
+            "fixture: physical raid roster must seal");
+        settlement.pendingRaid = plan;
     }
 
     /**
@@ -132,6 +178,14 @@ public class GuardDefenseGameTests {
 
         RaiderEntity idleAndNear = spawnIdleRaider(helper, s, new BlockPos(9, 1, 8));
         RaiderEntity attackingAndFar = spawnIdleRaider(helper, s, new BlockPos(12, 1, 8));
+        // This fixture measures defender ordering, not RaiderEntity's own
+        // combat loop. Without freezing both raiders they can kill the
+        // civilian and guard before the shared ten-tick threat snapshot is
+        // published, making the final observed target null for reasons
+        // unrelated to the ordering contract. A frozen Mob still exposes
+        // the live target set immediately below to production urgency logic.
+        idleAndNear.setNoAi(true);
+        attackingAndFar.setNoAi(true);
         attackingAndFar.setTarget(victim);
 
         helper.succeedWhen(() -> helper.assertTrue(guard.getTarget() == attackingAndFar,
@@ -292,7 +346,20 @@ public class GuardDefenseGameTests {
         // raid is active; their Tower goal remains the sole movement owner.
         SettlerEntity archer = spawnDefender(helper, s,
             new BlockPos(14, 1, 14), Profession.ARCHER);
-        activateRaid(s);
+
+        // A compatibility mirror alone is never raid authority.  This used
+        // to make a Stand Guard follow forever after a damaged load even
+        // though RaidDirector correctly refused to process that mirror.
+        s.pendingRaid = new RaidPlan(UUID.randomUUID(), RaidObjective.BLOD,
+            0.0F, 4L);
+        helper.assertTrue(!new GuardRaidEscortGoal(bodyguard).canUse(),
+            "stale PendingRaid without an active lifecycle must not start escort");
+        s.pendingRaid = null;
+        ActiveRaid activeRaid = beginRaidCapture(helper, s);
+        helper.assertTrue(!new GuardRaidEscortGoal(bodyguard).canUse(),
+            "an authored lifecycle still capturing participants must not start escort");
+        helper.assertTrue(s.raidLifecycle.sealParticipants(),
+            "fixture: bodyguard raid must seal its exact participant ledger");
         helper.assertTrue(new GuardRaidEscortGoal(bodyguard).canUse(),
             "closest valid Stand guard must follow its exact issuer; a closer "
                 + "non-issuer player may not steal it");
@@ -303,9 +370,9 @@ public class GuardDefenseGameTests {
         helper.assertTrue(!new GuardRaidEscortGoal(archer).canUse(),
             "Archer Tower movement must never be overridden by bodyguard AI");
 
-        boolean[] rallied = {false};
+        int[] phase = {0};
         helper.succeedWhen(() -> {
-            if (!rallied[0]) {
+            if (phase[0] == 0) {
                 helper.assertTrue(bodyguard.blockPosition().distSqr(bodyPost)
                         > 2.25D
                     && bodyguard.distanceToSqr(issuer) <= 16.0D,
@@ -313,7 +380,32 @@ public class GuardDefenseGameTests {
                 BlockPos outside = helper.absolutePos(new BlockPos(14, 1, 8));
                 issuer.teleportTo(outside.getX() + 0.5D, outside.getY(),
                     outside.getZ() + 0.5D);
-                rallied[0] = true;
+                phase[0] = 1;
+                return;
+            }
+            if (phase[0] == 1) {
+                helper.assertTrue(bodyguard.blockPosition().distSqr(bodyPost)
+                        <= 2.25D,
+                    "outside the leash, the elected bodyguard must return");
+                issuer.teleportTo(playerAbs.getX() + 0.5D, playerAbs.getY(),
+                    playerAbs.getZ() + 0.5D);
+                phase[0] = 2;
+                return;
+            }
+            if (phase[0] == 2) {
+                helper.assertTrue(bodyguard.blockPosition().distSqr(bodyPost)
+                        > 2.25D
+                    && bodyguard.distanceToSqr(issuer) <= 16.0D,
+                    "the unchanged Stand order must re-elect its issuer during the raid");
+                helper.assertTrue(s.raidLifecycle.recordTerminalParticipant(
+                        activeRaid.participantId())
+                        && RaidDirector.resolveIfOver(helper.getLevel(), s)
+                        && s.raidLifecycle.firstState() == FirstRaidState.COMPLETED
+                        && s.pendingRaid == null,
+                    "the sealed authoritative raid must resolve through RaidDirector "
+                        + "before escort authority disappears");
+                phase[0] = 3;
+                return;
             }
             helper.assertTrue(bodyguard.blockPosition().distSqr(bodyPost)
                     <= 2.25D
@@ -321,8 +413,8 @@ public class GuardDefenseGameTests {
                 && bodyOrder.mode() == GuardOrder.Mode.STAND_POST
                 && reserveOrder.mode() == GuardOrder.Mode.STAND_POST
                 && patrolOrder.mode() == GuardOrder.Mode.PATROL_ROUTE,
-                "outside the leash, the one bodyguard must return while every "
-                    + "explicit order remains unchanged");
+                "raid end must return the bodyguard while every explicit order "
+                    + "remains unchanged");
         });
     }
 
@@ -363,7 +455,6 @@ public class GuardDefenseGameTests {
     public void distributesRolesAcrossTwoOrdinaryRaiders(GameTestHelper helper) {
         buildArena(helper, 16);
         Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
-        activateRaid(s);
         SettlerEntity guard = spawnDefender(helper, s,
             new BlockPos(7, 1, 8), Profession.GUARD);
         SettlerEntity archer = spawnDefender(helper, s,
@@ -372,8 +463,41 @@ public class GuardDefenseGameTests {
             new BlockPos(8, 1, 11), RaiderEntity.Variant.BRUTE);
         RaiderEntity skirmisher = spawnIdleRaider(helper, s,
             new BlockPos(8, 1, 5), RaiderEntity.Variant.SKIRMISHER);
+        activateRaidFor(helper, s, brute, skirmisher);
         brute.setNoAi(true);
         skirmisher.setNoAi(true);
+
+        // A physically separate encounter creates the same roles in the
+        // reverse entity-add order. Semantic assignments must match.
+        Settlement reversed = new Settlement(UUID.randomUUID(), "Reverseholm",
+            helper.absolutePos(new BlockPos(3, 1, 3)));
+        reversed.radius = 12;
+        SettlementSavedData.get(helper.getLevel()).settlements.put(reversed.id,
+            reversed);
+        SettlerEntity reversedArcher = spawnDefender(helper, reversed,
+            new BlockPos(3, 1, 2), Profession.ARCHER);
+        SettlerEntity reversedGuard = spawnDefender(helper, reversed,
+            new BlockPos(2, 1, 3), Profession.GUARD);
+        RaiderEntity reversedSkirmisher = spawnIdleRaider(helper, reversed,
+            new BlockPos(3, 1, 5), RaiderEntity.Variant.SKIRMISHER);
+        RaiderEntity reversedBrute = spawnIdleRaider(helper, reversed,
+            new BlockPos(5, 1, 3), RaiderEntity.Variant.BRUTE);
+        activateRaidFor(helper, reversed, reversedSkirmisher, reversedBrute);
+        reversedBrute.setNoAi(true);
+        reversedSkirmisher.setNoAi(true);
+
+        // Allocation needs all four ordinary targets alive while independent
+        // normal-AI acquisition converges. In 1.21.1 absorption is clamped to
+        // MAX_ABSORPTION (zero by default), so set the capacity before filling
+        // this local durability fixture. Damage and target authority stay real.
+        for (RaiderEntity raider : new RaiderEntity[] {
+                brute, skirmisher, reversedBrute, reversedSkirmisher }) {
+            raider.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_ABSORPTION)
+                .setBaseValue(1_000.0D);
+            raider.setAbsorptionAmount(1_000.0F);
+            helper.assertTrue(raider.getAbsorptionAmount() == 1_000.0F,
+                "fixture: allocation target must receive actual absorption");
+        }
 
         helper.succeedWhen(() -> {
             helper.assertTrue(guard.getTarget() == brute,
@@ -382,6 +506,24 @@ public class GuardDefenseGameTests {
                 "archer must cover the skirmisher; got " + archer.getTarget());
             helper.assertTrue(guard.getTarget() != archer.getTarget(),
                 "two defenders must cover two ordinary raiders instead of dogpiling");
+            RaidThreatBoard.clear(helper.getLevel());
+            Monster archerFirst = RaidThreatBoard.assignedTarget(
+                helper.getLevel(), s, archer);
+            Monster guardSecond = RaidThreatBoard.assignedTarget(
+                helper.getLevel(), s, guard);
+            RaidThreatBoard.clear(helper.getLevel());
+            Monster guardFirst = RaidThreatBoard.assignedTarget(
+                helper.getLevel(), s, guard);
+            Monster archerSecond = RaidThreatBoard.assignedTarget(
+                helper.getLevel(), s, archer);
+            helper.assertTrue(guardFirst == guardSecond
+                    && archerFirst == archerSecond
+                    && guardFirst == brute && archerFirst == skirmisher,
+                "atomic allocation must be caller/tick-order independent");
+            helper.assertTrue(reversedGuard.getTarget() == reversedBrute
+                    && reversedArcher.getTarget() == reversedSkirmisher,
+                "physically reversed defender/raider add order must retain "
+                    + "the same Guard-to-Brute and Archer-to-Skirmisher mapping");
         });
     }
 
@@ -396,7 +538,6 @@ public class GuardDefenseGameTests {
             GameTestHelper helper) {
         buildArena(helper, 16);
         Settlement s = makeSettlement(helper, new BlockPos(8, 1, 8));
-        activateRaid(s);
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         BlockPos playerAbs = helper.absolutePos(new BlockPos(8, 1, 8));
         player.teleportTo(playerAbs.getX() + 0.5D, playerAbs.getY(),
@@ -408,6 +549,16 @@ public class GuardDefenseGameTests {
             new BlockPos(8, 1, 11));
         RaiderEntity uncovered = spawnIdleRaider(helper, s,
             new BlockPos(8, 1, 4));
+        activateRaidFor(helper, s, playerThreat, uncovered);
+        // This is an allocation test, not a four-hit combat race. The live
+        // sword contacts observed in QA can remove both 18-health targets
+        // before the ten-tick board snapshot is read. Keep the same real,
+        // attackable Raiders alive long enough to observe allocation.
+        for (RaiderEntity raider : java.util.List.of(playerThreat, uncovered)) {
+            raider.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                .setBaseValue(1_000.0D);
+            raider.setHealth(1_000.0F);
+        }
         playerThreat.setNoAi(true);
         uncovered.setNoAi(true);
         playerThreat.setTarget(player);
@@ -421,9 +572,94 @@ public class GuardDefenseGameTests {
                 + (third.getTarget() == uncovered ? 1 : 0);
             helper.assertTrue(onThreat == 2,
                 "the active player threat must draw exactly two defenders; got "
-                    + onThreat);
+                    + onThreat + "; " + guardFocusDiagnostic(helper, first, second,
+                        third, playerThreat, uncovered, player, s));
             helper.assertTrue(onOther == 1,
-                "the third defender must cover the other enemy; got " + onOther);
+                "the third defender must cover the other enemy; got " + onOther
+                    + "; " + guardFocusDiagnostic(helper, first, second, third,
+                        playerThreat, uncovered, player, s));
         });
+    }
+
+    private static String guardFocusDiagnostic(GameTestHelper helper,
+                                                SettlerEntity first,
+                                                SettlerEntity second,
+                                                SettlerEntity third,
+                                                RaiderEntity playerThreat,
+                                                RaiderEntity uncovered,
+                                                ServerPlayer player,
+                                                Settlement settlement) {
+        return "guards=[" + guardFocusState(first) + ";" + guardFocusState(second)
+            + ";" + guardFocusState(third) + "]"
+            + ", raiders=[" + guardFocusRaiderState(playerThreat) + ";"
+            + guardFocusRaiderState(uncovered) + "]"
+            + ", player=[alive=" + player.isAlive() + ",removed=" + player.isRemoved()
+            + ",pos=" + player.position() + "]"
+            + ", candidates=" + RaidThreatBoard.candidates(helper.getLevel(), settlement);
+    }
+
+    private static String guardFocusState(SettlerEntity guard) {
+        return "target=" + (guard.getTarget() == null ? "none"
+            : guard.getTarget().getUUID()) + ",pos=" + guard.position()
+            + ",alive=" + guard.isAlive() + ",profession=" + guard.getProfession();
+    }
+
+    private static String guardFocusRaiderState(RaiderEntity raider) {
+        return "id=" + raider.getUUID() + ",target="
+            + (raider.getTarget() == null ? "none" : raider.getTarget().getUUID())
+            + ",pos=" + raider.position() + ",alive=" + raider.isAlive()
+            + ",settlement=" + raider.settlementId();
+    }
+
+    /** Allocation regression, not a combat victory or damage simulation. */
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "guard_close_engagement_continuity")
+    public void closeEngagementSurvivesNearestPeerButYieldsToUrgency(
+            GameTestHelper helper) {
+        buildArena(helper, 16);
+        Settlement settlement = makeSettlement(helper, new BlockPos(8, 1, 8));
+        SettlerEntity guard = spawnGuard(helper, settlement, new BlockPos(8, 1, 8));
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.WOODEN_SWORD));
+        RaiderEntity incumbent = spawnIdleRaider(helper, settlement,
+            new BlockPos(8, 1, 11));
+        RaiderEntity nearer = spawnIdleRaider(helper, settlement,
+            new BlockPos(9, 1, 8));
+        guard.setNoAi(true);
+        incumbent.setNoAi(true);
+        nearer.setNoAi(true);
+        guard.setTarget(incumbent);
+        RaidThreatBoard.clear(helper.getLevel());
+        helper.assertTrue(RaidThreatBoard.assignedTarget(helper.getLevel(),
+                settlement, guard) == incumbent,
+            "an eligible close incumbent must survive a nearer equal-tier peer");
+
+        nearer.setTarget(guard);
+        RaidThreatBoard.clear(helper.getLevel());
+        helper.assertTrue(RaidThreatBoard.assignedTarget(helper.getLevel(),
+                settlement, guard) == nearer,
+            "a newly urgent threat must override close engagement continuity");
+
+        nearer.setTarget(null);
+        BlockPos far = helper.absolutePos(new BlockPos(8, 1, 15));
+        incumbent.moveTo(far.getX() + 0.5D, far.getY(), far.getZ() + 0.5D);
+        RaidThreatBoard.clear(helper.getLevel());
+        helper.assertTrue(RaidThreatBoard.assignedTarget(helper.getLevel(),
+                settlement, guard) == nearer,
+            "a distant incumbent must not prevent defending a nearby peer");
+
+        incumbent.discard();
+        RaidThreatBoard.clear(helper.getLevel());
+        helper.assertTrue(RaidThreatBoard.assignedTarget(helper.getLevel(),
+                settlement, guard) == nearer,
+            "a removed incumbent must never retain an assignment");
+        guard.discard();
+        nearer.discard();
+        SettlementSavedData.get(helper.getLevel()).settlements.remove(settlement.id);
+        SettlementSavedData.get(helper.getLevel()).setDirty();
+        RaidThreatBoard.clear(helper.getLevel());
+        helper.succeed();
+    }
+
+    private record ActiveRaid(RaidPlan plan, UUID participantId) {
     }
 }

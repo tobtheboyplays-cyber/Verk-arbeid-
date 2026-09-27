@@ -6,6 +6,10 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.equipment.EquipmentRequest;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
+import com.hearthstead.settlement.request.RequestBlocker;
+import com.hearthstead.settlement.request.RequestLedgerSnapshot;
+import com.hearthstead.settlement.request.RequestState;
+import com.hearthstead.settlement.request.RequestType;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -14,7 +18,9 @@ import net.neoforged.neoforge.network.PacketDistributor;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Exact-session validation, reordering and snapshots for Request Queue. */
@@ -95,6 +101,17 @@ public final class EquipmentRequestListNetwork {
         int rowCount = Math.min(ordered.size(),
             EquipmentRequestListPayload.MAX_ROWS);
         List<EquipmentRequestListPayload.Row> rows = new ArrayList<>(rowCount);
+        Map<UUID, RequestLedgerSnapshot.Row> ledgerRows = new HashMap<>();
+        RequestLedgerSnapshot.create(level, settlement).ifPresent(snapshot -> {
+            for (RequestLedgerSnapshot.Row row : snapshot.rows()) {
+                // Exact traced equipment rows stop being marked as a legacy
+                // adapter, but they remain equipment requests and carry the
+                // strongest physical-owner evidence available to this board.
+                if (row.type() == RequestType.EQUIPMENT) {
+                    ledgerRows.put(row.requestId(), row);
+                }
+            }
+        });
         for (int index = 0; index < rowCount; index++) {
             EquipmentRequest request = ordered.get(index);
             Building destination = buildingById(settlement,
@@ -104,12 +121,32 @@ public final class EquipmentRequestListNetwork {
             }
             ItemStack requested = new ItemStack(
                 request.requirement().preferredItem(), request.count());
+            RequestLedgerSnapshot.Row ledger = ledgerRows.get(request.id());
+            RequestState state = ledger == null
+                ? switch (request.status()) {
+                    case OPEN -> RequestState.OPEN;
+                    case CLAIMED -> RequestState.RESERVED;
+                    case DELIVERED -> RequestState.DELIVERED;
+                }
+                : ledger.state();
+            RequestBlocker blocker = ledger == null
+                ? RequestBlocker.EQUIPMENT_ADAPTER_LIMITED : ledger.blocker();
+            int owner = ledger == null
+                ? RequestLedgerSnapshot.PhysicalOwner.UNKNOWN.ordinal()
+                : ledger.physicalOwner().ordinal();
+            long age = ledger == null || ledger.ageTicks() < 0L
+                ? RequestLedgerSnapshot.UNKNOWN_AGE : ledger.ageTicks();
+            UUID assignedCourier = ledger == null ? request.claimedBy()
+                : ledger.courierId();
             rows.add(new EquipmentRequestListPayload.Row(request.id(),
                 request.requesterId(), requesterName(settlement,
                     request.requesterId()), request.destinationBuildingId(),
                 destination.type.id(), index + 1,
                 request.priority().ordinal(), request.status().ordinal(),
-                requested, request.count(), request.reason().ordinal()));
+                requested, request.count(), request.reason().ordinal(),
+                state.wireId(), blocker.wireId(), owner, age,
+                settlerName(settlement, assignedCourier),
+                ledger != null && ledger.fullTransportTrace()));
         }
         UUID next = ordered.size() > rowCount
             ? ordered.get(rowCount).id() : EquipmentRequestMovePayload.END;
@@ -153,6 +190,18 @@ public final class EquipmentRequestListNetwork {
         return requesterId.toString().substring(0, 8);
     }
 
+    private static String settlerName(Settlement settlement, UUID settlerId) {
+        if (settlerId == null) {
+            return "";
+        }
+        for (Settlement.SettlerRecord record : settlement.settlers) {
+            if (record.entityId.equals(settlerId)) {
+                return record.name;
+            }
+        }
+        return settlerId.toString().substring(0, 8);
+    }
+
     @Nullable
     private static Building buildingById(Settlement settlement,
                                          UUID buildingId) {
@@ -166,7 +215,7 @@ public final class EquipmentRequestListNetwork {
 
     private static void send(ServerPlayer player,
                              EquipmentRequestListPayload snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private record Resolved(ServerLevel level, Settlement settlement,

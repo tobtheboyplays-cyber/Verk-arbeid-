@@ -5,7 +5,6 @@ import com.hearthstead.entity.Attribute;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
-import com.hearthstead.entity.ai.ArcherAttackGoal;
 import com.hearthstead.item.JobEmblemItem;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.journey.JourneyEmblemProvenance;
@@ -159,6 +158,7 @@ public final class Employment {
         // through CrafterWorkGoal like the twelve above -- see
         // InnkeeperWorkGoal for the goal built for that shape instead.
         TRADES.put(BuildingType.TAVERN, Profession.INNKEEPER);
+        TRADES.put(BuildingType.TRADING_POST, Profession.TRADER);
 
         // SLICE RESEARCH-1: the architects' study's own trade. The scholar
         // does not run through CrafterWorkGoal -- there is no Production
@@ -193,6 +193,13 @@ public final class Employment {
         TRADES.put(BuildingType.PASTURE, Profession.HERDER);
         TRADES.put(BuildingType.FISHERY, Profession.FISHER);
         TRADES.put(BuildingType.HUNTERS_LODGE, Profession.HUNTER);
+        // BUILDER lane: the hut is the depot couriers fill; the work is the site.
+        TRADES.put(BuildingType.BUILDERS_HUT, Profession.BUILDER);
+        // BATTLE-ROLES (plan/BATTLE-ROLES.md): one hall per battlefield role.
+        TRADES.put(BuildingType.PIKE_YARD, Profession.SPEARMAN);
+        TRADES.put(BuildingType.SWORD_HALL, Profession.LONGSWORDSMAN);
+        TRADES.put(BuildingType.INFIRMARY, Profession.HEALER);
+        TRADES.put(BuildingType.RUNE_HALL, Profession.RUNE_MAGE);
     }
 
     /**
@@ -221,7 +228,7 @@ public final class Employment {
             // bespoke one -- D-016's signature-motion pass never reached the
             // tavern, so a real INNKEEPER clip (working the bar, greeting a
             // guest) is future work, not this slice's.
-            case INNKEEPER -> SettlerActivity.SORTING;
+            case INNKEEPER, TRADER -> SettlerActivity.SORTING;
             // RESEARCH-1: FINE_WORK's close, careful hand motion is the
             // closest existing clip to a scholar bent over a lectern -- its
             // activity key is WORK_WEAVE (see SettlerEntity#setupAnimationStates,
@@ -244,6 +251,10 @@ public final class Employment {
             // same footnote as INNKEEPER and SCHOLAR above -- never a
             // generic work loop, which is what this map exists to forbid.
             case ARCHER -> SettlerActivity.PATROLLING;
+            // BATTLE-ROLES: fighters stand watch like the Archer until the
+            // role clips land; the Healer's bench work is fine hand work.
+            case SPEARMAN, LONGSWORDSMAN, RUNE_MAGE -> SettlerActivity.PATROLLING;
+            case HEALER -> SettlerActivity.WORK_WEAVE;
             // ARMOURY-3: an armourer hammering plate at an anvil is the
             // same physical act as a smith hammering a blade at one -- the
             // existing HAMMER_ANVIL clip (WORK_HAMMER's SettlerAnimations
@@ -271,6 +282,9 @@ public final class Employment {
             case HERDER -> SettlerActivity.WORK_SHEAR;
             case FISHER -> SettlerActivity.WORK_FISH;
             case HUNTER -> SettlerActivity.WORK_HUNT;
+            // BUILDER lane: reach, set, tap -- BuilderWorkGoal also plays
+            // WORK_BUILD_HAMMER on roofs/frames and CARRY_MATERIALS en route.
+            case BUILDER -> SettlerActivity.WORK_BUILD;
             default -> SettlerActivity.IDLE;
         };
     }
@@ -305,7 +319,7 @@ public final class Employment {
             // herder tending it is standing at their post exactly the way a
             // miner cutting under the mine entrance is (MINE isn't listed
             // here either, for the same reason -- see MinerWorkGoal).
-            case FARMER, LUMBERER, FISHER, HUNTER -> false;
+            case FARMER, LUMBERER, FISHER, HUNTER, TRADER, BUILDER -> false;
             default -> true;
         };
     }
@@ -319,8 +333,19 @@ public final class Employment {
         // is the existing catalogue entry that actually fits: a quill IS a
         // feather, and the fletcher's soft pinch-and-set is closer to a
         // scratching nib than any loom, forge or bench sound in the table.
-        if (tradeOf(type) == Profession.SCHOLAR) {
-            return com.hearthstead.registry.ModSounds.FEATHER_PINCH.get();
+        // Sound pass (sound-gen/SOUNDS.md): trades that borrow a neighbour's
+        // MOTION now keep their own contact voice. Only the sound changes;
+        // soundPeriodOf/soundContactOf still key off the motion, so every
+        // beat lands on the same tick as before.
+        switch (tradeOf(type)) {
+            case SCHOLAR -> { return com.hearthstead.registry.ModSounds.WORK_QUILL_SCRATCH.get(); }
+            case ARMOURER -> { return com.hearthstead.registry.ModSounds.WORK_PLATE_HAMMER.get(); }
+            case MILLER -> { return com.hearthstead.registry.ModSounds.WORK_QUERN_GRIND.get(); }
+            case BREWER -> { return com.hearthstead.registry.ModSounds.WORK_MASH_STIR.get(); }
+            case HEALER -> { return com.hearthstead.registry.ModSounds.WORK_PESTLE_GRIND.get(); }
+            case TRADER -> { return com.hearthstead.registry.ModSounds.WORK_LEDGER_TALLY.get(); }
+            case INNKEEPER -> { return com.hearthstead.registry.ModSounds.WORK_BAR_WIPE.get(); }
+            default -> { }
         }
         return switch (motionOf(type)) {
             case WORK_HAMMER -> com.hearthstead.registry.ModSounds.ANVIL_RING.get();
@@ -363,6 +388,8 @@ public final class Employment {
             case WORK_SHEAR -> com.hearthstead.registry.ModSounds.HIDE_SCRAPE.get();
             case WORK_FISH -> com.hearthstead.registry.ModSounds.WATER_POUR.get();
             case WORK_HUNT -> com.hearthstead.registry.ModSounds.PICK_STRIKE.get();
+            // BUILDER lane: the tap that seats a placed block (nail_tap reused).
+            case WORK_BUILD -> com.hearthstead.registry.ModSounds.NAIL_TAP.get();
             default -> com.hearthstead.registry.ModSounds.KNEAD_PRESS.get();
         };
     }
@@ -372,6 +399,10 @@ public final class Employment {
      * the sound lands on the motion rather than on a timer of its own.
      */
     public static int soundPeriodOf(BuildingType type) {
+        // Anim lane: trades that share a MOTION but now play their OWN clip (SettlerModel
+        // tradeClip) ring on their own clip's loop and contact.
+        Integer own = ownClipPeriod(tradeOf(type));
+        if (own != null) return own;
         if (tradeOf(type) == Profession.SCHOLAR) {
             // Slower than the fletcher's own 32 -- a quiet, thoughtful
             // scratch of a quill, not a workshop's steady rhythm.
@@ -398,6 +429,7 @@ public final class Employment {
             case WORK_SHEAR -> 20;
             case WORK_FISH -> 40;
             case WORK_HUNT -> 24;
+            case WORK_BUILD -> 32;   // BUILD_PLACE loop 1.60s
             default -> 24;
         };
     }
@@ -420,6 +452,8 @@ public final class Employment {
      * can never alias back onto the seam.
      */
     public static int soundContactOf(BuildingType type) {
+        Integer own = ownClipContact(tradeOf(type));
+        if (own != null) return own;
         if (tradeOf(type) == Profession.SCHOLAR) {
             // Period 40 over an 18-tick clip: the quill scratch is sparser
             // than the loop by design, so seam alignment does not exist --
@@ -428,26 +462,28 @@ public final class Employment {
         }
         return switch (motionOf(type)) {
             case WORK_HAMMER -> 9;   // §18.4: strike 0.30-0.45s, first hold tick
-            case WORK_STOKE -> 14;   // §18.3: arms compressed at stroke's end, 0.60-0.85s window
-            case WORK_SAW -> 11;     // §18.5: far-end reversal bite (est.)
-            case WORK_OVEN -> 12;    // §18.8: peel held in the oven mouth (est.)
-            case WORK_KNEAD -> 8;    // §18.1: press bottoms out, torso still driving (est.)
-            case WORK_CLEAVE -> 8;   // §18.2: parked at the board (est.)
+            case WORK_STOKE -> 7;    // §18.3: bellows_puff peaks ~0.28s after onset -> peak on the 0.60s full compression
+            case WORK_SAW -> 9;      // §18.5: 0.45s reversal hold ends, fast 0.45-0.80s stroke carries the rasp
+            case WORK_OVEN -> 5;     // §18.8: oven_slide onset on the 0.25-0.50s peel push into the mouth
+            case WORK_KNEAD -> 9;    // §18.1: right palm bottoms out at 0.45s (keyframe -88deg)
+            case WORK_CLEAVE -> 9;   // §18.2: blade meets the board at the 0.45s LINEAR snap
             case WORK_WEAVE -> 9;    // §18.6: deeper second pass, mid-loop (est.)
             case WORK_MINE -> 9;     // §8.1: pick_strike t=0.45s -- MinerWorkGoal's own tick
             case WORK_STIR -> 24;    // §7.2: pot_stir accent documented at t=1.20s
-            case WORK_PLANE -> 13;   // §20.2: full extension, shaving clears (est.)
+            case WORK_PLANE -> 3;    // §20.2: plane_shave swells over the 0.15-0.45s push stroke
             case WORK_CHISEL -> 10;  // §20.3: strike lands 0.45-0.50s, hold from 0.50s
             case WORK_FLETCH -> 15;  // §20.4: middle pinch of three, t=0.75s
-            case WORK_SCRAPE -> 13;  // §20.5: two-tick hold at the stroke's bottom (est.)
+            case WORK_SCRAPE -> 4;   // §20.5: hide_scrape starts with the 0.20-0.50s draw stroke
             // TRADES-1: HERDER_SHEAR's snip lands at t=0.45s of its 1.00s
             // loop; FISHER_CAST's bite at t=1.45s of its 2.00s loop;
-            // HUNTER_LOOSE's release at t=0.70s of its 1.20s loop -- all
+            // HUNTER_LOOSE's release at t=0.70s of its non-looping 1.20s
+            // physical shot -- all
             // exact accent ticks straight from each clip's own keyframes
             // (catalogue §24), not estimates.
             case WORK_SHEAR -> 9;
             case WORK_FISH -> 29;
             case WORK_HUNT -> 14;
+            case WORK_BUILD -> 18;   // BUILD_PLACE first tap at 0.90s
             default -> 12;           // never 0: the seam is the one wrong answer
         };
     }
@@ -488,11 +524,41 @@ public final class Employment {
             // explicitly rather than folded into the big DEXTERITY group for
             // the same reason ARCHER is.
             case HUNTER -> Attribute.DEXTERITY;
+            // BATTLE-ROLES: the blades climb GuardRank (Strength); the Healer
+            // steadies (Spirit); the mage concentrates (Focus).
+            case SPEARMAN, LONGSWORDSMAN -> Attribute.STRENGTH;
+            case HEALER -> Attribute.SPIRIT;
+            case RUNE_MAGE -> Attribute.FOCUS;
+            // BUILDER lane: setting blocks true is hands, not force.
+            case BUILDER -> Attribute.DEXTERITY;
             default -> Attribute.WITS;
         };
     }
 
     /** The trade practised in this kind of building, or NONE if none yet is. */
+    /**
+     * Loop length (ticks) of a trade's OWN work clip where it no longer plays the shared motion's
+     * clip (client: SettlerModel#tradeClip). Null = the motion's clip. BREWER: BREW_MASH 1.60 s.
+     */
+    @javax.annotation.Nullable
+    public static Integer ownClipPeriod(Profession trade) {
+        return switch (trade) {
+            case BREWER -> 32;
+            case WEAVER -> 16;      // LOOM_WEAVE: one throw-and-beat pass per 16 ticks
+            default -> null;
+        };
+    }
+
+    /** Contact tick of that own clip (BREW_MASH: the paddle at the far side of the tun, 0.80 s). */
+    @javax.annotation.Nullable
+    public static Integer ownClipContact(Profession trade) {
+        return switch (trade) {
+            case BREWER -> 16;
+            case WEAVER -> 12;      // the beater pulled home, 0.60 s into each pass
+            default -> null;
+        };
+    }
+
     public static Profession tradeOf(BuildingType type) {
         return TRADES.getOrDefault(type, Profession.NONE);
     }
@@ -530,10 +596,93 @@ public final class Employment {
         return employer;
     }
 
+    /** A retained legacy workplace can wait for safe physical handover. */
+    public static boolean mayorHandoverPending(Settlement settlement, UUID member) {
+        return settlement != null && member != null && member.equals(settlement.mayorId)
+            && settlement.buildings.stream().anyMatch(building -> building.workers.contains(member));
+    }
+
     /** The profession this settler should have, derived from their employer. */
     public static Profession professionOf(Settlement settlement, UUID settler) {
+        if (settlement != null && settler != null
+            && settler.equals(settlement.mayorId)) {
+            return Profession.MAYOR;
+        }
         Building employer = employerOf(settlement, settler);
         return employer == null ? Profession.NONE : tradeOf(employer.type);
+    }
+
+    /**
+     * The authoritative workplace for logistics.  A seated Mayor may help
+     * one valid Warehouse without becoming an ordinary employee: retaining
+     * MAYOR is what keeps their office, boon and Mayor UI authoritative.
+     */
+    @Nullable
+    public static Building courierWorkplace(Settlement settlement, SettlerEntity settler) {
+        if (settlement == null || settler == null) return null;
+        if (settler.getProfession() == Profession.COURIER
+            && professionOf(settlement, settler.getUUID()) == Profession.COURIER) {
+            Building employer = employerOf(settlement, settler.getUUID());
+            return validWarehouse(employer) ? employer : null;
+        }
+        if (!settler.getUUID().equals(settlement.mayorId)
+            || settler.getProfession() != Profession.MAYOR
+            || settlement.mayorCourierWarehouseId == null) {
+            return null;
+        }
+        for (Building building : settlement.buildings) {
+            if (building != null && settlement.mayorCourierWarehouseId.equals(building.id)
+                && validWarehouse(building)) return building;
+        }
+        return null;
+    }
+
+    /**
+     * Starts Mayor courier help at a real Warehouse.
+     *
+     * <p>The Mayor is not ordinary Warehouse employment: retaining MAYOR is
+     * what preserves the office and its authority. Requiring an unused worker
+     * post here therefore made the automatic settlement logistics fallback
+     * disappear exactly when a Warehouse was fully staffed. The request
+     * ledger still gives every physical trip one owner, so this does not let
+     * the Mayor duplicate a normal Courier's cargo.
+     */
+    @Nullable
+    public static Building ensureMayorCourierWorkplace(ServerLevel level,
+                                                        Settlement settlement,
+                                                        SettlerEntity settler) {
+        Building existing = courierWorkplace(settlement, settler);
+        if (existing != null || settlement == null || settler == null
+            || !settler.getUUID().equals(settlement.mayorId)
+            || settler.getProfession() != Profession.MAYOR) return existing;
+        Building selected = settlement.buildings.stream()
+            .filter(Employment::validWarehouse)
+            .min(Comparator.comparingDouble((Building building) ->
+                    settler.blockPosition().distSqr(building.plaquePos))
+                .thenComparingInt(building -> building.plaquePos.getX())
+                .thenComparingInt(building -> building.plaquePos.getY())
+                .thenComparingInt(building -> building.plaquePos.getZ())
+                .thenComparing(building -> building.id))
+            .orElse(null);
+        if (selected != null) {
+            settlement.mayorCourierWarehouseId = selected.id;
+            SettlementManager.data(level).setDirty();
+        }
+        return selected;
+    }
+
+    /**
+     * Ordinary employment capacity. A Mayor logistics authority is not a
+     * worker post, so Mayor-first and Courier-first settlements have the same
+     * available Warehouse staffing.
+     */
+    public static boolean hasVacancy(Settlement settlement, Building building) {
+        if (building == null) return false;
+        return building.workers.size() < building.workerCapacity();
+    }
+
+    private static boolean validWarehouse(@Nullable Building building) {
+        return building != null && building.valid && building.type == BuildingType.WAREHOUSE;
     }
 
     /**
@@ -544,6 +693,17 @@ public final class Employment {
      * already agrees keeps this cheap enough to call freely.
      */
     public static void refresh(Settlement settlement, SettlerEntity settler) {
+        // Legacy seats keep their UUID and physical gear. Ordinary dismissal
+        // owns arrow return; refusal retains the roster for a later retry.
+        // The mayor projection below prevents the old job from executing even
+        // while an unavailable physical return delays freeing its workplace.
+        if (settler.getUUID().equals(settlement.mayorId)
+            && settler.level() instanceof ServerLevel level
+            && employerOf(settlement, settler.getUUID()) != null) {
+            if (dismiss(level, settlement, settler) != null) {
+                settlement.guardOrders.clear(settler.getUUID());
+            }
+        }
         Building current = employerOf(settlement, settler.getUUID());
         Profession currentProfession = current == null ? Profession.NONE
             : tradeOf(current.type);
@@ -555,10 +715,10 @@ public final class Employment {
             settlement.employmentAuthorizations.clear(settler.getUUID());
         }
         if (settler.level() instanceof ServerLevel level
-            && settler.archerQuiverCount() > 0
+            && settler.carriedArrowCount() > 0
             && (current == null
-                || !settler.archerQuiverOwnedBy(current.id))) {
-            ArcherAttackGoal.releaseBorrowedArrows(level, settlement, settler);
+                || !settler.carriedArrowsOwnedBy(current.id))) {
+            settler.releaseCarriedArrows(level, settlement);
         }
         Profession should = professionOf(settlement, settler.getUUID());
         if (settler.getProfession() != should) {
@@ -594,7 +754,7 @@ public final class Employment {
      */
     public static Hired hire(ServerLevel level, Settlement settlement,
                              Building building, SettlerEntity settler) {
-        Hired refusal = validateCoreHire(building, settler);
+        Hired refusal = validateCoreHire(settlement, building, settler);
         return refusal == null
             ? commitHire(level, settlement, building, settler, true)
             : refusal;
@@ -623,7 +783,7 @@ public final class Employment {
         if (liveRefusal != null) {
             return liveRefusal;
         }
-        Hired coreRefusal = validateCoreHire(building, settler);
+        Hired coreRefusal = validateCoreHire(settlement, building, settler);
         if (coreRefusal != null) {
             return coreRefusal;
         }
@@ -652,6 +812,9 @@ public final class Employment {
         var journeyProvenance = JourneyEmblemProvenance.read(held)
             .filter(provenance -> provenance.settlementId().equals(settlement.id)
                 && provenance.profession() == expected);
+        boolean employmentReturn = journeyProvenance
+            .map(JourneyEmblemProvenance.Provenance::employmentReturn)
+            .orElse(false);
         if (journeyProvenance.isPresent()
             && !settlement.employmentAuthorizations.canAuthorize(settlement.id,
                 settler.getUUID(), building.id, expected,
@@ -682,16 +845,18 @@ public final class Employment {
         // Only the charged, ordinary-player path may advance onboarding. The
         // raw permission-level-2/GameTest seam deliberately stops at roster
         // construction and can never impersonate a consumed job emblem.
-        FoundingJourneyProgress.noteLumbererHired(level, settlement, building,
-            settler);
-        journeyProvenance.ifPresent(provenance ->
-            JourneyServerHooks.noteChargedJobBinding(player, settlement,
-                building, settler, provenance.transactionId()));
-        // This is deliberately after the exact held stack shrank. The raw
-        // admin/GameTest seam reaches commitHire but can never author this
-        // first-raid proof, and a rejected/replayed packet never reaches it.
-        settlement.firstRaidReadiness.noteConsumedLumbererEmblemHire(
-            level, settlement, building, settler);
+        if (!employmentReturn) {
+            FoundingJourneyProgress.noteLumbererHired(level, settlement, building,
+                settler);
+            journeyProvenance.ifPresent(provenance ->
+                JourneyServerHooks.noteChargedJobBinding(player, settlement,
+                    building, settler, provenance.transactionId()));
+            // This is deliberately after the exact held stack shrank. The raw
+            // admin/GameTest seam reaches commitHire but can never author this
+            // first-raid proof, and a rejected/replayed packet never reaches it.
+            settlement.firstRaidReadiness.noteConsumedLumbererEmblemHire(
+                level, settlement, building, settler);
+        }
         return hired;
     }
 
@@ -741,8 +906,7 @@ public final class Employment {
                 continue;
             }
             matching.add(building);
-            if (building.valid
-                && building.workers.size() < building.type.workerCapacity()) {
+            if (building.valid && hasVacancy(settlement, building)) {
                 ready.add(building);
             }
         }
@@ -789,8 +953,11 @@ public final class Employment {
 
     /** Pure validation shared by the free admin seam and charged player path. */
     @Nullable
-    private static Hired validateCoreHire(Building building,
-                                          SettlerEntity settler) {
+    private static Hired validateCoreHire(Settlement settlement,
+                                          Building building, SettlerEntity settler) {
+        if (settler.getUUID().equals(settlement.mayorId)) {
+            return Hired.refused("hearthstead.employ.refused.mayor");
+        }
         if (!building.valid) {
             return Hired.refused("hearthstead.employ.refused.invalid");
         }
@@ -800,7 +967,19 @@ public final class Employment {
         if (building.workers.contains(settler.getUUID())) {
             return Hired.refused("hearthstead.employ.refused.already");
         }
-        if (building.workers.size() >= building.type.workerCapacity()) {
+        if (building.type == BuildingType.FISHERY && settlement.buildings.stream()
+            .filter(candidate -> candidate.type == BuildingType.FISHERY)
+            .flatMap(candidate -> candidate.workers.stream())
+            .anyMatch(worker -> !worker.equals(settler.getUUID()))) {
+            return Hired.refused("hearthstead.employ.refused.one_fisher");
+        }
+        // BATTLE-ROLES: kill-switch and the Rune Mage cap (RoleHiring).
+        net.minecraft.network.chat.Component roleRefusal =
+            com.hearthstead.entity.combat.role.RoleHiring.refusal(settlement, building.type, settler);
+        if (roleRefusal != null) {
+            return Hired.refused(roleRefusal);
+        }
+        if (!hasVacancy(settlement, building)) {
             return Hired.refused("hearthstead.employ.refused.full");
         }
         return null;
@@ -845,6 +1024,9 @@ public final class Employment {
             return Hired.refused("hearthstead.employ.refused.not_member");
         }
 
+        if (settler.getUUID().equals(settlement.mayorId)) {
+            return Hired.refused("hearthstead.employ.refused.mayor");
+        }
         int rosterEntries = 0;
         for (Building candidate : settlement.buildings) {
             for (UUID worker : candidate.workers) {
@@ -864,9 +1046,8 @@ public final class Employment {
                                     Building building, SettlerEntity settler,
                                     boolean clearAuthorization) {
         Cost cost = costOfHiring(settlement, settler);
-        if (settler.archerQuiverCount() > 0
-            && !ArcherAttackGoal.releaseBorrowedArrows(level, settlement,
-                settler)) {
+        if (settler.carriedArrowCount() > 0
+            && !settler.releaseCarriedArrows(level, settlement)) {
             return Hired.refused("hearthstead.employ.refused.quiver_return");
         }
         if (clearAuthorization) {
@@ -884,6 +1065,71 @@ public final class Employment {
         return new Hired(true, cost, null);
     }
 
+    /** Result of the player-facing Fire action. The key is safe to show to the actor. */
+    public record FireResult(boolean applied, String messageKey) {
+        static FireResult success() {
+            return new FireResult(true, "");
+        }
+        static FireResult refused(String key) {
+            return new FireResult(false, key);
+        }
+    }
+
+    /**
+     * Fire one exact workplace member and reserve their physical emblem for
+     * the acting player. The settlement-owned outbox is persisted with the
+     * roster, so a full inventory becomes an owner-locked drop/retry instead
+     * of a loss. The reservation happens before {@link #dismiss}; a failed
+     * dismissal cancels it, so neither path mints an emblem.
+     */
+    public static FireResult fireWithEmblem(ServerLevel level,
+                                            Settlement settlement,
+                                            Building expectedEmployer,
+                                            SettlerEntity settler,
+                                            ServerPlayer player,
+                                            UUID deliveryId,
+                                            long expectedEmploymentRevision) {
+        if (level == null || settlement == null || expectedEmployer == null
+            || settler == null || player == null || deliveryId == null
+            || settler.getUUID().equals(settlement.mayorId)
+            || !expectedEmployer.workers.contains(settler.getUUID())
+            || employerOf(settlement, settler.getUUID()) != expectedEmployer) {
+            return FireResult.refused("hearthstead.plaque.fire.not_employed");
+        }
+        Profession profession = tradeOf(expectedEmployer.type);
+        EmploymentAuthorizationLedger.Receipt receipt = settlement
+            .employmentAuthorizations.receipt(settler.getUUID());
+        if (receipt == null || receipt.revision() != expectedEmploymentRevision
+            || !settlement.employmentAuthorizations.matches(settlement.id,
+                settler.getUUID(), expectedEmployer.id, profession)) {
+            return FireResult.refused("hearthstead.plaque.fire.authorization_required");
+        }
+        ItemStack emblem = JobEmblemItem.stackFor(profession);
+        if (emblem.isEmpty()) {
+            return FireResult.refused("hearthstead.plaque.fire.emblem_unavailable");
+        }
+        if (!JourneyEmblemProvenance.stampEmploymentReturn(emblem,
+                settlement.id, deliveryId, profession)) {
+            return FireResult.refused("hearthstead.plaque.fire.delivery_unavailable");
+        }
+        PendingPlayerDeliveryLedger.Reservation reservation =
+            PendingPlayerDeliveryLedger.reservation(level, deliveryId, player, emblem);
+        if (reservation == null) {
+            return FireResult.refused("hearthstead.plaque.fire.delivery_unavailable");
+        }
+        PendingPlayerDeliveryLedger.ReserveResult reserved =
+            settlement.employmentReturns.reserve(reservation);
+        if (!reserved.accepted()) {
+            return FireResult.refused("hearthstead.plaque.fire.delivery_unavailable");
+        }
+        if (dismiss(level, settlement, settler) != expectedEmployer) {
+            if (reserved == PendingPlayerDeliveryLedger.ReserveResult.INSERTED) {
+                settlement.employmentReturns.cancel(deliveryId);
+            }
+            return FireResult.refused("hearthstead.plaque.fire.dismiss_refused");
+        }
+        return FireResult.success();
+    }
     /**
      * Dismisses a settler from whatever employs them.
      *
@@ -900,9 +1146,8 @@ public final class Employment {
         if (employer == null) {
             return null;
         }
-        if (settler.archerQuiverCount() > 0
-            && !ArcherAttackGoal.releaseBorrowedArrows(level, settlement,
-                settler)) {
+        if (settler.carriedArrowCount() > 0
+            && !settler.releaseCarriedArrows(level, settlement)) {
             return null;
         }
         EquipmentRequests.cancelFor(level, employer, settler.getUUID());
@@ -912,6 +1157,43 @@ public final class Employment {
         settler.onDismissed(level, employer);
         SettlementManager.data(level).setDirty();
         return employer;
+    }
+
+    /**
+     * Keeps an already-employed martial post intact for one authored, sealed
+     * first raid while a standing plaque is reporting physical damage.
+     *
+     * <p>This is deliberately narrower than generic building removal: the
+     * building remains in the settlement and its Plaque keeps reporting the
+     * failed survey. It only prevents a scan-time teardown from removing an
+     * existing Guard or Archer's profession, physical weapon and persisted
+     * order before the active raid has one terminal outcome. Once the raid is
+     * terminal, the ordinary unlink path calls {@link #freeWorkers(ServerLevel,
+     * Settlement, Building)} unchanged. A broken plaque and an explicit
+     * dissolve never use this exception.
+     */
+    public static boolean defersMartialUnlinkForActiveFirstRaid(
+            Settlement settlement, Building building) {
+        if (settlement == null || building == null
+            || !settlement.raidLifecycle.isAuthoredFirstRaidActive()
+            || !settlement.raidLifecycle.participantsTracked()
+            || building.workers.isEmpty()) {
+            return false;
+        }
+        return building.type == BuildingType.BARRACKS
+            || building.type == BuildingType.WATCHTOWER;
+    }
+
+    /** A recorded raid wound suspends work, not its existing assignment.
+     * The ordinary saved roster stays authoritative. Removing the plaque or plan
+     * still frees staff; damage without a recorded scar gets no exception. */
+    public static boolean retainsWorkersForRaidRepair(
+            ServerLevel level, Settlement settlement, Building building) {
+        if (settlement == null || building == null
+                || building.type == null || building.bounds == null
+                || building.workers.isEmpty()) return false;
+        return com.hearthstead.settlement.raid.RaidDirector.scarsOf(level, settlement.id)
+            .stream().anyMatch(scar -> building.bounds.isInside(scar.pos()));
     }
 
     /**
@@ -939,9 +1221,8 @@ public final class Employment {
         // plaque/sweep retry when every leaving member is loaded.
         for (UUID worker : leaving) {
             SettlerEntity settler = loadedById.get(worker);
-            if (settler == null || (settler.archerQuiverCount() > 0
-                && !ArcherAttackGoal.releaseBorrowedArrows(level, settlement,
-                    settler))) {
+            if (settler == null || (settler.carriedArrowCount() > 0
+                && !settler.releaseCarriedArrows(level, settlement))) {
                 return false;
             }
         }
@@ -998,7 +1279,7 @@ public final class Employment {
                                                 Building building) {
         List<Candidate> out = new ArrayList<>();
         for (SettlerEntity settler : SettlementManager.loadedMembers(level, settlement)) {
-            if (settler.isTraveler()) {
+            if (settler.isTraveler() || settler.getUUID().equals(settlement.mayorId)) {
                 continue;
             }
             Building current = employerOf(settlement, settler.getUUID());
@@ -1030,13 +1311,15 @@ public final class Employment {
      */
     public static Attribute keyAttributeOf(BuildingType type) {
         return switch (tradeOf(type)) {
-            case LUMBERER, GUARD -> Attribute.STRENGTH;
+            case LUMBERER, GUARD, SPEARMAN, LONGSWORDSMAN -> Attribute.STRENGTH;
+            case HEALER -> Attribute.SPIRIT;
+            case RUNE_MAGE -> Attribute.FOCUS;
             case COURIER -> Attribute.STAMINA;
             // The hire screen's decision, made visible: the strongest settler
             // is the obvious barracks guard and the wrong tower archer.
             // TRADES-1: the same hands-not-force reasoning names HERDER,
             // FISHER and HUNTER here too.
-            case FARMER, ARCHER, HERDER, FISHER, HUNTER -> Attribute.DEXTERITY;
+            case FARMER, ARCHER, HERDER, FISHER, HUNTER, BUILDER -> Attribute.DEXTERITY;
             default -> Attribute.WITS;
         };
     }

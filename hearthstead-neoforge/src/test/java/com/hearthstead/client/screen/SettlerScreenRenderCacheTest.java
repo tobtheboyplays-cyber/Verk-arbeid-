@@ -62,12 +62,12 @@ class SettlerScreenRenderCacheTest {
     }
 
     @Test
-    void compactDrawPathNeverMeasuresOrBuildsTextPerFrame() throws Exception {
+    void sheetDrawPathNeverMeasuresOrBuildsTextPerFrame() throws Exception {
         Path source = findSource();
         String java = Files.readString(source);
-        int start = java.indexOf("private void drawCompactHeader");
-        int end = java.indexOf("private void requestChild", start);
-        assertTrue(start >= 0 && end > start, "compact draw-method range moved");
+        int start = java.indexOf("// ---- draw: begin");
+        int end = java.indexOf("// ---- draw: end", start);
+        assertTrue(start >= 0 && end > start, "sheet draw-method range moved");
         String hotPath = java.substring(start, end);
 
         assertFalse(hotPath.contains("HsUi.labelIn"));
@@ -97,6 +97,10 @@ class SettlerScreenRenderCacheTest {
             Profession.LUMBERER).orElseThrow();
         JobAttributeProfile courier = JobAttributeProfile.find(
             Profession.COURIER).orElseThrow();
+        JobAttributeProfile guard = JobAttributeProfile.find(
+            Profession.GUARD).orElseThrow();
+        JobAttributeProfile archer = JobAttributeProfile.find(
+            Profession.ARCHER).orElseThrow();
 
         assertEquals(SettlerScreen.JobImpactEvidence.LIVE,
             SettlerScreen.jobImpactEvidence(Profession.LUMBERER,
@@ -104,10 +108,20 @@ class SettlerScreenRenderCacheTest {
         assertEquals(SettlerScreen.JobImpactEvidence.LIVE,
             SettlerScreen.jobImpactEvidence(Profession.LUMBERER,
                 slot(lumberer, Attribute.STAMINA)));
-        assertEquals(SettlerScreen.JobImpactEvidence.ROLE_PRIORITY,
+        // Attributes lane: Courier Strength now has a runtime call site
+        // (CourierSatchel + AttributeRuntime.haulBonus, GameTest-verified).
+        assertEquals(SettlerScreen.JobImpactEvidence.LIVE,
             SettlerScreen.jobImpactEvidence(Profession.COURIER,
                 slot(courier, Attribute.STRENGTH)),
-            "a calculator without a Courier runtime call site must not be sold as live");
+            "Courier Strength drives items per trip");
+        assertEquals(SettlerScreen.JobImpactEvidence.LIVE,
+            SettlerScreen.jobImpactEvidence(Profession.GUARD,
+                slot(guard, Attribute.STRENGTH)),
+            "the visible Guard rank bonus is driven by Strength");
+        assertEquals(SettlerScreen.JobImpactEvidence.LIVE,
+            SettlerScreen.jobImpactEvidence(Profession.ARCHER,
+                slot(archer, Attribute.DEXTERITY)),
+            "the visible Archer rank bonuses are driven by Dexterity");
     }
 
     private static JobAttributeProfile.Slot slot(JobAttributeProfile profile,

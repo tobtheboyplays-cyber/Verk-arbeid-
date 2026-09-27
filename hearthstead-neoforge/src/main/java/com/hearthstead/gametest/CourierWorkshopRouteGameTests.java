@@ -52,6 +52,47 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public class CourierWorkshopRouteGameTests {
 
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_workshop_route_day")
+    public void idleCourierTidiesRegisteredHomeButKeepsSuppliesAndPrivateChest(GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(4,1,2), new BlockPos(6,3,4), new BlockPos(4,1,2));
+        helper.setBlock(new BlockPos(5,1,3), Blocks.CHEST);
+        addBuilding(helper, s, BuildingType.HOUSE,
+            new BlockPos(2,1,5), new BlockPos(4,3,7), new BlockPos(2,1,5));
+        BlockPos home = new BlockPos(3,1,6);
+        helper.setBlock(home, Blocks.CHEST);
+        Container source = containerAt(helper, home);
+        source.setItem(0, new ItemStack(Items.COBBLESTONE, 4));
+        source.setItem(1, new ItemStack(Items.BREAD, 6));
+        source.setItem(2, new ItemStack(Items.WHEAT_SEEDS, 8));
+        source.setItem(3, new ItemStack(Items.STONE_AXE));
+        source.setItem(4, new ItemStack(Items.ARROW, 12));
+        source.setItem(5, new ItemStack(Items.COAL, 5));
+        BlockPos privatePos = new BlockPos(10,1,10);
+        helper.setBlock(privatePos, Blocks.CHEST);
+        Container privateChest = containerAt(helper, privatePos);
+        privateChest.setItem(0, new ItemStack(Items.DIAMOND, 3));
+        SettlerEntity worker = courier(helper, s, new BlockPos(7,1,7));
+        helper.onEachTick(() -> {
+            helper.assertTrue(countIn(source, Items.BREAD)==6
+                && countIn(source, Items.WHEAT_SEEDS)==8
+                && countIn(source, Items.STONE_AXE)==1
+                && countIn(source, Items.ARROW)==12
+                && countIn(source, Items.COAL)==5,
+                "cleanup must preserve operating and household supplies");
+            helper.assertTrue(countIn(privateChest, Items.DIAMOND)==3,
+                "unregistered private chest must never be scanned for cleanup");
+            int total = countIn(source, Items.COBBLESTONE)
+                + countIn(containerAt(helper,new BlockPos(5,1,3)), Items.COBBLESTONE)
+                + bagCountOf(worker, Items.COBBLESTONE);
+            helper.assertTrue(total==4, "cleanup must conserve real source/bag/destination stock");
+        });
+        helper.succeedWhen(() -> helper.assertTrue(
+            countIn(containerAt(helper,new BlockPos(5,1,3)), Items.COBBLESTONE)==4,
+            "idle Courier must physically deliver all misplaced Home building materials"));
+    }
+
     // ------------------------------------------------------------ fixtures ---
 
     /** Copied from {@link LogisticsGameTests}: flat floor, low rim wall. */
@@ -562,11 +603,11 @@ public class CourierWorkshopRouteGameTests {
 
         GameTestFixtures.register(helper, s, BuildingType.FISHERY, 8, 2);
         BlockPos fisheryChestRel = new BlockPos(9, 1, 3);
-        helper.setBlock(fisheryChestRel, Blocks.CHEST);
+        helper.setBlock(fisheryChestRel, com.hearthstead.registry.ModBlocks.FISH_RACK.get());
         Container fisheryChest = containerAt(helper, fisheryChestRel);
-        helper.assertTrue(fisheryChest != null, "arena fishery chest should exist");
-        int seeded = 10;
-        fisheryChest.setItem(0, new ItemStack(Items.COD, seeded));
+        helper.assertTrue(fisheryChest != null, "arena physical catch rack should exist");
+        int seeded = 4;
+        for (int hook=0;hook<seeded;hook++) fisheryChest.setItem(hook,new ItemStack(Items.COD));
 
         SettlerEntity bud = courier(helper, s, new BlockPos(7, 1, 10));
 
@@ -602,7 +643,16 @@ public class CourierWorkshopRouteGameTests {
                     + "eaten some of the delivered cod by now, saw hunger="
                     + eater.getHunger() + " [accounted=" + accounted + " of " + seeded
                     + " fishery=" + atFishery + " warehouse=" + atWarehouse
-                    + " hearth=" + atHearth + " eaterAct=" + eater.getActivity() + "]");
+                    + " hearth=" + atHearth + " eaterAct=" + eater.getActivity()
+                    + " courier=" + bud.getUUID() + " bag=" + inBudBag
+                    + " pos=" + bud.blockPosition() + " act=" + bud.getActivity()
+                    + " phase=" + bud.dayPhase() + " route=" + bud.routeFailureNote()
+                    + " task=" + bud.workerLifecycle().task()
+                    + " lifecycle=" + bud.workerLifecycle().state()
+                    + " transfer=" + bud.bagTransferPresentation().clock()
+                    + ":" + bud.bagTransferPresentation().committed()
+                    + " navDone=" + bud.getNavigation().isDone()
+                    + " navTarget=" + bud.getNavigation().getTargetPos() + "]");
         });
     }
 
@@ -767,6 +817,218 @@ public class CourierWorkshopRouteGameTests {
                     + " bag=" + inBag + " act=" + bud.getActivity()
                     + " pos=" + bud.blockPosition().toShortString()
                     + " lastRouteFailure=" + bud.routeFailureNote() + "]");
+        });
+    }
+    /** Both workplaces are closed and raised; the courier starts inside its
+     * warehouse, collects at the mine, then physically returns to that same
+     * warehouse. A reduced vanilla visit budget deterministically pressures
+     * partial-path handling without changing collision or contact authority. */
+    @GameTest(template = "empty16", timeoutTicks = 1800,
+        batch = "courier_container_contact")
+    public void collectionCrossesTwoRaisedOffsetDoorsWithPartialPaths(
+            GameTestHelper helper) {
+        Settlement s = standardOpening(helper);
+        s.radius = 20;
+        BlockPos sourceDoor = new BlockPos(3, 2, 7);
+        BlockPos targetDoor = new BlockPos(12, 2, 7);
+        raisedClosedRoom(helper, 2, 6, sourceDoor);
+        raisedClosedRoom(helper, 9, 13, targetDoor);
+        Building mine = addBuilding(helper, s, BuildingType.MINE,
+            new BlockPos(2, 1, 7), new BlockPos(6, 5, 12),
+            new BlockPos(2, 2, 7));
+        addBuilding(helper, s, BuildingType.WAREHOUSE,
+            new BlockPos(9, 1, 7), new BlockPos(13, 5, 12),
+            new BlockPos(9, 2, 7));
+        BlockPos sourceRel = new BlockPos(3, 2, 10);
+        BlockPos targetRel = new BlockPos(10, 2, 10);
+        helper.setBlock(sourceRel, Blocks.CHEST);
+        helper.setBlock(targetRel, Blocks.CHEST);
+        Container source = containerAt(helper, sourceRel);
+        Container target = containerAt(helper, targetRel);
+        helper.assertTrue(source != null && target != null,
+            "setup: both closed workplaces need physical chests");
+        int seeded = 4;
+        source.setItem(0, new ItemStack(Items.COBBLESTONE, seeded));
+        SettlerEntity bud = courier(helper, s, new BlockPos(11, 2, 10));
+        // Limit only this fixture's search to 25 visited nodes so a short
+        // complete route cannot bypass the incomplete-path recovery check.
+        // The assertions still require an installed partial prefix and delivery.
+        bud.getNavigation().setMaxVisitedNodesMultiplier(0.05F);
+        BlockPos sourcePos = helper.absolutePos(sourceRel);
+        BlockPos targetPos = helper.absolutePos(targetRel);
+        boolean[] sourceOpened = {false};
+        boolean[] targetOpened = {false};
+        boolean[] ownedRequest = {false};
+        boolean[] partialTravel = {false};
+        boolean[] pickedUp = {false};
+        boolean[] returned = {false};
+        int[] previousSource = {seeded};
+        int[] previousTarget = {0};
+        helper.onEachTick(() -> {
+            sourceOpened[0] |= helper.getBlockState(sourceDoor).getValue(DoorBlock.OPEN);
+            targetOpened[0] |= helper.getBlockState(targetDoor).getValue(DoorBlock.OPEN);
+            var route = RequestLedgerService.routeForCourier(helper.getLevel(), s, bud);
+            if (route.request() != null && route.source() != null
+                && mine.id.equals(route.source().id)
+                && bud.getUUID().equals(route.request().courierId())) {
+                ownedRequest[0] = true;
+            }
+            var path = bud.getNavigation().getPath();
+            partialTravel[0] |= path != null && !path.canReach()
+                && !path.isDone() && bud.getActivity() !=
+                    com.hearthstead.entity.SettlerActivity.IDLE;
+            int atSource = countIn(source, Items.COBBLESTONE);
+            int atTarget = countIn(target, Items.COBBLESTONE);
+            int inBag = bagCountOf(bud, Items.COBBLESTONE);
+            helper.assertTrue(atSource + atTarget + inBag == seeded,
+                "every tick must conserve the exact four request items");
+            if (atSource < previousSource[0]) {
+                helper.assertTrue(ownedRequest[0] && sourceOpened[0] && targetOpened[0],
+                    "pickup must follow owned outbound travel through both doors");
+                helper.assertTrue(ContainerApproach.inspect(helper.getLevel(),
+                        bud, sourcePos).canInteract(),
+                    "source mutation must occur at real contact, never through a wall");
+                pickedUp[0] = true;
+            }
+            if (atTarget > previousTarget[0]) {
+                helper.assertTrue(pickedUp[0]
+                    && ContainerApproach.inspect(helper.getLevel(), bud, targetPos)
+                        .canInteract(),
+                    "return deposit must occur inside Warehouse at physical contact");
+                returned[0] = true;
+            }
+            previousSource[0] = atSource;
+            previousTarget[0] = atTarget;
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(partialTravel[0],
+                "fixture must actually exercise an installed incomplete work path"
+                    + " [source=" + countIn(source, Items.COBBLESTONE)
+                    + " target=" + countIn(target, Items.COBBLESTONE)
+                    + " bag=" + bagCountOf(bud, Items.COBBLESTONE)
+                    + " sourceDoor=" + sourceOpened[0] + " targetDoor=" + targetOpened[0]
+                    + " owned=" + ownedRequest[0] + " picked=" + pickedUp[0] + " returned=" + returned[0]
+                    + " pos=" + bud.position() + " activity=" + bud.getActivity()
+                    + " path=" + (bud.getNavigation().getPath() == null ? "none"
+                        : "reach=" + bud.getNavigation().getPath().canReach()
+                            + ",done=" + bud.getNavigation().getPath().isDone())
+                    + " route=" + bud.routeFailureNote() + "]");
+            helper.assertTrue(pickedUp[0] && returned[0]
+                    && countIn(source, Items.COBBLESTONE) == 0
+                    && countIn(target, Items.COBBLESTONE) == seeded
+                    && bagCountOf(bud, Items.COBBLESTONE) == 0,
+                "courier must leave Warehouse, collect inside Mine and return physically"
+                    + " [pos=" + bud.blockPosition().toShortString()
+                    + " activity=" + bud.getActivity()
+                    + " route=" + bud.routeFailureNote() + "]");
+        });
+    }
+
+    private static void raisedClosedRoom(GameTestHelper helper, int minX,
+                                          int maxX, BlockPos door) {
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = 7; z <= 12; z++) {
+                helper.setBlock(new BlockPos(x, 1, z), Blocks.STONE_BRICKS);
+                helper.setBlock(new BlockPos(x, 5, z), Blocks.STONE_BRICKS);
+                for (int y = 2; y <= 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z),
+                        x == minX || x == maxX || z == 7 || z == 12
+                            ? Blocks.STONE_BRICKS : Blocks.AIR);
+                }
+            }
+        }
+        BlockState lower = Blocks.OAK_DOOR.defaultBlockState()
+            .setValue(DoorBlock.FACING, Direction.NORTH)
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.LOWER)
+            .setValue(DoorBlock.OPEN, false);
+        helper.setBlock(door, lower);
+        helper.setBlock(door.above(), lower
+            .setValue(DoorBlock.HALF, DoubleBlockHalf.UPPER));
+    }
+
+
+
+    /** Actual goal contact ownership across source changes and a clean actor save/load. */
+    @GameTest(template = "empty16", timeoutTicks = 800, batch = "courier_workshop_route_day")
+    public void hearthConsolidationFillsOneGroundedSackAcrossReload(GameTestHelper helper) {
+        Settlement settlement = standardOpening(helper);
+        Building warehouse = addBuilding(helper, settlement, BuildingType.WAREHOUSE,
+            new BlockPos(5, 1, 2), new BlockPos(7, 3, 4), new BlockPos(5, 1, 2));
+        helper.setBlock(new BlockPos(6, 1, 3), Blocks.CHEST);
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel().getBlockEntity(settlement.center);
+        ItemStack original = new ItemStack(Items.OAK_LOG, 4);
+        original.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+            net.minecraft.network.chat.Component.literal("Actual Hearth timber"));
+        hearth.getInventory().setStackInSlot(0, original.copy());
+        hearth.getInventory().setStackInSlot(1, new ItemStack(Items.BREAD, 8));
+        SettlerEntity first = courier(helper, settlement, new BlockPos(2, 1, 3));
+        first.setNoAi(true);
+        BlockPos anchor = helper.absolutePos(new BlockPos(2, 1, 3));
+        first.moveTo(anchor.getX() + .5, anchor.getY(), anchor.getZ() + .5, 0, 0);
+        SettlerEntity[] actor = {first};
+        CourierWorkGoal[] goal = {new CourierWorkGoal(first)};
+        helper.assertTrue(goal[0].canUse(), "real employed Courier must select actual Hearth timber");
+        goal[0].start();
+        int[] prior = {0}, contacts = {0};
+        boolean[] changed = {false}, restored = {false}, reloaded = {false}, pendingRestore = {false};
+        helper.onEachTick(() -> {
+            if (pendingRestore[0]) {
+                hearth.getInventory().setStackInSlot(0, original.copyWithCount(4 - prior[0]));
+                pendingRestore[0] = false; restored[0] = true;
+                helper.assertTrue(goal[0].canUse(), "source change must allow a lawful fresh anticipation");
+                goal[0].start();
+            }
+            var before = actor[0].bagTransferPresentation();
+            if (!changed[0] && before.active() && before.clock() == 47) {
+                ItemStack replacement = original.copyWithCount(4);
+                replacement.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME,
+                    net.minecraft.network.chat.Component.literal("Changed source"));
+                hearth.getInventory().setStackInSlot(0, replacement);
+                changed[0] = true; pendingRestore[0] = true;
+            }
+            goal[0].tick();
+            int count = bagCountOf(actor[0], Items.OAK_LOG);
+            helper.assertTrue(count >= prior[0] && count - prior[0] <= 1,
+                "one actual source unit at most; never bulk-debit or replay");
+            int sourceCount = hearth.getInventory().getStackInSlot(0).getCount();
+            helper.assertTrue(sourceCount + count == 4 && hearth.getInventory().getStackInSlot(1).getCount() == 8,
+                "all real timber conserved and ready food untouched");
+            var view = actor[0].bagTransferPresentation();
+            if (count > prior[0]) {
+                helper.assertTrue(view.active() && view.sourcePickup() && view.committed() && view.clock() == 48
+                        && anchor.equals(view.bagAnchor()), "each debit belongs to same grounded source sack at contact48");
+                for (int slot = 0; slot < actor[0].bag.getContainerSize(); slot++) {
+                    ItemStack held = actor[0].bag.getItem(slot);
+                    if (!held.isEmpty()) helper.assertTrue(ItemStack.isSameItemSameComponents(original, held),
+                        "changed source components must never enter the bag on an obsolete preview");
+                }
+                contacts[0]++;
+            }
+            if (pendingRestore[0]) helper.assertTrue(count == prior[0], "changed source must cancel this contact before debit");
+            prior[0] = count;
+            if (count == 2 && !reloaded[0]) {
+                reloaded[0] = true;
+                goal[0].stop();
+                net.minecraft.nbt.CompoundTag saved = new net.minecraft.nbt.CompoundTag();
+                actor[0].saveWithoutId(saved);
+                actor[0].remove(net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                SettlerEntity loaded = ModEntities.SETTLER.get().create(helper.getLevel());
+                helper.assertTrue(loaded != null, "decode actual saved Courier");
+                loaded.load(saved);
+                helper.assertTrue(helper.getLevel().addFreshEntity(loaded), "republish same UUID after actual unload");
+                actor[0] = loaded; goal[0] = new CourierWorkGoal(loaded);
+                helper.assertTrue(goal[0].canUse(), "saved two-unit sack must resume before anonymous carrying");
+                goal[0].start();
+            }
+            if (contacts[0] == 4 && !actor[0].getPersistentData().contains("HearthsteadCourierHearthBag")) {
+                helper.assertTrue(changed[0] && restored[0] && reloaded[0]
+                        && !actor[0].bagTransferPresentation().active() && actor[0].placedWorkContainerPos() == null,
+                    "final lift follows all four receipts and clears only the grounded presentation");
+                goal[0].stop(); actor[0].discard();
+                SettlementManager.data(helper.getLevel()).settlements.remove(settlement.id);
+                SettlementManager.data(helper.getLevel()).setDirty();
+                helper.succeed();
+            }
         });
     }
 }

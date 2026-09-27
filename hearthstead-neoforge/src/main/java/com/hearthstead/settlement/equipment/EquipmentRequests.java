@@ -11,21 +11,24 @@ import com.hearthstead.settlement.development.DevelopmentQuests;
 import com.hearthstead.settlement.journey.JourneyServerHooks;
 import com.hearthstead.settlement.request.RequestBlocker;
 import com.hearthstead.settlement.request.RequestItemFingerprint;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.util.AuthorityTelemetry;
+import com.hearthstead.util.QaTrace;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.ItemTags;
-import net.minecraft.world.level.ClipContext;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -56,17 +59,87 @@ public final class EquipmentRequests {
     private static final Map<UUID, Long> NEXT_WORKPLACE_RETRY =
         new LinkedHashMap<>();
 
+    /**
+     * Per-worker floor on a tool's remaining uses for the job already in hand
+     * (set by a Lumberer whose axe cannot finish the tree it has claimed).
+     * Without it a 10-use iron axe was "serviceable" (>= 8) yet refused a
+     * 10-log tree forever, so no replacement was ever requested and the
+     * Lumberer stood at the trunk for hours (captain1 soak, Bramwell).
+     */
+    public static final String JOB_MIN_USES_TAG = "HearthsteadJobToolMinUses";
+
+    /** Raise this worker's tool floor to {@code uses} until the job clears it. */
+    public static void requireJobUses(SettlerEntity settler, int uses) {
+        settler.getPersistentData().putInt(JOB_MIN_USES_TAG, Math.max(1, uses));
+    }
+
+    public static void clearJobUses(SettlerEntity settler) {
+        settler.getPersistentData().remove(JOB_MIN_USES_TAG);
+    }
+
+    /** The profession requirement with this worker's job floor applied. */
+    @Nullable
+    public static EquipmentRequirement requirementFor(Profession profession, SettlerEntity settler) {
+        EquipmentRequirement base = requirementFor(profession);
+        if (base == null || settler == null) {
+            return base;
+        }
+        // The hero Captain's chosen weapon kit (axe, bow, halberd...) is his
+        // equipment: no plain-sword request while he holds a complete kit.
+        if (com.hearthstead.entity.combat.captain.CaptainKit.holdsKit(settler)) {
+            return null;
+        }
+        // A Guard holding any serviceable melee weapon TYPE (longsword, spear,
+        // great axe, halberd, warhammer, short sword) is armed: accept it
+        // instead of requesting a plain sword over it. The armoury still
+        // requests a sword for an unarmed guard.
+        if (profession == Profession.GUARD && holdsServiceableGuardWeapon(settler,
+                base.minimumRemainingUses())) {
+            return null;
+        }
+        int floor = settler.getPersistentData().getInt(JOB_MIN_USES_TAG);
+        return floor > base.minimumRemainingUses()
+            ? new EquipmentRequirement(base.preferredItem(), base.acceptedTag(), floor, base.maxGearTier())
+            : base;
+    }
+
+    /** Non-sword guard weapon types, by tag, with enough uses left to fight. */
+    static boolean holdsServiceableGuardWeapon(SettlerEntity settler, int minimumUses) {
+        net.minecraft.world.item.ItemStack held = settler.getMainHandItem();
+        if (held.is(ItemTags.SWORDS) || !settler.hasGuardMeleeWeapon()) {
+            return false;
+        }
+        return !held.isDamageableItem()
+            || held.getMaxDamage() - held.getDamageValue() >= minimumUses;
+    }
+
     @Nullable
     public static EquipmentRequirement requirementFor(Profession profession) {
         return switch (profession) {
+            case FISHER -> new EquipmentRequirement(com.hearthstead.registry.ModItems.FISHERS_ROD.get(), null, 1);
             case FARMER -> new EquipmentRequirement(Items.IRON_HOE,
                 ResourceLocation.withDefaultNamespace("hoes"), 8);
             case LUMBERER -> new EquipmentRequirement(Items.IRON_AXE,
                 ResourceLocation.withDefaultNamespace("axes"), 8);
-            case GUARD -> new EquipmentRequirement(Items.IRON_SWORD,
+            case GUARD -> new EquipmentRequirement(Items.WOODEN_SWORD,
                 ItemTags.SWORDS.location(), 8);
             case ARCHER -> new EquipmentRequirement(Items.BOW,
                 ItemTags.BOW_ENCHANTABLE.location(), 8);
+            case HUNTER -> new EquipmentRequirement(Items.BOW,
+                ItemTags.BOW_ENCHANTABLE.location(), 8);
+            // QA-JOBS J-10: the Miner cuts with a real pickaxe and the Herder
+            // shears with real shears; both are requested like any work tool.
+            case MINER -> new EquipmentRequirement(Items.IRON_PICKAXE,
+                ItemTags.PICKAXES.location(), 8);
+            case HERDER -> new EquipmentRequirement(Items.SHEARS,
+                ResourceLocation.fromNamespaceAndPath("c", "tools/shear"), 8);
+            // BATTLE-ROLES: the spear/longsword request, any tier of the tag.
+            case SPEARMAN -> new EquipmentRequirement(
+                com.hearthstead.registry.RoleItems.WOODEN_SPEAR.get(),
+                com.hearthstead.registry.RoleItems.SPEARS.location(), 8);
+            case LONGSWORDSMAN -> new EquipmentRequirement(
+                com.hearthstead.registry.RoleItems.IRON_LONGSWORD.get(),
+                com.hearthstead.registry.RoleItems.LONGSWORDS.location(), 8);
             default -> null;
         };
     }
@@ -121,7 +194,7 @@ public final class EquipmentRequests {
                                               Building workplace,
                                               SettlerEntity settler) {
         EquipmentRequirement requirement = requirementFor(
-            Employment.professionOf(settlement, settler.getUUID()));
+            Employment.professionOf(settlement, settler.getUUID()), settler);
         if (requirement == null) {
             cancelFor(level, workplace, settler.getUUID());
             settler.setRequestedEquipmentProjection(null);
@@ -159,9 +232,11 @@ public final class EquipmentRequests {
             settler.setRequestedEquipmentProjection(existing);
             return existing;
         }
+        // Couriers and ground pickups honour the requester's Gear Tier cap.
         EquipmentRequest created = new EquipmentRequest(settler.getUUID(),
             workplace.id, Employment.professionOf(settlement, settler.getUUID()),
-            requirement, 1, priority, reason, level.getGameTime());
+            com.hearthstead.settlement.gear.GearGate.limit(requirement, settler),
+            1, priority, reason, level.getGameTime());
         int rowsBefore = rawList(settlement).size();
         long revisionBefore = settlement.equipmentRequestQueue.revision();
         workplace.equipmentRequests.add(created);
@@ -217,7 +292,7 @@ public final class EquipmentRequests {
         Building workplace = Employment.employerOf(settlement, settler.getUUID());
         Profession profession = Employment.professionOf(settlement,
             settler.getUUID());
-        EquipmentRequirement requirement = requirementFor(profession);
+        EquipmentRequirement requirement = requirementFor(profession, settler);
         if (workplace == null || requirement == null) {
             if (workplace != null) {
                 cancelFor(level, workplace, settler.getUUID());
@@ -235,9 +310,13 @@ public final class EquipmentRequests {
             return true;
         }
 
+        // Gear Tier gate: a tool above this settler's clearance stays in the
+        // pack (refused, never deleted) and the held tool stays in hand.
+        EquipmentRequirement allowed =
+            com.hearthstead.settlement.gear.GearGate.limit(requirement, settler);
         int suppliedSlot = -1;
         for (int slot = 0; slot < settler.bag.getContainerSize(); slot++) {
-            if (requirement.serviceable(settler.bag.getItem(slot))) {
+            if (allowed.serviceable(settler.bag.getItem(slot))) {
                 suppliedSlot = slot;
                 break;
             }
@@ -294,7 +373,7 @@ public final class EquipmentRequests {
             return false;
         }
         EquipmentRequirement requirement = requirementFor(
-            Employment.professionOf(settlement, settler.getUUID()));
+            Employment.professionOf(settlement, settler.getUUID()), settler);
         if (requirement == null) {
             return true;
         }
@@ -319,7 +398,8 @@ public final class EquipmentRequests {
         scheduleRetry(settler.getUUID(), now);
         refreshFor(level, settlement, workplace, settler);
         BlockPos source = WorkplaceStorage.nearestMatchingContainer(level,
-            workplace, requirement, settler.blockPosition());
+            workplace, com.hearthstead.settlement.gear.GearGate.limit(
+                requirement, settler), settler.blockPosition());
         if (!canReachContainer(level, settler, source)) {
             return false;
         }
@@ -336,7 +416,7 @@ public final class EquipmentRequests {
                                                BlockPos source) {
         Building workplace = Employment.employerOf(settlement, settler.getUUID());
         EquipmentRequirement requirement = requirementFor(
-            Employment.professionOf(settlement, settler.getUUID()));
+            Employment.professionOf(settlement, settler.getUUID()), settler);
         if (workplace == null || requirement == null
             || !canReachContainer(level, settler, source)) {
             return false;
@@ -349,7 +429,8 @@ public final class EquipmentRequests {
             return true;
         }
         ItemStack supplied = WorkplaceStorage.swapOneAt(level, workplace,
-            source, requirement, held);
+            source, com.hearthstead.settlement.gear.GearGate.limit(
+                requirement, settler), held);
         if (supplied.isEmpty()) {
             return false;
         }
@@ -374,14 +455,36 @@ public final class EquipmentRequests {
     private static boolean canReachContainer(ServerLevel level,
                                              SettlerEntity settler,
                                              @Nullable BlockPos source) {
-        if (source == null || settler.blockPosition().distSqr(source) > 6.25D) {
+        return ContainerApproach.inspect(level, settler, source).canInteract();
+    }
+
+    /**
+     * Server-authoritative hand-contact ray for a real ground item. Aim at the
+     * upper face of the low ItemEntity box so the supporting floor does not
+     * reject a legitimate pickup while solid walls and roofs still occlude it.
+     */
+    public static boolean hasPhysicalGroundContact(ServerLevel level,
+                                                   SettlerEntity settler,
+                                                   ItemEntity groundItem) {
+        if (level == null || settler == null || groundItem == null
+            || !groundItem.isAlive() || settler.level() != level
+            || groundItem.level() != level) {
             return false;
         }
-        BlockHitResult hit = level.clip(new ClipContext(settler.getEyePosition(),
-            Vec3.atCenterOf(source), ClipContext.Block.COLLIDER,
-            ClipContext.Fluid.NONE, settler));
-        return hit.getType() == HitResult.Type.MISS
-            || source.equals(hit.getBlockPos());
+        AABB box = groundItem.getBoundingBox();
+        Vec3 contact = new Vec3(groundItem.getX(), box.maxY + 1.0E-3D,
+            groundItem.getZ());
+        Vec3 eye = settler.getEyePosition();
+        BlockHitResult hit = level.clip(new ClipContext(eye, contact,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, settler));
+        if (QaTrace.ENABLED && hit.getType() != HitResult.Type.MISS) {
+            QaTrace.event(settler, "equipment_ground_contact_blocked",
+                "eye=" + eye + ";contact=" + contact + ";item="
+                    + groundItem.position() + ";box=" + box + ";hit="
+                    + hit.getBlockPos() + ";hitPos=" + hit.getLocation()
+                    + ";face=" + hit.getDirection());
+        }
+        return hit.getType() == HitResult.Type.MISS;
     }
 
     /**
@@ -397,12 +500,14 @@ public final class EquipmentRequests {
         EquipmentRequest request = refreshFor(level, settler);
         if (request == null || groundItem == null || !groundItem.isAlive()
             || settler.distanceToSqr(groundItem) > maxDistanceSqr
+            || !hasPhysicalGroundContact(level, settler, groundItem)
             || groundItem.getPersistentData().hasUUID(
                 "HearthsteadGroundCollectionOwner")) {
             return false;
         }
         ItemStack source = groundItem.getItem();
-        if (source.isEmpty() || !request.requirement().serviceable(source)) {
+        if (source.isEmpty() || !request.requirement().serviceable(source)
+            || !com.hearthstead.settlement.gear.GearGate.allows(settler, source)) {
             return false;
         }
 
@@ -462,7 +567,7 @@ public final class EquipmentRequests {
         if (settler.getProfession() != expected) {
             return false;
         }
-        EquipmentRequirement requirement = requirementFor(expected);
+        EquipmentRequirement requirement = requirementFor(expected, settler);
         if (requirement == null) {
             return true;
         }
@@ -1041,7 +1146,8 @@ public final class EquipmentRequests {
     public static boolean supports(BuildingType type) {
         Profession profession = Employment.tradeOf(type);
         return profession == Profession.FARMER || profession == Profession.LUMBERER
-            || profession == Profession.GUARD || profession == Profession.ARCHER;
+            || profession == Profession.GUARD || profession == Profession.ARCHER
+            || profession == Profession.HUNTER;
     }
 
     private static void scheduleRetry(UUID workerId, long now) {
@@ -1069,8 +1175,8 @@ public final class EquipmentRequests {
     private static boolean validCourier(Settlement settlement,
                                         @Nullable SettlerEntity courier) {
         return settlement != null && courier != null && courier.isBound()
-            && courier.getProfession() == Profession.COURIER
-            && courier.settlement() == settlement;
+            && courier.settlement() == settlement
+            && Employment.courierWorkplace(settlement, courier) != null;
     }
 
     private static boolean loadedExactSourceAfterPickup(
@@ -1113,6 +1219,7 @@ public final class EquipmentRequests {
     private static boolean hasRoomForExact(Container container,
                                            ItemStack incoming) {
         for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            if (!container.canPlaceItem(slot, incoming)) continue;
             ItemStack existing = container.getItem(slot);
             if (existing.isEmpty()) {
                 return true;

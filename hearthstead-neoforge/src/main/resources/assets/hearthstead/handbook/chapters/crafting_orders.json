@@ -1,0 +1,21 @@
+{
+  "id": "crafting_orders",
+  "title": "hearthstead.guide.crafting_orders.title",
+  "icon": "minecraft:crafting_table",
+  "pages": [
+    {
+      "id": "crafting_orders.p1",
+      "title": "hearthstead.guide.crafting_orders.p1.title",
+      "bullets": [
+        "hearthstead.guide.crafting_orders.p1.b1",
+        "hearthstead.guide.crafting_orders.p1.b2",
+        "hearthstead.guide.crafting_orders.p1.b3",
+        "hearthstead.guide.crafting_orders.p1.b4"
+      ],
+      "tip": "hearthstead.guide.crafting_orders.p1.tip",
+      "text": [
+        "hearthstead.guide.crafting_orders.body"
+      ]
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModItems;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import net.minecraft.core.BlockPos;
@@ -230,21 +231,35 @@ public class CourierStopReasonGameTests {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
         BlockPos hearthRel = new BlockPos(2, 1, 2);
-        Settlement settlement = settlement(helper, hearthRel, 11);
+        // The warehouse chest is sqrt(8^2 + 8^2) blocks from the Hearth:
+        // radius11 excluded the source before any FOOD route could begin.
+        Settlement settlement = settlement(helper, hearthRel, 14);
         HearthBlockEntity hearth = hearth(helper, settlement, hearthRel);
 
-        building(helper, settlement, BuildingType.WAREHOUSE,
+        Building employer = building(helper, settlement, BuildingType.WAREHOUSE,
             new BlockPos(9, 1, 9), new BlockPos(11, 3, 11), new BlockPos(9, 1, 9));
         BlockPos chestRel = new BlockPos(10, 1, 10);
+        helper.assertTrue(settlement.inside(helper.absolutePos(chestRel)),
+            "full-destination test needs a warehouse source inside the colony");
         helper.setBlock(chestRel, Blocks.CHEST);
         Container warehouse = container(helper, chestRel);
         helper.assertTrue(warehouse != null, "setup: warehouse chest should exist");
         warehouse.setItem(0, new ItemStack(Items.BREAD, 4));
-        SettlerEntity courier = courier(helper, settlement, new BlockPos(5, 1, 5));
+        SettlerEntity courier = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(5, 1, 5));
+        courier.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(courier.getUUID(), courier.getSettlerName(), Profession.NONE);
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement, employer, courier).ok(),
+            "FOOD delivery requires a real registered Warehouse employment");
+        courier.setHunger(100.0F);
         boolean[] filled = {false};
 
         helper.succeedWhen(() -> {
-            if (!filled[0] && bagCount(courier, Items.BREAD) > 0) {
+            helper.assertTrue(count(warehouse, Items.BREAD) + bagCount(courier, Items.BREAD)
+                    + count(hearth.getInventory(), Items.BREAD) == 4,
+                "all four FOOD units must remain physically conserved through target refusal");
+            if (!filled[0] && bagCount(courier, Items.BREAD) == 4
+                    && count(warehouse, Items.BREAD) == 0
+                    && !new com.hearthstead.entity.ai.CourierSourceBagSession(courier).active()) {
                 for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
                     hearth.getInventory().setStackInSlot(slot,
                         new ItemStack(Items.COBBLESTONE, 64));
@@ -252,7 +267,14 @@ public class CourierStopReasonGameTests {
                 filled[0] = true;
             }
             helper.assertTrue(filled[0],
-                "courier should first lift food before the hearth is filled");
+                "courier must finish all four source contacts and final lift before the hearth is filled"
+                    + " [source=" + count(warehouse, Items.BREAD)
+                    + " bag=" + bagCount(courier, Items.BREAD)
+                    + " hearth=" + count(hearth.getInventory(), Items.BREAD)
+                    + " activity=" + courier.getActivity()
+                    + " reason=" + courier.logisticsStopReason()
+                    + " pos=" + courier.blockPosition()
+                    + " trace=" + courier.routeFailureNote() + "]");
             helper.assertTrue(courier.logisticsStopReason() == StopReason.HEARTH_FULL,
                 "mid-route full hearth should read HEARTH_FULL, got "
                     + courier.logisticsStopReason());
@@ -311,19 +333,43 @@ public class CourierStopReasonGameTests {
         Container warehouse = container(helper, chestRel);
         helper.assertTrue(warehouse != null, "setup: sealed warehouse chest should exist");
         SettlerEntity courier = courier(helper, settlement, new BlockPos(4, 1, 4));
+        SettlerEntity[] activeCourier = {courier};
         boolean[] openedAfterFailure = {false};
+        boolean[] reloadedAfterFailure = {false};
         String[] lastFailureTrace = {""};
         java.util.List<String> failureSnapshots = new java.util.ArrayList<>();
 
+        helper.onEachTick(() -> helper.assertTrue(
+            count(warehouse, Items.OAK_LOG) + bagCount(activeCourier[0], Items.OAK_LOG)
+                + count(hearth.getInventory(), Items.OAK_LOG) == 4,
+            "blocked-route recovery must conserve the four real logs on every tick"));
+
         helper.succeedWhen(() -> {
-            if (courier.logisticsStopReason() == StopReason.NO_PATH
-                && !courier.routeFailureNote().equals(lastFailureTrace[0])) {
-                lastFailureTrace[0] = courier.routeFailureNote();
-                failureSnapshots.add(courier.blockPosition() + " " + lastFailureTrace[0]);
+            SettlerEntity active = activeCourier[0];
+            if (active.logisticsStopReason() == StopReason.NO_PATH
+                && !active.routeFailureNote().equals(lastFailureTrace[0])) {
+                lastFailureTrace[0] = active.routeFailureNote();
+                failureSnapshots.add(active.blockPosition() + " " + lastFailureTrace[0]);
             }
             if (!openedAfterFailure[0]
-                && courier.logisticsStopReason() == StopReason.NO_PATH
-                && courier.logisticsRetrySeconds() > 0) {
+                && active.logisticsStopReason() == StopReason.NO_PATH
+                && active.logisticsRetrySeconds() > 0) {
+                helper.assertTrue(active.getPersistentData().contains(
+                        "HearthsteadCourierHearthDelivery"),
+                    "a failed completed Hearth haul must persist its exact bag/destination receipt");
+                if (!reloadedAfterFailure[0]) {
+                    net.minecraft.nbt.CompoundTag saved = new net.minecraft.nbt.CompoundTag();
+                    active.saveWithoutId(saved);
+                    active.remove(net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_TO_CHUNK);
+                    SettlerEntity loaded = ModEntities.SETTLER.get().create(helper.getLevel());
+                    helper.assertTrue(loaded != null, "decode Courier while the delayed delivery is resting");
+                    loaded.load(saved);
+                    helper.assertTrue(helper.getLevel().addFreshEntity(loaded),
+                        "republish the same Courier with its deferred delivery receipt");
+                    activeCourier[0] = loaded;
+                    active = loaded;
+                    reloadedAfterFailure[0] = true;
+                }
                 BlockPos approach = chestRel.west();
                 helper.setBlock(approach, Blocks.AIR);
                 helper.setBlock(approach.above(), Blocks.AIR);
@@ -338,31 +384,41 @@ public class CourierStopReasonGameTests {
             }
             helper.assertTrue(openedAfterFailure[0],
                 "sealed target should publish NO_PATH with a non-zero retry countdown"
-                    + " [reason=" + courier.logisticsStopReason()
-                    + " retry=" + courier.logisticsRetrySeconds()
-                    + " trace=" + courier.routeFailureNote() + "]");
+                    + " [reason=" + active.logisticsStopReason()
+                    + " retry=" + active.logisticsRetrySeconds()
+                    + " trace=" + active.routeFailureNote() + "]");
             helper.assertTrue(helper.getBlockState(chestRel.west()).isAir()
                     && helper.getBlockState(chestRel.west().above()).isAir()
                     && helper.getBlockState(chestRel.above()).isAir(),
                 "the recovery corridor and lid must remain physically open");
             int delivered = count(warehouse, Items.OAK_LOG);
-            helper.assertTrue(delivered == 4,
+            helper.assertTrue(delivered == 4 && bagCount(active, Items.OAK_LOG) == 0
+                    && count(hearth.getInventory(), Items.OAK_LOG) == 0,
                 "after opening the route, the real retry should deliver all four logs"
                     + " [delivered=" + delivered
-                    + " bag=" + bagCount(courier, Items.OAK_LOG)
+                    + " bag=" + bagCount(active, Items.OAK_LOG)
                     + " hearth=" + count(hearth.getInventory(), Items.OAK_LOG)
-                    + " pos=" + courier.blockPosition()
-                    + " activity=" + courier.getActivity()
-                    + " reason=" + courier.logisticsStopReason()
-                    + " retry=" + courier.logisticsRetrySeconds()
-                    + " trace=" + courier.routeFailureNote()
+                    + " reloaded=" + reloadedAfterFailure[0]
+                    + " pos=" + active.blockPosition()
+                    + " activity=" + active.getActivity()
+                    + " reason=" + active.logisticsStopReason()
+                    + " retry=" + active.logisticsRetrySeconds()
+                    + " trace=" + active.routeFailureNote()
                     + " failures=" + failureSnapshots
+                    + " exactPosition=" + active.position()
+                    + " velocity=" + active.getDeltaMovement()
+                    + " navDone=" + active.getNavigation().isDone()
+                    + " navTarget=" + active.getNavigation().getTargetPos()
+                    + " hearthSession=" + active.getPersistentData()
+                        .getCompound("HearthsteadCourierHearthBag")
+                    + " deferredHearthDelivery=" + active.getPersistentData()
+                        .getCompound("HearthsteadCourierHearthDelivery")
                     + " warehousePresent=" + settlement.buildings.stream()
                         .anyMatch(building -> building.type == BuildingType.WAREHOUSE)
                     + "]");
-            helper.assertTrue(courier.logisticsStopReason() == StopReason.NONE,
+            helper.assertTrue(active.logisticsStopReason() == StopReason.NONE,
                 "a successful retry must clear the old stop reason, got "
-                    + courier.logisticsStopReason());
+                    + active.logisticsStopReason());
         });
     }
 
@@ -441,11 +497,12 @@ public class CourierStopReasonGameTests {
             StopReason.HEARTH_FULL, StopReason.NO_WAREHOUSE_SPACE,
             StopReason.RESERVED_BY_OTHER, StopReason.RESTING_AFTER_FAIL,
             StopReason.NO_PATH, StopReason.NO_WORK_ZONE,
-            StopReason.NO_VALID_TARGET
+            StopReason.NO_VALID_TARGET, StopReason.FOOD_OVERFLOW,
+            StopReason.NOTHING_TO_STUDY
         };
-        int[] ids = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        helper.assertTrue(StopReason.values().length == 10,
-            "packed protocol must contain exactly 10 reasons");
+        int[] ids = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+        helper.assertTrue(StopReason.values().length == 12,
+            "packed protocol must contain exactly 12 reasons");
         for (int index = 0; index < reasons.length; index++) {
             StopReason reason = reasons[index];
             int expected = ids[index];
@@ -456,7 +513,7 @@ public class CourierStopReasonGameTests {
                 "wire id " + expected + " does not decode to " + reason);
         }
         helper.assertTrue(StopReason.fromWireId(-1) == StopReason.NONE
-                && StopReason.fromWireId(10) == StopReason.NONE,
+                && StopReason.fromWireId(12) == StopReason.NONE,
             "unknown wire ids must fail closed to NONE");
         helper.succeed();
     }

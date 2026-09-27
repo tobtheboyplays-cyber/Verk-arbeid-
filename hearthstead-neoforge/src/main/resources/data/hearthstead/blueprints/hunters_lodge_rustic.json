@@ -1,0 +1,128 @@
+{
+  "id": "hunters_lodge_rustic",
+  "name": "Hunter's Cabin (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "hunters_lodge",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "hunters_lodge",
+  "size": [
+    15,
+    10,
+    9
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      8,
+      2,
+      5
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      5,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 83
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 72
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 48
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 43
+    },
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 29
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 27
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 20
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 17
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 8
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 8
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 7
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 6
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 2
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 2
+    },
+    {
+      "item": "minecraft:fletching_table",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:target",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    }
+  ],
+  "block_count": 380,
+  "cells": 486
+}

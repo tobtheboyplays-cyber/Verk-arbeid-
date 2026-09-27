@@ -1,0 +1,17 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "base": {
+    "parent": "hearthstead:item/wooden_short_sword_held"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "hearthstead:item/wooden_short_sword_icon"
+    },
+    "ground": {
+      "parent": "hearthstead:item/wooden_short_sword_icon"
+    },
+    "fixed": {
+      "parent": "hearthstead:item/wooden_short_sword_icon"
+    }
+  }
+}

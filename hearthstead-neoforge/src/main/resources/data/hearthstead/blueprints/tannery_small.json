@@ -1,0 +1,104 @@
+{
+  "id": "tannery_small",
+  "name": "Tanner's Yard",
+  "category": "work",
+  "kind": "building",
+  "building_type": "tannery",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "tannery",
+  "size": [
+    13,
+    6,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      4,
+      2,
+      1
+    ],
+    "facing": "south"
+  },
+  "work": [
+    [
+      9,
+      1,
+      4
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 116
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 49
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 29
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 24
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 21
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 18
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 16
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 8
+    },
+    {
+      "item": "minecraft:coarse_dirt",
+      "count": 6
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 2
+    },
+    {
+      "item": "minecraft:composter",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    }
+  ],
+  "block_count": 300,
+  "cells": 319
+}

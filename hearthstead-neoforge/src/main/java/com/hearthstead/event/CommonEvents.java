@@ -18,6 +18,8 @@ import com.hearthstead.settlement.DeferredItemMaterializationSavedData;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
+import com.hearthstead.settlement.raid.RaidBossBarService;
+import com.hearthstead.settlement.raid.RaidThreatBoard;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.BedBlock;
@@ -49,6 +51,7 @@ public final class CommonEvents {
         if (event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player) {
             BlessingNetwork.forget(player);
             InspectionViewers.forget(player);
+            RaidBossBarService.forget(player);
             com.hearthstead.settlement.workzone.WorkZoneService.forget(player);
         }
     }
@@ -60,6 +63,8 @@ public final class CommonEvents {
         InspectionViewers.clear(event.getServer());
         com.hearthstead.settlement.workzone.WorkZoneService.clear(event.getServer());
         CombatTerminalEvents.clear(event.getServer());
+        RaidBossBarService.clear(event.getServer());
+        com.hearthstead.settlement.defense.AlarmBell.clear();
     }
 
     /** Settlers never trample the farmland they tend. */
@@ -88,6 +93,8 @@ public final class CommonEvents {
     public static void onLevelUnload(LevelEvent.Unload event) {
         if (event.getLevel() instanceof ServerLevel) {
             WarehouseStorage.clearAll();
+            RaidBossBarService.clearLevel((ServerLevel) event.getLevel());
+            RaidThreatBoard.clear((ServerLevel) event.getLevel());
         }
     }
 
@@ -101,6 +108,10 @@ public final class CommonEvents {
             DeferredItemMaterializationSavedData.retryLoaded(serverLevel);
             SettlementSavedData data = SettlementSavedData.get(serverLevel);
             data.buildingManager.tick(serverLevel, data);
+            RaidBossBarService.tick(serverLevel);
+            // Logistics M1: budgeted crafting-order resolver (per settlement
+            // once per CraftingOrderService.SCAN_INTERVAL ticks).
+            com.hearthstead.settlement.request.CraftingOrderService.tick(serverLevel);
         }
     }
 

@@ -83,6 +83,31 @@ public final class GuardAssignmentService {
         return hasServiceableEquipment(armedGuard);
     }
 
+    /**
+     * The authored first-raid tutorial promises one local melee bodyguard and
+     * one tower Archer.  A Patrol route is a valid ordinary Guard order, but
+     * it cannot satisfy that narrower promise because raid escort is anchored
+     * by a Stand Post and its exact issuing player.
+     */
+    public static boolean hasValidFirstRaidOrder(ServerLevel level,
+                                                 Settlement settlement,
+                                                 SettlerEntity defender) {
+        if (level == null || settlement == null || defender == null) {
+            return false;
+        }
+        Validation validation = validate(level, settlement, defender, false);
+        if (!validation.valid() || !hasServiceableEquipment(defender)) {
+            return false;
+        }
+        GuardOrder.Mode mode = validation.order().orElseThrow().modeAt(
+            level.getGameTime());
+        return switch (defender.getProfession()) {
+            case GUARD -> mode == GuardOrder.Mode.STAND_POST;
+            case ARCHER -> mode == GuardOrder.Mode.TOWER_POST;
+            default -> false;
+        };
+    }
+
     /** Pure physical main-hand predicate; never refreshes or creates a request. */
     public static boolean hasServiceableEquipment(SettlerEntity guard) {
         if (guard == null || !guard.getProfession().martial()) return false;
@@ -238,8 +263,22 @@ public final class GuardAssignmentService {
                                                 GuardOrder order) {
         if (order.mode() == GuardOrder.Mode.NONE) return InvalidReason.NONE;
         BlockPos destination = order.pos().orElse(null);
-        if (destination == null || !settlement.inside(destination)
-            || !level.isLoaded(destination)) return InvalidReason.TARGET_INVALID;
+        if (destination == null || !level.isLoaded(destination)) {
+            return InvalidReason.TARGET_INVALID;
+        }
+        // Only a Tower Post has an exact employer-bound destination.  Stand
+        // and patrol remain player-authored city points and keep their radius
+        // policy below.
+        if (order.mode() == GuardOrder.Mode.TOWER_POST) {
+            if (!towerPostAvailable(level, settlement, employer)) {
+                return InvalidReason.TOWER_LOCKED;
+            }
+            if (!employer.contains(destination)) {
+                return InvalidReason.TARGET_INVALID;
+            }
+        } else if (!settlement.inside(destination)) {
+            return InvalidReason.TARGET_INVALID;
+        }
         if (order.mode() == GuardOrder.Mode.PATROL_ROUTE) {
             List<BlockPos> points = order.patrolPoints();
             if (points.size() < GuardOrder.MIN_PATROL_POINTS
@@ -250,14 +289,6 @@ public final class GuardAssignmentService {
                 if (!settlement.inside(point) || !level.isLoaded(point)) {
                     return InvalidReason.TARGET_INVALID;
                 }
-            }
-        }
-        if (order.mode() == GuardOrder.Mode.TOWER_POST) {
-            if (!towerPostAvailable(level, settlement, employer)) {
-                return InvalidReason.TOWER_LOCKED;
-            }
-            if (!employer.contains(destination)) {
-                return InvalidReason.TARGET_INVALID;
             }
         }
         return InvalidReason.NONE;

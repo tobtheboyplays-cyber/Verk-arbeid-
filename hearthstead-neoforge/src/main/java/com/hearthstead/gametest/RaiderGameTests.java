@@ -11,6 +11,7 @@ import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.raid.RaidCaptain;
+import com.hearthstead.settlement.raid.CaptainRallyRules;
 import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidLogEntry;
 import com.hearthstead.settlement.raid.RaidObjective;
@@ -21,6 +22,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -93,6 +95,46 @@ public class RaiderGameTests {
         double gruntDamage = grunt.getAttributeValue(Attributes.ATTACK_DAMAGE);
         helper.assertTrue(captainDamage > gruntDamage,
             "and must hit harder: " + captainDamage + " vs " + gruntDamage);
+        CompoundTag channeling = new CompoundTag();
+        captain.addAdditionalSaveData(channeling);
+        channeling.putByte("RallyPhase",
+            (byte) RaiderEntity.RallyPhase.CHANNELING.ordinal());
+        channeling.putLong("RallyDeadline",
+            helper.getLevel().getGameTime() + RaiderEntity.RALLY_CHANNEL_TICKS);
+        captain.readAdditionalSaveData(channeling);
+        captain.hurt(helper.getLevel().damageSources().fall(), 1.0F);
+        helper.assertTrue(captain.rallyPhase()
+                == RaiderEntity.RallyPhase.CHANNELING,
+            "environmental damage must not interrupt captain authority");
+        captain.invulnerableTime = 0;
+        SettlerEntity defender = helper.spawn(ModEntities.SETTLER.get(),
+            new BlockPos(4, 1, 3));
+        defender.bindTo(s.id, s.center);
+        s.putRecord(defender.getUUID(), "Rallybreaker", Profession.NONE);
+        defender.assignProfession(Profession.GUARD);
+        captain.hurt(helper.getLevel().damageSources().mobAttack(defender),
+            1.0F);
+        helper.assertTrue(captain.rallyPhase() == RaiderEntity.RallyPhase.EXPOSED,
+            "an authoritative settlement defender hit must interrupt the channel");
+        CompoundTag interrupted = new CompoundTag();
+        captain.addAdditionalSaveData(interrupted);
+        RaiderEntity reloaded = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(4, 1, 2));
+        reloaded.readAdditionalSaveData(interrupted);
+        helper.assertTrue(reloaded.rallyPhase()
+                == RaiderEntity.RallyPhase.EXPOSED,
+            "interrupted rally phase and deadline must survive reload");
+        helper.assertTrue(reloaded.rallyDeadline()
+                == interrupted.getLong("RallyDeadline"),
+            "rally deadline must survive reload exactly");
+        interrupted.putBoolean("RallyFinalStandUsed", true);
+        RaiderEntity finalReload = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(5, 1, 2));
+        finalReload.readAdditionalSaveData(interrupted);
+        helper.assertTrue(finalReload.rallyFinalStandUsed()
+                && !CaptainRallyRules.mayStartFinalStand(
+                    finalReload.rallyFinalStandUsed(), true),
+            "consumed final stand must survive reload and remain one-shot");
         helper.succeed();
     }
 
@@ -312,6 +354,56 @@ public class RaiderGameTests {
         helper.succeed();
     }
 
+    /**
+     * Fluids have no collision shape, and FloatGoal can keep a raider at a
+     * fluid surface instead of letting ground navigation approach the settlement.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "raider_footing_rejects_fluid_and_keeps_dry_ground")
+    public void footingRejectsFluidAndKeepsDryGround(GameTestHelper helper) {
+        buildArena(helper, 16);
+        BlockPos dry = new BlockPos(2, 1, 2);
+        BlockPos water = new BlockPos(6, 1, 3);
+        BlockPos lava = new BlockPos(10, 1, 3);
+        BlockPos headWaterFoot = new BlockPos(14, 1, 3);
+        var level = helper.getLevel();
+        // The production search extends below this template's one-block floor.
+        // Isolate each wet column from any lower dry footing in the flat world;
+        // the null expectation is about this complete column, not only its top.
+        for (BlockPos feet : java.util.List.of(water, lava, headWaterFoot)) {
+            BlockPos absoluteFeet = helper.absolutePos(feet);
+            // Clear the entire upward search, including its head cell: the
+            // small template does not own preexisting support above its ceiling.
+            for (int height = 0; height <= RaidDirector.SPAWN_VERTICAL_SEARCH + 1; height++) {
+                level.setBlockAndUpdate(absoluteFeet.above(height), Blocks.AIR.defaultBlockState());
+            }
+            for (int depth = 1; depth <= RaidDirector.SPAWN_VERTICAL_SEARCH + 1; depth++) {
+                BlockPos support = absoluteFeet.below(depth);
+                if (support.getY() >= level.getMinBuildHeight()) {
+                    level.setBlockAndUpdate(support, Blocks.STONE_BRICKS.defaultBlockState());
+                }
+            }
+        }
+        helper.setBlock(water, Blocks.WATER);
+        helper.setBlock(lava, Blocks.LAVA);
+        helper.setBlock(headWaterFoot.above(), Blocks.WATER);
+
+        BlockPos absoluteDry = helper.absolutePos(dry);
+        helper.assertTrue(absoluteDry.equals(RaidDirector.standableNear(level,
+                absoluteDry)),
+            "ordinary dry ground must remain valid raid footing");
+        BlockPos waterResult = RaidDirector.standableNear(level, helper.absolutePos(water));
+        helper.assertTrue(waterResult == null,
+            "water over a solid column must not count as raid footing; returned=" + waterResult);
+        helper.assertTrue(RaidDirector.standableNear(level,
+                helper.absolutePos(lava)) == null,
+            "lava over a solid floor must not count as raid footing");
+        helper.assertTrue(RaidDirector.standableNear(level,
+                helper.absolutePos(headWaterFoot)) == null,
+            "a dry feet cell with water at head height must not count as raid footing");
+        helper.succeed();
+    }
+
     /** A band is a band, never a horde, however rich the settlement gets. */
     @GameTest(template = "empty16", timeoutTicks = 300, batch = "raider_band_size_grows_with_worth_but_is_capped")
     public void bandSizeGrowsWithWorthButIsCapped(GameTestHelper helper) {
@@ -393,9 +485,8 @@ public class RaiderGameTests {
             "with none left standing the raid must resolve");
         helper.assertTrue(s.pendingRaid == null,
             "and the plan must be cleared so the next night can be rolled");
-        helper.assertTrue(s.raidPressure.pressure() > pressureBefore,
-            "repelling a raid must RAISE pressure -- the deliberate inverse "
-                + "of MineColonies buying quiet with a loss. Got "
+        helper.assertTrue(s.raidPressure.pressure() == pressureBefore,
+            "holding a raid must leave pressure unchanged. Got "
                 + s.raidPressure.pressure() + " from " + pressureBefore);
         helper.assertTrue(captain.defeats() == defeatsBefore + 1,
             "and the captain must remember being driven off");
@@ -488,18 +579,18 @@ public class RaiderGameTests {
         helper.assertTrue(plannedSize >= RaidDirector.MIN_BAND,
             "fixture must plan a real band, got " + plannedSize);
 
-        // Only the settlement centre has footing. The captain's bounded
-        // last-resort sweep therefore succeeds there, while every possible
-        // direct follower column (all bearings and all random distances) is
-        // verified empty before the transaction starts.
+        // Only the settlement centre has footing. That is INSIDE the claim,
+        // so the captain may no longer form up there (the old last resort);
+        // every possible direct follower column (all bearings and all random
+        // distances) is verified empty before the transaction starts.
         level.setBlock(s.center.below(), Blocks.STONE_BRICKS.defaultBlockState(), 3);
         helper.assertTrue(RaidDirector.standableNear(level, s.center) != null,
-            "fixture must guarantee captain footing at the bounded fallback");
+            "fixture must offer footing inside the claim only");
         for (int i = 1; i < plannedSize; i++) {
             float spread = (i / (float) (plannedSize - 1) - 0.5F)
                 * 2.0F * RaidDirector.SPAWN_ARC;
-            for (int distance = RaidDirector.SPAWN_MIN_DISTANCE;
-                 distance <= RaidDirector.SPAWN_MAX_DISTANCE; distance++) {
+            for (int distance = RaidDirector.spawnMinDistance(s.radius);
+                 distance <= RaidDirector.spawnMaxDistance(s.radius); distance++) {
                 BlockPos follower = RaidDirector.formUpAt(s.center,
                     plan.approachDegrees() + spread, distance);
                 helper.assertTrue(RaidDirector.standableNear(level, follower) == null,
@@ -514,7 +605,7 @@ public class RaiderGameTests {
                 && s.recurringRaidRun.plan().orElseThrow().equals(plan)
                 && s.pendingRaid == null
                 && RaidDirector.livingRaidersOf(level, s).isEmpty(),
-            "captain-only acceptance must roll back every entity and retain the "
+            "footing only inside the claim must spawn nobody and retain the "
                 + "same queued plan/serial without sealing or announcing");
 
         // Give every possible random distance on every planned bearing one
@@ -523,8 +614,8 @@ public class RaiderGameTests {
         for (int i = 0; i < plannedSize; i++) {
             float spread = (i / (float) (plannedSize - 1) - 0.5F)
                 * 2.0F * RaidDirector.SPAWN_ARC;
-            for (int distance = RaidDirector.SPAWN_MIN_DISTANCE;
-                 distance <= RaidDirector.SPAWN_MAX_DISTANCE; distance++) {
+            for (int distance = RaidDirector.spawnMinDistance(s.radius);
+                 distance <= RaidDirector.spawnMaxDistance(s.radius); distance++) {
                 retryFloors.add(RaidDirector.formUpAt(s.center,
                     plan.approachDegrees() + spread, distance).below());
             }

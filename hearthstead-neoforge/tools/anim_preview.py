@@ -34,7 +34,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from anim_check import parse_definitions  # noqa: E402
+from anim_check import (parse_definitions,
+                        validated_ends_in_pose_allowlist)  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ANIMS = os.path.join(HERE, "..", "src", "main", "java", "com", "hearthstead",
@@ -57,7 +58,7 @@ def biggest_delta(vec_a, vec_b):
     return max(abs(a - b) for a, b in zip(vec_a, vec_b))
 
 
-def analyse(name, clip):
+def analyse(name, clip, reviewed_end_pose_handoffs=frozenset()):
     notes = []
     rotations = {bone: frames for bone, target, frames in clip["channels"]
                  if target == "ROTATION"}
@@ -108,7 +109,24 @@ def analyse(name, clip):
             # the engine blends in. Judging it as a pop would mean every
             # one-shot is permanently guilty.
             opening_oneshot = (i == 0 and not clip["looping"])
-            if not beat_after and not ramp_before and not opening_oneshot:
+            # A reviewed one-shot may intentionally leave a contact hold with
+            # a fast release, then spend its last segment settling into the
+            # next runtime pose. That terminal handoff is not an unexplained
+            # pop. This exemption remains narrow: the clip must come from
+            # anim_check's fail-closed reviewed set, the fast segment must be
+            # preceded by a real hold, and exactly one authored settle segment
+            # must remain. Earlier fast motion is still judged normally.
+            hold_before = (i > 0
+                           and biggest_delta(frames[i - 1][2], v0) <= HOLD_DEG)
+            terminal_reviewed_handoff = (
+                name in reviewed_end_pose_handoffs
+                and not clip["looping"]
+                and hold_before
+                and i + 2 == len(frames) - 1
+                and abs(frames[-1][0] - clip["length"]) < 1e-6
+            )
+            if not beat_after and not ramp_before and not opening_oneshot \
+                    and not terminal_reviewed_handoff:
                 notes.append(("pop", f"{bone} moves {rate:.0f} deg/tick at "
                                      f"{t0:.2f}s with nothing leading in and no "
                                      f"beat after"))
@@ -182,6 +200,12 @@ def main():
     args = ap.parse_args()
 
     defs = parse_definitions(ANIMS)
+    try:
+        reviewed_end_pose_handoffs = validated_ends_in_pose_allowlist(
+            "settler")
+    except ValueError as exc:
+        print(f"invalid reviewed end-pose handoff contract: {exc}")
+        return 2
     wanted = args.clips or sorted(defs)
     missing = [c for c in wanted if c not in defs]
     if missing:
@@ -190,7 +214,7 @@ def main():
 
     flawed = 0
     for name in wanted:
-        notes = analyse(name, defs[name])
+        notes = analyse(name, defs[name], reviewed_end_pose_handoffs)
         clip = defs[name]
         head = (f"{name}  ({clip['length']:.2f}s"
                 f"{', loop' if clip['looping'] else ''}, "

@@ -185,7 +185,7 @@ public class TradeCarpenterGameTests {
         // LOOK_INTERVAL cycles (CrafterWorkGoal, 20 ticks) to have looked and
         // found nothing, then prove it did nothing.
         final long[] productionStart = {-1};
-        helper.runAtTickTime(60, () -> {
+        GameTestTicks.at(helper, 60, () -> {
             helper.assertTrue(countOf(chest, Items.LADDER) == 0,
                 "an empty chest must produce no ladders at all");
             helper.assertTrue(snekker.getActivity() != SettlerActivity.WORK_PLANE,

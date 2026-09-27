@@ -1,0 +1,106 @@
+diff --git a/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java b/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java
+index dddb838..5f08db5 100644
+--- a/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/FarmerWorkGoal.java
+@@ -44,6 +44,8 @@ import java.util.Deque;
+ import java.util.EnumSet;
+ import java.util.Iterator;
+ import java.util.List;
++import java.util.LinkedHashSet;
++import java.util.Set;
+ import java.util.UUID;
+ import java.util.function.Predicate;
+ import javax.annotation.Nullable;
+@@ -149,6 +151,11 @@ public class FarmerWorkGoal extends Goal {
+     private BlockPos maintainTarget;
+     /** Real chest in this farmer's own farmhouse; never the Hearth. */
+     private BlockPos depositTarget;
++    /** Containers whose complete seven-repath storage route failed for the
++     * current carried load. A candidate stays sticky until its own route
++     * exhausts; this bounded set only permits the next physical chest after
++     * that terminal result. */
++    private final Set<BlockPos> failedDepositTargets = new LinkedHashSet<>();
+     /** Exact Farmhouse container selected for one physical seed/cane pickup. */
+     @Nullable
+     private BlockPos inputTarget;
+@@ -1013,8 +1020,7 @@ public class FarmerWorkGoal extends Goal {
+         // nearest container on every repath can make a farmer oscillate
+         // between opposite sides of a doorway and never finish either route.
+         if (depositTarget == null) {
+-            depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
+-                farmhouse, settler.blockPosition());
++            depositTarget = nextStorageTarget(level, farmhouse);
+         }
+         if (depositTarget == null) {
+             settler.recordRouteFailure("farmhouse_storage_missing");
+@@ -2021,8 +2027,7 @@ public class FarmerWorkGoal extends Goal {
+             return;
+         }
+         if (depositTarget == null) {
+-            depositTarget = WorkerStorageAuthority.nearestLoadedContainer(level,
+-                farmhouse, settler.blockPosition());
++            depositTarget = nextStorageTarget(level, farmhouse);
+         }
+         if (depositTarget == null) {
+             settler.recordRouteFailure("farmhouse_storage_missing");
+@@ -2054,7 +2059,11 @@ public class FarmerWorkGoal extends Goal {
+                 settler.recordRouteFailure("farmhouse_storage_full_or_changed");
+                 depositRetryCooldown = DEPOSIT_RETRY_TICKS;
+             } else {
+-                depositTarget = null; depositRetryCooldown = 0;
++                depositTarget = null;
++                depositRetryCooldown = 0;
++                // The carried crop is gone; stale failed paths must not bias a
++                // later, independent harvest after the world has changed.
++                failedDepositTargets.clear();
+             }
+             done = true;
+         } else if (--repathTimer <= 0) {
+@@ -2063,7 +2072,13 @@ public class FarmerWorkGoal extends Goal {
+                 depositTarget = null;
+             }
+             if (++stuckChecks > 6) {
+-                settler.recordRouteFailure("farmhouse_storage_unreachable");
++                BlockPos failedTarget = depositTarget;
++                if (failedTarget != null) {
++                    failedDepositTargets.add(failedTarget.immutable());
++                    depositTarget = null;
++                }
++                settler.recordRouteFailure("farmhouse_storage_unreachable:"
++                    + (failedTarget == null ? "none" : failedTarget.toShortString()));
+                 depositRetryCooldown = DEPOSIT_RETRY_TICKS;
+                 done = true;
+                 return;
+@@ -2072,6 +2087,32 @@ public class FarmerWorkGoal extends Goal {
+         }
+     }
+ 
++    /**
++     * Select the nearest loaded Farmhouse chest that has not exhausted a full
++     * physical contact route for the current carried load. This deliberately
++     * does not preflight or alter navigation: ContainerApproach remains the
++     * single door-aware route authority, and one selected chest remains sticky
++     * through its complete retry budget.
++     */
++    @Nullable
++    private BlockPos nextStorageTarget(ServerLevel level, Building farmhouse) {
++        List<BlockPos> candidates = new ArrayList<>(
++            WorkerStorageAuthority.loadedContainers(level, farmhouse));
++        candidates.sort(Comparator.comparingDouble(settler.blockPosition()::distSqr));
++        for (BlockPos candidate : candidates) {
++            if (!failedDepositTargets.contains(candidate)) {
++                return candidate;
++            }
++        }
++        // Every loaded candidate has failed once. Retain the established
++        // 100-tick cooldown, then permit a repaired door or chest to recover.
++        if (!candidates.isEmpty()) {
++            failedDepositTargets.clear();
++            return candidates.get(0);
++        }
++        return null;
++    }
++
+     private void tickFieldBag() {
+         if (!(settler.level() instanceof ServerLevel level) || !fieldBag.active()) { done=true; return; }
+         GroundedBagSession.Result result=fieldBag.tick(level,this::collectableFieldOutput,

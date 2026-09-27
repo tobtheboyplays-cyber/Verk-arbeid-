@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:butchering_table",
+    "hearthstead:fish_rack",
+    "hearthstead:fishers_chair",
+    "hearthstead:hearth"
+  ]
+}

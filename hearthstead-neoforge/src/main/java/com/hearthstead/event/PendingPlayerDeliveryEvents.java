@@ -44,6 +44,8 @@ public final class PendingPlayerDeliveryEvents {
         for (Settlement settlement : data.settlements.values()) {
             changed |= settlement.blessingState.retryPending(
                 player.serverLevel(), player) > 0;
+            changed |= settlement.employmentReturns.retry(
+                player.serverLevel(), player) > 0;
         }
         if (changed) {
             data.setDirty();

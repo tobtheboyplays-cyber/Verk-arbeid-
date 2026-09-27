@@ -4,16 +4,20 @@ import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.logistics.StopReason;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.equipment.EquipmentRequests;
+import com.hearthstead.settlement.equipment.EquipmentRequirement;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.Container;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.Sheep;
@@ -135,18 +139,28 @@ public class HerderWorkGoal extends Goal {
             lookCooldown--;
             return false;
         }
-        lookCooldown = LOOK_INTERVAL + settler.getRandom().nextInt(LOOK_INTERVAL);
+        // Trade skill (primary): shorter pause between rounds, never a clip.
+        lookCooldown = com.hearthstead.entity.SkillLevels.shortenWait(settler,
+            LOOK_INTERVAL + settler.getRandom().nextInt(LOOK_INTERVAL));
         Building building = Employment.employerOf(s, settler.getUUID());
         if (building == null || !building.valid || building.bounds == null) {
             return false;
         }
         AABB box = AABB.of(building.bounds);
+        // J-11: a full pasture chest used to pin the Herder on the same egg
+        // forever. Full now means "say so and do the other chores".
+        boolean full = !hasRoomFor(level, building, new ItemStack(Items.EGG));
+        if (full) {
+            WorkStopReasons.report(settler, StopReason.CHEST_FULL, building.anchor);
+        }
 
         // Eggs are the cheapest win and the only yield that ages badly (a
         // laid egg just sits there until picked up), so they go first.
-        List<ItemEntity> eggs = level.getEntitiesOfClass(ItemEntity.class, box,
-            e -> e.isAlive() && e.getItem().is(Items.EGG));
+        List<ItemEntity> eggs = full ? List.of()
+            : level.getEntitiesOfClass(ItemEntity.class, box,
+                e -> e.isAlive() && e.getItem().is(Items.EGG));
         if (!eggs.isEmpty()) {
+            WorkStopReasons.clear(settler);
             pasture = building;
             targetEgg = eggs.get(0);
             targetAnimal = null;
@@ -156,11 +170,22 @@ public class HerderWorkGoal extends Goal {
 
         List<Animal> animals = level.getEntitiesOfClass(Animal.class, box, Animal::isAlive);
         if (animals.isEmpty()) {
-            return false; // the player has not stocked the paddock
+            if (!full) {
+                // The player has not stocked the paddock.
+                WorkStopReasons.report(settler, StopReason.NO_VALID_TARGET,
+                    building.anchor);
+            }
+            return false;
+        }
+        if (!full) {
+            WorkStopReasons.clear(settler);
         }
 
+        // J-10: shearing needs real shears in hand; without them the open
+        // equipment request names the tool and the other chores go on.
+        boolean shears = holdsShears();
         for (Animal a : animals) {
-            if (a instanceof Sheep sheep && readyToShear(level, sheep)) {
+            if (shears && a instanceof Sheep sheep && readyToShear(level, sheep)) {
                 pasture = building;
                 targetAnimal = sheep;
                 targetEgg = null;
@@ -176,10 +201,14 @@ public class HerderWorkGoal extends Goal {
             }
         }
 
+        boolean breedableWithoutFeed = false;
         for (Animal a : animals) {
-            if (a.getAge() == 0 && a.canFallInLove()
-                && adultCounts.getOrDefault(a.getClass(), 0) >= MIN_HERD_FOR_BREEDING
-                && hasFeedFor(level, building, a)) {
+            boolean breedable = a.getAge() == 0 && a.canFallInLove()
+                && adultCounts.getOrDefault(a.getClass(), 0) >= MIN_HERD_FOR_BREEDING;
+            if (breedable && !hasFeedFor(level, building, a)) {
+                breedableWithoutFeed = true;
+            }
+            if (breedable && hasFeedFor(level, building, a)) {
                 pasture = building;
                 targetAnimal = a;
                 targetEgg = null;
@@ -198,6 +227,13 @@ public class HerderWorkGoal extends Goal {
                 return true;
             }
         }
+        // Nothing to do this round: name the reason on the sheet instead of
+        // idling silently (captain1 soak 2026-09-26: herder 6% work, no reason
+        // shown). Missing shears already show as the open equipment request.
+        if (!full) {
+            WorkStopReasons.report(settler, breedableWithoutFeed
+                ? StopReason.WAITING_INPUT : StopReason.NO_VALID_TARGET, building.anchor);
+        }
         return false;
     }
 
@@ -208,6 +244,9 @@ public class HerderWorkGoal extends Goal {
         }
         return switch (action) {
             case EGG -> targetEgg != null && targetEgg.isAlive();
+            // The shears can leave the hand mid-cut (taken back, swapped):
+            // then the cut stops here, with no wool and no wear on anything.
+            case SHEAR -> targetAnimal != null && targetAnimal.isAlive() && holdsShears();
             default -> targetAnimal != null && targetAnimal.isAlive();
         };
     }
@@ -250,6 +289,9 @@ public class HerderWorkGoal extends Goal {
 
     @Override
     public void tick() {
+        // Vanilla ticks every-tick goals once more after tick() finished them,
+        // without canContinueToUse() (see CrafterWorkGoal.tick): never act again.
+        if (done) return;
         switch (action) {
             case EGG -> tickEgg();
             case SHEAR -> tickShear();
@@ -301,8 +343,11 @@ public class HerderWorkGoal extends Goal {
     }
 
     private void tickShear() {
+        // Rechecked every tick, so also right before the harvest below: no
+        // shears in hand means no wool and no wear on whatever is held now.
         if (!(targetAnimal instanceof Sheep sheep) || !sheep.isAlive()
-            || !(settler.level() instanceof ServerLevel level) || !readyToShear(level, sheep)) {
+            || !(settler.level() instanceof ServerLevel level) || !readyToShear(level, sheep)
+            || !holdsShears()) {
             done = true;
             return;
         }
@@ -312,14 +357,23 @@ public class HerderWorkGoal extends Goal {
         }
         workTicks++;
         if (workTicks == SHEAR_ACCENT_TICK) {
-            level.playSound(null, sheep.blockPosition(), ModSounds.HIDE_SCRAPE.get(),
-                SoundSource.NEUTRAL, 0.7F, 1.15F + settler.getRandom().nextFloat() * 0.1F);
+            level.playSound(null, sheep.blockPosition(), ModSounds.WORK_SHEAR_SNIP.get(),
+                SoundSource.NEUTRAL, 0.8F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
         }
         if (workTicks >= SHEAR_DURATION) {
-            List<ItemStack> drops = AnimalHarvest.shear(level, sheep);
+            ItemStack shears = settler.getMainHandItem();
+            List<ItemStack> drops = AnimalHarvest.shear(level, sheep, shears);
+            // Perception: 0..10% chance of one more wool (plan/ATTRIBUTES.md).
+            if (!drops.isEmpty() && drops.get(0).getCount() < drops.get(0).getMaxStackSize()
+                && com.hearthstead.entity.AttributeRuntime.extraFind(settler)) {
+                drops.get(0).grow(1);
+            }
             depositOrDrop(level, drops);
+            shears.hurtAndBreak(1, settler, EquipmentSlot.MAINHAND);
             settler.train(Employment.trainedBy(BuildingType.PASTURE), 1.0F);
             settler.spendEffort(1);
+            com.hearthstead.entity.SkillLevels.completeUnit(settler, 1,
+                Employment.trainedBy(BuildingType.PASTURE));
             done = true;
         }
     }
@@ -346,6 +400,8 @@ public class HerderWorkGoal extends Goal {
                 targetAnimal.setInLove(null);
                 settler.train(Employment.trainedBy(BuildingType.PASTURE), 1.0F);
                 settler.spendEffort(1);
+                com.hearthstead.entity.SkillLevels.completeUnit(settler, 1,
+                    Employment.trainedBy(BuildingType.PASTURE));
             }
             // No feed anywhere: the walk was for nothing this cycle, same as
             // a farmer finding a mature crop that vanished before arrival --
@@ -376,6 +432,8 @@ public class HerderWorkGoal extends Goal {
                 depositOrDrop(level, drops);
                 settler.train(Employment.trainedBy(BuildingType.PASTURE), 1.0F);
                 settler.spendEffort(2);
+                com.hearthstead.entity.SkillLevels.completeUnit(settler, 2,
+                    Employment.trainedBy(BuildingType.PASTURE));
             }
             done = true;
         }
@@ -391,6 +449,27 @@ public class HerderWorkGoal extends Goal {
     }
 
     // ------------------------------------------------------------ helpers ---
+
+    private boolean holdsShears() {
+        EquipmentRequirement shears = EquipmentRequests.requirementFor(Profession.HERDER);
+        return shears != null && shears.matches(settler.getMainHandItem());
+    }
+
+    /** Whether one more of {@code stack} fits the pasture's own chests. */
+    private static boolean hasRoomFor(ServerLevel level, Building building, ItemStack stack) {
+        for (BlockPos pos : WarehouseIndex.containers(level, building)) {
+            if (level.getBlockEntity(pos) instanceof Container chest) {
+                for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                    ItemStack in = chest.getItem(slot);
+                    if (in.isEmpty() || (ItemStack.isSameItemSameComponents(in, stack)
+                        && in.getCount() < in.getMaxStackSize())) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
 
     private boolean readyToShear(ServerLevel level, Sheep sheep) {
         return sheep instanceof IShearable shearable
@@ -456,7 +535,7 @@ public class HerderWorkGoal extends Goal {
             if (!left.isEmpty() && pasture.anchor != null) {
                 // INV-3: never destroyed, only ever set down where there was
                 // no room -- the same overflow rule MinerWorkGoal uses.
-                Block.popResource(level, pasture.anchor, left);
+                com.hearthstead.util.ItemSpill.conserve(level, pasture.anchor, left);
             }
         }
     }

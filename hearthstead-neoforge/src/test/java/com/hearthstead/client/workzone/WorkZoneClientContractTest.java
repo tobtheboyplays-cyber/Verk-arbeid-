@@ -15,44 +15,56 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class WorkZoneClientContractTest {
 
     @Test
-    void exactSecondCornerAttackIsCapturedBeforeBlockDamage() {
-        assertEquals(WorkZoneClient.AttackDecision.CAPTURE_AND_CANCEL_BLOCK_DAMAGE,
-            WorkZoneClient.decideAttack(true,
+    void everyRightClickStageIsCapturedBeforeVanillaUse() {
+        assertEquals(WorkZoneClient.AttackDecision.SET_FIRST_CORNER,
+            WorkZoneClient.decideUse(true,
+                WorkZoneSnapshotPayload.Stage.TARGET_SELECTED, false,
+                true, true, WorkZoneClient.WorldTarget.BLOCK));
+        assertEquals(WorkZoneClient.AttackDecision.SET_SECOND_CORNER,
+            WorkZoneClient.decideUse(true,
                 WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
-                true, true, true));
-        assertEquals(WorkZoneClient.AttackDecision.CAPTURE_AND_CANCEL_BLOCK_DAMAGE,
-            WorkZoneClient.decideAttack(true,
+                true, true, WorkZoneClient.WorldTarget.BLOCK));
+        assertEquals(WorkZoneClient.AttackDecision.SET_HEIGHT,
+            WorkZoneClient.decideUse(true,
                 WorkZoneSnapshotPayload.Stage.CORNER_TWO, false,
-                true, true, true),
-            "the third height click must be captured without damaging its block");
+                true, true, WorkZoneClient.WorldTarget.BLOCK),
+            "the third height click must be captured before vanilla use");
+        assertEquals(WorkZoneClient.AttackDecision.SELECT_SETTLER,
+            WorkZoneClient.decideUse(true,
+                WorkZoneSnapshotPayload.Stage.UNKNOWN, false,
+                true, true, WorkZoneClient.WorldTarget.SETTLER));
+        assertEquals(WorkZoneClient.AttackDecision.SELECT_WORKPLACE,
+            WorkZoneClient.decideUse(true,
+                WorkZoneSnapshotPayload.Stage.UNKNOWN, false,
+                true, true, WorkZoneClient.WorldTarget.WORKPLACE));
     }
 
     @Test
-    void everyNonExactAttackStatePassesThrough() {
+    void scepterConsumesUnmappedRightClicksButNeverHijacksUiOrOtherHands() {
         assertEquals(WorkZoneClient.AttackDecision.PASS,
-            WorkZoneClient.decideAttack(false,
+            WorkZoneClient.decideUse(false,
                 WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
-                true, true, true));
+                true, true, WorkZoneClient.WorldTarget.BLOCK));
+        assertEquals(WorkZoneClient.AttackDecision.CONSUME,
+            WorkZoneClient.decideUse(true,
+                WorkZoneSnapshotPayload.Stage.UNKNOWN, false,
+                true, true, WorkZoneClient.WorldTarget.BLOCK));
+        assertEquals(WorkZoneClient.AttackDecision.CONSUME,
+            WorkZoneClient.decideUse(true,
+                WorkZoneSnapshotPayload.Stage.UNKNOWN, false,
+                true, true, WorkZoneClient.WorldTarget.ENTITY));
         assertEquals(WorkZoneClient.AttackDecision.PASS,
-            WorkZoneClient.decideAttack(true,
-                WorkZoneSnapshotPayload.Stage.TARGET_SELECTED, false,
-                true, true, true));
+            WorkZoneClient.decideUse(true,
+            WorkZoneSnapshotPayload.Stage.CORNER_ONE, true,
+                true, true, WorkZoneClient.WorldTarget.BLOCK));
+        assertEquals(WorkZoneClient.AttackDecision.CONSUME,
+            WorkZoneClient.decideUse(true,
+            WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
+                false, true, WorkZoneClient.WorldTarget.BLOCK));
         assertEquals(WorkZoneClient.AttackDecision.PASS,
-            WorkZoneClient.decideAttack(true,
-                WorkZoneSnapshotPayload.Stage.CORNER_ONE, true,
-                true, true, true));
-        assertEquals(WorkZoneClient.AttackDecision.PASS,
-            WorkZoneClient.decideAttack(true,
-                WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
-                false, true, true));
-        assertEquals(WorkZoneClient.AttackDecision.PASS,
-            WorkZoneClient.decideAttack(true,
-                WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
-                true, false, true), "offhand-only Scepter is not a valid session");
-        assertEquals(WorkZoneClient.AttackDecision.PASS,
-            WorkZoneClient.decideAttack(true,
-                WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
-                true, true, false));
+            WorkZoneClient.decideUse(true,
+            WorkZoneSnapshotPayload.Stage.CORNER_ONE, false,
+                true, false, WorkZoneClient.WorldTarget.BLOCK), "offhand-only Scepter is not a valid session");
     }
 
     @Test

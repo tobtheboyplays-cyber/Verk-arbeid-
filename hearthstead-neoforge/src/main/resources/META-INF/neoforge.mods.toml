@@ -6,11 +6,13 @@ issueTrackerURL="https://github.com/tobtheboyplays-cyber/verk-arbeid-/issues"
 [[mods]]
 modId="hearthstead"
 version="${file.jarVersion}"
-displayName="Hearthstead"
+displayName="Bannerhold"
+# Weapons lane: the two-handed guard ArmPose (client-only enum, see client/weapon/WeaponArmPoses).
+enumExtensions="META-INF/enumextensions.json"
 logoFile="hearthstead_logo.png"
-authors="Hearthstead Team"
+authors="Bannerhold Team"
 description='''
-Found a hearth. Welcome settlers. Watch a living medieval settlement grow.
+Raise your banner. Welcome settlers. Watch a living medieval settlement grow.
 
 Build the village with your own hands - the mod brings it to life. Settlers
 with real needs, professions and memories work your fields, fell your timber
@@ -30,3 +32,7 @@ and hold your walls when the raiders come.
     versionRange="[1.21.1,1.21.2)"
     ordering="NONE"
     side="BOTH"
+
+# Tech-gated crafting (tech tree framework lane).
+[[mixins]]
+config="hearthstead.mixins.json"

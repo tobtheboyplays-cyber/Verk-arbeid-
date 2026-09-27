@@ -159,6 +159,10 @@ public final class JourneyDefinition {
 
     private static JourneyDefinition buildV3() {
         ArrayList<JourneyStep> steps = buildV2Steps();
+        addFoodAlternative(steps, JourneyIds.FJ_330_SET_FARM_ZONE,
+            JourneyEvent.BUILDING_LINKED_VALID_COMMITTED);
+        addFoodAlternative(steps, JourneyIds.FJ_360_SUPPLY_FIRST_SEED,
+            JourneyEvent.WORKPLACE_OUTPUT_COMMITTED);
         int readinessOrdinal = JourneyIds.V2_STEPS.indexOf(
             JourneyIds.FJ_560_DECLARE_RAID_READY);
         JourneyStep oldReadiness = steps.get(readinessOrdinal);
@@ -315,6 +319,17 @@ public final class JourneyDefinition {
         add(steps, JourneyIds.FJ_620_REVIEW_AFTERMATH, JourneyIds.CHAPTER_FIRST_RAID,
             false, false, JourneyEvent.RAID_AFTERMATH_VIEW_OPENED);
         return steps;
+    }
+
+    private static void addFoodAlternative(ArrayList<JourneyStep> steps,
+            ResourceLocation id, JourneyEvent alternative) {
+        int index = JourneyIds.V2_STEPS.indexOf(id);
+        JourneyStep old = steps.get(index);
+        ArrayList<JourneyEvent> events = new ArrayList<>(old.requiredEvents());
+        events.add(alternative);
+        steps.set(index, new JourneyStep(old.id(), old.chapterId(), old.ordinal(),
+            old.prerequisites(), events, old.sameTransactionRequired(),
+            old.migrationAllowed(), old.titleKey(), old.descriptionKey()));
     }
 
     private static JourneyStep withPrerequisite(JourneyStep step,

@@ -1,0 +1,223 @@
+{
+  "id": "dining_hall_small",
+  "name": "Common Hall",
+  "category": "common",
+  "kind": "building",
+  "building_type": "dining_hall",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "dining_hall",
+  "size": [
+    11,
+    10,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      6,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      3,
+      1,
+      2
+    ]
+  ],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        5,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        5,
+        2,
+        4
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        4,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        4
+      ],
+      "to": "another_furniture:oak_chair[facing=west,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        5
+      ],
+      "to": "another_furniture:oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        6,
+        2,
+        5
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        7,
+        1,
+        5
+      ],
+      "to": "another_furniture:oak_chair[facing=west,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        6
+      ],
+      "to": "another_furniture:oak_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        2,
+        1,
+        9
+      ],
+      "to": "another_furniture:oak_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        3,
+        1,
+        9
+      ],
+      "to": "another_furniture:oak_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        7,
+        1,
+        9
+      ],
+      "to": "another_furniture:oak_chair[facing=north,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        8,
+        1,
+        9
+      ],
+      "to": "another_furniture:oak_chair[facing=north,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 95
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 81
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 70
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 57
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 35
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 14
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 12
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 5
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 3
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 2
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oak_pressure_plate",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:yellow_banner",
+      "count": 1
+    }
+  ],
+  "block_count": 391,
+  "cells": 580
+}

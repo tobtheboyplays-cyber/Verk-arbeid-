@@ -359,13 +359,83 @@ public class FarmerBootstrapGameTests {
 
         helper.succeedWhen(() -> {
             BlockState crop = helper.getBlockState(cropRel);
-            helper.assertTrue(astrid.getActivity() == SettlerActivity.WORK_HARVEST
+            helper.assertTrue((astrid.getActivity() == SettlerActivity.SORTING
+                        && astrid.getPersistentData().getCompound("HearthsteadGroundedFieldBag").getLong("Crop")
+                            == helper.absolutePos(cropRel).asLong())
+                    || astrid.getActivity() == SettlerActivity.WORK_HARVEST
                     || !crop.is(Blocks.WHEAT)
                     || crop.getValue(CropBlock.AGE) < 7,
                 "the far crop in a tall confirmed zone must be selected without "
                     + "per-batch idle cooldown (activity=" + astrid.getActivity()
                     + ", stop=" + astrid.logisticsStopReason()
                     + ", route=" + astrid.routeFailureNote() + ")");
+        });
+    }
+
+    /**
+     * Regression for the live "nothing workable" failure on terraced farms.
+     * WorkZone validation has always accepted a crop/soil pair at any height
+     * inside the confirmed volume, so the worker scanner must use the same 3D
+     * authority. The ripe wheat deliberately stands on a higher soil layer
+     * after the first scan batch; a min-Y-only or early-maintenance scan
+     * cannot see it.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 120,
+        batch = "farmer_bootstrap_day")
+    public void confirmedFarmFindsMatureCropOnRaisedTerrace(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        s.radius = 20;
+        Building house = farmhouse(helper, s, 8, 8);
+        WorkZone terraced = WorkZone.between(s.id, house.id,
+            WorkZone.Type.FARM, helper.getLevel().dimension().location(),
+            helper.absolutePos(new BlockPos(1, 0, 1)),
+            helper.absolutePos(new BlockPos(14, 4, 14)), 2);
+        helper.assertTrue(house.commitWorkZone(1, terraced),
+            "fixture: the raised confirmed Farm Zone must be valid");
+
+        // One low dirt tile deliberately enters the maintenance queue in the
+        // first 512-cell batch. The high-priority ripe crop starts after that
+        // batch (14*14*2 + column 134 = cursor 526), proving lower-priority
+        // work cannot stop the resumable height scan early.
+        helper.setBlock(new BlockPos(2, 0, 2), Blocks.DIRT);
+        // GameTestFixtures.register() keeps the Farmhouse live through its
+        // plaque at (8,2,8) and its south support at (8,2,9). This raised
+        // terrace deliberately begins at x=9 so it cannot replace either
+        // fixture authority block while still supporting the crop and stand.
+        for (int x = 9; x <= 11; x++) {
+            for (int z = 8; z <= 10; z++) {
+                helper.setBlock(new BlockPos(x, 2, z), Blocks.STONE_BRICKS);
+            }
+        }
+        helper.assertBlockPresent(ModBlocks.PLAQUE.get(), new BlockPos(8, 2, 8));
+        BlockPos cropRel = new BlockPos(10, 3, 9);
+        helper.setBlock(cropRel.below(),
+            Blocks.FARMLAND.defaultBlockState()
+                .setValue(FarmBlock.MOISTURE, 7));
+        helper.setBlock(cropRel, Blocks.WHEAT.defaultBlockState()
+            .setValue(CropBlock.AGE, 7));
+
+        SettlerEntity astrid = farmer(helper, s, house, 9, 9);
+        BlockPos terraceStand = helper.absolutePos(new BlockPos(9, 3, 9));
+        astrid.setPos(terraceStand.getX() + 0.5D, terraceStand.getY(),
+            terraceStand.getZ() + 0.5D);
+        astrid.setItemSlot(EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_HOE));
+
+        helper.succeedWhen(() -> {
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(astrid.getActivity()
+                    == SettlerActivity.WORK_HARVEST
+                    || !crop.is(Blocks.WHEAT)
+                    || crop.getValue(CropBlock.AGE) < 7,
+                "a mature crop on any authorised zone height must be selected "
+                    + "instead of reporting no workable target (activity="
+                    + astrid.getActivity() + ", stop="
+                    + astrid.logisticsStopReason() + ", route="
+                    + astrid.routeFailureNote() + ")");
         });
     }
 
@@ -441,7 +511,7 @@ public class FarmerBootstrapGameTests {
      * The retry is deliberately delayed: a full chest must not make the goal
      * rescan and reinsert every server tick.
      */
-    @GameTest(template = "empty16", timeoutTicks = 320,
+    @GameTest(template = "empty16", timeoutTicks = 640,
         batch = "farmer_storage_recovery")
     public void partialProduceRecoversAfterFullStorageClears(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
@@ -458,31 +528,56 @@ public class FarmerBootstrapGameTests {
         astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
 
         final String[] firstBlockedTrace = {null};
-        helper.runAtTickTime(20, () -> {
-            firstBlockedTrace[0] = astrid.routeFailureNote();
-            helper.assertTrue(firstBlockedTrace[0].startsWith(
-                    "farmhouse_storage_full@"),
-                "a full farmhouse must publish its exact stop reason, got "
-                    + firstBlockedTrace[0]);
-        });
-        helper.runAtTickTime(80, () -> {
-            helper.assertTrue(firstBlockedTrace[0] != null
-                    && firstBlockedTrace[0].equals(astrid.routeFailureNote()),
-                "the full-storage retry must be bounded instead of rewriting "
-                    + "the same failure every tick (first=" + firstBlockedTrace[0]
-                    + ", now=" + astrid.routeFailureNote() + ")");
-            storage.setItem(0, ItemStack.EMPTY);
-            storage.setChanged();
+        final long[] blockedAt = {-1};
+        final boolean[] capacityOpened = {false};
+        helper.onEachTick(() -> {
+            helper.assertTrue(countIn(storage,Items.WHEAT)+bagCount(astrid,Items.WHEAT)==3,
+                "full-target wait and retry must conserve every original wheat");
+            if(firstBlockedTrace[0]==null && astrid.routeFailureNote().startsWith("farmhouse_storage_full_or_changed@")) {
+                firstBlockedTrace[0]=astrid.routeFailureNote();blockedAt[0]=helper.getLevel().getGameTime();
+                helper.assertTrue(astrid.bagTransferPresentation().clock()==47
+                        && !astrid.bagTransferPresentation().committed(), "actual full target refuses before contact48");
+            }
+            if(blockedAt[0]>=0 && !capacityOpened[0]
+                    && helper.getLevel().getGameTime()-blockedAt[0]>=60) {
+                helper.assertTrue(firstBlockedTrace[0].equals(astrid.routeFailureNote()),
+                    "existing retry cooldown must not rewrite a full-target failure each tick: first="
+                        + firstBlockedTrace[0] + ", current=" + astrid.routeFailureNote());
+                // Model a real interruption moving the actor to another valid
+                // chest face. The sack and its uncommitted clock stay put.
+                BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
+                BlockPos anchor = astrid.bagTransferPresentation().bagAnchor();
+                BlockPos opposite = chest.north();
+                for (Direction direction : Direction.Plane.HORIZONTAL) {
+                    BlockPos face = chest.relative(direction);
+                    if (face.distSqr(anchor) > opposite.distSqr(anchor)) opposite = face;
+                }
+                astrid.setPos(opposite.getX() + 0.5D, opposite.getY(), opposite.getZ() + 0.5D);
+                helper.assertTrue(ContainerApproach.inspect(helper.getLevel(), astrid, chest).canInteract()
+                        && astrid.position().distanceToSqr(
+                            net.minecraft.world.phys.Vec3.atBottomCenterOf(anchor)) > 2.25D,
+                    "retry fixture must expose chest contact without contact with the retained sack");
+                helper.assertTrue(astrid.bagTransferPresentation().clock() == 47
+                        && !astrid.bagTransferPresentation().committed(),
+                    "interruption must preserve the original refused contact, not restart or prepay it");
+                storage.setItem(0,ItemStack.EMPTY);storage.setChanged();capacityOpened[0]=true;
+            }
         });
 
         helper.succeedWhen(() -> {
-            helper.assertTrue(countIn(storage, Items.WHEAT) == 3
+            helper.assertTrue(capacityOpened[0] && firstBlockedTrace[0] != null && countIn(storage, Items.WHEAT) == 3
                     && bagCount(astrid, Items.WHEAT) == 0,
                 "the sub-threshold remainder must retry after capacity returns "
                     + "without duplication or loss (chest="
                     + countIn(storage, Items.WHEAT) + ", bag="
                     + bagCount(astrid, Items.WHEAT) + ", route="
-                    + astrid.routeFailureNote() + ")");
+                    + astrid.routeFailureNote() + ", pos=" + astrid.position()
+                    + ", bagAnchor=" + astrid.bagTransferPresentation().bagAnchor()
+                    + ", clock=" + astrid.bagTransferPresentation().clock()
+                    + ", committed=" + astrid.bagTransferPresentation().committed()
+                    + ", opened=" + capacityOpened[0] + ")");
+            helper.assertTrue(countIn(storage, Items.COBBLESTONE) == (storage.getContainerSize() - 1) * 64,
+                "retry must preserve every unrelated stack after the one explicit capacity opening");
         });
     }
 
@@ -493,6 +588,48 @@ public class FarmerBootstrapGameTests {
      * and conserve the exact load instead of depositing through the wall or
      * abandoning it as "unreachable".
      */
+    @GameTest(template = "empty16", timeoutTicks = 1600,
+        batch = "farmer_storage_fallback")
+    public void carriedProduceTriesAnotherChestAfterBlockedStorage(GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16);
+        Settlement s = settlement(helper);
+        Building house = farmhouse(helper, s, 8, 8);
+        BlockPos lower = helper.absolutePos(new BlockPos(8, 1, 8));
+        BlockPos upper = helper.absolutePos(new BlockPos(14, 3, 14));
+        house.bounds = new net.minecraft.world.level.levelgen.structure.BoundingBox(
+            lower.getX(), lower.getY(), lower.getZ(), upper.getX(), upper.getY(), upper.getZ());
+        Container sealed = chestAt(helper, 9, 9);
+        Container reachable = chestAt(helper, 13, 13);
+        for (int x = 8; x <= 10; x++) for (int z = 8; z <= 10; z++) {
+            for (int y = 1; y <= 3; y++) {
+                if (x == 9 && z == 9 && y < 3) continue;
+                if (x == 8 && z == 8) continue; // retain the fixture's real plaque
+                helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+            }
+        }
+        SettlerEntity astrid = farmer(helper, s, house, 6, 9);
+        astrid.bag.addItem(new ItemStack(Items.WHEAT, 3));
+        boolean[] failedFirst = {false};
+        BlockPos openChest = helper.absolutePos(new BlockPos(13, 1, 13));
+        helper.onEachTick(() -> {
+            failedFirst[0] |= astrid.routeFailureNote().startsWith("farmhouse_storage_unreachable:");
+            helper.assertTrue(countIn(sealed, Items.WHEAT) == 0,
+                "an unreachable chest must never receive remote deposits");
+            helper.assertTrue(countIn(reachable, Items.WHEAT) + bagCount(astrid, Items.WHEAT) == 3,
+                "retrying another storage target must conserve the carried crop");
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(failedFirst[0], "the nearest sealed chest must exhaust its route first");
+            helper.assertTrue(countIn(reachable, Items.WHEAT) == 3 && bagCount(astrid, Items.WHEAT) == 0,
+                "the farmer must finish at the reachable alternative after a bounded retry");
+            var witness = astrid.lastStorageMutationWitness().orElse(null);
+            helper.assertTrue(witness != null && witness.target().equals(openChest)
+                    && witness.directContactCommit(),
+                "the alternative must be filled through actual same-tick physical contact");
+        });
+    }
+
     @GameTest(template = "empty16", timeoutTicks = 500,
         batch = "farmer_storage_recovery")
     public void carriedProduceCrossesClosedDoorToFarmhouseStorage(
@@ -530,37 +667,36 @@ public class FarmerBootstrapGameTests {
         BlockPos door = helper.absolutePos(new BlockPos(8, 1, 10));
         BlockPos chest = helper.absolutePos(new BlockPos(10, 1, 10));
         boolean[] sawOpen = {false};
-        boolean[] reachedVisibleChestFace = {false};
-        boolean[] firstInsertSeen = {false};
+        SettlerEntity.StorageMutationWitness[] firstMutation = {null};
         helper.onEachTick(() -> {
             BlockState doorState = helper.getLevel().getBlockState(door);
             if (doorState.is(Blocks.OAK_DOOR)
                 && doorState.getValue(DoorBlock.OPEN)) {
                 sawOpen[0] = true;
             }
-            // GameTest's callback observes the completed entity tick. The
-            // farmer may release this goal and begin the next route before a
-            // newly inserted stack is visible here, so inspecting only after
-            // that mutation can sample the worker one movement beat too late.
-            // Latch the exact physical face contact while storage is still
-            // empty. WorkerProvenanceService.depositOrdinary rechecks the same
-            // contact immediately before its authoritative insert.
-            if (!firstInsertSeen[0] && countIn(storage, Items.WHEAT) == 0
-                && ContainerApproach.inspect(helper.getLevel(), astrid, chest)
-                    .canInteract()) {
-                reachedVisibleChestFace[0] = true;
-            }
-            if (!firstInsertSeen[0] && countIn(storage, Items.WHEAT) > 0) {
-                firstInsertSeen[0] = true;
+            if (firstMutation[0] == null) {
+                firstMutation[0] = astrid.lastStorageMutationWitness()
+                    .orElse(null);
             }
         });
 
         helper.succeedWhen(() -> {
             helper.assertTrue(sawOpen[0],
                 "the farmer must visibly open the only Farmhouse door");
-            helper.assertTrue(firstInsertSeen[0] && reachedVisibleChestFace[0],
-                "the farmer must reach a visible chest face before the first "
-                    + "storage mutation");
+            SettlerEntity.StorageMutationWitness witness = firstMutation[0];
+            helper.assertTrue(witness != null
+                    && witness.target().equals(chest)
+                    && witness.directContactCommit()
+                    && witness.destinationBefore() == 0
+                    && witness.destinationAfter() == 1,
+                "the first authoritative chest mutation must carry the exact "
+                    + "same-tick CONTACT witness (witness=" + witness
+                    + ", contactNow=" + ContainerApproach.inspect(
+                        helper.getLevel(), astrid, chest).state()
+                    + ", pos=" + astrid.blockPosition()
+                    + ", chest=" + countIn(storage, Items.WHEAT)
+                    + ", bag=" + bagCount(astrid, Items.WHEAT)
+                    + ", route=" + astrid.routeFailureNote() + ")");
             helper.assertTrue(countIn(storage, Items.WHEAT) == 3
                     && bagCount(astrid, Items.WHEAT) == 0,
                 "the closed-door deposit must conserve all three wheat "

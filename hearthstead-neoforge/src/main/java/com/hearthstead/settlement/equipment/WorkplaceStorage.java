@@ -10,6 +10,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Comparator;
 
 /** Bounded, chest-true operations shared by workers and couriers. */
@@ -54,21 +55,32 @@ public final class WorkplaceStorage {
                                                     Building building,
                                                     EquipmentRequirement requirement,
                                                     BlockPos from) {
-        BlockPos nearest = null;
-        double nearestDistance = Double.MAX_VALUE;
+        List<BlockPos> matching = matchingContainers(level, building,
+            requirement, from);
+        return matching.isEmpty() ? null : matching.get(0);
+    }
+
+    /**
+     * Every loaded matching source in deterministic nearest-first order.
+     * Callers which own navigation may skip a temporarily failed exact source
+     * without allowing that nearer source to starve another usable chest.
+     */
+    public static List<BlockPos> matchingContainers(ServerLevel level,
+                                                    Building building,
+                                                    EquipmentRequirement requirement,
+                                                    BlockPos from) {
+        java.util.ArrayList<BlockPos> matching = new java.util.ArrayList<>();
         for (BlockPos pos : WarehouseIndex.containers(level, building)) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (!(blockEntity instanceof Container container)
                 || findMatching(container, requirement) < 0) {
                 continue;
             }
-            double distance = from.distSqr(pos);
-            if (distance < nearestDistance) {
-                nearest = pos;
-                nearestDistance = distance;
-            }
+            matching.add(pos.immutable());
         }
-        return nearest;
+        matching.sort(Comparator.<BlockPos>comparingDouble(from::distSqr)
+            .thenComparingLong(BlockPos::asLong));
+        return List.copyOf(matching);
     }
 
     /** Exact-container form used by the worker standing at that chest. */

@@ -2,10 +2,13 @@ package com.hearthstead.menu;
 
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModMenus;
+import com.hearthstead.settlement.gear.GearGate;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.request.RequestItemFingerprint;
 import com.hearthstead.util.AuthorityTelemetry;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
@@ -34,11 +37,19 @@ public final class SettlerInventoryMenu extends AbstractContainerMenu {
     public static final int SETTLER_SLOTS = SettlerEntity.BAG_SIZE;
     public static final int BAG_COLUMNS = 4;
     public static final int BAG_ROWS = 2;
-    public static final int BAG_X = 53;
-    public static final int BAG_Y = 31;
-    public static final int PLAYER_X = 8;
-    public static final int PLAYER_Y = 105;
-    public static final double REACH_SQUARED = 8.0 * 8.0;
+    /**
+     * Screen-space coordinates only. The menu still owns exactly the same
+     * eight settler slots and thirty-six player slots; the wider field-kit
+     * screen merely gives those real transactions a readable home instead of
+     * pinning them into a generic 176px chest dialog.
+     */
+    public static final int BAG_X = 98;
+    public static final int BAG_Y = 44;
+    public static final int PLAYER_X = 96;
+    public static final int PLAYER_Y = 132;
+    /** Same live window as the settler sheet that opens this menu. */
+    public static final double REACH_SQUARED =
+        com.hearthstead.network.SettlerNetwork.SHEET_REACH_SQUARED;
 
     private static final UUID NIL_UUID = new UUID(0L, 0L);
 
@@ -162,10 +173,43 @@ public final class SettlerInventoryMenu extends AbstractContainerMenu {
                         Player player) {
         BagSnapshot before = mayObserveAuthoritativeClick(player)
             ? BagSnapshot.capture(settlerInventory) : null;
+        BagSnapshot gearBefore = settler != null && !player.level().isClientSide
+            ? BagSnapshot.capture(settlerInventory) : null;
         super.clicked(slotId, button, clickType, player);
         if (before != null && mayObserveAuthoritativeClick(player)) {
             emitCommittedTransfers((ServerLevel) settler.level(), before,
                 BagSnapshot.capture(settlerInventory));
+        }
+        if (gearBefore != null) {
+            answerHandedGear(player, gearBefore);
+        }
+    }
+
+    /**
+     * Gear Tier hand-over. Pack armour the settler may wear goes on at once;
+     * any newly handed gear above their clearance is refused out loud and
+     * simply stays in the pack (nothing moves, nothing is deleted) until a
+     * promotion or new settlement knowledge lets them take it.
+     */
+    private void answerHandedGear(Player player, BagSnapshot before) {
+        if (settler == null || !(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
+        Component refusal = null;
+        for (int slot = 0; slot < SETTLER_SLOTS && refusal == null; slot++) {
+            ItemStack now = settlerInventory.getItem(slot);
+            ItemStack was = before.stack(slot);
+            if (now.isEmpty() || (!was.isEmpty()
+                && ItemStack.isSameItemSameComponents(was, now))) {
+                continue;
+            }
+            if (GearGate.relevant(settler, now) && !GearGate.allows(settler, now)) {
+                refusal = GearGate.refusal(settler, now);
+            }
+        }
+        GearGate.equipArmourFromPack(settler);
+        if (refusal != null) {
+            serverPlayer.sendSystemMessage(refusal);
         }
     }
 
@@ -302,6 +346,7 @@ public final class SettlerInventoryMenu extends AbstractContainerMenu {
         settlerInventory.stopOpen(player);
         if (settler != null && !settler.level().isClientSide) {
             settler.reconcileEquipmentNeedNow();
+            GearGate.equipArmourFromPack(settler);
         }
     }
 

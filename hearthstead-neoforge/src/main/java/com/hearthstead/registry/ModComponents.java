@@ -26,6 +26,21 @@ public final class ModComponents {
                 .networkSynchronized(ByteBufCodecs.STRING_UTF8)
                 .build());
 
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>>
+        GOODS_QUALITY = COMPONENTS.register("goods_quality",
+            () -> DataComponentType.<Integer>builder()
+                .persistent(com.hearthstead.settlement.work.GoodsQuality.CODEC)
+                .networkSynchronized(com.hearthstead.settlement.work.GoodsQuality.STREAM_CODEC)
+                .build());
+
+    /** Hunter carcass: species and the exact vanilla death loot it replaced. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<com.hearthstead.item.CarcassData>>
+        CARCASS = COMPONENTS.register("carcass",
+            () -> DataComponentType.<com.hearthstead.item.CarcassData>builder()
+                .persistent(com.hearthstead.item.CarcassData.CODEC)
+                .networkSynchronized(com.hearthstead.item.CarcassData.STREAM_CODEC)
+                .build());
+
     public static void register(IEventBus bus) {
         COMPONENTS.register(bus);
     }

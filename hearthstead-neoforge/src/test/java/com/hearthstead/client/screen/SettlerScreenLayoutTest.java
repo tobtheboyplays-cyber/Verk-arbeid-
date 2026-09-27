@@ -6,126 +6,83 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Pure geometry of the one-page settler sheet (owner, 26 Sep: no tabs, no
+ * scrolling) at GUI scales 2-4 and on small windows: everything inside the
+ * panel and the viewport, nothing overlapping, and at the approved 464x256
+ * footprint the whole page (Blessings row included) fits without scrolling.
+ */
 class SettlerScreenLayoutTest {
 
-    @Test
-    void scaleThreeViewportUsesOnePageCompactOverview() {
-        SettlerScreen.Layout layout = SettlerScreen.layoutFor(
-            427, 240, true, 2, true, true);
+    private static final int[][] VIEWPORTS = {
+        {320, 240}, {427, 240}, {480, 270}, {640, 360}, {683, 384}, {960, 540}, {1920, 1080}
+    };
 
-        assertEquals(SettlerScreen.SettlerLayoutMode.COMPACT, layout.mode);
-        assertEquals(411, layout.panelWidth);
-        assertEquals(224, layout.totalHeight);
-        assertTrue(layout.panelWidth <= 427);
-        assertTrue(layout.totalHeight <= 240);
-        assertEquals(0, SettlerScreen.maxScrollFor(layout, 240));
-        assertEquals(8, layout.attributeCells.length);
-        assertEquals(new SettlerScreen.UiRect(8, 52, 142, 134),
-            layout.summaryFrame);
-        assertEquals(new SettlerScreen.UiRect(156, 52, 247, 134),
-            layout.attributesFrame);
-        assertEquals(new SettlerScreen.UiRect(16, 72, 126, 43),
-            layout.requestCard);
-        assertEquals(new SettlerScreen.UiRect(164, 150, 231, 28),
-            layout.jobImpactArea);
-        assertEquals(new SettlerScreen.UiRect(8, 197, 92, 20),
-            layout.footerButtons[0]);
-        assertEquals(new SettlerScreen.UiRect(104, 197, 92, 20),
-            layout.footerButtons[1]);
-        assertEquals(new SettlerScreen.UiRect(200, 197, 92, 20),
-            layout.footerButtons[2]);
-        assertEquals(new SettlerScreen.UiRect(296, 197, 107, 20),
-            layout.footerButtons[3]);
+    @Test
+    void sheetFitsEverySupportedViewport() {
+        for (int[] v : VIEWPORTS) {
+            SettlerScreen.Layout l = SettlerScreen.layoutFor(v[0], v[1]);
+            assertTrue(l.panelWidth <= v[0], "panel wider than viewport " + v[0]);
+            assertTrue(l.totalHeight <= v[1], "panel taller than viewport " + v[1]);
+            assertTrue(l.panelWidth >= SettlerScreen.MIN_W || l.panelWidth == v[0]);
+            assertTrue(l.panelWidth <= SettlerScreen.MAX_W);
+            assertTrue(l.totalHeight <= SettlerScreen.MAX_H);
+        }
     }
 
     @Test
-    void everyCompactAttributeIsVisibleAndNonOverlapping() {
-        SettlerScreen.Layout layout = SettlerScreen.layoutFor(
-            427, 240, false, 1, false, false);
-
-        for (int first = 0; first < layout.attributeCells.length; first++) {
-            SettlerScreen.UiRect cell = layout.attributeCells[first];
-            assertTrue(cell.x() >= 0 && cell.y() >= 0);
-            assertTrue(cell.width() >= 100,
-                "attribute row must retain its label, NN/100 and bar");
-            assertTrue(cell.height() > 0);
-            assertTrue(contains(layout.attributesFrame, cell));
-            for (int second = first + 1;
-                 second < layout.attributeCells.length; second++) {
-                assertFalse(intersects(cell, layout.attributeCells[second]),
-                    "attribute cells must never overlap");
+    void regionsStayInsideThePanelAndApart() {
+        for (int[] v : VIEWPORTS) {
+            SettlerScreen.Layout l = SettlerScreen.layoutFor(v[0], v[1]);
+            SettlerScreen.UiRect panel = new SettlerScreen.UiRect(0, 0, l.panelWidth, l.totalHeight);
+            String at = " at " + v[0] + "x" + v[1];
+            for (SettlerScreen.UiRect r : new SettlerScreen.UiRect[]{
+                l.header, l.title, l.close, l.body, l.portrait, l.needs,
+                l.page, l.footer, l.counters[0], l.counters[1]}) {
+                assertTrue(contains(panel, r), r + " outside the panel" + at);
             }
-        }
-        int lastBottom = layout.attributeCells[7].y()
-            + layout.attributeCells[7].height();
-        assertTrue(lastBottom <= layout.jobImpactArea.y());
-        assertTrue(layout.jobImpactArea.y() + layout.jobImpactArea.height()
-            <= layout.attributesFrame.y() + layout.attributesFrame.height());
-        assertTrue(layout.blessingsTop < layout.summaryFrame.y()
-            + layout.summaryFrame.height());
-        assertTrue(layout.dividerD < layout.footerTop);
-        assertTrue(layout.footerTop + 20 <= layout.totalHeight);
-    }
-
-    @Test
-    void narrowerCompactViewportKeepsBothFramesAndFooterInsidePanel() {
-        SettlerScreen.Layout layout = SettlerScreen.layoutFor(
-            320, 240, false, 1, false, false);
-
-        assertEquals(304, layout.panelWidth);
-        assertEquals(288, layout.contentWidth);
-        assertEquals(224, layout.totalHeight);
-        assertEquals(0, SettlerScreen.maxScrollFor(layout, 240));
-        assertEquals(8, layout.attributeCells.length);
-        assertTrue(contains(new SettlerScreen.UiRect(0, 0,
-            layout.panelWidth, layout.totalHeight), layout.summaryFrame));
-        assertTrue(contains(new SettlerScreen.UiRect(0, 0,
-            layout.panelWidth, layout.totalHeight), layout.attributesFrame));
-        assertFalse(intersects(layout.summaryFrame, layout.attributesFrame));
-        for (SettlerScreen.UiRect cell : layout.attributeCells) {
-            assertTrue(cell.width() >= 70,
-                "320px fallback abbreviations still need NN/100 plus a readable label");
-            assertTrue(contains(layout.attributesFrame, cell));
-        }
-        for (SettlerScreen.UiRect button : layout.footerButtons) {
-            assertTrue(button.x() >= 0);
-            assertTrue(button.x() + button.width() <= layout.panelWidth);
-            assertTrue(button.y() + button.height() <= layout.totalHeight);
+            assertTrue(contains(l.body, l.page) && contains(l.body, l.footer), "page and footer on the body" + at);
+            assertTrue(contains(l.page, l.portrait), "portrait on the page" + at);
+            assertTrue(contains(l.page, l.needs), "needs on the page" + at);
+            assertFalse(l.portrait.overlaps(l.needs), "portrait covers the needs" + at);
+            assertTrue(l.page.bottom() <= l.footer.y(), "page above the footer" + at);
+            assertFalse(l.title.overlaps(l.counters[0]), "title under the counters" + at);
+            assertFalse(l.counters[1].overlaps(l.close), "counter under the close key" + at);
+            assertFalse(l.counters[0].overlaps(l.counters[1]), "counters overlap" + at);
+            assertTrue(l.header.bottom() < l.body.y(), "header above the body" + at);
         }
     }
 
     @Test
-    void supportedCompactViewportsNeverIntroduceInternalScroll() {
-        int[][] viewports = {{427, 240}, {480, 270}, {640, 360}};
-        for (int[] viewport : viewports) {
-            SettlerScreen.Layout layout = SettlerScreen.layoutFor(
-                viewport[0], viewport[1], true, 2, true, true);
-            assertEquals(SettlerScreen.SettlerLayoutMode.COMPACT, layout.mode);
-            assertEquals(8, layout.attributeCells.length);
-            assertEquals(0, SettlerScreen.maxScrollFor(layout, viewport[1]));
-            assertTrue(layout.totalHeight <= viewport[1]);
-        }
+    void theApprovedFootprintShowsTheWholePageWithoutScrolling() {
+        // 1920x1080 at GUI 3 is a 640x360 viewport: the sheet stops at the Banner's cap.
+        SettlerScreen.Layout l = SettlerScreen.layoutFor(640, 360);
+        assertEquals(464, l.panelWidth);
+        assertEquals(256, l.totalHeight);
+        assertTrue(l.page.height() >= SettlerScreen.ONE_PAGE_H,
+            "every row, the Blessings too, fits: page " + l.page.height() + " < " + SettlerScreen.ONE_PAGE_H);
+        int colW = SettlerScreen.columnWidth(l.page.width());
+        assertTrue(colW >= 190, "two readable columns: " + colW);
+        assertTrue(l.needs.bottom() <= l.page.y() + SettlerScreen.L_WORK, "needs above the Work line");
     }
 
     @Test
-    void wideViewportRetainsDetailedLayout() {
-        SettlerScreen.Layout layout = SettlerScreen.layoutFor(
-            1280, 720, true, 2, true, true);
-
-        assertEquals(SettlerScreen.SettlerLayoutMode.WIDE, layout.mode);
-        assertEquals(336, layout.panelWidth);
-        assertEquals(320, layout.contentWidth);
-        assertTrue(layout.totalHeight > 224);
+    void biggerWindowsKeepTheSameCappedSheet() {
+        SettlerScreen.Layout big = SettlerScreen.layoutFor(960, 540);
+        SettlerScreen.Layout gui3 = SettlerScreen.layoutFor(640, 360);
+        assertEquals(gui3.panelWidth, big.panelWidth);
+        assertEquals(gui3.totalHeight, big.totalHeight);
+        assertEquals(gui3.page, big.page);
     }
 
-    private static boolean intersects(SettlerScreen.UiRect a,
-                                      SettlerScreen.UiRect b) {
-        return a.x() < b.x() + b.width() && a.x() + a.width() > b.x()
-            && a.y() < b.y() + b.height() && a.y() + a.height() > b.y();
+    @Test
+    void smallestSheetStillHasAPortraitAndTheCoreRows() {
+        SettlerScreen.Layout l = SettlerScreen.layoutFor(320, 240);
+        assertTrue(l.portrait.width() >= 30 && l.portrait.height() >= 40, "a visible portrait");
+        assertTrue(l.page.height() >= SettlerScreen.L_HOME + 16, "general knowledge rows fit");
     }
 
-    private static boolean contains(SettlerScreen.UiRect outer,
-                                    SettlerScreen.UiRect inner) {
+    private static boolean contains(SettlerScreen.UiRect outer, SettlerScreen.UiRect inner) {
         return inner.x() >= outer.x() && inner.y() >= outer.y()
             && inner.x() + inner.width() <= outer.x() + outer.width()
             && inner.y() + inner.height() <= outer.y() + outer.height();

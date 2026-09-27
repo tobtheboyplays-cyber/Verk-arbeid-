@@ -1,0 +1,132 @@
+{
+  "id": "trading_post_large",
+  "name": "Merchant House",
+  "category": "common",
+  "kind": "building",
+  "building_type": "trading_post",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "trading_post",
+  "size": [
+    14,
+    15,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      4,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      7,
+      1,
+      6
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 157
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 136
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 132
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 109
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 57
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 27
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 11
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 7
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 4
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 3
+    },
+    {
+      "item": "minecraft:white_wool",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 2
+    },
+    {
+      "item": "minecraft:green_wool",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cartography_table",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_tulip",
+      "count": 1
+    },
+    {
+      "item": "minecraft:green_banner",
+      "count": 1
+    },
+    {
+      "item": "minecraft:red_bed",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 662,
+  "cells": 1103
+}

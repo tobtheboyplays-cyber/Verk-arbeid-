@@ -10,14 +10,18 @@ import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.registry.ModBlocks;
 import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
+import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -29,9 +33,12 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.DoorHingeSide;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
+import net.minecraft.world.level.pathfinder.Node;
+import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.items.ItemStackHandler;
 
 import java.util.UUID;
 
@@ -143,6 +150,45 @@ public class CourierGameTests {
         return n;
     }
 
+    private static int countIn(ItemStackHandler inventory, Item item) {
+        int count = 0;
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            ItemStack stack = inventory.getStackInSlot(slot);
+            if (stack.is(item)) count += stack.getCount();
+        }
+        return count;
+    }
+
+    private static void assertRecruitPrice(GameTestHelper helper, Settlement settlement,
+                                           int bread, int planks) {
+        if (settlement.recruitment.quote() == null) {
+            // This mixed-plank reservation case intentionally loads a real old-format guest.
+            Building tavern = settlement.buildings.stream().filter(b -> b.type == BuildingType.TAVERN).findFirst().orElseThrow();
+            SettlerEntity oldGuest = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(7, 1, 10));
+            oldGuest.markTraveler(settlement.id, settlement.center);
+            oldGuest.setNoAi(true);
+            var old = com.hearthstead.settlement.RecruitmentTransaction.fresh(settlement.id)
+                .adminPrime(java.util.UUID.randomUUID(), helper.getLevel().getGameTime(), tavern.id,
+                    tavern.plaquePos, tavern.anchor, helper.getLevel().dimension().location())
+                .travelerSpawned(oldGuest.getUUID(), "Legacy Guest", helper.getLevel().getGameTime()).writeNbt();
+            old.putInt("SchemaVersion", 1); old.remove("Quote");
+            // Use an exact timing target that existed in schema v1; new ordinary ranges did not.
+            old.remove("TimingProfileWireId");
+            old.putInt("LockedTarget", com.hearthstead.settlement.RecruitmentPolicy.callToArmsTargetFor(settlement.id, old.getInt("Cycle")));
+            settlement.applyRecruitment(com.hearthstead.settlement.RecruitmentTransaction.readOrQuarantine(old, settlement.id)
+                .freezeLegacyQuote(java.util.List.of()));
+            helper.assertTrue(settlement.recruitment.quote() != null && settlement.recruitment.quote().version() == 0,
+                "mixed plank reservation must exercise persisted legacy barter, not the new coin forecast");
+        }
+        Costs.Price price = SettlementManager.recruitPrice(helper.getLevel(), settlement);
+        helper.assertTrue(price.lines().stream().anyMatch(line ->
+                line.exact() == Items.BREAD && line.count() == bread),
+            "current recruitment bread price should be " + bread);
+        helper.assertTrue(price.lines().stream().anyMatch(line ->
+                ItemTags.PLANKS.equals(line.tag()) && line.count() == planks),
+            "current recruitment plank price should be " + planks);
+    }
+
     private static SettlerEntity courier(GameTestHelper helper, Settlement s, BlockPos rel) {
         SettlerEntity settler = helper.spawn(ModEntities.SETTLER.get(), rel);
         settler.setSettlerName("Bud");
@@ -193,34 +239,145 @@ public class CourierGameTests {
      * Food is the settlement's life support and must never be hauled away
      * (D-A2a-1) -- draining the hearth would quietly starve everyone.
      */
-    @GameTest(template = "empty16", timeoutTicks = 1200, batch = "courier_day")
+    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_day")
     public void courierNeverTakesFoodFromTheHearth(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);
         BlockPos hearthRel = new BlockPos(3, 1, 3);
         helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
         Settlement s = makeSettlement(helper, hearthRel, 12);
-        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
-            instanceof HearthBlockEntity hearth) {
-            hearth.bindSettlement(s.id);
-            hearth.insertGoods(new ItemStack(Items.BREAD, 8));
-        }
+        HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
+            .getBlockEntity(helper.absolutePos(hearthRel));
+        hearth.bindSettlement(s.id);
+        var inventory = hearth.getInventory();
+        hearth.insertGoods(new ItemStack(Items.BREAD, 1));
+        hearth.insertGoods(new ItemStack(Items.SPRUCE_PLANKS, 3));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 6));
+        BlockPos tavernPos = helper.absolutePos(new BlockPos(6, 1, 10));
+        helper.setBlock(new BlockPos(6, 1, 10), ModBlocks.PLAQUE.get());
+        Building tavern = new Building(UUID.randomUUID(), BuildingType.TAVERN,
+            tavernPos, tavernPos, BoundingBox.fromCorners(tavernPos, tavernPos.offset(1, 2, 1)));
+        tavern.valid = true;
+        tavern.workers.add(UUID.randomUUID());
+        s.buildings.add(tavern);
+        assertRecruitPrice(helper, s, 4, 8);
         helper.setBlock(new BlockPos(10, 1, 10), Blocks.CHEST);
         addWarehouse(helper, s, new BlockPos(9, 1, 9), new BlockPos(11, 3, 11));
-        courier(helper, s, new BlockPos(4, 1, 4));
-
-        helper.runAtTickTime(600, () -> {
+        SettlerEntity first = courier(helper, s, new BlockPos(4, 1, 4));
+        SettlerEntity[] second = {null};
+        int[] phase = {0};
+        boolean[] carried = {false, false};
+        // Register once, outside callbacks. Assertions in this observer fail the
+        // test immediately; a retrying success predicate must not hide item loss.
+        helper.onEachTick(() -> {
+            first.setHunger(100F);
+            if (second[0] != null) second[0].setHunger(100F);
             Container chest = containerAt(helper, new BlockPos(10, 1, 10));
             helper.assertTrue(chest != null, "warehouse chest should exist");
             helper.assertTrue(countIn(chest, Items.BREAD) == 0,
-                "bread must never be hauled out of the hearth, found "
-                    + countIn(chest, Items.BREAD) + " in the warehouse");
-            BlockEntity be = helper.getLevel()
-                .getBlockEntity(helper.absolutePos(hearthRel));
-            helper.assertTrue(be instanceof HearthBlockEntity h
-                    && h.countFoodUnits() > 0,
-                "the hearth should still hold its food");
-            helper.succeed();
+                "food must never be hauled from the Hearth");
+            helper.assertTrue(countIn(inventory, Items.BREAD) == 1,
+                "the isolated food reserve must remain in the Hearth");
+            int hearthPlanks = countIn(inventory, Items.SPRUCE_PLANKS)
+                + countIn(inventory, Items.OAK_PLANKS);
+            int warehousePlanks = countIn(chest, Items.SPRUCE_PLANKS)
+                + countIn(chest, Items.OAK_PLANKS);
+            if (phase[0] == 0) {
+                helper.assertTrue(hearthPlanks == 9 && warehousePlanks == 0,
+                    "no plank may leave before the player-withdrawal probe");
+                if (first.getActivity() == SettlerActivity.SORTING && first.bag.isEmpty()) {
+                    // One plank is surplus above the immutable base forecast.
+                    // A player uses two planks during anticipation, before grip;
+                    // the Courier must revalidate stock instead of taking its stale surplus.
+                    assertRecruitPrice(helper, s, 4, 8);
+                    int removed = 0;
+                    for (int slot = 0; slot < inventory.getSlots() && removed < 2; slot++) {
+                        if (inventory.getStackInSlot(slot).is(Items.OAK_PLANKS)) {
+                            removed += inventory.extractItem(slot, 2 - removed, false).getCount();
+                        }
+                    }
+                    helper.assertTrue(removed == 2, "player intervention must remove exactly two oak planks");
+                    tavern.workers.clear();
+                    assertRecruitPrice(helper, s, 4, 8);
+                    hearth.insertGoods(new ItemStack(Items.OAK_LOG, 20));
+                    second[0] = courier(helper, s, new BlockPos(4, 1, 3));
+                    second[0].setHunger(100F);
+                    phase[0] = 1;
+                }
+                return;
+            }
+            SettlerEntity[] couriers = {first, second[0]};
+            int bagLogs = 0;
+            int bagPlanks = 0;
+            for (int i = 0; i < couriers.length; i++) {
+                int logs = countIn(couriers[i].bag, Items.OAK_LOG);
+                bagLogs += logs;
+                bagPlanks += countIn(couriers[i].bag, Items.SPRUCE_PLANKS)
+                    + countIn(couriers[i].bag, Items.OAK_PLANKS);
+                if (logs > 0 && couriers[i].getActivity() == SettlerActivity.CARRYING) {
+                    carried[i] = true;
+                }
+                helper.assertTrue(countIn(couriers[i].bag, Items.BREAD) == 0,
+                    "Courier bags must not contain the Hearth's food");
+            }
+            int deliveredLogs = countIn(chest, Items.OAK_LOG);
+            helper.assertTrue(countIn(inventory, Items.OAK_LOG) + bagLogs + deliveredLogs == 20,
+                "every physical log must be conserved across Hearth, bags and warehouse");
+            helper.assertTrue(hearthPlanks + bagPlanks + warehousePlanks == (phase[0] == 1 ? 7 : 12),
+                "every mixed-tag plank must be conserved");
+            assertRecruitPrice(helper, s, 4, 8);
+            if (phase[0] == 1) {
+                helper.assertTrue(hearthPlanks == 7,
+                    "protect all seven planks even though the current payment needs eight");
+                if (carried[0] && carried[1]) {
+                    // Both Couriers have proven a real log load. Open the independent
+                    // surplus-plank route now, so normal overlapping work -- rather than
+                    // variable final-log arrival time -- decides the 2,400-tick endpoint.
+                    hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 5));
+                    phase[0] = 2;
+                }
+                return;
+            }
+            helper.assertTrue(hearthPlanks >= 8,
+                "concurrent Courier loads must preserve one current recruitment payment");
+            if (warehousePlanks == 4 && deliveredLogs == 20) {
+                helper.assertTrue(carried[0] && carried[1],
+                    "both normal-AI Couriers must physically carry a load");
+                helper.assertTrue(countIn(inventory, Items.SPRUCE_PLANKS) == 3
+                        && countIn(inventory, Items.OAK_PLANKS) == 5 && bagPlanks == 0,
+                    "mixed stacks must reserve eight and deliver exactly four surplus planks");
+                hearth.insertGoods(new ItemStack(Items.BREAD, 3));
+                Costs.Price price = SettlementManager.recruitPrice(helper.getLevel(), s);
+                helper.assertTrue(Costs.canPay(inventory, price),
+                    "the real recruitment payment must remain affordable after hauling");
+                Costs.pay(inventory, price);
+                helper.assertTrue(countIn(inventory, Items.BREAD) == 0
+                        && countIn(inventory, Items.SPRUCE_PLANKS) == 0
+                        && countIn(inventory, Items.OAK_PLANKS) == 0,
+                    "real payment must consume the reserved materials exactly once");
+                helper.succeed();
+            }
+        });
+
+        // Preserve the complete 2,400-tick window. All onEachTick success and
+        // conservation callbacks finish before this terminal-only snapshot.
+        helper.runAtTickTime(/* absolute: terminal step at the deadline */ 2_400, () -> {
+            Container chest = containerAt(helper, new BlockPos(10, 1, 10));
+            int hearthPlanks = countIn(inventory, Items.SPRUCE_PLANKS)
+                + countIn(inventory, Items.OAK_PLANKS);
+            int warehousePlanks = chest == null ? -1 : countIn(chest, Items.SPRUCE_PLANKS)
+                + countIn(chest, Items.OAK_PLANKS);
+            helper.fail("courier reserve terminal witness before timeout "
+                + "[t=" + helper.getTick() + ",phase=" + phase[0]
+                + ",day=" + helper.getLevel().getDayTime()
+                + ",hearth=b" + countIn(inventory, Items.BREAD)
+                + "/l" + countIn(inventory, Items.OAK_LOG)
+                + "/p" + hearthPlanks + ",warehouse=b"
+                + (chest == null ? -1 : countIn(chest, Items.BREAD)) + "/l"
+                + (chest == null ? -1 : countIn(chest, Items.OAK_LOG)) + "/p" + warehousePlanks
+                + ",first={" + courierTimeoutWitness(first) + "}"
+                + ",second={" + (second[0] == null ? "missing"
+                    : courierTimeoutWitness(second[0])) + "}]");
         });
     }
 
@@ -243,7 +400,7 @@ public class CourierGameTests {
         }
         SettlerEntity bud = courier(helper, s, new BlockPos(5, 1, 5));
 
-        helper.runAtTickTime(400, () -> {
+        GameTestTicks.at(helper, 400, () -> {
             helper.assertTrue(bud.getActivity() != SettlerActivity.CARRYING
                     && bud.getActivity() != SettlerActivity.SORTING,
                 "with no warehouse the courier must not enter a haul state, got "
@@ -314,6 +471,9 @@ public class CourierGameTests {
             new BlockPos(10, 2, 6));
 
         SettlerEntity bud = courier(helper, s, new BlockPos(3, 1, 3));
+        helper.assertTrue(Float.compare(bud.getBbWidth(), 0.60F) == 0,
+            "settlers must retain the vanilla door-tuned 0.60-block width, got "
+                + bud.getBbWidth());
         BoundingBox interior = BoundingBox.fromCorners(
             helper.absolutePos(new BlockPos(7, 1, 7)),
             helper.absolutePos(new BlockPos(11, 3, 11)));
@@ -321,6 +481,7 @@ public class CourierGameTests {
         final String[] postedFrom = {null};
         final boolean[] everInside = {false};
         final long[] firstLoadDeliveredAt = {Long.MIN_VALUE};
+        final String[] routeNoteAtFirstLoad = {null};
         final String[] timingFault = {null};
 
         helper.succeedWhen(() -> {
@@ -346,14 +507,40 @@ public class CourierGameTests {
             }
             if (delivered >= 4 && firstLoadDeliveredAt[0] == Long.MIN_VALUE) {
                 firstLoadDeliveredAt[0] = helper.getLevel().getGameTime();
+                routeNoteAtFirstLoad[0] = bud.routeFailureNote();
+            }
+            if (firstLoadDeliveredAt[0] != Long.MIN_VALUE
+                && bud.routeFailureNote().contains("courier:TO_HEARTH")
+                && !bud.routeFailureNote().equals(routeNoteAtFirstLoad[0])
+                && timingFault[0] == null) {
+                timingFault[0] = "the second split-load route was selected, but "
+                    + "the courier falsely abandoned the physical return to the "
+                    + "Hearth [" + navigationSnapshot(bud)
+                    + " door=" + doorSnapshot(helper, new BlockPos(9, 1, 6))
+                    + " route=" + bud.routeFailureNote() + "]";
             }
             if (firstLoadDeliveredAt[0] != Long.MIN_VALUE && delivered < 6
                 && helper.getLevel().getGameTime() - firstLoadDeliveredAt[0]
                     > SEALED_WAREHOUSE_SECOND_TRIP_DEADLINE
                 && timingFault[0] == null) {
-                timingFault[0] = "the first four-log weight load landed, but the "
-                    + "two-log remainder was not re-selected within "
-                    + SEALED_WAREHOUSE_SECOND_TRIP_DEADLINE + " ticks";
+                timingFault[0] = "the first four-log weight load landed and the "
+                    + "second route was selected, but the two-log remainder did "
+                    + "not complete its return, load and delivery within "
+                    + SEALED_WAREHOUSE_SECOND_TRIP_DEADLINE + " ticks"
+                    + " [act=" + bud.getActivity()
+                    + " pos=" + bud.blockPosition().toShortString()
+                    + " phase=" + bud.dayPhase()
+                    + " dayTime=" + helper.getLevel().getDayTime()
+                    + " hearth=" + atHearth
+                    + " bag=" + bagged
+                    + " navDone=" + bud.getNavigation().isDone()
+                    + " navTarget=" + bud.getNavigation().getTargetPos()
+                    + " doorOpen=" + doorOpen(helper,
+                        new BlockPos(9, 1, 6))
+                    + " nav=" + navigationSnapshot(bud)
+                    + " door=" + doorSnapshot(helper,
+                        new BlockPos(9, 1, 6))
+                    + " route=" + bud.routeFailureNote() + "]";
             }
             helper.assertTrue(timingFault[0] == null, timingFault[0]);
             helper.assertTrue(postedFrom[0] == null,
@@ -377,6 +564,57 @@ public class CourierGameTests {
                     + " lastRouteFailure=" + bud.routeFailureNote()
                     + "]");
         });
+    }
+
+    /**
+     * Failure-only evidence for the sealed-door regression. A block position
+     * alone cannot distinguish a stale partial path from a live path whose
+     * next node is physically blocked, so keep the current node window and
+     * exact body motion in the assertion artifact.
+     */
+    private static String navigationSnapshot(SettlerEntity settler) {
+        PathNavigation navigation = settler.getNavigation();
+        Path path = navigation.getPath();
+        StringBuilder out = new StringBuilder()
+            .append("xyz=")
+            .append(String.format("%.3f,%.3f,%.3f",
+                settler.getX(), settler.getY(), settler.getZ()))
+            .append(" delta=").append(settler.getDeltaMovement())
+            .append(" hCollision=").append(settler.horizontalCollision)
+            .append(" path=");
+        if (path == null) {
+            return out.append("null").toString();
+        }
+        out.append(path.getNextNodeIndex()).append('/')
+            .append(path.getNodeCount())
+            .append(" done=").append(path.isDone())
+            .append(" canReach=").append(path.canReach())
+            .append(" target=").append(path.getTarget())
+            .append(" nodes=");
+        int first = Math.max(0, path.getNextNodeIndex() - 1);
+        int last = Math.min(path.getNodeCount(), path.getNextNodeIndex() + 4);
+        for (int i = first; i < last; i++) {
+            Node node = path.getNode(i);
+            if (i > first) {
+                out.append('|');
+            }
+            out.append(i == path.getNextNodeIndex() ? '>' : '-')
+                .append(node.x).append(',').append(node.y).append(',')
+                .append(node.z);
+        }
+        return out.toString();
+    }
+
+    /** Lower/upper state and collision bounds at the exact warehouse door. */
+    private static String doorSnapshot(GameTestHelper helper, BlockPos lowerRel) {
+        BlockPos lower = helper.absolutePos(lowerRel);
+        BlockState lowerState = helper.getLevel().getBlockState(lower);
+        BlockState upperState = helper.getLevel().getBlockState(lower.above());
+        return "lower=" + lowerState
+            + " lowerShape=" + lowerState.getCollisionShape(helper.getLevel(), lower)
+            + " upper=" + upperState
+            + " upperShape=" + upperState.getCollisionShape(
+                helper.getLevel(), lower.above());
     }
 
     /**
@@ -404,7 +642,7 @@ public class CourierGameTests {
             Math.max(1, half.getCarryCapacity() / 2)));
 
         final boolean[] checked = {false};
-        helper.runAtTickTime(40, () -> {
+        GameTestTicks.at(helper, 40, () -> {
             double emptySpeed = empty.getAttributeValue(Attributes.MOVEMENT_SPEED);
             double halfSpeed = half.getAttributeValue(Attributes.MOVEMENT_SPEED);
             double ladenSpeed = laden.getAttributeValue(Attributes.MOVEMENT_SPEED);
@@ -457,6 +695,20 @@ public class CourierGameTests {
         return -2; // no valid warehouse at all
     }
 
+    private static String courierTimeoutWitness(SettlerEntity courier) {
+        return "pos=" + courier.blockPosition().toShortString()
+            + ",act=" + courier.getActivity()
+            + ",bag=b" + countIn(courier.bag, Items.BREAD)
+            + "/l" + countIn(courier.bag, Items.OAK_LOG)
+            + "/p" + (countIn(courier.bag, Items.SPRUCE_PLANKS)
+                + countIn(courier.bag, Items.OAK_PLANKS))
+            + ",session=" + courier.getPersistentData()
+                .contains("HearthsteadCourierHearthBag")
+            + ",route=" + courier.routeFailureNote()
+            + ",nav=" + courier.getNavigation().getTargetPos()
+            + "/" + courier.getNavigation().isDone();
+    }
+
     private static int bagCount(SettlerEntity settler) {
         int n = 0;
         for (int i = 0; i < settler.bag.getContainerSize(); i++) {
@@ -473,7 +725,9 @@ public class CourierGameTests {
      * number (D-A2b-1). If someone reintroduces a private LOAD_TRIGGER
      * constant, the peak stops matching and this fails.
      */
-    @GameTest(template = "empty16", timeoutTicks = 2400, batch = "courier_day")
+    // 3600: OAK_LOG is heavy (4 per load), so 20 logs are 5 round trips, not 3;
+    // W3b ran out of time with 19 stored and the 20th still in the bag (sorting).
+    @GameTest(template = "empty16", timeoutTicks = 3600, batch = "courier_day")
     public void courierSackShowsTheRealLoad(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);
         buildArena(helper, 14);

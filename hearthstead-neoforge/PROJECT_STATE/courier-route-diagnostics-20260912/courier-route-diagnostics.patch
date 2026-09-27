@@ -1,0 +1,114 @@
+diff --git a/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java b/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java
+index 258d464..ade7be8 100644
+--- a/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java
++++ b/src/main/java/com/hearthstead/entity/ai/CourierWorkGoal.java
+@@ -4592,4 +4592,17 @@ public class CourierWorkGoal extends Goal {
+     public static boolean fuelJobIsHeld(UUID crafterId) {
+         return RESERVATIONS.containsKey(RestockKey.forFuel(crafterId));
+     }
++
++    /**
++     * Read-only GameTest witness for the goal instance selected by vanilla's
++     * scheduler. It exposes no route mutation and keeps the private mode
++     * observable when a physical route times out.
++     */
++    public String diagnosticState() {
++        return "mode=" + mode + ",job=" + job + ",done=" + done
++            + ",source=" + sourcePos + ",dropOff=" + dropOff
++            + ",craftDropOff=" + craftDropOff + ",transport=" + transportRequestId
++            + ",equipment=" + equipmentRequestId + ",restock=" + reservationKey
++            + ",workTicks=" + workTicks + ",cooldownUntil=" + cooldownUntil;
++    }
+ }
+diff --git a/src/main/java/com/hearthstead/gametest/GameTestFixtures.java b/src/main/java/com/hearthstead/gametest/GameTestFixtures.java
+index 904da05..b6f541b 100644
+--- a/src/main/java/com/hearthstead/gametest/GameTestFixtures.java
++++ b/src/main/java/com/hearthstead/gametest/GameTestFixtures.java
+@@ -2,6 +2,8 @@ package com.hearthstead.gametest;
+ 
+ import com.hearthstead.block.PlaqueBlock;
+ import com.hearthstead.building.BuildingType;
++import com.hearthstead.entity.SettlerEntity;
++import com.hearthstead.entity.ai.CourierWorkGoal;
+ import com.hearthstead.registry.ModBlocks;
+ import com.hearthstead.settlement.Building;
+ import com.hearthstead.settlement.Settlement;
+@@ -164,4 +166,36 @@ public final class GameTestFixtures {
+                 + "neighbour update would delete it and dissolve the building "
+                 + "mid-test (KF-021's side door)");
+     }
++
++    /**
++     * Timeout witness for Courier route tests. The scheduler owns whether a
++     * goal is running, so report that exact owner beside the Courier's private
++     * mode, physical navigation state, lifecycle and persisted contact
++     * receipts. This is observation only; no session or route is repaired.
++     */
++    public static String courierRouteWitness(SettlerEntity courier) {
++        StringBuilder running = new StringBuilder();
++        StringBuilder courierGoals = new StringBuilder();
++        courier.goalSelector.getAvailableGoals().forEach(wrapped -> {
++            if (wrapped.isRunning()) {
++                if (!running.isEmpty()) running.append('+');
++                running.append(wrapped.getGoal().getClass().getSimpleName());
++            }
++            if (wrapped.getGoal() instanceof CourierWorkGoal goal) {
++                if (!courierGoals.isEmpty()) courierGoals.append('+');
++                courierGoals.append(wrapped.isRunning() ? "running/" : "idle/")
++                    .append(goal.diagnosticState());
++            }
++        });
++        var data = courier.getPersistentData();
++        return "running=" + (running.isEmpty() ? "none" : running)
++            + ",courierGoal=" + (courierGoals.isEmpty() ? "absent" : courierGoals)
++            + ",lifecycle=" + courier.workerLifecycle().state()
++            + ",task=" + courier.workerLifecycle().task()
++            + ",navDone=" + courier.getNavigation().isDone()
++            + ",navTarget=" + courier.getNavigation().getTargetPos()
++            + ",sourceBag=" + data.get("HearthsteadCourierSourceBag")
++            + ",foodBag=" + data.get("HearthsteadCourierFoodBag")
++            + ",hearthBag=" + data.get("HearthsteadCourierHearthBag");
++    }
+ }
+diff --git a/src/main/java/com/hearthstead/gametest/LogisticsGameTests.java b/src/main/java/com/hearthstead/gametest/LogisticsGameTests.java
+index e934147..f7bc55d 100644
+--- a/src/main/java/com/hearthstead/gametest/LogisticsGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/LogisticsGameTests.java
+@@ -922,7 +922,8 @@ public class LogisticsGameTests {
+                 "the ladder must continue below restock: the larder should reach "
+                     + "its LOW mark of " + threshold + " afterwards, saw " + atHearth
+                     + " [act=" + bud.getActivity()
+-                    + " lastRouteFailure=" + bud.routeFailureNote() + "]");
++                    + " lastRouteFailure=" + bud.routeFailureNote()
++                    + " routeDiag=" + GameTestFixtures.courierRouteWitness(bud) + "]");
+         });
+     }
+ 
+diff --git a/src/main/java/com/hearthstead/gametest/CourierWorkshopRouteGameTests.java b/src/main/java/com/hearthstead/gametest/CourierWorkshopRouteGameTests.java
+index 45e68ba..b37d095 100644
+--- a/src/main/java/com/hearthstead/gametest/CourierWorkshopRouteGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/CourierWorkshopRouteGameTests.java
+@@ -652,7 +652,8 @@ public class CourierWorkshopRouteGameTests {
+                     + " transfer=" + bud.bagTransferPresentation().clock()
+                     + ":" + bud.bagTransferPresentation().committed()
+                     + " navDone=" + bud.getNavigation().isDone()
+-                    + " navTarget=" + bud.getNavigation().getTargetPos() + "]");
++                    + " navTarget=" + bud.getNavigation().getTargetPos()
++                    + " routeDiag=" + GameTestFixtures.courierRouteWitness(bud) + "]");
+         });
+     }
+ 
+diff --git a/src/main/java/com/hearthstead/gametest/MayorCourierGameTests.java b/src/main/java/com/hearthstead/gametest/MayorCourierGameTests.java
+index 8bc079e..46aa981 100644
+--- a/src/main/java/com/hearthstead/gametest/MayorCourierGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/MayorCourierGameTests.java
+@@ -55,7 +55,8 @@ public class MayorCourierGameTests {
+                     + ", associated=" + f.warehouse.id.equals(f.settlement.mayorCourierWarehouseId)
+                     + ", position=" + f.mayor.blockPosition()
+                     + ", container=" + f.mayor.placedWorkContainerPos()
+-                    + ", carryLoad=" + f.mayor.getCarryLoad() + "]");
++                    + ", carryLoad=" + f.mayor.getCarryLoad()
++                    + ", routeDiag=" + GameTestFixtures.courierRouteWitness(f.mayor) + "]");
+             helper.assertTrue(carried[0], "Mayor must visibly carry the real load");
+             helper.assertTrue(f.mayor.getProfession() == Profession.MAYOR
+                     && f.mayor.getUUID().equals(f.settlement.mayorId)

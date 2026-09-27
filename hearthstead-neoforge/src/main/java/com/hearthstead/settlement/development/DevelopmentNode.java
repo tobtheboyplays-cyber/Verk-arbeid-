@@ -18,8 +18,8 @@ import java.util.List;
  * <p>The declaration order is presentation order only. Save data and network
  * packets use {@link #id} and {@link #wireId}; neither ever persists an enum
  * ordinal. The first nine nodes are the shared tutorial trunk. The next
- * three are the first post-raid choice, and the last five deliberately remain
- * visible-but-planned until their complete gameplay loops pass release QA.
+ * three are the first post-raid choice. Specializations remain visible while
+ * each complete gameplay loop is released independently.
  */
 public enum DevelopmentNode {
     SETTLEMENT_CHARTER(0, "settlement_charter", Stage.ROOT, Branch.COMMON, true,
@@ -33,7 +33,11 @@ public enum DevelopmentNode {
         requires("shelter"), quests(
             objective(DevelopmentObjective.FOUNDATION_READY, 1)),
         costs(logCost(8), cost(Items.COBBLESTONE, 8)),
-        buildings(BuildingType.LUMBER_CAMP), professions(Profession.LUMBERER)),
+        // BUILDER lane: the Builder's Hut + Builder ride on Timber Rights
+        // until the tech tree's own `builders_hut` node exists (agreed with
+        // the tech-tree designer; no new node needs a DevelopmentScreen slot).
+        buildings(BuildingType.LUMBER_CAMP, BuildingType.BUILDERS_HUT),
+        professions(Profession.LUMBERER, Profession.BUILDER)),
 
     // Stable wire id 4 intentionally appears before id 3. Wire ids are save
     // identities, while declaration order is the corrected tutorial order.
@@ -44,28 +48,41 @@ public enum DevelopmentNode {
         buildings(BuildingType.WAREHOUSE), professions(Profession.COURIER)),
 
     CULTIVATED_GROUND(3, "cultivated_ground", Stage.TRUNK, Branch.COMMON, true,
-        requires("stores_and_roads"), quests(
-            objective(DevelopmentObjective.COURIER_DELIVERIES, 1)),
+        requires("shelter"), noQuests(),
         costs(cost(Items.WHEAT_SEEDS, 8), logCost(4)),
         buildings(BuildingType.FARMHOUSE), professions(Profession.FARMER)),
 
+    // Founding trades (tech tree Option 2, owner 26 Sep): Lumber, Fishery,
+    // Fields, Hunters' Lodge and Trading Post all ring the Banner and need
+    // only the founding; food, hides and Coins from day 1-2.
+    SHORE_PROVISIONS(10, "shore_provisions", Stage.TRUNK, Branch.COMMON, true,
+        requires("shelter"), noQuests(),
+        costs(logCost(4), cost(Items.STRING, 2)),
+        buildings(BuildingType.FISHERY), professions(Profession.FISHER)),
+
     HOME(9, "home", Stage.TRUNK, Branch.COMMON, true,
-        requires("cultivated_ground"), quests(
-            objective(DevelopmentObjective.FARM_CROPS_STORED, 1)),
+        requires("shelter"), quests(
+            objective(DevelopmentObjective.FOUNDATION_READY, 1)),
         costs(logCost(12), cost(Items.COBBLESTONE, 8)),
         buildings(BuildingType.HOUSE, BuildingType.LODGING), noProfessions()),
 
     HOSPITALITY(5, "hospitality", Stage.TRUNK, Branch.COMMON, true,
         requires("home"), quests(
-            objective(DevelopmentObjective.HOUSED_SETTLERS, 3)),
-        costs(cost(Items.BREAD, 8), cost(Items.LEATHER, 2)),
+            objective(DevelopmentObjective.POPULATION, 3)),
+        // Survival audit 2026-09-25: 4 bread (12 wheat), not 8. Hospitality opens
+        // the Tavern, which gates recruitment and first-raid readiness; every
+        // bread spent here is also a ready meal the 8-per-settler reserve needs.
+        costs(cost(Items.BREAD, 4), cost(Items.LEATHER, 2)),
         buildings(BuildingType.TAVERN),
         professions(Profession.INNKEEPER)),
 
     FIRST_WATCH(6, "first_watch", Stage.TRUNK, Branch.COMMON, true,
-        requires("hospitality"), quests(
-            objective(DevelopmentObjective.HOUSED_SETTLERS, 4)),
-        costs(cost(Items.IRON_INGOT, 8), logCost(8)),
+        // An optional early-defense sibling of the economic/Hospitality path.
+        // A real post-Warehouse Courier route, rather than merely choosing the
+        // Courier profession, proves that the settlement can supply a Guard.
+        requires("stores_and_roads"), quests(
+            objective(DevelopmentObjective.COURIER_DELIVERIES, 1)),
+        costs(cost(Items.IRON_INGOT, 4), logCost(8)),
         buildings(BuildingType.BARRACKS), professions(Profession.GUARD)),
 
     // Wire id 8 is intentionally appended instead of renumbering the shipped
@@ -80,13 +97,20 @@ public enum DevelopmentNode {
     FIRST_RAID_AFTERMATH(7, "first_raid_aftermath", Stage.AFTERMATH,
         Branch.COMMON, true, requires("arm_the_watch"), quests(
             objective(DevelopmentObjective.FIRST_RAID_COMPLETE, 1)), noCosts(),
-        noBuildings(), noProfessions()),
+        noBuildings(), 
+        // BATTLE-ROLES: surviving the first raid teaches the village to bind
+        // wounds (Healer emblem). The Infirmary plan itself is opened through
+        // RoleUnlocks so this milestone card keeps its own icon.
+        professions(Profession.HEALER)),
 
     SHIELD_DOCTRINE(20, "shield_doctrine", Stage.DOCTRINE, Branch.SHIELD, true,
         requires("first_raid_aftermath"), quests(
             objective(DevelopmentObjective.GUARD_XP_EARNED, 40)),
-        costs(cost(Items.IRON_INGOT, 16), cost(Items.LEATHER, 4)),
-        noBuildings(), noProfessions()),
+        costs(cost(Items.IRON_INGOT, 8), cost(Items.LEATHER, 4)),
+        noBuildings(), 
+        // BATTLE-ROLES: the shield drill grows into pike and two-hander
+        // drills (Pike Yard / Sword Hall plans via RoleUnlocks).
+        professions(Profession.SPEARMAN, Profession.LONGSWORDSMAN)),
 
     GUILD_DOCTRINE(21, "guild_doctrine", Stage.DOCTRINE, Branch.GUILD, true,
         requires("first_raid_aftermath"), quests(
@@ -100,31 +124,47 @@ public enum DevelopmentNode {
             objective(DevelopmentObjective.ALL_HOUSED_TICKS, 24_000),
             objective(DevelopmentObjective.EQUIPMENT_REQUESTS_SERVED, 5)),
         costs(cost(Items.BOOK, 4), cost(Items.BREAD, 8)),
-        buildings(BuildingType.ARCHITECTS_STUDY), professions(Profession.SCHOLAR)),
+        buildings(BuildingType.ARCHITECTS_STUDY), professions(Profession.SCHOLAR, // BATTLE-ROLES: scholars carve runes too
+            Profession.RUNE_MAGE)),
 
+    // TECH TREE v3 (26 Sep): the five specializations below require only the
+    // First Raid Aftermath (Village Charter) here. The v3 tree's own requires
+    // (data/hearthstead/techtree) are stricter and are what players see; the
+    // legacy list must never demand more than the tree implies, because it is
+    // re-validated when a save loads (TechTreeDataTest checks this). Loosening
+    // it cannot quarantine an old save.
+    // TRADES-UNLOCK (26 Sep): the four specializations below are learnable
+    // behind [features] extendedTrades (ExtendedTrades). Goods follow the v3
+    // design tree (plan/techtree/techtree.json) where the node corresponds;
+    // prerequisites stay on the doctrine the DevelopmentScreen edges draw.
+    // The Fletcher rides here: arrows are the watch's supply line, like the
+    // Armourer's plate (no fletcher node exists in the tree).
     FORTIFICATION(40, "fortification", Stage.SPECIALIZATION,
-        Branch.FORTIFICATION, false, requires("shield_doctrine"),
-        costs(Items.IRON_BLOCK, 4),
-        buildings(BuildingType.ARMOURY), professions(Profession.ARMOURER)),
+        Branch.FORTIFICATION, true, requires("first_raid_aftermath"),
+        costs(Items.IRON_INGOT, 12, Items.LEATHER, 8),
+        buildings(BuildingType.ARMOURY, BuildingType.FLETCHER),
+        professions(Profession.ARMOURER, Profession.FLETCHER)),
 
     BORDER_WARDENS(41, "border_wardens", Stage.SPECIALIZATION,
-        Branch.BORDER_WARDENS, false, requires("shield_doctrine"),
-        costs(Items.COMPASS, 2, Items.LEATHER, 12),
-        buildings(BuildingType.FLETCHER, BuildingType.HUNTERS_LODGE,
-            BuildingType.FISHERY),
-        professions(Profession.FLETCHER, Profession.HUNTER, Profession.FISHER)),
+        // A founding trade now. No leather or arrows: leather comes FROM
+        // hunting, never before it.
+        Branch.BORDER_WARDENS, true, requires("shelter"),
+        costs(logCost(8), cost(Items.FLINT, 4)),
+        buildings(BuildingType.HUNTERS_LODGE),
+        professions(Profession.HUNTER)),
 
     LAND_AND_HARVEST(42, "land_and_harvest", Stage.SPECIALIZATION,
-        Branch.LAND_AND_HARVEST, false, requires("guild_doctrine"),
-        costs(Items.HAY_BLOCK, 8),
+        Branch.LAND_AND_HARVEST, true, requires("first_raid_aftermath"),
+        costs(Items.HAY_BLOCK, 8, Items.OAK_FENCE, 8),
         buildings(BuildingType.MILL, BuildingType.PASTURE, BuildingType.BAKERY,
             BuildingType.BUTCHER),
         professions(Profession.MILLER, Profession.HERDER, Profession.BAKER,
             Profession.BUTCHER)),
 
     CRAFT_AND_INDUSTRY(43, "craft_and_industry", Stage.SPECIALIZATION,
-        Branch.CRAFT_AND_INDUSTRY, false, requires("guild_doctrine"),
-        costs(Items.IRON_BLOCK, 3, Items.BRICKS, 16),
+        Branch.CRAFT_AND_INDUSTRY, true, requires("first_raid_aftermath"),
+        // Coal, not iron: the Mine and Smelter are where iron comes from.
+        costs(cost(Items.COAL, 8), cost(Items.COBBLESTONE, 24), logCost(16)),
         buildings(BuildingType.MINE, BuildingType.CARPENTER, BuildingType.MASON,
             BuildingType.SMELTER, BuildingType.SMITHY, BuildingType.TANNERY,
             BuildingType.WEAVER),
@@ -133,12 +173,21 @@ public enum DevelopmentNode {
             Profession.WEAVER)),
 
     HALL_AND_LEARNING(44, "hall_and_learning", Stage.SPECIALIZATION,
-        Branch.HALL_AND_LEARNING, false, requires("hearth_doctrine"),
+        Branch.HALL_AND_LEARNING, true, requires("first_raid_aftermath"),
         costs(Items.BOOKSHELF, 6, Items.BREAD, 16),
+        // Only plans with a working loop: the Well, School and Market do not
+        // operate yet, and the Infirmary already comes with the Healer.
         buildings(BuildingType.KITCHEN, BuildingType.LIBRARY,
-            BuildingType.DINING_HALL, BuildingType.BREWERY, BuildingType.WELL,
-            BuildingType.SCHOOL, BuildingType.INFIRMARY, BuildingType.MARKET),
-        professions(Profession.COOK, Profession.BREWER));
+            BuildingType.DINING_HALL, BuildingType.BREWERY),
+        professions(Profession.COOK, Profession.BREWER)),
+
+    // The Trading Post and the Trader, split off Hospitality so a day-one
+    // village can sell its surplus for Coins (a founding trade). Declared
+    // last: presentation order keeps the tutorial trunk unchanged.
+    TRADING_POST(45, "trading_post", Stage.SPECIALIZATION, Branch.COMMON, true,
+        requires("shelter"), noQuests(),
+        costs(logCost(8), cost(Items.COBBLESTONE, 8)),
+        buildings(BuildingType.TRADING_POST), professions(Profession.TRADER));
 
     public enum Stage {
         ROOT,
@@ -189,6 +238,9 @@ public enum DevelopmentNode {
         }
 
         public Component displayName() {
+            if (displayKey == null && item == com.hearthstead.registry.ModItems.GOLD_COIN.get()) {
+                return Component.literal(count == 1 ? "Coin" : "Coins"); // QA U4
+            }
             return displayKey == null
                 ? new ItemStack(item).getHoverName()
                 : Component.translatable(displayKey);
@@ -227,6 +279,8 @@ public enum DevelopmentNode {
     private final List<BuildingType> buildings;
     private final List<Profession> professions;
     private final Knowledge knowledge;
+    /** Lazily resolved (Coins are a deferred registry item). */
+    private volatile List<Cost> pricedCosts;
 
     DevelopmentNode(int wireId, String id, Stage stage, Branch branch,
                     boolean implemented, List<String> prerequisites,
@@ -270,8 +324,22 @@ public enum DevelopmentNode {
         return branch;
     }
 
+    /**
+     * Learnable in this world. The four extended-trade specializations also
+     * need {@code [features] extendedTrades}; off, they read FUTURE exactly
+     * as before the trades-unlock lane.
+     */
     public boolean implemented() {
-        return implemented;
+        return implemented && (!extendedTrade() || ExtendedTrades.enabled());
+    }
+
+    /** One of the four specializations gated by {@link ExtendedTrades}. */
+    public boolean extendedTrade() {
+        return switch (this) {
+            case FORTIFICATION, LAND_AND_HARVEST, CRAFT_AND_INDUSTRY,
+                 HALL_AND_LEARNING -> true;
+            default -> false;
+        };
     }
 
     public List<String> prerequisites() {
@@ -282,7 +350,45 @@ public enum DevelopmentNode {
         return quests;
     }
 
+    /**
+     * The full price charged exactly once from the Hearth treasury view
+     * (Hearth, the buyer's inventory and the settlement Warehouse chests):
+     * the Coin line first, then every declared physical goods line. Nodes
+     * that declare no costs (the auto-granted Founding seals, Arm the Watch
+     * and the First Raid milestone) stay free.
+     */
     public List<Cost> costs() {
+        if (costs.isEmpty()) return costs;
+        List<Cost> cached = pricedCosts;
+        if (cached == null) {
+            java.util.ArrayList<Cost> priced = new java.util.ArrayList<>(costs.size() + 1);
+            priced.add(new Cost(com.hearthstead.registry.ModItems.GOLD_COIN.get(), coinCost()));
+            priced.addAll(costs);
+            cached = List.copyOf(priced);
+            pricedCosts = cached;
+        }
+        return cached;
+    }
+
+    /** Coins in this node's price; tier-scaled so each step outward costs more. */
+    public int coinCost() {
+        if (costs.isEmpty()) return 0;
+        return switch (this) {
+            // Early-Coin balance (26 Sep): the two nodes a new player buys
+            // from the first merchant's money cost 1, so Lumber Camp, the
+            // Lumberer and Home fit one Basic log shipment (32 logs).
+            case TIMBER_RIGHTS, HOME -> 1;
+            case STORES_AND_ROADS, CULTIVATED_GROUND, SHORE_PROVISIONS, TRADING_POST -> 2;
+            case BORDER_WARDENS -> 3;
+            case HOSPITALITY, FIRST_WATCH -> 4;
+            // v3 design tree: the two widest specializations cost 8.
+            case FORTIFICATION, CRAFT_AND_INDUSTRY -> 8;
+            default -> 6;
+        };
+    }
+
+    /** Only the physical goods lines (no Coins), in declaration order. */
+    public List<Cost> materialCosts() {
         return costs;
     }
 

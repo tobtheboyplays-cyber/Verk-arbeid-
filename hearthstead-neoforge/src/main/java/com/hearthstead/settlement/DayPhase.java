@@ -21,8 +21,8 @@ import net.minecraft.network.chat.Component;
  *   <tr><td>RISE</td><td>23000–1000</td><td>waking, leaving home</td></tr>
  *   <tr><td>MORNING_WORK</td><td>1000–5500</td><td>at their building</td></tr>
  *   <tr><td>MEAL</td><td>5500–7000</td><td>the dining hall, together</td></tr>
- *   <tr><td>AFTERNOON_WORK</td><td>7000–11500</td><td>back at work</td></tr>
- *   <tr><td>EVENING</td><td>11500–12700</td><td>tavern, hearth, the square</td></tr>
+ *   <tr><td>AFTERNOON_WORK</td><td>7000–11000</td><td>back at work</td></tr>
+ *   <tr><td>EVENING</td><td>11000–12700</td><td>tavern, hearth, the square</td></tr>
  *   <tr><td>REST</td><td>12700–23000</td><td>in their own beds</td></tr>
  * </table>
  *
@@ -55,7 +55,7 @@ public enum DayPhase {
         if (t < 7000L) {
             return MEAL;
         }
-        if (t < 11500L) {
+        if (t < 11000L) {
             return AFTERNOON_WORK;
         }
         return EVENING;

@@ -44,6 +44,11 @@ public final class GuardOrderNetwork {
         if (resolution.resolved() == null) {
             reject(player.serverLevel(), action.guardId(), resolution.reason(),
                 0, 0);
+            // No resolved guard means no snapshot to carry the refusal, so
+            // say it on the action bar instead of letting the screen time out
+            // and blame the network (super-QA, battle roles).
+            player.displayClientMessage(Component.translatable(
+                feedbackFor(resolution.reason() == null ? "" : resolution.reason())), true);
             return;
         }
         Resolved resolved = resolution.resolved();
@@ -343,15 +348,25 @@ public final class GuardOrderNetwork {
         return null;
     }
 
-    /** Bounded post search; never scans the whole building or loads a chunk. */
+    /** Bounded post search over marker cells and one registered floor; never loads a chunk. */
     @Nullable
     static BlockPos towerPostPosition(ServerLevel level, Settlement settlement,
                                       Building tower, SettlerEntity guard) {
-        Set<BlockPos> candidates = new LinkedHashSet<>(nearby(tower.anchor));
-        candidates.addAll(nearby(tower.plaquePos));
+        // The caller has already required towerPostAvailable; repeat the
+        // exact settlement/building identity here because this bounded helper
+        // is package-visible for server-side tests as well.
+        if (!exactTowerCandidate(settlement, tower)) {
+            return null;
+        }
+        // A surveyed Watchtower marker may be raised one block above its
+        // walkable floor. Include only that adjacent lower band; bounds,
+        // support, headroom and ordinary navigation still decide every post.
+        Set<BlockPos> candidates = new LinkedHashSet<>(nearbyTowerRing2(tower.anchor.below()));
+        candidates.addAll(nearbyTowerRing2(tower.anchor));
+        candidates.addAll(nearbyTowerRing2(tower.plaquePos.below()));
+        candidates.addAll(nearbyTowerRing2(tower.plaquePos));
         return candidates.stream()
             .filter(tower::contains)
-            .filter(settlement::inside)
             .filter(level::isLoaded)
             .filter(pos -> standable(level, pos))
             .sorted(Comparator.comparingDouble(
@@ -363,11 +378,34 @@ public final class GuardOrderNetwork {
             .findFirst().map(BlockPos::immutable).orElse(null);
     }
 
+    /** A bounded post must be inside the exact registered Watchtower. */
+    private static boolean exactTowerCandidate(Settlement settlement,
+                                               Building tower) {
+        return settlement != null && tower != null && tower.valid
+            && tower.type == BuildingType.WATCHTOWER
+            && settlement.buildings.contains(tower);
+    }
+
     private static List<BlockPos> nearby(BlockPos center) {
         List<BlockPos> candidates = new ArrayList<>(18);
         for (int dy = 0; dy <= 1; dy++) {
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
+                    if (dx != 0 || dz != 0 || dy != 0) {
+                        candidates.add(center.offset(dx, dy, dz));
+                    }
+                }
+            }
+        }
+        return candidates;
+    }
+
+    /** Bounded Watchtower-only radius-two horizontal search, retaining dy=0..1. */
+    private static List<BlockPos> nearbyTowerRing2(BlockPos center) {
+        List<BlockPos> candidates = new ArrayList<>(49);
+        for (int dy = 0; dy <= 1; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dz = -2; dz <= 2; dz++) {
                     if (dx != 0 || dz != 0 || dy != 0) {
                         candidates.add(center.offset(dx, dy, dz));
                     }
@@ -418,7 +456,7 @@ public final class GuardOrderNetwork {
 
     private static void send(ServerPlayer player,
                              GuardOrderSnapshotPayload snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private static ResolveResult failed(String reason) {

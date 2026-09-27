@@ -60,7 +60,7 @@ class SettlerSnapshotPayloadBoundsTest {
                                                     int knack) {
         return new SettlerSnapshotPayload(1, UUID.randomUUID(), UUID.randomUUID(),
             2, true, attributes, knack, traits, bagIds, bagCounts,
-            "lumber_camp", false, false, false, false, "hard_hands",
+            "lumber_camp", false, false, false, false, false, "hard_hands",
             0, 0, 0, -1, -1, SettlerSnapshotPayload.Delivery.UPDATE,
             Optional.empty());
     }

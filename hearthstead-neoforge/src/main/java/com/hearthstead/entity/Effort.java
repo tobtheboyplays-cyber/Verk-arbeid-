@@ -70,8 +70,7 @@ public final class Effort {
      * Fractional remainder banked between {@link #spendResearched} calls, in
      * TENTHS of a unit — never persisted, and never touched by anything
      * else. See {@link #spendResearched}'s own doc for why it exists and why
-     * it is safe to lose on reload, the same call {@code RepairWorkGoal}
-     * makes for its own {@code SCAR_MENDS} tally.
+     * it is safe to lose on reload.
      */
     private int carryTenths = 0;
 
@@ -98,7 +97,9 @@ public final class Effort {
      *  a stale "left" above the ceiling. */
     public int left(int staminaAttribute) {
         int cap = capacity(staminaAttribute);
-        return left < 0.0F ? cap : Mth.clamp(Math.round(left), 0, cap);
+        // Well Rested may bank up to 110% (refillFull with a fraction).
+        int ceiling = Math.round(cap * MAX_REFILL_FRACTION);
+        return left < 0.0F ? cap : Mth.clamp(Math.round(left), 0, ceiling);
     }
 
     /** What has already gone today — capacity minus what remains. */
@@ -182,6 +183,18 @@ public final class Effort {
     public void refillFull(int staminaAttribute) {
         left = capacity(staminaAttribute) * BED_REFILL_FRACTION;
     }
+
+    /**
+     * Tech tree (Feather Quilts, "Well Rested"): a calm night may refill
+     * past the ceiling, up to {@link #MAX_REFILL_FRACTION} of capacity.
+     */
+    public void refillFull(int staminaAttribute, float fraction) {
+        float bounded = Math.max(BED_REFILL_FRACTION, Math.min(MAX_REFILL_FRACTION, fraction));
+        left = capacity(staminaAttribute) * bounded;
+    }
+
+    /** Highest refill any bonus may grant (Well Rested: 110%). */
+    public static final float MAX_REFILL_FRACTION = 1.1F;
 
     /** Rough rest, no bed under them. Sleep quality is a real economic
      *  input — this is the number that makes it one. */

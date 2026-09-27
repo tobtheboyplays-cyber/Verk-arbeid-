@@ -1,0 +1,53 @@
+diff --git a/src/main/java/com/hearthstead/client/model/SettlerModel.java b/src/main/java/com/hearthstead/client/model/SettlerModel.java
+index f51f8c0..84f34cd 100644
+--- a/src/main/java/com/hearthstead/client/model/SettlerModel.java
++++ b/src/main/java/com/hearthstead/client/model/SettlerModel.java
+@@ -1276,6 +1276,19 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
+ 
+     private final Vector3f bagTransferAnimationScratch = new Vector3f();
+ 
++    /**
++     * A Mayor keeps the MAYOR profession and its own idle identity, but an
++     * assigned Mayor Courier uses the real Courier bag presentation while
++     * carrying or committing that server-authored bag transfer.
++     */
++    private static boolean usesCourierCargoPresentation(SettlerEntity entity,
++                                                         Profession profession) {
++        return profession == Profession.COURIER || profession == Profession.TRADER
++            || profession == Profession.MAYOR
++                && (entity.carryState.isStarted()
++                    || entity.bagTransferPresentation().ownsBodyPose(entity));
++    }
++
+     private void applyWorkContainer(SettlerEntity entity, float ageInTicks) {
+         float fill = entity.visualCarryFraction();
+         WorkContainerKind kind = entity.placedWorkContainerKind();
+@@ -1290,7 +1303,7 @@ public class SettlerModel extends HierarchicalModel<SettlerEntity> implements Ar
+         boolean detached = kind == WorkContainerKind.SACK && placed != null;
+         detached |= courierTransfer && placed != null;
+         boolean lumberer = profession == Profession.LUMBERER;
+-        boolean courier = (profession == Profession.COURIER || profession == Profession.TRADER);
++        boolean courier = usesCourierCargoPresentation(entity, profession);
+         boolean farmerCarrying = profession == Profession.FARMER
+             && entity.getActivity() == SettlerActivity.CARRYING
+             && fill > 0.001F;
+diff --git a/src/main/java/com/hearthstead/entity/BagTransferPresentation.java b/src/main/java/com/hearthstead/entity/BagTransferPresentation.java
+index 9a5ff66..e413228 100644
+--- a/src/main/java/com/hearthstead/entity/BagTransferPresentation.java
++++ b/src/main/java/com/hearthstead/entity/BagTransferPresentation.java
+@@ -92,11 +92,13 @@ public final class BagTransferPresentation {
+         if (actor.getActivity() == SettlerActivity.SORTING) {
+             return bagAnchor.equals(actor.placedWorkContainerPos())
+                 || (actor.getProfession() == Profession.LUMBERER || actor.getProfession() == Profession.FARMER
+-                    || (actor.getProfession() == Profession.COURIER || actor.getProfession() == Profession.TRADER))
++                    || (actor.getProfession() == Profession.COURIER || actor.getProfession() == Profession.TRADER
++                        || actor.getProfession() == Profession.MAYOR))
+                     && actor.placedWorkContainerPos() == null
+                     && clock < com.hearthstead.entity.animation.BagToChestAnimationContract.BAG_WORLD_CONTACT_TICK;
+         }
+-        return (actor.getProfession() == Profession.COURIER || actor.getProfession() == Profession.TRADER)
++        return (actor.getProfession() == Profession.COURIER || actor.getProfession() == Profession.TRADER
++            || actor.getProfession() == Profession.MAYOR)
+             && actor.getActivity() == SettlerActivity.CARRYING && clock <= 24;
+     }
+ 

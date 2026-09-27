@@ -1,0 +1,80 @@
+{
+  "id": "founding",
+  "title": "hearthstead.guide.founding.title",
+  "icon": "hearthstead:hearth",
+  "pages": [
+    {
+      "id": "founding.p1",
+      "title": "hearthstead.guide.founding.p1.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/banner_placed.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.founding.p1.b1",
+        "hearthstead.guide.founding.p1.b2",
+        "hearthstead.guide.founding.p1.b3",
+        "hearthstead.guide.founding.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.founding.p1.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:hearth",
+        "minecraft:oak_log",
+        "minecraft:cobblestone",
+        "minecraft:campfire"
+      ],
+      "tip": "hearthstead.guide.founding.p1.tip",
+      "text": [
+        "hearthstead.guide.founding.body"
+      ]
+    },
+    {
+      "id": "founding.design",
+      "title": "hearthstead.guide.founding.design.title",
+      "bullets": [
+        "hearthstead.guide.founding.design.b1",
+        "hearthstead.guide.founding.design.b2",
+        "hearthstead.guide.founding.design.b3",
+        "hearthstead.guide.founding.design.b4"
+      ],
+      "items": [
+        "hearthstead:hearth",
+        "minecraft:white_banner"
+      ],
+      "tip": "hearthstead.guide.founding.design.tip"
+    },
+    {
+      "id": "founding.welcome",
+      "title": "hearthstead.guide.founding.welcome.title",
+      "bullets": [
+        "hearthstead.guide.founding.welcome.b1",
+        "hearthstead.guide.founding.welcome.b2",
+        "hearthstead.guide.founding.welcome.b3",
+        "hearthstead.guide.founding.welcome.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.founding.welcome.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:gold_coin",
+        "minecraft:iron_pickaxe",
+        "minecraft:iron_axe",
+        "minecraft:iron_shovel",
+        "minecraft:iron_hoe",
+        "minecraft:bread"
+      ],
+      "tip": "hearthstead.guide.founding.welcome.tip",
+      "link": "guildmaster.p1"
+    }
+  ]
+}

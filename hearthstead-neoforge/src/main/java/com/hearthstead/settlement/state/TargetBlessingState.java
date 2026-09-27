@@ -25,6 +25,7 @@ public final class TargetBlessingState {
     public enum ApplyResult {
         APPLIED,
         MAXED,
+        INSUFFICIENT_CAPACITY,
         INVALID
     }
 
@@ -34,14 +35,20 @@ public final class TargetBlessingState {
 
     /** Applies exactly one rank, up to rank III. */
     public ApplyResult apply(@Nullable BlessingId blessing) {
-        if (quarantined || blessing == null) {
+        return apply(blessing, 1);
+    }
+
+    /** Applies all units atomically or preserves the exact original ledger. */
+    public ApplyResult apply(@Nullable BlessingId blessing, int rankUnits) {
+        if (quarantined || blessing == null || BlessingQuality.fromRankUnits(rankUnits).isEmpty()) {
             return ApplyResult.INVALID;
         }
         int current = rank(blessing);
         if (current >= MAX_RANK) {
             return ApplyResult.MAXED;
         }
-        ranks.put(blessing, current + 1);
+        if (current + rankUnits > MAX_RANK) return ApplyResult.INSUFFICIENT_CAPACITY;
+        ranks.put(blessing, current + rankUnits);
         return ApplyResult.APPLIED;
     }
 

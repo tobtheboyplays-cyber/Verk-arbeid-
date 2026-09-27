@@ -29,7 +29,7 @@ class HearthRequestViewTest {
         HearthMayorSnapshot.RequestView.CODEC.encode(buffer, view);
 
         assertEquals(view, HearthMayorSnapshot.RequestView.CODEC.decode(buffer));
-        assertEquals(2, HearthMayorSnapshot.RequestView.WIRE_VERSION);
+        assertEquals(3, HearthMayorSnapshot.RequestView.WIRE_VERSION);
         assertEquals(64, HearthMayorSnapshot.RequestView.MAX_ROWS);
         assertEquals(HearthMayorAction.Kind.OPEN_REQUEST_LEDGER,
             HearthMayorAction.Kind.fromWireId(6),
@@ -60,7 +60,7 @@ class HearthRequestViewTest {
                 "hearthstead.building.lumber_camp", BlockPos.ZERO,
                 "hearthstead.building.warehouse", BlockPos.ZERO,
                 HearthMayorAction.NO_ID, "", "minecraft:oak_log",
-                1, 0, 0, 0L, 0, 0, true, true, false, false));
+                1, 0, 0, 0L, 0, 0, true, true, false, false, -1, false));
     }
 
     @Test
@@ -109,13 +109,55 @@ class HearthRequestViewTest {
         assertFalse(wrongContainer.acceptsAfter(current));
     }
 
+    @Test
+    void mixedEquipmentReasonsRoundTripAndOldWireVersionIsRejected() {
+        var view = new HearthMayorSnapshot.RequestView(true, SETTLEMENT_ID,
+            CONTAINER_ID, 400L, 17L, 9L, false, "none", false,
+            List.of(row(1), equipmentRow(0, true), equipmentRow(1, true),
+                equipmentRow(2, true), equipmentRow(2, false)));
+        RegistryFriendlyByteBuf encoded = buffer();
+        HearthMayorSnapshot.RequestView.CODEC.encode(encoded, view);
+        assertEquals(view, HearthMayorSnapshot.RequestView.CODEC.decode(encoded));
+        for (int unsupported : new int[] {2, 4}) {
+            RegistryFriendlyByteBuf badVersion = buffer();
+            badVersion.writeVarInt(unsupported);
+            assertThrows(IllegalArgumentException.class,
+                () -> HearthMayorSnapshot.RequestView.CODEC.decode(badVersion));
+        }
+        assertThrows(IllegalArgumentException.class, () -> equipmentRow(-2, false));
+        assertThrows(IllegalArgumentException.class, () -> equipmentRow(3, false));
+        assertThrows(IllegalArgumentException.class, () -> equipmentRow(-1, true));
+    }
+
+    @Test
+    void assignedOrMovedCargoCannotDecodeAsAwaitingSource() {
+        var row = equipmentRow(2, true);
+        for (boolean assigned : new boolean[] {false, true}) {
+            assertThrows(IllegalArgumentException.class,
+                () -> new HearthMayorSnapshot.RequestRow(row.requestId(),
+                    row.typeWireId(), row.stateWireId(), row.priorityWireId(),
+                    row.requesterName(), row.professionId(), row.sourceNameKey(),
+                    row.sourcePos(), row.targetNameKey(), row.targetPos(),
+                    assigned ? UUID.randomUUID() : HearthMayorAction.NO_ID,
+                    "", row.itemId(), 1, assigned ? 0 : 1, 0, 0L,
+                    16, 3, false, false, false, true, 2, true));
+        }
+    }
+
+    private static HearthMayorSnapshot.RequestRow equipmentRow(int reason, boolean awaiting) {
+        return new HearthMayorSnapshot.RequestRow(UUID.randomUUID(), 0, 0, 1,
+            "Embla", "lumberer", "hearthstead.request.location.unknown", BlockPos.ZERO,
+            "hearthstead.building.lumber_camp", new BlockPos(119, -59, 131),
+            HearthMayorAction.NO_ID, "", "minecraft:iron_axe", 1, 0, 0,
+            80L, 16, 3, false, false, false, true, reason, awaiting);
+    }
     private static HearthMayorSnapshot.RequestRow row(int seed) {
         return new HearthMayorSnapshot.RequestRow(
             new UUID(1L, seed), 4, 3, 2, "lumber_camp", "none",
             "hearthstead.building.lumber_camp", new BlockPos(2, 3, 4),
             "hearthstead.building.warehouse", new BlockPos(8, 3, 4),
             new UUID(2L, seed), "Alda", "minecraft:oak_log",
-            4, 4, 0, 80L, 0, 1, true, true, false, false);
+            4, 4, 0, 80L, 0, 1, true, true, false, false, -1, false);
     }
 
     private static RegistryFriendlyByteBuf buffer() {

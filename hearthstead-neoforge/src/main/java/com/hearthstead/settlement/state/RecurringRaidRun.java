@@ -256,6 +256,26 @@ public final class RecurringRaidRun {
         return grant ? Resolution.GRANT_OFFER : Resolution.NO_OFFER;
     }
 
+    /**
+     * Dawn retreat: closes an ACTIVE run whose remaining raiders fled at
+     * dawn, so unreachable/stuck raiders can never keep a raid open forever.
+     * Consumes the serial exactly like {@link #resolve(boolean)} (one serial,
+     * one processed reward decision) but never yields a reward.
+     */
+    public boolean resolveRetreat() {
+        if (stage != Stage.ACTIVE || !participantsSealed || participants.isEmpty()
+            || activeSerial <= lastResolvedSerial
+            || activeSerial != lastIssuedSerial
+            || lastRewardProcessedSerial != lastResolvedSerial) {
+            return false;
+        }
+        long resolved = activeSerial;
+        lastResolvedSerial = resolved;
+        lastRewardProcessedSerial = resolved;
+        clearOpenRun();
+        return true;
+    }
+
     /** Close the exact explicitly migrated v1/v2 bridge, never with reward. */
     public boolean completeLegacyBridge(RaidPlan resolvedPlan) {
         if (!isLegacyBridgeActive() || plan == null || resolvedPlan == null

@@ -31,8 +31,9 @@ import java.util.List;
  *   <li><b>Settling in.</b> A new mayor's buff arrives after
  *       {@link #SETTLING_TICKS}. Swapping for a raid you can see coming works;
  *       swapping every morning does not.
- *   <li><b>Mourning.</b> If the mayor dies the settlement can appoint nobody
- *       for {@link #MOURNING_TICKS}, so a killed mayor is a stretch of days
+ *   <li><b>Mourning.</b> If the mayor dies the settlement loses its boon
+ *       for {@link #MOURNING_TICKS}, even if a successor takes the vacant office,
+ *       so a killed mayor is a stretch of days
  *       with no buff at all — that is the "stor straff".
  *   <li><b>Morale.</b> Losing a mayor costs every settler morale; standing
  *       down voluntarily costs a little.
@@ -42,7 +43,7 @@ public final class Mayor {
 
     /** A day and a half before a new mayor's character shows in the village. */
     public static final long SETTLING_TICKS = 30000L;
-    /** Three days of mourning before anyone can take office after a death. */
+    /** Three days of mourning before a successor's boon can become active. */
     public static final long MOURNING_TICKS = 72000L;
     /** What losing a mayor costs every settler. */
     public static final float DEATH_MORALE_HIT = -22.0F;
@@ -113,7 +114,7 @@ public final class Mayor {
             && settler.isAlive() ? settler : null;
     }
 
-    /** Whether a settlement is in mourning and may not appoint anyone. */
+    /** Whether the inherited death-mourning interval is still active. */
     public static boolean mourning(ServerLevel level, Settlement settlement) {
         return level.getGameTime() < settlement.mourningUntil;
     }
@@ -126,6 +127,11 @@ public final class Mayor {
      */
     @Nullable
     public static Boon activeBoon(ServerLevel level, Settlement settlement) {
+        // A death keeps the boon off for the full mourning interval, including
+        // when the genuinely vacant seat has already received its successor.
+        if (mourning(level, settlement)) {
+            return null;
+        }
         SettlerEntity mayor = find(level, settlement);
         if (mayor == null) {
             return null;
@@ -159,123 +165,26 @@ public final class Mayor {
     }
 
     /**
-     * Appoints a new mayor.
+     * Appointing a Mayor is retired (owner decision, 26 Sep 2026: the Mayor is
+     * removed; a separate Guildmaster at the Banner trades profession emblems).
+     * Every remaining caller receives the same refusal and nothing about the
+     * settlement changes: no seat, no feast, no morale hit, no settling clock.
      *
-     * <p>Standing somebody down for somebody else costs the handover feast
-     * (COSTS.md "Mayor swap: the feast", {@link Costs#mayorFeast()}) --
-     * charged chest-true from the settlement's hearth, the same way
-     * {@link SettlementManager} charges the recruit price, with the
-     * {@code hearthstead.discount.mayor_feast_dining_hall} hook applied
-     * through {@link Costs#afterDiscounts}. The FIRST appointment (an empty
-     * seat) is free per that same section of COSTS.md, so an unoccupied seat
-     * never even prices the feast. A swap the village cannot pay for simply
-     * does not happen -- the seat, the morale hits and the settling clock
-     * all stay untouched -- because a swap that silently succeeds without
-     * the goods is exactly the value mint FLOWS.md forbids.
-     *
-     * <p><b>Fixed, 2026-08-26 raid-night audit (the KF-025 shape, now with a
-     * price attached).</b> Whether this is a swap used to be decided by
-     * {@code find(level, settlement) != null} -- a LOADING fact, since
-     * {@link #find} is backed by {@code level.getEntity(uuid)}, which
-     * returns null the instant the incumbent mayor's chunk is not loaded.
-     * Appoint a replacement while the old mayor sleeps in an unloaded chunk
-     * and the whole swap branch was skipped: no feast charged, no stand-down
-     * morale hit, yet {@code settlement.mayorId} was overwritten and the
-     * swap succeeded free. It now branches on {@code settlement.mayorId !=
-     * null} -- a SETTLEMENT fact, true or false the same way whether or not
-     * the incumbent happens to be in memory right now.
-     *
-     * @return null on success, or the reason it was refused
+     * @return always the retirement refusal
      */
     @Nullable
     public static Component appoint(ServerLevel level, Settlement settlement,
                                     SettlerEntity settler) {
-        long revisionBefore = settlement.mayorSince;
-        int mayorCountBefore = settlement.mayorId == null ? 0 : 1;
-        String target = "settler:" + settler.getUUID();
-        if (mourning(level, settlement)) {
-            AuthorityTelemetry.emit(level,
-                AuthorityTelemetry.Event.AUTHORITY_REJECTED,
-                AuthorityTelemetry.Result.REJECTED,
-                AuthorityTelemetry.Fields.state(settlement.id, target,
-                    revisionBefore, revisionBefore, mayorCountBefore,
-                    mayorCountBefore, "mayor_mourning"));
-            return Component.translatable("hearthstead.mayor.refused.mourning");
-        }
-        if (settlement.mayorId != null && settlement.mayorId.equals(settler.getUUID())) {
-            AuthorityTelemetry.emit(level,
-                AuthorityTelemetry.Event.AUTHORITY_REJECTED,
-                AuthorityTelemetry.Result.REJECTED,
-                AuthorityTelemetry.Fields.state(settlement.id, target,
-                    revisionBefore, revisionBefore, mayorCountBefore,
-                    mayorCountBefore, "mayor_already_appointed"));
-            return Component.translatable("hearthstead.mayor.refused.already");
-        }
-        boolean isSwap = settlement.mayorId != null;
-        HearthBlockEntity hearth = null;
-        Costs.Price feastPrice = null;
-        if (isSwap) {
-            // A swap, not a first appointment -- COSTS.md's feast applies,
-            // and it must be paid BEFORE anything about the seat changes.
-            // Whether the incumbent is actually loaded right now never
-            // enters into it: the seat being occupied is what prices the
-            // feast, not whether that occupant is standing nearby.
-            feastPrice = Costs.afterDiscounts(Costs.mayorFeast(),
-                Costs.discountsFor(level, settlement, Costs.PriceKey.MAYOR_FEAST));
-            if (!(level.getBlockEntity(settlement.center) instanceof HearthBlockEntity h)) {
-                // Distinct from "cannot afford": the hearth genuinely cannot
-                // be reached right now (unloaded, destroyed, mid-placement),
-                // which is not the same claim as "the goods are not there".
-                AuthorityTelemetry.emit(level,
-                    AuthorityTelemetry.Event.AUTHORITY_REJECTED,
-                    AuthorityTelemetry.Result.REJECTED,
-                    AuthorityTelemetry.Fields.state(settlement.id, target,
-                        revisionBefore, revisionBefore, mayorCountBefore,
-                        mayorCountBefore, "mayor_hearth_unavailable"));
-                return Component.translatable("hearthstead.mayor.refused.hearth_unavailable");
-            }
-            if (!Costs.canPay(h.getInventory(), feastPrice)) {
-                AuthorityTelemetry.emit(level,
-                    AuthorityTelemetry.Event.AUTHORITY_REJECTED,
-                    AuthorityTelemetry.Result.REJECTED,
-                    AuthorityTelemetry.Fields.state(settlement.id, target,
-                        revisionBefore, revisionBefore, mayorCountBefore,
-                        mayorCountBefore, "mayor_feast_unpaid"));
-                return Component.translatable("hearthstead.mayor.refused.cannot_afford_feast");
-            }
-            hearth = h;
-        }
-        if (hearth != null) {
-            Costs.pay(hearth.getInventory(), feastPrice);
-        }
-        settlement.mayorId = settler.getUUID();
-        settlement.mayorSince = level.getGameTime();
-        if (isSwap) {
-            // Standing somebody down is a small public unkindness, not a
-            // free swap.
-            for (SettlerEntity member : SettlementManager.loadedMembers(level, settlement)) {
-                member.addMorale(STAND_DOWN_MORALE_HIT);
-            }
-        }
-        settler.addMorale(12.0F);
-        settler.celebrate();
-        SettlementManager.data(level).setDirty();
-        AuthorityTelemetry.emit(level,
-            AuthorityTelemetry.Event.MAYOR_APPOINTED,
-            AuthorityTelemetry.Result.COMMITTED,
-            AuthorityTelemetry.Fields.state(settlement.id, target,
-                revisionBefore, settlement.mayorSince, mayorCountBefore, 1,
-                isSwap ? "paid_swap" : "first_appointment"));
-        return null;
+        return Component.translatable("hearthstead.mayor.refused.retired");
     }
 
     /**
      * The mayor has died.
      *
      * <p>The heavy penalty the owner asked for, and it is deliberately made of
-     * time rather than numbers: every settler takes a morale hit, and the seat
-     * cannot be filled for three days, so the settlement runs with no boon at
-     * all through whatever comes next.
+     * time rather than numbers: every settler takes a morale hit, and the boon
+     * stays off for three days. A later successor may fill only the vacant
+     * office; that does not clear inherited mourning.
      */
     public static void onDeath(ServerLevel level, Settlement settlement,
                                SettlerEntity dead) {
@@ -283,19 +192,27 @@ public final class Mayor {
             return;
         }
         settlement.mayorId = null;
+        settlement.mayorCourierWarehouseId = null;
         settlement.mayorSince = 0L;
         settlement.mourningUntil = level.getGameTime() + MOURNING_TICKS;
         for (SettlerEntity member : SettlementManager.loadedMembers(level, settlement)) {
-            member.addMorale(DEATH_MORALE_HIT);
+            // Tech tree (Hall of Heroes): grief is halved.
+            member.addMorale(DEATH_MORALE_HIT * com.hearthstead.settlement.techtree.effects.CommonsEffects
+                .griefScale(level, settlement));
         }
         SettlementManager.data(level).setDirty();
     }
 
     // ------------------------------------------------------- the effects ---
 
-    /** Work-speed multiplier the settlement currently enjoys. */
+    /**
+     * Work-speed multiplier the settlement currently enjoys (Hard Hands:
+     * 1.05..1.10 by the mayor's Strength). Informational; the effect itself
+     * is applied per work action through AttributeRuntime.workBoon.
+     */
     public static float workSpeed(ServerLevel level, Settlement settlement) {
-        return activeBoon(level, settlement) == Boon.HARD_HANDS ? 1.10F : 1.0F;
+        return 1.0F + (float) com.hearthstead.entity.AttributeRuntime.boonAmount(level, settlement,
+            com.hearthstead.entity.AttributeEffects.Boon.HARD_HANDS);
     }
 
     /** Energy-drain multiplier; below one means longer days. */
@@ -308,14 +225,16 @@ public final class Mayor {
         return activeBoon(level, settlement) == Boon.GOOD_COUNSEL ? 1.25F : 1.0F;
     }
 
-    /** Chance a finished piece of work yields one extra. */
+    /** Chance a gathered unit yields one extra (Careful Work: 5..10% by the mayor's Dexterity). */
     public static float extraYieldChance(ServerLevel level, Settlement settlement) {
-        return activeBoon(level, settlement) == Boon.CAREFUL_WORK ? 0.10F : 0.0F;
+        return (float) com.hearthstead.entity.AttributeRuntime.boonAmount(level, settlement,
+            com.hearthstead.entity.AttributeEffects.Boon.CAREFUL_WORK);
     }
 
-    /** Morale-decay multiplier; below one means a happier village. */
+    /** Morale-loss multiplier (Open Hearth: 0.80..0.90 by the mayor's Spirit). */
     public static float moraleDecay(ServerLevel level, Settlement settlement) {
-        return activeBoon(level, settlement) == Boon.OPEN_HEARTH ? 0.80F : 1.0F;
+        return 1.0F - (float) com.hearthstead.entity.AttributeRuntime.boonAmount(level, settlement,
+            com.hearthstead.entity.AttributeEffects.Boon.OPEN_HEARTH);
     }
 
     private Mayor() {

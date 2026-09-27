@@ -123,20 +123,20 @@ public class ResearchGameTests {
         Building lab = study(helper, s, 4, 4);
         Container chest = chestAt(helper, 5, 4);
         put(chest, Items.PAPER, 4);
-        put(chest, Items.WHEAT, 16);
+        put(chest, Items.WHEAT_SEEDS, 16);
 
         Research.Refusal refusal = Research.start(helper.getLevel(), s, lab,
-            ResearchProject.BEDRE_GJAER);
+            ResearchProject.AAKERSKIFTE);
 
         helper.assertTrue(refusal == null, "a fully-stocked chest must be able to start");
         helper.assertTrue(countIn(chest, Items.PAPER) == 0,
             "every paper spent must actually leave the chest, found "
                 + countIn(chest, Items.PAPER));
-        helper.assertTrue(countIn(chest, Items.WHEAT) == 0,
-            "every wheat spent must actually leave the chest, found "
-                + countIn(chest, Items.WHEAT));
+        helper.assertTrue(countIn(chest, Items.WHEAT_SEEDS) == 0,
+            "every seeds spent must actually leave the chest, found "
+                + countIn(chest, Items.WHEAT_SEEDS));
         ResearchState state = Research.of(helper.getLevel(), s.id);
-        helper.assertTrue(state.active != null && state.active.project == ResearchProject.BEDRE_GJAER,
+        helper.assertTrue(state.active != null && state.active.project == ResearchProject.AAKERSKIFTE,
             "the chosen project must become the active one");
         helper.assertTrue(state.active.sessions == 0, "no work has happened yet");
         helper.succeed();
@@ -151,10 +151,10 @@ public class ResearchGameTests {
         Building lab = study(helper, s, 4, 4);
         Container chest = chestAt(helper, 5, 4);
         put(chest, Items.PAPER, 4);
-        put(chest, Items.WHEAT, 3); // short of BEDRE_GJAER's 16
+        put(chest, Items.WHEAT_SEEDS, 3); // short of AAKERSKIFTE's 16
 
         Research.Refusal refusal = Research.start(helper.getLevel(), s, lab,
-            ResearchProject.BEDRE_GJAER);
+            ResearchProject.AAKERSKIFTE);
 
         helper.assertTrue(refusal != null, "a short chest must refuse to start");
         helper.assertTrue("hearthstead.research.refused.materials".equals(refusal.key()),
@@ -162,9 +162,9 @@ public class ResearchGameTests {
         helper.assertTrue(countIn(chest, Items.PAPER) == 4,
             "a refused start must take nothing, paper found "
                 + countIn(chest, Items.PAPER));
-        helper.assertTrue(countIn(chest, Items.WHEAT) == 3,
-            "a refused start must take nothing, wheat found "
-                + countIn(chest, Items.WHEAT));
+        helper.assertTrue(countIn(chest, Items.WHEAT_SEEDS) == 3,
+            "a refused start must take nothing, seeds found "
+                + countIn(chest, Items.WHEAT_SEEDS));
         helper.assertTrue(Research.of(helper.getLevel(), s.id).active == null,
             "and nothing becomes active");
         helper.succeed();
@@ -185,7 +185,7 @@ public class ResearchGameTests {
         put(chest, Items.WHEAT_SEEDS, 16);
         Research.start(helper.getLevel(), s, lab, ResearchProject.AAKERSKIFTE);
 
-        helper.runAtTickTime(100, () -> {
+        GameTestTicks.at(helper, 100, () -> {
             ResearchState state = Research.of(helper.getLevel(), s.id);
             helper.assertTrue(state.active != null && state.active.sessions == 0,
                 "no scholar means no session, got " + state.active.sessions);
@@ -277,21 +277,184 @@ public class ResearchGameTests {
         Building lab = study(helper, s, 4, 4);
         Container chest = chestAt(helper, 5, 4);
         put(chest, Items.PAPER, 4);
-        put(chest, Items.RAW_IRON, 12);
-        Research.start(helper.getLevel(), s, lab, ResearchProject.BLESTRING);
-        helper.assertTrue(countIn(chest, Items.RAW_IRON) == 0, "the start must have taken it all");
+        put(chest, Items.WHEAT_SEEDS, 16);
+        Research.start(helper.getLevel(), s, lab, ResearchProject.AAKERSKIFTE);
+        helper.assertTrue(countIn(chest, Items.WHEAT_SEEDS) == 0, "the start must have taken it all");
 
         Research.cancel(helper.getLevel(), s, lab);
 
-        helper.assertTrue(countIn(chest, Items.RAW_IRON) == 6,
-            "cancelling must refund exactly half of the 12 raw iron, found "
-                + countIn(chest, Items.RAW_IRON));
+        helper.assertTrue(countIn(chest, Items.WHEAT_SEEDS) == 8,
+            "cancelling must refund exactly half of the 16 seeds, found "
+                + countIn(chest, Items.WHEAT_SEEDS));
         helper.assertTrue(countIn(chest, Items.PAPER) == 0,
             "the paper -- the write-up -- is never refunded, found "
                 + countIn(chest, Items.PAPER));
         helper.assertTrue(Research.of(helper.getLevel(), s.id).active == null,
             "a cancelled project is no longer active");
         helper.succeed();
+    }
+
+    // New-start availability is separate from the persisted research catalogue.
+
+    private static void assertUnreleasedStartConservesStock(GameTestHelper helper,
+                                                             ResearchProject project) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building lab = study(helper, s, 4, 4);
+        Container chest = chestAt(helper, 5, 4);
+        for (ResearchProject.Cost cost : project.costs()) put(chest, cost.item(), cost.count());
+        put(chest, Items.DIAMOND, 7); // unrelated physical inventory must also survive
+        java.util.List<ItemStack> before = new java.util.ArrayList<>();
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            before.add(chest.getItem(slot).copy());
+        }
+        ResearchState state = Research.of(helper.getLevel(), s.id);
+        net.minecraft.nbt.CompoundTag saved = state.writeNbt();
+        // These three trades are released behind [features] extendedTrades;
+        // with the switch off the old "unreleased" refusal must still hold.
+        Research.Refusal refusal;
+        com.hearthstead.settlement.development.ExtendedTrades.overrideForTests(false);
+        try {
+            refusal = Research.start(helper.getLevel(), s, lab, project);
+        } finally {
+            com.hearthstead.settlement.development.ExtendedTrades.overrideForTests(null);
+        }
+        helper.assertTrue(refusal != null
+                && "hearthstead.research.blocked.unreleased".equals(refusal.key()),
+            project.id() + " must refuse even when every physical cost is present");
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            helper.assertTrue(ItemStack.matches(before.get(slot), chest.getItem(slot)),
+                project.id() + " changed physical slot " + slot + " on refusal");
+        }
+        helper.assertTrue(saved.equals(state.writeNbt()),
+            "a refused new start must not change active/completed research or progress");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void bakeryNewStartRefusesFullBudgetWithoutTakingItems(GameTestHelper helper) {
+        assertUnreleasedStartConservesStock(helper, ResearchProject.BEDRE_GJAER);
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void smelterNewStartRefusesFullBudgetWithoutTakingItems(GameTestHelper helper) {
+        assertUnreleasedStartConservesStock(helper, ResearchProject.BLESTRING);
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void tanneryNewStartRefusesFullBudgetWithoutTakingItems(GameTestHelper helper) {
+        assertUnreleasedStartConservesStock(helper, ResearchProject.GARVESYRE);
+    }
+
+    private static void assertSupportedProjectPays(GameTestHelper helper, ResearchProject project) {
+        floor(helper, 16);
+        Settlement s = settlement(helper); // no guild unlock, sawmill, or production prerequisite
+        helper.assertTrue(!com.hearthstead.settlement.development.Development.of(helper.getLevel(), s)
+                .unlocked(com.hearthstead.settlement.development.DevelopmentNode.GUILD_DOCTRINE),
+            "the paid planning fixture must not already have the Guild doctrine");
+        Building lab = study(helper, s, 4, 4);
+        Container chest = chestAt(helper, 5, 4);
+        for (ResearchProject.Cost cost : project.costs()) put(chest, cost.item(), cost.count() + 2);
+        put(chest, Items.DIAMOND, 7);
+        Research.Refusal refusal = Research.start(helper.getLevel(), s, lab, project);
+        helper.assertTrue(refusal == null, project.id() + " must allow paid advance planning");
+        for (ResearchProject.Cost cost : project.costs()) {
+            helper.assertTrue(countIn(chest, cost.item()) == 2,
+                project.id() + " must spend exactly its published physical cost");
+        }
+        helper.assertTrue(countIn(chest, Items.DIAMOND) == 7, "unrelated stock must remain");
+        ResearchState state = Research.of(helper.getLevel(), s.id);
+        helper.assertTrue(state.active != null && state.active.project == project
+                && state.active.sessions == 0 && state.completed.isEmpty(),
+            "payment must start only the selected project, without granting its bonus");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void seasonedTimberCanBePaidBeforeGuildOrSawmill(GameTestHelper helper) {
+        assertSupportedProjectPays(helper, ResearchProject.TORRSETT_TOMMER);
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void guardDrillStillPaysItsExactPhysicalCosts(GameTestHelper helper) {
+        assertSupportedProjectPays(helper, ResearchProject.VAKTDRILL);
+    }
+
+    /** Model a previously paid save, never a new-start bypass in production. */
+    private static void assertLegacyProjectSurvives(GameTestHelper helper, ResearchProject project) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building lab = study(helper, s, 4, 4);
+        Container chest = chestAt(helper, 5, 4); // historical payment already left this chest
+        ResearchState paid = new ResearchState();
+        paid.active = new ResearchState.Active();
+        paid.active.project = project;
+        paid.active.sessions = 1;
+        paid.active.trickle = 0.25F;
+        paid.trickleDay = 17;
+        net.minecraft.nbt.CompoundTag saved = paid.writeNbt();
+        ResearchState loaded = ResearchState.readNbt(saved);
+        helper.assertTrue(saved.equals(loaded.writeNbt()),
+            "historical active ID, sessions, trickle and day must round-trip unchanged");
+        Research.get(helper.getLevel()).settlements.put(s.id, loaded);
+        Research.Refusal busy = Research.start(helper.getLevel(), s, lab, project);
+        helper.assertTrue(busy != null && "hearthstead.research.refused.busy".equals(busy.key()),
+            "existing active work keeps its ordinary busy reason");
+        Research.advanceSession(helper.getLevel(), s.id);
+        helper.assertTrue(loaded.active != null && loaded.active.sessions == 2
+                && loaded.active.trickle == 0.25F,
+            "historical unavailable work must still advance normally");
+        Research.cancel(helper.getLevel(), s, lab);
+        for (ResearchProject.Cost cost : project.costs()) {
+            int expected = cost.item() == Items.PAPER ? 0 : cost.count() / 2;
+            helper.assertTrue(countIn(chest, cost.item()) == expected,
+                "historical cancellation must physically refund half the domain sample only");
+        }
+        helper.assertTrue(loaded.active == null && loaded.completed.isEmpty(),
+            "historical cancellation must clear work without granting completion");
+        Research.cancel(helper.getLevel(), s, lab);
+        for (ResearchProject.Cost cost : project.costs()) {
+            int expected = cost.item() == Items.PAPER ? 0 : cost.count() / 2;
+            helper.assertTrue(countIn(chest, cost.item()) == expected,
+                "a second cancel must never duplicate the historical refund");
+        }
+        // Rewind the physical inventory together with the historical paid state.
+        // Completion is an alternative branch, not a bonus awarded after keeping a refund.
+        chest.clearContent();
+        for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+            helper.assertTrue(chest.getItem(slot).isEmpty(),
+                "the restored paid fixture must contain no cancellation refund or paper");
+        }
+        ResearchState finishing = ResearchState.readNbt(saved);
+        Research.get(helper.getLevel()).settlements.put(s.id, finishing);
+        for (int session = 1; session < project.workDays(); session++) {
+            Research.advanceSession(helper.getLevel(), s.id);
+        }
+        ResearchState completed = ResearchState.readNbt(finishing.writeNbt());
+        Research.get(helper.getLevel()).settlements.put(s.id, completed);
+        helper.assertTrue(completed.active == null && completed.completed.contains(project),
+            "historical work must still complete and retain its ID across reload");
+        helper.assertTrue(Research.bonus(helper.getLevel(), s.id, project.key()) == project.bonus(),
+            "historical completed bonuses must remain effective");
+        Research.Refusal done = Research.start(helper.getLevel(), s, lab, project);
+        helper.assertTrue(done != null && "hearthstead.research.refused.done".equals(done.key()),
+            "historical completion keeps the ordinary already-researched reason");
+        helper.succeed();
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void legacyBakeryCanAdvanceCompleteReloadAndCancel(GameTestHelper helper) {
+        assertLegacyProjectSurvives(helper, ResearchProject.BEDRE_GJAER);
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void legacySmelterCanAdvanceCompleteReloadAndCancel(GameTestHelper helper) {
+        assertLegacyProjectSurvives(helper, ResearchProject.BLESTRING);
+    }
+
+    @GameTest(batch = "research", template = "empty16", timeoutTicks = 200)
+    public void legacyTanneryCanAdvanceCompleteReloadAndCancel(GameTestHelper helper) {
+        assertLegacyProjectSurvives(helper, ResearchProject.GARVESYRE);
     }
 
     // ------------------------------------------------------------- (e) ---

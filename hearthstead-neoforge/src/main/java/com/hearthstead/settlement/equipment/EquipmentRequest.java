@@ -168,6 +168,18 @@ public final class EquipmentRequest {
     public boolean cancelPending() { return cancelPending; }
     public boolean hasTransportTrace() { return traceStage != TraceStage.NONE; }
 
+    /** Read-only presentation fact; never asserts stock or physical ownership. */
+    public boolean awaitingSource() {
+        return status == Status.OPEN && claimedBy == null
+            && !traceQuarantined && !legacyClaimLocked && !cancelPending
+            && traceStage == TraceStage.NONE && traceCourierId == null
+            && sourceBuildingId == null && sourceContainer == null
+            && sourceSlot == -1 && sourceCountBefore == 0
+            && targetContainer == null && targetCountBefore == 0
+            && traceFingerprintTag == null && movedCount == 0
+            && deliveredCount == 0 && returnedCount == 0
+            && traceBlocker == RequestBlocker.NONE;
+    }
     /** Decodes the exact selected stack only against the live world's registries. */
     @Nullable
     public RequestItemFingerprint traceFingerprint(

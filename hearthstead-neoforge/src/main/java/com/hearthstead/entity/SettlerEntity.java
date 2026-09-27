@@ -1,6 +1,10 @@
 package com.hearthstead.entity;
 
 import com.hearthstead.block.HearthBlockEntity;
+import com.hearthstead.building.BuildingType;
+import com.hearthstead.entity.work.WorkerLifecycle;
+import com.hearthstead.entity.combat.CinematicOpportunity;
+import com.hearthstead.entity.combat.GuardMove;
 import com.hearthstead.entity.ai.BoundedStrollGoal;
 import com.hearthstead.entity.ai.AcquireRequestedEquipmentGoal;
 import com.hearthstead.entity.ai.ArcherAttackGoal;
@@ -27,6 +31,7 @@ import com.hearthstead.network.OpenSettlerScreenPayload;
 import com.hearthstead.menu.SettlerInventoryMenu;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.BlessingPresentation;
 import com.hearthstead.settlement.DayPhase;
 import com.hearthstead.settlement.DeferredItemMaterializationSavedData;
@@ -35,6 +40,8 @@ import com.hearthstead.settlement.equipment.EquipmentRequest;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
 import com.hearthstead.settlement.state.BlessingId;
 import com.hearthstead.settlement.state.TargetBlessingState;
+import com.hearthstead.settlement.work.ContainerApproach;
+import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.util.AuthorityTelemetry;
 import com.hearthstead.entity.ai.GoToPostGoal;
 import net.minecraft.core.BlockPos;
@@ -58,6 +65,7 @@ import net.minecraft.world.DifficultyInstance;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.world.Container;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -82,12 +90,303 @@ import net.minecraft.world.level.Level;
 
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public class SettlerEntity extends PathfinderMob {
+    private final WorkerLifecycle workerLifecycle = new WorkerLifecycle();
+    private final ResidentMeal residentMeal = new ResidentMeal();
+    private final InnkeeperAtmosphere innkeeperAtmosphere = new InnkeeperAtmosphere();
+    private static final EntityDataAccessor<CompoundTag> DATA_INNKEEPER_SOCIAL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    /** Ephemeral, server-authored cue for an optional village moment. */
+    private static final EntityDataAccessor<CompoundTag> DATA_VILLAGE_SOCIAL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    /** Tavern lane: drunkenness level 0-3 (Drunkenness) and its visual cue (mode + start tick). */
+    private static final EntityDataAccessor<Byte> DATA_DRUNK_LEVEL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<CompoundTag> DATA_DRUNK_CUE =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    private double drunkPoints;
+    private long drunkUpdated = Long.MIN_VALUE, nextStumble, nextFall, nextStop, drunkPauseUntil;
+    private float drunkLeanYaw = Float.NaN;
+    private static final EntityDataAccessor<Long> DATA_TAVERN_MUSIC_UNTIL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.LONG);
+    private static final EntityDataAccessor<Long> DATA_MORALE_JOY_UNTIL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.LONG);
+    private long nextMoraleJoy;
+    /** Synced {@link LifeNeed} code for the thought bubble (presentation only). */
+    private static final EntityDataAccessor<Byte> DATA_LIFE_NEED =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.BYTE);
+    /** Transient: a resident stays shaken briefly after a raid/alarm ends. */
+    private long frightenedUntil = Long.MIN_VALUE;
+    private static final EntityDataAccessor<CompoundTag> DATA_TAVERN_CUE =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    /** Guard Drill lane: the morning sparring cue (GuardDrillYard.Assignment#cue); render only. */
+    private static final EntityDataAccessor<CompoundTag> DATA_GUARD_DRILL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.COMPOUND_TAG);
+    /** Synced drill cue: Mode (GuardDrillYard.MODE_*), Start, Seed, Slot, Len; empty = none. */
+    public CompoundTag guardDrillCue() { return entityData.get(DATA_GUARD_DRILL); }
+    /** Server: set or clear (empty tag) the drill cue. */
+    public void setGuardDrillCue(CompoundTag cue) {
+        if (level().isClientSide) return;
+        if (cue.isEmpty() && entityData.get(DATA_GUARD_DRILL).isEmpty()) return;
+        entityData.set(DATA_GUARD_DRILL, cue);
+    }
+
+    public TavernCue tavernCue() {
+        CompoundTag cue = entityData.get(DATA_TAVERN_CUE);
+        long remaining = cue.getLong("Until") - level().getGameTime();
+        return isAlive() && remaining > 0 && remaining <= 160
+            ? TavernCue.decode(cue.getString("Stage")) : TavernCue.NONE;
+    }
+    public int tavernQuotedCoins() { return Mth.clamp(entityData.get(DATA_TAVERN_CUE).getInt("Coins"), 0, 64); }
+    /** Short, deduplicated cue. Persistence and all decisions remain with the order owner. */
+    public void showTavernCue(TavernCue stage, int coins, int durationTicks) {
+        if (level().isClientSide) return;
+        if (stage == TavernCue.NONE) {
+            if (!entityData.get(DATA_TAVERN_CUE).isEmpty()) entityData.set(DATA_TAVERN_CUE, new CompoundTag());
+            return;
+        }
+        int duration = Mth.clamp(durationTicks, 1, 160);
+        CompoundTag current = entityData.get(DATA_TAVERN_CUE);
+        if (stage.name().equals(current.getString("Stage")) && coins == current.getInt("Coins")
+            && current.getLong("Until") - level().getGameTime() > 20) return;
+        CompoundTag cue = new CompoundTag();
+        cue.putString("Stage", stage.name()); cue.putInt("Coins", Mth.clamp(coins, 0, 64));
+        cue.putLong("Until", level().getGameTime() + duration);
+        entityData.set(DATA_TAVERN_CUE, cue);
+    }
+
+    public boolean tavernMusicActive() {
+        return isAlive() && getProfession() == Profession.INNKEEPER
+            && entityData.get(DATA_TAVERN_MUSIC_UNTIL) > level().getGameTime();
+    }
+    public void setTavernMusicUntil(long until) {
+        if (!level().isClientSide) entityData.set(DATA_TAVERN_MUSIC_UNTIL, until);
+    }
+    public int moraleJoyTicksRemaining() {
+        return (int) Mth.clamp(entityData.get(DATA_MORALE_JOY_UNTIL) - level().getGameTime(), 0L, 40L);
+    }
+
+    public InnkeeperAtmosphere innkeeperAtmosphere() { return innkeeperAtmosphere; }
+    public long innkeeperSocialStart() { return entityData.get(DATA_INNKEEPER_SOCIAL).getLong("Start"); }
+    public int innkeeperSocialMode() {
+        int mode = entityData.get(DATA_INNKEEPER_SOCIAL).getInt("Mode");
+        long age = level().getGameTime() - innkeeperSocialStart();
+        return isAlive() && age >= 0 && age < InnkeeperAtmosphere.duration(mode) ? mode : 0;
+    }
+    public void setInnkeeperSocial(int mode, long started) {
+        if (level().isClientSide) return;
+        if (mode == 0 && entityData.get(DATA_INNKEEPER_SOCIAL).isEmpty()) return;
+        CompoundTag cue = new CompoundTag();
+        if (InnkeeperAtmosphere.duration(mode) > 0) {
+            cue.putInt("Mode", mode);
+            cue.putLong("Start", started);
+        }
+        entityData.set(DATA_INNKEEPER_SOCIAL, cue);
+    }
+    public long villageSocialStart() { return entityData.get(DATA_VILLAGE_SOCIAL).getLong("Start"); }
+    public int villageSocialMode() {
+        CompoundTag cue = entityData.get(DATA_VILLAGE_SOCIAL);
+        int mode = cue.getInt("Mode");
+        long age = level().getGameTime() - villageSocialStart();
+        // A shared talking pair (SocialPair) carries its own length: turns x turn ticks.
+        int duration = mode == VillageSocial.PAIR
+            ? Math.max(0, cue.getInt("Turns")) * Math.max(0, cue.getInt("TurnTicks"))
+            : VillageSocial.duration(mode);
+        return isAlive() && age >= 0 && age < duration ? mode : VillageSocial.NONE;
+    }
+    /** Synced SocialPair cue (tavern lane): the partner's entity id, or -1. */
+    public int socialPairPartnerId() {
+        CompoundTag cue = entityData.get(DATA_VILLAGE_SOCIAL);
+        return cue.getInt("Mode") == VillageSocial.PAIR && cue.contains("Partner", 3) ? cue.getInt("Partner") : -1;
+    }
+    /** 0 = speaks on even turns, 1 = speaks on odd turns. */
+    public int socialPairSlot() { return entityData.get(DATA_VILLAGE_SOCIAL).getInt("Slot"); }
+    public int socialPairTurnTicks() { return entityData.get(DATA_VILLAGE_SOCIAL).getInt("TurnTicks"); }
+    /** Server: one SocialPair cue (see SocialPair.start). A render cue only, like setVillageSocial. */
+    public int socialPairSeed() { return entityData.get(DATA_VILLAGE_SOCIAL).getInt("Seed"); }
+    public void setSocialPairCue(int partnerId, int slot, long started, int turnTicks, int turns) {
+        setSocialPairCue(partnerId, slot, started, turnTicks, turns, (int) started);
+    }
+    public void setSocialPairCue(int partnerId, int slot, long started, int turnTicks, int turns, int seed) {
+        if (level().isClientSide) return;
+        CompoundTag cue = new CompoundTag();
+        cue.putInt("Mode", VillageSocial.PAIR);
+        cue.putLong("Start", started);
+        cue.putInt("Partner", partnerId);
+        cue.putInt("Slot", slot & 1);
+        cue.putInt("TurnTicks", turnTicks);
+        cue.putInt("Turns", turns);
+        cue.putInt("Seed", seed);
+        entityData.set(DATA_VILLAGE_SOCIAL, cue);
+    }
+    /** Tavern lane: synced drunkenness level (Drunkenness.SOBER..VERY). */
+    public int drunkLevel() { return isAlive() ? entityData.get(DATA_DRUNK_LEVEL) : 0; }
+    public boolean isTipsy() { return drunkLevel() >= Drunkenness.TIPSY; }
+    public double drunkPoints() { return drunkPoints; }
+    public int drunkCueMode() { return entityData.get(DATA_DRUNK_CUE).getInt("Mode"); }
+    public long drunkCueStart() { return entityData.get(DATA_DRUNK_CUE).getLong("Start"); }
+    /** Server: a real ale was drunk (TavernServingEntity DRINKING sip). The ticks argument is kept
+     *  for callers; the wear-off comes from Drunkenness.DECAY_TICKS per level. */
+    public void markAleDrunk(long now, int ticks) {
+        if (level().isClientSide || !(level() instanceof net.minecraft.server.level.ServerLevel server)
+            || !Drunkenness.enabledIn(server) || !Drunkenness.mayGetDrunk(this)) return;
+        tickDrunkDecay(now);
+        int before = Drunkenness.level(drunkPoints);
+        drunkPoints = Drunkenness.addAle(drunkPoints);
+        int after = Drunkenness.level(drunkPoints);
+        if (after >= Drunkenness.DRUNK && after > before) addMorale(1.5F);
+        entityData.set(DATA_DRUNK_LEVEL, (byte) after);
+        long seed = Drunkenness.seed(this);
+        if (nextStumble < now) nextStumble = now + 120 + (long) (TavernTableMath.hash01(seed, now, 1) * 160);
+        if (nextFall < now) nextFall = now + 400 + (long) (TavernTableMath.hash01(seed, now, 2) * 600);
+        if (nextStop < now) nextStop = now + 300 + (long) (TavernTableMath.hash01(seed, now, 3) * 600);
+    }
+    /** Load: saved points minus the wear-off since the stamp; legacy saves (no fields) are sober.
+     *  The speed modifier stays transient and is re-applied by tickDrunk. */
+    private void readDrunkenness(CompoundTag tag) {
+        long now = level().getGameTime();
+        drunkPoints = tag.contains("DrunkPoints")
+            ? Drunkenness.loadPoints(tag.getDouble("DrunkPoints"),
+                tag.contains("DrunkStamp") ? tag.getLong("DrunkStamp") : now, now)
+            : 0.0;
+        drunkUpdated = drunkPoints > 0.0 ? now : Long.MIN_VALUE;
+        entityData.set(DATA_DRUNK_LEVEL, (byte) Drunkenness.level(drunkPoints));
+        drunkPauseUntil = 0L;
+        nextStumble = now + 120;
+        nextFall = now + 400;
+        nextStop = now + 300;
+    }
+    private void tickDrunkDecay(long now) {
+        if (drunkUpdated != Long.MIN_VALUE) drunkPoints = Drunkenness.decay(drunkPoints, now - drunkUpdated);
+        drunkUpdated = now;
+    }
+    private void setDrunkCue(int mode, long start) {
+        CompoundTag cue = new CompoundTag();
+        cue.putInt("Mode", mode);
+        cue.putLong("Start", start);
+        entityData.set(DATA_DRUNK_CUE, cue);
+    }
+    /** Server tick: decay, the movement modifier, the weave, and the occasional stumble / stop / fall. */
+    private void tickDrunk() {
+        if (!(level() instanceof net.minecraft.server.level.ServerLevel server)) return;
+        long now = server.getGameTime();
+        if (!Drunkenness.enabledIn(server) || !Drunkenness.mayGetDrunk(this)) {
+            if (drunkPoints > 0 || drunkLevel() != 0) { drunkPoints = 0; entityData.set(DATA_DRUNK_LEVEL, (byte) 0); }
+            Drunkenness.applySpeed(this, 0);
+            return;
+        }
+        if (drunkPoints <= 0 && drunkLevel() == 0) return;
+        boolean sobered = Drunkenness.movementSobered(this)
+            || com.hearthstead.conversation.ConversationService.isTalking(this);
+        if (tickCount % 20 == 0) {
+            tickDrunkDecay(now);
+            int lvl = Drunkenness.level(drunkPoints);
+            if (lvl != drunkLevel()) entityData.set(DATA_DRUNK_LEVEL, (byte) lvl);
+            Drunkenness.applySpeed(this, lvl, sobered);
+        }
+        int lvl = drunkLevel();
+        if (sobered) {
+            // an alarm, a target, panic or a conversation: full speed on this very tick
+            Drunkenness.applySpeed(this, lvl, true);
+            if (now < drunkPauseUntil) { drunkPauseUntil = now; setDrunkCue(Drunkenness.CUE_NONE, now); }
+            return;
+        }
+        if (now < drunkPauseUntil) {
+            // a fall / lean / sit holds the settler still (visual only, no damage)
+            getNavigation().stop();
+            setDeltaMovement(0, getDeltaMovement().y, 0);
+            if (!Float.isNaN(drunkLeanYaw) && drunkCueMode() == Drunkenness.CUE_LEAN) {
+                // DRUNK_LEAN is authored with the wall on the settler's right
+                setYRot(drunkLeanYaw); setYBodyRot(drunkLeanYaw); setYHeadRot(drunkLeanYaw);
+            }
+            return;
+        }
+        drunkLeanYaw = Float.NaN;
+        Drunkenness.weaveStep(this, lvl);
+        boolean walking = !getNavigation().isDone() && onGround() && !isPassenger();
+        if (!walking) return;
+        long seed = Drunkenness.seed(this);
+        if (lvl >= Drunkenness.VERY && now >= nextFall && Drunkenness.safeToFall(server, blockPosition())) {
+            boolean side = TavernTableMath.hash01(seed, now, 11) < 0.5;
+            setDrunkCue(side ? Drunkenness.CUE_FALL_SIDE : Drunkenness.CUE_FALL_FORWARD, now);
+            drunkPauseUntil = now + Drunkenness.FALL_TICKS;
+            nextFall = now + 800 + (long) (TavernTableMath.hash01(seed, now, 12) * 1000);   // 40-90 s
+            nextStumble = Math.max(nextStumble, drunkPauseUntil + 100);
+            return;
+        }
+        if (lvl >= Drunkenness.VERY && now >= nextStop) {
+            boolean wall = false;
+            for (net.minecraft.core.Direction d : net.minecraft.core.Direction.Plane.HORIZONTAL) {
+                var p = blockPosition().relative(d);
+                var st = server.getBlockState(p);
+                var head = server.getBlockState(p.above());
+                if (!st.getCollisionShape(server, p).isEmpty() && !head.getCollisionShape(server, p.above()).isEmpty()) {
+                    wall = true;
+                    drunkLeanYaw = net.minecraft.util.Mth.wrapDegrees(d.toYRot() - 90.0F);   // wall on the right
+                    break;
+                }
+            }
+            if (wall || Drunkenness.safeToFall(server, blockPosition())) {
+                setDrunkCue(wall ? Drunkenness.CUE_LEAN : Drunkenness.CUE_SIT, now);
+                drunkPauseUntil = now + (wall ? Drunkenness.LEAN_TICKS : Drunkenness.SIT_TICKS);
+            }
+            nextStop = now + 600 + (long) (TavernTableMath.hash01(seed, now, 13) * 600);        // 30-60 s
+            return;
+        }
+        if (lvl >= Drunkenness.DRUNK && now >= nextStumble) {
+            setDrunkCue(Drunkenness.CUE_STUMBLE, now);
+            nextStumble = now + 160 + (long) (TavernTableMath.hash01(seed, now, 14) * 240);     // 8-20 s
+        }
+    }
+    /** A render cue only; event scheduling and worker authority stay server-side. */
+    public void setVillageSocial(int mode, long started) {
+        if (level().isClientSide) return;
+        if (mode == VillageSocial.NONE && entityData.get(DATA_VILLAGE_SOCIAL).isEmpty()) return;
+        CompoundTag cue = new CompoundTag();
+        if (VillageSocial.duration(mode) > 0) {
+            cue.putInt("Mode", mode);
+            cue.putLong("Start", started);
+        }
+        entityData.set(DATA_VILLAGE_SOCIAL, cue);
+    }
+    private static final EntityDataAccessor<ItemStack> DATA_RESIDENT_MEAL =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.ITEM_STACK);
+    private static final EntityDataAccessor<Integer> DATA_MEAL_REMAINING =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+
+    /** Takes one item from the LIVE owned source after caller-proven contact. */
+    public boolean beginMeal(ItemStack ownedSource) {
+        boolean accepted = residentMeal.begin(this, ownedSource);
+        if (accepted) syncResidentMeal();
+        return accepted;
+    }
+
+    public boolean hasMeal() { return mealRemainingTicks() > 0; }
+    public ItemStack mealDisplayCopy() { return entityData.get(DATA_RESIDENT_MEAL).copy(); }
+    public int mealRemainingTicks() { return entityData.get(DATA_MEAL_REMAINING); }
+
+    /** No movement or seating changes; advances only once per EATING server tick. */
+    public boolean tickMeal() {
+        boolean completed = residentMeal.tick(this);
+        if (!level().isClientSide) syncResidentMeal();
+        return completed;
+    }
+
+    private void syncResidentMeal() {
+        entityData.set(DATA_RESIDENT_MEAL, residentMeal.displayCopy());
+        entityData.set(DATA_MEAL_REMAINING, residentMeal.remainingTicks());
+    }
+
+    public WorkerLifecycle workerLifecycle() { return workerLifecycle; }
     private static final EntityDataAccessor<Byte> DATA_PROFESSION =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.BYTE);
+    /** Ephemeral normalized fishing clock: -1 idle, 0..299 one real catch cycle. */
+    private static final EntityDataAccessor<Integer> DATA_FISHER_CYCLE =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Byte> DATA_ACTIVITY =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.BYTE);
     private static final EntityDataAccessor<Float> DATA_HUNGER =
@@ -98,9 +397,17 @@ public class SettlerEntity extends PathfinderMob {
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> DATA_APPEARANCE_SEED =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /** Skins lane: event-visitor costume (entity.look.CharacterLooks.COSTUME_*), 0 = none. */
+    private static final EntityDataAccessor<Integer> DATA_LOOK_COSTUME =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
     /** Server-authored, persisted kill XP; synced only so inspection is live. */
     private static final EntityDataAccessor<Integer> DATA_COMBAT_EXPERIENCE =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /** Trade-skill XP for the CURRENT profession (SkillLevels); client derives the level. */
+    private static final EntityDataAccessor<Integer> DATA_TRADE_XP =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /** Server-authoritative per-profession trade XP; persisted under SkillLevels.NBT_KEY. */
+    private final SkillLevels.Track tradeSkills = new SkillLevels.Track();
     /**
      * What the settler is physically carrying, and how much they could.
      * The bag itself is server-only, so without these the client has no way
@@ -111,6 +418,23 @@ public class SettlerEntity extends PathfinderMob {
     private static final EntityDataAccessor<Integer> DATA_CARRY_LOAD =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
     private static final EntityDataAccessor<Integer> DATA_CARRY_CAPACITY =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /**
+     * Presentation-only logistics gear: sack tier (low 4 bits) and Hand Cart
+     * (bit 4), packed by {@link com.hearthstead.settlement.development.HaulGear}.
+     * Recomputed from settlement ownership on the server; never saved.
+     */
+    private static final EntityDataAccessor<Integer> DATA_HAUL_GEAR =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    /**
+     * Presentation-only Gear Tier clearance (role, personal tier, per-tier
+     * knowledge bits) and settlement heraldry colours, packed by
+     * {@link com.hearthstead.settlement.gear.GearGate}. Recomputed once a
+     * second on the server; never saved.
+     */
+    private static final EntityDataAccessor<Integer> DATA_GEAR_CLEARANCE =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Integer> DATA_HERALDRY =
         SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.INT);
     /**
      * Preferred item id for the current active equipment need, or -1. This is
@@ -150,6 +474,10 @@ public class SettlerEntity extends PathfinderMob {
     private static final EntityDataAccessor<CompoundTag> DATA_CRAFT_PRESENTATION =
         SynchedEntityData.defineId(SettlerEntity.class,
             EntityDataSerializers.COMPOUND_TAG);
+    /** Exact item/contact clock for one server-owned bag-to-container cycle. */
+    private static final EntityDataAccessor<CompoundTag> DATA_BAG_TRANSFER_PRESENTATION =
+        SynchedEntityData.defineId(SettlerEntity.class,
+            EntityDataSerializers.COMPOUND_TAG);
 
     public static final byte EV_CELEBRATE = 64;
     public static final byte EV_MELEE = 65;
@@ -178,6 +506,31 @@ public class SettlerEntity extends PathfinderMob {
     public static final byte EV_WORK_CONTAINER_UP = 77;
     /** Bow release follow-through; volley authority remains ArcherAttackGoal. */
     public static final byte EV_ARCHER_LOOSE = 78;
+    /** Reviewed bag-to-chest one-shot; inventory commits remain server-owned. */
+    public static final byte EV_BAG_TO_CHEST_UNLOAD = 79;
+    /** An interruptible low-health finishing drive; damage still uses the normal ticket. */
+    public static final byte EV_GUARD_FINISHER = 80;
+    /** Stops the optional drive when its target window has been lost. */
+    public static final byte EV_GUARD_FINISHER_CANCEL = 81;
+    /** Guard moveset: mirrored backhand second combo link (GUARD_LIGHT_SLASH_B). */
+    public static final byte EV_GUARD_LIGHT_B = 82;
+    /** Guard moveset: telegraphed two-handed overhead chop (GUARD_HEAVY_OVERHEAD). */
+    public static final byte EV_GUARD_HEAVY = 83;
+    /** Guard moveset: offhand shield punch that interrupts a wind-up (GUARD_SHIELD_BASH). */
+    public static final byte EV_GUARD_SHIELD_BASH = 84;
+    /** A landed raider heavy rocks the guard (GUARD_STAGGER); strikes stop. */
+    public static final byte EV_GUARD_STAGGER = 85;
+    /** Battle-role strikes: EV_ROLE_MOVE_BASE + RoleMove.ordinal() (86..91) plays that
+     *  move's authored clip (RoleMotionAnimations) on {@link #roleMoveState}. */
+    public static final byte EV_ROLE_MOVE_BASE = 86;
+    /** Guard comes to attention and salutes (GuardSaluteGoal): 1.8 s clip. */
+    public static final byte EV_GUARD_SALUTE = 96;
+    /** Captain's small return nod to a saluting guard: 0.7 s clip. */
+    public static final byte EV_GUARD_NOD = 97;
+    /** Greeting over (GuardSaluteGoal): salute cut away, sword drawn (1.25 s). */
+    public static final byte EV_GUARD_SALUTE_END = 98;
+    /** Greeting dropped for danger: the presentation snaps back to the drawn sword. */
+    public static final byte EV_GUARD_SALUTE_CANCEL = 99;
 
     // Sound-sync contracts (docs/ANIMATION_CATALOGUE.md §0.4): each value
     // must agree with the clip comment in SettlerAnimations and the
@@ -242,11 +595,15 @@ public class SettlerEntity extends PathfinderMob {
     private BlockPos hearthPos;
     /** Decoded once per synced-tag change, never rebuilt every render frame. */
     private CraftPresentation craftPresentation = CraftPresentation.empty();
+    private BagTransferPresentation bagTransferPresentation =
+        BagTransferPresentation.empty();
     /** Sole durable item owner from recipe contact until container contact. */
     @Nullable
     private CraftOutputEscrow craftOutputEscrow;
     @Nullable
     private BlockPos claimedBed;
+    private static final EntityDataAccessor<Boolean> DATA_TRAVELER_APPEARANCE =
+        SynchedEntityData.defineId(SettlerEntity.class, EntityDataSerializers.BOOLEAN);
     private boolean traveler;
     /** Rolled once, then earned. See {@link SettlerAttributes}. */
     /** Last block a footfall was counted on; see {@link #wearPath()}. */
@@ -265,6 +622,13 @@ public class SettlerEntity extends PathfinderMob {
     /** Permanent per-settler Blessings; compact server-only state, never tick-scanned. */
     private TargetBlessingState targetBlessings = new TargetBlessingState();
     public final SimpleContainer bag = new SimpleContainer(BAG_SIZE);
+    /**
+     * Stout Straps batching (CourierBatching): the cargo of a Courier's
+     * second, waiting request while the other one runs. Real items, saved as
+     * "BatchStow", dropped on death like the bag; only RequestLedgerService
+     * moves items in or out, so every other reader keeps "bag = active load".
+     */
+    public final SimpleContainer batchStow = new SimpleContainer(BAG_SIZE);
     /** Server-only physical ownership; never a client animation counter. */
     private int archerQuiver;
     /**
@@ -292,6 +656,15 @@ public class SettlerEntity extends PathfinderMob {
     @Nullable
     private BlockPos logisticsStopTarget;
     private long logisticsRetryUntil = Long.MIN_VALUE;
+    /** Absolute server game-time through which a civilian must remain at an arrived home. */
+    private long panicShelterUntil = Long.MIN_VALUE;
+    /**
+     * Runtime-only handoff from a bounded workplace route to the door goal.
+     * The position is never saved or synced: it grants no durable authority
+     * and must be re-proven by the caller after a reload or failed attempt.
+     */
+    @Nullable
+    private BlockPos requestedDoorPassage;
 
     // Server-side accent scheduler: countdowns to staggered one-shot
     // broadcasts and their delayed sound accents (-1 = idle). One-shot
@@ -319,6 +692,16 @@ public class SettlerEntity extends PathfinderMob {
      * contact four ticks later. It is intentionally absent from NBT.
      */
     private final MeleeContactLedger meleeContacts = new MeleeContactLedger();
+    /** One runtime-only optional finisher bound to one existing melee ticket. */
+    private long cinematicFinisherTicket;
+    private UUID cinematicFinisherTargetId;
+    /** Runtime-only move bound to the one live melee ticket; never persisted. */
+    private GuardMove pendingGuardMove;
+    private long pendingGuardMoveTicket;
+    private UUID pendingGuardMoveTargetId;
+    private long pendingGuardMoveContactTick = Long.MIN_VALUE;
+    /** Server game time until which a raider heavy keeps this guard staggered. */
+    private long combatStaggerUntil = Long.MIN_VALUE;
     /** Minimal NBT-backed proof; never a replacement gameplay state store. */
     private final GuardCombatLedger guardCombatLedger = new GuardCombatLedger();
 
@@ -330,6 +713,24 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState restState = new AnimationState();
     public final AnimationState stanceState = new AnimationState();
     public final AnimationState meleeState = new AnimationState();
+    /** A short, server-claimed presentation layered over one existing melee ticket. */
+    public final AnimationState guardFinisherState = new AnimationState();
+    /** Guard moveset one-shots (entity/combat/GuardMove). Strikes are mutually
+     *  exclusive with meleeState/guardFinisherState; see startOnlyGuardStrike. */
+    public final AnimationState guardLightBState = new AnimationState();
+    public final AnimationState guardHeavyState = new AnimationState();
+    public final AnimationState guardShieldBashState = new AnimationState();
+    public final AnimationState guardStaggerState = new AnimationState();
+    /** GUARD_ATTENTION_SNAP then GUARD_SALUTE (started by EV_GUARD_SALUTE). */
+    public final AnimationState guardSaluteState = new AnimationState();
+    /** Captain's return nod (started by EV_GUARD_NOD). */
+    public final AnimationState guardNodState = new AnimationState();
+    /** GUARD_SALUTE_RELEASE then GUARD_DRAW_SWORD (started by EV_GUARD_SALUTE_END). */
+    public final AnimationState guardSaluteEndState = new AnimationState();
+    /** Battle-role strike one-shot (EV_ROLE_MOVE_BASE + move); {@link #roleMoveId} says which. */
+    public final AnimationState roleMoveState = new AnimationState();
+    /** Client: RoleMove ordinal of the running {@link #roleMoveState} clip. */
+    public int roleMoveId = -1;
     public final AnimationState archerLooseState = new AnimationState();
     public final AnimationState celebrateState = new AnimationState();
     // SLICE ANIM-1 additions.
@@ -374,6 +775,11 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState shearState = new AnimationState();
     public final AnimationState fishState = new AnimationState();
     public final AnimationState huntState = new AnimationState();
+    /** Hunter carcass carry: arms-only shoulder hold over WALK_LADEN. */
+    public final AnimationState carcassCarryState = new AnimationState();
+    /** Hunter butchery at the table / on the Lodge floor. */
+    public final AnimationState butcherState = new AnimationState();
+    public final AnimationState skinState = new AnimationState();
     /**
      * Truthful, non-looping table craft. Its clock starts from the server
      * activity transition, so tick 30 in the clip is tick 30 in the atomic
@@ -392,6 +798,8 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState groundItemPickupState = new AnimationState();
     public final AnimationState workContainerStowState = new AnimationState();
     public final AnimationState workContainerUpState = new AnimationState();
+    /** Exact offline candidate 1bae8d124f5cb89c, started only by a chest cycle. */
+    public final AnimationState bagToChestUnloadState = new AnimationState();
     /** A permanent Blessing binding, deliberately independent of activity. */
     public final AnimationState blessingReceiveState = new AnimationState();
 
@@ -409,6 +817,8 @@ public class SettlerEntity extends PathfinderMob {
     public final AnimationState idleLumbererState = new AnimationState();
     public final AnimationState idleSentryState = new AnimationState();
     public final AnimationState idleCourierState = new AnimationState();
+    /** Trader-only stationary negotiation idle; it owns no inventory state. */
+    public final AnimationState idleTraderState = new AnimationState();
     public final AnimationState idleForgeState = new AnimationState();
     public final AnimationState idleBakerState = new AnimationState();
     public final AnimationState idleCookState = new AnimationState();
@@ -426,6 +836,7 @@ public class SettlerEntity extends PathfinderMob {
 
     public SettlerEntity(EntityType<? extends PathfinderMob> type, Level level) {
         super(type, level);
+        this.moveControl = new com.hearthstead.entity.path.SettlerMoveControl(this);
         setPersistenceRequired();
         // Roll a real appearance seed for every settler the moment it is
         // constructed, regardless of creation path (SettlementManager,
@@ -442,6 +853,49 @@ public class SettlerEntity extends PathfinderMob {
         }
     }
 
+    @Override
+    public boolean isPushedByFluid(net.neoforged.neoforge.fluids.FluidType type) {
+        return super.isPushedByFluid(type)
+            && (type != net.neoforged.neoforge.common.NeoForgeMod.WATER_TYPE.value()
+                || !isGroundedShallowWaterNavigation());
+    }
+
+    private boolean isGroundedShallowWaterNavigation() {
+        if (!onGround() || isPassenger() || getNavigation().isDone()) {
+            return false;
+        }
+        BlockPos support = blockPosition().below();
+        if (!level().isLoaded(support)
+                || !level().getBlockState(support).isFaceSturdy(level(), support,
+                    net.minecraft.core.Direction.UP)) {
+            return false;
+        }
+        // NeoForge stores fluid heights only AFTER applying its flow push.
+        // Inspect the same actual body volume now, rather than reading the
+        // previous tick's height when deciding whether our feet can wade.
+        var body = getBoundingBox().deflate(0.001D);
+        double maximumDepth = getFluidJumpThreshold();
+        boolean touchesWater = false;
+        BlockPos.MutableBlockPos cell = new BlockPos.MutableBlockPos();
+        for (int x = Mth.floor(body.minX); x < Mth.ceil(body.maxX); x++) {
+            for (int y = Mth.floor(body.minY); y < Mth.ceil(body.maxY); y++) {
+                for (int z = Mth.floor(body.minZ); z < Mth.ceil(body.maxZ); z++) {
+                    cell.set(x, y, z);
+                    if (!level().isLoaded(cell)) return false;
+                    var fluid = level().getFluidState(cell);
+                    if (!fluid.is(net.minecraft.tags.FluidTags.WATER)) continue;
+                    double depth = y + fluid.getHeight(level(), cell) - body.minY;
+                    if (depth < 0.0D) continue;
+                    if (depth > maximumDepth) return false;
+                    touchesWater = true;
+                }
+            }
+        }
+        // Supported wading keeps ordinary speed, fatigue and carry effects.
+        // Deep water, airborne motion and idle settlers retain vanilla flow.
+        return touchesWater;
+    }
+
     public static AttributeSupplier.Builder createAttributes() {
         return Mob.createMobAttributes()
             .add(Attributes.MAX_HEALTH, 24.0)
@@ -453,21 +907,40 @@ public class SettlerEntity extends PathfinderMob {
     @Override
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
+        builder.define(DATA_TRAVELER_APPEARANCE, false);
+        builder.define(DATA_RESIDENT_MEAL, ItemStack.EMPTY);
+        builder.define(DATA_INNKEEPER_SOCIAL, new CompoundTag());
+        builder.define(DATA_VILLAGE_SOCIAL, new CompoundTag());
+        builder.define(DATA_DRUNK_LEVEL, (byte) 0);
+        builder.define(DATA_DRUNK_CUE, new CompoundTag());
+        builder.define(DATA_TAVERN_MUSIC_UNTIL, 0L);
+        builder.define(DATA_MORALE_JOY_UNTIL, 0L);
+        builder.define(DATA_LIFE_NEED, (byte) LifeNeed.NONE);
+        builder.define(DATA_TAVERN_CUE, new CompoundTag());
+        builder.define(DATA_GUARD_DRILL, new CompoundTag());
+        builder.define(DATA_MEAL_REMAINING, 0);
         builder.define(DATA_PROFESSION, Profession.NONE.id());
+        builder.define(DATA_TRADE_XP, 0);
         builder.define(DATA_ACTIVITY, SettlerActivity.IDLE.id());
+        builder.define(DATA_FISHER_CYCLE, -1);
         builder.define(DATA_HUNGER, 80.0F);
         builder.define(DATA_ENERGY, 90.0F);
         builder.define(DATA_MORALE, 60.0F);
         builder.define(DATA_APPEARANCE_SEED, 0);
+        builder.define(DATA_LOOK_COSTUME, 0);
         builder.define(DATA_COMBAT_EXPERIENCE, 0);
         builder.define(DATA_CARRY_LOAD, 0);
         builder.define(DATA_CARRY_CAPACITY, BASE_CARRY_CAPACITY);
+        builder.define(DATA_HAUL_GEAR, 0);
+        builder.define(DATA_GEAR_CLEARANCE, 0);
+        builder.define(DATA_HERALDRY, 0);
         builder.define(DATA_REQUESTED_EQUIPMENT, -1);
         builder.define(DATA_LOGISTICS_STOP, 0);
         builder.define(DATA_LOGISTICS_TARGET, Optional.empty());
         builder.define(DATA_WORK_CONTAINER_POS, Optional.empty());
         builder.define(DATA_WORK_CONTAINER_KIND, WorkContainerKind.NONE.id());
         builder.define(DATA_CRAFT_PRESENTATION, new CompoundTag());
+        builder.define(DATA_BAG_TRANSFER_PRESENTATION, new CompoundTag());
     }
 
     @Override
@@ -476,6 +949,9 @@ public class SettlerEntity extends PathfinderMob {
         if (DATA_CRAFT_PRESENTATION.equals(key)) {
             craftPresentation = CraftPresentation.load(registryAccess(),
                 entityData.get(DATA_CRAFT_PRESENTATION));
+        } else if (DATA_BAG_TRANSFER_PRESENTATION.equals(key)) {
+            bagTransferPresentation = BagTransferPresentation.load(
+                registryAccess(), entityData.get(DATA_BAG_TRANSFER_PRESENTATION));
         }
     }
 
@@ -486,9 +962,22 @@ public class SettlerEntity extends PathfinderMob {
         // and closes them again behind (keeps homes enclosed and defensible).
         goalSelector.addGoal(1, new SettlerDoorGoal(this));
         goalSelector.addGoal(1, new SettlerPanicGoal(this));
-        goalSelector.addGoal(2, new TravelerJoinGoal(this));
+        goalSelector.addGoal(1, new com.hearthstead.entity.ai.GuardRecoveryGoal(this));
+        // A real TavernVisit reservation wins; idle strolling never owns a waiting guest.
+        goalSelector.addGoal(6, new TravelerJoinGoal(this));
         goalSelector.addGoal(2, new com.hearthstead.entity.ai.GuardLeapGoal(this));
         goalSelector.addGoal(2, new GuardMeleeGoal(this));
+        // BATTLE-ROLES (plan/BATTLE-ROLES.md): each goal gates itself on its
+        // own profession and on the battleRoles kill-switch.
+        goalSelector.addGoal(1, new com.hearthstead.entity.combat.role.HealerMedicGoal(this));
+        goalSelector.addGoal(1, new com.hearthstead.entity.combat.role.EvacuateToInfirmaryGoal(this));
+        goalSelector.addGoal(2, new com.hearthstead.entity.combat.role.SpearmanCombatGoal(this));
+        goalSelector.addGoal(2, new com.hearthstead.entity.combat.role.LongswordCombatGoal(this));
+        goalSelector.addGoal(2, new com.hearthstead.entity.combat.role.RuneMageGoal(this));
+        // Hero Captain (plan/CAPTAIN.md): specials pre-empt the plain swing;
+        // the weapon goal swings the loadouts the Guard moveset cannot.
+        goalSelector.addGoal(1, new com.hearthstead.entity.combat.captain.CaptainSpecialGoal(this));
+        goalSelector.addGoal(2, new com.hearthstead.entity.combat.captain.CaptainWeaponGoal(this));
         // The archer's ranged loop sits beside the guard's melee at the same
         // slot: both are "fight the target I have", and only one of the two
         // professions ever activates either.
@@ -497,18 +986,40 @@ public class SettlerEntity extends PathfinderMob {
         // local bodyguard, but only inside that Stand leash. Patrol and Tower
         // never yield to it. Combat at priority 2 still interrupts instantly;
         // the exact Stand order at 4 resumes when the local escort ends.
+        // Live R/G field orders (FieldOrders) move soldiers to their formation
+        // slots; registered first so it owns MOVE among the priority-3 goals.
+        // A player's summon ("come to me", any settler) outranks the other
+        // priority-3 orders; combat at 2 still interrupts it.
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.ComeToPlayerGoal(this));
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.FieldOrderGoal(this));
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.BannerTeamGoal(this));
+        // Guard Drill (ring 1): the relieved watch spars in the Barracks yard after breakfast.
+        // Before the salute so a drilling pair is not pulled away; any alarm, raid or target
+        // ends it in the same tick (GuardDrillGoal#canContinueToUse).
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.GuardDrillGoal(this));
+        // Attention + salute for a passing player or the Captain; peace only.
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.GuardSaluteGoal(this));
         goalSelector.addGoal(3, new GuardRaidEscortGoal(this));
         goalSelector.addGoal(3, new GuardRespondToAlertGoal(this));
-        // A player-issued order outranks meals, sleep and the ordinary post
-        // schedule, but never combat or an active settlement alarm.
+        // An explicit order owns the ordinary post schedule, but yields to
+        // reachable food or critical rest when safe without rewriting it.
+        // Stand/Tower reject generic alarm movement; combat still selects
+        // threats within the existing authored target leash.
         goalSelector.addGoal(4, new com.hearthstead.entity.ai.GuardOrderGoal(this));
         // Same numeric slot as the alert response above -- both are "answer
         // a call that outranks the ordinary day", and RespondToSummonsGoal's
         // own class doc explains why 3 and not higher (it must still yield
         // to eating and, via Flag contention, to combat and panic).
         goalSelector.addGoal(3, new com.hearthstead.entity.ai.RespondToSummonsGoal(this));
+        // A Miner walled into an old vertical pit carves steps out before it
+        // can eat or sleep again (reliability soak 2026-09-25).
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.MinerEscapeGoal(this));
+        // Same meal owner; explicit order/alert/threat predicates relinquish this paid preparation.
+        goalSelector.addGoal(4, new com.hearthstead.entity.ai.GuardRecoveryGoal(this, true));
         goalSelector.addGoal(4, new EatFromHearthGoal(this));
         goalSelector.addGoal(5, new RestAtNightGoal(this));
+        tavernVisitGoal = new com.hearthstead.entity.ai.TavernVisitGoal(this);
+        goalSelector.addGoal(5, tavernVisitGoal);
         // A worker who can see the exact physical tool they are asking for
         // collects it before resuming trade work, but never before panic,
         // combat, eating or night rest.
@@ -519,10 +1030,17 @@ public class SettlerEntity extends PathfinderMob {
         // Raid-damage repair outranks the ordinary trades (5, after rest):
         // a breached wall is everyone's problem before anyone's workday.
         goalSelector.addGoal(5, new com.hearthstead.entity.ai.RepairWorkGoal(this));
+        // An eligible delivery chooses its source before the generic workplace
+        // posting claims MOVE. Keep priority 6 so rest and equipment at 5 can
+        // still interrupt and the saved delivery resumes afterwards.
+        goalSelector.addGoal(6, new CourierWorkGoal(this));
         goalSelector.addGoal(6, new GoToPostGoal(this));
         goalSelector.addGoal(6, new FarmerWorkGoal(this));
+        // RING-1 lane: registered first at the same priority, so the whet only
+        // starts between trees and never preempts (or is preempted by) felling.
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.LumbererWhetGoal(this));
         goalSelector.addGoal(6, new LumbererWorkGoal(this));
-        goalSelector.addGoal(6, new CourierWorkGoal(this));
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.TraderWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.CrafterWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.MinerWorkGoal(this));
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.InnkeeperWorkGoal(this));
@@ -532,15 +1050,32 @@ public class SettlerEntity extends PathfinderMob {
         // trade goal above, same reason (the flag fight is between trade
         // goals of one settler, not a race with anything else in this list).
         goalSelector.addGoal(6, new HerderWorkGoal(this));
+        // RING-1 lane: net set/haul between casts, same priority, registered first.
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.FisherNetGoal(this));
         goalSelector.addGoal(6, new FisherWorkGoal(this));
         goalSelector.addGoal(6, new HunterWorkGoal(this));
+        // BUILDER lane (plan/BUILDER.md): a trade goal like the others; it
+        // gates itself on the Builder profession, working hours and the
+        // feature switch, and yields to rest/eating/raid-repair above it.
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.BuilderWorkGoal(this));
         // Lower than the delivery goal: tidying is what a courier does when
         // there is nothing to fetch.
         goalSelector.addGoal(7, new com.hearthstead.entity.ai.TidyWarehouseGoal(this));
+        // A guard picked for a player-drawn patrol route walks it with its
+        // squad (PATROL ROUTES lane); the ordinary rounds below stand aside.
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.PatrolRouteGoal(this));
         goalSelector.addGoal(6, new GuardPatrolGoal(this));
+        // An Archer with no order holds its own tower by default; every real
+        // order, field order, summons or alert outranks it (reliability soak).
+        goalSelector.addGoal(6, new com.hearthstead.entity.ai.ArcherDefaultPostGoal(this));
         goalSelector.addGoal(7, new ReturnToSettlementGoal(this));
         // Modest, and lower than every trade: greeting the captain is what a
         // settler does between real things, never instead of them.
+        goalSelector.addGoal(7, new com.hearthstead.entity.ai.WorkCompanionGoal(this));
+        // Free-time life (meal/evening only): greet a player, warm at the Hearth.
+        goalSelector.addGoal(7, new com.hearthstead.entity.ai.FreeTimeGoal(this));
+        // Living village: an idle settler steps out of the rain (MOVE only, idle time only).
+        goalSelector.addGoal(7, new com.hearthstead.ambient.ShelterFromRainGoal(this));
         goalSelector.addGoal(7, new com.hearthstead.entity.ai.SaluteCaptainGoal(this));
         goalSelector.addGoal(8, new BoundedStrollGoal(this));
         goalSelector.addGoal(9, new LookAtPlayerGoal(this, Player.class, 6.0F));
@@ -555,11 +1090,27 @@ public class SettlerEntity extends PathfinderMob {
         return Profession.byId(entityData.get(DATA_PROFESSION));
     }
 
+    public int getFisherCycleTick() { return entityData.get(DATA_FISHER_CYCLE); }
+
+    public void setFisherCycleTick(int tick) {
+        entityData.set(DATA_FISHER_CYCLE, Mth.clamp(tick, -1, 299));
+    }
+
     public SettlerActivity getActivity() {
         return SettlerActivity.byId(entityData.get(DATA_ACTIVITY));
     }
 
     public void setActivity(SettlerActivity activity) {
+        // Vanilla restores bed sleep from NBT, but goals/activity do not resume
+        // their old lifecycle. A new owner (combat, alert, work...) must actually
+        // wake that body, even if the old RestAtNightGoal never ran its stop().
+        // Keep the bed claim; only vanilla's sleeping pose/occupancy is released.
+        if (!level().isClientSide && activity != SettlerActivity.SLEEPING && isSleeping()) {
+            stopSleeping();
+        }
+        if (activity != SettlerActivity.WORK_FISH && getFisherCycleTick() >= 0) {
+            setFisherCycleTick(-1);
+        }
         if (getActivity() != activity) {
             entityData.set(DATA_ACTIVITY, activity.id());
         }
@@ -594,9 +1145,21 @@ public class SettlerEntity extends PathfinderMob {
      * with a name.
      */
     public void addMorale(float delta) {
-        float scaled = delta * (delta < 0.0F
+        // Spirit shrinks losses (AttributeRuntime.moraleDelta, plan/ATTRIBUTES.md).
+        float scaled = (delta < 0.0F && !level().isClientSide()
+            ? AttributeRuntime.moraleDelta(this, delta) : delta) * (delta < 0.0F
             ? Trait.moraleDecay(traits()) : Trait.moraleGain(traits()));
-        entityData.set(DATA_MORALE, Mth.clamp(getMorale() + scaled, 0.0F, 100.0F));
+        float before = getMorale();
+        float after = Mth.clamp(before + scaled, 0.0F, 100.0F);
+        entityData.set(DATA_MORALE, after);
+        // Celebrate real meal/social gains, not the small passive equilibrium drift.
+        // A capped or negative change never fabricates happiness. This transient
+        // cue is synced but deliberately not saved/replayed after loading.
+        long now = level().getGameTime();
+        if (!level().isClientSide && isAlive() && delta >= 1.0F && after > before && now >= nextMoraleJoy) {
+            entityData.set(DATA_MORALE_JOY_UNTIL, now + 40);
+            nextMoraleJoy = now + 80;
+        }
     }
 
     public int getAppearanceSeed() {
@@ -610,6 +1173,15 @@ public class SettlerEntity extends PathfinderMob {
      *  a given settler across their whole life. */
     public void setAppearanceSeed(int seed) {
         entityData.set(DATA_APPEARANCE_SEED, seed);
+    }
+
+    /** Event-visitor costume (skins lane); 0 = the settler's own clothes. */
+    public int getLookCostume() {
+        return entityData.get(DATA_LOOK_COSTUME);
+    }
+
+    public void setLookCostume(int costume) {
+        entityData.set(DATA_LOOK_COSTUME, costume);
     }
 
     /**
@@ -649,6 +1221,10 @@ public class SettlerEntity extends PathfinderMob {
         if (!(level() instanceof ServerLevel) || amount <= 0) {
             return null;
         }
+        // Guard Drill / Shield Doctrine: a real combat award is scaled once,
+        // inside the same ledger commit (admin awards stay exact).
+        amount = com.hearthstead.settlement.development.DevelopmentBonuses
+            .guardCombatXp(this, amount);
         int before = combatExperience();
         int after = GuardExperience.add(before, amount);
         if (after <= before) {
@@ -663,6 +1239,9 @@ public class SettlerEntity extends PathfinderMob {
         // telemetry is emitted only after both this value and the ledger row
         // have reached their terminal in-memory state.
         entityData.set(DATA_COMBAT_EXPERIENCE, after);
+        if (GuardExperience.tierOf(after).level() > GuardExperience.tierOf(before).level()) {
+            playTrainingLevelCue();
+        }
         return commit;
     }
 
@@ -778,7 +1357,11 @@ public class SettlerEntity extends PathfinderMob {
 
     /** Server-authoritative binding endpoint used by a physical Blessing Seal. */
     public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing) {
-        TargetBlessingState.ApplyResult result = targetBlessings.apply(blessing);
+        return applyBlessing(blessing, 1);
+    }
+
+    public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing, int rankUnits) {
+        TargetBlessingState.ApplyResult result = targetBlessings.apply(blessing, rankUnits);
         if (result == TargetBlessingState.ApplyResult.APPLIED) {
             triggerBlessingReceive();
             if (level() instanceof ServerLevel serverLevel) {
@@ -808,8 +1391,30 @@ public class SettlerEntity extends PathfinderMob {
         return settlementId != null;
     }
 
+    /** Client: a private outline (summoned to this player, or hearing a held command key). */
+    @Override
+    public boolean isCurrentlyGlowing() {
+        if (level().isClientSide && ClientOutlineHook.colorFor(getId()) >= 0) return true;
+        return super.isCurrentlyGlowing();
+    }
+
+    @Override
+    public int getTeamColor() {
+        if (level().isClientSide) {
+            int outline = ClientOutlineHook.colorFor(getId());
+            if (outline >= 0) return outline;
+        }
+        return super.getTeamColor();
+    }
+
     public boolean isTraveler() {
         return traveler;
+    }
+
+    /** Synced projection of the existing saved guest state, never equipment. */
+    public boolean hasTravelerAppearance() {
+        return entityData.get(DATA_TRAVELER_APPEARANCE)
+            && getProfession() == Profession.NONE;
     }
 
     @Nullable
@@ -834,6 +1439,7 @@ public class SettlerEntity extends PathfinderMob {
 
     public void claimBed(@Nullable BlockPos bed) {
         this.claimedBed = bed;
+        syncBedClaimProjection();
     }
 
     public void releaseBed() {
@@ -841,6 +1447,19 @@ public class SettlerEntity extends PathfinderMob {
             stopSleeping();
         }
         this.claimedBed = null;
+        syncBedClaimProjection();
+    }
+
+    private void syncBedClaimProjection() {
+        if (!(level() instanceof ServerLevel server) || settlementId == null) return;
+        Settlement owner = SettlementManager.byId(server, settlementId);
+        if (owner == null || owner.record(getUUID()) == null) return;
+        var record = owner.record(getUUID());
+        var next = com.hearthstead.settlement.ResidentBedClaim.known(claimedBed);
+        if (!next.equals(record.bedClaim)) {
+            record.bedClaim = next;
+            SettlementManager.data(server).setDirty();
+        }
     }
 
     public String getSettlerName() {
@@ -853,16 +1472,31 @@ public class SettlerEntity extends PathfinderMob {
         setCustomNameVisible(false);
     }
 
+    // Assigned in registerGoals (super-constructor), not a later field initializer.
+    private com.hearthstead.entity.ai.TavernVisitGoal tavernVisitGoal;
+    public boolean prefersTavernMeal() { return tavernVisitGoal != null && tavernVisitGoal.prefersMeal(); }
+    /** Read-only live visit state for owned QA diagnostics. */
+    public String tavernVisitDiagnostic() {
+        return tavernVisitGoal == null ? "uninitialized" : tavernVisitGoal.diagnosticState();
+    }
+    public boolean hasTavernSeat() { return com.hearthstead.settlement.TavernSeating.hasTavernSeat(this); }
+    public com.hearthstead.settlement.Building currentTavern() {
+        return com.hearthstead.settlement.TavernSeating.currentTavern(this);
+    }
+    public boolean leaveSeat() { return com.hearthstead.settlement.TavernSeating.leaveSeat(this); }
+
     public void bindTo(UUID settlement, BlockPos hearth) {
         this.settlementId = settlement;
         this.targetSettlementId = null;
         this.hearthPos = hearth;
         this.traveler = false;
+        entityData.set(DATA_TRAVELER_APPEARANCE, false);
         setActivity(SettlerActivity.IDLE);
     }
 
     public void markTraveler(UUID settlement, BlockPos hearth) {
         this.traveler = true;
+        entityData.set(DATA_TRAVELER_APPEARANCE, true);
         this.targetSettlementId = settlement;
         this.hearthPos = hearth;
         setActivity(SettlerActivity.TRAVELING);
@@ -871,14 +1505,14 @@ public class SettlerEntity extends PathfinderMob {
     public void unbind() {
         if (level() instanceof ServerLevel serverLevel
             && archerQuiver > 0) {
-            ArcherAttackGoal.releaseBorrowedArrows(serverLevel, settlement(),
-                this);
+            releaseCarriedArrows(serverLevel, settlement());
         }
         releaseBed();
         this.settlementId = null;
         this.targetSettlementId = null;
         this.hearthPos = null;
         this.traveler = false;
+        entityData.set(DATA_TRAVELER_APPEARANCE, false);
         if (getProfession() != Profession.NONE) {
             entityData.set(DATA_PROFESSION, Profession.NONE.id());
         }
@@ -927,12 +1561,13 @@ public class SettlerEntity extends PathfinderMob {
      * reloads.
      */
     public void setProfessionProjection(Profession profession) {
+        GuardHealth.refresh(this);
         if (getProfession() == profession) {
             return;
         }
-        if (getProfession() == Profession.COURIER && profession != Profession.COURIER) {
-            clearLogisticsStop();
-        }
+        // Super-QA: a stop reason belongs to the old trade (e.g. a Farmer's
+        // NO_WORK_ZONE); never let it linger on the settler's new job sheet.
+        clearLogisticsStop();
         entityData.set(DATA_PROFESSION, profession.id());
         // Never leave yesterday's request icon above a reassigned worker.
         // The next server reconciliation publishes the new trade's need.
@@ -1042,8 +1677,16 @@ public class SettlerEntity extends PathfinderMob {
     }
 
     /** Starts the authored ground-item pickup; transfer occurs at its contact tick. */
+    private long lastGroundItemPickupStartedTick = Long.MIN_VALUE;
+
     public void triggerGroundItemPickup() {
+        if (!level().isClientSide) lastGroundItemPickupStartedTick = level().getGameTime();
         broadcastWorkContainerEvent(EV_GROUND_ITEM_PICKUP);
+    }
+
+    /** Read-only server observation of the real pickup event, separate from bag placement. */
+    public long lastGroundItemPickupStartedTick() {
+        return lastGroundItemPickupStartedTick;
     }
 
     /** Starts the authored offhand-item into placed-container phase. */
@@ -1054,6 +1697,11 @@ public class SettlerEntity extends PathfinderMob {
     /** Starts the authored container lift phase before transport. */
     public void triggerWorkContainerUp() {
         broadcastWorkContainerEvent(EV_WORK_CONTAINER_UP);
+    }
+
+    /** Starts one complete 80-tick bag-to-chest presentation cycle. */
+    public void triggerBagToChestUnload() {
+        broadcastWorkContainerEvent(EV_BAG_TO_CHEST_UNLOAD);
     }
 
     private void broadcastWorkContainerEvent(byte event) {
@@ -1215,7 +1863,83 @@ public class SettlerEntity extends PathfinderMob {
         if (s != null && level() instanceof ServerLevel serverLevel) {
             boost *= com.hearthstead.settlement.Mayor.growth(serverLevel, s);
         }
-        attributes().train(attribute, units, boost);
+        if (attributes().train(attribute, units, boost) && getProfession() != Profession.NONE) {
+            playTrainingLevelCue();
+        }
+    }
+
+    // Award endpoints only: loading an existing level must never replay it.
+    // Several attributes earned from one action share a single nearby cue.
+    private long lastTrainingLevelCue = Long.MIN_VALUE;
+
+    private void playTrainingLevelCue() {
+        if (!(level() instanceof ServerLevel server)) return;
+        long now = server.getGameTime();
+        if (lastTrainingLevelCue == now) return;
+        lastTrainingLevelCue = now;
+        // Same soft chime as before, plus motes and a throttled action-bar
+        // line; SettlerFlourish owns all three so other growth hooks reuse it.
+        SettlerFlourish.play(server, this, SettlerFlourish.skillGrowthLine(this));
+    }
+
+    /** Server-authoritative trade-skill XP per profession (SkillLevels). */
+    public SkillLevels.Track tradeSkills() {
+        return tradeSkills;
+    }
+
+    /** Packed {@link com.hearthstead.settlement.gear.GearGate} clearance; 0 until first sync. */
+    public int gearClearancePacked() {
+        return entityData.get(DATA_GEAR_CLEARANCE);
+    }
+
+    /** Packed settlement heraldry colours (GearGate#packHeraldry); 0 when unknown. */
+    public int heraldryPacked() {
+        return entityData.get(DATA_HERALDRY);
+    }
+
+    /** Server-only projection write, change-detected. */
+    public void setGearProjection(int clearance, int heraldry) {
+        if (entityData.get(DATA_GEAR_CLEARANCE) != clearance) {
+            entityData.set(DATA_GEAR_CLEARANCE, clearance);
+        }
+        if (entityData.get(DATA_HERALDRY) != heraldry) {
+            entityData.set(DATA_HERALDRY, heraldry);
+        }
+    }
+
+    /** Synced trade XP of the current profession; readable on both sides. */
+    public int tradeXp() {
+        return SkillLevels.clampXp(entityData.get(DATA_TRADE_XP));
+    }
+
+    /** Server: project the current profession's XP into synced data. */
+    public void syncTradeSkill() {
+        if (level().isClientSide) return;
+        int xp = tradeSkills.xp(getProfession());
+        if (entityData.get(DATA_TRADE_XP) != xp) {
+            entityData.set(DATA_TRADE_XP, xp);
+        }
+    }
+
+    // --------------------------------------------------------- life need ---
+
+    /** The synced {@link LifeNeed} code; readable on both sides. */
+    public int lifeNeed() {
+        return entityData.get(DATA_LIFE_NEED);
+    }
+
+    /** Server: refresh the life-need projection on the once-a-second tick. */
+    private void syncLifeNeed() {
+        if (!(level() instanceof ServerLevel server)) return;
+        long now = server.getGameTime();
+        Settlement s = settlement();
+        if (s != null && LifeNeed.threatActive(s, now)) {
+            frightenedUntil = now + LifeNeed.FRIGHT_LINGER_TICKS;
+        }
+        byte code = (byte) LifeNeed.compute(this, server, frightenedUntil);
+        if (entityData.get(DATA_LIFE_NEED) != code) {
+            entityData.set(DATA_LIFE_NEED, code);
+        }
     }
 
     /** QUICK_STUDY buys its growth with a point off every attribute. */
@@ -1243,12 +1967,48 @@ public class SettlerEntity extends PathfinderMob {
     public boolean prefersRoads() {
         return getTarget() == null
             && getActivity() != SettlerActivity.COMBAT
-            && getActivity() != SettlerActivity.FLEEING;
+            && getActivity() != SettlerActivity.FLEEING
+            && getActivity() != SettlerActivity.RETREATING;
     }
 
     /** The village clock. One rhythm for everyone — see {@link DayPhase}. */
     public DayPhase dayPhase() {
-        return DayPhase.of(level().getDayTime());
+        // EARLY_RISER / NIGHT_OWL keep their own hour (AttributeRuntime.dayPhaseOf,
+        // plan/ATTRIBUTES.md); the plain village clock when trait effects are off.
+        return AttributeRuntime.dayPhaseOf(this, level().getDayTime());
+    }
+
+    /** Hunger at or above this counts as "full" (vanilla: 18 of 20). */
+    public static final float WELL_FED_HUNGER = 90.0F;
+    /** Seconds between well-fed heals (vanilla: one half-heart every 4 s). */
+    private static final int WELL_FED_HEAL_SECONDS = 4;
+    /** Hunger spent per health point restored. */
+    private static final float WELL_FED_HUNGER_PER_HEALTH = 1.0F;
+
+    /**
+     * Owner decision 25 Sep 2026: a settler with a full belly slowly heals,
+     * like a player. Never mid-fight, burning, or within 10 s of being hurt;
+     * each point costs hunger, so a wounded village eats its stores.
+     * Called from the once-a-second {@link #tickNeeds()}.
+     */
+    /** GameTest seam: measure meal-only healing without the well-fed trickle (never saved). */
+    private boolean wellFedRegenSuppressedForTests;
+
+    public void suppressWellFedRegenForTests() {
+        wellFedRegenSuppressedForTests = true;
+    }
+
+    private void tickWellFedRegen(SettlerActivity activity) {
+        if (wellFedRegenSuppressedForTests) return;
+        if (getHealth() >= getMaxHealth() || getHunger() < WELL_FED_HUNGER) return;
+        if (activity == SettlerActivity.COMBAT
+            || activity == SettlerActivity.FLEEING
+            || activity == SettlerActivity.RETREATING) return;
+        if (hurtTime > 0 || isOnFire() || getLastDamageSource() != null) return;
+        if (getLastHurtByMob() != null && tickCount - getLastHurtByMobTimestamp() < 200) return;
+        if ((tickCount / 20) % WELL_FED_HEAL_SECONDS != 0) return;
+        heal(1.0F);
+        setHunger(getHunger() - WELL_FED_HUNGER_PER_HEALTH);
     }
 
     private void tickNeeds() {
@@ -1268,6 +2028,11 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_HAMMER
             || activity == SettlerActivity.WORK_SAW
             || activity == SettlerActivity.WORK_WEAVE
+            || activity == SettlerActivity.WORK_BANDAGE
+            || activity == SettlerActivity.WORK_REVIVE
+            || activity == SettlerActivity.CAST_FIREBOLT
+            || activity == SettlerActivity.CAST_FROST
+            || activity == SettlerActivity.CAST_WARD
             || activity == SettlerActivity.WORK_OVEN
             || activity == SettlerActivity.WORK_SOW
             || activity == SettlerActivity.WORK_MINE
@@ -1279,11 +2044,22 @@ public class SettlerEntity extends PathfinderMob {
             || activity == SettlerActivity.WORK_SHEAR
             || activity == SettlerActivity.WORK_FISH
             || activity == SettlerActivity.WORK_HUNT
+            || activity == SettlerActivity.HAULING_CARCASS
+            || activity == SettlerActivity.WORK_BUTCHER
+            || activity == SettlerActivity.WORK_SKIN
             || activity == SettlerActivity.WORK_CRAFT
             || activity == SettlerActivity.STORE_CRAFT_OUTPUT;
 
         setHunger(getHunger()
-            - (working ? 0.10F : 0.04F) * Trait.hunger(traits()));
+            - (working ? 0.10F : 0.04F) * Trait.hunger(traits())
+                * com.hearthstead.settlement.development.DevelopmentBonuses
+                    .hungerDrainScale(this)
+                // [economy] hungerDrainMultiplier (plan/ECONOMY.md): 1.0 made a
+                // worker eat ~3.7 loaves a day, more than a courier chain can
+                // carry for a 35-settler village. Neutral (1.0) in GameTests.
+                * (float) com.hearthstead.settlement.economy.EconomyConfig
+                    .hungerDrainMultiplier(getServer()));
+        tickWellFedRegen(activity);
         // LONG_DAYS: a hardy mayor's settlement tires more slowly.
         float drain = 1.0F;
         Settlement mayorSeat = settlement();
@@ -1297,13 +2073,19 @@ public class SettlerEntity extends PathfinderMob {
             // A claimed bed must beat rough hearth-side rest, and a sleeper
             // that cannot regain energy can never satisfy RestAtNightGoal's
             // exit condition -- it would be stuck asleep forever.
-            setEnergy(getEnergy() + 1.5F);
+            setEnergy(getEnergy() + 1.5F
+                * com.hearthstead.settlement.development.DevelopmentBonuses
+                    .sleepEnergyScale(this));
         } else if (activity == SettlerActivity.RESTING) {
             setEnergy(getEnergy() + 1.2F);
         } else {
-            setEnergy(getEnergy() - (working ? 0.09F : 0.02F));
+            // Stamina: working drains less (AttributeRuntime.workingDrain).
+            setEnergy(getEnergy() - (working
+                ? AttributeRuntime.workingDrain(this, 0.09F) : 0.02F));
         }
         applyFatigueSlow();
+        AttributeRuntime.applyMaxHealth(this);
+        AttributeRuntime.applyTraitSpeed(this);
 
         float target = 50.0F;
         float hunger = getHunger();
@@ -1325,7 +2107,12 @@ public class SettlerEntity extends PathfinderMob {
         if (s != null) {
             int homeQuality = com.hearthstead.settlement.BuildingManager
                 .homeQualityFor(s, claimedBed);
-            target += claimedBed != null ? 5 + homeQuality : -5;
+            target += claimedBed != null ? 5 + homeQuality
+                + com.hearthstead.settlement.development.DevelopmentBonuses
+                    .bedMorale(this)
+                // Tech tree (Sturdy Beds / Manors): a level 2 / 3 home.
+                + com.hearthstead.settlement.techtree.effects.CommonsEffects
+                    .homeMorale(this, s, claimedBed) : -5;
         }
         if (s != null && s.alertActive(level().getGameTime())) {
             target -= 20;
@@ -1356,7 +2143,9 @@ public class SettlerEntity extends PathfinderMob {
     private void tickEffortRefill() {
         boolean sleepingNow = isSleeping();
         if (sleepingLastTick && !sleepingNow) {
-            effort().refillFull(attribute(Attribute.STAMINA));
+            // Tech tree (Feather Quilts): a calm night wakes Well Rested (110%).
+            effort().refillFull(attribute(Attribute.STAMINA),
+                com.hearthstead.settlement.techtree.effects.CommonsEffects.wakeRefillFraction(this));
         }
         sleepingLastTick = sleepingNow;
 
@@ -1371,11 +2160,39 @@ public class SettlerEntity extends PathfinderMob {
 
     @Override
     public void tick() {
+        if (!level().isClientSide && (tickCount == 0 || tickCount % 20 == 0)) {
+            GuardHealth.refresh(this);
+        }
+        // Reconcile the saved civic seat before any old job goal can execute.
+        // Retry a deferred physical workplace return once per second.
+        if (!level().isClientSide && isAlive()
+                && (tickCount == 0 || tickCount % 20 == 0)) {
+            Settlement seat = settlement();
+            if (seat != null && (getUUID().equals(seat.mayorId)
+                    || getProfession() == Profession.MAYOR)) {
+                com.hearthstead.settlement.Employment.refresh(seat, this);
+            }
+        }
         super.tick();
         if (level().isClientSide) {
             setupAnimationStates();
+            DrunkSounds.clientTick(this);
         } else {
+            validateCinematicFinisher();
+            tickDrunk();
             tickBlessingContactCues();
+        }
+    }
+
+    /** A claimed drive is only a presentation for a normal, live blade contact. */
+    private void validateCinematicFinisher() {
+        if (cinematicFinisherTicket == MeleeContactLedger.NO_TICKET
+            || !(level() instanceof ServerLevel server)) {
+            return;
+        }
+        if (!(server.getEntity(cinematicFinisherTargetId) instanceof RaiderEntity raider)
+            || !isAuthorizedMeleeContactTarget(raider)) {
+            cancelMeleeContact(cinematicFinisherTicket);
         }
     }
 
@@ -1414,15 +2231,22 @@ public class SettlerEntity extends PathfinderMob {
         if (!level().isClientSide) {
             if (tickCount % 20 == 0) {
                 tickNeeds();
+                if (level() instanceof ServerLevel mealLevel) {
+                    residentMeal.releaseRemainder(this, mealLevel);
+                }
                 reconcileEquipmentNeedNow();
+                com.hearthstead.settlement.gear.GearGate.tickSecond(this);
                 tickGuardEquipment();
                 syncLogisticsStopProjection();
+                syncLifeNeed();
+                syncTradeSkill();
                 com.hearthstead.util.QaTrace.record(this);
             }
             tickAccents();
             syncCarryLoad();
             wearPath();
             tickEffortRefill();
+            com.hearthstead.entity.ai.SettlerStuckWatchdog.tick(this);
             if (voiceCooldown > 0) {
                 voiceCooldown--;
             }
@@ -1439,11 +2263,48 @@ public class SettlerEntity extends PathfinderMob {
     private String lastRouteFailure;
     private long lastRouteFailureTick = Long.MIN_VALUE;
 
+    /**
+     * Transient, server-side proof captured only when workplace storage really
+     * changes. It is diagnostic rather than authority: the inventory
+     * transaction remains owned by WorkerProvenanceService, and this row is
+     * neither persisted nor synced. Keeping it on the exact worker avoids a
+     * global GameTest observer and adds no work to ordinary entity ticks.
+     */
+    public record StorageMutationWitness(BlockPos target,
+                                         BlockPos contactPosition,
+                                         ContainerApproach.State contactState,
+                                         long contactTick,
+                                         long mutationTick,
+                                         int destinationBefore,
+                                         int destinationAfter) {
+        public StorageMutationWitness {
+            target = java.util.Objects.requireNonNull(target,
+                "storage witness target").immutable();
+            contactPosition = java.util.Objects.requireNonNull(contactPosition,
+                "storage witness contact position").immutable();
+        }
+
+        public boolean directContactCommit() {
+            return contactState == ContainerApproach.State.CONTACT
+                && contactTick == mutationTick
+                && destinationAfter > destinationBefore;
+        }
+    }
+
+    @Nullable private StorageMutationWitness lastStorageMutationWitness;
+
     // Effort's wake-refill edges (see tickEffortRefill above): whether this
     // settler was asleep/resting on the PREVIOUS tick, so the refill fires
     // exactly once, at the instant rest ends, rather than every tick of it.
     private boolean sleepingLastTick;
     private boolean restingRoughLastTick;
+
+    /** Persisted absolute deadline; max avoids shortening shelter on repeated threats. */
+    public long panicShelterUntil() { return panicShelterUntil; }
+
+    public void extendPanicShelterUntil(long deadline) {
+        panicShelterUntil = Math.max(panicShelterUntil, deadline);
+    }
 
     public void recordRouteFailure(String reason) {
         this.lastRouteFailure = reason;
@@ -1456,6 +2317,33 @@ public class SettlerEntity extends PathfinderMob {
             return "none";
         }
         return lastRouteFailure + "@" + lastRouteFailureTick;
+    }
+
+    /**
+     * Records the exact successful contact result which immediately preceded
+     * one authoritative storage insert. Invalid/no-op observations fail
+     * closed and can never overwrite an earlier real witness.
+     */
+    public void recordStorageMutationWitness(ContainerApproach.Result contact,
+                                             long contactTick,
+                                             long mutationTick,
+                                             int destinationBefore,
+                                             int destinationAfter) {
+        if (level().isClientSide || contact == null || !contact.canInteract()
+            || contact.target() == null || contact.approach() == null
+            || contactTick < 0L || mutationTick < contactTick
+            || destinationBefore < 0
+            || destinationAfter <= destinationBefore) {
+            return;
+        }
+        lastStorageMutationWitness = new StorageMutationWitness(
+            contact.target(), contact.approach(), contact.state(), contactTick,
+            mutationTick, destinationBefore, destinationAfter);
+    }
+
+    /** Read-only, transient diagnostics for integration tests/live triage. */
+    public Optional<StorageMutationWitness> lastStorageMutationWitness() {
+        return Optional.ofNullable(lastStorageMutationWitness);
     }
 
     /**
@@ -1499,6 +2387,27 @@ public class SettlerEntity extends PathfinderMob {
     /** Target plaque/hearth for the diegetic diagnosis. */
     public Optional<BlockPos> logisticsStopTarget() {
         return entityData.get(DATA_LOGISTICS_TARGET);
+    }
+
+    /**
+     * Requests operation of one already-validated nearby workplace door.
+     * {@link SettlerDoorGoal} independently revalidates proximity and block
+     * type before opening it, then consumes this transient request.
+     */
+    public void requestDoorPassage(BlockPos door) {
+        if (!level().isClientSide && door != null) {
+            requestedDoorPassage = door.immutable();
+        }
+    }
+
+    /** Runtime-only input for the flag-free door goal. */
+    public Optional<BlockPos> requestedDoorPassage() {
+        return Optional.ofNullable(requestedDoorPassage);
+    }
+
+    /** Consumes or invalidates the current transient door handoff. */
+    public void clearDoorPassageRequest() {
+        requestedDoorPassage = null;
     }
 
     /**
@@ -1557,6 +2466,27 @@ public class SettlerEntity extends PathfinderMob {
     /** Client-safe, immutable view of the current server-authored craft. */
     public CraftPresentation craftPresentation() {
         return craftPresentation;
+    }
+
+    public BagTransferPresentation bagTransferPresentation() {
+        return bagTransferPresentation;
+    }
+
+    /** Publish a visual claim only; callers retain all inventory authority. */
+    public void publishBagTransferPresentation(BagTransferPresentation presentation) {
+        if (level().isClientSide || presentation == null || !presentation.active()) return;
+        bagTransferPresentation = presentation;
+        entityData.set(DATA_BAG_TRANSFER_PRESENTATION,
+            presentation.save(registryAccess()));
+    }
+
+    /** An old/reordered owner may never clear a newer transfer. */
+    public void clearBagTransferPresentation(UUID transferId) {
+        if (level().isClientSide || transferId == null
+            || !bagTransferPresentation.active()
+            || !transferId.equals(bagTransferPresentation.transferId())) return;
+        bagTransferPresentation = BagTransferPresentation.empty();
+        entityData.set(DATA_BAG_TRANSFER_PRESENTATION, new CompoundTag());
     }
 
     /**
@@ -1685,6 +2615,36 @@ public class SettlerEntity extends PathfinderMob {
         entityData.set(DATA_CARRY_CAPACITY, Mth.clamp(capacity, 1, BAG_SIZE * 64));
     }
 
+    /** Sack tier 0..3 (none, Satchel, Leather Pack, Frame Pack); client-safe. */
+    public int sackTier() {
+        return com.hearthstead.settlement.development.HaulGear.unpackTier(
+            entityData.get(DATA_HAUL_GEAR));
+    }
+
+    /** True when this Courier's settlement owns the Hand Cart; client-safe. */
+    public boolean hasHandCart() {
+        return com.hearthstead.settlement.development.HaulGear.unpackCart(
+            entityData.get(DATA_HAUL_GEAR));
+    }
+
+    /** Cart tier 0..3 (none, Hand Cart, Coster's Cart, Mule Cart); client-safe. */
+    public int cartTier() {
+        return com.hearthstead.settlement.development.HaulGear.unpackCartTier(
+            entityData.get(DATA_HAUL_GEAR));
+    }
+
+    /** Sack prop scale for the tier: 1.00, 1.15, 1.30, 1.45. */
+    public float sackVisualScale() {
+        return com.hearthstead.settlement.development.HaulGear.visualScale(sackTier());
+    }
+
+    /** Server: publishes the packed gear projection (see HaulGear). */
+    public void setHaulGear(int packed) {
+        if (entityData.get(DATA_HAUL_GEAR) != packed) {
+            entityData.set(DATA_HAUL_GEAR, packed);
+        }
+    }
+
     /**
      * Client-safe icon for the current server-authored equipment need.
      * Returning a fresh one-count stack prevents render code from ever
@@ -1773,6 +2733,8 @@ public class SettlerEntity extends PathfinderMob {
             return;
         }
         lastFootfall = here;
+        // Road / courier / cart speed and the visible sack tier (HaulGear).
+        com.hearthstead.settlement.development.HaulGear.onFootfall(this);
         if (onGround() && level() instanceof ServerLevel serverLevel) {
             com.hearthstead.entity.path.PathWear.step(serverLevel, this);
         }
@@ -1782,6 +2744,10 @@ public class SettlerEntity extends PathfinderMob {
         int total = 0;
         for (int i = 0; i < bag.getContainerSize(); i++) {
             total += bag.getItem(i).getCount();
+        }
+        // A stowed batch load is carried too (sack fill and walking weight).
+        for (int i = 0; i < batchStow.getContainerSize(); i++) {
+            total += batchStow.getItem(i).getCount();
         }
         if (entityData.get(DATA_CARRY_LOAD) != total) {
             entityData.set(DATA_CARRY_LOAD, total);
@@ -1841,6 +2807,10 @@ public class SettlerEntity extends PathfinderMob {
     }
 
     private void setupAnimationStates() {
+        // This custom one-shot is read procedurally rather than through
+        // HierarchicalModel.animate(), so advance it on the client tick too.
+        // The tick update also guarantees expiry while the entity is offscreen.
+        archerLooseState.updateTime(tickCount, 1.0F);
         SettlerActivity activity = getActivity();
         Profession profession = getProfession();
         boolean moving = walkAnimation.speed() > 0.05F;
@@ -1858,6 +2828,9 @@ public class SettlerEntity extends PathfinderMob {
             && ((activity == SettlerActivity.IDLE && profession == Profession.NONE)
                 || (idleTrade && profession == Profession.LUMBERER
                     && getMainHandItem().isEmpty())
+                // The Mayor has no trade idle of its own; without this it
+                // stood rigid with no breathing or sway.
+                || (idleTrade && profession == Profession.MAYOR)
                 || activity == SettlerActivity.EATING || activity == SettlerActivity.CELEBRATING),
             tickCount);
         // One gate per motion family, not per profession -- GUARD/ARCHER
@@ -1885,9 +2858,13 @@ public class SettlerEntity extends PathfinderMob {
         // does not.
         idleSentryState.animateWhen(idleTrade && !moving
             && (profession == Profession.GUARD || profession == Profession.ARCHER
-                || profession == Profession.HUNTER), tickCount);
+                || profession == Profession.HUNTER
+                // battle roles: IDLE_SPEARMAN / IDLE_LONGSWORDSMAN (SettlerModel picks the clip)
+                || profession == Profession.SPEARMAN || profession == Profession.LONGSWORDSMAN), tickCount);
         idleCourierState.animateWhen(idleTrade && !moving
             && profession == Profession.COURIER, tickCount);
+        idleTraderState.animateWhen(idleTrade && !moving
+            && profession == Profession.TRADER, tickCount);
         // ARMOURY-3: an armourer's idle is the same forge-side wait as the
         // smith's and the smelter's -- both hands flex, then wipe down the
         // apron -- so it joins this gate rather than getting a bespoke clip.
@@ -1900,7 +2877,9 @@ public class SettlerEntity extends PathfinderMob {
             && (profession == Profession.COOK || profession == Profession.BREWER), tickCount);
         idleSightEdgeState.animateWhen(idleTrade && !moving
             && (profession == Profession.MASON || profession == Profession.CARPENTER
-                || profession == Profession.SAWYER), tickCount);
+                || profession == Profession.SAWYER
+                // BUILDER lane: sighting a straight edge is the builder's idle too.
+                || profession == Profession.BUILDER), tickCount);
         idleFletcherState.animateWhen(idleTrade && !moving
             && profession == Profession.FLETCHER, tickCount);
         idleMinerState.animateWhen(idleTrade && !moving
@@ -1930,7 +2909,8 @@ public class SettlerEntity extends PathfinderMob {
         // which is the exact misread the activity exists to prevent.
         stanceState.animateWhen((activity == SettlerActivity.PATROLLING
             || activity == SettlerActivity.COMBAT
-            || activity == SettlerActivity.OUT_OF_AMMO) && !moving, tickCount);
+            || activity == SettlerActivity.OUT_OF_AMMO
+            || activity == SettlerActivity.RETREATING) && !moving, tickCount);
 
         // SLICE ANIM-1 additions.
         plantState.animateWhen(activity == SettlerActivity.WORK_PLANT && !moving, tickCount);
@@ -1980,7 +2960,8 @@ public class SettlerEntity extends PathfinderMob {
         patrolState.animateWhen(moving
             && ((profession == Profession.GUARD
                     && (activity == SettlerActivity.PATROLLING
-                        || activity == SettlerActivity.COMBAT))
+                        || activity == SettlerActivity.COMBAT
+                        || activity == SettlerActivity.RETREATING))
                 || (profession == Profession.ARCHER
                     && (activity == SettlerActivity.PATROLLING
                         || activity == SettlerActivity.COMBAT
@@ -2006,11 +2987,16 @@ public class SettlerEntity extends PathfinderMob {
         chiselState.animateWhen(activity == SettlerActivity.WORK_CHISEL && !moving, tickCount);
         fletchState.animateWhen(activity == SettlerActivity.WORK_FLETCH && !moving, tickCount);
         scrapeState.animateWhen(activity == SettlerActivity.WORK_SCRAPE && !moving, tickCount);
+        // Hunter butchery: own states on the butcher's CLEAVE and the
+        // tanner's TANNER_SCRAPE clips (same stationary-work gate).
+        butcherState.animateWhen(activity == SettlerActivity.WORK_BUTCHER && !moving, tickCount);
+        skinState.animateWhen(activity == SettlerActivity.WORK_SKIN && !moving, tickCount);
         // TRADES-1: same stationary-work gate as every clip just above --
         // moving cancels the trade clip and plain WALK takes over instead.
         shearState.animateWhen(activity == SettlerActivity.WORK_SHEAR && !moving, tickCount);
         fishState.animateWhen(activity == SettlerActivity.WORK_FISH && !moving, tickCount);
-        huntState.animateWhen(activity == SettlerActivity.WORK_HUNT && !moving, tickCount);
+        huntState.animateWhen(activity == SettlerActivity.WORK_HUNT, tickCount);
+        carcassCarryState.animateWhen(activity == SettlerActivity.HAULING_CARCASS, tickCount);
         // ANIM-TRUTH-0A: these are transaction clocks, not ambient loops.
         // They start at the exact server-authored phase boundary and carry
         // no per-entity phase offset in SettlerModel.
@@ -2035,11 +3021,44 @@ public class SettlerEntity extends PathfinderMob {
         }
 
         // One-shots expire on their own clock.
-        if (meleeState.isStarted() && meleeState.getAccumulatedTime() > 500L) {
+        // Weapon-aware: a warhammer's plain swing runs 24 ticks, not 10.
+        com.hearthstead.entity.combat.WeaponClass heldWeapon = guardWeaponClass();
+        if (meleeState.isStarted() && meleeState.getAccumulatedTime()
+                > 50L * GuardMove.LIGHT_A.lengthTicks(heldWeapon)) {
             meleeState.stop();
         }
+        if (guardFinisherState.isStarted()
+            && guardFinisherState.getAccumulatedTime() > 700L) {
+            guardFinisherState.stop();
+        }
+        // Guard moveset clip lengths (GuardMove authored lengths at 20 Hz).
+        if (guardLightBState.isStarted()
+            && guardLightBState.getAccumulatedTime() > 500L) {
+            guardLightBState.stop();
+        }
+        if (guardHeavyState.isStarted()
+            && guardHeavyState.getAccumulatedTime()
+                > 50L * GuardMove.HEAVY.lengthTicks(heldWeapon)) {
+            guardHeavyState.stop();
+        }
+        if (guardShieldBashState.isStarted()
+            && guardShieldBashState.getAccumulatedTime() > 500L) {
+            guardShieldBashState.stop();
+        }
+        if (guardStaggerState.isStarted()
+            && guardStaggerState.getAccumulatedTime() > 600L) {
+            guardStaggerState.stop();
+        }
+        if (roleMoveState.isStarted() && (roleMoveId < 0
+            || roleMoveId >= com.hearthstead.entity.combat.role.RoleMove.values().length
+            || roleMoveState.getAccumulatedTime()
+                > com.hearthstead.entity.combat.role.RoleMove.values()[roleMoveId].lengthTicks() * 50L)) {
+            roleMoveState.stop();
+        }
+        // 800 ms: the authored ARCHER_RELOAD (0.75 s quiver fetch) runs on this event (anim lane);
+        // the procedural bow release still finishes its 400 ms blend inside it.
         if (archerLooseState.isStarted()
-            && archerLooseState.getAccumulatedTime() > 450L) {
+            && archerLooseState.getAccumulatedTime() > 800L) {
             archerLooseState.stop();
         }
         if (celebrateState.isStarted() && celebrateState.getAccumulatedTime() > 2100L) {
@@ -2089,9 +3108,24 @@ public class SettlerEntity extends PathfinderMob {
             && workContainerUpState.getAccumulatedTime() > 1650L) {
             workContainerUpState.stop();
         }
+        if (bagToChestUnloadState.isStarted()
+            && bagToChestUnloadState.getAccumulatedTime() > 4050L) {
+            bagToChestUnloadState.stop();
+        }
         // BLESSING_RECEIVE is 1.60 s. The small safety margin lets the final
         // keyed settle render before releasing every bone back to its real
         // work/idle pose; no activity is changed or restored here.
+        // The greeting is held for as long as the goal says (until EV_GUARD_SALUTE_END or
+        // EV_GUARD_SALUTE_CANCEL); this is only a safety net past the goal's own 20 s cap.
+        if (guardSaluteState.isStarted() && guardSaluteState.getAccumulatedTime() > 30_000L) {
+            guardSaluteState.stop();
+        }
+        if (guardSaluteEndState.isStarted() && guardSaluteEndState.getAccumulatedTime() > 1250L) {
+            guardSaluteEndState.stop();
+        }
+        if (guardNodState.isStarted() && guardNodState.getAccumulatedTime() > 750L) {
+            guardNodState.stop();
+        }
         if (blessingReceiveState.isStarted()
             && blessingReceiveState.getAccumulatedTime() > 1650L) {
             blessingReceiveState.stop();
@@ -2103,7 +3137,37 @@ public class SettlerEntity extends PathfinderMob {
         if (id == EV_CELEBRATE) {
             celebrateState.start(tickCount);
         } else if (id == EV_MELEE) {
-            meleeState.start(tickCount);
+            startOnlyGuardStrike(meleeState);
+        } else if (id == EV_GUARD_FINISHER) {
+            startOnlyGuardStrike(guardFinisherState);
+        } else if (id == EV_GUARD_FINISHER_CANCEL) {
+            guardFinisherState.stop();
+        } else if (id == EV_GUARD_LIGHT_B) {
+            startOnlyGuardStrike(guardLightBState);
+        } else if (id == EV_GUARD_HEAVY) {
+            startOnlyGuardStrike(guardHeavyState);
+        } else if (id == EV_GUARD_SHIELD_BASH) {
+            startOnlyGuardStrike(guardShieldBashState);
+        } else if (id >= EV_ROLE_MOVE_BASE
+            && id < EV_ROLE_MOVE_BASE + com.hearthstead.entity.combat.role.RoleMove.values().length) {
+            stopGuardStrikes();
+            guardStaggerState.stop();
+            roleMoveId = id - EV_ROLE_MOVE_BASE;
+            roleMoveState.start(tickCount);
+        } else if (id == EV_GUARD_STAGGER) {
+            stopGuardStrikes();
+            guardStaggerState.start(tickCount);
+        } else if (id == EV_GUARD_SALUTE) {
+            guardSaluteEndState.stop();
+            guardSaluteState.start(tickCount);
+        } else if (id == EV_GUARD_SALUTE_END) {
+            guardSaluteState.stop();
+            guardSaluteEndState.start(tickCount);
+        } else if (id == EV_GUARD_SALUTE_CANCEL) {
+            guardSaluteState.stop();
+            guardSaluteEndState.stop();
+        } else if (id == EV_GUARD_NOD) {
+            guardNodState.start(tickCount);
         } else if (id == EV_ARCHER_LOOSE) {
             archerLooseState.start(tickCount);
         } else if (id == EV_SHIELD_BLOCK) {
@@ -2130,9 +3194,33 @@ public class SettlerEntity extends PathfinderMob {
             startOnlyWorkContainerState(workContainerStowState);
         } else if (id == EV_WORK_CONTAINER_UP) {
             startOnlyWorkContainerState(workContainerUpState);
+        } else if (id == EV_BAG_TO_CHEST_UNLOAD) {
+            // A duplicate/reordered event may restart neither the pose nor its
+            // contact clock. A legitimate next cycle arrives after the full
+            // four-second handoff and may restart the same AnimationState.
+            if (!bagToChestUnloadState.isStarted()
+                || bagToChestUnloadState.getAccumulatedTime() >= 3900L) {
+                bagToChestUnloadState.start(tickCount);
+            }
         } else {
             super.handleEntityEvent(id);
         }
+    }
+
+    /** One guard strike at a time: a newer move always replaces the older pose. */
+    private void startOnlyGuardStrike(AnimationState selected) {
+        stopGuardStrikes();
+        guardStaggerState.stop();
+        selected.start(tickCount);
+    }
+
+    private void stopGuardStrikes() {
+        roleMoveState.stop();
+        meleeState.stop();
+        guardFinisherState.stop();
+        guardLightBState.stop();
+        guardHeavyState.stop();
+        guardShieldBashState.stop();
     }
 
     /** Network reordering must never add two mutually exclusive full-body poses. */
@@ -2155,6 +3243,39 @@ public class SettlerEntity extends PathfinderMob {
         return getMainHandItem().is(ItemTags.SWORDS);
     }
 
+    /** The weapon TYPE in the main hand (tag-classified, tier-agnostic). */
+    public com.hearthstead.entity.combat.WeaponClass guardWeaponClass() {
+        return com.hearthstead.entity.combat.WeaponClass.of(getMainHandItem());
+    }
+
+    /**
+     * A Guard fights with any melee weapon type: sword, short sword,
+     * longsword, spear, great axe, halberd or warhammer. Timing, reach and
+     * clips follow the type (GuardMove#hitTick(WeaponClass)).
+     */
+    public boolean hasGuardMeleeWeapon() {
+        return switch (guardWeaponClass()) {
+            case SWORD, SHORT_SWORD, LONGSWORD, SPEAR, GREAT_AXE, HALBERD,
+                WARHAMMER -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Vanilla melee reach, extended by the weapon's reach scale for long
+     * weapons (spear, halberd, longsword). Swords keep the vanilla box.
+     */
+    public boolean isWithinGuardReach(LivingEntity target) {
+        double scale = GuardMove.weaponReach(guardWeaponClass());
+        if (scale <= 1.0D) {
+            return isWithinMeleeAttackRange(target);
+        }
+        double inflate = 0.828D + (scale - 1.0D)
+            * (getBbWidth() * 0.5D + 0.828D + target.getBbWidth() * 0.5D);
+        return getBoundingBox().inflate(inflate, 0.0D, inflate)
+            .intersects(target.getHitbox());
+    }
+
     /** Archers currently request the vanilla bow, not a crossbow. */
     public boolean hasPhysicalMainhandBow() {
         return getMainHandItem().is(Items.BOW);
@@ -2169,19 +3290,22 @@ public class SettlerEntity extends PathfinderMob {
     public boolean isAuthorizedMeleeContactTarget(LivingEntity target) {
         if (!(level() instanceof ServerLevel level)
             || getProfession() != Profession.GUARD
-            || !hasPhysicalMainhandSword()
+            || !hasGuardMeleeWeapon()
             || !EquipmentRequests.readyForProfession(level, this,
                 Profession.GUARD)
             || target == null || target.level() != level
             || !target.isAlive() || target.isRemoved()
             || !(target instanceof Enemy) || !canAttack(target)
-            || !isWithinMeleeAttackRange(target)
+            || !isWithinGuardReach(target)
             || !getSensing().hasLineOfSight(target)) {
             return false;
         }
         Settlement settlement = settlement();
         if (settlement == null) {
             return false;
+        }
+        if (com.hearthstead.settlement.guard.BannerTeams.active(this) != null) {
+            return com.hearthstead.settlement.guard.BannerTeams.allowsTarget(this, target);
         }
         double defendedRadius = settlement.radius + 8.0;
         if (target.blockPosition().distSqr(settlement.center)
@@ -2211,18 +3335,105 @@ public class SettlerEntity extends PathfinderMob {
      * @return a positive one-use ticket, or zero when no wind-up was issued
      */
     public long beginMeleeWindup(LivingEntity target) {
-        if (!(level() instanceof ServerLevel level)
+        return beginGuardMove(target, GuardMove.LIGHT_A);
+    }
+
+    /**
+     * Starts one moveset wind-up and issues its single contact ticket, due
+     * {@link GuardMove#hitTick()} ticks from now. The broadcast event starts
+     * the matching client clip on the same tick, so the authored impact frame
+     * and the server contact coincide.
+     *
+     * <p>Only the light links (whose contact is the drive's tick four) may
+     * claim a raider's cinematic opportunity; that presentation keeps its
+     * "ordinary damage only" contract. A shield bash needs a physical shield;
+     * a staggered guard cannot begin anything.
+     */
+    public long beginGuardMove(LivingEntity target, GuardMove move) {
+        if (move == null || !(level() instanceof ServerLevel level)
+            || isCombatStaggered()
+            || (move == GuardMove.SHIELD_BASH && (!hasPhysicalOffhandShield()
+                || !GuardMove.allowsShieldBash(guardWeaponClass())))
             || !isAuthorizedMeleeContactTarget(target)) {
             return MeleeContactLedger.NO_TICKET;
         }
+        com.hearthstead.entity.combat.WeaponClass weapon = guardWeaponClass();
         long ticket = meleeContacts.begin(target.getUUID(),
-            level.getGameTime() + GuardMeleeGoal.MELEE_CONTACT_TICK);
-        if (ticket != MeleeContactLedger.NO_TICKET) {
-            // This event owns the whole one-shot. Its t=0.20 s frame is the
-            // exact server contact tick stored in the ticket above.
-            level.broadcastEntityEvent(this, EV_MELEE);
+            level.getGameTime() + move.hitTick(weapon));
+        if (ticket == MeleeContactLedger.NO_TICKET) {
+            return ticket;
         }
+        pendingGuardMove = move;
+        pendingGuardMoveTicket = ticket;
+        pendingGuardMoveTargetId = target.getUUID();
+        pendingGuardMoveContactTick = level.getGameTime() + move.hitTick(weapon);
+        // The cinematic drive's contact is the sword's tick four: only a
+        // sword-timed light may present as it.
+        if (move.isLight() && GuardMove.swordTimed(weapon)
+            && target instanceof RaiderEntity raider
+            && com.hearthstead.finisher.FinisherHooks.guardMayClaim(this, raider)
+            && raider.claimCinematicOpportunity(getUUID(), level.getGameTime())) {
+            cinematicFinisherTicket = ticket;
+            cinematicFinisherTargetId = target.getUUID();
+            level.broadcastEntityEvent(this, EV_GUARD_FINISHER);
+            return ticket;
+        }
+        level.broadcastEntityEvent(this, switch (move) {
+            // The ordinary ticket remains the usual animated strike.
+            case LIGHT_A -> EV_MELEE;
+            case LIGHT_B -> EV_GUARD_LIGHT_B;
+            case COMBO_FINISHER -> EV_GUARD_FINISHER;
+            case HEAVY -> EV_GUARD_HEAVY;
+            case SHIELD_BASH -> EV_GUARD_SHIELD_BASH;
+        });
         return ticket;
+    }
+
+    /**
+     * Ticks until this guard's pending HEAVY or combo finisher lands on
+     * {@code target}, or -1. Skirmishers read it to sidestep the blow.
+     */
+    public int ticksUntilHeavyBlowOn(LivingEntity target) {
+        if (!(level() instanceof ServerLevel level) || target == null
+            || pendingGuardMoveTicket == MeleeContactLedger.NO_TICKET
+            || !meleeContacts.isActive(pendingGuardMoveTicket)
+            || (pendingGuardMove != GuardMove.HEAVY
+                && pendingGuardMove != GuardMove.COMBO_FINISHER)
+            || !target.getUUID().equals(pendingGuardMoveTargetId)) {
+            return -1;
+        }
+        long in = pendingGuardMoveContactTick - level.getGameTime();
+        return in < 0L ? -1 : (int) Math.min(in, Integer.MAX_VALUE);
+    }
+
+    /** The move bound to a still-live ticket, or null once it is spent or cancelled. */
+    public GuardMove guardMoveFor(long ticket) {
+        return ticket != MeleeContactLedger.NO_TICKET
+            && ticket == pendingGuardMoveTicket
+            && meleeContacts.isActive(ticket) ? pendingGuardMove : null;
+    }
+
+    /**
+     * A landed enemy heavy rocks this guard: any pending wind-up is cancelled
+     * (its ticket can no longer deal damage) and no new move may begin until
+     * the stagger lapses. Runtime-only; a reload simply ends it.
+     */
+    public void applyCombatStagger(int ticks) {
+        if (ticks <= 0 || !(level() instanceof ServerLevel level) || !isAlive()) {
+            return;
+        }
+        long ticket = pendingGuardMoveTicket;
+        if (ticket != MeleeContactLedger.NO_TICKET && meleeContacts.isActive(ticket)) {
+            cancelMeleeContact(ticket);
+        }
+        combatStaggerUntil = Math.max(combatStaggerUntil, level.getGameTime() + ticks);
+        getNavigation().stop();
+        level.broadcastEntityEvent(this, EV_GUARD_STAGGER);
+    }
+
+    public boolean isCombatStaggered() {
+        return level() instanceof ServerLevel level
+            && level.getGameTime() < combatStaggerUntil;
     }
 
     /**
@@ -2237,13 +3448,33 @@ public class SettlerEntity extends PathfinderMob {
         }
         MeleeContactLedger.Attempt attempt = meleeContacts.consumeAttempt(
             ticket, target.getUUID(), level.getGameTime());
+        GuardMove committedMove = null;
+        if (ticket == pendingGuardMoveTicket) {
+            committedMove = pendingGuardMove;
+            pendingGuardMove = null;
+            pendingGuardMoveTicket = MeleeContactLedger.NO_TICKET;
+        }
         if (attempt == null) {
+            cancelCinematicFinisher(ticket);
+            return false;
+        }
+        boolean finishing = cinematicFinisherTicket == ticket
+            && target.getUUID().equals(cinematicFinisherTargetId);
+        if (finishing && (!(target instanceof RaiderEntity raider)
+                || !raider.beginCinematicFinisherImpact(getUUID(),
+                    level.getGameTime()))) {
+            cancelCinematicFinisher(ticket);
             return false;
         }
         // Consume first, validate second: a weapon/range/hostility failure is
         // terminal for this ticket and cannot be repaired then retried on the
         // same tick to resurrect the contact.
         if (!isAuthorizedMeleeContactTarget(target)) {
+            if (finishing && target instanceof RaiderEntity raider) {
+                raider.clearCinematicOpportunity(
+                    CinematicOpportunity.ClearReason.TARGET_LOST);
+            }
+            cancelCinematicFinisher(ticket);
             return false;
         }
         boolean hit = super.doHurtTarget(target);
@@ -2261,16 +3492,73 @@ public class SettlerEntity extends PathfinderMob {
                         contact.countBefore(), contact.countAfter(),
                         "attack:" + contact.actionId()));
             }
-            level.playSound(null, target.blockPosition(),
-                ModSounds.BLADE_HIT.get(), SoundSource.NEUTRAL,
-                0.85F, 0.95F + random.nextFloat() * 0.1F);
+            if (committedMove != GuardMove.SHIELD_BASH) {
+                // A bash lands the shield, not the edge; its thud is the
+                // goal's impact cue (GuardMeleeGoal#applyImpact).
+                level.playSound(null, target.blockPosition(),
+                    ModSounds.BLADE_HIT.get(), SoundSource.NEUTRAL,
+                    0.85F, 0.95F + random.nextFloat() * 0.1F);
+            }
+            if (target instanceof RaiderEntity raider && !finishing) {
+                raider.offerCinematicOpportunity(getUUID(), level.getGameTime());
+            } else if (finishing && target instanceof RaiderEntity raider
+                && raider.isAlive()) {
+                // A finishable raider becomes a full execution (rarer than a player's).
+                if (!com.hearthstead.finisher.FinisherHooks.onGuardFinisherContact(this, raider)) {
+                    raider.triggerCinematicStagger();
+                }
+            }
         }
+        if (finishing && !hit && target instanceof RaiderEntity raider) {
+            raider.clearCinematicOpportunity(
+                CinematicOpportunity.ClearReason.TARGET_LOST);
+        }
+        finishCinematicFinisher(ticket);
         return hit;
     }
 
     /** Cancels only the matching swing; a stale goal cannot cancel a newer one. */
     public void cancelMeleeContact(long ticket) {
         meleeContacts.cancel(ticket);
+        if (ticket == pendingGuardMoveTicket) {
+            pendingGuardMove = null;
+            pendingGuardMoveTicket = MeleeContactLedger.NO_TICKET;
+        }
+        cancelCinematicFinisher(ticket);
+    }
+
+    /** The accepted drive may play its recovery after its ticket is consumed. */
+    private void finishCinematicFinisher(long ticket) {
+        if (cinematicFinisherTicket == ticket) {
+            cinematicFinisherTicket = MeleeContactLedger.NO_TICKET;
+            cinematicFinisherTargetId = null;
+        }
+    }
+
+    /** A miss, target change or side intervention must stop the optional pose now. */
+    private void cancelCinematicFinisher(long ticket) {
+        if (cinematicFinisherTicket == ticket) {
+            UUID targetId = cinematicFinisherTargetId;
+            cinematicFinisherTicket = MeleeContactLedger.NO_TICKET;
+            cinematicFinisherTargetId = null;
+            if (level() instanceof ServerLevel server) {
+                if (targetId != null
+                    && server.getEntity(targetId) instanceof RaiderEntity raider) {
+                    raider.clearCinematicOpportunity(
+                        CinematicOpportunity.ClearReason.TARGET_LOST);
+                }
+                level().broadcastEntityEvent(this, EV_GUARD_FINISHER_CANCEL);
+            }
+        }
+    }
+
+    /** Target-side cancellation seam used by an arrow, side attack or expiry. */
+    public void cancelCinematicFinisherFor(UUID targetId) {
+        if (targetId != null && targetId.equals(cinematicFinisherTargetId)) {
+            long ticket = cinematicFinisherTicket;
+            meleeContacts.cancel(ticket);
+            cancelCinematicFinisher(ticket);
+        }
     }
 
     /** Package-visible proof seam for deterministic authority tests. */
@@ -2325,11 +3613,20 @@ public class SettlerEntity extends PathfinderMob {
         }
     }
 
-    /** Presentation-only release snap emitted on the exact server volley tick. */
-    public void triggerArcherLoose() {
+    /**
+     * Presentation-only bow release snap emitted after the physical projectile
+     * has entered the level. Both ranged professions use the same stable
+     * packet; their goals retain separate mechanics and timings.
+     */
+    public void triggerBowLoose() {
         if (!level().isClientSide) {
             level().broadcastEntityEvent(this, EV_ARCHER_LOOSE);
         }
+    }
+
+    /** Existing Archer API retained for source and packet compatibility. */
+    public void triggerArcherLoose() {
+        triggerBowLoose();
     }
 
     /**
@@ -2357,6 +3654,7 @@ public class SettlerEntity extends PathfinderMob {
             // Catalogue §16.2: stagger village wake events >= 8 ticks per
             // settler so the yawns land as a morning murmur, not in unison.
             wakeBroadcastIn = (getId() % 5) * 8;
+            com.hearthstead.ambient.LivingVillage.onWake(this);
         }
     }
 
@@ -2442,6 +3740,10 @@ public class SettlerEntity extends PathfinderMob {
             && player.getMainHandItem().isEmpty()
             && player.getOffhandItem().isEmpty()) {
             if (!level().isClientSide && player instanceof ServerPlayer serverPlayer) {
+                if (getProfession() == Profession.BUILDER) {
+                    com.hearthstead.network.BuilderNeedsNetwork.open(serverPlayer, this);
+                    return InteractionResult.CONSUME;
+                }
                 reconcileEquipmentNeedNow();
                 serverPlayer.openMenu(new SimpleMenuProvider(
                     (containerId, inventory, ignored) ->
@@ -2482,7 +3784,7 @@ public class SettlerEntity extends PathfinderMob {
                     SoundSource.NEUTRAL, 0.9F, 0.95F + random.nextFloat() * 0.1F);
                 voiceCooldown = 100;
             }
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(
+            com.hearthstead.network.PayloadSend.toPlayer(
                 serverPlayer, new OpenSettlerScreenPayload(getId()));
             // Sent right after: the screen opens on the first packet and the
             // second fills in what is not on the synced entity data (D-014 —
@@ -2552,6 +3854,93 @@ public class SettlerEntity extends PathfinderMob {
         return taken;
     }
 
+    // Neutral aliases retain the existing persisted NBT keys and capacity.
+    // Archer and Hunter therefore share one physical carried-arrow authority,
+    // while their attack and targeting rules remain separate.
+    public int carriedArrowCount() {
+        return archerQuiverCount();
+    }
+
+    @Nullable
+    public UUID carriedArrowSourceBuildingId() {
+        return archerQuiverSourceBuildingId();
+    }
+
+    public boolean carriedArrowsOwnedBy(UUID buildingId) {
+        return archerQuiverOwnedBy(buildingId);
+    }
+
+    public int storeCarriedArrows(UUID sourceBuildingId, int count) {
+        return storeArcherQuiverArrows(sourceBuildingId, count);
+    }
+
+    public int takeCarriedArrows(int count) {
+        return takeArcherQuiverArrows(count);
+    }
+
+    /**
+     * Returns Hunter arrows to their exact valid Lodge before the shared
+     * durable world fallback runs. Watchtower and malformed-source behavior
+     * deliberately remains owned by the established Archer helper.
+     */
+    public boolean releaseCarriedArrows(ServerLevel level,
+                                        @Nullable Settlement settlement) {
+        if (carriedArrowCount() <= 0) {
+            return true;
+        }
+        Building source = exactCarriedArrowSource(settlement,
+            carriedArrowSourceBuildingId());
+        if (source != null && source.type == BuildingType.HUNTERS_LODGE) {
+            for (BlockPos pos : WarehouseIndex.containers(level, source)) {
+                if (carriedArrowCount() <= 0) {
+                    break;
+                }
+                if (!(level.getBlockEntity(pos) instanceof Container chest)) {
+                    continue;
+                }
+                for (int slot = 0; slot < chest.getContainerSize()
+                        && carriedArrowCount() > 0; slot++) {
+                    ItemStack stack = chest.getItem(slot);
+                    if (stack.isEmpty()) {
+                        int moved = Math.min(carriedArrowCount(),
+                            new ItemStack(Items.ARROW).getMaxStackSize());
+                        chest.setItem(slot, new ItemStack(Items.ARROW, moved));
+                        chest.setChanged();
+                        takeCarriedArrows(moved);
+                    } else if (stack.is(Items.ARROW)
+                        && stack.getCount() < stack.getMaxStackSize()) {
+                        int moved = Math.min(carriedArrowCount(),
+                            stack.getMaxStackSize() - stack.getCount());
+                        stack.grow(moved);
+                        chest.setChanged();
+                        takeCarriedArrows(moved);
+                    }
+                }
+            }
+        }
+        return ArcherAttackGoal.releaseBorrowedArrows(level, settlement, this);
+    }
+
+    @Nullable
+    private static Building exactCarriedArrowSource(
+            @Nullable Settlement settlement, @Nullable UUID sourceId) {
+        if (settlement == null || sourceId == null) {
+            return null;
+        }
+        Building found = null;
+        for (Building building : settlement.buildings) {
+            if (sourceId.equals(building.id)) {
+                if (found != null) {
+                    return null;
+                }
+                found = building;
+            }
+        }
+        return found != null && found.valid
+            && (found.type == BuildingType.WATCHTOWER
+                || found.type == BuildingType.HUNTERS_LODGE) ? found : null;
+    }
+
     @Override
     public boolean hurt(DamageSource source, float amount) {
         boolean result = super.hurt(source, amount);
@@ -2580,7 +3969,9 @@ public class SettlerEntity extends PathfinderMob {
         if (!dead) {
             return;
         }
+        com.hearthstead.util.QaTrace.recordCoopDeath(this, cause);
         if (level() instanceof ServerLevel serverLevel) {
+            recordTavernDeathNotice(serverLevel);
             // Chest truth (2026-08-26 raid-night audit): a guard's armor is
             // real kit an armourer forged, and GuardRank#applyEquipment sets
             // every armor slot's drop chance to 0 so the settlement's
@@ -2599,7 +3990,7 @@ public class SettlerEntity extends PathfinderMob {
             GuardRank.clearEquipment(this);
             transferTerminalCargo(serverLevel);
             if (settlementId != null) {
-                SettlementManager.onSettlerDied(serverLevel, this);
+                SettlementManager.onSettlerDied(serverLevel, this, cause);
             }
         }
     }
@@ -2611,8 +4002,9 @@ public class SettlerEntity extends PathfinderMob {
      * bounded level-tick materializer has made room.
      */
     private boolean transferTerminalCargo(ServerLevel serverLevel) {
-        boolean complete = ArcherAttackGoal.releaseBorrowedArrows(serverLevel,
-            settlement(), this);
+        boolean complete = releaseCarriedArrows(serverLevel, settlement());
+        complete = residentMeal.releaseCargo(this, serverLevel) && complete;
+        syncResidentMeal();
         DeferredItemMaterializationSavedData deathDrops =
             DeferredItemMaterializationSavedData.get(serverLevel);
         for (int i = 0; i < bag.getContainerSize(); i++) {
@@ -2641,13 +4033,77 @@ public class SettlerEntity extends PathfinderMob {
             }
             deathDrops.materialize(serverLevel, transfer);
         }
-        return complete && archerQuiverCount() == 0 && bag.isEmpty();
+        // A worker's picked-up log/crop lives in the offhand (its ground item
+        // was already discarded) and a self-crafted tool lives in escrow after
+        // its inputs were consumed. Neither may vanish with the corpse.
+        String carriedTag = com.hearthstead.entity.ai.GroundCollectionSession.PERSISTENT_OFFHAND_OWNERSHIP_TAG;
+        ItemStack carried = getOffhandItem();
+        if (!carried.isEmpty() && getPersistentData().getBoolean(carriedTag)) {
+            UUID transfer = deathDrops.queue(serverLevel, getX(), getY() + 0.3D, getZ(), carried.copy());
+            if (transfer == null) {
+                complete = false;
+            } else {
+                setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
+                getPersistentData().remove(carriedTag);
+                deathDrops.materialize(serverLevel, transfer);
+            }
+        }
+        if (craftOutputEscrow != null && !craftOutputEscrow.output().isEmpty()) {
+            UUID transfer = deathDrops.queue(serverLevel, getX(), getY() + 0.3D, getZ(),
+                craftOutputEscrow.output().copy());
+            if (transfer == null) {
+                complete = false;
+            } else {
+                craftOutputEscrow = null;
+                deathDrops.materialize(serverLevel, transfer);
+            }
+        }
+        complete = dropBatchStow(serverLevel, deathDrops) && complete;
+        return complete && archerQuiverCount() == 0 && bag.isEmpty()
+            && batchStow.isEmpty() && !residentMeal.hasCargo();
+    }
+
+    /** Death: the stowed batch load leaves exactly like the bag (deferred drops). */
+    private boolean dropBatchStow(ServerLevel serverLevel, DeferredItemMaterializationSavedData deathDrops) {
+        boolean complete = true;
+        for (int i = 0; i < batchStow.getContainerSize(); i++) {
+            ItemStack live = batchStow.getItem(i);
+            if (live.isEmpty()) {
+                continue;
+            }
+            ItemStack expected = live.copy();
+            UUID transfer = deathDrops.queue(serverLevel, getX(), getY() + 0.3D, getZ(), expected);
+            if (transfer == null) {
+                complete = false;
+                continue;
+            }
+            ItemStack removed = batchStow.removeItemNoUpdate(i);
+            if (removed.getCount() != expected.getCount()
+                || !ItemStack.isSameItemSameComponents(removed, expected)) {
+                batchStow.setItem(i, expected);
+                deathDrops.cancel(transfer);
+                complete = false;
+                com.hearthstead.Hearthstead.LOGGER.error(
+                    "Death-drop transfer for settler {} batch stow slot {} failed source-clear invariant",
+                    getUUID(), i);
+                continue;
+            }
+            deathDrops.materialize(serverLevel, transfer);
+        }
+        return complete;
+    }
+
+    private boolean recordTavernDeathNotice(ServerLevel level) {
+        if (!getPersistentData().hasUUID(com.hearthstead.settlement.work.TavernHostService.ORDER_KEY)) return true;
+        return com.hearthstead.settlement.work.TavernOrderDeathSavedData.get(level).record(
+            level, getPersistentData().getUUID(com.hearthstead.settlement.work.TavernHostService.ORDER_KEY),
+            getUUID(), getX(), getY(), getZ());
     }
 
     @Override
     protected void tickDeath() {
         if (level() instanceof ServerLevel serverLevel
-            && !transferTerminalCargo(serverLevel)) {
+            && (!recordTavernDeathNotice(serverLevel) || !transferTerminalCargo(serverLevel))) {
             // Do not increment vanilla's removal timer while this corpse still
             // owns cargo. Capacity/rejection can delay cleanup, never delete it.
             return;
@@ -2674,11 +4130,20 @@ public class SettlerEntity extends PathfinderMob {
         tag.putFloat("Hunger", getHunger());
         tag.putFloat("Energy", getEnergy());
         tag.putFloat("Morale", getMorale());
+        if (drunkPoints > 0.0) {
+            // tavern lane: bounded points + the game time they were last brought up to date
+            tag.putDouble("DrunkPoints", Math.min(Drunkenness.MAX_POINTS, drunkPoints));
+            tag.putLong("DrunkStamp", drunkUpdated == Long.MIN_VALUE ? level().getGameTime() : drunkUpdated);
+        }
         tag.putInt("Appearance", getAppearanceSeed());
+        if (getLookCostume() != 0) {
+            tag.putInt("LookCostume", getLookCostume());
+        }
         tag.putInt(COMBAT_EXPERIENCE_NBT_KEY, combatExperience());
         tag.put(COMBAT_LEDGER_NBT_KEY, guardCombatLedger.writeNbt());
         tag.putBoolean("Traveler", traveler);
         tag.put("Attributes", attributes().save());
+        tag.put(SkillLevels.NBT_KEY, tradeSkills.save());
         effort().writeTo(tag);
         net.minecraft.nbt.ListTag traitTag = new net.minecraft.nbt.ListTag();
         for (String key : Trait.keys(traits())) {
@@ -2694,10 +4159,17 @@ public class SettlerEntity extends PathfinderMob {
         if (hearthPos != null) {
             tag.put("HearthPos", NbtUtils.writeBlockPos(hearthPos));
         }
+        if (panicShelterUntil > Long.MIN_VALUE) {
+            tag.putLong("PanicShelterUntil", panicShelterUntil);
+        }
         if (claimedBed != null) {
             tag.put("ClaimedBed", NbtUtils.writeBlockPos(claimedBed));
         }
         tag.put("Bag", bag.createTag(registryAccess()));
+        if (!batchStow.isEmpty()) {
+            tag.put("BatchStow", batchStow.createTag(registryAccess()));
+        }
+        tag.put(ResidentMeal.NBT_KEY, residentMeal.save(registryAccess()));
         tag.putInt(ARCHER_QUIVER_NBT_KEY, archerQuiver);
         if (archerQuiver > 0 && archerQuiverSource != null) {
             tag.putUUID(ARCHER_QUIVER_SOURCE_NBT_KEY, archerQuiverSource);
@@ -2715,6 +4187,10 @@ public class SettlerEntity extends PathfinderMob {
             tag.put("CraftOutputEscrow",
                 craftOutputEscrow.save(registryAccess()));
         }
+        if (bagTransferPresentation.active()) {
+            tag.put("BagTransferPresentation",
+                bagTransferPresentation.save(registryAccess()));
+        }
         tag.putInt(TARGET_BLESSINGS_SCHEMA_KEY,
             TARGET_BLESSINGS_SCHEMA_VERSION);
         tag.put("TargetBlessings", targetBlessings.writeNbt());
@@ -2723,16 +4199,24 @@ public class SettlerEntity extends PathfinderMob {
     @Override
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
+        workerLifecycle.clear(); // Ledger authority reconstructs work after load.
+        readDrunkenness(tag);
         // Presentation cues are runtime-only. Reusing an entity instance for a
         // load must never replay an already-consumed permanent binding.
         pendingBlessingCues = null;
         // MELEE contact authority is also runtime-only. A save made during
         // wind-up reloads cold instead of replaying an old blade on a target.
         meleeContacts.resetTransientState();
+        pendingGuardMove = null;
+        pendingGuardMoveTicket = MeleeContactLedger.NO_TICKET;
+        combatStaggerUntil = Long.MIN_VALUE;
         shieldThudIn = -1;
         shieldBlockPresentationSequence = 0L;
         shieldBreakEventSequence = 0L;
-        Profession profession = Profession.byId(tag.getByte("Profession"));
+        // Retired Mayor office (Guildmaster, 26 Sep): an old MAYOR byte loads
+        // as an unassigned settler.
+        Profession profession = com.hearthstead.settlement.guildmaster.MayorRetirement
+            .retired(Profession.byId(tag.getByte("Profession")));
         entityData.set(DATA_PROFESSION, profession.id());
         setHunger(tag.getFloat("Hunger"));
         setEnergy(tag.getFloat("Energy"));
@@ -2743,11 +4227,17 @@ public class SettlerEntity extends PathfinderMob {
         // UUID bits) rather than leaving every such settler at seed 0.
         entityData.set(DATA_APPEARANCE_SEED,
             tag.contains("Appearance") ? tag.getInt("Appearance") : getUUID().hashCode());
+        entityData.set(DATA_LOOK_COSTUME, tag.getInt("LookCostume"));
         entityData.set(DATA_COMBAT_EXPERIENCE, GuardExperience.clamp(
             tag.contains(COMBAT_EXPERIENCE_NBT_KEY)
                 ? tag.getInt(COMBAT_EXPERIENCE_NBT_KEY) : 0));
         guardCombatLedger.readOptionalNbt(tag.get(COMBAT_LEDGER_NBT_KEY));
+        // Pre-skill saves have no key: every trade loads at level 1, 0 XP.
+        tradeSkills.load(tag.contains(SkillLevels.NBT_KEY)
+            ? tag.getCompound(SkillLevels.NBT_KEY) : null);
+        entityData.set(DATA_TRADE_XP, tradeSkills.xp(profession));
         traveler = tag.getBoolean("Traveler");
+        entityData.set(DATA_TRAVELER_APPEARANCE, traveler);
         // Traits first: rolling attributes consults SLOW_START.
         java.util.List<String> traitKeys = new java.util.ArrayList<>();
         net.minecraft.nbt.ListTag storedTraits = tag.getList("Traits", 8);
@@ -2769,7 +4259,12 @@ public class SettlerEntity extends PathfinderMob {
             ? tag.getUUID("TargetSettlementId") : null;
         hearthPos = NbtUtils.readBlockPos(tag, "HearthPos").orElse(null);
         claimedBed = NbtUtils.readBlockPos(tag, "ClaimedBed").orElse(null);
+        panicShelterUntil = tag.contains("PanicShelterUntil", Tag.TAG_LONG)
+            ? tag.getLong("PanicShelterUntil") : Long.MIN_VALUE;
         bag.fromTag(tag.getList("Bag", 10), registryAccess());
+        batchStow.fromTag(tag.getList("BatchStow", 10), registryAccess());
+        residentMeal.load(registryAccess(), tag.getCompound(ResidentMeal.NBT_KEY));
+        syncResidentMeal();
         archerQuiver = tag.contains(ARCHER_QUIVER_NBT_KEY, Tag.TAG_INT)
             ? Mth.clamp(tag.getInt(ARCHER_QUIVER_NBT_KEY), 0,
                 ARCHER_QUIVER_CAPACITY)
@@ -2816,6 +4311,23 @@ public class SettlerEntity extends PathfinderMob {
             craftPresentation = CraftPresentation.empty();
             entityData.set(DATA_CRAFT_PRESENTATION, new CompoundTag());
         }
+        BagTransferPresentation restoredBagPresentation = BagTransferPresentation.load(
+            registryAccess(), tag.getCompound("BagTransferPresentation"));
+        if (isStaleFarmerOutputPresentation(restoredBagPresentation)) {
+            // This output projection owns no inventory. Clear only its exact
+            // visual sack when the uncommitted crop is absent from the bag.
+            if (placedWorkContainerKind() == WorkContainerKind.SACK
+                && restoredBagPresentation.bagAnchor().equals(placedWorkContainerPos())) {
+                clearWorkContainer();
+            }
+            bagTransferPresentation = BagTransferPresentation.empty();
+        } else {
+            bagTransferPresentation = restoredBagPresentation;
+        }
+        entityData.set(DATA_BAG_TRANSFER_PRESENTATION,
+            bagTransferPresentation.active()
+                ? bagTransferPresentation.save(registryAccess())
+                : new CompoundTag());
         net.minecraft.nbt.Tag rawSchema = tag.get(TARGET_BLESSINGS_SCHEMA_KEY);
         net.minecraft.nbt.Tag rawBlessings = tag.get("TargetBlessings");
         boolean preFeature = rawSchema == null && rawBlessings == null;
@@ -2841,13 +4353,30 @@ public class SettlerEntity extends PathfinderMob {
         syncCarryLoad();
     }
 
+    private boolean isStaleFarmerOutputPresentation(BagTransferPresentation presentation) {
+        if (!presentation.active() || presentation.sourcePickup() || presentation.committed()
+            || (getProfession() != Profession.FARMER
+                && getProfession() != Profession.FISHER)) return false;
+        ItemStack visible = presentation.item();
+        for (int slot = 0; slot < bag.getContainerSize(); slot++) {
+            ItemStack live = bag.getItem(slot);
+            if (ItemStack.isSameItemSameComponents(live, visible)
+                && live.getCount() >= visible.getCount()) return false;
+        }
+        return true;
+    }
+
     /** Idempotent re-registration protects against lost records; called from
      *  EntityJoinLevelEvent so it works on every loader. */
     public void reRegisterWithSettlement() {
+        if (!isAlive() || isRemoved()) {
+            return;
+        }
         if (level() instanceof ServerLevel serverLevel && settlementId != null) {
             Settlement s = SettlementManager.byId(serverLevel, settlementId);
             if (s != null) {
                 s.putRecord(getUUID(), getSettlerName(), getProfession());
+                syncBedClaimProjection();
                 SettlementManager.data(serverLevel).setDirty();
             }
         }
@@ -2871,13 +4400,13 @@ public class SettlerEntity extends PathfinderMob {
     @Nullable
     @Override
     protected SoundEvent getHurtSound(DamageSource source) {
-        return SoundEvents.PLAYER_HURT;
+        return com.hearthstead.registry.ModSounds.SETTLER_HURT.get();
     }
 
     @Nullable
     @Override
     protected SoundEvent getDeathSound() {
-        return SoundEvents.PLAYER_DEATH;
+        return com.hearthstead.registry.ModSounds.SETTLER_DEATH.get();
     }
 
     @Override

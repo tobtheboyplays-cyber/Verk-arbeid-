@@ -77,7 +77,47 @@ public enum SettlerActivity {
     // separate append-only activity because the real linked storage can be
     // several blocks from the crafting table; compressing both into one
     // stationary clip would visually teleport the output.
-    STORE_CRAFT_OUTPUT("store_craft_output");
+    STORE_CRAFT_OUTPUT("store_craft_output"),
+    // Append only: tactical Guard withdrawal is not civilian panic.
+    RETREATING("retreating"),
+    // Small optional social pause. Append only: activity ids are synced.
+    SOCIALIZING("socializing"),
+    // Tavern evening bard (TavernBard). Append only: activity ids are synced.
+    PLAYING_MUSIC("playing_music"),
+    // Hunter carcass rework. Append only: activity ids are synced.
+    // Walking out/searching the hunting grounds for wild game.
+    TRACKING_GAME("tracking_game"),
+    // One physical carcass carried on the shoulders (OFFHAND authority).
+    HAULING_CARCASS("hauling_carcass"),
+    // Jointing the carcass at the butchering table (cleave clip).
+    WORK_BUTCHER("work_butcher"),
+    // Skinning the carcass before jointing (hide-scrape clip).
+    WORK_SKIN("work_skin"),
+    // No huntable game in range: the floor protects every species.
+    GAME_SCARCE("game_scarce"),
+    // Append only: saved and synced activity ids must not shift.
+    WORK_NAIL("work_nail"),
+    // BUILDER lane: reach, set the block, tap it home (BUILD_PLACE clip).
+    WORK_BUILD("work_build"),
+    // BUILDER lane: the overhead hammer beat on roofs and frames (BUILD_HAMMER).
+    WORK_BUILD_HAMMER("work_build_hammer"),
+    // BUILDER lane: walking a load of planks/stone to the site (CARRY_PLANKS).
+    CARRY_MATERIALS("carry_materials"),
+    // ANIM lane (battle roles): rune mage channels (RUNE_CAST / RUNE_FROST / RUNE_WARD clips),
+    // held 8 ticks past the release for the follow-through.
+    CAST_FIREBOLT("cast_firebolt"),
+    CAST_FROST("cast_frost"),
+    CAST_WARD("cast_ward"),
+    // ANIM lane (battle roles): healer kneels and wraps (HEALER_BANDAGE) / presses on the chest
+    // of a downed ally (HEALER_REVIVE).
+    WORK_BANDAGE("work_bandage"),
+    WORK_REVIVE("work_revive"),
+    // RING-1 lane: Sharpened Axes whet at the grindstone (WHET_AXE) and
+    // Fisher's Nets set/haul at the shore (FISHER_NET).
+    WORK_WHET("work_whet"),
+    WORK_NET("work_net"),
+    // TRADER lane: the deal at the Trading Post counter (TraderDealScene). Append only: activity ids are synced.
+    TRADING("trading");
 
     public static final SettlerActivity[] BY_ID = values();
 

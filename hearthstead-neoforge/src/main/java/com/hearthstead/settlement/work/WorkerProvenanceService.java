@@ -1,6 +1,7 @@
 package com.hearthstead.settlement.work;
 
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.util.AuthorityTelemetry;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Building;
@@ -48,6 +49,20 @@ import java.util.function.Predicate;
 public final class WorkerProvenanceService {
     private static final int MIN_NATURAL_LEAVES = 4;
     private static final int MAX_TREE_DRIFT = 8;
+    /**
+     * Vanilla ItemEntity spawn motion may carry an authenticated felled log
+     * across the exact Work Zone edge before the lumberer can select it. The
+     * immutable transit source remains the work authority; these deliberately
+     * small bounds only tolerate that ordinary physical settling and never
+     * turn a remotely moved item into valid output.
+     */
+    private static final int LUMBER_OUTPUT_HORIZONTAL_DRIFT = 2;
+    private static final int LUMBER_OUTPUT_VERTICAL_DRIFT = 8;
+    private static final int LUMBER_OUTPUT_ZONE_MARGIN = 2;
+    // Crop custody has a separately bounded recovery envelope; crop mutation
+    // authority remains the exact committed field zone below.
+    private static final int FARM_OUTPUT_HORIZONTAL_DRIFT = 8;
+    private static final int FARM_OUTPUT_ZONE_MARGIN = 8;
     private static final int MAX_READINESS_RESIDENTS = 256;
 
     public record DepositResult(ItemStack remainder,
@@ -150,7 +165,7 @@ public final class WorkerProvenanceService {
                 farmPlant |= action.kind() == Kind.FARM_PLANT;
                 farmHarvest |= action.kind() == Kind.FARM_HARVEST;
             }
-            if (hasPersistedRemainder(action)) {
+            if (action.phase() != Phase.OUTPUT_UNAVAILABLE && hasPersistedRemainder(action)) {
                 // This catches world drops, sacks and unloaded physical
                 // carriers without scanning for them. The persisted
                 // conservation remainder itself is sufficient authority.
@@ -315,7 +330,7 @@ public final class WorkerProvenanceService {
 
     /** Pure bounded conservation predicate shared with restart tests. */
     static boolean hasPersistedRemainder(ActionView action) {
-        return action != null && action.workTerminal()
+        return action != null && (action.workTerminal() || action.phase() == Phase.RETIRED)
             && action.produced().entrySet().stream().anyMatch(row ->
                 action.remaining(row.getKey()) > 0);
     }
@@ -349,6 +364,107 @@ public final class WorkerProvenanceService {
                             boolean seed) {
     }
 
+    /** Retire obsolete work without allowing another mutation in its old zone. */
+    public static void reconcileLumberWork(ServerLevel level, SettlerEntity worker) {
+        if (level == null || worker == null || !level.getServer().isSameThread()
+            || worker.level() != level || !worker.isAlive()
+            || level.getEntity(worker.getId()) != worker) return;
+        Settlement settlement = worker.settlement();
+        if (settlement == null || SettlementManager.byId(level, settlement.id) != settlement
+            || settlement.record(worker.getUUID()) == null) return;
+        Building employer = Employment.employerOf(settlement, worker.getUUID());
+        Context live = context(level, settlement, employer, worker,
+            BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER);
+        WorkerProvenanceSavedData data = WorkerProvenanceSavedData.existing(level);
+        if (data != null && !data.quarantined())
+            data.retireLumber(worker.getUUID(), live == null ? null : live.zone,
+                level.getGameTime());
+    }
+
+    /** Old output may return only to its original, still-authorised employer. */
+    @Nullable
+    public static ActionView recoverableLumberWork(ServerLevel level,
+            Settlement settlement, Building camp, SettlerEntity worker) {
+        if (!logisticsAuthority(level, settlement, camp, worker,
+                BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER)) return null;
+        WorkerProvenanceSavedData data = WorkerProvenanceSavedData.existing(level);
+        if (data == null || data.quarantined()) return null;
+        for (ActionView action : data.actionsForSettlement(settlement.id)) {
+            if (action.kind() == Kind.LUMBER_TREE
+                && action.phase() != Phase.OUTPUT_UNAVAILABLE
+                && (action.workTerminal() || action.phase() == Phase.RETIRED)
+                && action.workerId().equals(worker.getUUID())
+                && action.zone().buildingId().equals(camp.id)
+                && action.zone().dimension().equals(level.dimension().location())
+                && action.produced().keySet().stream().anyMatch(item -> action.remaining(item) > 0))
+                return action;
+        }
+        return null;
+    }
+
+    /**
+     * A player may collect the logs or they may despawn. A missing old delivery
+     * must not imprison this worker forever. Suspend only its automatic recovery;
+     * the ledger remains valid for any exact physical output later returned.
+     */
+    public static boolean suspendUnavailableLumberOutput(ServerLevel level,
+            Settlement settlement, Building camp, SettlerEntity worker, ActionView action) {
+        return suspendUnavailableOutput(level, settlement, camp, worker, action,
+            BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER, Kind.LUMBER_TREE);
+    }
+
+    /** Missing crops must not permanently lock first-raid readiness. Never fabricates delivery. */
+    public static void reconcileUnavailableFarmOutput(ServerLevel level,
+            Settlement settlement, Building farmhouse, SettlerEntity worker) {
+        if (level == null || worker == null || worker.getPersistentData().contains("HearthsteadGroundedFieldBag")) return;
+        var data = WorkerProvenanceSavedData.existing(level);
+        if (data == null || data.quarantined() || settlement == null) return;
+        for (ActionView action : data.actionsForSettlement(settlement.id)) {
+            if (action.kind() == Kind.FARM_HARVEST && action.phase() != Phase.OUTPUT_UNAVAILABLE
+                && action.workTerminal() && hasPersistedRemainder(action)) {
+                suspendUnavailableOutput(level, settlement, farmhouse, worker, action,
+                    BuildingType.FARMHOUSE, WorkZone.Type.FARM, Kind.FARM_HARVEST);
+            }
+        }
+    }
+
+    private static boolean suspendUnavailableOutput(ServerLevel level,
+            Settlement settlement, Building camp, SettlerEntity worker, ActionView action,
+            BuildingType buildingType, WorkZone.Type zoneType, Kind kind) {
+        if (action == null || !logisticsAuthority(level, settlement, camp, worker,
+                buildingType, zoneType) || action.kind() != kind
+            || !action.workerId().equals(worker.getUUID())
+            || !action.zone().buildingId().equals(camp.id)
+            || !action.zone().dimension().equals(level.dimension().location())
+            || level.getGameTime() < action.updatedTick()
+            || level.getGameTime() - action.updatedTick() < 600
+            || !worker.getOffhandItem().isEmpty() || !worker.bag.isEmpty()
+            || worker.placedWorkContainerPos() != null
+            || !worker.getPersistentData().getList("HearthsteadGroundCollectionDrops",
+                net.minecraft.nbt.Tag.TAG_COMPOUND).isEmpty()) return false;
+        var deferred = com.hearthstead.settlement.DeferredItemMaterializationSavedData.existing(level);
+        // Conservatively wait if any physical materialization remains unresolved.
+        if (deferred != null && (deferred.quarantined() || deferred.pendingRows() > 0)) return false;
+        var zone = action.zone();
+        var bounds = new net.minecraft.world.phys.AABB(zone.min().getX(), zone.min().getY(), zone.min().getZ(), zone.max().getX() + 1, zone.max().getY() + 1, zone.max().getZ() + 1)
+            .inflate(8, 16, 8);
+        // Do not interpret unloaded terrain as proof of missing goods.
+        for (int cx = net.minecraft.util.Mth.floor(bounds.minX) >> 4;
+             cx <= net.minecraft.util.Mth.floor(bounds.maxX) >> 4; cx++) {
+            for (int cz = net.minecraft.util.Mth.floor(bounds.minZ) >> 4;
+                 cz <= net.minecraft.util.Mth.floor(bounds.maxZ) >> 4; cz++) {
+                if (!level.hasChunk(cx, cz)) return false;
+            }
+        }
+        if (!level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class,
+                bounds, item -> item.isAlive() && WorkerStackProvenance.readTransit(item.getItem())
+                    .map(transit -> transit.actionId().equals(action.id())).orElse(false)).isEmpty()) return false;
+        var data = WorkerProvenanceSavedData.existing(level);
+        return data != null && (kind == Kind.LUMBER_TREE
+            ? data.suspendUnavailableLumberOutput(action.id(), worker.getUUID(), level.getGameTime())
+            : data.suspendUnavailableFarmOutput(action.id(), worker.getUUID(), level.getGameTime()));
+    }
+
     @Nullable
     public static UUID beginLumberTree(ServerLevel level, Settlement settlement,
                                        Building camp, SettlerEntity worker,
@@ -362,8 +478,10 @@ public final class WorkerProvenanceService {
             return null;
         }
         WorkerProvenanceSavedData data = WorkerProvenanceSavedData.get(level);
+        reconcileLumberWork(level, worker);
         if (data.quarantined()
-            || data.activeFor(worker.getUUID(), Kind.LUMBER_TREE) != null) {
+            || data.activeFor(worker.getUUID(), Kind.LUMBER_TREE) != null
+            || recoverableLumberWork(level, settlement, camp, worker) != null) {
             return null;
         }
         UUID id = UUID.randomUUID();
@@ -384,6 +502,7 @@ public final class WorkerProvenanceService {
             return null;
         }
         WorkerProvenanceSavedData data = WorkerProvenanceSavedData.get(level);
+        reconcileLumberWork(level, worker);
         ActionView action = data.activeFor(worker.getUUID(), Kind.LUMBER_TREE);
         return action != null && action.zone().equals(context.zone)
             ? action : null;
@@ -429,6 +548,9 @@ public final class WorkerProvenanceService {
                 Kind.LUMBER_TREE)) {
             return false;
         }
+        emitWorkerAction(level, AuthorityTelemetry.Event.LUMBER_TREE_COMMITTED,
+            settlement, camp, WorkerProvenanceSavedData.get(level).action(actionId),
+            "lumber_tree_terminal");
         JourneyServerHooks.noteLumberTreeCommitted(level, settlement, camp,
             worker, actionId);
         return true;
@@ -684,7 +806,9 @@ public final class WorkerProvenanceService {
                                            UUID actionId, BlockPos target) {
         Context context = context(level, settlement, farmhouse, worker,
             BuildingType.FARMHOUSE, WorkZone.Type.FARM);
-        if (context == null || !WorkZoneService.livePositionAllowed(level,
+        if (context == null || !FarmWorkApproach.canContact(level, worker, target,
+                FarmWorkApproach.Contact.PLANT)
+            || !WorkZoneService.livePositionAllowed(level,
                 context.zone, target)) {
             return false;
         }
@@ -714,6 +838,7 @@ public final class WorkerProvenanceService {
         Context context = context(level, settlement, farmhouse, worker,
             BuildingType.FARMHOUSE, WorkZone.Type.FARM);
         if (context == null || plantedBlock == null
+            || !FarmWorkApproach.canContact(level, worker, target, FarmWorkApproach.Contact.PLANT)
             || !WorkZoneService.livePositionAllowed(level, context.zone, target)
             || !BuiltInRegistries.BLOCK.getKey(
                 level.getBlockState(target).getBlock()).equals(plantedBlock)) {
@@ -723,6 +848,9 @@ public final class WorkerProvenanceService {
                 target, Map.of(), true)) {
             return false;
         }
+        emitWorkerAction(level, AuthorityTelemetry.Event.FARM_SEED_PLANTED_COMMITTED,
+            settlement, farmhouse, WorkerProvenanceSavedData.get(level).action(actionId),
+            "farm_seed_terminal");
         JourneyServerHooks.noteFarmSeedPlantedCommitted(level, settlement,
             farmhouse, worker, actionId);
         return true;
@@ -736,7 +864,9 @@ public final class WorkerProvenanceService {
                                         BlockPos crop) {
         Context context = context(level, settlement, farmhouse, worker,
             BuildingType.FARMHOUSE, WorkZone.Type.FARM);
-        if (context == null || !WorkZoneService.livePositionAllowed(level,
+        if (context == null || !FarmWorkApproach.canContact(level, worker, crop,
+                FarmWorkApproach.Contact.PLANT)
+            || !WorkZoneService.livePositionAllowed(level,
                 context.zone, crop) || !serviceableTool(worker, Profession.FARMER)) {
             return null;
         }
@@ -775,7 +905,8 @@ public final class WorkerProvenanceService {
                                             List<ItemStack> produced) {
         Context context = context(level, settlement, farmhouse, worker,
             BuildingType.FARMHOUSE, WorkZone.Type.FARM);
-        if (context == null || produced == null || produced.isEmpty()) {
+        if (context == null || produced == null || produced.isEmpty()
+            || !FarmWorkApproach.canContact(level, worker, crop, FarmWorkApproach.Contact.PLANT)) {
             return false;
         }
         java.util.LinkedHashMap<ResourceLocation, Integer> counts =
@@ -794,6 +925,15 @@ public final class WorkerProvenanceService {
                 crop, counts, true)) {
             return false;
         }
+        ActionView action = WorkerProvenanceSavedData.get(level).action(actionId);
+        AuthorityTelemetry.emit(level,
+            AuthorityTelemetry.Event.FARM_HARVEST_COMMITTED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.state(settlement.id,
+                "action:" + action.id(), action.zone().revision(),
+                action.zone().revision(), action.planned().size(),
+                action.resolved().size(), "farm_harvest_terminal:building:"
+                    + farmhouse.id + ":worker:" + worker.getUUID()));
         JourneyServerHooks.noteFarmHarvestCommitted(level, settlement,
             farmhouse, worker, actionId);
         return true;
@@ -839,10 +979,156 @@ public final class WorkerProvenanceService {
             case FARM_HARVEST -> TransitKind.FARM_CROP;
             default -> null;
         };
-        return transitKind != null && WorkerStackProvenance.stampTransit(stack,
-            action.id, transitKind, context.zone.settlementId(),
-            context.zone.buildingId(), action.workerId,
-            context.zone.dimension(), source.asLong());
+        if (transitKind == null || action.pendingToolItem == null || stack.has(com.hearthstead.registry.ModComponents.GOODS_QUALITY.get())
+                || !WorkerStackProvenance.stampTransit(stack,
+                    action.id, transitKind, context.zone.settlementId(),
+                    context.zone.buildingId(), action.workerId,
+                    context.zone.dimension(), source.asLong())) return false;
+        // Only this verified worker output preparation may create quality.
+        // The caller's existing escrow/world commit or rollback owns publication.
+        stack.set(com.hearthstead.registry.ModComponents.GOODS_QUALITY.get(),
+            GoodsQuality.forWork(worker, workplace, action.id, source, action.pendingToolItem));
+        return true;
+    }
+
+    /**
+     * Collection authority for one already-authenticated Lumber output.
+     *
+     * <p>The exact Work Zone remains the authority for starting and completing
+     * the block operation. Once that operation has produced a stamped physical
+     * item, ordinary ItemEntity motion is allowed to settle just outside the
+     * selected cuboid. The immutable source/action stamp, current workplace,
+     * worker, dimension and terminal action are all revalidated before the
+     * bounded drift exception is accepted.</p>
+     */
+    public static boolean collectableLumberOutput(ServerLevel level,
+                                                  Settlement settlement,
+                                                  Building camp,
+                                                  SettlerEntity worker,
+                                                  @Nullable WorkZone expectedZone,
+                                                  @Nullable ItemStack stack,
+                                                  @Nullable BlockPos current) {
+        return collectableOutput(level, settlement, camp, worker, expectedZone,
+            stack, current, BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER,
+            TransitKind.LUMBER_LOG, Kind.LUMBER_TREE,
+            LUMBER_OUTPUT_HORIZONTAL_DRIFT, LUMBER_OUTPUT_VERTICAL_DRIFT,
+            LUMBER_OUTPUT_ZONE_MARGIN);
+    }
+
+    /** Real harvested crop custody has a bounded recovery envelope; crop mutations stay exact. */
+    public static boolean collectableFarmOutput(ServerLevel level,
+            Settlement settlement, Building farm, SettlerEntity worker,
+            @Nullable WorkZone expectedZone, @Nullable ItemStack stack,
+            @Nullable BlockPos current) {
+        return collectableOutput(level, settlement, farm, worker, expectedZone,
+            stack, current, BuildingType.FARMHOUSE, WorkZone.Type.FARM,
+            TransitKind.FARM_CROP, Kind.FARM_HARVEST,
+            FARM_OUTPUT_HORIZONTAL_DRIFT, 2, FARM_OUTPUT_ZONE_MARGIN);
+    }
+
+    private static boolean collectableOutput(ServerLevel level,
+            Settlement settlement, Building camp, SettlerEntity worker,
+            @Nullable WorkZone expectedZone, @Nullable ItemStack stack,
+            @Nullable BlockPos current, BuildingType buildingType,
+            WorkZone.Type zoneType, TransitKind transitKind, Kind kind,
+            int horizontalDrift, int verticalDrift, int horizontalZoneMargin) {
+        if (expectedZone == null || stack == null || stack.isEmpty()
+            || current == null
+            || !WorkZoneService.livePositionAvailable(level, current)) {
+            return false;
+        }
+        if (!logisticsAuthority(level, settlement, camp, worker,
+                buildingType, zoneType)) return false;
+        // Collection must still name this Farmhouse's live current zone. An
+        // old terminal harvest may supply cargo recovery below, never a stale
+        // field's authority to collect after reassignment or replacement.
+        Context liveContext = context(level, settlement, camp, worker,
+            buildingType, zoneType);
+        if (liveContext == null || !liveContext.zone.equals(expectedZone)) return false;
+        Transit transit = WorkerStackProvenance.readTransit(stack).orElse(null);
+        if (transit == null || transit.kind() != transitKind
+            || !transit.settlementId().equals(settlement.id)
+            || !transit.buildingId().equals(camp.id)
+            || !transit.workerId().equals(worker.getUUID())
+            || !transit.dimension().equals(level.dimension().location())) {
+            return false;
+        }
+        WorkerProvenanceSavedData data =
+            WorkerProvenanceSavedData.existing(level);
+        ActionView action = data == null ? null : data.action(transit.actionId());
+        BlockPos source = BlockPos.of(transit.sourcePos());
+        ResourceLocation item = itemId(stack);
+        boolean exactCurrentZone = action != null && action.zone().equals(expectedZone)
+            && WorkZoneService.livePositionAllowed(level, expectedZone, source);
+        // A terminal crop is already real physical custody. A later Farm-zone
+        // revision may not make that exact stamped crop uncollectable, but the
+        // recovery remains bound to the same live Farmhouse, worker, transit
+        // source and bounded current-zone envelope. It never authorizes a new
+        // harvest, plant, or an unresolved/nonterminal action.
+        boolean terminalFarmZoneRecovery = action != null
+            && kind == Kind.FARM_HARVEST && transitKind == TransitKind.FARM_CROP
+            && action.workTerminal()
+            && action.zone().type() == WorkZone.Type.FARM
+            && action.zone().withinPersistentLimits()
+            && action.zone().settlementId().equals(settlement.id)
+            && action.zone().buildingId().equals(camp.id)
+            && action.zone().dimension().equals(level.dimension().location())
+            && action.zone().contains(source)
+            && WorkZoneService.livePositionAvailable(level, source);
+        if (data == null || data.quarantined() || action == null || item == null
+            || action.kind() != kind
+            || !(action.workTerminal() || action.phase() == Phase.RETIRED)
+            || !action.workerId().equals(worker.getUUID())
+            || !action.zone().settlementId().equals(settlement.id)
+            || !action.zone().buildingId().equals(camp.id)
+            || !action.zone().dimension().equals(level.dimension().location())
+            || !action.resolved().contains(source)
+            || action.remaining(item) < stack.getCount()
+            || !(exactCurrentZone || terminalFarmZoneRecovery)) {
+            return false;
+        }
+
+        int dx = Math.abs(current.getX() - source.getX());
+        int dy = Math.abs(current.getY() - source.getY());
+        int dz = Math.abs(current.getZ() - source.getZ());
+        boolean closeToSource = dx <= horizontalDrift
+            && dz <= horizontalDrift
+            && dy <= verticalDrift;
+        boolean closeToZone = outputRecoveryPositionAllowed(level, expectedZone,
+            current, horizontalZoneMargin);
+        return closeToSource && closeToZone;
+    }
+
+    /**
+     * Bounded non-loading search envelope used only to rediscover an already
+     * owned UUID after an interruption. The loaded stack still has to pass
+     * {@link #collectableLumberOutput} before runtime collection can proceed.
+     */
+    public static boolean lumberOutputRecoveryPositionAllowed(
+            ServerLevel level, @Nullable WorkZone zone,
+            @Nullable BlockPos current) {
+        return outputRecoveryPositionAllowed(level, zone, current,
+            LUMBER_OUTPUT_ZONE_MARGIN);
+    }
+
+    public static boolean farmOutputRecoveryPositionAllowed(
+            ServerLevel level, @Nullable WorkZone zone, @Nullable BlockPos current) {
+        return outputRecoveryPositionAllowed(level, zone, current,
+            FARM_OUTPUT_ZONE_MARGIN);
+    }
+
+    private static boolean outputRecoveryPositionAllowed(
+            ServerLevel level, @Nullable WorkZone zone, @Nullable BlockPos current,
+            int horizontalMargin) {
+        return level != null && zone != null && current != null
+            && zone.dimension().equals(level.dimension().location())
+            && WorkZoneService.livePositionAvailable(level, current)
+            && current.getX() >= zone.min().getX() - horizontalMargin
+            && current.getX() <= zone.max().getX() + horizontalMargin
+            && current.getY() >= zone.min().getY() - LUMBER_OUTPUT_ZONE_MARGIN
+            && current.getY() <= zone.max().getY() + LUMBER_OUTPUT_ZONE_MARGIN
+            && current.getZ() >= zone.min().getZ() - horizontalMargin
+            && current.getZ() <= zone.max().getZ() + horizontalMargin;
     }
 
     /** Tagged output path. Permanent receipt is committed after physical insert. */
@@ -868,8 +1154,35 @@ public final class WorkerProvenanceService {
         WorkerProvenanceSavedData data = WorkerProvenanceSavedData.get(level);
         WorkerProvenanceSavedData.Action action = data.mutable(transit.actionId());
         ResourceLocation item = itemId(source);
-        if (context == null || action == null || item == null
-            || !action.phase.workTerminal() || !action.zone.equals(context.zone)
+        boolean lumberRecovery = action != null && worker != null
+            && transit.kind() == TransitKind.LUMBER_LOG
+            && action.kind == Kind.LUMBER_TREE
+            && (action.phase.workTerminal() || action.phase == Phase.RETIRED)
+            && action.workerId.equals(worker.getUUID())
+            && action.zone.settlementId().equals(transit.settlementId())
+            && action.zone.buildingId().equals(transit.buildingId())
+            && action.zone.dimension().equals(transit.dimension())
+            && action.resolved.contains(BlockPos.of(transit.sourcePos()))
+            && logisticsAuthority(level, settlement, workplace, worker,
+                BuildingType.LUMBER_CAMP, WorkZone.Type.LUMBER);
+        // A completed harvest remains real physical Farmhouse cargo if its
+        // field was re-confirmed before the worker reached storage. Recovery
+        // is bounded to the original authenticated action/source and current
+        // exact employer; it cannot begin work or accept foreign cargo.
+        boolean farmRecovery = action != null && worker != null
+            && transit.kind() == TransitKind.FARM_CROP
+            && action.kind == Kind.FARM_HARVEST
+            && action.phase.workTerminal()
+            && action.workerId.equals(worker.getUUID())
+            && action.zone.settlementId().equals(transit.settlementId())
+            && action.zone.buildingId().equals(transit.buildingId())
+            && action.zone.dimension().equals(transit.dimension())
+            && action.resolved.contains(BlockPos.of(transit.sourcePos()))
+            && logisticsAuthority(level, settlement, workplace, worker,
+                BuildingType.FARMHOUSE, WorkZone.Type.FARM);
+        if ((!lumberRecovery && !farmRecovery && (context == null || action == null
+                || !action.phase.workTerminal() || !action.zone.equals(context.zone)))
+            || action == null || item == null
             || !transit.settlementId().equals(settlement.id)
             || !transit.buildingId().equals(workplace.id)
             || !transit.workerId().equals(worker.getUUID())
@@ -891,16 +1204,24 @@ public final class WorkerProvenanceService {
         // a door or wall may change during the worker's contact animation.
         // Do not insert, advance provenance, or mint a receipt unless the
         // exact worker can still touch this exact live container now.
-        if (!ContainerApproach.inspect(level, worker, target).canInteract()) {
+        ContainerApproach.Result contact = ContainerApproach.inspect(level,
+            worker, target);
+        if (!contact.canInteract()) {
             return new DepositResult(source, null);
         }
+        long contactTick = level.getGameTime();
         WorkerStorageAuthority.Insert inserted = WorkerStorageAuthority.insertAt(
             level, workplace, target, source, authorised, true);
         if (!inserted.conserved() || inserted.inserted() <= 0) {
             return new DepositResult(source, null);
         }
+        worker.recordStorageMutationWitness(contact, contactTick,
+            level.getGameTime(), inserted.destinationBefore(),
+            inserted.destinationAfter());
         action.deposited.merge(item, inserted.inserted(), Integer::sum);
-        action.phase = Phase.OUTPUT_COMMITTED;
+        // Partial obsolete work never becomes a completed tree merely because
+        // its actual earlier output reached storage.
+        if (action.phase != Phase.RETIRED) action.phase = Phase.OUTPUT_COMMITTED;
         data.changed(action, level.getGameTime());
         UUID receiptId = WorkerProvenanceSavedData.receiptId(action.id, item,
             already);
@@ -914,8 +1235,24 @@ public final class WorkerProvenanceService {
             // aggregate but author no hook: evidence is incomplete, never fake.
             return new DepositResult(inserted.remainder(), null);
         }
-        JourneyServerHooks.noteWorkplaceOutputCommitted(level, settlement,
+        AuthorityTelemetry.emit(level,
+            AuthorityTelemetry.Event.WORKPLACE_OUTPUT_COMMITTED,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.items(settlement.id,
+                "receipt:" + receipt.id(), action.zone.revision(),
+                action.zone.revision(),
+                action.deposited.get(receipt.itemId()) - receipt.count(),
+                action.deposited.get(receipt.itemId()),
+                receipt.itemId().toString(), receipt.destinationBefore(),
+                receipt.destinationAfter(), receipt.count(),
+                "workplace_output:building:" + workplace.id + ":worker:"
+                    + worker.getUUID()));
+        if (action.phase != Phase.RETIRED) JourneyServerHooks.noteWorkplaceOutputCommitted(level, settlement,
             workplace, worker, receipt.id());
+        if (expectedKind == Kind.LUMBER_TREE && action.phase != Phase.RETIRED) {
+            settlement.firstRaidReadiness.noteRecoveredStoredProduction(level,
+                settlement, workplace, worker, receipt);
+        }
         return new DepositResult(inserted.remainder(), receipt);
     }
 
@@ -942,14 +1279,23 @@ public final class WorkerProvenanceService {
         // Ordinary cargo has no receipt, but it still requires the same
         // exact, server-authoritative physical container contact as tagged
         // output. A failed contact is a strict no-op for caller retry logic.
-        if (!ContainerApproach.inspect(level, worker, target).canInteract()) {
+        ContainerApproach.Result contact = ContainerApproach.inspect(level,
+            worker, target);
+        if (!contact.canInteract()) {
             return new DepositResult(source, null);
         }
+        long contactTick = level.getGameTime();
         var inserted = WorkerStorageAuthority.insertAt(level, workplace, target,
             source, source.getCount(), false);
-        return inserted.conserved()
-            ? new DepositResult(inserted.remainder(), null)
-            : new DepositResult(source, null);
+        if (!inserted.conserved()) {
+            return new DepositResult(source, null);
+        }
+        if (inserted.inserted() > 0) {
+            worker.recordStorageMutationWitness(contact, contactTick,
+                level.getGameTime(), inserted.destinationBefore(),
+                inserted.destinationAfter());
+        }
+        return new DepositResult(inserted.remainder(), null);
     }
 
     /**
@@ -1045,8 +1391,12 @@ public final class WorkerProvenanceService {
         EquipmentRequirement requirement = EquipmentRequests.requirementFor(
             profession);
         ItemStack tool = context.worker.getMainHandItem();
-        if (requirement == null || !requirement.serviceable(tool)
-            || !tool.isDamageableItem()) {
+        // serviceable() is the admission gate for a NEW work action. Once an
+        // action has been durably accepted, its remaining operations may use
+        // that reserve so a valid tree/harvest never aborts halfway through.
+        // The exact-use gate below still refuses the breaking point, keeping
+        // the receipt-bearing physical tool recoverable for replacement.
+        if (!activeOperationCanUseTool(requirement, tool)) {
             return false;
         }
         ResourceLocation toolItem = itemId(tool);
@@ -1076,6 +1426,14 @@ public final class WorkerProvenanceService {
         action.appliedToolDamage++;
         data.changed(action, level.getGameTime());
         return true;
+    }
+
+    /** Package-visible pure seam for the start-reserve/active-use boundary. */
+    static boolean activeOperationCanUseTool(
+            @Nullable EquipmentRequirement requirement, ItemStack tool) {
+        return requirement != null && tool != null
+            && requirement.matches(tool) && tool.isDamageableItem()
+            && tool.getDamageValue() + 1 < tool.getMaxDamage();
     }
 
     private static boolean completeOperation(ServerLevel level, Context context,
@@ -1176,6 +1534,25 @@ public final class WorkerProvenanceService {
         if (commitImmediately) {
             action.phase = Phase.WORK_COMMITTED;
         }
+    }
+
+    /** Called only after a new persisted worker transition, never hook replay. */
+    private static void emitWorkerAction(ServerLevel level,
+                                         AuthorityTelemetry.Event event,
+                                         Settlement settlement,
+                                         Building building,
+                                         ActionView action,
+                                         String reason) {
+        String item = action.inputItem() == null ? "none"
+            : action.inputItem().toString();
+        AuthorityTelemetry.emit(level, event,
+            AuthorityTelemetry.Result.COMMITTED,
+            AuthorityTelemetry.Fields.items(settlement.id,
+                "action:" + action.id(), action.zone().revision(),
+                action.zone().revision(), action.planned().size(),
+                action.resolved().size(), item, 0L, 0L, 0L,
+                reason + ":building:" + building.id + ":worker:"
+                    + action.workerId()));
     }
 
     private static boolean commitWork(ServerLevel level, Context context,

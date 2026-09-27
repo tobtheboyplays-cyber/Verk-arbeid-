@@ -18,7 +18,8 @@ public record WorkZoneActionPayload(UUID sessionId, UUID settlementId,
     implements CustomPacketPayload {
 
     public enum Kind {
-        SET_SECOND_CORNER(0), CONFIRM(1), CANCEL(2), SET_HEIGHT(3), UNKNOWN(-1);
+        SET_SECOND_CORNER(0), CONFIRM(1), CANCEL(2), SET_HEIGHT(3),
+        SET_FIRST_CORNER(4), UNKNOWN(-1);
 
         private final int wireId;
 
@@ -33,7 +34,7 @@ public record WorkZoneActionPayload(UUID sessionId, UUID settlementId,
         static Kind fromWireId(int id) {
             return id == 0 ? SET_SECOND_CORNER
                 : id == 1 ? CONFIRM : id == 2 ? CANCEL
-                : id == 3 ? SET_HEIGHT : UNKNOWN;
+                : id == 3 ? SET_HEIGHT : id == 4 ? SET_FIRST_CORNER : UNKNOWN;
         }
     }
 

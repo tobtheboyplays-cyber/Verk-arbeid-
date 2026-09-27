@@ -5,6 +5,8 @@ import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.building.Fuel;
 import com.hearthstead.entity.Profession;
+import com.hearthstead.entity.SettlerActivity;
+import com.hearthstead.settlement.work.ContainerApproach;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.ai.CourierWorkGoal;
 import com.hearthstead.registry.ModBlocks;
@@ -14,6 +16,17 @@ import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.RecruitmentPolicy;
+import com.hearthstead.settlement.request.RequestLedger;
+import com.hearthstead.settlement.request.RequestLedgerSavedData;
+import com.hearthstead.settlement.request.RequestLedgerSnapshot;
+import com.hearthstead.settlement.request.RequestLedgerService;
+import com.hearthstead.settlement.request.RequestRecord;
+import com.hearthstead.settlement.request.RequestState;
+import com.hearthstead.settlement.request.RequestType;
+import com.hearthstead.settlement.request.RequestBlocker;
+import com.hearthstead.entity.work.WorkerLifecycle;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -236,14 +249,14 @@ public class CourierFoodRouteGameTests {
         // Computed AFTER the courier's record exists: 1 living settler.
         int threshold = RecruitmentPolicy.assess(helper.getLevel(), s,
             RecruitmentPolicy.stageFor(s)).courierReadyFoodTarget();
-        helper.assertTrue(threshold == 20,
-            "one resident plus the next recruit and bread price should target 20, got "
+        helper.assertTrue(threshold == 16,
+            "one resident plus the next recruit should target sixteen reserve meals; Coins add no food price, got "
                 + threshold);
         final boolean[] sawHeld = {false};
         final boolean[] sawReleasedAfterHold = {false};
 
         helper.succeedWhen(() -> {
-            boolean held = CourierWorkGoal.restockJobIsHeld(s.id, Items.BREAD);
+            boolean held = foodJobIsHeld(helper, s, Items.BREAD);
             if (held) {
                 sawHeld[0] = true;
             }
@@ -312,7 +325,7 @@ public class CourierFoodRouteGameTests {
                 "no bread may move while the larder is at/above its LOW mark of "
                     + threshold + ", saw [hearth=" + atHearth + " warehouse="
                     + atWarehouse + " bag=" + inBag + " act=" + bud.getActivity() + "]");
-            helper.assertTrue(!CourierWorkGoal.restockJobIsHeld(s.id, Items.BREAD),
+            helper.assertTrue(!foodJobIsHeld(helper, s, Items.BREAD),
                 "no food job should even be CLAIMED for a stocked larder -- the "
                     + "threshold gates the scan, not just the walk");
             quietTicks[0]++;
@@ -333,6 +346,7 @@ public class CourierFoodRouteGameTests {
         batch = "courier_food_route_day")
     public void exactRecruitmentBreadOutranksSatisfiedMealTotal(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
+        legacyBreadCandidate(helper, s);
         HearthBlockEntity hearth = hearthAt(helper);
         hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 20));
         hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
@@ -360,7 +374,7 @@ public class CourierFoodRouteGameTests {
         final boolean[] sawReleasedAfterHold = {false};
 
         helper.succeedWhen(() -> {
-            boolean held = CourierWorkGoal.restockJobIsHeld(s.id, Items.BREAD);
+            boolean held = foodJobIsHeld(helper, s, Items.BREAD);
             if (held) {
                 sawHeld[0] = true;
             }
@@ -392,22 +406,19 @@ public class CourierFoodRouteGameTests {
         });
     }
 
-    /**
-     * The price-specific route consumes the live discounted policy price,
-     * not the four-loaf base table. A staffed tavern lowers bread to three;
-     * nineteen wrong meals satisfy the scalar target, yet exactly three
-     * loaves still move and the fourth remains on the warehouse shelf.
-     */
+    /** Before a candidate owns a quote, Courier protects the explicit base forecast.
+     * A Tavern discount source must not change that forecast. Existing ready meals
+     * satisfy the scalar target; the Coin forecast must not request extra bread. */
     @GameTest(template = "empty16", timeoutTicks = 2400,
         batch = "courier_food_route_day")
-    public void courierHonoursLiveInnkeeperBreadDiscount(GameTestHelper helper) {
+    public void courierUsesBaseForecastBeforeAnyCandidate(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
         Building tavern = addBuilding(helper, s, BuildingType.TAVERN,
             new BlockPos(8, 1, 5), new BlockPos(10, 3, 7), new BlockPos(8, 1, 5));
         tavern.workers.add(UUID.randomUUID());
         HearthBlockEntity hearth = hearthAt(helper);
-        hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 19));
-        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 6));
+        hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 20));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
         addWarehouse(helper, s);
         Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
         helper.assertTrue(source != null, "arena warehouse chest should exist");
@@ -416,22 +427,28 @@ public class CourierFoodRouteGameTests {
 
         RecruitmentPolicy.Assessment opening = RecruitmentPolicy.assess(
             helper.getLevel(), s, RecruitmentPolicy.stageFor(s));
-        helper.assertTrue(opening.price().lines().get(0).count() == 3
-                && opening.courierReadyFoodTarget() == 19
-                && hearth.countFoodUnits() == 19,
-            "staffed tavern fixture must expose a three-bread discounted target");
+        helper.assertTrue(opening.price().lines().size() == 1 && opening.price().lines().get(0).exact() == com.hearthstead.registry.ModItems.GOLD_COIN.get()
+                && opening.price().lines().get(0).count() == 4
+                && opening.courierReadyFoodTarget() == 16
+                && hearth.countFoodUnits() == 20,
+            "pre-candidate Tavern must retain the four-Coin forecast and sixteen-meal reserve");
 
+        final int[] quietTicks = {0};
         helper.succeedWhen(() -> {
             int atHearth = countInHearth(hearthAt(helper), Items.BREAD);
             int atWarehouse = countIn(containerAt(helper, WAREHOUSE_CHEST_REL),
                 Items.BREAD);
             int inBag = bagCountOf(bud, Items.BREAD);
             helper.assertTrue(atHearth + atWarehouse + inBag == 8,
-                "discounted bread route must conserve all eight loaves");
-            helper.assertTrue(atHearth == 3 && atWarehouse == 5 && inBag == 0,
-                "courier should deliver the discounted three loaves exactly, saw "
+                "base forecast route must conserve all eight loaves");
+            helper.assertTrue(atHearth == 0 && atWarehouse == 8 && inBag == 0,
+                "Coin forecast must not claim or move unneeded bread, saw "
                     + "[hearth=" + atHearth + " warehouse=" + atWarehouse
                     + " bag=" + inBag + "]");
+            helper.assertTrue(!foodJobIsHeld(helper, s, Items.BREAD)
+                && countInHearth(hearth, Items.BAKED_POTATO) == 20,
+                "no food claim or reserve consumption for a coin price");
+            helper.assertTrue(++quietTicks[0] >= 400, "observe four hundred actual quiet ticks");
         });
     }
 
@@ -446,6 +463,7 @@ public class CourierFoodRouteGameTests {
         batch = "courier_food_route_day")
     public void priceFilledAfterClaimCancelsFoodWithdrawal(GameTestHelper helper) {
         Settlement s = standardOpening(helper);
+        legacyBreadCandidate(helper, s);
         HearthBlockEntity hearth = hearthAt(helper);
         hearth.insertGoods(new ItemStack(Items.BAKED_POTATO, 20));
         addWarehouse(helper, s);
@@ -458,7 +476,7 @@ public class CourierFoodRouteGameTests {
         final boolean[] sawReleased = {false};
 
         helper.succeedWhen(() -> {
-            boolean held = CourierWorkGoal.restockJobIsHeld(s.id, Items.BREAD);
+            boolean held = foodJobIsHeld(helper, s, Items.BREAD);
             sawHeld[0] |= held;
             if (!filledAfterClaim[0] && held) {
                 ItemStack left = hearth.insertGoods(new ItemStack(Items.BREAD, 4));
@@ -779,5 +797,484 @@ public class CourierFoodRouteGameTests {
                 "the fuel trip never claimed its (smelter, charcoal) key -- fuel "
                     + "restock is not running under the shared ledger");
         });
+    }
+    private record FoodRecovery(Settlement settlement, Building warehouse,
+                                Container source, SettlerEntity courier, UUID requestId) { }
+
+    private static FoodRecovery reservedFood(GameTestHelper helper) {
+        Settlement settlement = standardOpening(helper);
+        addWarehouse(helper, settlement);
+        Container source = containerAt(helper, WAREHOUSE_CHEST_REL);
+        source.setItem(0, new ItemStack(Items.BREAD, 12));
+        SettlerEntity worker = courier(helper, settlement, new BlockPos(5, 1, 4));
+        worker.setNoAi(true);
+        Building warehouse = settlement.buildings.getFirst();
+        var opened = RequestLedgerService.openFoodDelivery(helper.getLevel(), settlement,
+            warehouse, helper.absolutePos(WAREHOUSE_CHEST_REL), 0, 4);
+        helper.assertTrue(opened.accepted() && opened.request() != null,
+            "food fixture must open one exact persisted request");
+        helper.assertTrue(RequestLedgerService.reserve(helper.getLevel(), settlement,
+            opened.request().id(), worker).accepted(), "food fixture must reserve the actual courier");
+        return new FoodRecovery(settlement, warehouse, source, worker, opened.request().id());
+    }
+
+    private static void pickFood(GameTestHelper helper, FoodRecovery fixture) {
+        helper.assertTrue(RequestLedgerService.pickup(helper.getLevel(), fixture.settlement(),
+            fixture.requestId(), fixture.courier()).accepted(), "food pickup must commit at exact source contact");
+        helper.assertTrue(countIn(fixture.source(), Items.BREAD) == 8
+            && bagCountOf(fixture.courier(), Items.BREAD) == 4, "one withdrawal must conserve twelve bread");
+    }
+
+    /** Observe the same sole authority used by newly opened and recovered FOOD. */
+    private static boolean foodJobIsHeld(GameTestHelper helper, Settlement settlement, Item item) {
+        var saved = RequestLedgerSavedData.existing(helper.getLevel());
+        var ledger = saved == null ? null : saved.existing(settlement.id);
+        return ledger != null && ledger.active().stream().anyMatch(row ->
+            row.type() == RequestType.FOOD && row.courierId() != null
+                && row.fingerprint().itemId().equals(
+                    net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item)));
+    }
+
+    private static RequestLedger foodLedger(GameTestHelper helper, Settlement settlement) {
+        return RequestLedgerSavedData.get(helper.getLevel()).ledger(settlement.id);
+    }
+
+    private static SettlerEntity reloadFoodCourier(GameTestHelper helper, SettlerEntity original) {
+        CompoundTag saved = original.saveWithoutId(new CompoundTag());
+        UUID id = original.getUUID();
+        original.remove(Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        SettlerEntity restored = ModEntities.SETTLER.get().create(helper.getLevel());
+        helper.assertTrue(restored != null, "saved courier must be constructible");
+        restored.load(saved);
+        helper.assertTrue(id.equals(restored.getUUID()) && helper.getLevel().addFreshEntity(restored),
+            "reload must recreate the same physical courier identity");
+        // Round-trip the actual authority root too, not just a copy of one row.
+        var ledgerData = RequestLedgerSavedData.get(helper.getLevel());
+        var restoredData = RequestLedgerSavedData.load(ledgerData.save(new CompoundTag(),
+            helper.getLevel().registryAccess()), helper.getLevel().registryAccess());
+        helper.assertTrue(!restoredData.rootQuarantined(), "request authority root must survive reload");
+        helper.getLevel().getDataStorage().set("hearthstead_request_ledger", restoredData);
+        return restored;
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "courier_food_route_day")
+    public void loadedFoodCourierResumesHearthWithoutSecondPickup(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        pickFood(helper, fixture);
+        SettlerEntity restored = reloadFoodCourier(helper, fixture.courier());
+        RequestRecord saved = foodLedger(helper, fixture.settlement()).active(fixture.requestId());
+        helper.assertTrue(saved != null && saved.type() == RequestType.FOOD
+            && saved.state() == RequestState.IN_TRANSIT, "saved FOOD cargo must retain its original request");
+        BlockPos hearthPos = helper.absolutePos(HEARTH_REL);
+        // Regression for the field wedge: this block distance passes the old
+        // integer arrival check, but the entity-to-Hearth-centre distance is
+        // outside the ledger's exact 2.5-block contact sphere.
+        restored.setPos(hearthPos.getX() + 1.8672163D, hearthPos.getY(),
+            hearthPos.getZ() + 2.5472074D);
+        helper.assertTrue(restored.blockPosition().distSqr(hearthPos) == 5
+                && !RequestLedgerService.hasFoodHearthContact(helper.getLevel(), restored, hearthPos),
+            "fixture must begin at block-distance arrival outside real Hearth contact");
+        CourierWorkGoal freshGoal = new CourierWorkGoal(restored);
+        helper.assertTrue(freshGoal.canUse(), "fresh goal must adopt the saved food route");
+        helper.assertTrue(restored.workerLifecycle().state() == WorkerLifecycle.State.RECOVERING
+            && restored.workerLifecycle().task().requestId().equals(fixture.requestId()),
+            "shared lifecycle must observe the original stable task");
+        boolean[] firstDepositWasLegal = {false};
+        helper.onEachTick(() -> {
+            RequestRecord current = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+            if (!firstDepositWasLegal[0] && current != null && current.deliveredCount() > 0) {
+                helper.assertTrue(RequestLedgerService.hasFoodHearthContact(
+                        helper.getLevel(), restored, hearthPos),
+                    "FOOD must reposition to exact visible Hearth contact before its first ledger commit");
+                firstDepositWasLegal[0] = true;
+            }
+        });
+        restored.setNoAi(false);
+        helper.succeedWhen(() -> {
+            int atSource = countIn(fixture.source(), Items.BREAD);
+            int carried = bagCountOf(restored, Items.BREAD);
+            int atHearth = countInHearth(hearthAt(helper), Items.BREAD);
+            helper.assertTrue(atSource + carried + atHearth == 12, "reload must conserve every loaf");
+            RequestRecord completed = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+            helper.assertTrue(completed != null && completed.state() == RequestState.SATISFIED
+                && completed.deliveredCount() == 4 && completed.hasFullTransportTrace(),
+                "the original saved request must complete through the real goal");
+            helper.assertTrue(atSource == 8 && carried == 0 && atHearth == 4,
+                "reload must deliver the existing four loaves, without a second withdrawal");
+            var row = RequestLedgerSnapshot.create(helper.getLevel(), fixture.settlement())
+                .orElseThrow().rows().stream().filter(r -> r.requestId().equals(fixture.requestId()))
+                .findFirst().orElseThrow();
+            helper.assertTrue(row.stockAvailable() && row.targetExact() && row.fullTransportTrace(),
+                "delivered FOOD must observe the bound Hearth inventory in the shared request view");
+            helper.assertTrue(firstDepositWasLegal[0],
+                "the edge-position recovery must witness a lawful first Hearth deposit");
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 40, batch = "courier_food_route_day")
+    public void foodInterruptionKeepsOneOwnerAndReservation(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        SettlerEntity restored = reloadFoodCourier(helper, fixture.courier());
+        CourierWorkGoal goal = new CourierWorkGoal(restored);
+        helper.assertTrue(goal.canUse(), "reserved food work must resume before pickup");
+        goal.start();
+        goal.stop();
+        helper.assertTrue(restored.workerLifecycle().state() == WorkerLifecycle.State.INTERRUPTED,
+            "goal interruption must preserve stable work observation");
+        helper.assertTrue(goal.canUse(), "interrupted FOOD route must stay resumable");
+        SettlerEntity other = courier(helper, fixture.settlement(), new BlockPos(6, 1, 4));
+        other.setNoAi(true);
+        var duplicate = RequestLedgerService.openFoodDelivery(helper.getLevel(), fixture.settlement(),
+            fixture.warehouse(), helper.absolutePos(WAREHOUSE_CHEST_REL), 0, 4);
+        helper.assertTrue(duplicate.request() != null && duplicate.request().id().equals(fixture.requestId()),
+            "repeated food scan must return the same request identity");
+        helper.assertTrue(!RequestLedgerService.reserve(helper.getLevel(), fixture.settlement(),
+            fixture.requestId(), other).accepted(), "another courier must not steal an interrupted reservation");
+        helper.assertTrue(foodLedger(helper, fixture.settlement()).active().size() == 1,
+            "interruption must keep exactly one durable reservation");
+        helper.assertTrue(countIn(fixture.source(), Items.BREAD) == 12 && bagCountOf(restored, Items.BREAD) == 0,
+            "pre-pickup interruption must leave all source items untouched");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 40, batch = "courier_food_route_day")
+    public void missingOrReboundHearthBlocksExactFoodCargoAcrossReload(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        pickFood(helper, fixture);
+        // Losing the destination inventory during load must not be confused
+        // with breaking the Hearth, which intentionally disbands the colony.
+        helper.getLevel().removeBlockEntity(fixture.settlement().center);
+        helper.assertTrue(SettlementManager.data(helper.getLevel()).settlements
+            .containsKey(fixture.settlement().id), "missing inventory fixture must retain the live colony");
+        SettlerEntity restored = reloadFoodCourier(helper, fixture.courier());
+        CourierWorkGoal goal = new CourierWorkGoal(restored);
+        helper.assertTrue(!goal.canUse(), "missing Hearth must visibly block saved FOOD cargo");
+        RequestRecord row = foodLedger(helper, fixture.settlement()).active(fixture.requestId());
+        helper.assertTrue(row != null && row.state() == RequestState.BLOCKED
+            && row.blocker() == RequestBlocker.TARGET_INVALID,
+            "missing destination must retain exact intent with a persisted blocker");
+        HearthBlockEntity replacement = new HearthBlockEntity(fixture.settlement().center,
+            ModBlocks.HEARTH.get().defaultBlockState());
+        helper.getLevel().setBlockEntity(replacement);
+        replacement.bindSettlement(UUID.randomUUID());
+        restored.setPos(fixture.settlement().center.getX() + 0.5,
+            fixture.settlement().center.getY() + 1, fixture.settlement().center.getZ() + 0.5);
+        helper.assertTrue(!RequestLedgerService.deliver(helper.getLevel(), fixture.settlement(),
+            fixture.requestId(), restored).accepted(), "a replacement Hearth belonging to someone else must reject cargo");
+        helper.assertTrue(countIn(fixture.source(), Items.BREAD) == 8
+            && bagCountOf(restored, Items.BREAD) == 4 && countInHearth(hearthAt(helper), Items.BREAD) == 0,
+            "invalid destination must neither lose cargo nor return it to an inferred warehouse");
+        helper.setBlock(HEARTH_REL, Blocks.AIR);
+        helper.assertTrue(!restored.isBound()
+            && !SettlementManager.data(helper.getLevel()).settlements.containsKey(fixture.settlement().id)
+            && bagCountOf(restored, Items.BREAD) == 4,
+            "actually breaking the Hearth must disband the colony while retaining the courier cargo");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 40, batch = "courier_food_route_day")
+    public void partialFoodDeliveryCountsConsumedMealsWithoutDuplication(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        pickFood(helper, fixture);
+        var hearth = hearthAt(helper);
+        var inventory = hearth.getInventory();
+        for (int slot = 0; slot < inventory.getSlots(); slot++) {
+            inventory.setStackInSlot(slot, new ItemStack(Items.COBBLESTONE, 64));
+        }
+        inventory.setStackInSlot(0, new ItemStack(Items.BREAD, 62));
+        fixture.courier().setPos(fixture.settlement().center.getX() + 0.5,
+            fixture.settlement().center.getY() + 1, fixture.settlement().center.getZ() + 0.5);
+        var partial = RequestLedgerService.deliver(helper.getLevel(), fixture.settlement(),
+            fixture.requestId(), fixture.courier());
+        helper.assertTrue(partial.request() != null && partial.request().deliveredCount() == 2
+            && bagCountOf(fixture.courier(), Items.BREAD) == 2
+            && countInHearth(hearth, Items.BREAD) == 64, "partial insert must record only two accepted loaves");
+        int consumed = inventory.extractItem(0, 64, false).getCount();
+        SettlerEntity restored = reloadFoodCourier(helper, fixture.courier());
+        var completed = RequestLedgerService.deliver(helper.getLevel(), fixture.settlement(), fixture.requestId(), restored);
+        helper.assertTrue(completed.outcome() == RequestLedgerService.Outcome.SATISFIED,
+            "eating earlier accepted food must not invalidate the remaining delivery");
+        helper.assertTrue(countIn(fixture.source(), Items.BREAD) + bagCountOf(restored, Items.BREAD)
+            + countInHearth(hearth, Items.BREAD) + consumed == 74,
+            "partial delivery, consumption and reload must conserve seeded food exactly");
+        RequestLedgerService.deliver(helper.getLevel(), fixture.settlement(), fixture.requestId(), restored);
+        helper.assertTrue(bagCountOf(restored, Items.BREAD) == 0 && countInHearth(hearth, Items.BREAD) == 2,
+            "replaying a completed contact must not deliver twice");
+        var row = RequestLedgerSnapshot.create(helper.getLevel(), fixture.settlement())
+            .orElseThrow().rows().stream().filter(r -> r.requestId().equals(fixture.requestId()))
+            .findFirst().orElseThrow();
+        helper.assertTrue(row.state() == RequestState.SATISFIED && row.fullTransportTrace()
+            && row.blocker() == RequestBlocker.NONE && !row.stockAvailable(),
+            "eaten meals must not be advertised as live stock or invalidate the completed receipt");
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 40, batch = "courier_food_route_day")
+    public void foodPickupRechecksReducedLiveDeficit(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        hearthAt(helper).insertGoods(new ItemStack(Items.BREAD, 64));
+        var result = RequestLedgerService.pickup(helper.getLevel(), fixture.settlement(),
+            fixture.requestId(), fixture.courier());
+        helper.assertTrue(!result.accepted()
+            && foodLedger(helper, fixture.settlement()).any(fixture.requestId()).state() == RequestState.EXPIRED,
+            "obsolete empty pickup must retire before inventory changes");
+        helper.assertTrue(countIn(fixture.source(), Items.BREAD) == 12
+            && bagCountOf(fixture.courier(), Items.BREAD) == 0 && countInHearth(hearthAt(helper), Items.BREAD) == 64,
+            "live larder changes must never cause a stale withdrawal");
+        helper.succeed();
+    }
+
+
+    /** Actual chest contact, not a mocked goal predicate. Both feet positions
+     * have floor support and differ by only .10 blocks across the 2.5 reach. */
+    private static void gripBoundary(GameTestHelper helper, FoodRecovery fixture,
+                                     boolean contact) {
+        BlockPos chest = helper.absolutePos(WAREHOUSE_CHEST_REL);
+        fixture.courier().setPos(chest.getX() + 0.5, chest.getY(),
+            chest.getZ() + (contact ? 2.94 : 3.04));
+        helper.assertTrue(ContainerApproach.inspect(helper.getLevel(), fixture.courier(),
+            chest).canInteract() == contact, "fixture must cross the real chest contact boundary");
+        helper.assertTrue(helper.getLevel().noCollision(fixture.courier())
+            && !helper.getLevel().getBlockState(fixture.courier().blockPosition().below())
+                .getCollisionShape(helper.getLevel(), fixture.courier().blockPosition().below()).isEmpty(),
+            "contact perturbation must retain clear body and real floor support");
+    }
+
+    private static void unchangedPreGripFood(GameTestHelper helper, FoodRecovery fixture) {
+        RequestRecord row = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+        helper.assertTrue(row != null && row.type() == RequestType.FOOD
+            && fixture.courier().getUUID().equals(row.courierId()) && row.deliveredCount() == 0
+            && countIn(fixture.source(), Items.BREAD) == 12
+            && bagCountOf(fixture.courier(), Items.BREAD) == 0
+            && countInHearth(hearthAt(helper), Items.BREAD) == 0,
+            "failed grip must preserve exact request owner and all twelve source loaves");
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 500, batch = "courier_food_route_day")
+    public void repeatedLostGripContactSpendsOneSourceBudget(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        BlockPos anchor = helper.absolutePos(WAREHOUSE_CHEST_REL).south();
+        fixture.courier().setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(anchor));
+        helper.assertTrue(ContainerApproach.inspect(helper.getLevel(), fixture.courier(),
+            helper.absolutePos(WAREHOUSE_CHEST_REL)).canInteract(), "centred source stand must contact the chest");
+        CourierWorkGoal goal = new CourierWorkGoal(fixture.courier());
+        helper.assertTrue(goal.canUse(), "real reserved FOOD route must be adopted");
+        goal.start();
+        int[] losses = {0};
+        boolean[] leave = {false};
+        // One real contact tick per excursion: the retained clock must stay below48
+        // while the cumulative lost-contact budget expires. No private timer is set.
+        helper.onEachTick(() -> {
+            if (leave[0]) {
+                gripBoundary(helper, fixture, false);
+                goal.tick();
+                losses[0]++;
+                leave[0] = false;
+            } else {
+                fixture.courier().setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(anchor));
+                goal.tick();
+                var view = fixture.courier().bagTransferPresentation();
+                if (view.active()) {
+                    helper.assertTrue(view.sourcePickup() && view.clock() < 48 && !view.committed(),
+                        "short real contacts must not reach the first unit debit");
+                    leave[0] = true;
+                }
+            }
+            unchangedPreGripFood(helper, fixture);
+            if (!goal.canContinueToUse()) {
+                RequestRecord row = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+                helper.assertTrue(losses[0] > 1 && losses[0] <= 33
+                    && row.state() == RequestState.BLOCKED && row.blocker() == RequestBlocker.NO_PATH
+                    && row.blockedFrom() == RequestState.RESERVED,
+                    "repeated short contact losses must finitely block the original reserved route");
+                helper.assertTrue(fixture.courier().routeFailureNote()
+                    .contains(":rest" + CourierWorkGoal.FIRST_REST_TICKS + ":run1"),
+                    "failed source contact must use the existing first route rest");
+                goal.stop();
+                helper.assertTrue(!goal.canUse(), "route must not immediately restart during its rest");
+                helper.succeed();
+            }
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "courier_food_route_day")
+    public void oneLostGripRecoversAndOrdinaryFoodDeliveryConserves(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        BlockPos anchor = helper.absolutePos(WAREHOUSE_CHEST_REL).south();
+        fixture.courier().setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(anchor));
+        helper.assertTrue(ContainerApproach.inspect(helper.getLevel(), fixture.courier(),
+            helper.absolutePos(WAREHOUSE_CHEST_REL)).canInteract(), "centred source stand must contact the chest");
+        CourierWorkGoal goal = new CourierWorkGoal(fixture.courier());
+        helper.assertTrue(goal.canUse(), "real reserved FOOD route must be adopted");
+        goal.start();
+        boolean[] lost = {false}, ordinary = {false};
+        int[] contacts = {0};
+        var sourceSession = new com.hearthstead.entity.ai.CourierSourceBagSession(fixture.courier());
+        helper.onEachTick(() -> {
+            if (!ordinary[0]) {
+                RequestRecord row = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+                var beforeView = fixture.courier().bagTransferPresentation();
+                int before = row.movedCount();
+                if (!lost[0] && beforeView.active() && beforeView.clock() == 47) {
+                    gripBoundary(helper, fixture, false);
+                    goal.tick();
+                    unchangedPreGripFood(helper, fixture);
+                    helper.assertTrue(goal.canContinueToUse(), "one transient bump must retain the route");
+                    lost[0] = true;
+                } else {
+                    fixture.courier().setPos(net.minecraft.world.phys.Vec3.atBottomCenterOf(anchor));
+                    goal.tick();
+                }
+                int after = row.movedCount();
+                helper.assertTrue(after - before == 0 || after - before == 1,
+                    "one source contact may debit at most one real loaf");
+                if (after > before) {
+                    var contact = fixture.courier().bagTransferPresentation();
+                    helper.assertTrue(lost[0] && contact.active() && contact.sourcePickup()
+                        && contact.clock() == 48 && contact.committed()
+                        && anchor.equals(fixture.courier().placedWorkContainerPos())
+                        && ContainerApproach.inspect(helper.getLevel(), fixture.courier(),
+                            helper.absolutePos(WAREHOUSE_CHEST_REL)).canInteract(),
+                        "each debit must share actual stow48 and the original grounded sack");
+                    contacts[0]++;
+                }
+                helper.assertTrue(bagCountOf(fixture.courier(), Items.BREAD) == after
+                    && countIn(fixture.source(), Items.BREAD) == 12 - after
+                    && countInHearth(hearthAt(helper), Items.BREAD) == 0,
+                    "source phase retains exact partial cargo without premature delivery");
+                if (after > 0 && after < 4) {
+                    helper.assertTrue(row.state() == RequestState.PICKUP,
+                        "partial physical load must remain in source pickup");
+                }
+                if (row.state() == RequestState.IN_TRANSIT && !sourceSession.active()) {
+                    helper.assertTrue(after == 4 && contacts[0] == 4 && lost[0]
+                        && fixture.courier().placedWorkContainerPos() == null,
+                        "only four separate contacts and the final lift may hand off to ordinary travel");
+                    goal.stop();
+                    ordinary[0] = true;
+                    fixture.courier().setNoAi(false);
+                }
+            }
+            helper.assertTrue(countIn(fixture.source(), Items.BREAD)
+                + bagCountOf(fixture.courier(), Items.BREAD)
+                + countInHearth(hearthAt(helper), Items.BREAD) == 12,
+                "transient contact recovery and ordinary delivery must conserve every loaf each tick");
+        });
+        helper.succeedWhen(() -> {
+            RequestRecord row = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+            helper.assertTrue(ordinary[0] && row.state() == RequestState.SATISFIED
+                && row.deliveredCount() == 4 && row.hasFullTransportTrace()
+                && countIn(fixture.source(), Items.BREAD) == 8
+                && bagCountOf(fixture.courier(), Items.BREAD) == 0
+                && countInHearth(hearthAt(helper), Items.BREAD) == 4,
+                "ordinary AI must complete the same request after the transient lost grip");
+        });
+    }
+
+    @GameTest(template = "empty16", timeoutTicks = 1600, batch = "courier_food_route_day")
+    public void groundedFoodUnitsSurviveFullHearthAndFinalLiftReload(GameTestHelper helper) {
+        FoodRecovery fixture = reservedFood(helper);
+        pickFood(helper, fixture); // Existing exact source contact; this test owns the destination leg.
+        var inventory = hearthAt(helper).getInventory();
+        SettlerEntity[] worker = { fixture.courier() };
+        worker[0].setNoAi(false);
+        int[] before = { 0 };
+        int[] fullTicks = { 0 };
+        boolean[] filled = { false }, opened = { false }, partialReload = { false }, finalReload = { false };
+        net.minecraft.core.BlockPos[] anchor = { null };
+        helper.onEachTick(() -> {
+            SettlerEntity courier = worker[0];
+            var view = courier.bagTransferPresentation();
+            int atSource = countIn(fixture.source(), Items.BREAD);
+            int inBag = bagCountOf(courier, Items.BREAD);
+            int atHearth = countInHearth(hearthAt(helper), Items.BREAD);
+            helper.assertTrue(atSource == 8 && atSource + inBag + atHearth == 12,
+                "one original FOOD request must conserve all twelve real loaves every tick");
+            if (view.active()) {
+                if (anchor[0] == null) anchor[0] = view.bagAnchor();
+                helper.assertTrue(anchor[0].equals(view.bagAnchor()),
+                    "one destination session must keep the original grounded anchor through reload");
+            }
+            if (!filled[0] && view.active()) {
+                helper.assertTrue(view.clock() < 48 && atHearth == 0 && inBag == 4,
+                    "begin a real destination session before the player fills its target");
+                for (int slot = 0; slot < inventory.getSlots(); slot++)
+                    inventory.setStackInSlot(slot, new ItemStack(Items.STONE, 64));
+                filled[0] = true;
+            }
+            if (!opened[0] && view.active() && view.clock() == 47) {
+                helper.assertTrue(atHearth == 0 && inBag == 4 && !view.committed()
+                        && anchor[0].equals(courier.placedWorkContainerPos()),
+                    "full Hearth must hold actual cargo before contact with its sack stationary");
+                if (++fullTicks[0] == 50) {
+                    RequestRecord blocked = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+                    helper.assertTrue(filled[0] && blocked != null
+                            && blocked.state() == RequestState.BLOCKED
+                            && blocked.blocker() == com.hearthstead.settlement.request.RequestBlocker.TARGET_FULL
+                            && courier.logisticsStopReason() == com.hearthstead.logistics.StopReason.HEARTH_FULL,
+                        "fifty-tick hold must include an actual full-target refusal and visible reason");
+                    for (int slot = 0; slot < inventory.getSlots(); slot++)
+                        inventory.setStackInSlot(slot, ItemStack.EMPTY);
+                    opened[0] = true; // Remove only the explicitly seeded blocking stone.
+                }
+            }
+            if (atHearth != before[0]) {
+                helper.assertTrue(opened[0] && atHearth - before[0] == 1
+                        && view.active() && view.clock() == 48 && view.committed(),
+                    "each real one-loaf ledger delivery must occur at its physical contact48");
+                helper.assertTrue(courier.logisticsStopReason() != com.hearthstead.logistics.StopReason.HEARTH_FULL,
+                    "a real accepted loaf clears the obsolete full-Hearth reason");
+            }
+            before[0] = atHearth;
+            if (atHearth == 1 && !partialReload[0]) {
+                partialReload[0] = true;
+                worker[0] = reloadFoodCourier(helper, courier);
+                worker[0].setNoAi(false);
+                return;
+            }
+            if (atHearth == 4 && !finalReload[0]) {
+                finalReload[0] = true;
+                helper.assertTrue(view.active() && courier.placedWorkContainerPos() != null,
+                    "last loaf must not prematurely skip the empty-sack pickup");
+                worker[0] = reloadFoodCourier(helper, courier);
+                worker[0].setNoAi(false);
+                return;
+            }
+            RequestRecord record = foodLedger(helper, fixture.settlement()).any(fixture.requestId());
+            if (finalReload[0] && !view.active()) {
+                helper.assertTrue(opened[0] && partialReload[0] && atHearth == 4 && inBag == 0
+                        && courier.placedWorkContainerPos() == null && record != null
+                        && record.state() == RequestState.SATISFIED && record.deliveredCount() == 4
+                        && record.hasFullTransportTrace(),
+                    "same request must finish its real pickup after reload without another withdrawal or replay");
+                helper.succeed();
+            }
+        });
+    }
+
+
+    /** Real old-format candidate keeps its four-bread/eight-plank contract across current saves. */
+    private static void legacyBreadCandidate(GameTestHelper helper, Settlement s) {
+        Building tavern = GameTestFixtures.register(helper, s, BuildingType.TAVERN, 10, 8);
+        var plaque = (com.hearthstead.block.PlaqueBlockEntity) helper.getLevel().getBlockEntity(tavern.plaquePos);
+        try {
+            var field = com.hearthstead.block.PlaqueBlockEntity.class.getDeclaredField("buildingId");
+            field.setAccessible(true); field.set(plaque, tavern.id);
+        } catch (ReflectiveOperationException failure) { throw new IllegalStateException(failure); }
+        SettlerEntity guest = helper.spawn(ModEntities.SETTLER.get(), new BlockPos(11, 1, 9));
+        guest.markTraveler(s.id, s.center); guest.setNoAi(true);
+        var old = com.hearthstead.settlement.RecruitmentTransaction.fresh(s.id)
+            .adminPrime(UUID.randomUUID(), helper.getLevel().getGameTime(), tavern.id,
+                tavern.plaquePos, tavern.anchor, helper.getLevel().dimension().location())
+            .travelerSpawned(guest.getUUID(), "Legacy Food Guest", helper.getLevel().getGameTime()).writeNbt();
+        old.putInt("SchemaVersion", 1); old.remove("Quote");
+        // Use an exact timing target that existed in schema v1; new ordinary ranges did not.
+        old.remove("TimingProfileWireId");
+        old.putInt("LockedTarget", com.hearthstead.settlement.RecruitmentPolicy.callToArmsTargetFor(s.id, old.getInt("Cycle")));
+        s.applyRecruitment(com.hearthstead.settlement.RecruitmentTransaction.readOrQuarantine(old, s.id)
+            .freezeLegacyQuote(java.util.List.of()));
+        helper.assertTrue(s.recruitment.quote().version() == 0
+            && s.recruitment.quote().bread() == 4 && s.recruitment.quote().planks() == 8,
+            "old saved guest must retain exact barter, without converting or repricing its promise");
     }
 }

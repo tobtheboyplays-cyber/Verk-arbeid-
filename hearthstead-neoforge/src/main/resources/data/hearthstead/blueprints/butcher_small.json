@@ -1,0 +1,132 @@
+{
+  "id": "butcher_small",
+  "name": "Butchery",
+  "category": "work",
+  "kind": "building",
+  "building_type": "butcher",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "butcher",
+  "size": [
+    14,
+    10,
+    9
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      5,
+      2,
+      5
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      2,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 83
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 72
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 71
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 47
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 25
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 19
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 12
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 7
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 6
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:smoker",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 1
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 360,
+  "cells": 465
+}

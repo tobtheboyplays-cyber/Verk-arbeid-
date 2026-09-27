@@ -103,7 +103,8 @@ public record PlaqueSnapshot(BlockPos pos, UUID buildingId, UUID sessionId,
 
     /** Someone who lives or works here. */
     public record Occupant(UUID id, String name, String profession,
-                           float health, float maxHealth, int morale, boolean worker) {
+                           float health, float maxHealth, int morale, boolean worker,
+                           long employmentRevision) {
         public static final StreamCodec<RegistryFriendlyByteBuf, Occupant> CODEC =
             StreamCodec.of((buf, o) -> {
                 net.minecraft.core.UUIDUtil.STREAM_CODEC.encode(buf, o.id());
@@ -113,10 +114,11 @@ public record PlaqueSnapshot(BlockPos pos, UUID buildingId, UUID sessionId,
                 buf.writeFloat(o.maxHealth());
                 buf.writeVarInt(o.morale());
                 buf.writeBoolean(o.worker());
+                buf.writeVarLong(o.employmentRevision());
             }, buf -> new Occupant(
                 net.minecraft.core.UUIDUtil.STREAM_CODEC.decode(buf),
                 buf.readUtf(), buf.readUtf(), buf.readFloat(), buf.readFloat(),
-                buf.readVarInt(), buf.readBoolean()));
+                buf.readVarInt(), buf.readBoolean(), buf.readVarLong()));
     }
 
     /**

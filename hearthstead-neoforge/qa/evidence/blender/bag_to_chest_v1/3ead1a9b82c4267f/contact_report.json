@@ -1,0 +1,242 @@
+{
+  "name": "BAG_TO_CHEST_UNLOAD_CANDIDATE",
+  "status": "Candidate \u2014 offline Blender checks only; native Minecraft pending",
+  "candidateHash": "3ead1a9b82c4267f",
+  "evidenceRoot": "C:\\Users\\tobia\\OneDrive\\Documents\\ChatGPT\\MINECRAFT MOD\\Verk-arbeid-\\hearthstead-neoforge\\qa\\evidence\\blender\\bag_to_chest_v1\\3ead1a9b82c4267f",
+  "fps": 20,
+  "durationTicks": 80,
+  "durationSeconds": 4.0,
+  "ownershipCommitTicks": {
+    "bagWorldAnchor": 12,
+    "bagToWorker": 30,
+    "chestOpen": 36,
+    "workerToChest": 48,
+    "chestClose": 64
+  },
+  "limits": {
+    "maxPalmGap": 0.12,
+    "minForwardLeanDegrees": 8.0,
+    "maxWorldBagDrift": 0.0001,
+    "maxGazeErrorDegrees": 35.0
+  },
+  "measurements": [
+    {
+      "tick": 12,
+      "palmGaps": {
+        "left_bag_rail": 0.0,
+        "right_bag_rail": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 10.0
+    },
+    {
+      "tick": 24,
+      "palmGaps": {
+        "left_bag_mouth": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 17.0
+    },
+    {
+      "tick": 30,
+      "palmGaps": {
+        "left_withdraw": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 19.0
+    },
+    {
+      "tick": 31,
+      "palmGaps": {
+        "right_lid_pull_closed": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 18.949
+    },
+    {
+      "tick": 48,
+      "palmGaps": {
+        "left_chest_cavity": 0.0
+      },
+      "maxPalmGap": 0.0,
+      "torsoForwardDegrees": 17.0
+    }
+  ],
+  "setDownForwardLeanDegrees": 10.0,
+  "worldBagAnchorSamples": [
+    {
+      "tick": 12,
+      "drift": 0.0
+    },
+    {
+      "tick": 24,
+      "drift": 0.0
+    },
+    {
+      "tick": 30,
+      "drift": 0.0
+    },
+    {
+      "tick": 36,
+      "drift": 0.0
+    },
+    {
+      "tick": 48,
+      "drift": 0.0
+    },
+    {
+      "tick": 64,
+      "drift": 0.0
+    },
+    {
+      "tick": 80,
+      "drift": 0.0
+    }
+  ],
+  "gazeSamples": [
+    {
+      "tick": 0,
+      "target": [
+        0.0,
+        -1.1,
+        1.22
+      ],
+      "gazeErrorDegrees": 3.5256
+    },
+    {
+      "tick": 8,
+      "target": [
+        -0.62,
+        -0.36,
+        1.24
+      ],
+      "gazeErrorDegrees": 34.3251
+    },
+    {
+      "tick": 12,
+      "target": [
+        -0.62,
+        -0.39,
+        1.24
+      ],
+      "gazeErrorDegrees": 30.5724
+    },
+    {
+      "tick": 18,
+      "target": [
+        -0.62,
+        -0.39,
+        1.22
+      ],
+      "gazeErrorDegrees": 31.3786
+    },
+    {
+      "tick": 24,
+      "target": [
+        -0.62,
+        -0.39,
+        1.22
+      ],
+      "gazeErrorDegrees": 32.7286
+    },
+    {
+      "tick": 30,
+      "target": [
+        -0.62,
+        -0.39,
+        1.22
+      ],
+      "gazeErrorDegrees": 33.3082
+    },
+    {
+      "tick": 31,
+      "target": [
+        0.0,
+        -0.89,
+        1.2
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 36,
+      "target": [
+        0.0,
+        -1.09,
+        1.18
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 48,
+      "target": [
+        0.0,
+        -1.09,
+        1.18
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 56,
+      "target": [
+        0.0,
+        -1.09,
+        1.18
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 64,
+      "target": [
+        0.0,
+        -1.1,
+        1.12
+      ],
+      "gazeErrorDegrees": 0.0
+    },
+    {
+      "tick": 80,
+      "target": [
+        0.0,
+        -1.1,
+        1.2
+      ],
+      "gazeErrorDegrees": 4.6157
+    }
+  ],
+  "checks": {
+    "palmContactsPass": true,
+    "setDownForwardLeanPass": true,
+    "forwardLeanPass": true,
+    "worldBagAnchorPass": true,
+    "targetFacingPass": true,
+    "candidateOnly": true
+  },
+  "reviewTicks": [
+    0,
+    11,
+    12,
+    13,
+    24,
+    29,
+    30,
+    31,
+    32,
+    35,
+    36,
+    37,
+    42,
+    47,
+    48,
+    49,
+    63,
+    64,
+    65,
+    80
+  ],
+  "reviewViews": [
+    "front34",
+    "left",
+    "right",
+    "back34"
+  ]
+}

@@ -17,7 +17,9 @@ public enum DevelopmentObjective {
     PRODUCTIVE_GOODS_MOVED(8, "productive_goods_moved", true),
     ALL_HOUSED_TICKS(9, "all_housed_ticks", false),
     /** One unique Guard request physically delivered by a live Courier. */
-    GUARD_EQUIPMENT_DELIVERIES(10, "guard_equipment_deliveries", true);
+    GUARD_EQUIPMENT_DELIVERIES(10, "guard_equipment_deliveries", true),
+    /** Current living residents, including residents without a bed. */
+    POPULATION(11, "population", false);
 
     private final int wireId;
     private final String id;

@@ -1,0 +1,57 @@
+{
+  "id": "command",
+  "title": "hearthstead.guide.command.title",
+  "icon": "minecraft:shield",
+  "pages": [
+    {
+      "id": "command.roles",
+      "title": "hearthstead.guide.command.roles.title",
+      "bullets": [
+        "hearthstead.guide.command.roles.b1",
+        "hearthstead.guide.command.roles.b2",
+        "hearthstead.guide.command.roles.b3",
+        "hearthstead.guide.command.roles.b4"
+      ],
+      "tip": "hearthstead.guide.command.roles.tip",
+      "image_wanted": "Player aiming at a raider while melee troops charge and archers loose.",
+      "keys": [
+        {
+          "key": "key.hearthstead.command_melee",
+          "action": "hearthstead.guide.command.roles.k1"
+        },
+        {
+          "key": "key.hearthstead.command_ranged",
+          "action": "hearthstead.guide.command.roles.k2"
+        }
+      ]
+    },
+    {
+      "id": "command.recall",
+      "title": "hearthstead.guide.command.recall.title",
+      "bullets": [
+        "hearthstead.guide.command.recall.b1",
+        "hearthstead.guide.command.recall.b2",
+        "hearthstead.guide.command.recall.b3"
+      ],
+      "tip": "hearthstead.guide.command.recall.tip",
+      "image_wanted": "The ranged order strip open above the hotbar, one chip highlighted.",
+      "keys": [
+        {
+          "key": "key.hearthstead.command_melee",
+          "action": "hearthstead.guide.command.recall.k1",
+          "modifier": "key.sneak"
+        },
+        {
+          "key": "key.hearthstead.command_melee",
+          "action": "hearthstead.guide.command.recall.k2",
+          "hold": true
+        },
+        {
+          "key": "key.hearthstead.command_ranged",
+          "action": "hearthstead.guide.command.recall.k3",
+          "hold": true
+        }
+      ]
+    }
+  ]
+}

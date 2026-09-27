@@ -1,0 +1,365 @@
+{
+  "id": "options",
+  "title": "hearthstead.guide.options.title",
+  "icon": "minecraft:comparator",
+  "pages": [
+    {
+      "id": "options.controls",
+      "title": "hearthstead.guide.options.controls.title",
+      "bullets": [
+        "hearthstead.guide.options.controls.b1"
+      ],
+      "tip": "hearthstead.guide.options.controls.tip",
+      "keys": [
+        {
+          "key": "key.hearthstead.command_melee",
+          "action": "hearthstead.guide.ref.options.key_key_hearthstead_command_melee"
+        },
+        {
+          "key": "key.hearthstead.command_ranged",
+          "action": "hearthstead.guide.ref.options.key_key_hearthstead_command_ranged"
+        },
+        {
+          "key": "key.hearthstead.finisher",
+          "action": "hearthstead.guide.ref.options.key_key_hearthstead_finisher"
+        },
+        {
+          "key": "key.hearthstead.handbook",
+          "action": "hearthstead.guide.ref.options.key_key_hearthstead_handbook"
+        }
+      ]
+    },
+    {
+      "id": "options.switches1",
+      "title": "hearthstead.guide.options.switches1.title",
+      "bullets": [
+        "hearthstead.guide.options.switches1.b1"
+      ],
+      "tip": "hearthstead.guide.options.switches1.tip",
+      "entries": [
+        {
+          "ref": "option:features.builder",
+          "name": "hearthstead.guide.ref.options.features_builder.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_builder.text"
+        },
+        {
+          "ref": "option:features.worldEvents",
+          "name": "hearthstead.guide.ref.options.features_worldevents.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_worldevents.text"
+        },
+        {
+          "ref": "option:features.battleRoles",
+          "name": "hearthstead.guide.ref.options.features_battleroles.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_battleroles.text"
+        },
+        {
+          "ref": "option:features.guardCommands",
+          "name": "hearthstead.guide.ref.options.features_guardcommands.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_guardcommands.text"
+        },
+        {
+          "ref": "option:features.warehouseLevels",
+          "name": "hearthstead.guide.ref.options.features_warehouselevels.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_warehouselevels.text"
+        },
+        {
+          "ref": "option:features.gearTiers",
+          "name": "hearthstead.guide.ref.options.features_geartiers.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_geartiers.text"
+        },
+        {
+          "ref": "option:features.characterSkins",
+          "name": "hearthstead.guide.ref.options.features_characterskins.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_characterskins.text"
+        },
+        {
+          "ref": "option:features.logisticsUpgrades",
+          "name": "hearthstead.guide.ref.options.features_logisticsupgrades.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_logisticsupgrades.text"
+        }
+      ]
+    },
+    {
+      "id": "options.switches2",
+      "title": "hearthstead.guide.options.switches2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "option:features.conversations",
+          "name": "hearthstead.guide.ref.options.features_conversations.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_conversations.text"
+        },
+        {
+          "ref": "option:features.extendedTrades",
+          "name": "hearthstead.guide.ref.options.features_extendedtrades.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_extendedtrades.text"
+        },
+        {
+          "ref": "option:features.livingVillage",
+          "name": "hearthstead.guide.ref.options.features_livingvillage.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_livingvillage.text"
+        },
+        {
+          "ref": "option:features.patrolRoutes",
+          "name": "hearthstead.guide.ref.options.features_patrolroutes.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_patrolroutes.text"
+        },
+        {
+          "ref": "option:features.captainWeapons",
+          "name": "hearthstead.guide.ref.options.features_captainweapons.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.features_captainweapons.text"
+        }
+      ]
+    },
+    {
+      "id": "options.sections1",
+      "title": "hearthstead.guide.options.sections1.title",
+      "bullets": [
+        "hearthstead.guide.options.sections1.b1"
+      ],
+      "tip": "hearthstead.guide.options.sections1.tip",
+      "entries": [
+        {
+          "ref": "option:time",
+          "name": "hearthstead.guide.ref.options.time.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.time.text"
+        },
+        {
+          "ref": "option:builder",
+          "name": "hearthstead.guide.ref.options.builder.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.builder.text"
+        },
+        {
+          "ref": "option:settlement",
+          "name": "hearthstead.guide.ref.options.settlement.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.settlement.text"
+        },
+        {
+          "ref": "option:debug",
+          "name": "hearthstead.guide.ref.options.debug.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.debug.text"
+        },
+        {
+          "ref": "option:hunting",
+          "name": "hearthstead.guide.ref.options.hunting.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.hunting.text"
+        },
+        {
+          "ref": "option:raids",
+          "name": "hearthstead.guide.ref.options.raids.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.raids.text"
+        },
+        {
+          "ref": "option:combat",
+          "name": "hearthstead.guide.ref.options.combat.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.combat.text"
+        },
+        {
+          "ref": "option:logistics",
+          "name": "hearthstead.guide.ref.options.logistics.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.logistics.text"
+        },
+        {
+          "ref": "option:revive",
+          "name": "hearthstead.guide.ref.options.revive.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.revive.text"
+        },
+        {
+          "ref": "option:logistics.courierBatching",
+          "name": "hearthstead.guide.ref.options.logistics_courierbatching.name",
+          "icon": "minecraft:lever",
+          "text": "hearthstead.guide.ref.options.logistics_courierbatching.text"
+        }
+      ]
+    },
+    {
+      "id": "options.sections2",
+      "title": "hearthstead.guide.options.sections2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "option:finisher",
+          "name": "hearthstead.guide.ref.options.finisher.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.finisher.text"
+        },
+        {
+          "ref": "option:features",
+          "name": "hearthstead.guide.ref.options.features.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.features.text"
+        },
+        {
+          "ref": "option:events",
+          "name": "hearthstead.guide.ref.options.events.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.events.text"
+        },
+        {
+          "ref": "option:captain",
+          "name": "hearthstead.guide.ref.options.captain.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.captain.text"
+        },
+        {
+          "ref": "option:archers",
+          "name": "hearthstead.guide.ref.options.archers.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.archers.text"
+        },
+        {
+          "ref": "option:conversations",
+          "name": "hearthstead.guide.ref.options.conversations.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.conversations.text"
+        },
+        {
+          "ref": "option:economy",
+          "name": "hearthstead.guide.ref.options.economy.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.economy.text"
+        },
+        {
+          "ref": "option:quality",
+          "name": "hearthstead.guide.ref.options.quality.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.quality.text"
+        },
+        {
+          "ref": "option:techtree",
+          "name": "hearthstead.guide.ref.options.techtree.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.techtree.text"
+        }
+      ]
+    },
+    {
+      "id": "options.sections3",
+      "title": "hearthstead.guide.options.sections3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "option:attributes",
+          "name": "hearthstead.guide.ref.options.attributes.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.attributes.text"
+        },
+        {
+          "ref": "option:pickupNotices",
+          "name": "hearthstead.guide.ref.options.pickupnotices.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.pickupnotices.text"
+        },
+        {
+          "ref": "option:motion",
+          "name": "hearthstead.guide.ref.options.motion.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.motion.text"
+        },
+        {
+          "ref": "option:ambient",
+          "name": "hearthstead.guide.ref.options.ambient.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.ambient.text"
+        },
+        {
+          "ref": "option:particles",
+          "name": "hearthstead.guide.ref.options.particles.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.particles.text"
+        },
+        {
+          "ref": "option:audio",
+          "name": "hearthstead.guide.ref.options.audio.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.audio.text"
+        },
+        {
+          "ref": "option:hud",
+          "name": "hearthstead.guide.ref.options.hud.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.hud.text"
+        },
+        {
+          "ref": "option:chat",
+          "name": "hearthstead.guide.ref.options.chat.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.chat.text"
+        },
+        {
+          "ref": "option:mine",
+          "name": "hearthstead.guide.ref.options.mine.name",
+          "icon": "minecraft:iron_pickaxe",
+          "text": "hearthstead.guide.ref.options.mine.text"
+        }
+      ]
+    },
+    {
+      "id": "options.sections4",
+      "title": "hearthstead.guide.options.sections4.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "option:livingVillage",
+          "name": "hearthstead.guide.ref.options.livingvillage.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.livingvillage.text"
+        },
+        {
+          "ref": "option:weapons",
+          "name": "hearthstead.guide.ref.options.weapons.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.weapons.text"
+        },
+        {
+          "ref": "option:raid",
+          "name": "hearthstead.guide.ref.options.raid.name",
+          "icon": "minecraft:iron_sword",
+          "text": "hearthstead.guide.ref.options.raid.text"
+        },
+        {
+          "ref": "option:start",
+          "name": "hearthstead.guide.ref.options.start.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.start.text"
+        },
+        {
+          "ref": "option:pathing",
+          "name": "hearthstead.guide.ref.options.pathing.name",
+          "icon": "minecraft:comparator",
+          "text": "hearthstead.guide.ref.options.pathing.text"
+        }
+      ]
+    }
+  ]
+}

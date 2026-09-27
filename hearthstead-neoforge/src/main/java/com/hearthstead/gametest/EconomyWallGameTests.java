@@ -155,4 +155,28 @@ public class EconomyWallGameTests {
             "bell: matched recipe did not assemble a bell, got " + result);
         helper.succeed();
     }
+
+    /**
+     * Survival audit 2026-09-25: the Tavern is on the first-raid readiness
+     * checklist and gates recruitment, so its bell sits on the first hour's
+     * critical path. Gold is a deep-cave detour at that stage; a bronze-age
+     * copper bell (3 copper ingots, same shape) is the survival-plain route.
+     * Gold still works (see {@link #theBellIsCraftable}).
+     */
+    @GameTest(batch = "economy_wall", template = "empty5", timeoutTicks = 100)
+    public void theBellIsCraftableFromCopper(GameTestHelper helper) {
+        List<ItemStack> slots = new ArrayList<>(Arrays.asList(
+            new ItemStack(Items.COPPER_INGOT), new ItemStack(Items.COPPER_INGOT),
+            new ItemStack(Items.COPPER_INGOT),
+            new ItemStack(Items.STICK), ItemStack.EMPTY, new ItemStack(Items.STICK),
+            ItemStack.EMPTY, new ItemStack(Items.IRON_INGOT), ItemStack.EMPTY));
+        CraftingInput input = CraftingInput.of(3, 3, slots);
+        Optional<RecipeHolder<CraftingRecipe>> match = helper.getLevel().getRecipeManager()
+            .getRecipeFor(RecipeType.CRAFTING, input, helper.getLevel());
+        helper.assertTrue(match.isPresent(),
+            "bell: 3 copper ingots + 2 sticks + 1 iron ingot matched no recipe");
+        helper.assertTrue(match.get().value().assemble(input, helper.getLevel().registryAccess())
+            .is(Items.BELL), "bell: copper recipe did not assemble a bell");
+        helper.succeed();
+    }
 }

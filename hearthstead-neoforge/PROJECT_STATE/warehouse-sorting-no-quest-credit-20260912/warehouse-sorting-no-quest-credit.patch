@@ -1,0 +1,40 @@
+--- a/src\main\java\com\hearthstead\entity\ai\CourierWorkGoal.java
++++ b/src\main\java\com\hearthstead\entity\ai\CourierWorkGoal.java
+@@ -2898,8 +2898,13 @@
+         int inserted = routeInsertedItems;
+         routeInsertedItems = 0;
+         if (inserted > 0 && settlement != null) {
+-            DevelopmentQuests.noteCourierDelivery(level, settlement, settler,
+-                source, destination, inserted);
++            boolean internalWarehouseSort = source != null && destination != null
++                && source.type == BuildingType.WAREHOUSE
++                && source.id.equals(destination.id);
++            if (!internalWarehouseSort) {
++                DevelopmentQuests.noteCourierDelivery(level, settlement, settler,
++                    source, destination, inserted);
++            }
+             AuthorityTelemetry.Event event = job == JobPriority.EQUIPMENT_REQUEST
+                 ? AuthorityTelemetry.Event.EQUIPMENT_ITEM_DELIVERED
+                 : AuthorityTelemetry.Event.COURIER_ITEM_DELIVERED;
+--- a/src\main\java\com\hearthstead\gametest\WarehouseSortingGameTests.java
++++ b/src\main\java\com\hearthstead\gametest\WarehouseSortingGameTests.java
+@@ -11,6 +11,7 @@
+ import com.hearthstead.settlement.Building;
+ import com.hearthstead.settlement.Employment;
+ import com.hearthstead.settlement.Settlement;
++import com.hearthstead.settlement.development.Development;
+ import com.hearthstead.settlement.SettlementManager;
+ import com.hearthstead.settlement.warehouse.WarehouseSorting;
+ import net.minecraft.core.BlockPos;
+@@ -292,7 +293,9 @@
+                 && count(source, Items.OAK_LOG) == 0 && count(source, Items.WHEAT) == 0
+                 && count(wood, Items.OAK_LOG) == 4 && count(wood, Items.WHEAT) == 0
+                 && count(crops, Items.WHEAT) == 4 && count(crops, Items.OAK_LOG) == 0
+-                && count(courier, Items.OAK_LOG) == 0 && count(courier, Items.WHEAT) == 0,
+-            "one real employed Courier must bag-carry mixed warehouse stock into its assigned Wood and Crops chests"));
++                && count(courier, Items.OAK_LOG) == 0 && count(courier, Items.WHEAT) == 0
++                && Development.of(helper.getLevel(), settlement).writeNbt()
++                    .getCompound("QuestCounters").getInt("CourierDeliveries") == 0,
++            "one real employed Courier must bag-carry mixed warehouse stock into its assigned Wood and Crops chests without granting generic Courier-delivery progression"));
+     }
+ }

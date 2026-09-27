@@ -9,7 +9,9 @@ public enum RequestType {
     FOOD(2, "food"),
     AMMUNITION(3, "ammunition"),
     OUTPUT_PICKUP(4, "output_pickup"),
-    REPAIR_MATERIAL(5, "repair_material");
+    REPAIR_MATERIAL(5, "repair_material"),
+    /** M1 crafting order: a workshop makes what the Warehouse lacks. */
+    CRAFT_ORDER(6, "craft_order");
 
     private final int wireId;
     private final String id;

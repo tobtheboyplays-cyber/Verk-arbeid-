@@ -1,11 +1,8 @@
 {
-  "type": "minecraft:crafting_shapeless",
+  "type": "minecraft:crafting_shaped",
   "category": "misc",
-  "ingredients": [
-    { "item": "minecraft:wheat" },
-    { "item": "minecraft:wheat" },
-    { "item": "minecraft:wheat" }
-  ],
+  "pattern": ["W", "W", "W"],
+  "key": { "W": { "item": "minecraft:wheat" } },
   "result": {
     "id": "hearthstead:flour",
     "count": 2

@@ -1,413 +1,316 @@
 package com.hearthstead.entity.ai;
 
+import com.hearthstead.block.FishRackBlockEntity;
 import com.hearthstead.building.BuildingType;
+import com.hearthstead.entity.Attribute;
+import com.hearthstead.entity.FisherSeatEntity;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.registry.ModEntities;
 import com.hearthstead.registry.ModSounds;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
+import com.hearthstead.settlement.journey.JourneyServerHooks;
+import com.hearthstead.settlement.work.FisherEvidenceSavedData;
+import com.hearthstead.settlement.work.FisherProgression;
+import com.hearthstead.settlement.work.FishingGrounds;
+import com.hearthstead.settlement.work.ContainerApproach;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.tags.FluidTags;
-import net.minecraft.util.RandomSource;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.Container;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.Block;
-
-import java.util.ArrayList;
+import net.minecraft.world.phys.Vec3;
 import java.util.EnumSet;
-import java.util.List;
 
-/**
- * The fisher's work: stand a real water's edge and land real fish into the
- * fishery's own chest, on a cadence.
- *
- * <h2>What "adjacent water" means, exactly</h2>
- *
- * <p>{@code BuildingType.FISHERY}'s room requirement (2 water blocks) only
- * proves the plaque found a bowl or a bucket-splash inside the room — that
- * is a decoration check, not a fishing spot. A settler who could fish out of
- * that would be a free food printer with a water-block prop in front of it.
- * So this goal makes its own, stricter demand before it will ever start:
- * at least {@value #MIN_ADJACENT_WATER} real water blocks within
- * {@value #WATER_SEARCH_RADIUS} blocks (horizontal) and one block up/down of
- * the building's anchor. A puddle fails that count and the fishery simply
- * never produces — not an error, just nothing to do, the same honest silence
- * {@code MinerWorkGoal} gives a mine with nowhere to put ore.
- *
- * <h2>No infinite lake required, but a real one</h2>
- *
- * <p>The count is a floor, not a lake-detection algorithm — a generous
- * player-dug pond clears it easily; the search radius and threshold are
- * chosen so a token puzzle-box of water cannot.
- */
-public class FisherWorkGoal extends Goal {
-
-    private enum Mode { TO_DOCK, FISHING, TO_FISHERY }
-
-    /** See the class doc: the floor "adjacent water" has to clear. */
-    private static final int WATER_SEARCH_RADIUS = 6;
-    private static final int MIN_ADJACENT_WATER = 20;
-
-    private static final int LOOK_INTERVAL = 60;
-    /** FISHER_CAST is a 2.00s/40-tick loop; one full loop is one catch. */
-    private static final int FISH_CADENCE = 40;
-    private static final int BITE_ACCENT_TICK = 29;
-    private static final int BAG_TRIGGER = 6;
-    private static final int REPATH_INTERVAL = 40;
-    private static final int PATIENCE = 6;
-
+/** Cast, wait, reel, carry, hang. The persisted worker bag owns every landed catch. */
+public final class FisherWorkGoal extends Goal {
+    private enum Mode { TO_CHAIR, FISHING, TO_RACK, HANGING }
     private final SettlerEntity settler;
     private Mode mode;
     private Building fishery;
-    private BlockPos dockPos;
-    private Direction waterDir;
-    private int workTicks;
-    private int lookCooldown;
-    private int repathTimer;
-    private int stuckChecks;
+    private FishingGrounds.Result grounds;
+    private BlockPos destination, rack;
+    private int ticks, travelTicks, cycleLength;
+    private long retryAt;
     private boolean done;
-
+    private static final String LANDED = "HearthsteadFisherLanded";
+    /** Shared exact-unit bag-to-chest cycle (Courier/Farmer/Lumberer clip and contact ticks). */
+    private final GroundedBagUnload rackBag = new GroundedBagUnload();
     public FisherWorkGoal(SettlerEntity settler) {
-        this.settler = settler;
-        setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
+        this.settler=settler; setFlags(EnumSet.of(Flag.MOVE,Flag.LOOK));
     }
-
-    private boolean workConditions() {
-        return settler.getProfession() == Profession.FISHER
-            && settler.isBound()
-            && settler.dayPhase().work();
+    private boolean working() {
+        return settler.getProfession()==Profession.FISHER && settler.isBound() && settler.dayPhase().work();
     }
-
-    private int bagCount() {
-        int n = 0;
-        for (int i = 0; i < settler.bag.getContainerSize(); i++) {
-            n += settler.bag.getItem(i).getCount();
-        }
-        return n;
+    private boolean employerValid() {
+        Settlement s=settler.settlement();
+        Building current=s==null?null:Employment.employerOf(s,settler.getUUID());
+        return current!=null && current==fishery && current.valid && current.type==BuildingType.FISHERY && current.anchor!=null;
     }
-
-    @Override
-    public boolean canUse() {
-        if (!workConditions()) {
-            return false;
-        }
-        Settlement s = settler.settlement();
-        if (s == null) {
-            return false;
-        }
-        if (bagCount() >= BAG_TRIGGER) {
-            mode = Mode.TO_FISHERY;
-            return true;
-        }
-        if (lookCooldown > 0) {
-            lookCooldown--;
-            return false;
-        }
-        lookCooldown = LOOK_INTERVAL + settler.getRandom().nextInt(LOOK_INTERVAL);
-        if (!(settler.level() instanceof ServerLevel level)) {
-            return false;
-        }
-        Building building = Employment.employerOf(s, settler.getUUID());
-        if (building == null || !building.valid || building.anchor == null) {
-            return false;
-        }
-        fishery = building;
-        if (dockPos == null || dockableDirection(level, dockPos) == null) {
-            dockPos = findFishingSpot(level, building.anchor);
-        }
-        if (dockPos == null) {
-            return false; // not enough real water nearby -- see class doc
-        }
-        mode = Mode.TO_DOCK;
-        return true;
+    private boolean hasFish() {
+        for(int i=0;i<settler.bag.getContainerSize();i++) if(settler.bag.getItem(i).is(ItemTags.FISHES)) return true;
+        return false;
     }
-
-    @Override
-    public boolean canContinueToUse() {
-        return !done && (mode == Mode.TO_FISHERY || workConditions());
+    private void blocked(String reason) {
+        settler.recordRouteFailure(reason); done=true; retryAt=settler.level().getGameTime()+100;
+        // Surface the reason on the settler sheet too; before this a full rack
+        // or unreachable chair still read "Ready" to the player.
+        com.hearthstead.logistics.StopReason why = reason.contains("full")
+            ? com.hearthstead.logistics.StopReason.CHEST_FULL
+            : reason.contains("unreachable") ? com.hearthstead.logistics.StopReason.NO_PATH
+            : com.hearthstead.logistics.StopReason.NO_VALID_TARGET;
+        settler.setLogisticsStop(why, rack != null ? rack : fishery != null ? fishery.anchor : null, 100);
     }
-
-    @Override
-    public boolean requiresUpdateEveryTick() {
-        return true;
-    }
-
-    @Override
-    public void start() {
-        done = false;
-        workTicks = 0;
-        stuckChecks = 0;
-        repathTimer = 0;
-        settler.setActivity(SettlerActivity.TRAVELING);
-        if (mode == Mode.TO_FISHERY) {
-            pathToFishery();
-        } else {
-            pathToDock();
+    @Override public boolean canUse() {
+        if(!working() || !(settler.level() instanceof ServerLevel level)) return false;
+        if(level.getGameTime()<retryAt) return false;
+        retryAt=level.getGameTime()+100;
+        Settlement s=settler.settlement();
+        fishery=s==null?null:Employment.employerOf(s,settler.getUUID());
+        if(!employerValid()) return false;
+        // A saved (reloaded) rack unload resumes on its own contract clock.
+        // A vanished rack releases only the visual claim: the fish stay bagged.
+        if(GroundedBagUnload.presentationTargetGone(level,settler,settler.bagTransferPresentation()))
+            GroundedBagUnload.clearPresentation(settler,settler.bagTransferPresentation());
+        var pending=settler.bagTransferPresentation();
+        if(pending.active()) {
+            BlockPos at=pending.containerPos();
+            if(!pending.sourcePickup() && fishery.contains(at) && level.getBlockEntity(at) instanceof Container) {
+                rack=at; destination=at; mode=Mode.TO_RACK; return true;
+            }
+            GroundedBagUnload.clearPresentation(settler,pending);
         }
-    }
-
-    private void pathToDock() {
-        if (dockPos != null) {
-            settler.getNavigation().moveTo(dockPos.getX() + 0.5, dockPos.getY(),
-                dockPos.getZ() + 0.5, 0.9);
+        if(hasFish()) {
+            mode=Mode.TO_RACK;
+            return findRack(level);
         }
-    }
-
-    private void pathToFishery() {
-        if (fishery != null && fishery.anchor != null) {
-            settler.getNavigation().moveTo(fishery.anchor.getX() + 0.5,
-                fishery.anchor.getY() + 1, fishery.anchor.getZ() + 0.5, 1.0);
-        } else {
-            done = true;
+        if(!settler.getMainHandItem().is(com.hearthstead.registry.ModItems.FISHERS_ROD.get())) {
+            settler.recordRouteFailure("fisher_needs_rod"); return false;
         }
+        grounds=FishingGrounds.scan(level,fishery.anchor);
+        if(!grounds.ready()) { settler.recordRouteFailure(grounds.blocker()); return false; }
+        // Never start producing if the physical output rack is unavailable.
+        if(!findRack(level)) return false;
+        destination=reachableAisle(level,grounds.shorePosition(),grounds.direction());
+        // Beyond exact-route range Schedule.postFor walks the Fisher back to
+        // the fishery first (captain1 soak: idle 40-60 blocks away, NO_PATH).
+        if(destination==null) { settler.recordRouteFailure("fisher_chair_unreachable"); return false; }
+        mode=Mode.TO_CHAIR; return true;
     }
-
-    @Override
-    public void tick() {
-        switch (mode) {
-            case TO_DOCK -> tickTravelToDock();
-            case FISHING -> tickFish();
-            case TO_FISHERY -> tickDeposit();
-        }
+    @Override public boolean canContinueToUse() { return !done && working() && employerValid(); }
+    @Override public boolean requiresUpdateEveryTick() { return true; }
+    @Override public void start() {
+        done=false; ticks=0; travelTicks=0;
+        settler.setFisherCycleTick(-1); settler.setActivity(SettlerActivity.TRAVELING); path();
     }
-
-    private void tickTravelToDock() {
-        if (dockPos == null) {
-            done = true;
+    private void path() {
+        if(mode==Mode.TO_RACK && settler.level() instanceof ServerLevel level) {
+            ContainerApproach.moveToContact(level,settler,rack,.9);
             return;
         }
-        settler.getLookControl().setLookAt(dockPos.getX() + 0.5, dockPos.getY() + 1.0,
-            dockPos.getZ() + 0.5);
-        if (settler.blockPosition().closerThan(dockPos, 2.0)) {
-            mode = Mode.FISHING;
-            workTicks = 0;
-            settler.getNavigation().stop();
-            settler.setActivity(SettlerActivity.WORK_FISH);
-        } else if (--repathTimer <= 0) {
-            repathTimer = REPATH_INTERVAL;
-            if (++stuckChecks > PATIENCE) {
-                settler.recordRouteFailure("dock_unreachable");
-                done = true;
-            } else {
-                pathToDock();
-            }
+        if(destination!=null) {
+            // Coordinate moveTo uses vanilla accuracy 1 and may stop in the
+            // neighbouring cell. Boarding requires the exact selected aisle.
+            var route=settler.getNavigation().createPath(destination,0);
+            if(route!=null && route.canReach()) settler.getNavigation().moveTo(route,.9);
+            else blocked("fisher_chair_unreachable");
         }
     }
-
-    private void tickFish() {
-        if (!(settler.level() instanceof ServerLevel level) || dockPos == null) {
-            done = true;
-            return;
+    private BlockPos reachableAisle(ServerLevel level, BlockPos target, Direction excluded) {
+        BlockPos best=null; double distance=Double.MAX_VALUE;
+        for(Direction d:Direction.Plane.HORIZONTAL) {
+            if(d==excluded) continue;
+            BlockPos p=target.relative(d);
+            if(!FishingGrounds.standable(level,p)) continue;
+            var path=settler.getNavigation().createPath(p,0);
+            if(path==null || !path.canReach()) continue;
+            double current=p.distSqr(settler.blockPosition());
+            if(current<distance) {best=p;distance=current;}
         }
-        // Watches the water, not their own feet -- waterDir is the direction
-        // findFishingSpot actually found the water in.
-        Direction dir = waterDir != null ? waterDir : Direction.NORTH;
-        settler.getLookControl().setLookAt(dockPos.getX() + 0.5 + dir.getStepX() * 2.5,
-            dockPos.getY() + 0.2, dockPos.getZ() + 0.5 + dir.getStepZ() * 2.5);
-        workTicks++;
-        if (workTicks == BITE_ACCENT_TICK) {
-            level.playSound(null, dockPos, ModSounds.WATER_POUR.get(),
-                SoundSource.NEUTRAL, 0.6F, 1.1F + settler.getRandom().nextFloat() * 0.15F);
-        }
-        if (workTicks >= FISH_CADENCE) {
-            workTicks = 0;
-            ItemStack caught = rollCatch(settler.getRandom());
-            ItemStack leftover = settler.bag.addItem(caught);
-            if (!leftover.isEmpty()) {
-                // The sack briefly filled mid-session -- set down at the
-                // settler's own feet rather than lose the catch (INV-3).
-                Block.popResource(level, settler.blockPosition(), leftover);
-            }
-            settler.train(Employment.trainedBy(BuildingType.FISHERY), 1.0F);
-            settler.spendEffort(1);
-            if (bagCount() >= BAG_TRIGGER) {
-                mode = Mode.TO_FISHERY;
-                settler.setActivity(SettlerActivity.TRAVELING);
-                pathToFishery();
-            }
-            // Otherwise stays in FISHING: the loop simply starts again.
-        }
+        return best;
     }
-
-    private void tickDeposit() {
-        if (fishery == null || fishery.anchor == null) {
-            done = true;
-            return;
-        }
-        BlockPos target = fishery.anchor;
-        settler.getLookControl().setLookAt(target.getX() + 0.5, target.getY() + 1.0,
-            target.getZ() + 0.5);
-        if (settler.blockPosition().closerThan(target, 3.0)) {
-            if (settler.level() instanceof ServerLevel level) {
-                List<Container> containers = new ArrayList<>();
-                for (BlockPos pos : WarehouseIndex.containers(level, fishery)) {
-                    if (level.getBlockEntity(pos) instanceof Container chest) {
-                        containers.add(chest);
-                    }
-                }
-                for (int i = 0; i < settler.bag.getContainerSize(); i++) {
-                    ItemStack stack = settler.bag.getItem(i);
-                    if (!stack.isEmpty()) {
-                        settler.bag.setItem(i, insert(containers, stack));
-                    }
+    private boolean findRack(ServerLevel level) {
+        // Racks first (the hanging catch is the fishery's display), then any
+        // other store inside the fishery (a barrel). A full 4-fish rack used
+        // to stop the fisher until a Courier came by; in the soak that was
+        // most of the day (reliability soak 2026-09-26). Couriers collect
+        // fish from either kind of container.
+        for(int pass=0;pass<2;pass++) {
+            for(BlockPos p:WarehouseIndex.containers(level,fishery)) {
+                var be=level.getBlockEntity(p);
+                boolean isRack=be instanceof FishRackBlockEntity;
+                if(!(be instanceof Container container) || isRack!=(pass==0) || !roomForFish(container)) continue;
+                if(ContainerApproach.inspect(level,settler,p).canInteract()
+                    || ContainerApproach.canPlanContact(level,settler,p)) {
+                    rack=p; destination=p; return true;
                 }
             }
-            done = true;
-        } else if (--repathTimer <= 0) {
-            repathTimer = REPATH_INTERVAL;
-            pathToFishery();
         }
+        settler.recordRouteFailure("fisher_rack_full_or_unreachable"); return false;
     }
-
-    @Override
-    public void stop() {
-        settler.setActivity(SettlerActivity.IDLE);
-        settler.getNavigation().stop();
-    }
-
-    // ------------------------------------------------------------ helpers ---
-
-    private static ItemStack rollCatch(RandomSource random) {
-        float roll = random.nextFloat();
-        if (roll < 0.55F) {
-            return new ItemStack(Items.COD);
-        } else if (roll < 0.85F) {
-            return new ItemStack(Items.SALMON);
-        } else if (roll < 0.95F) {
-            return new ItemStack(Items.PUFFERFISH);
+    private boolean roomForFish(Container container) {
+        for(int i=0;i<container.getContainerSize();i++) {
+            ItemStack there=container.getItem(i);
+            if(there.isEmpty()) return true;
+            if(hasFish()) for(int j=0;j<settler.bag.getContainerSize();j++) {
+                ItemStack held=settler.bag.getItem(j);
+                if(held.is(ItemTags.FISHES) && ItemStack.isSameItemSameComponents(there,held)
+                    && there.getCount()<Math.min(there.getMaxStackSize(),container.getMaxStackSize())) return true;
+            }
         }
-        return new ItemStack(Items.TROPICAL_FISH);
+        return false;
     }
-
+    @Override public void tick() {
+        // Vanilla ticks every-tick goals once more after tick() finished them,
+        // without canContinueToUse() (see CrafterWorkGoal.tick): never act again.
+        if(done) return;
+        if(!(settler.level() instanceof ServerLevel level) || !employerValid()) {done=true;return;}
+        if(mode==Mode.FISHING) { fish(level); return; }
+        if(mode==Mode.HANGING) { hang(level); return; }
+        if(mode==Mode.TO_RACK && ContainerApproach.inspect(level,settler,rack).canInteract()) {
+            settler.getNavigation().stop(); ticks=0; mode=Mode.HANGING;
+            settler.setActivity(SettlerActivity.SORTING); return;
+        }
+        if(destination==null || ++travelTicks>240) {blocked("fisher_route_unreachable");return;}
+        if(mode==Mode.TO_CHAIR && settler.position().distanceToSqr(Vec3.atBottomCenterOf(destination))<.64) {
+            settler.getNavigation().stop(); ticks=0;
+            if(mode==Mode.TO_CHAIR) {
+                if(!FishingGrounds.validChair(level,grounds.shorePosition(),grounds.direction())) {blocked("fisher_needs_shore_chair");return;}
+                FisherSeatEntity seat=ModEntities.FISHER_SEAT.get().create(level);
+                if(seat==null) {done=true;return;}
+                seat.prepare(settler,grounds.shorePosition(),destination,grounds.direction());
+                settler.setActivity(SettlerActivity.WORK_FISH); settler.setFisherCycleTick(0);
+                level.addFreshEntity(seat);
+                if(!settler.startRiding(seat)) {seat.discard();done=true;return;}
+                cycleLength=com.hearthstead.settlement.development.DevelopmentBonuses.fisherCycleTicks(settler,
+                    FisherProgression.cycleTicks(settler.attribute(Attribute.DEXTERITY))); mode=Mode.FISHING;
+            } else { mode=Mode.HANGING; settler.setActivity(SettlerActivity.SORTING); }
+        } else if(travelTicks%40==0) path();
+    }
+    private void fish(ServerLevel level) {
+        if(!settler.getMainHandItem().is(com.hearthstead.registry.ModItems.FISHERS_ROD.get())) {blocked("fisher_needs_rod");return;}
+        if(!(settler.getVehicle() instanceof FisherSeatEntity)
+            || !FishingGrounds.validChair(level,grounds.shorePosition(),grounds.direction())) {blocked("fisher_needs_shore_chair");return;}
+        int before=phaseOf(ticks,cycleLength);
+        ticks++;
+        int phase=phaseOf(ticks,cycleLength);
+        settler.setFisherCycleTick(phase);
+        BlockPos chair=grounds.shorePosition(); Direction dir=grounds.direction();
+        settler.getLookControl().setLookAt(chair.getX()+.5+dir.getStepX()*3,chair.getY()+.1,chair.getZ()+.5+dir.getStepZ()*3);
+        if(before<100 && phase>=100 && settler.getRandom().nextInt(3)==0)
+            level.playSound(null,chair,ModSounds.FISHER_WHISTLE.get(),SoundSource.NEUTRAL,.32F,1F);
+        if(before<240 && phase>=240)
+            level.playSound(null,chair,ModSounds.WORK_FISH_SPLASH.get(),SoundSource.NEUTRAL,.6F,1F);
+        if(ticks<cycleLength) return;
+        // Resurvey at the commit boundary: draining the lake during a cast cannot mint fish.
+        var current=FishingGrounds.scan(level,fishery.anchor);
+        // A closer chair appearing mid-cast must not void a finished cast: only
+        // an invalid lake or an invalid current chair aborts it.
+        if(!current.ready() || !FishingGrounds.validChair(level,chair,grounds.direction())) {
+            blocked(current.ready() ? "fisher_needs_shore_chair" : current.blocker());return;}
+        ItemStack caught=FisherProgression.rollCatch(settler.getRandom(),settler.attribute(Attribute.DEXTERITY));
+        if(!settler.bag.canAddItem(caught)) {blocked("fisher_bag_full");return;}
+        ItemStack second=caught.copyWithCount(1);
+        settler.bag.addItem(caught);
+        // Perception: 0..10% chance a second fish of the same kind comes up
+        // with the first (plan/ATTRIBUTES.md); only if the bag has room.
+        if(com.hearthstead.entity.AttributeRuntime.extraFind(settler)
+            && settler.bag.canAddItem(second)) settler.bag.addItem(second);
+        settler.getPersistentData().putInt(LANDED,Math.min(4096,settler.getPersistentData().getInt(LANDED)+1));
+        // Trade skill secondary side bonus (level 5+ only): a careful hand
+        // sometimes lands a fish without wearing the rod. Never conjures items.
+        if(!com.hearthstead.entity.SkillLevels.rollSide(settler))
+            settler.getMainHandItem().hurtAndBreak(1,settler,EquipmentSlot.MAINHAND);
+        settler.train(Attribute.DEXTERITY,1F); settler.spendEffort(1);
+        com.hearthstead.entity.SkillLevels.completeUnit(settler,1,Attribute.DEXTERITY);
+        settler.setFisherCycleTick(-1); settler.stopRiding();
+        if(!findRack(level)) {done=true;return;}
+        mode=Mode.TO_RACK;travelTicks=0;ticks=0;settler.setActivity(SettlerActivity.CARRYING);path();
+    }
     /**
-     * One combined bounded scan (see class doc): counts real water blocks
-     * near {@code anchor} and, in the same pass, remembers the first standable
-     * position next to one. Returns null unless BOTH the count clears
-     * {@value #MIN_ADJACENT_WATER} and a real dock was found.
+     * Fisher v3 presentation timing: the synced phase 0..299 keeps its meaning
+     * (cast 0-30, wait 30-240, bite 240, reel 240-282, land 282-300) but the
+     * cast, the strike + reel and the landing take fixed real time so their
+     * clips (SettlerModel.applyFishingPose) play at authored speed; the wait
+     * absorbs the dexterity/upgrade difference. Cycle length, catch and output
+     * are unchanged. Very short cycles fall back to the old proportional clock.
      */
-    private BlockPos findFishingSpot(ServerLevel level, BlockPos anchor) {
-        int waterSeen = 0;
-        BlockPos dock = null;
-        Direction dockDir = null;
-        // NEAREST, not first-in-scan-order (KF-030, live suite run
-        // 2026-08-26): scanning dx/dz ascending from -RADIUS means "first
-        // found" is whichever corner of the search box the loop happens to
-        // reach earliest, with no relationship to the settler's own
-        // position. A far-side dock is still a real, standable, water-
-        // adjacent tile, so the fisher would head for it anyway -- and the
-        // shortest ROUTE there can cross straight through the pond itself
-        // (PathType.WATER nodes), which wades rather than walks and can
-        // stall past this goal's own patience budget on a pond of any real
-        // size. Picking the closest candidate to the anchor instead keeps
-        // the walk short and land-side far more often, without changing the
-        // bounded cost of the scan itself -- still one pass over the same
-        // box, just tracking a running best instead of stopping at the
-        // first hit.
-        double bestDistSqr = Double.MAX_VALUE;
-        BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
-        for (int dx = -WATER_SEARCH_RADIUS; dx <= WATER_SEARCH_RADIUS; dx++) {
-            for (int dz = -WATER_SEARCH_RADIUS; dz <= WATER_SEARCH_RADIUS; dz++) {
-                for (int dy = -1; dy <= 1; dy++) {
-                    cursor.set(anchor.getX() + dx, anchor.getY() + dy, anchor.getZ() + dz);
-                    if (level.getFluidState(cursor).is(FluidTags.WATER)) {
-                        waterSeen++;
-                    }
-                    Direction dir = dockableDirection(level, cursor);
-                    if (dir != null) {
-                        double distSqr = cursor.distSqr(anchor);
-                        if (distSqr < bestDistSqr) {
-                            bestDistSqr = distSqr;
-                            dock = cursor.immutable();
-                            dockDir = dir;
-                        }
-                    }
-                }
-            }
-        }
-        if (waterSeen < MIN_ADJACENT_WATER || dock == null) {
-            return null;
-        }
-        waterDir = dockDir;
-        return dock;
+    public static final int CAST_TICKS=34, REEL_TICKS=44, LAND_TICKS=50;
+    public static int phaseOf(int ticks, int cycleLength) {
+        if(cycleLength<=0) return 0;
+        int fixed=CAST_TICKS+REEL_TICKS+LAND_TICKS;
+        if(cycleLength<fixed+12) return Math.min(299,Math.max(0,ticks)*300/cycleLength);
+        int wait=cycleLength-fixed;
+        int t=Math.max(0,ticks);
+        if(t<CAST_TICKS) return t*30/CAST_TICKS;
+        t-=CAST_TICKS;
+        if(t<wait) return 30+t*210/wait;
+        t-=wait;
+        if(t<REEL_TICKS) return 240+t*42/REEL_TICKS;
+        t-=REEL_TICKS;
+        return Math.min(299,282+t*18/LAND_TICKS);
     }
-
-    /**
-     * The horizontal direction {@code pos} has real water in, or null if
-     * {@code pos} is not itself a standable position next to any.
-     *
-     * <p>Recognises two legitimate shore shapes (KF-032, live suite run
-     * 2026-08-26): <b>flush</b> (water sits at the dock's own foot level,
-     * {@code pos.relative(dir)}) and <b>raised-bank</b> (water sits one
-     * level below the dock, at the neighbouring column's foot level,
-     * {@code pos.below().relative(dir)}) — the ordinary vanilla shoreline,
-     * where a settler stands on solid ground flush with the water's
-     * surface rather than wading at the water's own height. A flush dock's
-     * own tile is open air immediately beside a live water source, which is
-     * itself a valid spread target: real water keeps growing to fill any
-     * open space it can still reach, so a flush dock left undammed
-     * eventually gets swallowed by its own pond and starts shoving the
-     * settler around with ordinary flowing-water push physics — this is
-     * exactly what a live per-tick trace caught: a puddle-test fisher that
-     * correctly refused at tick 2 was fishing off water that had crept in
-     * from its own two source blocks by tick 100, and the real-pond test's
-     * fisher was seen drifting steadily off a dock that had itself gone
-     * from dry to flowing underneath it. A raised-bank dock's own foot
-     * level is solid ground on every side, so it can never become a spread
-     * target itself no matter how long the pond it overlooks keeps
-     * growing — the fixture places its water accordingly now (see {@code
-     * TradeFisherGameTests}), but this stays permissive of a flush shore
-     * too, since a player who builds one that way should still get a
-     * (less durable) dock rather than nothing.
-     */
-    private static Direction dockableDirection(ServerLevel level, BlockPos pos) {
-        if (level.getFluidState(pos).is(FluidTags.WATER)) {
-            return null; // the dock itself must be dry ground
+    private void hang(ServerLevel level) {
+        if(rack==null || !fishery.contains(rack) || !level.hasChunkAt(rack) || !(level.getBlockEntity(rack) instanceof Container container)
+            || !ContainerApproach.inspect(level,settler,rack).canInteract()) {blocked("fisher_rack_unreachable");return;}
+        settler.getLookControl().setLookAt(rack.getX()+.5,rack.getY()+1,rack.getZ()+.5);
+        // Same planted cycle as Courier/Farmer/Lumberer: sack down at the bag
+        // contact tick, reach in, and each single fish lands on the rack only at
+        // BagToChestAnimationContract's deposit tick, then the sack is lifted.
+        GroundedBagUnload.Result result=rackBag.tick(level,settler,rack,fish->fish.is(ItemTags.FISHES),unit->{
+            if(!insert(container,unit).isEmpty()) return false;
+            creditLandedUnit(level); return true;
+        });
+        if(result==GroundedBagUnload.Result.WAITING) return;
+        if(result==GroundedBagUnload.Result.BLOCKED) {
+            // Visual claim only: an uncommitted fish is still in the bag and a
+            // committed one already reached the rack (and was credited) once.
+            releaseUnload();
+            blocked(roomForFish(container)?"fisher_rack_unreachable":"fisher_rack_full");return;
         }
-        if (!level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()) {
-            return null; // must be passable
-        }
-        BlockPos below = pos.below();
-        if (!level.getBlockState(below).isFaceSturdy(level, below, Direction.UP)) {
-            return null; // must have solid footing
-        }
-        for (Direction dir : Direction.Plane.HORIZONTAL) {
-            if (level.getFluidState(pos.relative(dir)).is(FluidTags.WATER)
-                || level.getFluidState(below.relative(dir)).is(FluidTags.WATER)) {
-                return dir;
-            }
-        }
-        return null;
+        settler.clearLogisticsStop();done=true;retryAt=level.getGameTime()+20;
     }
-
-    private static ItemStack insert(List<Container> containers, ItemStack stack) {
-        ItemStack remaining = stack.copy();
-        for (Container container : containers) {
-            for (int slot = 0; slot < container.getContainerSize(); slot++) {
-                if (remaining.isEmpty()) {
-                    return ItemStack.EMPTY;
-                }
-                ItemStack in = container.getItem(slot);
-                if (in.isEmpty()) {
-                    container.setItem(slot, remaining.copy());
-                    return ItemStack.EMPTY;
-                }
-                if (ItemStack.isSameItemSameComponents(in, remaining)
-                    && in.getCount() < in.getMaxStackSize()) {
-                    int move = Math.min(remaining.getCount(), in.getMaxStackSize() - in.getCount());
-                    in.grow(move);
-                    container.setChanged();
-                    remaining.shrink(move);
-                }
-            }
+    /** Credits one real rack insert; manually stocked fish never mint evidence. */
+    private void creditLandedUnit(ServerLevel level) {
+        int landed=settler.getPersistentData().getInt(LANDED);
+        if(landed<=0) return;
+        settler.getPersistentData().putInt(LANDED,landed-1);
+        FisherEvidenceSavedData.recordDeposit(level,settler.settlement(),fishery,1);
+        JourneyServerHooks.noteFisheryOutputCommitted(level,settler.settlement(),fishery,settler);
+    }
+    private void releaseUnload() {
+        var view=settler.bagTransferPresentation();
+        if(view.active() && !view.sourcePickup()) GroundedBagUnload.clearPresentation(settler,view);
+    }
+    private static ItemStack insert(Container into, ItemStack source) {
+        ItemStack left=source.copy();
+        for(int slot=0;slot<into.getContainerSize() && !left.isEmpty();slot++) {
+            if(!into.canPlaceItem(slot,left)) continue;
+            ItemStack there=into.getItem(slot);
+            int capacity=Math.min(into.getMaxStackSize(),left.getMaxStackSize());
+            if(!there.isEmpty() && !ItemStack.isSameItemSameComponents(there,left)) continue;
+            int amount=Math.min(left.getCount(),capacity-there.getCount());
+            if(amount<=0) continue;
+            if(there.isEmpty()) into.setItem(slot,left.copyWithCount(amount));
+            else {there.grow(amount);into.setChanged();}
+            left.shrink(amount);
         }
-        return remaining;
+        return left;
+    }
+    @Override public void stop() {
+        // Preemption/shift end mid-unload: drop the planted sack and claim only.
+        releaseUnload();
+        settler.setFisherCycleTick(-1);
+        if(settler.getVehicle() instanceof FisherSeatEntity) settler.stopRiding();
+        settler.setActivity(SettlerActivity.IDLE);settler.getNavigation().stop();
     }
 }

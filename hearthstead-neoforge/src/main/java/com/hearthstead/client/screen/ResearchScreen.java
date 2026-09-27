@@ -1,14 +1,25 @@
 package com.hearthstead.client.screen;
 
-import com.hearthstead.client.ui.HsButton;
+import com.hearthstead.client.QaUiInspectable;
+import com.hearthstead.client.ui.HsMotion;
 import com.hearthstead.client.ui.HsUi;
-import com.hearthstead.client.ui.HsUiTokens;
+import com.hearthstead.client.ui2.BannerSheetLayout.Rect;
+import com.hearthstead.client.ui2.Ui2Button;
+import com.hearthstead.client.ui2.Ui2Frame;
+import com.hearthstead.client.ui2.Ui2FrameLayout;
+import com.hearthstead.client.ui2.Ui2Palette;
+import com.hearthstead.client.ui2.Ui2Serif;
+import com.hearthstead.client.ui2.Ui2Surface;
+import com.hearthstead.client.ui2.Ui2Tips;
+import com.hearthstead.client.ui2.Ui2WoodKey;
 import com.hearthstead.network.ResearchActionPayload;
 import com.hearthstead.network.ResearchSnapshotPayload;
 import com.hearthstead.settlement.research.ResearchProject;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Tooltip;
+import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -40,45 +51,99 @@ import java.util.Objects;
  * hold enough of what it costs. Cancel is drawn only while a project exists
  * to cancel, and its own tooltip states the refund plainly before anyone
  * presses it.
+ *
+ * <p>Chrome is the standard Bannerhold window ({@link Ui2Frame}): serif
+ * title with the research progress as its subtitle, the wood close key, the
+ * hero as an inset strip, projects as rows with a text Choose action.
  */
-public class ResearchScreen extends Screen {
+public class ResearchScreen extends Screen implements QaUiInspectable {
 
-    // 280 clipped a project's effect sentence -- "Farmed crops: grow 15%
-    // more often." measured 183px against the 150px box that width derived
-    // (verified with tools/ui_preview.py against research_{en,nb}.json,
-    // the offline-preview workflow tools/mcfont.py backs). 320 carries that
-    // box to 190px, and the Norwegian worst case (row1_effect,
-    // "Vaktene: trener styrke 10 % raskere.") clears it with margin too.
-    private static final int PANEL_W = 320;
-    private static final int PAD = 8;
-    private static final int SCROLL_W = HsUiTokens.SCROLL_W;
-    private static final int CARD_X = PAD;
-    private static final int CARD_W = PANEL_W - 2 * PAD - SCROLL_W - 2;
-    private static final int BTN_W = 64;
-    private static final int BTN_X = CARD_X + CARD_W - BTN_W - 8;
+    static final int PANEL_W = 460;
+    static final int PANEL_H = 338;
+    /** Choose/Cancel column: fits the label plus the disabled padlock. */
+    static final int BTN_W = 56;
+    static final int HERO_H = 60;
+    static final int CARD_H = 50;
+    static final int CARD_STEP = 54;
+    static final int MAX_ROWS = 3;
+    /** Scrollbar lane at the right of the list (1px rule, 3px thumb). */
+    static final int SCROLL_W = 4;
+    static final int ICON_OFF = 3;
+    static final int TEXT_OFF = ICON_OFF + 16 + 3;
+    static final int HERO_TEXT_OFF = 8;
+    private ResearchLayout layout = layoutFor(PANEL_W + 16, PANEL_H + 16);
 
-    private static final int HERO_TOP = 54;
-    private static final int HERO_H = 58;
+    static ResearchLayout layoutFor(int viewportWidth, int viewportHeight) {
+        Ui2FrameLayout frame = Ui2FrameLayout.centred(viewportWidth, viewportHeight, PANEL_W, PANEL_H, true);
+        Rect content = frame.content();
+        Rect hero = new Rect(content.x(), content.y(), content.width(), HERO_H);
+        int listTop = hero.bottom() + Ui2FrameLayout.M;
+        int rows = Math.max(1, Math.min(MAX_ROWS, (content.bottom() - listTop + 4) / CARD_STEP));
+        int listHeight = rows * CARD_STEP - 4;
+        Rect list = new Rect(content.x(), listTop, content.width() - SCROLL_W - 2, listHeight);
+        Rect scrollbar = new Rect(content.right() - 3, listTop, 3, listHeight);
+        int buttonX = list.right() - BTN_W;
+        return new ResearchLayout(frame, rows, hero, list, scrollbar, buttonX,
+            buttonX - (list.x() + TEXT_OFF) - 4, hero.width() - HERO_TEXT_OFF * 2);
+    }
 
-    private static final int CARD_H = 50;
-    private static final int CARD_STEP = CARD_H + 4;
-    /** Three keeps the panel inside a reasonable GUI height, the same
-     *  discipline {@link PlaqueScreen} uses for its own hire list. */
-    private static final int ROWS = 3;
-    private static final int LIST_TOP = HERO_TOP + HERO_H + 12;
-    private static final int LIST_H = ROWS * CARD_STEP - 4;
-    private static final int FOOT = LIST_TOP + LIST_H + 6;
-    private static final int PANEL_H = FOOT + 20 + HsUiTokens.BUTTON_H + 10;
+    /**
+     * Absolute screen geometry. {@code textBox} is the project text column
+     * left of the Choose column; {@code heroTextBox} the hero's full-width lines.
+     */
+    record ResearchLayout(Ui2FrameLayout frame, int visibleRows, Rect hero, Rect list, Rect scrollbar,
+                          int buttonX, int textBox, int heroTextBox) {
+        int left() {
+            return frame.x();
+        }
 
-    private static final int ICON_X = CARD_X + 6;
-    private static final int TEXT_X = ICON_X + 16 + 6;
-    private static final int TEXT_BOX = BTN_X - TEXT_X - 6;
-    private static final int HERO_TEXT_X = CARD_X + 10;
-    private static final int HERO_TEXT_BOX = CARD_W - 20;
+        int top() {
+            return frame.y();
+        }
+
+        int panelWidth() {
+            return frame.width();
+        }
+
+        int panelHeight() {
+            return frame.height();
+        }
+
+        int listTop() {
+            return list.y();
+        }
+
+        int listHeight() {
+            return list.height();
+        }
+
+        int cardWidth() {
+            return list.width();
+        }
+
+        /** Card {@code row} of the visible list. */
+        Rect card(int row) {
+            return new Rect(list.x(), list.y() + row * CARD_STEP, list.width(), CARD_H);
+        }
+
+        /** Choose for card {@code row}: a text button, vertically centred, right of the text column. */
+        Rect choose(int row) {
+            Rect c = card(row);
+            return new Rect(buttonX, c.y() + (CARD_H - Ui2FrameLayout.TEXT_BUTTON_H) / 2, BTN_W,
+                Ui2FrameLayout.TEXT_BUTTON_H);
+        }
+
+        /** Cancel on the hero strip, in the same column as Choose. */
+        Rect cancel() {
+            return new Rect(buttonX, hero.y() + 6, BTN_W, Ui2FrameLayout.BUTTON_H);
+        }
+    }
 
     private ResearchSnapshotPayload snapshot;
     /** Immutable presentation for the current snapshot/font/language/layout. */
     private ResearchRenderView renderView;
+    private final Ui2Serif.Text titleText = new Ui2Serif.Text(Ui2Serif.Size.TITLE);
+    private Ui2WoodKey closeKey;
     private int scroll;
     private int left;
     private int top;
@@ -97,8 +162,9 @@ public class ResearchScreen extends Screen {
 
     @Override
     protected void init() {
-        left = (width - PANEL_W) / 2;
-        top = (height - PANEL_H) / 2;
+        layout = layoutFor(width, height);
+        left = layout.left();
+        top = layout.top();
         renderView = null;
         rebuild();
         if (!uiSoundActive) {
@@ -119,46 +185,129 @@ public class ResearchScreen extends Screen {
     // ------------------------------------------------------------ widgets ---
 
     private void rebuild() {
+        rebuild(true, focusedTarget());
+    }
+
+    private void rebuild(boolean revealFocusedProject, FocusTarget retained) {
         clearWidgets();
+        setFocused(null);
+        closeKey = null;
         if (snapshot == null) {
             return;
         }
         scroll = Math.max(0, Math.min(scroll,
-            Math.max(0, ResearchProject.BY_ORDINAL.length - ROWS)));
+            Math.max(0, ResearchProject.BY_ORDINAL.length - layout.visibleRows())));
+        if (revealFocusedProject && retained != null
+            && retained.kind() == FocusKind.PROJECT) {
+            reveal(retained.ordinal());
+        }
 
         if (snapshot.activeOrdinal() >= 0) {
-            HsButton cancel = HsButton.danger(left + BTN_X, top + HERO_TOP + 6, BTN_W,
-                HsUiTokens.BUTTON_H,
-                Component.translatable("hearthstead.research.cancel"),
-                () -> act(ResearchActionPayload.Kind.CANCEL, 0));
-            cancel.active = snapshot.mayManage();
-            cancel.setTooltip(Tooltip.create(
-                Component.translatable("hearthstead.research.cancel.tip")));
+            Rect r = layout.cancel();
+            Action cancel = new Action(r, Component.translatable("hearthstead.research.cancel"),
+                Ui2Button.Variant.DANGER, () -> act(ResearchActionPayload.Kind.CANCEL, 0), FocusTarget.cancel());
+            Ui2Tips.enable(cancel, snapshot.mayManage(),
+                Component.translatable("hearthstead.research.cancel.tip"),
+                Component.translatable("hearthstead.research.blocked.read_only"));
             addRenderableWidget(cancel);
         }
 
-        for (int row = 0; row < ROWS; row++) {
+        for (int row = 0; row < layout.visibleRows(); row++) {
             int ordinal = row + scroll;
             if (ordinal >= ResearchProject.BY_ORDINAL.length) {
                 break;
             }
             ResearchProject project = ResearchProject.BY_ORDINAL[ordinal];
-            int y = top + LIST_TOP + row * CARD_STEP;
             String blocked = blockedReason(project);
-            HsButton choose = HsButton.normal(left + BTN_X, y + (CARD_H - HsUiTokens.BUTTON_H) / 2,
-                BTN_W, HsUiTokens.BUTTON_H,
-                Component.translatable("hearthstead.research.choose"),
-                () -> act(ResearchActionPayload.Kind.START, project.ordinal()));
-            choose.active = blocked.isEmpty() && snapshot.mayManage();
-            choose.setTooltip(Tooltip.create(blocked.isEmpty()
-                ? Component.translatable("hearthstead.research.choose.tip", project.displayName())
-                : Component.translatable(blocked)));
+            Action choose = new Action(layout.choose(row), Component.translatable("hearthstead.research.choose"),
+                Ui2Button.Variant.SECONDARY, () -> act(ResearchActionPayload.Kind.START, project.ordinal()),
+                FocusTarget.project(ordinal));
+            Ui2Tips.enable(choose, blocked.isEmpty() && snapshot.mayManage(),
+                Component.translatable("hearthstead.research.choose.tip", project.displayName()),
+                !snapshot.mayManage() ? Component.translatable("hearthstead.research.blocked.read_only")
+                    : Component.translatable(blocked));
             addRenderableWidget(choose);
         }
 
-        addRenderableWidget(HsButton.normal(left + BTN_X, top + FOOT + 20, BTN_W,
-            HsUiTokens.BUTTON_H,
-            Component.translatable("hearthstead.plaque.close"), this::onClose));
+        // The old footer Close button is the standard wood close key; Esc still closes.
+        closeKey = addRenderableWidget(Ui2Frame.closeKey(layout.frame(), this::onClose));
+        restoreFocus(retained);
+    }
+
+    private enum FocusKind { PROJECT, CANCEL, CLOSE }
+
+    private record FocusTarget(FocusKind kind, int ordinal) {
+        static FocusTarget project(int ordinal) {
+            return new FocusTarget(FocusKind.PROJECT, ordinal);
+        }
+        static FocusTarget cancel() { return new FocusTarget(FocusKind.CANCEL, -1); }
+        static FocusTarget close() { return new FocusTarget(FocusKind.CLOSE, -1); }
+    }
+
+    private FocusTarget focusedTarget() {
+        GuiEventListener focused = getFocused();
+        if (focused instanceof Action button) return button.focusTarget;
+        if (focused != null && focused == closeKey) return FocusTarget.close();
+        return null;
+    }
+
+    private void reveal(int ordinal) {
+        if (ordinal < 0 || ordinal >= ResearchProject.BY_ORDINAL.length) return;
+        if (ordinal < scroll) scroll = ordinal;
+        else if (ordinal >= scroll + layout.visibleRows()) {
+            scroll = ordinal - layout.visibleRows() + 1;
+        }
+        scroll = Math.max(0, Math.min(scroll,
+            ResearchProject.BY_ORDINAL.length - layout.visibleRows()));
+    }
+
+    private void restoreFocus(FocusTarget target) {
+        setFocused(null);
+        if (target == null) return;
+        if (target.kind() == FocusKind.CLOSE) {
+            if (closeKey != null) setFocused(closeKey);
+            return;
+        }
+        for (GuiEventListener child : children()) {
+            if (child instanceof Action button && button.active && button.visible
+                && target.equals(button.focusTarget)) {
+                setFocused(button);
+                return;
+            }
+        }
+        // An accepted Start disables Choose; an accepted Cancel removes Cancel.
+        // Do not transfer a held/repeated Enter to a different action in either case.
+    }
+
+    private boolean isCurrentChild(GuiEventListener target) {
+        if (target == null) return false;
+        for (GuiEventListener child : children()) {
+            if (child == target) return true;
+        }
+        return false;
+    }
+
+    @Override
+    protected void rebuildWidgets() {
+        FocusTarget retained = focusedTarget();
+        super.rebuildWidgets();
+        rebuild(true, retained);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        boolean handled = super.mouseClicked(mouseX, mouseY, button);
+        if (handled && minecraft != null && minecraft.screen == this
+            && getFocused() != null && !isCurrentChild(getFocused())) {
+            restoreFocus(focusedTarget());
+        }
+        return handled;
+    }
+
+    private static String qaFocus(FocusTarget target) {
+        if (target == null) return "none";
+        return target.kind() == FocusKind.PROJECT ? "project:" + target.ordinal()
+            : target.kind().name().toLowerCase(java.util.Locale.ROOT);
     }
 
     /** Empty when a project can be chosen right now; otherwise why not (D-014). */
@@ -168,6 +317,9 @@ public class ResearchScreen extends Screen {
         }
         if (snapshot.activeOrdinal() >= 0) {
             return "hearthstead.research.blocked.busy";
+        }
+        if (!project.newStartsSupported()) {
+            return "hearthstead.research.blocked.unreleased";
         }
         List<Integer> haves = snapshot.costHaves().get(project.ordinal());
         List<ResearchProject.Cost> costs = project.costs();
@@ -189,75 +341,119 @@ public class ResearchScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
         int total = ResearchProject.BY_ORDINAL.length;
-        if (total > ROWS) {
+        if (total > layout.visibleRows()) {
             int before = scroll;
-            scroll = Math.max(0, Math.min(total - ROWS, scroll - (int) Math.signum(dy)));
+            scroll = Math.max(0, Math.min(total - layout.visibleRows(), scroll - (int) Math.signum(dy)));
             if (before != scroll) {
-                rebuild();
+                rebuild(false, focusedTarget());
                 return true;
             }
         }
         return super.mouseScrolled(mouseX, mouseY, dx, dy);
     }
 
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        int next = switch (keyCode) {
+            case org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_UP -> scroll - layout.visibleRows();
+            case org.lwjgl.glfw.GLFW.GLFW_KEY_PAGE_DOWN -> scroll + layout.visibleRows();
+            case org.lwjgl.glfw.GLFW.GLFW_KEY_HOME -> 0;
+            case org.lwjgl.glfw.GLFW.GLFW_KEY_END -> ResearchProject.BY_ORDINAL.length;
+            default -> Integer.MIN_VALUE;
+        };
+        if (next != Integer.MIN_VALUE) {
+            FocusTarget retained = focusedTarget();
+            int row = retained != null && retained.kind() == FocusKind.PROJECT
+                ? Math.max(0, Math.min(layout.visibleRows() - 1, retained.ordinal() - scroll)) : 0;
+            scroll = Math.max(0, Math.min(ResearchProject.BY_ORDINAL.length - layout.visibleRows(), next));
+            int ordinal = keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_HOME ? 0
+                : keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_END
+                    ? ResearchProject.BY_ORDINAL.length - 1 : scroll + row;
+            // Page navigation moves inspection only. A locked Choose stays disabled
+            // and unfocused; no fallback Cancel/Close action receives repeated Enter.
+            rebuild(false, FocusTarget.project(ordinal));
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
     // ------------------------------------------------------------- drawing ---
+
+    // Motion only: first-open intro (4 px slide + fade); created once, survives re-init.
+    private HsMotion.ScreenIntro hsIntro;
+    private boolean hsIntroRendering;
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        if (hsIntro == null) hsIntro = new HsMotion.ScreenIntro();
+        if (!hsIntroRendering && !hsIntro.done()) {
+            hsIntroRendering = true;
+            try {
+                hsIntro.render(graphics, 4.0F, () -> render(graphics, mouseX, mouseY, partialTick));
+            } finally {
+                hsIntroRendering = false;
+            }
+            return;
+        }
         renderBackground(graphics, mouseX, mouseY, partialTick);
         if (snapshot == null) {
             HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
             return;
         }
         ResearchRenderView view = renderView();
-        HsUi.window(graphics, left, top, PANEL_W, PANEL_H);
-        graphics.renderItem(view.studyEmblem(), left + 10, top + 6);
-        HsUi.label(graphics, font, view.title().text(),
-            left + PANEL_W / 2 - view.title().width() / 2, top + 12,
-            HsUiTokens.TEXT_STRONG);
-        HsUi.divider(graphics, left + 10, top + 26, PANEL_W - 20);
-        HsUi.divider(graphics, left + 10, top + 30, PANEL_W - 20);
+        Ui2Frame.draw(graphics, layout.frame());
+        Ui2Frame.title(graphics, font, layout.frame(), titleText, title.getString(), view.progress());
 
         drawHero(graphics, view.hero());
-        HsUi.divider(graphics, left + 10, top + LIST_TOP - 8, PANEL_W - 20);
+
         drawProjects(graphics, mouseX, mouseY, view.projects());
 
         int total = ResearchProject.BY_ORDINAL.length;
-        HsUi.scrollbar(graphics, left + PANEL_W - PAD - SCROLL_W, top + LIST_TOP, LIST_H,
-            Math.min(1.0F, (float) ROWS / total),
-            total <= ROWS ? 0.0F : (float) scroll / (total - ROWS), false);
-
-        HsUi.divider(graphics, left + 10, top + FOOT, PANEL_W - 20);
-        HsUi.label(graphics, font, view.footer().text(), left + 12, top + FOOT + 7,
-            HsUiTokens.ACCENT);
+        Rect bar = layout.scrollbar();
+        if (total > layout.visibleRows()) {
+            Ui2Surface.scrollbar(graphics, bar.x() + 1, bar.y(), bar.height(),
+                Math.min(1.0F, (float) layout.visibleRows() / total),
+                (float) scroll / (total - layout.visibleRows()));
+        }
         HsUi.widgets(this, graphics, mouseX, mouseY, partialTick);
+        if (mouseX >= layout.list().x() && mouseX < layout.buttonX() - 4) {
+            for (int row = 0; row < layout.visibleRows(); row++) {
+                int ordinal = projectOrdinalForRow(scroll, row);
+                if (ordinal < view.projects().size() && hovering(mouseX, mouseY, row)) {
+                    graphics.renderTooltip(font, view.projects().get(ordinal).tooltip(), mouseX, mouseY);
+                    return;
+                }
+            }
+        }
+        Rect hero = layout.hero();
+        if (!view.hero().empty() && mouseX >= hero.x() && mouseX < layout.buttonX() - 4
+            && mouseY >= hero.y() && mouseY < hero.bottom()) {
+            // Complete source text is cached independently of fitted display labels.
+            graphics.renderTooltip(font, view.hero().tooltip(), mouseX, mouseY);
+        }
     }
 
+    /** The active project as an inset strip with a forest state bar; empty is a quiet status. */
     private void drawHero(GuiGraphics graphics, HeroRenderView hero) {
-        int cardTop = top + HERO_TOP;
-        HsUi.card(graphics, left + CARD_X, cardTop, CARD_W, HERO_H, false);
-
+        Rect r = layout.hero();
         if (hero.empty()) {
-            HsUi.label(graphics, font, hero.emptyLabel().text(),
-                left + HERO_TEXT_X, cardTop + 24, HsUiTokens.TEXT_MUTED);
+            Ui2Frame.status(graphics, font, r, hero.emptyLabel().text(), Ui2Frame.Tone.NEUTRAL);
             return;
         }
-        graphics.renderItem(hero.emblem(), left + HERO_TEXT_X - 2, cardTop + 4);
-        HsUi.label(graphics, font, hero.name().text(),
-            left + HERO_TEXT_X + 18, cardTop + 5, HsUiTokens.TEXT_STRONG);
-        HsUi.label(graphics, font, hero.effect().text(),
-            left + HERO_TEXT_X, cardTop + 17, HsUiTokens.ACCENT);
+        graphics.fill(r.x(), r.y(), r.right(), r.bottom(), Ui2Palette.INSET);
+        graphics.fill(r.x(), r.y(), r.x() + 2, r.bottom(), Ui2Palette.FOREST);
+        int x = r.x() + HERO_TEXT_OFF;
+        graphics.renderItem(hero.emblem(), x - 2, r.y() + 4);
+        graphics.drawString(font, hero.name().text(), x + 18, r.y() + 5, Ui2Palette.INK, false);
+        graphics.drawString(font, hero.effect().text(), x, r.y() + 17, Ui2Palette.INK_SOFT, false);
 
         int sessions = hero.sessions();
         int workDays = hero.workDays();
         float ratio = workDays <= 0 ? 0.0F : (float) sessions / workDays;
-        HsUi.bar(graphics, left + HERO_TEXT_X, cardTop + 30, HERO_TEXT_BOX, 6, ratio,
-            HsUi.Tone.ACCENT);
-        dayMarks(graphics, left + HERO_TEXT_X, cardTop + 30, HERO_TEXT_BOX, 6, workDays);
-        HsUi.label(graphics, font, hero.progress().text(),
-            left + HERO_TEXT_X, cardTop + 40, HsUiTokens.TEXT_MUTED);
-        HsUi.label(graphics, font, hero.paid().text(),
-            left + HERO_TEXT_X, cardTop + 50, HsUiTokens.TEXT_MUTED);
+        Ui2Surface.progress(graphics, x, r.y() + 31, layout.heroTextBox(), ratio, Ui2Palette.FOREST);
+        dayMarks(graphics, x, r.y() + 29, layout.heroTextBox(), 6, workDays);
+        graphics.drawString(font, hero.progress().text(), x, r.y() + 38, Ui2Palette.INK_MUTED, false);
+        graphics.drawString(font, hero.paid().text(), x, r.y() + 49, Ui2Palette.INK_MUTED, false);
     }
 
     /** Thin notches at each work-day boundary — measured in real screen
@@ -269,33 +465,36 @@ public class ResearchScreen extends Screen {
         }
         for (int i = 1; i < workDays; i++) {
             int markX = x + Math.round((float) (w - 2) * i / workDays) + 1;
-            graphics.fill(markX, y + 1, markX + 1, y + h - 1, 0x80241A0E);
+            graphics.fill(markX, y + 1, markX + 1, y + h - 1, Ui2Palette.RULE_STRONG);
         }
     }
 
     private void drawProjects(GuiGraphics graphics, int mouseX, int mouseY,
                               List<ProjectRenderView> projects) {
-        for (int row = 0; row < ROWS; row++) {
+        for (int row = 0; row < layout.visibleRows(); row++) {
             int ordinal = projectOrdinalForRow(scroll, row);
             if (ordinal >= projects.size()) {
                 break;
             }
             ProjectRenderView project = projects.get(ordinal);
-            int y = top + LIST_TOP + row * CARD_STEP;
-            boolean hovered = hovering(mouseX, mouseY, y);
-            HsUi.card(graphics, left + CARD_X, y, CARD_W, CARD_H, hovered);
-            graphics.renderItem(project.emblem(), left + ICON_X, y + 5);
+            Rect card = layout.card(row);
+            boolean hovered = hovering(mouseX, mouseY, row);
+            Ui2Surface.row(graphics, card.x(), card.y(), card.width(), CARD_H, hovered ? 1.0F : 0.0F, false);
+            if (row + 1 < layout.visibleRows() && ordinal + 1 < projects.size()) {
+                Ui2Surface.rule(graphics, card.x(), card.bottom() + 1, card.width());
+            }
+            int textX = card.x() + TEXT_OFF;
+            graphics.renderItem(project.emblem(), card.x() + ICON_OFF, card.y() + 5);
 
-            HsUi.label(graphics, font, project.name().text(), left + TEXT_X, y + 5,
-                project.nameColour());
-            HsUi.label(graphics, font, project.effect().text(), left + TEXT_X, y + 17,
-                HsUiTokens.TEXT_MUTED);
+            graphics.drawString(font, project.name().text(), textX, card.y() + 5, project.nameColour(), false);
+            graphics.drawString(font, project.effect().text(), textX, card.y() + 17, Ui2Palette.INK_SOFT, false);
 
             if (project.done()) {
-                HsUi.label(graphics, font, project.doneLabel().text(),
-                    left + TEXT_X, y + 30, HsUiTokens.GOOD);
+                Ui2Surface.checkGlyph(graphics, textX, card.y() + 31, Ui2Palette.FOREST);
+                graphics.drawString(font, project.doneLabel().text(), textX + 10, card.y() + 30,
+                    Ui2Palette.FOREST, false);
             } else {
-                drawCosts(graphics, project.costs(), left + TEXT_X, y + 30);
+                drawCosts(graphics, project.costs(), textX, card.y() + 30);
             }
         }
     }
@@ -306,8 +505,9 @@ public class ResearchScreen extends Screen {
     private void drawCosts(GuiGraphics graphics, List<CostRenderView> costs, int x, int y) {
         for (int index = 0, size = costs.size(); index < size; index++) {
             CostRenderView cost = costs.get(index);
-            HsUi.label(graphics, font, cost.label().text(), x + cost.offset(), y,
-                cost.colour());
+            graphics.drawString(font, cost.label().text(), x, y + cost.offset(), cost.colour(), false);
+            graphics.drawString(font, cost.amount(), x + layout.textBox() - cost.amountWidth(),
+                y + cost.offset(), cost.colour(), false);
         }
     }
 
@@ -339,12 +539,8 @@ public class ResearchScreen extends Screen {
         }
         return new ResearchRenderView(snapshot, snapshot.revision(), currentFont, language,
             layoutWidth,
-            new ItemStack(com.hearthstead.building.BuildingType.ARCHITECTS_STUDY.emblem()),
-            HsUi.fitLabel(currentFont, Component.translatable("hearthstead.research.title"),
-                Integer.MAX_VALUE),
-            HsUi.fitLabel(currentFont, Component.translatable(
-                "hearthstead.research.footer.progress", snapshot.completedOrdinals().size(),
-                ResearchProject.BY_ORDINAL.length), PANEL_W - 24),
+            Component.translatable("hearthstead.research.footer.progress", snapshot.completedOrdinals().size(),
+                ResearchProject.BY_ORDINAL.length),
             buildHeroView(currentFont), List.copyOf(projects));
     }
 
@@ -352,8 +548,8 @@ public class ResearchScreen extends Screen {
         int ordinal = snapshot.activeOrdinal();
         if (ordinal < 0) {
             return new HeroRenderView(null, HsUi.fitLabel(currentFont,
-                Component.translatable("hearthstead.research.hero.empty"), HERO_TEXT_BOX),
-                null, null, null, null, 0, 0);
+                Component.translatable("hearthstead.research.hero.empty"), layout.heroTextBox() - 8),
+                null, null, null, null, 0, 0, List.of());
         }
         ResearchProject project = ResearchProject.BY_ORDINAL[ordinal];
         int sessions = snapshot.activeSessions();
@@ -364,25 +560,58 @@ public class ResearchScreen extends Screen {
         MutableComponent scholarPart = snapshot.scholarName().isEmpty()
             ? Component.translatable("hearthstead.research.hero.no_scholar")
             : Component.translatable("hearthstead.research.hero.scholar", snapshot.scholarName());
-        HsUi.FittedLabel progress = HsUi.fitLabel(currentFont, scholarPart.append("   ")
-            .append(Component.translatable("hearthstead.research.hero.sessions", sessions,
-                workDays)), HERO_TEXT_BOX);
+        Component progressText = scholarPart.append("   ")
+            .append(Component.translatable("hearthstead.research.hero.sessions", sessions, workDays));
+        HsUi.FittedLabel progress = HsUi.fitLabel(currentFont, progressText, layout.heroTextBox());
+        int heroX = layout.hero().x() + HERO_TEXT_OFF;
         return new HeroRenderView(new ItemStack(project.emblem()), null,
-            HsUi.fitLabel(currentFont, project.displayName(), HERO_TEXT_BOX - 18),
-            HsUi.fitLabel(currentFont, project.effectSentence(), HERO_TEXT_BOX), progress,
-            paidLabel(currentFont, project), sessions, workDays);
+            HsUi.fitLabel(currentFont, project.displayName(), layout.buttonX() - heroX - 24),
+            HsUi.fitLabel(currentFont, project.effectSentence(),
+                layout.buttonX() - heroX - 6), progress,
+            paidLabel(currentFont, project), sessions, workDays,
+            wrapTooltip(currentFont,
+                List.of(project.displayName(), project.effectSentence(), progressText, paidText(project))));
     }
 
     private ProjectRenderView buildProjectView(Font currentFont, ResearchProject project,
                                                int ordinal) {
         boolean done = snapshot.completedOrdinals().contains(ordinal);
         return new ProjectRenderView(new ItemStack(project.emblem()),
-            HsUi.fitLabel(currentFont, project.displayName(), TEXT_BOX),
-            HsUi.fitLabel(currentFont, project.effectSentence(), TEXT_BOX), done,
-            done ? HsUiTokens.TEXT_MUTED : HsUiTokens.TEXT_STRONG,
+            HsUi.fitLabel(currentFont, project.displayName(), layout.textBox()),
+            HsUi.fitLabel(currentFont, project.effectSentence(), layout.textBox()), done,
+            done ? Ui2Palette.INK_MUTED : Ui2Palette.INK,
             done ? HsUi.fitLabel(currentFont,
-                Component.translatable("hearthstead.research.blocked.done"), TEXT_BOX) : null,
-            done ? List.of() : buildCostViews(currentFont, project, ordinal));
+                Component.translatable("hearthstead.research.blocked.done"), layout.textBox() - 10) : null,
+            done ? List.of() : buildCostViews(currentFont, project, ordinal),
+            wrapTooltip(currentFont, projectTooltip(project, ordinal)));
+    }
+
+    /** Keep complete facts while fitting the actual viewport; paid once per render-view key. */
+    private List<FormattedCharSequence> wrapTooltip(Font currentFont, List<Component> source) {
+        int wrapWidth = Math.min(260, Math.max(80, layout.panelWidth() - 32));
+        List<FormattedCharSequence> wrapped = new ArrayList<>();
+        for (Component line : source) wrapped.addAll(currentFont.split(line, wrapWidth));
+        return List.copyOf(wrapped);
+    }
+
+    private List<Component> projectTooltip(ResearchProject project, int ordinal) {
+        List<Component> lines = new ArrayList<>();
+        lines.add(project.displayName());
+        lines.add(project.effectSentence());
+        String blocked = blockedReason(project);
+        if (!blocked.isEmpty()) {
+            lines.add(Component.translatable(blocked));
+        }
+        List<Integer> haves = snapshot.costHaves().get(ordinal);
+        for (int i = 0; i < project.costs().size(); i++) {
+            ResearchProject.Cost cost = project.costs().get(i);
+            lines.add(Component.literal(new ItemStack(cost.item()).getHoverName().getString()
+                + " " + haves.get(i) + "/" + cost.count()));
+        }
+        if (!snapshot.mayManage()) {
+            lines.add(Component.translatable("hearthstead.research.blocked.read_only"));
+        }
+        return List.copyOf(lines);
     }
 
     private List<CostRenderView> buildCostViews(Font currentFont, ResearchProject project,
@@ -390,28 +619,26 @@ public class ResearchScreen extends Screen {
         List<Integer> haves = snapshot.costHaves().get(ordinal);
         List<ResearchProject.Cost> costs = project.costs();
         List<CostRenderView> lines = new ArrayList<>(costs.size());
-        int cursor = 0;
-        int remaining = TEXT_BOX;
         for (int index = 0; index < costs.size(); index++) {
             ResearchProject.Cost cost = costs.get(index);
             int have = haves.get(index);
-            Component text = Component.literal(new ItemStack(cost.item()).getHoverName().getString()
-                + " " + have + "/" + cost.count());
-            int box = Math.min(remaining, 120);
-            HsUi.FittedLabel label = HsUi.fitLabel(currentFont, text, box);
-            int drawn = Math.min(currentFont.width(text), box);
-            int colour = have >= cost.count() ? HsUiTokens.GOOD : HsUiTokens.WARN;
-            lines.add(new CostRenderView(label, cursor, colour));
-            cursor += drawn + 10;
-            remaining -= drawn + 10;
-            if (remaining <= 0) {
-                break;
-            }
+            Component amount = Component.literal(have + "/" + cost.count());
+            int amountWidth = currentFont.width(amount);
+            HsUi.FittedLabel label = HsUi.fitLabel(currentFont,
+                new ItemStack(cost.item()).getHoverName(),
+                Math.max(1, layout.textBox() - amountWidth - 6));
+            // Have/need is always written; colour only repeats it.
+            int colour = have >= cost.count() ? Ui2Palette.FOREST : Ui2Palette.AMBER;
+            lines.add(new CostRenderView(label, amount, amountWidth, index * 10, colour));
         }
         return List.copyOf(lines);
     }
 
     private HsUi.FittedLabel paidLabel(Font currentFont, ResearchProject project) {
+        return HsUi.fitLabel(currentFont, paidText(project), layout.heroTextBox());
+    }
+
+    private Component paidText(ResearchProject project) {
         MutableComponent paid = Component.translatable("hearthstead.research.hero.paid_prefix")
             .append(" ");
         List<ResearchProject.Cost> costs = project.costs();
@@ -424,7 +651,7 @@ public class ResearchScreen extends Screen {
                 .append(" ×")
                 .append(Component.literal(Integer.toString(cost.count())));
         }
-        return HsUi.fitLabel(currentFont, paid, HERO_TEXT_BOX);
+        return paid;
     }
 
     /** Package-visible for the cache contract test; scroll is deliberately not an input. */
@@ -446,15 +673,14 @@ public class ResearchScreen extends Screen {
 
     private record ResearchRenderView(ResearchSnapshotPayload snapshot, int revision,
                                       Font font, String language, int layoutWidth,
-                                      ItemStack studyEmblem, HsUi.FittedLabel title,
-                                      HsUi.FittedLabel footer, HeroRenderView hero,
+                                      Component progress, HeroRenderView hero,
                                       List<ProjectRenderView> projects) {
     }
 
     private record HeroRenderView(ItemStack emblem, HsUi.FittedLabel emptyLabel,
                                   HsUi.FittedLabel name, HsUi.FittedLabel effect,
                                   HsUi.FittedLabel progress, HsUi.FittedLabel paid,
-                                  int sessions, int workDays) {
+                                  int sessions, int workDays, List<FormattedCharSequence> tooltip) {
         boolean empty() {
             return emblem == null;
         }
@@ -463,19 +689,60 @@ public class ResearchScreen extends Screen {
     private record ProjectRenderView(ItemStack emblem, HsUi.FittedLabel name,
                                      HsUi.FittedLabel effect, boolean done,
                                      int nameColour, HsUi.FittedLabel doneLabel,
-                                     List<CostRenderView> costs) {
+                                     List<CostRenderView> costs, List<FormattedCharSequence> tooltip) {
     }
 
-    private record CostRenderView(HsUi.FittedLabel label, int offset, int colour) {
+    private record CostRenderView(HsUi.FittedLabel label, Component amount, int amountWidth,
+                                  int offset, int colour) {
     }
 
-    private boolean hovering(int mouseX, int mouseY, int cardTop) {
-        return mouseX >= left + CARD_X && mouseX <= left + CARD_X + CARD_W
-            && mouseY >= cardTop && mouseY <= cardTop + CARD_H;
+    @Override
+    public String qaUiState() {
+        if (snapshot == null || renderView == null
+            || renderView.snapshot() != snapshot) return "loading";
+        return "revision=" + snapshot.revision()
+            + ",readOnly=" + !snapshot.mayManage()
+            + ",projects=" + renderView.projects().size()
+            + ",visible=" + layout.visibleRows() + ",scroll=" + scroll
+            + ",active=" + snapshot.activeOrdinal()
+            + ",sessions=" + snapshot.activeSessions()
+            + ",focus=" + qaFocus(focusedTarget())
+            + ",focusCurrentChild=" + isCurrentChild(getFocused())
+            + ",focusActive=" + (getFocused() instanceof AbstractWidget widget
+                && widget.active && widget.visible)
+            + ",panel=" + left + ":" + top + ":"
+            + layout.panelWidth() + ":" + layout.panelHeight();
+    }
+
+    private boolean hovering(int mouseX, int mouseY, int row) {
+        Rect card = layout.card(row);
+        return mouseX >= card.x() && mouseX <= card.right()
+            && mouseY >= card.y() && mouseY <= card.bottom();
+    }
+
+    /** The server answers nothing once the block is gone; close instead of showing dead buttons. */
+    @Override
+    public void tick() {
+        super.tick();
+        if (minecraft == null || minecraft.level == null || snapshot == null) return;
+        if (minecraft.level.isLoaded(snapshot.pos())
+            && minecraft.level.getBlockState(snapshot.pos()).isAir()) {
+            onClose();
+        }
     }
 
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    /** A kit button that remembers which project (or Cancel) it acts on, for focus restore. */
+    private static final class Action extends Ui2Button {
+        private final FocusTarget focusTarget;
+
+        private Action(Rect r, Component label, Variant variant, Runnable action, FocusTarget focusTarget) {
+            super(r.x(), r.y(), r.width(), r.height(), label, variant, action);
+            this.focusTarget = focusTarget;
+        }
     }
 }

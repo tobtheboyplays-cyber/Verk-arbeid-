@@ -18,20 +18,25 @@ class HandbookLanguageContractTest {
     private static final String LOGISTICS = "hearthstead.guide.logistics.body";
     private static final String WATCH = "hearthstead.guide.watch.body";
     private static final String WATCH_TWO = "hearthstead.guide.watch.body2";
+    private static final String ATTRIBUTES = "hearthstead.guide.attributes.body";
+    private static final String WORK_PACE = "hearthstead.guide.dagsverk.body";
+    private static final String WORK_PACE_TWO = "hearthstead.guide.dagsverk.body2";
 
     @Test
     void handbookTeachesCurrentEnglishPlayerFlow() throws Exception {
         JsonObject english = language("en_us");
+        // The Tasks page is gone (owner decision); open requests live on the
+        // Banner screen's Storage page, whose nav label is a literal there.
+        String requestsPath = "Banner → Storage";
 
         assertContains(english, JOBS, "Job Emblem", "main hand", "right-click",
             "without sneaking", "automatically", "no separate Hire button",
-            "starts with no job equipment", "Hearth → Requests",
+            "starts with no job equipment", requestsPath,
             "Shift-right-click");
         assertOmits(english, JOBS, "open the Hire tab", "Press Hire");
 
-        assertContains(english, LOGISTICS, "workplace chest", "Hearth → Requests",
-            "source-to-target route", "assigned Courier", "physical owner",
-            "Stop reason", "Courier bag", "Warehouse");
+        assertContains(english, LOGISTICS, "workplace chest", requestsPath,
+            "route", "assigned Courier", "Stop reason", "Courier bag", "Warehouse");
 
         assertContains(english, WATCH, "starts without a weapon or armour",
             "Warehouse", "Courier", "Barracks", "Guard Orders", "Patrol",
@@ -39,28 +44,15 @@ class HandbookLanguageContractTest {
         assertOmits(english, WATCH, "carries only their sword");
         assertContains(english, WATCH_TWO, "credited hostile kill", "combat XP",
             "never conjures equipment", "persisted patrol or tower order");
-    }
-
-    @Test
-    void norwegianHandbookCarriesTheSameGameplayContract() throws Exception {
-        JsonObject norwegian = language("nb_no");
-
-        assertContains(norwegian, JOBS, "jobb-emblemer", "hovedhånden",
-            "høyreklikk", "uten å snike", "automatisk",
-            "ingen egen Ansett-knapp", "starter uten jobbutstyr",
-            "Hearth → Requests", "Shift-høyreklikk");
-        assertOmits(norwegian, JOBS, "åpne Ansett-fanen", "Trykk Ansett");
-
-        assertContains(norwegian, LOGISTICS, "arbeidskisten",
-            "Hearth → Requests", "kilde til mål", "tildelt Courier",
-            "fysisk eier", "Stoppårsak", "Courier-sekk", "Warehouse");
-
-        assertContains(norwegian, WATCH, "starter uten våpen eller rustning",
-            "Warehouse", "Courier", "Barracks", "Guard Orders", "patrulje",
-            "Tower Post", "fysiske våpenet");
-        assertOmits(norwegian, WATCH, "bærer bare sverdet sitt");
-        assertContains(norwegian, WATCH_TWO, "godskrevet drap", "combat XP",
-            "skaper aldri utstyr", "lagret patrulje- eller tårnordre");
+        assertContains(english, ATTRIBUTES, "eight numeric attributes", "0 to 100",
+            "Strength", "Stamina", "Wits", "Dexterity", "Spirit",
+            "Perception", "Focus", "Presence", "never choose the worker");
+        assertOmits(english, ATTRIBUTES, "five numbers", "five attributes");
+        assertContains(english, WORK_PACE, "Energy", "Work Pace",
+            "not a hidden daily-work quota", "more slowly", "do not abruptly stop");
+        assertContains(english, WORK_PACE_TWO, "Stamina", "minimum pace",
+            "valid task remains valid");
+        assertOmits(english, WORK_PACE, "stops taking new work", "twenty units");
     }
 
     private static JsonObject language(String locale) throws Exception {

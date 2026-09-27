@@ -16,6 +16,7 @@ import com.hearthstead.settlement.state.FirstRaidState;
 import com.hearthstead.settlement.state.RecurringRaidRun;
 import com.hearthstead.util.AuthorityTelemetry;
 import com.hearthstead.settlement.state.RaidLifecycle;
+import com.hearthstead.settlement.state.RaidParticipantRecord;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderGetter;
 import net.minecraft.core.HolderLookup;
@@ -26,6 +27,7 @@ import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
@@ -111,20 +113,32 @@ public final class RaidDirector {
     public static final int MAX_BAND = 9;
     /**
      * The authored first raid is a deliberately readable encounter, not a
-     * pressure-scaled roll: one named captain, one BRUTE follower and three
-     * SKIRMISHER followers. Recurring raids retain {@link #MIN_BAND},
-     * {@link #MAX_BAND} and {@link #bandSizeFor} unchanged.
+     * pressure-scaled roll. Since the 26 Sep escalation curve (owner: "have
+     * bandits early") it is an outlaw band: one named bandit captain and
+     * three bandits, no Brute. Recurring raids follow {@link RaidEscalation}.
      */
-    public static final int FIRST_RAID_BAND_SIZE = 5;
-    private static final int FIRST_RAID_BRUTE_FOLLOWER_INDEX = 1;
+    public static final int FIRST_RAID_BAND_SIZE = RaidEscalation.FIRST_RAID_BANDITS;
     /** Settlement worth per extra raider beyond the minimum. */
     public static final int WORTH_PER_RAIDER = 14;
-    /** How far out the band forms, in blocks from the settlement centre. */
-    public static final int SPAWN_MIN_DISTANCE = 26;
-    public static final int SPAWN_MAX_DISTANCE = 38;
+    /**
+     * How far past the settlement's claim edge ({@link Settlement#radius})
+     * the band forms up. The band is placed at {@code radius + 8} to
+     * {@code radius + 24} blocks from the centre, so no raider ever appears
+     * inside the claim: with the default 48-block claim that is 56-72
+     * blocks out. The old fixed 26-38 from the centre sat well inside a
+     * 48-block claim, and raiders appeared among the houses.
+     */
+    public static final int SPAWN_EDGE_MARGIN_MIN = 8;
+    public static final int SPAWN_EDGE_MARGIN_MAX = 24;
+    /** Extra reach the captain's footing sweep may use past the band. */
+    public static final int CAPTAIN_EXTRA_REACH = 16;
     /** Half-width of the arc the band spreads across, in degrees. */
     public static final float SPAWN_ARC = 22.0F;
-    /** Vertical search for standable ground at the spawn column. */
+    /**
+     * Vertical search of {@link #standableNear} (the scout omen). Band
+     * form-up reads the column's real surface instead
+     * ({@link RaidFootingSearch#SURFACE_REACH}).
+     */
     public static final int SPAWN_VERTICAL_SEARCH = 12;
 
     private RaidDirector() {
@@ -181,6 +195,9 @@ public final class RaidDirector {
      * rather than a crowd.
      */
     public static RaidCaptain pickCaptain(Settlement settlement, RandomSource random) {
+        // Story lane (T1): a captain sworn at a defied last warning leads this raid (once; guarded).
+        RaidCaptain sworn = com.hearthstead.event.worldevent.StoryHooks.swornCaptain(settlement);
+        if (sworn != null) return sworn;
         if (!settlement.raidCaptains.isEmpty()
             && random.nextFloat() < RETURNING_CAPTAIN_CHANCE) {
             return settlement.raidCaptains.get(
@@ -204,11 +221,56 @@ public final class RaidDirector {
      * wave you can only survive.
      */
     public static int bandSizeFor(Settlement settlement, RaidCaptain captain) {
+        return bandSizeFor(settlement, captain, 0);
+    }
+
+    /** Survived raids per extra raider (MineColonies-style raid level). */
+    public static final int RAIDS_PER_ESCALATION_RAIDER = 2;
+    /** Upper bound of the escalation bonus; MAX_BAND still caps the total. */
+    public static final int MAX_ESCALATION_BONUS = 4;
+    /** From this overall raid number on (first raid = 1) the band is veteran. */
+    public static final int VETERAN_RAID_NUMBER = 3;
+    /** Veteran bands put a BRUTE on every 3rd follower slot instead of every 5th. */
+    public static final int VETERAN_BRUTE_SPACING = 3;
+    /** Veteran captains are built BRUTE half the time instead of 30%. */
+    public static final float VETERAN_BRUTE_CAPTAIN_CHANCE = 0.5F;
+
+    /**
+     * Escalation (owner decision 25 Sep; MineColonies raid level as the
+     * reference). The full recurring band formula is:
+     *
+     * <pre>
+     *   base      = 2 + worth / 14            worth = population*3 + validBuildings*4
+     *   scaled    = round(base * min(captainMenace, 2.0) * stageWeight)
+     *                                         stageWeight: ROLIG 1.0, URO 1.15,
+     *                                         VARSEL 1.35, BELEIRING 1.6
+     *   raidLevel = raidsSurvived - (lostLastRaid ? 1 : 0), min 0
+     *   bonus     = min(raidLevel / 2, 4)     (+1 raider per 2 survived raids)
+     *   band      = clamp(scaled + bonus, MIN_BAND 2, MAX_BAND 9)
+     * </pre>
+     *
+     * Composition: from overall raid 3 on (and not in a post-loss breather)
+     * followers are BRUTE on every 3rd slot (else every 5th) and the captain
+     * is BRUTE 50% of the time (else 30%). Slot 1 is always a SKIRMISHER.
+     */
+    public static int escalationBonusFor(int raidLevel) {
+        return Mth.clamp(Math.max(0, raidLevel) / RAIDS_PER_ESCALATION_RAIDER,
+            0, MAX_ESCALATION_BONUS);
+    }
+
+    public static int bandSizeFor(Settlement settlement, RaidCaptain captain,
+                                  int raidLevel) {
         int fromWorth = MIN_BAND
             + RaidPressure.worthOf(settlement) / WORTH_PER_RAIDER;
         float stageWeight = stageBandMultiplier(settlement.raidPressure.stage());
         float scaled = fromWorth * Math.min(captain.menace(), 2.0F) * stageWeight;
-        return Mth.clamp(Math.round(scaled), MIN_BAND, MAX_BAND);
+        return Mth.clamp(Math.round(scaled) + escalationBonusFor(raidLevel),
+            MIN_BAND, MAX_BAND);
+    }
+
+    /** Whether the band spawned as overall raid {@code raidNumber} uses the veteran mix. */
+    public static boolean veteranBand(long raidNumber, boolean breather) {
+        return raidNumber >= VETERAN_RAID_NUMBER && !breather;
     }
 
     /**
@@ -237,6 +299,31 @@ public final class RaidDirector {
         return new BlockPos(x, center.getY(), z);
     }
 
+    /** Nearest form-up distance from the centre: the claim edge plus a margin. */
+    public static int spawnMinDistance(int claimRadius) {
+        return Math.max(0, claimRadius) + SPAWN_EDGE_MARGIN_MIN;
+    }
+
+    /** Farthest form-up distance from the centre for an ordinary raider. */
+    public static int spawnMaxDistance(int claimRadius) {
+        return Math.max(0, claimRadius) + SPAWN_EDGE_MARGIN_MAX;
+    }
+
+    /**
+     * Whether a form-up position lies strictly outside the settlement's
+     * claim, measured horizontally (the claim test itself is a sphere, so
+     * horizontal-outside is the stricter of the two).
+     */
+    public static boolean outsideClaim(Settlement settlement, BlockPos pos) {
+        if (settlement == null || settlement.center == null || pos == null) {
+            return false;
+        }
+        long dx = (long) pos.getX() - settlement.center.getX();
+        long dz = (long) pos.getZ() - settlement.center.getZ();
+        long radius = Math.max(0, settlement.radius);
+        return dx * dx + dz * dz > radius * radius;
+    }
+
     /**
      * Brings the band into the world along the planned approach.
      *
@@ -256,11 +343,18 @@ public final class RaidDirector {
         if (leader == null) {
             return spawned;
         }
-        RaidCaptain captain = leader.raidCaptain();
-        int band = bandSizeFor(settlement, captain);
         RandomSource random = level.getRandom();
-        return spawnBandActors(level, settlement, plan, leader, band,
-            MIN_BAND, random, index -> variantFor(index, random));
+        // Escalation curve (26 Sep): the band follows the raid number and the
+        // settlement's strength, not worth and pressure alone. bandSizeFor and
+        // the veteran spacing remain as documented history and test seams.
+        RaidEscalation.Band composition = RaidEscalation.compose(
+            RaidEscalation.raidNumber(settlement),
+            RaidEscalation.strength(level, settlement), random.nextDouble());
+        java.util.List<RaiderEntity.Variant> slots = composition.slots();
+        Hearthstead.LOGGER.info("Raid band for {}: raid {} {}", settlement.name,
+            RaidEscalation.raidNumber(settlement), composition);
+        return spawnBandActors(level, settlement, plan, leader, slots.size(),
+            Math.min(MIN_BAND, slots.size()), random, slots::get);
     }
 
     /**
@@ -279,9 +373,21 @@ public final class RaidDirector {
         }
         RandomSource deterministic = RandomSource.create(
             firstRaidCompositionSeed(settlement, plan));
+        int size = settlement.raidLifecycle.isTimerScheduled()
+            ? settlement.raidLifecycle.firstTimerBandSize() : FIRST_RAID_BAND_SIZE;
         return spawnBandActors(level, settlement, plan, leader,
-            FIRST_RAID_BAND_SIZE, FIRST_RAID_BAND_SIZE, deterministic,
+            size, size, deterministic,
             index -> firstRaidVariantFor(index, settlement, plan));
+    }
+
+    /**
+     * QA / GameTest only: the authored first raid's exact five-slot
+     * placement under {@code plan}, without the lifecycle gates around it.
+     * Nothing is recorded; the caller owns discarding what it gets.
+     */
+    public static java.util.List<RaiderEntity> spawnFirstBandForQa(
+            ServerLevel level, Settlement settlement, RaidPlan plan) {
+        return spawnFirstBand(level, settlement, plan);
     }
 
     private static java.util.List<RaiderEntity> spawnBandActors(
@@ -291,14 +397,23 @@ public final class RaidDirector {
             java.util.function.IntFunction<RaiderEntity.Variant> variants) {
         java.util.List<RaiderEntity> spawned = new java.util.ArrayList<>();
         RaidCaptain captain = leader.raidCaptain();
+        int minDistance = spawnMinDistance(settlement.radius);
+        int maxDistance = spawnMaxDistance(settlement.radius);
+        BlockPos captainGround = null;
         for (int i = 0; i < band; i++) {
             boolean isCaptain = i == 0;
             float spread = band <= 1 ? 0.0F
                 : (i / (float) (band - 1) - 0.5F) * 2.0F * SPAWN_ARC;
-            int distance = SPAWN_MIN_DISTANCE + random.nextInt(
-                Math.max(1, SPAWN_MAX_DISTANCE - SPAWN_MIN_DISTANCE + 1));
-            BlockPos ground = footingFor(level, settlement,
-                plan.approachDegrees() + spread, distance, isCaptain);
+            int distance = minDistance + random.nextInt(
+                Math.max(1, maxDistance - minDistance + 1));
+            BlockPos ground = isCaptain
+                ? captainFooting(level, settlement,
+                    plan.approachDegrees() + spread, distance)
+                : followerFooting(level, settlement,
+                    plan.approachDegrees() + spread, distance, captainGround, i);
+            if (isCaptain) {
+                captainGround = ground;
+            }
             if (ground == null) {
                 if (isCaptain) {
                     return spawned; // never create a leaderless "raid"
@@ -317,7 +432,18 @@ public final class RaidDirector {
                 plan.approachDegrees() + 180.0F, 0.0F);
             raider.setVariant(variants.apply(i));
             raider.assign(captain.id(), settlement.id, plan.objective(),
-                captain.menace(), isCaptain);
+                settlement.raidLifecycle.isTimerScheduled()
+                    && settlement.raidLifecycle.firstState() == FirstRaidState.SCHEDULED
+                    ? 1.0F : captain.menace(), isCaptain);
+            if (settlement.raidLifecycle.isTimerScheduled()
+                && settlement.raidLifecycle.firstState() == FirstRaidState.SCHEDULED) {
+                // A named first captain is still one of the weakest raiders.
+                // Keep its visible identity, without the ordinary +14 HP captain bonus.
+                double health = RaiderEntity.baseMaxHealth(RaiderEntity.Variant.BANDIT);
+                raider.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH)
+                    .setBaseValue(health);
+                raider.setHealth((float) health);
+            }
             raider.setObjectivePos(settlement.center);
             if (isCaptain) {
                 // The field identity must be the exact persisted identity the
@@ -332,7 +458,8 @@ public final class RaidDirector {
                 // it may add growth and an epithet mark, but it no longer owns
                 // whether the base raid-captain identity is visible at all.
                 Captain saga = leader.sagaCaptain();
-                if (saga != null) {
+                if (saga != null && !(settlement.raidLifecycle.isTimerScheduled()
+                    && settlement.raidLifecycle.firstState() == FirstRaidState.SCHEDULED)) {
                     raider.markSagaCaptain(leader.displayName(),
                         captain.victories(), saga.hasEpithet());
                 }
@@ -369,25 +496,13 @@ public final class RaidDirector {
         return seed;
     }
 
-    /**
-     * Slot zero may wear either visual build but remains a captain, which is
-     * the counter system's neutral identity. Only non-captain slot one is the
-     * BRUTE counter target; the other three followers are SKIRMISHERs.
-     */
+    /** Every first-raid slot is a bandit (26 Sep escalation curve); slot 0 is the captain. */
     private static RaiderEntity.Variant firstRaidVariantFor(
             int index, Settlement settlement, RaidPlan plan) {
-        if (index == 0) {
-            return Math.floorMod(firstRaidCompositionSeed(settlement, plan), 10L)
-                    < 3L
-                ? RaiderEntity.Variant.BRUTE
-                : RaiderEntity.Variant.SKIRMISHER;
-        }
-        if (index == FIRST_RAID_BRUTE_FOLLOWER_INDEX) {
-            return RaiderEntity.Variant.BRUTE;
-        }
-        if (index > FIRST_RAID_BRUTE_FOLLOWER_INDEX
-            && index < FIRST_RAID_BAND_SIZE) {
-            return RaiderEntity.Variant.SKIRMISHER;
+        int size = settlement.raidLifecycle.isTimerScheduled()
+            ? settlement.raidLifecycle.firstTimerBandSize() : FIRST_RAID_BAND_SIZE;
+        if (index >= 0 && index < size) {
+            return RaiderEntity.Variant.BANDIT;
         }
         throw new IllegalArgumentException("invalid first-raid slot " + index);
     }
@@ -395,18 +510,17 @@ public final class RaidDirector {
     /** Final pre-seal proof that spawn callbacks did not alter the encounter. */
     private static boolean validFirstRaidComposition(
             java.util.List<RaiderEntity> spawned, RaidPlan plan,
-            String committedLeaderName) {
-        if (spawned == null || spawned.size() != FIRST_RAID_BAND_SIZE
+            String committedLeaderName, int expectedSize) {
+        if (spawned == null || spawned.size() != expectedSize
             || plan == null || committedLeaderName == null
             || spawned.get(0) == null
             || !spawned.get(0).isCaptain()) {
             return false;
         }
         int captains = 0;
-        int bruteFollowers = 0;
-        int skirmisherFollowers = 0;
+        int banditFollowers = 0;
         for (RaiderEntity raider : spawned) {
-            if (raider == null
+            if (raider == null || raider.variant() != RaiderEntity.Variant.BANDIT
                 || !plan.captainId().equals(raider.captainId())
                 || plan.objective() != raider.objective()) {
                 return false;
@@ -419,17 +533,13 @@ public final class RaidDirector {
                         raider.getCustomName().getString())) {
                     return false;
                 }
-            } else if (raider.variant() == RaiderEntity.Variant.BRUTE) {
-                bruteFollowers++;
-            } else if (raider.variant()
-                    == RaiderEntity.Variant.SKIRMISHER) {
-                skirmisherFollowers++;
+            } else if (raider.variant() == RaiderEntity.Variant.BANDIT) {
+                banditFollowers++;
             } else {
                 return false;
             }
         }
-        return captains == 1 && bruteFollowers == 1
-            && skirmisherFollowers == 3;
+        return captains == 1 && banditFollowers == expectedSize - 1;
     }
 
     private static void discardTentativeBand(
@@ -468,69 +578,172 @@ public final class RaidDirector {
      * #MIN_BAND} (2) guarantees index 1 always exists to carry it.
      */
     static RaiderEntity.Variant variantFor(int index, RandomSource random) {
+        return variantFor(index, random, false);
+    }
+
+    /** Veteran bands (raid 3+, see {@link #escalationBonusFor}) are heavier. */
+    public static RaiderEntity.Variant variantFor(int index, RandomSource random,
+                                                  boolean veteran) {
         if (index == 0) {
-            return random.nextFloat() < BRUTE_CAPTAIN_CHANCE
+            float chance = veteran ? VETERAN_BRUTE_CAPTAIN_CHANCE : BRUTE_CAPTAIN_CHANCE;
+            return random.nextFloat() < chance
                 ? RaiderEntity.Variant.BRUTE : RaiderEntity.Variant.SKIRMISHER;
         }
-        return index % BRUTE_SPACING == 0
+        int spacing = veteran ? VETERAN_BRUTE_SPACING : BRUTE_SPACING;
+        return index % spacing == 0
             ? RaiderEntity.Variant.BRUTE : RaiderEntity.Variant.SKIRMISHER;
     }
 
     /**
-     * Footing for one raider. A follower gets one attempt on its own bearing
-     * -- if the ground there is bad, the band simply arrives one short.
+     * Footing for the CAPTAIN. A leaderless band contradicts the whole
+     * design, so the captain walks {@link RaidFootingSearch#captain}: the
+     * warned bearing across the band and {@link #CAPTAIN_EXTRA_REACH}, then
+     * every other bearing nearest-first around the full circle, then the
+     * thin ring just outside the claim edge, then a farther ring.
      *
-     * <p>The CAPTAIN does not: a leaderless band contradicts the whole
-     * design, so the captain sweeps outward around the arc until something
-     * takes. Found by a test asserting a band is led and occasionally
-     * finding it was not, because the leader's single column happened to
-     * have no floor.
+     * <p>Every candidate lies OUTSIDE the claim; the old last resort --
+     * forming up on the settlement's own ground -- stays gone. When no
+     * column anywhere has footing the queued plan is kept for a retry (the
+     * tested "keep the plan queued" rule), players are told why
+     * ({@link RaidHoldNotice}), and the log says what the terrain offered.
      */
-    private static BlockPos footingFor(ServerLevel level, Settlement settlement,
-                                       float bearing, int distance,
-                                       boolean isCaptain) {
-        BlockPos direct = standableNear(level,
-            formUpAt(settlement.center, bearing, distance));
-        if (direct != null || !isCaptain) {
-            return direct;
-        }
-        for (int step = 1; step <= CAPTAIN_BEARING_TRIES; step++) {
-            for (int sign : new int[] {1, -1}) {
-                float swept = bearing + sign * step * CAPTAIN_BEARING_STEP;
-                for (int d = distance; d >= SPAWN_MIN_DISTANCE / 2; d -= 4) {
-                    BlockPos found = standableNear(level,
-                        formUpAt(settlement.center, swept, d));
-                    if (found != null) {
-                        return found;
-                    }
-                }
+    private static BlockPos captainFooting(ServerLevel level, Settlement settlement,
+                                           float bearing, int distance) {
+        FootingTally tally = new FootingTally();
+        for (RaidFootingSearch.Candidate c : RaidFootingSearch.captain(
+                bearing, settlement.radius, distance)) {
+            BlockPos found = surfaceOutsideClaim(level, settlement,
+                formUpAt(settlement.center, c.bearing(), c.distance()),
+                settlement.center.getY(), RaidFootingSearch.SURFACE_REACH, tally);
+            if (found != null) {
+                return found;
             }
         }
-        // Last resort: the settlement's own ground. A raid that was rolled,
-        // planned and announced and then silently failed to appear because
-        // the terrain on every bearing was bad is the raid-shaped version of
-        // "deliveries that silently never happen" -- the exact failure class
-        // this whole slice is built against. Arriving badly beats not
-        // arriving, and it is logged so it is never mistaken for normal.
-        BlockPos athome = standableNear(level, settlement.center);
-        if (athome != null) {
-            Hearthstead.LOGGER.warn(
-                "No footing on any bearing for the captain raiding {} -- "
-                    + "forming up at the settlement itself", settlement.name);
-        }
-        return athome;
+        Hearthstead.LOGGER.warn(
+            "Raid on {} held: no footing outside the claim on any bearing for the "
+                + "captain ({} columns tried: {} in unloaded chunks, {} wet, {} too far "
+                + "above/below the Banner at y={}, {} blocked); the plan stays "
+                + "queued and retries", settlement.name, tally.tried, tally.unloaded,
+            tally.wet, tally.outOfReach, settlement.center.getY(), tally.blocked);
+        return null;
     }
 
-    /** How far the captain will sweep for footing, and in what steps. */
-    public static final int CAPTAIN_BEARING_TRIES = 8;
-    public static final float CAPTAIN_BEARING_STEP = 24.0F;
+    /**
+     * Footing for a FOLLOWER. It keeps the warned front first -- its own
+     * column, its own bearing across the band's depth and a little beyond
+     * ({@link RaidFootingSearch#follower}) -- and when that ray is all lake,
+     * cliff or unloaded land it gathers on the ground around its captain
+     * instead of costing the raid a raider. The authored first raid needs
+     * all five of its slots, so one wet ray used to hold it forever.
+     */
+    private static BlockPos followerFooting(ServerLevel level, Settlement settlement,
+                                            float bearing, int distance,
+                                            BlockPos captainGround, int index) {
+        for (RaidFootingSearch.Candidate c : RaidFootingSearch.follower(
+                bearing, settlement.radius, distance)) {
+            BlockPos found = surfaceOutsideClaim(level, settlement,
+                formUpAt(settlement.center, c.bearing(), c.distance()),
+                settlement.center.getY(), RaidFootingSearch.SURFACE_REACH, null);
+            if (found != null) {
+                return found;
+            }
+        }
+        if (captainGround == null) {
+            return null;
+        }
+        for (int[] offset : RaidFootingSearch.gatherOffsets(index)) {
+            BlockPos found = surfaceOutsideClaim(level, settlement,
+                captainGround.offset(offset[0], 0, offset[1]),
+                captainGround.getY(), RaidFootingSearch.GATHER_STEP_HEIGHT, null);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** Why the captain's columns failed, for the one warning line. */
+    private static final class FootingTally {
+        int tried;
+        int unloaded;
+        int wet;
+        int outOfReach;
+        int blocked;
+    }
+
+    /**
+     * The open-air surface of a column, outside the claim. Reads the
+     * {@code MOTION_BLOCKING_NO_LEAVES} heightmap, so the answer is the real
+     * ground -- under a forest canopy, never on it; never in a cave or under
+     * a roof; on a hill 20 blocks above the Banner as readily as level with
+     * it -- instead of whatever a +-12 block scan around the Banner's own
+     * height happened to hit. A lake's surface is a fluid, so it is refused.
+     *
+     * <p>Only an already loaded chunk is read (a column whose chunk is not
+     * loaded has no footing), exactly like {@link #standableNear}.
+     */
+    private static BlockPos surfaceOutsideClaim(ServerLevel level,
+                                                Settlement settlement,
+                                                BlockPos column, int anchorY,
+                                                int reach, FootingTally tally) {
+        if (tally != null) {
+            tally.tried++;
+        }
+        if (level == null || column == null || !outsideClaim(settlement, column)) {
+            return null;
+        }
+        if (!level.getChunkSource().hasChunk(
+                net.minecraft.core.SectionPos.blockToSectionCoord(column.getX()),
+                net.minecraft.core.SectionPos.blockToSectionCoord(column.getZ()))) {
+            if (tally != null) {
+                tally.unloaded++;
+            }
+            return null;
+        }
+        int top = level.getHeight(
+            net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+            column.getX(), column.getZ());
+        if (!RaidFootingSearch.withinReach(top, anchorY, reach)) {
+            if (tally != null) {
+                tally.outOfReach++;
+            }
+            return null;
+        }
+        // The heightmap's first open cell, then one below (a thin snow layer
+        // counts as motion-blocking yet is walked through) and one above.
+        for (int dy : new int[] {0, -1, 1}) {
+            BlockPos at = new BlockPos(column.getX(), top + dy, column.getZ());
+            if (isStandable(level, at)) {
+                return at;
+            }
+        }
+        if (tally != null) {
+            BlockPos surface = new BlockPos(column.getX(), top - 1, column.getZ());
+            if (!level.getFluidState(surface).isEmpty()) {
+                tally.wet++;
+            } else {
+                tally.blocked++;
+            }
+        }
+        return null;
+    }
 
     /**
      * Solid footing near a column, searched up then down. Without this a
      * band forms inside a hillside or in mid-air over a ravine and the raid
      * silently never arrives.
+     *
+     * <p>Only ever inspects an already loaded chunk: a column whose chunk is
+     * not loaded has no footing. Reading block state there would load (or
+     * even generate) the chunk synchronously on the server thread.
      */
     public static BlockPos standableNear(ServerLevel level, BlockPos column) {
+        if (level == null || column == null
+            || !level.getChunkSource().hasChunk(
+                net.minecraft.core.SectionPos.blockToSectionCoord(column.getX()),
+                net.minecraft.core.SectionPos.blockToSectionCoord(column.getZ()))) {
+            return null;
+        }
         for (int dy = 0; dy <= SPAWN_VERTICAL_SEARCH; dy++) {
             for (int sign : new int[] {1, -1}) {
                 BlockPos at = column.offset(0, dy * sign, 0);
@@ -546,14 +759,57 @@ public final class RaidDirector {
     }
 
     private static boolean isStandable(ServerLevel level, BlockPos pos) {
-        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty()
-            && level.getBlockState(pos.above())
-                .getCollisionShape(level, pos.above()).isEmpty()
-            && !level.getBlockState(pos.below())
-                .getCollisionShape(level, pos.below()).isEmpty();
+        // Fluids have an empty collision shape. They are not usable raid footing:
+        // FloatGoal keeps a raider at the surface instead of letting its ground
+        // navigation reach the objective.
+        // Leaves are excluded as footing so a band never forms up on a
+        // forest canopy it cannot climb down from; fire is never a place
+        // to stand. Lava/water below have no collision and already fail.
+        BlockState feet = level.getBlockState(pos);
+        BlockState head = level.getBlockState(pos.above());
+        BlockState floor = level.getBlockState(pos.below());
+        return level.getFluidState(pos).isEmpty()
+            && level.getFluidState(pos.above()).isEmpty()
+            && level.getFluidState(pos.below()).isEmpty()
+            && !(feet.getBlock() instanceof BaseFireBlock)
+            && !(head.getBlock() instanceof BaseFireBlock)
+            && !floor.is(net.minecraft.tags.BlockTags.LEAVES)
+            && feet.getCollisionShape(level, pos).isEmpty()
+            && head.getCollisionShape(level, pos.above()).isEmpty()
+            && !floor.getCollisionShape(level, pos.below()).isEmpty();
     }
 
     // ----------------------------------------- authored first-raid runtime ---
+
+    /** Small, all-bandit timer raid. Only real armed defenders increase its size. */
+    public static int firstTimerBandSize(ServerLevel level, Settlement settlement) {
+        int size = com.hearthstead.HearthsteadServerConfig.firstRaidMinimalSize();
+        java.util.Set<java.util.UUID> counted = new java.util.HashSet<>();
+        for (com.hearthstead.entity.SettlerEntity member
+                : com.hearthstead.settlement.SettlementManager.loadedMembers(level, settlement)) {
+            if (!member.isAlive() || !settlement.id.equals(member.getSettlementId())
+                || !counted.add(member.getUUID()) || (member.getProfession() != com.hearthstead.entity.Profession.GUARD
+                    && member.getProfession() != com.hearthstead.entity.Profession.ARCHER)) continue;
+            var weapon = com.hearthstead.settlement.equipment.EquipmentRequests
+                .requirementFor(member.getProfession());
+            if (weapon != null && weapon.serviceable(member.getMainHandItem())) size++;
+            if (size >= 6) return 6;
+        }
+        return size;
+    }
+
+    /** Commits automatic authority without recording any readiness/Journey achievement. */
+    public static boolean commitFirstRaidTimer(ServerLevel level, Settlement settlement) {
+        if (level == null || settlement == null || !isRollTime(level.getDayTime())) return false;
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        long night = nightOf(level.getDayTime());
+        int days = com.hearthstead.HearthsteadServerConfig.firstRaidAutoDays();
+        if (!lifecycle.firstTimerDue(night, days)
+            || !FirstRaidReadinessService.assessTimer(level, settlement).ready()
+            || !lifecycle.scheduleAfterTimer(night, days, firstTimerBandSize(level, settlement))) return false;
+        SettlementSavedData.get(level).setDirty();
+        return true;
+    }
 
     /**
      * Commits the readiness-anchored first-raid calendar exactly once.
@@ -596,7 +852,8 @@ public final class RaidDirector {
                                                            Settlement settlement) {
         if (level == null || settlement == null
             || settlement.raidLifecycle.firstState()
-                != FirstRaidState.SCHEDULED) {
+                != FirstRaidState.SCHEDULED
+            || settlement.raidLifecycle.isTimerScheduled()) {
             return false;
         }
         if (FirstRaidReadinessService.assessExecution(level, settlement)
@@ -652,6 +909,7 @@ public final class RaidDirector {
                 .ready()) {
             return false;
         }
+        if (lifecycle.isTimerScheduled()) lifecycle.deferTimerWarning(currentNight);
         CaptainRoster.ensureRoster(settlement, level.getRandom());
         RaidPlan plan = planFirstRaid(level, settlement,
             lifecycle.firstAttackNight());
@@ -670,7 +928,12 @@ public final class RaidDirector {
         boolean presented = leaderNameOf(settlement, plan.captainId()).isPresent()
             && RaidPresentation.warning(level, settlement);
         if (applyFirstWarningPresentationResult(lifecycle, presented)) {
-            JourneyServerHooks.noteFirstRaidWarning(level, settlement, plan);
+            if (lifecycle.isTimerScheduled()) {
+                lifecycle.recordTimerWarningPresented();
+                SettlementSavedData.get(level).setDirty();
+            } else {
+                JourneyServerHooks.noteFirstRaidWarning(level, settlement, plan);
+            }
         } else {
             SettlementSavedData.get(level).setDirty();
             Hearthstead.LOGGER.warn(
@@ -708,6 +971,10 @@ public final class RaidDirector {
             return false;
         }
         JourneyPresentationMode mode = settlement.journeyState.mode();
+        if (settlement.raidLifecycle.isTimerScheduled()) {
+            return mode != JourneyPresentationMode.QUARANTINED
+                && settlement.raidLifecycle.timerWarningPresented();
+        }
         if (mode == JourneyPresentationMode.SKIPPED) {
             return true;
         }
@@ -727,6 +994,19 @@ public final class RaidDirector {
             ServerLevel level, Settlement settlement) {
         if (firstWarningReceiptReady(settlement)) {
             return true;
+        }
+        if (validQueuedFirstRaidAuthority(settlement)
+            && settlement.raidLifecycle.isTimerScheduled()
+            && settlement.journeyState.mode() != JourneyPresentationMode.QUARANTINED) {
+            // No receipt means the old date was never proven delivered. Retain
+            // captain/objective, but give the recovered warning a full night.
+            long warningNight = Math.max(settlement.raidLifecycle.firstWarningNight(),
+                nightOf(level.getDayTime()));
+            if (!settlement.raidLifecycle.deferTimerWarning(warningNight)
+                || !RaidPresentation.warning(level, settlement)) return false;
+            settlement.raidLifecycle.recordTimerWarningPresented();
+            SettlementSavedData.get(level).setDirty();
+            return firstWarningReceiptReady(settlement);
         }
         if (!validQueuedFirstRaidAuthority(settlement)
             || settlement.journeyState.mode() != JourneyPresentationMode.ACTIVE
@@ -791,16 +1071,23 @@ public final class RaidDirector {
             return java.util.List.of();
         }
 
+        if (lifecycle.isTimerScheduled() && !lifecycle.timerSunsetPresented()) {
+            if (!RaidPresentation.warning(level, settlement)) return java.util.List.of();
+            lifecycle.recordTimerSunsetPresented();
+            SettlementSavedData.get(level).setDirty();
+        }
+        int expectedSize = lifecycle.isTimerScheduled()
+            ? lifecycle.firstTimerBandSize() : FIRST_RAID_BAND_SIZE;
         java.util.List<RaiderEntity> spawned = spawnFirstBand(level, settlement,
             plan);
-        if (spawned.size() != FIRST_RAID_BAND_SIZE) {
+        if (spawned.size() != expectedSize) {
             discardTentativeBand(spawned);
             return java.util.List.of();
         }
 
         java.util.LinkedHashSet<java.util.UUID> ids = new java.util.LinkedHashSet<>();
         boolean validCapture = validFirstRaidComposition(spawned, plan,
-            committedLeaderName)
+            committedLeaderName, expectedSize)
             && spawned.size() <= RaidLifecycle.MAX_PARTICIPANTS;
         for (RaiderEntity raider : spawned) {
             validCapture &= raider != null && !raider.isRemoved()
@@ -847,8 +1134,14 @@ public final class RaidDirector {
             }
             return java.util.List.of();
         }
-        for (java.util.UUID id : ids) {
-            if (!lifecycle.recordParticipant(id)) {
+        for (RaiderEntity raider : spawned) {
+            RaidParticipantRecord.Build build = switch (raider.variant()) {
+                case BRUTE -> RaidParticipantRecord.Build.BRUTE;
+                case BANDIT -> RaidParticipantRecord.Build.BANDIT;
+                case SKIRMISHER -> RaidParticipantRecord.Build.SKIRMISHER;
+            };
+            if (!lifecycle.recordParticipant(new RaidParticipantRecord(
+                    raider.getUUID(), build, raider.isCaptain()))) {
                 lifecycle.markIntegrityLost();
                 break;
             }
@@ -856,7 +1149,8 @@ public final class RaidDirector {
         if (!lifecycle.integrityLost() && !lifecycle.sealParticipants()) {
             lifecycle.markIntegrityLost();
         }
-        if (lifecycle.integrityLost()) {
+        if (lifecycle.integrityLost() || !lifecycle.participantRosterTracked()) {
+            lifecycle.markIntegrityLost();
             for (RaiderEntity raider : spawned) {
                 if (!raider.isRemoved()) {
                     raider.discard();
@@ -876,6 +1170,10 @@ public final class RaidDirector {
         // merely the older plan date.
         settlement.raidPressure.recordAuthoredRaidStarted(currentNight);
         RaidScars.get(level).resetArson(settlement.id);
+        // Soft-lock guard (26 Sep): one stuck or unreachable raider must not
+        // hold the first raid open forever (no sleep, civilians hiding).
+        lifecycle.armRecurringRetreat(level.getDayTime());
+        lifecycle.armFirstTimerRetreat(level.getGameTime());
         SettlementSavedData.get(level).setDirty();
 
         AuthorityTelemetry.emit(level,
@@ -888,7 +1186,7 @@ public final class RaidDirector {
                 "participants_sealed"));
         RaidPresentation.arrival(level, settlement);
 
-        RaidBroadcast.send(level, settlement, Component.translatable(
+        RaidBroadcast.town(level, settlement, Component.translatable(
             "hearthstead.message.raid_captain_leads", committedLeaderName,
             settlement.name));
         Hearthstead.LOGGER.info(
@@ -980,6 +1278,8 @@ public final class RaidDirector {
         settlement.raidSettlersHurtTonight = 0;
         settlement.raidCaptainSlainId = null;
         RaidScars.get(level).resetArson(settlement.id);
+        // Soft-lock guard: whoever is still standing at the next dawn flees.
+        settlement.raidLifecycle.armRecurringRetreat(level.getDayTime());
         SettlementSavedData.get(level).setDirty();
 
         AuthorityTelemetry.emit(level,
@@ -996,7 +1296,7 @@ public final class RaidDirector {
         // only after the exact participant set is committed.
         RaidPresentation.arrival(level, settlement);
 
-        RaidBroadcast.send(level, settlement, Component.translatable(
+        RaidBroadcast.town(level, settlement, Component.translatable(
             "hearthstead.message.raid_captain_leads", committedLeaderName,
             settlement.name));
         Hearthstead.LOGGER.info(
@@ -1007,6 +1307,114 @@ public final class RaidDirector {
 
     /** How far past the settlement edge a raid still counts as in progress. */
     public static final int RAID_BOUNDS_MARGIN = 48;
+
+    /**
+     * How far past the settlement edge a player counts as present for a raid:
+     * a recurring raid only starts (and rolls) with such a player, raid lines
+     * reach them ({@link RaidBroadcast}) and the boss bar shows. Sleep denial
+     * uses the same distance ({@link RaidSleepPolicy}): a player who can
+     * neither start nor hear a raid is not kept awake by it. Before 26 Sep
+     * sleep was denied out to radius + 64, so a player 33-64 blocks outside
+     * the edge could not sleep while the raid waited for someone closer.
+     */
+    public static final int PLAYER_PRESENCE_MARGIN = 32;
+
+    /**
+     * Dawn retreat for recurring raids (soft-lock guard). Raiders still alive
+     * when the armed dawn arrives -- stuck, unreachable or in unloaded chunks
+     * -- flee: loaded ones are removed, unloaded ones are remembered and
+     * removed when they next load. The raid resolves as "repelled late":
+     * no Coin/Blessing reward and no pressure/captain change, but also no
+     * defeat penalty; the cadence continues exactly as after any other raid
+     * (the next attack 3-4 days later, see {@link RaidCadence}) and the raid
+     * level neither rises nor keeps a breather. First raids are
+     * never retreated: their authored contract stays terminal-ledger only.
+     */
+    public static boolean resolveRecurringRetreat(ServerLevel level,
+                                                  Settlement settlement) {
+        return resolveRecurringRetreat(level, settlement, null);
+    }
+
+    /**
+     * Same retreat, announced with {@code message} instead of the dawn line
+     * (raid parley: tribute paid, truce agreed, captain yielded a duel).
+     * Null keeps the dawn line.
+     */
+    public static boolean resolveRecurringRetreat(ServerLevel level,
+                                                  Settlement settlement,
+                                                  @javax.annotation.Nullable Component message) {
+        return resolveRecurringRetreat(level, settlement, message, true);
+    }
+
+    /**
+     * As above; {@code discardLoaded} false leaves the loaded band standing so
+     * the caller can walk it off (conversation Departure: paid or persuaded
+     * raids walk away instead of vanishing). Unloaded stragglers still leave
+     * when they next load.
+     */
+    public static boolean resolveRecurringRetreat(ServerLevel level,
+                                                  Settlement settlement,
+                                                  @javax.annotation.Nullable Component message,
+                                                  boolean discardLoaded) {
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        RecurringRaidRun recurring = settlement.recurringRaidRun;
+        if (lifecycle.firstState() != FirstRaidState.COMPLETED
+            || lifecycle.isAuthoredFirstRaidActive()
+            || lifecycle.isLegacyBridgeActive() || !recurring.isActive()) {
+            return false;
+        }
+        RaidPlan plan = recurring.plan().orElse(null);
+        if (plan == null) {
+            return false;
+        }
+        java.util.Set<java.util.UUID> terminal = recurring.terminalParticipants();
+        java.util.List<java.util.UUID> stragglers = new java.util.ArrayList<>();
+        for (java.util.UUID id : recurring.participants()) {
+            if (!terminal.contains(id)) {
+                stragglers.add(id);
+            }
+        }
+        long serial = recurring.activeSerial();
+        if (!recurring.resolveRetreat()) {
+            // ACTIVE shape is validated on load, so this is contradictory
+            // runtime evidence: consume the serial fail-closed.
+            recurring.block();
+            SettlementSavedData.get(level).setDirty();
+            return false;
+        }
+        // Remember BEFORE discarding: a discard of a no-longer-active
+        // participant must never read as evidence for a newer raid.
+        lifecycle.rememberRetreatedRaiders(stragglers);
+        lifecycle.recordRecurringCadence(level.getGameTime(), level.getDayTime(),
+            RaidLifecycle.CadenceOutcome.RETREATED, pickCadenceIntervalDays(level));
+        settlement.pendingRaid = null;
+        settlement.raidLootEscaped = false;
+        settlement.raidCaptainSlainId = null;
+        RaidScars.get(level).resetArson(settlement.id);
+        int fled = 0;
+        for (java.util.UUID id : stragglers) {
+            net.minecraft.world.entity.Entity entity = level.getEntity(id);
+            if (entity instanceof RaiderEntity raider && !raider.isRemoved()) {
+                if (!discardLoaded) {
+                    continue;
+                }
+                level.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF,
+                    raider.getX(), raider.getY() + 0.5D, raider.getZ(),
+                    8, 0.3D, 0.4D, 0.3D, 0.02D);
+                raider.discard();
+                fled++;
+            }
+        }
+        SettlementSavedData.get(level).setDirty();
+        RaidBroadcast.town(level, settlement, message != null ? message : Component.translatableWithFallback(
+            "hearthstead.message.raid_dawn_retreat",
+            "Dawn breaks over %s. The last raiders flee into the wilds; the raid is over, but nothing was won.",
+            settlement.name));
+        Hearthstead.LOGGER.info(
+            "Recurring raid serial {} on {} retreated at dawn: {} straggler(s), {} loaded and removed",
+            serial, settlement.name, stragglers.size(), fled);
+        return true;
+    }
 
     /**
      * Ends the raid once no raider of it is left standing, and records the
@@ -1020,6 +1428,71 @@ public final class RaidDirector {
      * that system converges on safe however the player plays.
      */
     public static boolean resolveIfOver(ServerLevel level, Settlement settlement) {
+        return resolveIfOver(level, settlement, false);
+    }
+
+    /**
+     * Dawn retreat for the authored first raid (soft-lock guard, 26 Sep). It
+     * mirrors {@link #resolveRecurringRetreat}: at the first dawn after the
+     * raid night, every sealed participant still standing -- stuck,
+     * unreachable or in an unloaded chunk -- flees. Loaded ones are removed,
+     * unloaded ones are remembered and removed when they next load. The raid
+     * then closes through its normal terminal ledger, so the Journey
+     * advances, the aftermath is logged and the objective still decides
+     * held/hit, but a retreat pays no Coins or Blessing and changes neither
+     * pressure nor the captain.
+     */
+    public static boolean resolveFirstRaidRetreat(ServerLevel level,
+                                                  Settlement settlement) {
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        if (!lifecycle.isAuthoredFirstRaidActive()) {
+            return false;
+        }
+        java.util.List<java.util.UUID> stragglers = lifecycle.retreatFirstRaid();
+        if (stragglers == null) {
+            return false;
+        }
+        // Remember BEFORE discarding: a late load or discard of a straggler
+        // must never read as evidence for a newer raid.
+        lifecycle.rememberRetreatedRaiders(stragglers);
+        SettlementSavedData.get(level).setDirty();
+        int fled = 0;
+        for (java.util.UUID id : stragglers) {
+            net.minecraft.world.entity.Entity entity = level.getEntity(id);
+            if (entity instanceof RaiderEntity raider && !raider.isRemoved()) {
+                level.sendParticles(net.minecraft.core.particles.ParticleTypes.POOF,
+                    raider.getX(), raider.getY() + 0.5D, raider.getZ(),
+                    8, 0.3D, 0.4D, 0.3D, 0.02D);
+                raider.discard();
+                fled++;
+            }
+        }
+        Component retreatLine = Component.translatableWithFallback(
+            "hearthstead.message.raid_dawn_retreat",
+            "Dawn breaks over %s. The last raiders flee into the wilds; the raid is over, but nothing was won.",
+            settlement.name);
+        boolean resolved = resolveIfOver(level, settlement, true);
+        // Town chat: one line per raid ending. When the close produced its
+        // held/hit report, that report is the headline and the retreat is
+        // only told to those nearby.
+        if (resolved) {
+            RaidBroadcast.send(level, settlement, retreatLine);
+        } else {
+            RaidBroadcast.town(level, settlement, retreatLine);
+        }
+        if (!resolved && settlement.raidLifecycle.firstState() == FirstRaidState.ACTIVE) {
+            // A retreat is never reward-capable, including a later close.
+            lifecycle.markIntegrityLost();
+            SettlementSavedData.get(level).setDirty();
+        }
+        Hearthstead.LOGGER.info(
+            "First raid on {} retreated at dawn: {} straggler(s), {} loaded and removed, resolved={}",
+            settlement.name, stragglers.size(), fled, resolved);
+        return resolved;
+    }
+
+    private static boolean resolveIfOver(ServerLevel level, Settlement settlement,
+                                         boolean dawnRetreat) {
         RaidLifecycle lifecycle = settlement.raidLifecycle;
         RecurringRaidRun recurring = settlement.recurringRaidRun;
         boolean authoredFirst = lifecycle.isAuthoredFirstRaidActive();
@@ -1149,6 +1622,17 @@ public final class RaidDirector {
             SettlementSavedData.get(level).setDirty();
             return false;
         }
+        // Reserve the exact durable debt before consuming the authoritative
+        // victory. First recovery keeps its one 8-Coin reward; recurring raids
+        // use the smaller 4-Coin repair reward.
+        int victoryCoins = dawnRetreat ? 0
+            : authoredFirst ? RaidCoinRewards.FIRST_VICTORY_COINS
+            : authoredRecurring ? RaidCoinRewards.RECURRING_VICTORY_COINS : 0;
+        if (!lost && victoryCoins > 0 && ((authoredFirst && !lifecycle.integrityLost())
+                || (authoredRecurring && !recurring.integrityLost()))
+                && !settlement.raidCoinRewards.hasCapacity(victoryCoins)) {
+            return false;
+        }
         RecurringRaidRun.Resolution recurringResolution =
             RecurringRaidRun.Resolution.INVALID;
         if (authoredFirst && !lifecycle.completeFirstRaid(resolutionOutcome,
@@ -1159,6 +1643,11 @@ public final class RaidDirector {
             lifecycle.markIntegrityLost();
             SettlementSavedData.get(level).setDirty();
             return false;
+        }
+        if (authoredFirst && dawnRetreat) {
+            // Consume the one reward marker: a retreat pays nothing, now or
+            // through the crash-recovery path.
+            lifecycle.markRewardGranted();
         }
         if (legacyFirst && !lifecycle.completeLegacyBridge(plan)) {
             // Provenance or structure changed after the checks above. Apply
@@ -1182,13 +1671,18 @@ public final class RaidDirector {
             SettlementSavedData.get(level).setDirty();
             return false;
         }
-        if (lost) {
+        if (dawnRetreat) {
+            // Like a recurring retreat: no pressure or captain change.
+        } else if (lost) {
             settlement.raidPressure.recordLost();
             if (captain != null) {
                 captain.recordVictory();
             }
         } else {
             settlement.raidPressure.recordRepelled();
+            com.hearthstead.fx.FxHooks.raidWon(level, settlement);
+            // Tech tree (Wayside Shrine / Cathedral): thanksgiving morale.
+            com.hearthstead.settlement.techtree.effects.CommonsEffects.onRaidWon(level, settlement);
             if (captain != null) {
                 captain.recordDefeat();
             }
@@ -1210,7 +1704,19 @@ public final class RaidDirector {
         RaidScars.get(level).resetArson(settlement.id);
         recordAftermath(level, settlement, plan, captain, committedLeaderName,
             !lost, captainSlain, arsonCount, committedAftermath);
-        if (authoredFirst) {
+        // B03 starts recovery after, and only after, this resolved attack.
+        // The lifecycle stores server game-time, so sleep/day-time changes
+        // cannot shorten the interval; a corrupt schedule blocks only itself.
+        // Regular cadence (see RaidCadence): the next attack night is this
+        // raid night plus one day pick from the configured window (default
+        // 3..4), the warning one dusk earlier, and the outcome feeds the
+        // MineColonies-style raid level used by bandSizeFor.
+        lifecycle.recordRecurringCadence(level.getGameTime(), level.getDayTime(),
+            dawnRetreat ? RaidLifecycle.CadenceOutcome.RETREATED
+                : lost ? RaidLifecycle.CadenceOutcome.LOST
+                : RaidLifecycle.CadenceOutcome.HELD,
+            pickCadenceIntervalDays(level));
+        if (authoredFirst && !lifecycle.isTimerScheduled()) {
             JourneyServerHooks.noteFirstRaidResolved(level, settlement, plan,
                 resolutionOutcome);
         }
@@ -1218,7 +1724,11 @@ public final class RaidDirector {
             grantPendingFirstRaidReward(level, settlement);
         }
         if (recurringResolution == RecurringRaidRun.Resolution.GRANT_OFFER) {
+            settlement.raidCoinRewards.awardRecurring(recurring.lastResolvedSerial());
+            SettlementSavedData.get(level).setDirty();
+            settlement.raidCoinRewards.deliver(level, settlement);
             if (settlement.blessingState.grantOffer()) {
+                SettlementSavedData.get(level).setDirty();
                 BlessingPresentation.offerEarned(level, settlement);
             } else if (!settlement.blessingState.quarantined()
                 && !settlement.blessingState.hasCapacityForOffer()) {
@@ -1259,7 +1769,9 @@ public final class RaidDirector {
                     "physical_seal_offer", 0, 0, 0,
                     "authoritative_raid_reward"));
         }
-        RaidPresentation.resolved(level, settlement, !lost);
+        if (!dawnRetreat) {
+            RaidPresentation.resolved(level, settlement, !lost);
+        }
         Hearthstead.LOGGER.info(
             "Raid on {} is over -- {} {} (pressure now {}, stage {})",
             settlement.name, committedLeaderName,
@@ -1370,7 +1882,11 @@ public final class RaidDirector {
         Component stage = Component.translatable("hearthstead.raid.stage." + stageAfter);
         Component report = reportFor(plan.objective(), held, settlement, captainName,
             arsonCount, stage);
-        RaidBroadcast.send(level, settlement, report);
+        RaidBroadcast.town(level, settlement, report);
+        if (held) {
+            // Living village: the settlers near the Banner cheer ("We held!").
+            com.hearthstead.ambient.LivingVillage.onRaidHeld(level, settlement);
+        }
 
         settlement.raidItemsStolenTonight = 0;
         settlement.raidSettlersHurtTonight = 0;
@@ -1473,6 +1989,10 @@ public final class RaidDirector {
             return false;
         }
         JourneyPresentationMode mode = settlement.journeyState.mode();
+        if (settlement.raidLifecycle.isTimerScheduled()) {
+            return mode != JourneyPresentationMode.QUARANTINED
+                && settlement.raidLifecycle.timerWarningPresented();
+        }
         if (mode == JourneyPresentationMode.SKIPPED) {
             return true;
         }
@@ -1570,10 +2090,13 @@ public final class RaidDirector {
         if (!firstResolutionReceiptReady(settlement)) {
             return false;
         }
+        if (!settlement.raidCoinRewards.awardFirst()) return false;
+        SettlementSavedData.get(level).setDirty();
+        settlement.raidCoinRewards.deliver(level, settlement);
         if (settlement.blessingState.grantOffer()) {
             lifecycle.markRewardGranted();
-            BlessingPresentation.offerEarned(level, settlement);
             SettlementSavedData.get(level).setDirty();
+            BlessingPresentation.offerEarned(level, settlement);
             return true;
         }
         if (!settlement.blessingState.quarantined()
@@ -1701,17 +2224,183 @@ public final class RaidDirector {
     }
 
     /**
+     * Pure gate for B03/B04 scheduling. ACTIVE/QUEUED runs deliberately fail
+     * this gate: their established plan and sealed roster retain ownership.
+     */
+    public static boolean mayRunRecurringSchedule(boolean loadedValidSettlement,
+                                                   boolean participatingPlayer,
+                                                   RaidLifecycle lifecycle,
+                                                   RecurringRaidRun recurring,
+                                                   long gameTime) {
+        return loadedValidSettlement && participatingPlayer && lifecycle != null
+            && recurring != null
+            && lifecycle.firstState() == FirstRaidState.COMPLETED
+            && !lifecycle.recurringScheduleBlocked()
+            && !lifecycle.recurringCoolingDown(gameTime)
+            && recurring.isEmpty() && gameTime >= 0L;
+    }
+
+    /**
+     * The one random draw for the next recurring raid: a day in the server
+     * config's window ({@code raids.recurringRaidMinDays..MaxDays}, default
+     * 3..4). Drawn once per resolution and persisted by RaidLifecycle, so a
+     * reload never rerolls it.
+     */
+    static int pickCadenceIntervalDays(ServerLevel level) {
+        return RaidCadence.pickIntervalDays(
+            com.hearthstead.HearthsteadServerConfig.recurringRaidWindow(),
+            level == null ? null : level.getRandom());
+    }
+
+    /**
+     * Whether a live PendingRaid mirror has lost its owner to quarantine: a
+     * blocked recurring run, or damaged first-raid state that must stop
+     * rather than close. Nothing can resolve such a raid, so a kept mirror
+     * would keep civilians hiding, repairs stopped and raider goals armed
+     * forever. Active authored/legacy raids always keep their mirror.
+     */
+    static boolean quarantinedMirror(Settlement settlement) {
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        RecurringRaidRun recurring = settlement.recurringRaidRun;
+        if (lifecycle.isAuthoredFirstRaidActive() || lifecycle.isLegacyBridgeActive()) {
+            return false;
+        }
+        if (lifecycle.firstState() != FirstRaidState.COMPLETED) {
+            return lifecycle.integrityLost();
+        }
+        return recurring.isBlocked();
+    }
+
+    /** Drops the runtime mirror of a quarantined raid. The ledgers stay as they are. */
+    static void clearQuarantinedMirror(ServerLevel level, Settlement settlement) {
+        Hearthstead.LOGGER.warn(
+            "Clearing the PendingRaid mirror of a quarantined raid at {} so settlers stop hiding",
+            settlement.name);
+        settlement.pendingRaid = null;
+        settlement.raidLootEscaped = false;
+        settlement.raidCaptainSlainId = null;
+        RaidScars.get(level).resetArson(settlement.id);
+        SettlementSavedData.get(level).setDirty();
+    }
+
+    private static boolean hasParticipatingPlayer(ServerLevel level,
+                                                  Settlement settlement) {
+        if (level == null || settlement == null || settlement.center == null) {
+            return false;
+        }
+        double range = settlement.radius + (double) PLAYER_PRESENCE_MARGIN;
+        if (settlement.radius <= 0 || range <= 0.0D) {
+            return false;
+        }
+        for (ServerPlayer player : level.players()) {
+            if (player != null && player.isAlive() && !player.isSpectator()
+                && player.blockPosition().distSqr(settlement.center) <= range * range) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The committed recurring warning uses the already-localized exact-plan
+     * copy. RaidPresentation.warning remains first-raid-only because it also
+     * owns the FJ-600 receipt contract.
+     */
+    private static boolean presentRecurringWarning(ServerLevel level,
+                                                   Settlement settlement,
+                                                   RaidPlan plan) {
+        String leader = leaderNameOf(settlement, plan.captainId()).orElse(null);
+        if (leader == null) {
+            return false;
+        }
+        RaidBroadcast.send(level, settlement, Component.translatable(
+            RaidEscalation.isOutlawBand(settlement) ? "hearthstead.message.raid_omen_outlaws"
+                : "hearthstead.message.raid_omen", settlement.name));
+        RaidBroadcast.town(level, settlement, Component.translatable(
+            "hearthstead.message.raid_warning_exact",
+            plan.night(), Component.literal(leader), settlement.name,
+            Component.translatable("hearthstead.raid.compass."
+                + RaidPresentation.Compass.fromApproachDegrees(
+                    plan.approachDegrees()).id()),
+            Component.translatable(plan.objective().translationKey())));
+        return true;
+    }
+
+    /**
+     * Ends the "silent stall": when the first raid's due warning or attack is
+     * held, tell nearby players which blocker holds it. Presentation only --
+     * it runs AFTER the unchanged gates declined, never clears or rerolls the
+     * plan, and is throttled by {@link RaidHoldNotice}. The expensive
+     * readiness assessment is skipped whenever no notice could be sent.
+     */
+    public static boolean announceFirstRaidHold(ServerLevel level,
+                                                Settlement settlement, long night,
+                                                RaidHoldNotice.Reason reason) {
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        if (lifecycle.firstState() != FirstRaidState.SCHEDULED
+            || lifecycle.integrityLost()) {
+            return false;
+        }
+        RaidPlan plan = lifecycle.queuedPlan().orElse(null);
+        boolean attackStage = reason == RaidHoldNotice.Reason.FIRST_ATTACK_READINESS;
+        if (attackStage ? plan == null || night < lifecycle.firstAttackNight()
+                : plan != null || night < lifecycle.firstWarningNight()) {
+            return false; // not due yet: nothing is being held
+        }
+        if (!RaidHoldNotice.beginCheck(level, settlement, night)) {
+            return false; // assessed recently; the answer cannot be news yet
+        }
+        FirstRaidReadinessService.Report report =
+            FirstRaidReadinessService.assessExecution(level, settlement);
+        String captainName = plan == null ? null
+            : leaderNameOf(settlement, plan.captainId()).orElse(null);
+        if (!report.ready()) {
+            return RaidHoldNotice.readinessHeld(level, settlement, reason, night,
+                report, lifecycle.firstAttackNight(), captainName);
+        } else if (attackStage && captainName != null
+            && firstWarningReceiptReady(settlement)) {
+            // Every gate passed yet no band was accepted: the only remaining
+            // cause is terrain (no loaded, standable ground outside the claim).
+            return RaidHoldNotice.noFooting(level, settlement, night,
+                plan.night(), captainName);
+        }
+        return false;
+    }
+
+    /** Starts the queued recurring plan; if it stays queued, says why. */
+    private static void startQueuedRecurringRaidOrAnnounce(ServerLevel level,
+                                                           Settlement settlement) {
+        if (!startQueuedRecurringRaid(level, settlement).isEmpty()) {
+            RaidHoldNotice.clear(level, settlement);
+            return;
+        }
+        RecurringRaidRun run = settlement.recurringRaidRun;
+        RaidPlan plan = run.plan().orElse(null);
+        if (run.isQueued() && plan != null && settlement.pendingRaid == null
+            && settlement.raidLifecycle.firstState() == FirstRaidState.COMPLETED
+            && firstResolutionReceiptReady(settlement)
+            && !settlement.raidLifecycle.mayGrantReward()) {
+            // Blocked/quarantined runs are not "held"; only a plan that was
+            // kept queued for a retry is. Footing is its only retry cause.
+            RaidHoldNotice.noFooting(level, settlement,
+                nightOf(level.getDayTime()), plan.night(),
+                leaderNameOf(settlement, plan.captainId()).orElse(null));
+        }
+    }
+
+    /**
      * Called from the hearth's once-a-second settlement tick. Safe to call
      * as often as you like: {@link RaidPressure#rollForNight} is idempotent
      * per night, so a re-entrant or duplicated tick cannot double-roll.
      */
     public static void tick(ServerLevel level, Settlement settlement) {
+        settlement.raidCoinRewards.deliver(level, settlement);
         RaidLifecycle lifecycle = settlement.raidLifecycle;
+        if (settlement.pendingRaid != null && quarantinedMirror(settlement)) {
+            clearQuarantinedMirror(level, settlement);
+        }
         if (lifecycle.firstState() == FirstRaidState.PREPARING) {
-            // Readiness is an explicit player commit through the Hearth. A
-            // nightly tick may assess it for presentation, but never arms the
-            // calendar on the player's behalf.
-            return;
+            if (!commitFirstRaidTimer(level, settlement)) return;
         }
 
         if (lifecycle.firstState() == FirstRaidState.SCHEDULED) {
@@ -1721,13 +2410,24 @@ public final class RaidDirector {
             long night = nightOf(dayTime);
             if (isRollTime(dayTime)) {
                 boolean queuedNow = queueFirstWarningIfDue(level, settlement, night);
+                if (queuedNow) {
+                    RaidHoldNotice.clear(level, settlement);
+                } else if (lifecycle.queuedPlan().isEmpty()) {
+                    announceFirstRaidHold(level, settlement, night,
+                        RaidHoldNotice.Reason.FIRST_WARNING_READINESS);
+                }
                 if (!queuedNow && night >= lifecycle.firstAttackNight()
                     && lifecycle.queuedPlan().isPresent()) {
                     if (!firstWarningReceiptReady(settlement)
                         && !recoverFirstRaidWarningReceipt(level, settlement)) {
                         return;
                     }
-                    startQueuedFirstRaid(level, settlement, night);
+                    if (!startQueuedFirstRaid(level, settlement, night).isEmpty()) {
+                        RaidHoldNotice.clear(level, settlement);
+                    } else {
+                        announceFirstRaidHold(level, settlement, night,
+                            RaidHoldNotice.Reason.FIRST_ATTACK_READINESS);
+                    }
                 }
             }
             return;
@@ -1754,6 +2454,19 @@ public final class RaidDirector {
             }
             if (lifecycle.allParticipantsTerminal()) {
                 resolveIfOver(level, settlement);
+                return;
+            }
+            if (lifecycle.firstTimerRetreatDue(level.getGameTime())) {
+                resolveFirstRaidRetreat(level, settlement);
+                return;
+            }
+            if (lifecycle.recurringRetreatAtDayTime() < 0L) {
+                // First raids that were live before their dawn retreat existed
+                // arm it lazily from now; never retroactively.
+                lifecycle.armRecurringRetreat(level.getDayTime());
+                SettlementSavedData.get(level).setDirty();
+            } else if (lifecycle.recurringRetreatDue(level.getDayTime())) {
+                resolveFirstRaidRetreat(level, settlement);
                 return;
             }
             java.util.List<RaiderEntity> loaded = livingRaidersOf(level, settlement);
@@ -1815,7 +2528,14 @@ public final class RaidDirector {
                 SettlementSavedData.get(level).setDirty();
                 return;
             }
-            startQueuedRecurringRaid(level, settlement);
+            // A queued serial may be retried after a physical placement
+            // failure, but an arrival still needs the same nearby online
+            // player required to create the warning. Returning preserves the
+            // exact plan/serial and does not reroll, clear, or rewrite it.
+            if (!hasParticipatingPlayer(level, settlement)) {
+                return;
+            }
+            startQueuedRecurringRaidOrAnnounce(level, settlement);
             return;
         }
         if (recurring.isActive()) {
@@ -1830,6 +2550,15 @@ public final class RaidDirector {
             }
             if (recurring.allParticipantsTerminal()) {
                 resolveIfOver(level, settlement);
+                return;
+            }
+            if (lifecycle.recurringRetreatAtDayTime() < 0L) {
+                // Raids that were already live before the dawn retreat existed
+                // arm it lazily from now; never retroactively.
+                lifecycle.armRecurringRetreat(level.getDayTime());
+                SettlementSavedData.get(level).setDirty();
+            } else if (lifecycle.recurringRetreatDue(level.getDayTime())) {
+                resolveRecurringRetreat(level, settlement);
                 return;
             }
             // The query is live-behaviour input only. An empty result may mean
@@ -1865,61 +2594,96 @@ public final class RaidDirector {
             SettlementSavedData.get(level).setDirty();
             return;
         }
-        // Before tonight's own roll: the telegraph. Checked every tick like
-        // the roll below, but it fires on its own schedule (RaidTelegraph),
-        // which is why it is not gated behind isRollTime -- dusk (its fire
-        // time) is strictly earlier in the day than ROLL_AT_DAYTIME.
-        RaidTelegraph.tick(level, settlement);
+        // B03/B04 schedules only while a real nearby player is present.
+        // Missing nights are intentionally never replayed on return.
+        long gameTime = level.getGameTime();
+        if (!mayRunRecurringSchedule(true, hasParticipatingPlayer(level, settlement),
+                lifecycle, recurring, gameTime)) {
+            return;
+        }
         long dayTime = level.getDayTime();
-        if (!isRollTime(dayTime)) {
-            return; // not yet tonight
-        }
         long night = nightOf(dayTime);
-        RaidPressure pressure = settlement.raidPressure;
-        if (night <= pressure.lastRolledNight()) {
-            return; // already asked tonight; skip the random draw entirely
-        }
-        boolean raid = pressure.rollForNight(settlement, night,
-            level.getRandom().nextDouble());
-        SettlementSavedData.get(level).setDirty();
-        if (!raid) {
-            // A quiet night is still a night the dread can grow on: maybe
-            // commit to an omen 1-2 nights from now (RaidTelegraph). Never
-            // when tonight itself raided -- the raid IS the omen fulfilled.
-            RaidTelegraph.rollForecast(settlement, night, level.getRandom().nextDouble());
-        }
-        if (raid) {
-            RaidPlan plan = planRaid(level, settlement, night);
-            String queuedLeaderName = leaderNameOf(settlement,
-                plan.captainId()).orElse(null);
-            if (queuedLeaderName == null) {
-                recurring.block();
-                SettlementSavedData.get(level).setDirty();
-                Hearthstead.LOGGER.error(
-                    "Recurring raid for {} has unauditable captain identity; runtime blocked",
-                    settlement.name);
+
+        // A committed warning is not rerolled. Once the later eligible night
+        // has supplied the full minimum lead, hand its exact plan to the
+        // existing run/serial owner and let the unchanged start path seal it.
+        RaidPlan warnedPlan = lifecycle.recurringWarnedPlan().orElse(null);
+        if (warnedPlan != null) {
+            if (!isRollTime(dayTime)
+                || !lifecycle.recurringWarningDue(gameTime, night)) {
                 return;
             }
-            RaidCaptain captain = captainOf(settlement, plan.captainId());
-            if (!recurring.queue(plan)) {
-                recurring.block();
+            if (!recurring.queue(warnedPlan)) {
+                lifecycle.blockRecurringSchedule();
                 SettlementSavedData.get(level).setDirty();
-                Hearthstead.LOGGER.error(
-                    "Recurring raid for {} could not allocate a safe serial; runtime blocked",
-                    settlement.name);
+                return;
+            }
+            if (!lifecycle.consumeRecurringWarning(warnedPlan)) {
+                recurring.block();
+                lifecycle.blockRecurringSchedule();
+                SettlementSavedData.get(level).setDirty();
                 return;
             }
             SettlementSavedData.get(level).setDirty();
-            Hearthstead.LOGGER.info(
-                "Recurring raid serial {} queued for {} on night {}: {} comes for {}"
-                    + " from {} degrees (pressure {}, stage {}, menace {})",
-                recurring.activeSerial(), settlement.name, night,
-                queuedLeaderName,
-                plan.objective().id(), Math.round(plan.approachDegrees()),
-                pressure.pressure(), pressure.stage().id(),
-                captain.menace());
-            startQueuedRecurringRaid(level, settlement);
+            startQueuedRecurringRaidOrAnnounce(level, settlement);
+            return;
         }
+
+        // General risk remains separate from a committed incoming attack.
+        RaidTelegraph.tick(level, settlement);
+        if (!isRollTime(dayTime)) {
+            return; // not yet tonight
+        }
+        // A hamlet below the existing RaidPressure worth floor has no eligible
+        // recurring producer roll: it must not accumulate quiet-roll debt toward
+        // a forced band. Warned/queued/active owners were handled above.
+        if (!RaidPressure.worthRaiding(settlement)) {
+            return;
+        }
+        RaidPressure pressure = settlement.raidPressure;
+        boolean cadenceDue = lifecycle.recurringCadenceDue(night);
+        if (night > pressure.lastRolledNight()) {
+            // Since the 25 Sep cadence decision the nightly draw is pressure
+            // bookkeeping only (stage, band weight, omens). Whether a raid
+            // comes is decided by the regular cadence below, never by chance.
+            boolean legacyRollHit = pressure.rollForNight(settlement, night,
+                level.getRandom().nextDouble());
+            SettlementSavedData.get(level).setDirty();
+            if (!cadenceDue && !legacyRollHit) {
+                // A quiet recovery night may still publish an independent
+                // risk omen; it is never labeled as the committed plan.
+                RaidTelegraph.rollForecast(settlement, night,
+                    level.getRandom().nextDouble());
+            }
+        }
+        if (!cadenceDue) {
+            return; // recovery nights between cadence raids
+        }
+
+        // Warning at this eligible roll; the same production plan reaches the
+        // existing RecurringRaidRun on a later night, never as a new band.
+        if (night == Long.MAX_VALUE) {
+            lifecycle.blockRecurringSchedule();
+            SettlementSavedData.get(level).setDirty();
+            return;
+        }
+        RaidPlan plan = planRaid(level, settlement, night + 1L);
+        if (!lifecycle.commitRecurringWarning(plan, gameTime, night)) {
+            lifecycle.blockRecurringSchedule();
+            SettlementSavedData.get(level).setDirty();
+            return;
+        }
+        if (!presentRecurringWarning(level, settlement, plan)) {
+            lifecycle.blockRecurringSchedule();
+            SettlementSavedData.get(level).setDirty();
+            return;
+        }
+        SettlementSavedData.get(level).setDirty();
+        Hearthstead.LOGGER.info(
+            "Recurring raid warning committed for {} on night {}: {}",
+            settlement.name, plan.night(), plan.objective().id());
+        // Tech tree (War Feast): feast the guards on the warning, if stocked.
+        com.hearthstead.settlement.techtree.effects.CommonsEffects.onRaidWarning(level, settlement);
     }
 
     // ------------------------------------------------ the scar ledger ---

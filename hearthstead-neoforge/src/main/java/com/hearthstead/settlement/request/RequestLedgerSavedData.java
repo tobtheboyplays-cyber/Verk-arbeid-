@@ -98,8 +98,24 @@ public final class RequestLedgerSavedData extends SavedData {
                 return data;
             }
             UUID settlementId = entry.getUUID("Id");
-            data.ledgers.put(settlementId, RequestLedger.readNbt(ledgerTag,
-                registries, settlementId));
+            RequestLedger ledger = RequestLedger.readNbt(ledgerTag,
+                registries, settlementId);
+            data.ledgers.put(settlementId, ledger);
+            if (ledger.repairedFromQuarantine()) {
+                // Persist the repaired bookkeeping; items were never moved.
+                data.setDirty();
+                com.hearthstead.Hearthstead.LOGGER.warn(
+                    "Hearthstead request ledger for settlement {} was saved "
+                        + "quarantined ({}); repaired on load: {} active, "
+                        + "{} history rows kept, no items moved",
+                    settlementId, ledger.repairedReason(),
+                    ledger.active().size(), ledger.terminalHistory().size());
+            } else if (ledger.quarantined()) {
+                com.hearthstead.Hearthstead.LOGGER.warn(
+                    "Hearthstead request ledger for settlement {} is "
+                        + "quarantined: {}", settlementId,
+                    ledger.quarantineReason());
+            }
         }
         return data;
     }

@@ -236,7 +236,7 @@ public class ArmouryGameTests {
         guard.assignProfession(Profession.GUARD);
         trainStrengthTo(guard, GuardRank.SPEARMAN.threshold());
 
-        helper.runAtTickTime(60, () -> {
+        GameTestTicks.at(helper, 60, () -> {
             // (b) Promoted, but with nothing anywhere to wear.
             helper.assertTrue(GuardRank.of(guard) == GuardRank.SPEARMAN,
                 "training must still earn the rank even with empty stores, Strength="

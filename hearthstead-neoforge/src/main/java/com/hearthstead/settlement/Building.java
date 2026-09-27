@@ -35,12 +35,73 @@ public class Building {
     /** Root schema that first owns strict optional Work Zone state. */
     static final int WORK_ZONE_SCHEMA_VERSION = 5;
 
+    public TavernServingClaims tavernServingClaims = new TavernServingClaims();
+
     public final UUID id;
     public BuildingType type;
     /** Where the declaring plaque hangs. Identity, not decoration. */
     public BlockPos plaquePos;
     /** Bought from the architect; higher levels demand more of the room. */
     public int level = 1;
+
+    /**
+     * Staff posts of THIS building: the type's fixed number, except a
+     * Warehouse, whose Courier posts follow its checklist level
+     * (WarehouseLevels.courierSlots: 2 at L1, 4 from L2).
+     */
+    public int workerCapacity() {
+        if (type == BuildingType.WAREHOUSE) {
+            return com.hearthstead.settlement.warehouse.WarehouseLevels.courierSlots(level);
+        }
+        if ((type == BuildingType.LUMBER_CAMP || type == BuildingType.FARMHOUSE) && level >= 2) {
+            return type.workerCapacity() + 1; // owner, 26 Sep: level 2 takes one more worker
+        }
+        return type == null ? 0 : type.workerCapacity();
+    }
+
+    /**
+     * The most staff a building of this type can ever lawfully hold. Roster
+     * integrity checks use this, never the current level: a Warehouse that
+     * loses a level (or reloads before its plaque re-surveys) keeps the
+     * Couriers it hired, it only stops hiring.
+     */
+    public static int maxWorkerCapacity(BuildingType type) {
+        if (type == BuildingType.WAREHOUSE) {
+            return com.hearthstead.settlement.warehouse.WarehouseLevels.COURIERS_L2_UP;
+        }
+        if (type == BuildingType.LUMBER_CAMP || type == BuildingType.FARMHOUSE) {
+            return type.workerCapacity() + 1;
+        }
+        return type == null ? 0 : type.workerCapacity();
+    }
+    /**
+     * Unmet checklist items of level + 1, re-derived by every plaque survey
+     * (Builder lane, checklist levels). Runtime only, never persisted: the
+     * next scan after a load rebuilds it, exactly like {@link #level}.
+     */
+    public List<com.hearthstead.building.BuildingLevelChecklist.Gap> nextLevelGap = List.of();
+    /**
+     * Warehouse only: the level an old save is grandfathered to, so an
+     * existing big warehouse never shrinks (see WarehouseLevels). New
+     * buildings start at 1. {@link #WAREHOUSE_FLOOR_PENDING} marks a save
+     * written before warehouse levels existed; the container index resolves
+     * it from the first complete count.
+     */
+    public int warehouseLevelFloor = 1;
+    public static final int WAREHOUSE_FLOOR_PENDING = -1;
+    /** Most player container marks one building keeps. */
+    public static final int MAX_CONTAINER_MARKS = 256;
+    /**
+     * Player marks on single containers (packed BlockPos to
+     * WarehouseLevels.MARK_PRIORITY / MARK_EXCLUDED). Persisted, bounded.
+     */
+    public final java.util.Map<Long, Byte> containerMarks =
+        new java.util.LinkedHashMap<>();
+    /**
+     * Runtime only: highest warehouse level the settlement's Logistics tree
+     * recognises; 0 until WarehouseLevelService first syncs it.
+     */
+    public int warehouseTechMax;
     /** Settlers employed here (work buildings); homes leave this empty. */
     public final List<UUID> workers = new ArrayList<>();
     /**
@@ -89,7 +150,11 @@ public class Building {
 
     /** Server-authoritative endpoint used by a physical Blessing Seal. */
     public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing) {
-        return targetBlessings.apply(blessing);
+        return applyBlessing(blessing, 1);
+    }
+
+    public TargetBlessingState.ApplyResult applyBlessing(BlessingId blessing, int rankUnits) {
+        return targetBlessings.apply(blessing, rankUnits);
     }
 
     /** Constant-time permanent rank lookup for gameplay and presentation hooks. */
@@ -119,8 +184,7 @@ public class Building {
     void validateWorkZoneOwner(Settlement settlement) {
         if (!workZoneQuarantined && workZone != null
             && (settlement == null
-                || !workZone.settlementId().equals(settlement.id)
-                || !settlement.insideBox(workZone.min(), workZone.max()))) {
+                || !workZone.settlementId().equals(settlement.id))) {
             workZone = null;
             workZoneQuarantined = true;
         }
@@ -156,12 +220,35 @@ public class Building {
         return true;
     }
 
+    /** Saved warehouse floor: absent or pending stays pending, a real level is clamped to 1..5. */
+    static int readWarehouseLevelFloor(CompoundTag tag) {
+        if (!tag.contains("WarehouseLevelFloor", Tag.TAG_INT)) {
+            return WAREHOUSE_FLOOR_PENDING;
+        }
+        int saved = tag.getInt("WarehouseLevelFloor");
+        return saved == WAREHOUSE_FLOOR_PENDING ? WAREHOUSE_FLOOR_PENDING : Math.max(1, Math.min(5, saved));
+    }
+
     public CompoundTag writeNbt() {
         CompoundTag tag = new CompoundTag();
         tag.putUUID("Id", id);
+        tag.put("TavernServingClaims", tavernServingClaims.save());
         tag.putString("Type", type.id());
         tag.put("Plaque", NbtUtils.writeBlockPos(plaquePos));
         tag.putInt("Level", level);
+        tag.putInt("WarehouseLevelFloor", warehouseLevelFloor);
+        if (!containerMarks.isEmpty()) {
+            long[] markPos = new long[containerMarks.size()];
+            byte[] markKind = new byte[containerMarks.size()];
+            int m = 0;
+            for (var mark : containerMarks.entrySet()) {
+                markPos[m] = mark.getKey();
+                markKind[m] = mark.getValue();
+                m++;
+            }
+            tag.putLongArray("ContainerMarkPos", markPos);
+            tag.putByteArray("ContainerMarkKind", markKind);
+        }
         ListTag workerList = new ListTag();
         for (UUID worker : workers) {
             CompoundTag w = new CompoundTag();
@@ -224,6 +311,20 @@ public class Building {
             NbtUtils.readBlockPos(tag, "Plaque").orElse(BlockPos.ZERO),
             NbtUtils.readBlockPos(tag, "Anchor").orElse(BlockPos.ZERO), bounds);
         building.level = Math.max(1, tag.getInt("Level"));
+        // Absent = written before warehouse levels: grandfather on first
+        // complete container count (WarehouseIndex), never shrink.
+        // A still-pending grandfather (-1) must survive a save/load before the
+        // first complete scan (BH-14); only a real level is clamped.
+        building.warehouseLevelFloor = readWarehouseLevelFloor(tag);
+        long[] markPos = tag.getLongArray("ContainerMarkPos");
+        byte[] markKind = tag.getByteArray("ContainerMarkKind");
+        for (int m = 0; m < Math.min(markPos.length, markKind.length)
+                && building.containerMarks.size() < MAX_CONTAINER_MARKS; m++) {
+            if (markKind[m] == 1 || markKind[m] == 2) {
+                building.containerMarks.put(markPos[m], markKind[m]);
+            }
+        }
+        building.tavernServingClaims = TavernServingClaims.load(tag.getCompound("TavernServingClaims"));
         ListTag workerList = tag.getList("Workers", Tag.TAG_COMPOUND);
         for (int i = 0; i < workerList.size(); i++) {
             building.workers.add(workerList.getCompound(i).getUUID("Id"));

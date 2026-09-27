@@ -6,35 +6,15 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.Mth;
 
 /**
- * How badly the world wants to attack this settlement tonight.
+ * Pure pressure state used by the raid director's eligibility and scheduling gates.
  *
- * <p><b>There is no timer.</b> Both reference mods pace raids off a night
- * counter with a floor, and the cost of that is measured in
- * {@code docs/project/RAID_REFERENCE_RESEARCH.md}: MineColonies ships
- * {@code minimumnumberofnightsbetweenraids=10} against an average of 14, so
- * nine nights in every cycle are <em>provably</em> safe and players learn it
- * within two cycles. TekTopia is worse — its only hostile visitor rolls at
- * {@code villagers/10} and can be switched off entirely by rotating the town
- * hall marker, so danger arrives exactly when it has stopped mattering.
+ * <p>Quiet eligible nights can raise pressure. Holding a raid preserves the
+ * current pressure; losing applies bounded relief. Successful defense therefore
+ * does not itself increase the next raid's difficulty. The director owns the
+ * separate recovery and warning windows.
  *
- * <p>The naive reading of "make raids more frequent" is to shorten that
- * timer, and that is a trap: it reproduces MineColonies #4838, where a raid
- * lands every single night until the server restarts. What this model
- * changes instead is that <b>no night is ever provably safe</b>. Every night
- * rolls, on the shape of vanilla's zombie siege — a real chance each night,
- * gated on the place actually being a settlement worth attacking.
- *
- * <p><b>The feedback loop points forward</b> (D-A3-2). Surviving a raid
- * <em>raises</em> pressure: you proved the settlement is worth the trouble
- * and you kept your goods. Losing lowers it slightly — but you paid in
- * settlers, buildings and stores to get that relief, so it can never be a
- * strategy. This is the deliberate inverse of MineColonies, where losing
- * more than 15% of the population both lowers difficulty and buys six extra
- * quiet nights, which is why that system converges on "rare and survivable"
- * no matter how the player plays.
- *
- * <p>Deliberately free of world state: the roll is passed in rather than
- * drawn here, so every rule below is exactly testable.
+ * <p>The caller supplies the random roll so these rules remain deterministic
+ * under tests, without world access in this model.
  */
 public final class RaidPressure {
 
@@ -50,8 +30,8 @@ public final class RaidPressure {
     public static final double MIN_CHANCE = 0.05;
     public static final double MAX_CHANCE = 0.55;
 
-    /** Pressure gained by repelling a raid, and released by losing one. */
-    public static final int REPEL_GAIN = 12;
+    /** Pressure change after a held raid; loss relief remains separate. */
+    public static final int REPEL_GAIN = 0;
     public static final int LOSS_RELIEF = 8;
 
     /** Quiet-night pressure gain is clamped to this band. */

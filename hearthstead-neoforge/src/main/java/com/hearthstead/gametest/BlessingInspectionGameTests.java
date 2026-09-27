@@ -72,12 +72,13 @@ public class BlessingInspectionGameTests {
             authored.attributeValues(), authored.knackOrdinal(), authored.traitOrdinals(),
             authored.bagItemIds(), authored.bagCounts(), authored.employerBuildingId(),
             authored.guardWatchNight(), authored.isMayor(), authored.mayorSettling(),
-            authored.mourning(), authored.boonKey(), -9, 4, Integer.MAX_VALUE,
+            true, true, authored.boonKey(), -9, 4, Integer.MAX_VALUE,
             Optional.empty());
         SettlerSnapshotPayload boundedWire = settlerThroughWire(helper, bounded);
         helper.assertTrue(boundedWire.blessingRank(BlessingId.WARDEN_OATH) == 0
                 && boundedWire.blessingRank(BlessingId.HEARTHWARD) == 3
-                && boundedWire.blessingRank(BlessingId.THORNED_ROADS) == 3,
+                && boundedWire.blessingRank(BlessingId.THORNED_ROADS) == 3
+                && boundedWire.mourning() && boundedWire.mayorVacant(),
             "settler wire must clamp malformed target ranks to 0..III, got "
                 + boundedWire.wardenOathBlessingRank() + "/"
                 + boundedWire.hearthwardBlessingRank() + "/"

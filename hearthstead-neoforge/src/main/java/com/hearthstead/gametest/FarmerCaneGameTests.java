@@ -229,7 +229,8 @@ public class FarmerCaneGameTests {
      * cane, not discarded merely because it is not a CropBlock. A premature
      * storage trip between the two cuts exposes that queue-loss bug directly.
      */
-    @GameTest(template = "empty16", timeoutTicks = 220,
+    // Two full field cycles require at least276 action ticks, plus tool/route/replant work.
+    @GameTest(template = "empty16", timeoutTicks = 600,
         batch = "farmer_cane_batch")
     public void farmerFinishesQueuedCaneBeforeDepositing(GameTestHelper helper) {
         helper.getLevel().setDayTime(2000);

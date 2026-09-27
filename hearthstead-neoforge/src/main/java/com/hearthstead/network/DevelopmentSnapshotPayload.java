@@ -19,11 +19,35 @@ public record DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, 
                                          int mayorEntityId,
                                          DevelopmentActionPayload.View view,
                                          int revision, int activeDoctrineWireId,
-                                         long doctrineChosenAt,
+                                         long doctrineChosenAt, int availableCoins,
                                          List<NodeView> nodes,
                                          List<EmblemView> emblems,
-                                         Optional<Component> feedback)
+                                         Optional<Component> feedback,
+                                         List<UpgradeView> upgrades)
     implements CustomPacketPayload {
+
+    /**
+     * Server truth for one post-raid upgrade (Chronicle era IV). The status
+     * reuses {@code Development.NodeStatus} wire ids: OWNED, AVAILABLE or
+     * LOCKED; {@code reasonKey} is empty exactly when the purchase would be
+     * applied now.
+     */
+    public record UpgradeView(int upgradeWireId, int statusWireId, String reasonKey,
+                              int coinCost) {
+        public UpgradeView {
+            reasonKey = reasonKey == null ? "" : reasonKey;
+            coinCost = Math.max(0, coinCost);
+        }
+
+        static final StreamCodec<RegistryFriendlyByteBuf, UpgradeView> CODEC =
+            StreamCodec.of((buf, view) -> {
+                buf.writeVarInt(view.upgradeWireId);
+                buf.writeVarInt(view.statusWireId);
+                buf.writeUtf(view.reasonKey, 160);
+                buf.writeVarInt(view.coinCost);
+            }, buf -> new UpgradeView(buf.readVarInt(), buf.readVarInt(),
+                buf.readUtf(160), buf.readVarInt()));
+    }
 
     public record QuestView(int objectiveWireId, int progress, int target) {
         static final StreamCodec<RegistryFriendlyByteBuf, QuestView> CODEC =
@@ -78,15 +102,38 @@ public record DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, 
     public static final StreamCodec<RegistryFriendlyByteBuf, DevelopmentSnapshotPayload> CODEC =
         StreamCodec.of(DevelopmentSnapshotPayload::write, DevelopmentSnapshotPayload::read);
 
+    /** Older local fixtures have no wallet observation; -1 means unavailable, not zero. */
+    public DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, UUID mayorId,
+            int mayorEntityId, DevelopmentActionPayload.View view, int revision,
+            int activeDoctrineWireId, long doctrineChosenAt, List<NodeView> nodes,
+            List<EmblemView> emblems, Optional<Component> feedback) {
+        this(hearthPos, settlementId, mayorId, mayorEntityId, view, revision,
+            activeDoctrineWireId, doctrineChosenAt, -1, nodes, emblems, feedback,
+            List.of());
+    }
+
+    /** Snapshot without post-raid upgrade rows (emblem shop, older fixtures). */
+    public DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, UUID mayorId,
+            int mayorEntityId, DevelopmentActionPayload.View view, int revision,
+            int activeDoctrineWireId, long doctrineChosenAt, int availableCoins,
+            List<NodeView> nodes, List<EmblemView> emblems,
+            Optional<Component> feedback) {
+        this(hearthPos, settlementId, mayorId, mayorEntityId, view, revision,
+            activeDoctrineWireId, doctrineChosenAt, availableCoins, nodes, emblems,
+            feedback, List.of());
+    }
+
     public DevelopmentSnapshotPayload {
         hearthPos = hearthPos == null ? BlockPos.ZERO : hearthPos.immutable();
         settlementId = settlementId == null ? HearthMayorAction.NO_ID : settlementId;
         mayorId = mayorId == null ? HearthMayorAction.NO_ID : mayorId;
         mayorEntityId = Math.max(-1, mayorEntityId);
         view = view == null ? DevelopmentActionPayload.View.UNKNOWN : view;
+        availableCoins = Math.max(-1, availableCoins);
         nodes = List.copyOf(nodes == null ? List.of() : nodes);
         emblems = List.copyOf(emblems == null ? List.of() : emblems);
         feedback = feedback == null ? Optional.empty() : feedback;
+        upgrades = List.copyOf(upgrades == null ? List.of() : upgrades);
     }
 
     private static void write(RegistryFriendlyByteBuf buf, DevelopmentSnapshotPayload snapshot) {
@@ -99,6 +146,7 @@ public record DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, 
         buf.writeVarInt(snapshot.revision);
         buf.writeVarInt(snapshot.activeDoctrineWireId);
         buf.writeLong(snapshot.doctrineChosenAt);
+        buf.writeVarInt(snapshot.availableCoins);
         buf.writeVarInt(snapshot.nodes.size());
         for (NodeView view : snapshot.nodes) {
             NodeView.CODEC.encode(buf, view);
@@ -108,6 +156,10 @@ public record DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, 
             EmblemView.CODEC.encode(buf, view);
         }
         ComponentSerialization.OPTIONAL_STREAM_CODEC.encode(buf, snapshot.feedback);
+        buf.writeVarInt(snapshot.upgrades.size());
+        for (UpgradeView view : snapshot.upgrades) {
+            UpgradeView.CODEC.encode(buf, view);
+        }
     }
 
     private static DevelopmentSnapshotPayload read(RegistryFriendlyByteBuf buf) {
@@ -120,6 +172,7 @@ public record DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, 
         int revision = buf.readVarInt();
         int doctrine = buf.readVarInt();
         long chosenAt = buf.readLong();
+        int availableCoins = buf.readVarInt();
         int nodeCount = Math.min(128, Math.max(0, buf.readVarInt()));
         List<NodeView> nodes = new ArrayList<>(nodeCount);
         for (int i = 0; i < nodeCount; i++) {
@@ -131,9 +184,14 @@ public record DevelopmentSnapshotPayload(BlockPos hearthPos, UUID settlementId, 
             emblems.add(EmblemView.CODEC.decode(buf));
         }
         Optional<Component> feedback = ComponentSerialization.OPTIONAL_STREAM_CODEC.decode(buf);
+        int upgradeCount = Math.min(16, Math.max(0, buf.readVarInt()));
+        List<UpgradeView> upgrades = new ArrayList<>(upgradeCount);
+        for (int i = 0; i < upgradeCount; i++) {
+            upgrades.add(UpgradeView.CODEC.decode(buf));
+        }
         return new DevelopmentSnapshotPayload(pos, settlementId, mayorId, mayorEntityId,
             view, revision,
-            doctrine, chosenAt, nodes, emblems, feedback);
+            doctrine, chosenAt, availableCoins, nodes, emblems, feedback, upgrades);
     }
 
     @Override

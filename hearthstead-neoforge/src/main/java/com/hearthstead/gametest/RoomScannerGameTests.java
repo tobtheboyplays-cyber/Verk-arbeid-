@@ -54,6 +54,36 @@ import java.util.UUID;
 @PrefixGameTestTemplate(false)
 public class RoomScannerGameTests {
 
+    @GameTest(template = "empty16", timeoutTicks = 100, batch = "stacked_warehouse")
+    public void ladderJoinsWarehouseFloorsAndUpperStorage(GameTestHelper helper) {
+        for (int x=1;x<=7;x++) for (int z=1;z<=7;z++) for (int y=0;y<=6;y++) {
+            boolean solid=x==1||x==7||z==1||z==7||y==0||y==3||y==6;
+            helper.setBlock(new BlockPos(x,y,z),solid?Blocks.STONE:Blocks.AIR);
+        }
+        for (int y=1;y<=5;y++) helper.setBlock(new BlockPos(2,y,2),
+            Blocks.LADDER.defaultBlockState().setValue(net.minecraft.world.level.block.LadderBlock.FACING,Direction.EAST));
+        BlockPos upperChest=new BlockPos(5,4,5);
+        helper.setBlock(upperChest,Blocks.CHEST);
+        RoomScanner.Result result=RoomScanner.scan(helper.getLevel(),helper.absolutePos(new BlockPos(3,1,3)));
+        helper.assertTrue(result!=null&&result.enclosed()&&!result.skyLeak(),
+            "enclosed floors connected by a real ladder form one room");
+        helper.assertTrue(result.bounds().isInside(helper.absolutePos(upperChest))
+            && result.bounds().maxY()==helper.absolutePos(new BlockPos(0,6,0)).getY(),
+            "the lower-floor survey includes actual upper-floor storage and ceiling");
+        var village=settlement(helper);
+        var warehouse=GameTestFixtures.registerWithBounds(helper,village,BuildingType.WAREHOUSE,
+            new BlockPos(3,1,3),new BlockPos(1,1,3),result.bounds());
+        helper.assertTrue(com.hearthstead.settlement.warehouse.WarehouseIndex.containers(helper.getLevel(),warehouse)
+            .contains(helper.absolutePos(upperChest)),"Courier storage index sees the surveyed upper chest");
+        // An open ladder shaft must still fail roof validation.
+        helper.setBlock(new BlockPos(2,6,2),Blocks.LADDER.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.LadderBlock.FACING,Direction.EAST));
+        RoomScanner.Result open=RoomScanner.scan(helper.getLevel(),helper.absolutePos(new BlockPos(3,1,3)));
+        helper.assertTrue(open!=null&&(!open.enclosed()||open.skyLeak()),
+            "a ladder is a passage, never a roof sealing an open shaft");
+        helper.succeed();
+    }
+
     private static void floor(GameTestHelper helper, int size) {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {

@@ -58,6 +58,11 @@ public record Requirement(String id, int needed, ToIntFunction<RoomScanner.Resul
         return new Requirement("floor_space", n, RoomScanner.Result::volume);
     }
 
+    /** Measured geometry, never a deferred registry lookup during enum initialization. */
+    public static Requirement aleTap(int n) {
+        return new Requirement("ale_tap", n, RoomScanner.Result::connectedAleTaps);
+    }
+
     /** Counts blocks of any of the given kinds found inside the room. */
     public static Requirement blocks(String id, int n, Block... kinds) {
         List<Block> accepted = List.of(kinds);

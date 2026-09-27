@@ -1,0 +1,70 @@
+diff --git a/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java b/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java
+index 98cefef..0ae2ed6 100644
+--- a/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java
++++ b/src/main/java/com/hearthstead/settlement/work/WorkerProvenanceService.java
+@@ -1016,6 +1016,12 @@ public final class WorkerProvenanceService {
+         }
+         if (!logisticsAuthority(level, settlement, camp, worker,
+                 buildingType, zoneType)) return false;
++        // Collection must still name this Farmhouse's live current zone. An
++        // old terminal harvest may supply cargo recovery below, never a stale
++        // field's authority to collect after reassignment or replacement.
++        Context liveContext = context(level, settlement, camp, worker,
++            buildingType, zoneType);
++        if (liveContext == null || !liveContext.zone.equals(expectedZone)) return false;
+         Transit transit = WorkerStackProvenance.readTransit(stack).orElse(null);
+         if (transit == null || transit.kind() != transitKind
+             || !transit.settlementId().equals(settlement.id)
+@@ -1029,18 +1035,33 @@ public final class WorkerProvenanceService {
+         ActionView action = data == null ? null : data.action(transit.actionId());
+         BlockPos source = BlockPos.of(transit.sourcePos());
+         ResourceLocation item = itemId(stack);
++        boolean exactCurrentZone = action != null && action.zone().equals(expectedZone)
++            && WorkZoneService.livePositionAllowed(level, expectedZone, source);
++        // A terminal crop is already real physical custody. A later Farm-zone
++        // revision may not make that exact stamped crop uncollectable, but the
++        // recovery remains bound to the same live Farmhouse, worker, transit
++        // source and bounded current-zone envelope. It never authorizes a new
++        // harvest, plant, or an unresolved/nonterminal action.
++        boolean terminalFarmZoneRecovery = action != null
++            && kind == Kind.FARM_HARVEST && transitKind == TransitKind.FARM_CROP
++            && action.workTerminal()
++            && action.zone().type() == WorkZone.Type.FARM
++            && action.zone().withinPersistentLimits()
++            && action.zone().settlementId().equals(settlement.id)
++            && action.zone().buildingId().equals(camp.id)
++            && action.zone().dimension().equals(level.dimension().location())
++            && action.zone().contains(source)
++            && WorkZoneService.livePositionAvailable(level, source);
+         if (data == null || data.quarantined() || action == null || item == null
+             || action.kind() != kind
+             || !(action.workTerminal() || action.phase() == Phase.RETIRED)
+             || !action.workerId().equals(worker.getUUID())
+-            || !action.zone().equals(expectedZone)
+             || !action.zone().settlementId().equals(settlement.id)
+             || !action.zone().buildingId().equals(camp.id)
+             || !action.zone().dimension().equals(level.dimension().location())
+             || !action.resolved().contains(source)
+             || action.remaining(item) < stack.getCount()
+-            || !WorkZoneService.livePositionAllowed(level, expectedZone,
+-                source)) {
++            || !(exactCurrentZone || terminalFarmZoneRecovery)) {
+             return false;
+         }
+ 
+diff --git a/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java b/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java
+index b8b98d7..0f2f1f4 100644
+--- a/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/FarmerRecoveryAdversarialGameTests.java
+@@ -442,6 +442,11 @@ public final class FarmerRecoveryAdversarialGameTests {
+                 reconfirmed),
+             "fixture: same Farmhouse may advance only to the next zone revision");
+         placeAtContact(helper, fixture.farmer(), PRIMARY_CHEST);
++        helper.assertTrue(WorkerProvenanceService.collectableFarmOutput(
++                helper.getLevel(), fixture.settlement(), fixture.farmhouse(),
++                fixture.farmer(), reconfirmed, carried, crop),
++            "the exact terminal crop must remain physically collectable after "
++                + "same-Farmhouse zone revision drift");
+ 
+         ItemStack foreign = new ItemStack(Items.CARROT);
+         helper.assertTrue(WorkerStackProvenance.stampTransit(foreign,

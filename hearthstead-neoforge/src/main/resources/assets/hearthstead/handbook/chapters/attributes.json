@@ -1,0 +1,64 @@
+{
+  "id": "attributes",
+  "title": "hearthstead.guide.attributes.title",
+  "icon": "minecraft:experience_bottle",
+  "pages": [
+    {
+      "id": "attributes.p1",
+      "title": "hearthstead.guide.attributes.p1.title",
+      "bullets": [
+        "hearthstead.guide.attributes.p1.b1",
+        "hearthstead.guide.attributes.p1.b2",
+        "hearthstead.guide.attributes.p1.b3",
+        "hearthstead.guide.attributes.p1.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.attributes.p1.k1",
+          "modifier": "key.sneak"
+        }
+      ],
+      "tip": "hearthstead.guide.attributes.p1.tip",
+      "text": [
+        "hearthstead.guide.attributes.body"
+      ]
+    },
+    {
+      "id": "attributes.p2",
+      "title": "hearthstead.guide.attributes.p2.title",
+      "bullets": [
+        "hearthstead.guide.attributes.p2.b1",
+        "hearthstead.guide.attributes.p2.b2",
+        "hearthstead.guide.attributes.p2.b3",
+        "hearthstead.guide.attributes.p2.b4"
+      ],
+      "tip": "hearthstead.guide.attributes.p2.tip",
+      "text": [
+        "hearthstead.guide.attributes.body2"
+      ]
+    },
+    {
+      "id": "attributes.p3",
+      "title": "hearthstead.guide.attributes.p3.title",
+      "bullets": [
+        "hearthstead.guide.attributes.p3.b1",
+        "hearthstead.guide.attributes.p3.b2",
+        "hearthstead.guide.attributes.p3.b3",
+        "hearthstead.guide.attributes.p3.b4"
+      ],
+      "tip": "hearthstead.guide.attributes.p3.tip"
+    },
+    {
+      "id": "attributes.p4",
+      "title": "hearthstead.guide.attributes.p4.title",
+      "bullets": [
+        "hearthstead.guide.attributes.p4.b1",
+        "hearthstead.guide.attributes.p4.b2",
+        "hearthstead.guide.attributes.p4.b3",
+        "hearthstead.guide.attributes.p4.b4"
+      ],
+      "tip": "hearthstead.guide.attributes.p4.tip"
+    }
+  ]
+}

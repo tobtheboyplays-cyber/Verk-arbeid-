@@ -1,0 +1,17 @@
+{
+  "loader": "neoforge:separate_transforms",
+  "base": {
+    "parent": "hearthstead:item/diamond_halberd_held"
+  },
+  "perspectives": {
+    "gui": {
+      "parent": "hearthstead:item/diamond_halberd_icon"
+    },
+    "ground": {
+      "parent": "hearthstead:item/diamond_halberd_icon"
+    },
+    "fixed": {
+      "parent": "hearthstead:item/diamond_halberd_icon"
+    }
+  }
+}

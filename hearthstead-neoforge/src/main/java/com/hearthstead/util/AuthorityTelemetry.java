@@ -390,8 +390,8 @@ public final class AuthorityTelemetry {
             return false;
         }
         long expectedPressure = "settlement_held".equals(fields.reason())
-            ? Math.min(100L, fields.revisionBefore() + 12L)
-            : Math.max(0L, fields.revisionBefore() - 8L);
+            ? Math.min(100L, fields.revisionBefore() + com.hearthstead.settlement.raid.RaidPressure.REPEL_GAIN)
+            : Math.max(0L, fields.revisionBefore() - com.hearthstead.settlement.raid.RaidPressure.LOSS_RELIEF);
         return fields.revisionAfter() == expectedPressure;
     }
 

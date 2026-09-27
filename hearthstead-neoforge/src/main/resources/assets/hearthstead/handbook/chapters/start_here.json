@@ -1,0 +1,299 @@
+{
+  "id": "start_here",
+  "title": "hearthstead.guide.start_here.title",
+  "icon": "hearthstead:handbook",
+  "pages": [
+    {
+      "id": "start_here.welcome",
+      "title": "hearthstead.guide.start_here.welcome.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/banner_fresh.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.welcome.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.welcome.b1",
+        "hearthstead.guide.start_here.welcome.b2",
+        "hearthstead.guide.start_here.welcome.b3",
+        "hearthstead.guide.start_here.welcome.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.hearthstead.handbook",
+          "action": "hearthstead.guide.start_here.welcome.k1"
+        }
+      ],
+      "tip": "hearthstead.guide.start_here.welcome.tip"
+    },
+    {
+      "id": "start_here.banner",
+      "title": "hearthstead.guide.start_here.banner.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/banner_placed.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.banner.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.banner.b1",
+        "hearthstead.guide.start_here.banner.b2",
+        "hearthstead.guide.start_here.banner.b3"
+      ],
+      "items": [
+        "hearthstead:hearth",
+        "minecraft:oak_log",
+        "minecraft:cobblestone",
+        "minecraft:campfire"
+      ],
+      "tip": "hearthstead.guide.start_here.banner.tip",
+      "text": [
+        "journey.hearthstead.step.fj_010_found_hearth.description"
+      ],
+      "journey": [
+        "fj_010_found_hearth"
+      ]
+    },
+    {
+      "id": "start_here.journey",
+      "title": "hearthstead.guide.start_here.journey.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/journey.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.journey.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.journey.b1",
+        "hearthstead.guide.start_here.journey.b2",
+        "hearthstead.guide.start_here.journey.b3"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.start_here.journey.k1"
+        }
+      ],
+      "tip": "hearthstead.guide.start_here.journey.tip",
+      "text": [
+        "journey.hearthstead.step.fj_020_open_journey.description"
+      ],
+      "journey": [
+        "fj_020_open_journey"
+      ]
+    },
+    {
+      "id": "start_here.guildmaster",
+      "title": "hearthstead.guide.start_here.guildmaster.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/guildmaster_trade.png",
+        "width": 256,
+        "height": 144,
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.guildmaster.b1",
+        "hearthstead.guide.start_here.guildmaster.b2",
+        "hearthstead.guide.start_here.guildmaster.b3"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.start_here.guildmaster.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:gold_coin",
+        "minecraft:oak_log",
+        "minecraft:iron_ingot",
+        "minecraft:wheat"
+      ],
+      "tip": "hearthstead.guide.start_here.guildmaster.tip",
+      "text": [
+        "journey.hearthstead.step.fj_030_appoint_mayor.description"
+      ],
+      "journey": [
+        "fj_030_appoint_mayor"
+      ]
+    },
+    {
+      "id": "start_here.lumber_camp",
+      "title": "hearthstead.guide.start_here.lumber_camp.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/tech_tree_qa.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.lumber_camp.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.lumber_camp.b1",
+        "hearthstead.guide.start_here.lumber_camp.b2",
+        "hearthstead.guide.start_here.lumber_camp.b3"
+      ],
+      "items": [
+        "hearthstead:gold_coin",
+        "minecraft:oak_log",
+        "minecraft:cobblestone"
+      ],
+      "tip": "hearthstead.guide.start_here.lumber_camp.tip",
+      "text": [
+        "journey.hearthstead.step.fj_100_unlock_lumber_camp.description"
+      ],
+      "journey": [
+        "fj_100_unlock_lumber_camp"
+      ]
+    },
+    {
+      "id": "start_here.plaque",
+      "title": "hearthstead.guide.start_here.plaque.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/plaque_checklist.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.plaque.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.plaque.b1",
+        "hearthstead.guide.start_here.plaque.b2",
+        "hearthstead.guide.start_here.plaque.b3",
+        "hearthstead.guide.start_here.plaque.b4"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.start_here.plaque.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:plaque",
+        "hearthstead:build_plan",
+        "minecraft:crafting_table",
+        "minecraft:chest"
+      ],
+      "tip": "hearthstead.guide.start_here.plaque.tip",
+      "text": [
+        "journey.hearthstead.step.fj_110_link_lumber_camp.description"
+      ],
+      "journey": [
+        "fj_110_link_lumber_camp"
+      ]
+    },
+    {
+      "id": "start_here.hire",
+      "title": "hearthstead.guide.start_here.hire.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/emblem_hire.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.hire.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.hire.b1",
+        "hearthstead.guide.start_here.hire.b2",
+        "hearthstead.guide.start_here.hire.b3"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.start_here.hire.k1"
+        },
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.start_here.hire.k2",
+          "modifier": "key.sneak"
+        }
+      ],
+      "items": [
+        "hearthstead:lumberer_emblem",
+        "minecraft:flint"
+      ],
+      "tip": "hearthstead.guide.start_here.hire.tip",
+      "text": [
+        "journey.hearthstead.step.fj_120_staff_lumber_camp.description",
+        "journey.hearthstead.step.fj_130_open_lumberer_inventory.description"
+      ],
+      "journey": [
+        "fj_120_staff_lumber_camp",
+        "fj_130_open_lumberer_inventory"
+      ]
+    },
+    {
+      "id": "start_here.zone",
+      "title": "hearthstead.guide.start_here.zone.title",
+      "image": {
+        "texture": "hearthstead:textures/gui/handbook/work_zone.png",
+        "width": 256,
+        "height": 144,
+        "caption": "hearthstead.guide.start_here.zone.caption",
+        "placement": "auto"
+      },
+      "bullets": [
+        "hearthstead.guide.start_here.zone.b1",
+        "hearthstead.guide.start_here.zone.b2",
+        "hearthstead.guide.start_here.zone.b3"
+      ],
+      "keys": [
+        {
+          "key": "key.use",
+          "action": "hearthstead.guide.start_here.zone.k1"
+        }
+      ],
+      "items": [
+        "hearthstead:work_scepter",
+        "minecraft:flint",
+        "minecraft:copper_ingot"
+      ],
+      "tip": "hearthstead.guide.start_here.zone.tip",
+      "text": [
+        "journey.hearthstead.step.fj_140_set_lumber_zone.description"
+      ],
+      "journey": [
+        "fj_140_set_lumber_zone"
+      ]
+    },
+    {
+      "id": "start_here.axe",
+      "title": "hearthstead.guide.start_here.axe.title",
+      "bullets": [
+        "hearthstead.guide.start_here.axe.b1",
+        "hearthstead.guide.start_here.axe.b2",
+        "hearthstead.guide.start_here.axe.b3"
+      ],
+      "items": [
+        "minecraft:wooden_axe",
+        "minecraft:stone_axe",
+        "minecraft:iron_axe"
+      ],
+      "tip": "hearthstead.guide.start_here.axe.tip",
+      "text": [
+        "journey.hearthstead.step.fj_150_lumberer_requests_axe.description",
+        "journey.hearthstead.step.fj_160_give_lumberer_axe.description",
+        "journey.hearthstead.step.fj_170_lumberer_fells_tree.description",
+        "journey.hearthstead.step.fj_180_lumber_camp_stores_log.description"
+      ],
+      "journey": [
+        "fj_150_lumberer_requests_axe",
+        "fj_160_give_lumberer_axe",
+        "fj_170_lumberer_fells_tree",
+        "fj_180_lumber_camp_stores_log"
+      ]
+    },
+    {
+      "id": "start_here.next",
+      "title": "hearthstead.guide.start_here.next.title",
+      "bullets": [
+        "hearthstead.guide.start_here.next.b1",
+        "hearthstead.guide.start_here.next.b2",
+        "hearthstead.guide.start_here.next.b3",
+        "hearthstead.guide.start_here.next.b4"
+      ],
+      "tip": "hearthstead.guide.start_here.next.tip"
+    }
+  ]
+}

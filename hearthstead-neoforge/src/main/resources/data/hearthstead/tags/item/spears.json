@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "hearthstead:wooden_spear",
+    "hearthstead:iron_spear",
+    "hearthstead:diamond_spear"
+  ]
+}

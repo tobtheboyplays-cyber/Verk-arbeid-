@@ -1,0 +1,135 @@
+{
+  "id": "lodging_rustic",
+  "name": "Bunkhouse (Rustic Log)",
+  "category": "homes",
+  "kind": "building",
+  "building_type": "lodging",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "lodging",
+  "size": [
+    13,
+    11,
+    11
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        10,
+        1,
+        8
+      ],
+      "to": "another_furniture:spruce_chair[facing=south,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:spruce_log",
+      "count": 89
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 72
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 65
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 45
+    },
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 39
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 38
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 29
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 13
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 13
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 6
+    },
+    {
+      "item": "minecraft:white_bed",
+      "count": 4
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 4
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 4
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 2
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 1
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 439,
+  "cells": 679
+}

@@ -182,7 +182,7 @@ public final class FirstRaidReadinessService {
             housingCapacity = clamp(housingCapacity,
                 MAX_SETTLERS * BuildingType.LODGING.residentCapacity());
             warehouseContainers = clamp(warehouseContainers,
-                WarehouseIndex.MAX_CONTAINERS);
+                com.hearthstead.settlement.warehouse.WarehouseLevels.ABSOLUTE_MAX);
             int maxMeals = RequestLedger.MAX_ACTIVE
                 * com.hearthstead.settlement.request.RequestItemFingerprint.MAX_COUNT;
             readyMeals = clamp(readyMeals, maxMeals);
@@ -264,7 +264,36 @@ public final class FirstRaidReadinessService {
      */
     public static Report assessExecution(ServerLevel level,
                                          Settlement settlement) {
+        if (settlement != null && settlement.raidLifecycle.isTimerScheduled()) {
+            return assessTimer(level, settlement);
+        }
         return evaluate(collect(level, settlement), Phase.EXECUTION);
+    }
+
+    /** Timer raids require intact authority, never the optional preparation checklist. */
+    public static Report assessTimer(ServerLevel level, Settlement settlement) {
+        EnumSet<Blocker> blockers = EnumSet.noneOf(Blocker.class);
+        SettlementSavedData saved = level == null ? null : SettlementSavedData.existing(level);
+        if (level == null || level.getServer() == null || !level.getServer().isSameThread()
+            || settlement == null || saved == null
+            || saved.settlements.get(settlement.id) != settlement) {
+            blockers.add(Blocker.AUTHORITY_INVALID);
+        }
+        if (settlement != null) {
+            if (level == null || exactHearth(level, settlement) == null) blockers.add(Blocker.HEARTH_INVALID);
+            if (settlement.raidLifecycle == null || settlement.raidLifecycle.integrityLost()) {
+                blockers.add(Blocker.RAID_LIFECYCLE_INVALID);
+            } else if (settlement.raidLifecycle.firstState() != FirstRaidState.PREPARING
+                && settlement.raidLifecycle.firstState() != FirstRaidState.SCHEDULED) {
+                blockers.add(Blocker.RAID_STATE_NOT_SCHEDULED);
+            }
+            if (settlement.journeyState == null
+                || !Objects.equals(settlement.id, settlement.journeyState.settlementId())
+                || settlement.journeyState.mode() == JourneyPresentationMode.QUARANTINED) {
+                blockers.add(Blocker.JOURNEY_NOT_READY);
+            }
+        }
+        return new Report(List.copyOf(blockers), null, 1L);
     }
 
     /**
@@ -281,6 +310,9 @@ public final class FirstRaidReadinessService {
      */
     public static Report assessScheduledCommitBridge(ServerLevel level,
                                                       Settlement settlement) {
+        if (settlement != null && settlement.raidLifecycle.isTimerScheduled()) {
+            return new Report(List.of(Blocker.JOURNEY_NOT_READY), null, 1L);
+        }
         return evaluate(collect(level, settlement), Phase.COMMIT_BRIDGE);
     }
 
@@ -401,7 +433,7 @@ public final class FirstRaidReadinessService {
                 facts.rosterSafe = false;
                 continue;
             }
-            if (building.workers.size() > building.type.workerCapacity()) {
+            if (building.workers.size() > Building.maxWorkerCapacity(building.type)) {
                 facts.rosterSafe = false;
             }
             Set<UUID> local = new HashSet<>();
@@ -431,8 +463,13 @@ public final class FirstRaidReadinessService {
         }
         for (Map.Entry<UUID, Settlement.SettlerRecord> row : records.entrySet()) {
             int jobs = employmentCounts.getOrDefault(row.getKey(), 0);
-            if (row.getValue().profession == Profession.NONE ? jobs != 0
-                    : jobs != 1 || ambiguousEmployment.contains(row.getKey())) {
+            boolean mayor = row.getKey().equals(settlement.mayorId);
+            Profession profession = row.getValue().profession;
+            boolean invalid = mayor ? profession != Profession.MAYOR || jobs != 0
+                : profession == Profession.MAYOR
+                    || (profession == Profession.NONE ? jobs != 0
+                        : jobs != 1 || ambiguousEmployment.contains(row.getKey()));
+            if (invalid) {
                 facts.rosterSafe = false;
             }
         }
@@ -465,7 +502,7 @@ public final class FirstRaidReadinessService {
                         facts.warehouseContainers, storage.containers());
                     facts.warehouseStorageAvailable |= storage.healthy();
                 }
-                case FARMHOUSE -> facts.farmhouseValid = true;
+                case FARMHOUSE, FISHERY -> facts.farmhouseValid = true;
                 case HOUSE, LODGING -> {
                     Set<BlockPos> buildingBeds = physicalBedHeads(level,
                         building);
@@ -527,6 +564,11 @@ public final class FirstRaidReadinessService {
                 && hasBoundEmblemProof(settlement, profession, row.getKey(),
                     employer.id)) {
                 facts.farmerValid = true;
+            } else if (profession == Profession.FISHER
+                && employer.type == BuildingType.FISHERY
+                && hasBoundEmblemProof(settlement, profession, row.getKey(), employer.id)) {
+                facts.farmerValid = true;
+                facts.fisherValid = true;
             } else if (profession == Profession.GUARD
                 && employer.type == BuildingType.BARRACKS
                 && hasBoundEmblemProof(settlement, profession, row.getKey(),
@@ -589,6 +631,11 @@ public final class FirstRaidReadinessService {
             facts.farmProvenance = provenance.farmSeedPlantedCommitted()
                 && provenance.farmHarvestCommitted()
                 && provenance.farmOutputCommitted();
+            if (facts.fisherValid
+                && com.hearthstead.settlement.work.FisherEvidenceSavedData.hasStoredCatch(level, settlement)) {
+                facts.farmZoneCommitted = true;
+                facts.farmProvenance = true;
+            }
             facts.workerStacksObserved = provenance.allResidentStacksObserved();
             facts.workerTransitUnresolved = provenance.unresolvedWorkerTransit();
             facts.workerStackConflict = provenance.conflictingStackOwnership();
@@ -619,7 +666,7 @@ public final class FirstRaidReadinessService {
                 continue;
             }
             facts.guardArmed = true;
-            if (GuardAssignmentService.hasValidReadyOrder(level, settlement,
+            if (GuardAssignmentService.hasValidFirstRaidOrder(level, settlement,
                     guard)) {
                 facts.guardOrderValid = true;
             }
@@ -654,7 +701,7 @@ public final class FirstRaidReadinessService {
                 continue;
             }
             facts.archerArmed = true;
-            if (GuardAssignmentService.hasValidReadyOrder(level, settlement,
+            if (GuardAssignmentService.hasValidFirstRaidOrder(level, settlement,
                     archer)) {
                 facts.archerOrderValid = true;
             }
@@ -669,7 +716,7 @@ public final class FirstRaidReadinessService {
                                           Facts facts) {
         facts.readyMeals = facts.hearth == null ? 0
             : ReadyFood.count(facts.hearth.getInventory());
-        facts.requiredReadyMeals = RecruitmentPolicy.requiredReserve(
+        facts.requiredReadyMeals = RecruitmentPolicy.requiredReserve(settlement,
             settlement == null ? 0 : settlement.settlers.size());
         facts.availableReadyMeals = Math.max(0,
             facts.readyMeals - facts.reservedReadyMeals);
@@ -917,7 +964,7 @@ public final class FirstRaidReadinessService {
             return false;
         }
         if (building.workers.size() > Math.max(0,
-                building.type.workerCapacity())) {
+                Building.maxWorkerCapacity(building.type))) {
             return false;
         }
         Set<UUID> workers = new HashSet<>();
@@ -954,13 +1001,7 @@ public final class FirstRaidReadinessService {
     private static boolean exactLinkedPlaque(ServerLevel level,
                                              Settlement settlement,
                                              Building building) {
-        if (!building.valid || !settlement.inside(building.plaquePos)
-            || !settlement.insideBox(
-                new BlockPos(building.bounds.minX(), building.bounds.minY(),
-                    building.bounds.minZ()),
-                new BlockPos(building.bounds.maxX(), building.bounds.maxY(),
-                    building.bounds.maxZ()))
-            || !level.hasChunkAt(building.plaquePos)) {
+        if (!building.valid || !level.hasChunkAt(building.plaquePos)) {
             return false;
         }
         BlockEntity found = level.getBlockEntity(building.plaquePos);
@@ -969,7 +1010,8 @@ public final class FirstRaidReadinessService {
             && building.plaquePos.equals(plaque.getBlockPos())
             && plaque.state() == PlaqueState.LINKED_VALID
             && plaque.type() == building.type
-            && Objects.equals(plaque.buildingId(), building.id);
+            && Objects.equals(plaque.buildingId(), building.id)
+            && plaque.building(level) == building;
     }
 
     @Nullable
@@ -1010,6 +1052,17 @@ public final class FirstRaidReadinessService {
         return seen;
     }
 
+    /**
+     * GameTest seam: whether this one warehouse satisfies the readiness
+     * storage check ({@code warehouse_storage_unavailable} is raised when no
+     * warehouse does). Read-only.
+     */
+    public static boolean warehouseStorageHealthy(ServerLevel level,
+                                                  Building building) {
+        return building != null && building.bounds != null
+            && observeWarehouse(level, null, building).healthy();
+    }
+
     private static WarehouseObservation observeWarehouse(ServerLevel level,
                                                           Settlement settlement,
                                                           Building building) {
@@ -1027,17 +1080,16 @@ public final class FirstRaidReadinessService {
         if (volume <= 0L || volume > MAX_WAREHOUSE_BOUNDS_VOLUME
             || building.interiorVolume <= 0
             || building.interiorVolume > RoomScanner.MAX_VOLUME
-            || !settlement.insideBox(
-                new BlockPos(bounds.minX(), bounds.minY(), bounds.minZ()),
-                new BlockPos(bounds.maxX(), bounds.maxY(), bounds.maxZ()))
             || !allChunksLoaded(level, bounds)) {
             return WarehouseObservation.UNAVAILABLE;
         }
-        List<BlockPos> indexed = WarehouseIndex.containers(level, building);
-        int exactPhysical = exactPhysicalContainerCount(level, bounds);
-        if (exactPhysical < 0 || exactPhysical != indexed.size()) {
+        if (!indexMatchesPhysical(level, building, bounds)) {
             return WarehouseObservation.UNAVAILABLE;
         }
+        // Only MANAGED containers count. Containers beyond the warehouse
+        // level's capacity are "not managed (warehouse full)": never a
+        // blocker, never a truncated-prefix failure (owner, 26 Sep).
+        List<BlockPos> indexed = WarehouseIndex.containers(level, building);
         int physical = 0;
         Set<BlockPos> seen = new HashSet<>();
         for (BlockPos pos : indexed) {
@@ -1081,17 +1133,13 @@ public final class FirstRaidReadinessService {
             || sx * sy * sz > MAX_WAREHOUSE_BOUNDS_VOLUME
             || building.interiorVolume <= 0
             || building.interiorVolume > RoomScanner.MAX_VOLUME
-            || !settlement.insideBox(
-                new BlockPos(bounds.minX(), bounds.minY(), bounds.minZ()),
-                new BlockPos(bounds.maxX(), bounds.maxY(), bounds.maxZ()))
             || !allChunksLoaded(level, bounds)) {
             return ArrowObservation.UNAVAILABLE;
         }
-        List<BlockPos> indexed = WarehouseIndex.containers(level, building);
-        int exactPhysical = exactPhysicalContainerCount(level, bounds);
-        if (exactPhysical < 0 || exactPhysical != indexed.size()) {
+        if (!indexMatchesPhysical(level, building, bounds)) {
             return ArrowObservation.UNAVAILABLE;
         }
+        List<BlockPos> indexed = WarehouseIndex.containers(level, building);
         int arrows = 0;
         long identity = HASH_OFFSET;
         Set<BlockPos> seen = new HashSet<>();
@@ -1124,25 +1172,34 @@ public final class FirstRaidReadinessService {
     }
 
     /**
-     * WarehouseIndex stops at its public cap. One extra physical container
-     * must therefore make readiness fail rather than silently accepting a
-     * truncated prefix as the complete index.
+     * The cached container index must agree with an exact physical recount
+     * of the (already loaded, volume-bounded) room: managed plus not-managed
+     * equals every container present. A disagreement forces one rescan
+     * before readiness fails closed. Having MORE containers than the
+     * warehouse level manages is never a failure.
      */
+    private static boolean indexMatchesPhysical(ServerLevel level, Building building,
+                                                BoundingBox bounds) {
+        int exactPhysical = exactPhysicalContainerCount(level, bounds, building.type);
+        if (exactPhysical == WarehouseIndex.knownCount(level, building)) {
+            return true;
+        }
+        WarehouseIndex.rescan(level, building);
+        return exactPhysical == WarehouseIndex.knownCount(level, building);
+    }
+
+    /** Uncapped: the callers bound the volume before walking it. */
     private static int exactPhysicalContainerCount(ServerLevel level,
-                                                   BoundingBox bounds) {
+                                                   BoundingBox bounds,
+                                                   BuildingType type) {
         int found = 0;
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         for (int y = bounds.minY(); y <= bounds.maxY(); y++) {
             for (int x = bounds.minX(); x <= bounds.maxX(); x++) {
                 for (int z = bounds.minZ(); z <= bounds.maxZ(); z++) {
                     cursor.set(x, y, z);
-                    BlockEntity blockEntity = level.getBlockEntity(cursor);
-                    if (blockEntity instanceof ChestBlockEntity
-                        || blockEntity instanceof BarrelBlockEntity) {
+                    if (WarehouseIndex.isContainer(level.getBlockEntity(cursor), type)) {
                         found++;
-                        if (found > WarehouseIndex.MAX_CONTAINERS) {
-                            return -1;
-                        }
                     }
                 }
             }
@@ -1288,6 +1345,7 @@ public final class FirstRaidReadinessService {
         boolean lumbererValid;
         boolean courierValid;
         boolean farmerValid;
+        boolean fisherValid;
         boolean guardValid;
         boolean archerValid;
         boolean provenanceAuthoritative;

@@ -1,0 +1,27 @@
+{
+  "candidate_hash": "e91d5ba0f661be9d",
+  "runtime_clip": "BAG_TO_CHEST_UNLOAD",
+  "runtime_event": "EV_BAG_TO_CHEST_UNLOAD",
+  "duration_ticks": 80,
+  "contacts": {
+    "bag_world": 12,
+    "item_hand": 30,
+    "lid_contact": 31,
+    "lid_open": 36,
+    "lid_release": 37,
+    "deposit_commit": 48,
+    "item_below_rim": 49,
+    "lid_closed": 64,
+    "next_cycle": 80
+  },
+  "authority": "server_only_single_commit_ticket",
+  "status": "runtime_revision_pending_fresh_visual_review",
+  "reference_candidate_hash": "34392c823920adb7",
+  "reference_evidence_bbmodel_sha256": "cd7b17b3dc1f93d3f1165a0de3c6f13dd14ba5e0cd646edf20703622774a445e",
+  "runtime_clip_sha256": "e91d5ba0f661be9d1bf139abc3c0aa65b92baa2a36e3d93948d969a1af917fff",
+  "grounded_repeat": {
+    "from_tick": 64,
+    "to_tick": 24,
+    "pose_match_required": true
+  }
+}

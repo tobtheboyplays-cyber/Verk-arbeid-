@@ -131,16 +131,20 @@ declared here so evidence never passes by an undisclosed camera trick.
 The visible tool is a
 voxel silhouette, not Mojang's item texture. Its placement/orientation is
 faithful to the selected vanilla profile; pixel art, lighting, state-dependent
-model overrides and runtime wiring still require live QA. In particular, the
-bow proxy verifies the neutral `item/bow` transform but does not emulate the
-`pulling` predicate or switch among `bow_pulling_0..2` textures (those child
-models inherit the same transform). `HUNTER_LOOSE` is intentionally listed in
-`knownVisualNoGoClips` and every render prints `VISUAL NO-GO`: runtime equips
-the bow in `MAINHAND`/`right_arm`, while the clip describes `left_arm` as the
-bow arm, and runtime currently never enters the vanilla pulling item state.
-The animation gate repeats the warning. Do not cite that clip as approved
-until either its arm roles are mirrored or the runtime intentionally
-moves/renders the bow in the off hand.
+model overrides and runtime wiring still require live QA. The bow proxy verifies
+the neutral `item/bow` transform but does not emulate the `pulling` predicate or
+switch among `bow_pulling_0..2` textures (those child models inherit the same
+transform). `HUNTER_LOOSE` now declares a physical candidate contract instead
+of a known visual mismatch: a real `MAINHAND` bow follows `right_arm`, the left
+arm draws the string from the synced vanilla item-use clock, and the body-only
+1.20 s clip leaves both arms to that procedural pose. Tick 14 may broadcast the
+release presentation only after a real Arrow enters the level; recovery ends at
+tick 24. The animation gate checks those source seams and keeps the result
+explicitly pending. It is not visual approval: capture the offline multiview
+silhouette and the native pulling-model, release and recovery sequence before
+citing the shot as qualified. Root's Hunter draw change to `bb_render.mjs` must
+be merged with the separately owned controller-preview route before that
+offline evidence is generated.
 
 The same honest-boundary rule covers the remaining runtime/catalogue seams:
 

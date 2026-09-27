@@ -4,6 +4,7 @@ import com.hearthstead.block.PlaqueBlock;
 import com.hearthstead.block.PlaqueBlockEntity;
 import com.hearthstead.building.PlaqueState;
 import com.hearthstead.building.Requirement;
+import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.BuildingManager;
@@ -12,6 +13,8 @@ import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.Summons;
+import com.hearthstead.settlement.PendingPlayerDeliveryLedger;
+import com.hearthstead.settlement.journey.JourneyTransactionIds;
 import com.hearthstead.settlement.state.BlessingId;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -89,11 +92,21 @@ public final class PlaqueNetwork {
             return;
         }
 
+        // Staffing changes need a player who may build here (not a spectator
+        // or adventure-mode visitor); REFRESH stays open to every viewer.
+        if (action.kind() != PlaqueAction.Kind.REFRESH
+            && (player.isSpectator() || !player.mayBuild())) {
+            send(player, snapshot(player, plaque, action.sessionId(),
+                PlaqueSnapshot.Delivery.UPDATE));
+            return;
+        }
         switch (action.kind()) {
             case ASSIGN -> assign(player, level, plaque, action.target());
             case EVICT -> evict(player, level, plaque, action.target());
             case REFRESH -> plaque.survey(level);
             case SUMMON -> summon(player, level, plaque, action.target());
+            case FIRE -> fire(player, level, plaque, action.target(),
+                action.employmentRevision());
             case CLOSE -> { } // handled before world resolution
             case UNKNOWN -> { } // rejected before world resolution
         }
@@ -133,6 +146,11 @@ public final class PlaqueNetwork {
             return;
         }
         BlockPos bed = freeBed(level, settlement, building);
+        // House bed cap (tech tree: 4, Townhouses 6, Manors 8).
+        if (bed != null && !com.hearthstead.settlement.techtree.effects.CommonsEffects.hasRoom(
+                settlement, building, com.hearthstead.settlement.ResidentBedOccupancy.read(level, settlement).claims().keySet())) {
+            bed = null;
+        }
         if (bed == null) {
             deny(player, "hearthstead.plaque.no_room");
             return;
@@ -200,6 +218,71 @@ public final class PlaqueNetwork {
         Summons.call(settler, plaque.getBlockPos().relative(facing), level);
     }
 
+    /**
+     * Releases exactly the worker shown on this workplace sheet. The return
+     * is reserved before dismissal, then dismissed through Employment so
+     * arrows, requests, morale and the work walk-out keep their existing
+     * lifecycle. A rejection at either boundary leaves both job and emblem
+     * untouched; the deterministic reservation id makes a second click inert.
+     */
+    private static void fire(ServerPlayer player, ServerLevel level,
+                             PlaqueBlockEntity plaque, UUID settlerId,
+                             long expectedEmploymentRevision) {
+        Building building = plaque.building(level);
+        Settlement settlement = plaque.settlementFor(level);
+        if (building == null || settlement == null || !building.valid
+            || !plaque.getBlockPos().equals(building.plaquePos)
+            || !settlement.buildings.contains(building)) {
+            deny(player, "hearthstead.plaque.not_ready");
+            return;
+        }
+        SettlerEntity settler = findSettler(level, settlement, settlerId);
+        if (settler == null || !building.workers.contains(settlerId)
+            || Employment.employerOf(settlement, settlerId) != building) {
+            deny(player, "hearthstead.plaque.fire.not_employed");
+            return;
+        }
+        if (settlerId.equals(settlement.mayorId)) {
+            deny(player, "hearthstead.plaque.fire.mayor");
+            return;
+        }
+        long currentEmploymentRevision = employmentRevision(settlement, building,
+            settlerId);
+        if (currentEmploymentRevision == 0L) {
+            // A pre-ledger/admin employment has no proof that an emblem was
+            // ever spent. Keep that worker employed rather than minting one.
+            deny(player, "hearthstead.plaque.fire.authorization_required");
+            return;
+        }
+        if (expectedEmploymentRevision != currentEmploymentRevision) {
+            deny(player, "hearthstead.plaque.stale");
+            return;
+        }
+        UUID deliveryId = JourneyTransactionIds.forRevision("employment_fire",
+            settlement.id, settlerId, currentEmploymentRevision);
+        Employment.FireResult result = Employment.fireWithEmblem(level,
+            settlement, building, settler, player, deliveryId,
+            currentEmploymentRevision);
+        if (!result.applied()) {
+            deny(player, result.messageKey());
+            return;
+        }
+        PendingPlayerDeliveryLedger.DeliveryResult delivery =
+            settlement.employmentReturns.deliver(level, player, deliveryId);
+        SettlementManager.data(level).setDirty();
+        player.displayClientMessage(Component.translatable(
+            "hearthstead.plaque.fire.complete", settler.getDisplayName(),
+            delivery.outcome().id()), true);
+    }
+
+    private static long employmentRevision(Settlement settlement, Building building,
+                                           UUID settlerId) {
+        var receipt = settlement.employmentAuthorizations.receipt(settlerId);
+        Profession profession = Employment.tradeOf(building.type);
+        return receipt != null
+            && settlement.employmentAuthorizations.matches(settlement.id, settlerId,
+                building.id, profession) ? receipt.revision() : 0L;
+    }
     // ----------------------------------------------------------- snapshot --
 
     private static PlaqueSnapshot snapshot(ServerPlayer player, PlaqueBlockEntity plaque,
@@ -230,14 +313,23 @@ public final class PlaqueNetwork {
             requirements.add(new PlaqueSnapshot.RequirementLine(
                 status.requirement().id(), status.have(), status.needed()));
         }
+        addLevelLines(level, settlement, building, requirements);
+        // House bed cap: say how many beds count and what raises the cap.
+        String capLine = com.hearthstead.settlement.techtree.effects.CommonsEffects
+            .bedCapLineId(settlement, building);
+        if (capLine != null) {
+            requirements.add(new PlaqueSnapshot.RequirementLine(capLine,
+                settlement.countedBeds(building), building.beds.size()));
+        }
 
         List<PlaqueSnapshot.Occupant> occupants = new ArrayList<>();
         List<PlaqueSnapshot.Candidate> candidates = new ArrayList<>();
         int capacity = 0;
 
         if (settlement != null && building != null) {
-            capacity = com.hearthstead.settlement.BuildingManager
-                .capacityOf(plaque.type(), building);
+            // Tech tree (Townhouses / Manors): House places 4 -> 6 -> 8.
+            capacity = com.hearthstead.settlement.techtree.effects.CommonsEffects
+                .capacityOf(level, settlement, plaque.type(), building);
             List<SettlerEntity> members = SettlementManager.loadedMembers(level, settlement);
             if (probe != null) {
                 probe.loadedMemberCollection();
@@ -256,7 +348,9 @@ public final class PlaqueNetwork {
                     occupants.add(new PlaqueSnapshot.Occupant(settler.getUUID(),
                         settler.getSettlerName(), settler.getProfession().name(),
                         settler.getHealth(), settler.getMaxHealth(),
-                        Math.round(settler.getMorale()), worker));
+                        Math.round(settler.getMorale()), worker,
+                        worker ? employmentRevision(settlement, building,
+                            settler.getUUID()) : 0L));
                 } else if (plaque.type().housesResidents()) {
                     // Only homes expose move-in candidates. Work assignment is
                     // initiated at the settler with a Job Emblem, so authoring
@@ -276,7 +370,7 @@ public final class PlaqueNetwork {
                         settler.getSettlerName(), settler.getProfession().name(),
                         settler.getClaimedBed() != null,
                         (int) Math.sqrt(settler.blockPosition().distSqr(plaque.getBlockPos())),
-                        blockedReason(plaque, building, housedCount),
+                        blockedReason(plaque, settlement, building, housedCount),
                         Employment.fitness(settlement, settler, building),
                         cost.loses() == null ? "hearthstead.employ.cost.none"
                             : cost.leavesEmpty() ? "hearthstead.employ.cost.leaves_empty"
@@ -312,20 +406,94 @@ public final class PlaqueNetwork {
             delivery, java.util.Optional.ofNullable(plaque.lastScanReason()));
     }
 
+    /**
+     * Builder lane (checklist levels): the building's level, what the next
+     * level still needs ("next.<id>" lines, the Upgrade Order's gap), and --
+     * for a warehouse whose room is ahead of the tree -- which Logistics
+     * upgrade recognises it. Extra RequirementLines, so the payload layout
+     * is unchanged; display only, never part of registration.
+     */
+    private static void addLevelLines(ServerLevel level, Settlement settlement, Building building,
+                                      List<PlaqueSnapshot.RequirementLine> lines) {
+        if (building == null || !building.valid
+            || com.hearthstead.building.BuildingLevels.maxLevel(building.type) <= 1) {
+            return;
+        }
+        boolean warehouse = building.type == com.hearthstead.building.BuildingType.WAREHOUSE;
+        if (warehouse && !com.hearthstead.HearthsteadServerConfig.warehouseLevelsEnabled()) {
+            return;
+        }
+        lines.add(new PlaqueSnapshot.RequirementLine("level", building.level, building.level));
+        if (building.type == com.hearthstead.building.BuildingType.HOUSE) {
+            lines.addAll(homeTierLines(level, settlement, building));
+        }
+        if (warehouse) {
+            var status = com.hearthstead.settlement.warehouse.WarehouseLevelService.status(level, settlement, building);
+            if (status.techLocked() && status.nextGate() != null) {
+                lines.add(new PlaqueSnapshot.RequirementLine("level_locked." + status.nextGate().id(),
+                    status.builtLevel(), status.builtLevel() + 1));
+            }
+        }
+        int shown = 0;
+        for (com.hearthstead.building.BuildingLevelChecklist.Gap gap : building.nextLevelGap) {
+            if (shown++ >= 8) {
+                break;
+            }
+            lines.add(new PlaqueSnapshot.RequirementLine("next." + gap.id(), gap.have(), gap.needed()));
+        }
+    }
+
+    /**
+     * Home tiers (owner, 26 Sep): a House plaque names what the home is
+     * (Hut, Cottage, Townhouse, Manor) and the next tier's goal: build its
+     * level, learn its Commons node, or both. Display only; the level itself
+     * is the checklist's, and the "next." lines below list what to build.
+     */
+    public static List<PlaqueSnapshot.RequirementLine> homeTierLines(ServerLevel level, Settlement settlement,
+                                                                     Building building) {
+        List<PlaqueSnapshot.RequirementLine> lines = new java.util.ArrayList<>(2);
+        if (building == null || building.type != com.hearthstead.building.BuildingType.HOUSE) {
+            return lines;
+        }
+        java.util.function.Predicate<String> learned = id ->
+            com.hearthstead.settlement.development.TechTree.has(level, settlement, id);
+        com.hearthstead.building.HomeTier tier = com.hearthstead.building.HomeTier.of(building.level, learned);
+        if (tier == null) {
+            return lines;
+        }
+        lines.add(new PlaqueSnapshot.RequirementLine("home_tier." + tier.id(), building.level, tier.level()));
+        com.hearthstead.building.HomeTier next = tier.next();
+        if (next == null) {
+            return lines;
+        }
+        com.hearthstead.building.HomeTier.Goal goal =
+            com.hearthstead.building.HomeTier.goal(next, building.level, learned);
+        String key = switch (goal) {
+            case BUILD -> "home_tier_next.";
+            case BUILD_AND_LEARN -> "home_tier_next_learn.";
+            case LEARN -> "home_tier_learn.";
+        };
+        // A goal is never "met": the learn-only line still has one step left.
+        int needed = goal == com.hearthstead.building.HomeTier.Goal.LEARN ? building.level + 1 : next.level();
+        lines.add(new PlaqueSnapshot.RequirementLine(key + next.id(), building.level, needed));
+        return lines;
+    }
+
     /** Empty when the settler could move in; otherwise why they cannot. */
-    private static String blockedReason(PlaqueBlockEntity plaque, Building building,
-                                        int housedCount) {
+    private static String blockedReason(PlaqueBlockEntity plaque, Settlement settlement,
+                                        Building building, int housedCount) {
         if (plaque.state() != PlaqueState.LINKED_VALID) {
             return "hearthstead.plaque.blocked.not_ready";
         }
         if (plaque.type().housesResidents()) {
-            return building.beds.size() <= housedCount
+            // House bed cap: beds beyond the cap do not take residents.
+            return settlement.countedBeds(building) <= housedCount
                 ? "hearthstead.plaque.blocked.full" : "";
         }
         if (!Employment.teaches(plaque.type())) {
             return "hearthstead.employ.refused.no_trade";
         }
-        return building.workers.size() >= plaque.type().workerCapacity()
+        return building.workers.size() >= building.workerCapacity()
             ? "hearthstead.plaque.blocked.full" : "";
     }
 
@@ -450,7 +618,7 @@ public final class PlaqueNetwork {
     }
 
     private static void send(ServerPlayer player, PlaqueSnapshot snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private PlaqueNetwork() {

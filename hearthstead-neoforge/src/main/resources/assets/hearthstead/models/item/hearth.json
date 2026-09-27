@@ -1,3 +1,6 @@
 {
-  "parent": "hearthstead:block/hearth"
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "hearthstead:item/settlement_banner"
+  }
 }

@@ -1,0 +1,604 @@
+{
+  "branch": "craft",
+  "nodes": [
+    {
+      "id": "timber_rights",
+      "tier": 1,
+      "type": "unlock",
+      "x": -170,
+      "y": 0,
+      "size": "-",
+      "coins": 1,
+      "goods": [
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "foundation_ready",
+          "target": 1
+        }
+      ],
+      "gate_text": "3 settlers in the village",
+      "legacy": "node:timber_rights",
+      "design_status": "existing",
+      "impl": "A",
+      "name": "Lumber Camp",
+      "offers": "Build a Lumber Camp, hire a Lumberer, and get the Work Scepter.",
+      "details": [
+        "Lumber Camp plan + Lumberer emblem (1 Coin, 2 flint)",
+        "Work Scepter recipe for marking work areas"
+      ],
+      "flavor": "First the axe, then everything else.",
+      "depends_on": [],
+      "founding": true
+    },
+    {
+      "id": "builders_hut",
+      "tier": 1,
+      "type": "unlock",
+      "x": -141,
+      "y": 95,
+      "size": "M",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "timber_rights"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Builder's Hut",
+      "offers": "Hire a Builder: they fill the gaps on any building's checklist, build blueprints for you, and lay barricade lines.",
+      "details": [
+        "Builder's Hut plan + Builder emblem (moved off the Lumber Camp; old worlds that owned the Lumber Camp keep them)",
+        "Upgrade Orders (hut level 2): on any plaque that says 'next level: add X', order the Builder to add the missing pieces from your stores (beds, lights, labels, a planked floor...)",
+        "Blueprints for every building whose plan you know; levels and home tiers still come only from the plaque checklist",
+        "Barricade lines: a first-raid village can rush barricades without Defense Plans",
+        "Stone floors in Upgrade Orders need Masonry"
+      ],
+      "flavor": "Tell me what the room is missing, and I will fetch my hammer.",
+      "depends_on": []
+    },
+    {
+      "id": "sharpened_axes",
+      "tier": 1,
+      "type": "bonus",
+      "x": -229,
+      "y": 132,
+      "size": "S",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 2,
+          "item": "minecraft:iron_ingot"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "timber_rights"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "lumber_logs_stored",
+          "target": 16
+        }
+      ],
+      "gate_text": "16 logs stored by Lumberers",
+      "legacy": "upgrade:sharpened_axes",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Sharpened Axes",
+      "offers": "Lumberers fell each tree 10% faster, and every 8 trees they whet the axe at the camp grindstone.",
+      "details": [
+        "Existing: felling time -10%",
+        "New: every 8 trees, the Lumberer whets his axe at the Lumber Camp grindstone (sparks and sound); a camp without one, he whets on the spot"
+      ],
+      "flavor": "A keen edge is half the day's work.",
+      "depends_on": []
+    },
+    {
+      "id": "fishers_nets",
+      "tier": 1,
+      "type": "bonus",
+      "x": -229,
+      "y": -133,
+      "size": "S",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:string"
+        },
+        {
+          "count": 4,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "shore_provisions"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 4
+        }
+      ],
+      "gate_text": "4 Courier deliveries",
+      "legacy": "upgrade:fishers_nets",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Fisher's Nets",
+      "offers": "Casts finish 10% sooner, and the Fisher keeps a net in the water: 1 fish an hour, up to 4.",
+      "details": [
+        "Existing: cast cycle -10%",
+        "New: the Fisher sets a net in the water (a visible buoy); it holds 1 fish per in-game hour, up to 4, which he hauls in at the start of work and whenever it is full"
+      ],
+      "flavor": "Mend the net, and the net feeds you while you sleep.",
+      "depends_on": []
+    },
+    {
+      "id": "guild_doctrine",
+      "tier": 2,
+      "type": "unlock",
+      "x": -348,
+      "y": 217,
+      "size": "S",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 24,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "timber_rights"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "productive_goods_moved",
+          "target": 64
+        },
+        {
+          "kind": "objective",
+          "objective": "courier_deliveries",
+          "target": 3
+        }
+      ],
+      "gate_text": "64 goods moved + 3 Courier deliveries (existing gate)",
+      "legacy": "node:guild_doctrine",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Sawmill & Sawyer",
+      "offers": "A Sawyer turns logs into planks and Timber Beams.",
+      "details": [
+        "Sawmill plan + Sawyer emblem",
+        "Seasoned Timber research: sawing -15% time",
+        "Timber Beams feed the Coster's Cart, Deep Mine and Guild Halls"
+      ],
+      "flavor": "The saw sings; the village grows.",
+      "depends_on": []
+    },
+    {
+      "id": "land_and_harvest",
+      "tier": 2,
+      "type": "unlock",
+      "x": -401,
+      "y": 85,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:hay_block"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:oak_fence"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "cultivated_ground"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:land_and_harvest",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Mill, Bakery & Pasture",
+      "offers": "Millers, Bakers, Herders and Butchers: bread in bulk, wool, leather and meat.",
+      "details": [
+        "Mill, Bakery, Pasture and Butcher plans + Miller, Baker, Herder and Butcher emblems (2 Coins + goods each)",
+        "Flour -> bread in bulk frees the Innkeeper and fills the meal reserve",
+        "Wool feeds beds and Wool Bolts; hides feed the Tannery",
+        "Better Yeast research: baking -15%"
+      ],
+      "flavor": "Grind, knead, shear: the steady heartbeat of a village.",
+      "depends_on": [
+        "Emblem entries + release GameTests for 4 trades"
+      ]
+    },
+    {
+      "id": "border_wardens",
+      "tier": 1,
+      "type": "unlock",
+      "x": -401,
+      "y": -85,
+      "size": "S",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:flint"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:border_wardens",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Hunters' Lodge",
+      "offers": "A Hunter ranges beyond the walls and brings back meat, feathers and hides.",
+      "details": [
+        "Hunters' Lodge plan + Hunter emblem (2 Coins, 4 flint, 8 sticks)",
+        "Carcasses are butchered at the lodge table into meat, feathers and hides",
+        "Hides feed the Tannery: leather comes from hunting, not before it"
+      ],
+      "flavor": "The forest gives, if you know where to look.",
+      "depends_on": [],
+      "founding": true
+    },
+    {
+      "id": "tannery",
+      "tier": 2,
+      "type": "unlock",
+      "x": -348,
+      "y": -217,
+      "size": "M",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:leather"
+        },
+        {
+          "count": 1,
+          "item": "minecraft:cauldron"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "owns_any",
+          "nodes": [
+            "border_wardens",
+            "land_and_harvest"
+          ]
+        }
+      ],
+      "gate_text": "Own the Hunters' Lodge or Mill, Bakery & Pasture (a hide source)",
+      "design_status": "existing_changed",
+      "impl": "C",
+      "name": "Tannery & Tanner",
+      "offers": "A Tanner cures hides into leather and Cured Hide.",
+      "details": [
+        "Tannery plan + Tanner emblem (moved off Mine, Smelter & Smithy; old worlds that owned it keep them)",
+        "Cured Hide feeds the Porters' Guild and Armoury gear: the tanner -> leather -> packs chain",
+        "Tanning Acid research (-15% time) can now be started"
+      ],
+      "flavor": "It stinks. It pays.",
+      "depends_on": []
+    },
+    {
+      "id": "craft_and_industry",
+      "tier": 2,
+      "type": "unlock",
+      "x": -468,
+      "y": 189,
+      "size": "M",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:coal"
+        },
+        {
+          "count": 24,
+          "item": "minecraft:cobblestone"
+        },
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "timber_rights"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:craft_and_industry",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Mine, Smelter & Smithy",
+      "offers": "Mine ore, smelt iron and forge tools. Lumberers and Miners holding an iron tool work 10% faster (diamond or netherite: 20%).",
+      "details": [
+        "Mine, Smelter and Smithy plans + Miner, Smelter and Smith emblems",
+        "Smith makes iron tools and swords for equipment requests",
+        "Tool tiers: a Lumberer or Miner holding an iron tool fells and cuts 10% faster; diamond or netherite 20%",
+        "Blast Bellows research (smelting -15%) can now be started",
+        "Gear: opens Gear Tier 2 (Plate: iron armour, crossbows) for Veteran guards, Sharpshooters and level-5 workers; any one of Iron Arms Drill, Armoury or Mine, Smelter & Smithy counts",
+        "Tannery moved to its own node; Carpenter, Mason and Weaver moved to Carpenter, Mason & Weaver"
+      ],
+      "flavor": "Stone to ore, ore to bloom, bloom to blade.",
+      "depends_on": []
+    },
+    {
+      "id": "carpenter_mason",
+      "tier": 3,
+      "type": "unlock",
+      "x": -594,
+      "y": 264,
+      "size": "M",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 32,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 32,
+          "item": "minecraft:cobblestone"
+        },
+        {
+          "count": 1,
+          "item": "minecraft:loom"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "guild_doctrine"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "existing_changed",
+      "impl": "C",
+      "name": "Carpenter, Mason & Weaver",
+      "offers": "Workshops for furniture, stone bricks and Wool Bolts, the stuff towns are built from.",
+      "details": [
+        "Carpenter, Mason and Weaver plans + emblems (moved off Mine, Smelter & Smithy; old worlds that owned it keep them)",
+        "Masons cut stone bricks for walls, houses and charters",
+        "Weavers turn wool into Wool Bolts for beds, banners and the Crown"
+      ],
+      "flavor": "Measure twice, cut once, and the town stands a hundred years.",
+      "depends_on": []
+    },
+    {
+      "id": "charcoal_kilns",
+      "tier": 3,
+      "type": "choice",
+      "x": -745,
+      "y": 0,
+      "size": "M",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 48,
+          "item": "minecraft:cobblestone"
+        },
+        {
+          "count": 16,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "craft_and_industry"
+      ],
+      "excludes": [
+        "deep_mine"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Charcoal Kilns",
+      "offers": "Every Smelter batch takes 25% less time and 25% less effort, so a Smelter finishes more ingots and charcoal a day.",
+      "details": [
+        "Smelter batches (iron, copper, gold, bloom, charcoal): -25% time and -25% effort",
+        "Stacks with Blast Bellows research",
+        "Pick one: Kilns or Deep Mine"
+      ],
+      "flavor": "Smoke all night, iron all day.",
+      "depends_on": []
+    },
+    {
+      "id": "deep_mine",
+      "tier": 3,
+      "type": "choice",
+      "x": -594,
+      "y": -264,
+      "size": "M",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 16,
+          "item": "hearthstead:timber_beam"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "craft_and_industry",
+        "guild_doctrine"
+      ],
+      "excludes": [
+        "charcoal_kilns"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Deep Mine",
+      "offers": "The Miner digs his shaft down to a second level, where the rock face gives more iron and gold, plus redstone, lapis and rare diamonds. 15% of the ore he finds gives 1 extra ore.",
+      "details": [
+        "A second mine level 16 blocks below the first (an old quarry mine digs 12 -> 14 deep)",
+        "15% of mined ore blocks yield +1 ore",
+        "Pick one: Kilns or Deep Mine"
+      ],
+      "flavor": "Deeper, lads. The good stuff is always deeper.",
+      "depends_on": []
+    },
+    {
+      "id": "masters_apprentices",
+      "tier": 3,
+      "type": "unlock",
+      "x": -681,
+      "y": 303,
+      "size": "M",
+      "coins": 12,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:book"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:iron_ingot"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "carpenter_mason"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Masters & Apprentices",
+      "offers": "Workers who share a workshop with a master (trade level 5+) earn 50% more trade XP.",
+      "details": [
+        "Any worker whose workplace also employs a settler at trade level 5+ earns +50% trade XP per finished job",
+        "Works in every workplace with two or more worker slots (Smithy, Bakery, Mason, Lumber Camp, Mine...)",
+        "A master beside another master learns faster too"
+      ],
+      "flavor": "Watch my hands, not my face.",
+      "depends_on": []
+    },
+    {
+      "id": "guild_halls",
+      "tier": 4,
+      "type": "capstone",
+      "x": -890,
+      "y": 0,
+      "size": "L",
+      "coins": 30,
+      "goods": [
+        {
+          "count": 16,
+          "item": "hearthstead:timber_beam"
+        },
+        {
+          "count": 16,
+          "item": "hearthstead:wool_bolt"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "masters_apprentices"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Guild Halls",
+      "offers": "Crafted goods roll their quality as if the crafter were 2 trade levels higher: Fine or better far more often.",
+      "details": [
+        "Every workshop's quality roll counts the crafter as 2 trade levels higher",
+        "Example: a level-3 crafter in a level-1 workshop makes Fine or better about 80% of the time instead of about 45%",
+        "Masterwork still needs a real trade level 7, Legendary a real level 9",
+        "Better grades sell for more (merchant purse still caps each visit)"
+      ],
+      "flavor": "Every master has a hall; every hall has a feast day.",
+      "depends_on": []
+    }
+  ]
+}

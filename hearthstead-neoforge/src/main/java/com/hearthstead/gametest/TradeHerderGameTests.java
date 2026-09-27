@@ -117,6 +117,9 @@ public class TradeHerderGameTests {
             "a pasture must be able to take a herder");
         helper.assertTrue(gjeta.getProfession() == Profession.HERDER,
             "hired into a pasture, they herd");
+        // QA-JOBS J-10: shearing needs real shears in hand.
+        gjeta.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+            new ItemStack(net.minecraft.world.item.Items.SHEARS));
 
         helper.getLevel().setDayTime(3000);
 
@@ -134,6 +137,90 @@ public class TradeHerderGameTests {
             helper.assertTrue(sawShearing[0],
                 "the herder must actually be seen performing WORK_SHEAR at some point, "
                     + "not just have the output appear while idle");
+        });
+    }
+
+    private record ShearArena(Container chest, Sheep sheep, SettlerEntity herder) {
+    }
+
+    /** A herder with shears standing beside one still, unsheared sheep. */
+    private static ShearArena shearArena(GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement s = settlement(helper);
+        Building pasture = building(helper, s, BuildingType.PASTURE, 4, 4);
+        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
+        Container chest = (Container) helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
+        Sheep sheep = helper.spawn(EntityType.SHEEP, new BlockPos(5, 1, 5));
+        sheep.setNoAi(true);
+        SettlerEntity herder = settler(helper, s, "Klippa", 4, 4);
+        herder.attributes().pinForTest(Attribute.STAMINA, 50);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, pasture, herder).ok(), "hire herder");
+        herder.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+            new ItemStack(net.minecraft.world.item.Items.SHEARS));
+        helper.getLevel().setDayTime(3000);
+        return new ShearArena(chest, sheep, herder);
+    }
+
+    /** Codex P2: shears taken out of the hand mid-cut stop the cut: no wool, nothing worn. */
+    @GameTest(batch = "trade_herder_shears", template = "empty16", timeoutTicks = 600)
+    public void shearsRemovedMidCutShearNothing(GameTestHelper helper) {
+        ShearArena a = shearArena(helper);
+        long[] removedAt = {-1};
+        helper.onEachTick(() -> {
+            if (removedAt[0] < 0 && a.herder().getActivity() == SettlerActivity.WORK_SHEAR) {
+                removedAt[0] = helper.getTick();
+                a.herder().setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(removedAt[0] >= 0, "the herder never started shearing");
+            helper.assertTrue(helper.getTick() >= removedAt[0] + 80, "waiting past the cut");
+            helper.assertFalse(a.sheep().isSheared(), "no shears in hand: the sheep keeps its wool");
+            helper.assertTrue(countOf(a.chest(), ItemTags.WOOL) == 0, "no wool appeared");
+            helper.assertTrue(a.herder().getMainHandItem().isEmpty(), "the empty hand stays empty");
+        });
+    }
+
+    /** Codex P2: shears swapped for another damageable item mid-cut: no wool, the swapped item takes no wear. */
+    @GameTest(batch = "trade_herder_shears", template = "empty16", timeoutTicks = 600)
+    public void shearsSwappedMidCutWearNothingElse(GameTestHelper helper) {
+        ShearArena a = shearArena(helper);
+        long[] swappedAt = {-1};
+        helper.onEachTick(() -> {
+            if (swappedAt[0] < 0 && a.herder().getActivity() == SettlerActivity.WORK_SHEAR) {
+                swappedAt[0] = helper.getTick();
+                a.herder().setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+                    new ItemStack(net.minecraft.world.item.Items.IRON_SWORD));
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(swappedAt[0] >= 0, "the herder never started shearing");
+            helper.assertTrue(helper.getTick() >= swappedAt[0] + 80, "waiting past the cut");
+            helper.assertFalse(a.sheep().isSheared(), "a sword is not shears: the sheep keeps its wool");
+            helper.assertTrue(countOf(a.chest(), ItemTags.WOOL) == 0, "no wool appeared");
+            ItemStack held = a.herder().getMainHandItem();
+            helper.assertTrue(held.is(net.minecraft.world.item.Items.IRON_SWORD) && held.getDamageValue() == 0,
+                "the swapped-in sword takes no wear: " + held + " damage=" + held.getDamageValue());
+        });
+    }
+
+    /** One real cut: wool in the chest and exactly one point of wear on the shears. */
+    @GameTest(batch = "trade_herder_shears", template = "empty16", timeoutTicks = 600)
+    public void oneShearWearsTheShearsExactlyOnce(GameTestHelper helper) {
+        ShearArena a = shearArena(helper);
+        long[] shornAt = {-1};
+        helper.onEachTick(() -> {
+            if (shornAt[0] < 0 && a.sheep().isSheared()) {
+                shornAt[0] = helper.getTick();
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(shornAt[0] >= 0, "the sheep was never shorn");
+            helper.assertTrue(helper.getTick() >= shornAt[0] + 40, "settling after the cut");
+            helper.assertTrue(countOf(a.chest(), ItemTags.WOOL) > 0, "the wool reached the pasture chest");
+            ItemStack held = a.herder().getMainHandItem();
+            helper.assertTrue(held.is(net.minecraft.world.item.Items.SHEARS) && held.getDamageValue() == 1,
+                "exactly one point of wear: " + held + " damage=" + held.getDamageValue());
         });
     }
 }

@@ -215,7 +215,7 @@ public class RepairGameTests {
         RaidDirector.recordScar(helper.getLevel(), s.id, scarAbs,
             Blocks.STONE_BRICKS.defaultBlockState());
 
-        helper.runAtTickTime(400, () -> {
+        GameTestTicks.at(helper, 400, () -> {
             helper.assertTrue(helper.getBlockState(scarRel).isAir(),
                 "with no material the hole must stay a hole, got "
                     + helper.getBlockState(scarRel));
@@ -418,10 +418,8 @@ public class RepairGameTests {
      * Same four scars, the same lone repairer, but a MASON now stands
      * registered and valid (unstaffed on purpose -- {@link Costs#discountsFor}'s
      * REPAIR case needs only the building, never a worker). The hearth is
-     * stocked generously (10 bricks for 4 scars) so material scarcity can
-     * never be mistaken for the discount -- if the fourth scar mends with
-     * material still sitting in the hearth unspent, that is the waiver
-     * working, not a shortage.
+     * stocked with exactly three bricks. Reload the settlement after three
+     * physical repairs: the fourth must still start and finish with no stock.
      */
     @GameTest(template = "empty16", timeoutTicks = 2400, batch = "repair_day")
     public void aMasonHookMendsEveryFourthScarFree(GameTestHelper helper) {
@@ -433,7 +431,7 @@ public class RepairGameTests {
         HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
             .getBlockEntity(helper.absolutePos(hearthRel));
         hearth.bindSettlement(s.id);
-        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 10));
+        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 3));
         building(helper, s, BuildingType.MASON, 10, 10);
 
         settler(helper, s, "Aslak", 3, 3);
@@ -450,6 +448,7 @@ public class RepairGameTests {
                 helper.absolutePos(rel), Blocks.STONE_BRICKS.defaultBlockState());
         }
 
+        boolean[] reloaded = {false};
         helper.succeedWhen(() -> {
             int closed = 0;
             for (BlockPos rel : scarRels) {
@@ -457,8 +456,37 @@ public class RepairGameTests {
                     closed++;
                 }
             }
-            helper.assertTrue(closed == 4, "all four scars must mend, closed=" + closed);
-            int consumed = 10 - countInHearth(hearth, Items.STONE_BRICKS);
+            if (closed == 3 && !reloaded[0]) {
+                CompoundTag saved = s.writeNbt();
+                helper.assertTrue(saved.getInt("RepairDiscountProgress") == 3
+                        && countInHearth(hearth, Items.STONE_BRICKS) == 0,
+                    "three real paid repairs must save the next free mend with no stock left");
+                Settlement restored = Settlement.readNbt(saved);
+                SettlementSavedData.get(helper.getLevel()).settlements.put(s.id, restored);
+                SettlementSavedData.get(helper.getLevel()).setDirty();
+                helper.assertTrue(restored.writeNbt().getInt("RepairDiscountProgress") == 3,
+                    "the earned repair waiver must survive settlement NBT reload");
+                // Legacy or malformed optional counters must never invent a free mend.
+                CompoundTag legacy = saved.copy();
+                legacy.remove("RepairDiscountProgress");
+                helper.assertTrue(Settlement.readNbt(legacy).writeNbt()
+                        .getInt("RepairDiscountProgress") == 0,
+                    "old settlements start with no recorded repair progress");
+                for (int invalid : new int[]{-1, 4, Integer.MAX_VALUE}) {
+                    legacy.putInt("RepairDiscountProgress", invalid);
+                    helper.assertTrue(Settlement.readNbt(legacy).writeNbt()
+                            .getInt("RepairDiscountProgress") == 0,
+                        "invalid repair progress must not grant a waiver");
+                }
+                legacy.putByte("RepairDiscountProgress", (byte) 3);
+                helper.assertTrue(Settlement.readNbt(legacy).writeNbt()
+                        .getInt("RepairDiscountProgress") == 0,
+                    "wrong numeric tag types must not grant a waiver");
+                reloaded[0] = true;
+            }
+            helper.assertTrue(closed == 4 && reloaded[0],
+                "all four scars must mend across reload with only three bricks, closed=" + closed);
+            int consumed = 3 - countInHearth(hearth, Items.STONE_BRICKS);
             helper.assertTrue(consumed == 3,
                 "the fourth scar must mend without spending material -- exactly "
                     + "3 of 4 scars' worth of brick may leave the hearth, consumed "
@@ -481,7 +509,7 @@ public class RepairGameTests {
         HearthBlockEntity hearth = (HearthBlockEntity) helper.getLevel()
             .getBlockEntity(helper.absolutePos(hearthRel));
         hearth.bindSettlement(s.id);
-        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 10));
+        hearth.insertGoods(new ItemStack(Items.STONE_BRICKS, 2));
         building(helper, s, BuildingType.MASON, 10, 2);
         building(helper, s, BuildingType.SAWMILL, 2, 10);
 
@@ -506,7 +534,7 @@ public class RepairGameTests {
                 }
             }
             helper.assertTrue(closed == 4, "all four scars must mend, closed=" + closed);
-            int consumed = 10 - countInHearth(hearth, Items.STONE_BRICKS);
+            int consumed = 2 - countInHearth(hearth, Items.STONE_BRICKS);
             helper.assertTrue(consumed == 2,
                 "every second scar must mend free at the capped 50% -- exactly "
                     + "2 of 4 scars' worth of brick may leave the hearth, consumed "

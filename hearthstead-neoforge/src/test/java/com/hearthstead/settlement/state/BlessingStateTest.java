@@ -53,6 +53,7 @@ class BlessingStateTest {
         CompoundTag versionTwo = current.copy();
         versionTwo.putInt("DataVersion", 2);
         versionTwo.remove("PendingPlayerDeliveries");
+        versionTwo.remove("QualityPolicy");
         BlessingState migrated = BlessingState.readNbt(versionTwo);
         assertFalse(migrated.quarantined());
         assertEquals(0, migrated.pendingDeliveryCount());

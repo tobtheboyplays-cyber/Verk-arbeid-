@@ -50,6 +50,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BedPart;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -66,7 +67,7 @@ public final class JourneyServerHooks {
 
     public static boolean noteSettlementFounded(ServerLevel level,
                                                  Settlement settlement) {
-        if (!live(level, settlement) || settlement.population() != 3) {
+        if (!live(level, settlement) || settlement.population() != SettlementManager.FOUNDER_COUNT) {
             return false;
         }
         UUID transaction = JourneyTransactionIds.forRevision("founding",
@@ -105,7 +106,59 @@ public final class JourneyServerHooks {
                 JourneyIds.FJ_610_FIRST_RAID_RESOLVED)) {
             noteRaidAftermathViewed(player, settlement);
         }
-        return reconciled || journeyOpened;
+        // FJ030 (internal id kept; now "Meet the Guildmaster"): the
+        // Guildmaster already sits at this Banner as a real persisted NPC.
+        // Observe him after FJ020 exists, using this open-Banner session, so
+        // a player who never clicks him is not stuck before First Labor.
+        boolean guildmasterObserved = false;
+        if (!settlement.journeyState.isCompleted(JourneyIds.FJ_030_APPOINT_MAYOR)
+            && settlement.journeyState.isCompleted(JourneyIds.FJ_020_OPEN_JOURNEY)) {
+            UUID guildmaster = com.hearthstead.settlement.guildmaster.GuildmasterService
+                .liveId(level, settlement);
+            if (guildmaster != null) {
+                guildmasterObserved = noteGuildmasterMet(player, settlement, guildmaster);
+            }
+        }
+        return reconciled || journeyOpened || guildmasterObserved;
+    }
+
+    /**
+     * FJ030 "Meet the Guildmaster": one stable receipt per settlement and
+     * Guildmaster identity, recorded when a player opens his Professions &
+     * Emblems trade or opens the Journey while he sits at the Banner. The
+     * event keeps its legacy enum name so existing journey saves replay.
+     */
+    public static boolean noteGuildmasterMet(ServerPlayer player,
+                                             Settlement settlement,
+                                             UUID guildmaster) {
+        if (player == null || settlement == null || guildmaster == null) {
+            return false;
+        }
+        ServerLevel level = player.serverLevel();
+        if (!live(level, settlement)
+            || settlement.journeyState.isCompleted(JourneyIds.FJ_030_APPOINT_MAYOR)) {
+            return false;
+        }
+        UUID transaction = JourneyTransactionIds.forRevision("guildmaster_met",
+            settlement.id, guildmaster, 0L);
+        // This receipt describes the first meeting, which may precede opening
+        // Journey. Later visits (including another player) keep its first actor
+        // and time. Rebuild every other field so strict ledger equality still
+        // rejects a same-key receipt with conflicting domain semantics.
+        Optional<JourneyEvidence> first = settlement.journeyState.evidence().stream()
+            .filter(item -> item.event() == JourneyEvent.MAYOR_APPOINTED_COMMITTED
+                && item.transactionId().equals(transaction))
+            .findFirst();
+        UUID firstActor = first.flatMap(JourneyEvidence::actorPlayerId)
+            .orElse(player.getUUID());
+        long committedAt = first.map(JourneyEvidence::gameTime)
+            .orElse(Math.max(0L, level.getGameTime()));
+        return accepted(record(level, settlement,
+            JourneyIds.FJ_030_APPOINT_MAYOR,
+            JourneyEvent.MAYOR_APPOINTED_COMMITTED,
+            transaction, Optional.of(firstActor), Optional.of(guildmaster),
+            Optional.empty(), Optional.empty(), Optional.empty(), JourneyOutcome.NONE,
+            committedAt));
     }
 
     public static boolean noteMayorAppointed(ServerPlayer player,
@@ -150,6 +203,10 @@ public final class JourneyServerHooks {
             // Re-observe their loaded physical bed heads at the exact gate;
             // the player must never relink a valid home just to continue.
             reconcilePhysicalHousingCapacity(player.serverLevel(), settlement);
+            // A natural guest may already be waiting when this gate opens.
+            // Bind its persisted qualification/arrival now, before admission
+            // can acknowledge ordinary recruitment and retire the transaction.
+            reconcileWatchRecruitmentSlot(player.serverLevel(), settlement);
         }
         return applied ? Optional.of(transaction) : Optional.empty();
     }
@@ -181,6 +238,7 @@ public final class JourneyServerHooks {
         boolean applied = accepted(result);
         if (applied) {
             reconcilePhysicalHousingCapacity(level, settlement);
+            reconcileWatchRecruitmentSlot(level, settlement);
         }
         return applied;
     }
@@ -200,9 +258,27 @@ public final class JourneyServerHooks {
             JourneyEvent event = building.type.housesResidents()
                 ? JourneyEvent.HOUSING_CAPACITY_COMMITTED
                 : JourneyEvent.BUILDING_LINKED_VALID_COMMITTED;
+            // A first-link receipt is immutable even when this same building's
+            // beds or validity are observed again. Preserve its original time;
+            // all other payload fields still pass the ledger's strict equality
+            // check, so an actual same-key conflict remains quarantined.
+            long committedAt = settlement.journeyState.evidence().stream()
+                .filter(item -> item.event() == event
+                    && item.transactionId().equals(transaction))
+                .mapToLong(JourneyEvidence::gameTime).findFirst()
+                .orElse(Math.max(0L, level.getGameTime()));
             observed = accepted(record(level, settlement, step, event, transaction,
                 Optional.empty(), Optional.empty(), Optional.of(building.id),
-                Optional.empty(), Optional.empty(), JourneyOutcome.NONE));
+                Optional.empty(), Optional.empty(), JourneyOutcome.NONE, committedAt));
+        }
+        if (building.type == BuildingType.FISHERY
+            && settlement.journeyState.evidence().stream().noneMatch(e ->
+                e.stepId().equals(JourneyIds.FJ_330_SET_FARM_ZONE))) {
+            observed |= accepted(record(level, settlement, JourneyIds.FJ_330_SET_FARM_ZONE,
+                JourneyEvent.BUILDING_LINKED_VALID_COMMITTED,
+                stableSubject("fishery_site", building.id.toString()), Optional.empty(),
+                Optional.empty(), Optional.of(building.id), Optional.empty(),
+                Optional.of("validated_fishery"), JourneyOutcome.NONE));
         }
         if (building.type.housesResidents()) {
             observed |= reconcilePhysicalHousingCapacity(level, settlement);
@@ -459,7 +535,10 @@ public final class JourneyServerHooks {
         ResourceLocation step;
         if (source.type == BuildingType.LUMBER_CAMP && isLog(request)) {
             step = JourneyIds.FJ_260_WAREHOUSE_RECEIVES_LOG;
-        } else if (source.type == BuildingType.FARMHOUSE && isCrop(request)) {
+        } else if (source.type == BuildingType.FARMHOUSE && isCrop(request)
+            || source.type == BuildingType.FISHERY
+                && new ItemStack(BuiltInRegistries.ITEM.get(request.fingerprint().itemId()))
+                    .is(ItemTags.FISHES)) {
             step = JourneyIds.FJ_380_WAREHOUSE_RECEIVES_CROP;
         } else {
             return false;
@@ -619,9 +698,6 @@ public final class JourneyServerHooks {
             Optional.empty(), Optional.of(worker.getUUID()),
             Optional.of(building.id), Optional.empty(),
             Optional.of(workerActionFingerprint(action)), JourneyOutcome.NONE);
-        emitWorkerAction(result, level,
-            AuthorityTelemetry.Event.LUMBER_TREE_COMMITTED, settlement,
-            building, action, "lumber_tree_terminal");
         return acceptedEvidence(result);
     }
 
@@ -643,9 +719,6 @@ public final class JourneyServerHooks {
             Optional.empty(), Optional.of(worker.getUUID()),
             Optional.of(building.id), Optional.empty(),
             Optional.of(workerActionFingerprint(action)), JourneyOutcome.NONE);
-        emitWorkerAction(result, level,
-            AuthorityTelemetry.Event.FARM_SEED_PLANTED_COMMITTED, settlement,
-            building, action, "farm_seed_terminal");
         return acceptedEvidence(result);
     }
 
@@ -663,14 +736,6 @@ public final class JourneyServerHooks {
         if (action == null || action.produced().isEmpty()) {
             return false;
         }
-        AuthorityTelemetry.emit(level,
-            AuthorityTelemetry.Event.FARM_HARVEST_COMMITTED,
-            AuthorityTelemetry.Result.COMMITTED,
-            AuthorityTelemetry.Fields.state(settlement.id,
-                "action:" + action.id(), action.zone().revision(),
-                action.zone().revision(), action.planned().size(),
-                action.resolved().size(), "farm_harvest_terminal:building:"
-                    + building.id + ":worker:" + worker.getUUID()));
         return true;
     }
 
@@ -717,22 +782,33 @@ public final class JourneyServerHooks {
             Optional.of(building.id), Optional.empty(),
             Optional.of("item:" + receipt.itemId() + ";count:"
                 + receipt.count()), JourneyOutcome.NONE);
-        if (result == JourneyApplyResult.APPLIED
-            || result == JourneyApplyResult.RECORDED_NON_PROGRESS) {
-            AuthorityTelemetry.emit(level,
-                AuthorityTelemetry.Event.WORKPLACE_OUTPUT_COMMITTED,
-                AuthorityTelemetry.Result.COMMITTED,
-                AuthorityTelemetry.Fields.items(settlement.id,
-                    "receipt:" + receipt.id(), action.zone().revision(),
-                    action.zone().revision(),
-                    action.deposited().get(receipt.itemId()) - receipt.count(),
-                    action.deposited().get(receipt.itemId()),
-                    receipt.itemId().toString(), receipt.destinationBefore(),
-                    receipt.destinationAfter(), receipt.count(),
-                    "workplace_output:building:" + building.id + ":worker:"
-                        + worker.getUUID()));
-        }
         return acceptedEvidence(result);
+    }
+
+    /** Genuine Fisher rack output reuses the stable food-security milestones. */
+    public static boolean noteFisheryOutputCommitted(ServerLevel level,
+            Settlement settlement, Building building, SettlerEntity worker) {
+        if (!live(level, settlement) || !exactRegistered(settlement, building)
+            || !building.valid || building.type != BuildingType.FISHERY
+            || worker == null || !worker.isAlive() || worker.level() != level
+            || !settlement.id.equals(worker.getSettlementId())
+            || worker.getProfession() != Profession.FISHER
+            || !building.workers.contains(worker.getUUID())
+            || !com.hearthstead.settlement.work.FisherEvidenceSavedData.hasStoredCatch(level, settlement)) {
+            return false;
+        }
+        boolean applied = false;
+        for (ResourceLocation step : List.of(JourneyIds.FJ_360_SUPPLY_FIRST_SEED,
+                JourneyIds.FJ_370_FARMHOUSE_STORES_CROP)) {
+            if (settlement.journeyState.evidence().stream().anyMatch(e ->
+                    e.stepId().equals(step) && e.event() == JourneyEvent.WORKPLACE_OUTPUT_COMMITTED)) continue;
+            UUID transaction = stableSubject("fisher_output", settlement.id + ":" + step);
+            applied |= accepted(record(level, settlement, step,
+                JourneyEvent.WORKPLACE_OUTPUT_COMMITTED, transaction,
+                Optional.empty(), Optional.of(worker.getUUID()), Optional.of(building.id),
+                Optional.empty(), Optional.of("fishery_rack_output"), JourneyOutcome.NONE));
+        }
+        return applied;
     }
 
     public static boolean noteEmblemPurchased(ServerPlayer player,
@@ -1118,11 +1194,35 @@ public final class JourneyServerHooks {
         if (!live(level, settlement)) {
             return JourneyApplyResult.QUARANTINED;
         }
+        return record(level, settlement, step, event, transaction, actor, subject,
+            building, request, fingerprint, outcome, Math.max(0L, level.getGameTime()));
+    }
+
+    private static JourneyApplyResult record(ServerLevel level,
+                                             Settlement settlement,
+                                             ResourceLocation step,
+                                             JourneyEvent event,
+                                             UUID transaction,
+                                             Optional<UUID> actor,
+                                             Optional<UUID> subject,
+                                             Optional<UUID> building,
+                                             Optional<UUID> request,
+                                             Optional<String> fingerprint,
+                                             JourneyOutcome outcome,
+                                             long committedAt) {
+        if (!live(level, settlement)) {
+            return JourneyApplyResult.QUARANTINED;
+        }
         JourneyEvidence evidence = new JourneyEvidence(step, event, transaction,
-            Math.max(0L, level.getGameTime()), settlement.id, actor, subject,
+            committedAt, settlement.id, actor, subject,
             building, request, fingerprint, JourneySource.SURVIVAL, outcome);
+        java.util.Optional<ResourceLocation> chapterBefore = settlement.journeyState.currentChapter();
         JourneyApplyResult result = new JourneyProgressService(
             settlement.journeyState).recordCommitted(evidence);
+        if (result == JourneyApplyResult.APPLIED && chapterBefore.isPresent()
+            && !chapterBefore.equals(settlement.journeyState.currentChapter())) {
+            com.hearthstead.fx.FxHooks.journeyChapter(level, settlement);
+        }
         if (result == JourneyApplyResult.APPLIED
             || result == JourneyApplyResult.RECORDED_NON_PROGRESS) {
             SettlementManager.data(level).setDirty();
@@ -1270,29 +1370,6 @@ public final class JourneyServerHooks {
             + ";tool_damage:" + action.appliedToolDamage();
     }
 
-    private static void emitWorkerAction(JourneyApplyResult result,
-                                         ServerLevel level,
-                                         AuthorityTelemetry.Event event,
-                                         Settlement settlement,
-                                         Building building,
-                                         ActionView action,
-                                         String reason) {
-        if (result != JourneyApplyResult.APPLIED
-            && result != JourneyApplyResult.RECORDED_NON_PROGRESS) {
-            return;
-        }
-        String item = action.inputItem() == null ? "none"
-            : action.inputItem().toString();
-        AuthorityTelemetry.emit(level, event,
-            AuthorityTelemetry.Result.COMMITTED,
-            AuthorityTelemetry.Fields.items(settlement.id,
-                "action:" + action.id(), action.zone().revision(),
-                action.zone().revision(), action.planned().size(),
-                action.resolved().size(), item, 0L, 0L, 0L,
-                reason + ":building:" + building.id + ":worker:"
-                    + action.workerId()));
-    }
-
     private static void emitRecruitment(JourneyApplyResult result,
                                         ServerLevel level,
                                         AuthorityTelemetry.Event event,
@@ -1408,6 +1485,9 @@ public final class JourneyServerHooks {
                 default -> null;
             };
         }
+        if (transactionBoundToFirstRecruitmentSlot(state, transaction)) {
+            return null;
+        }
         boolean watchBound = transactionBoundToStep(state,
             JourneyIds.FJ_553_SECOND_RECRUITMENT_WINDOW, transaction);
         boolean watchStartedAfterGate = transactionStartedAfter(state,
@@ -1465,14 +1545,25 @@ public final class JourneyServerHooks {
             SettlementManager.data(level).setDirty();
             transaction = accelerated;
         }
-        boolean observed = noteRecruitmentQualificationCommitted(level,
-            settlement, transaction.transactionId());
+        // These are observations of an existing transaction, not new commits.
+        // Re-authoring its event with today's gameTime would collide with the
+        // original immutable evidence after a later tick or save/load.
+        boolean observed = false;
+        if (!transactionBoundToStep(settlement.journeyState,
+                JourneyIds.FJ_553_SECOND_RECRUITMENT_WINDOW, transaction)) {
+            observed = noteRecruitmentQualificationCommitted(level,
+                settlement, transaction.transactionId());
+        }
         if (transaction.spawnedTick() >= 0L
-            && transaction.arrivedTick() >= transaction.spawnedTick()) {
+            && transaction.arrivedTick() >= transaction.spawnedTick()
+            && !transactionBoundToStep(settlement.journeyState,
+                JourneyIds.FJ_554_SECOND_TRAVELER_ARRIVES, transaction)) {
             observed |= noteTravelerArrivedAtTavern(level, settlement,
                 transaction.transactionId());
         }
-        if (transaction.status() == RecruitmentTransaction.Status.ADMITTED) {
+        if (transaction.status() == RecruitmentTransaction.Status.ADMITTED
+            && !transactionBoundToStep(settlement.journeyState,
+                JourneyIds.FJ_555_ADMIT_FIFTH_SETTLER, transaction)) {
             observed |= noteTravelerAdmitted(level, settlement,
                 transaction.transactionId());
         }
@@ -1487,7 +1578,8 @@ public final class JourneyServerHooks {
             || state.isCompleted(JourneyIds.FJ_555_ADMIT_FIFTH_SETTLER)
             || !transaction.survivalAuthored()
             || transaction.transactionId() == null
-            || transaction.qualificationStartedTick() < 0L) {
+            || transaction.qualificationStartedTick() < 0L
+            || transactionBoundToFirstRecruitmentSlot(state, transaction)) {
             return false;
         }
         return switch (transaction.status()) {
@@ -1495,6 +1587,18 @@ public final class JourneyServerHooks {
                  ADMITTED -> true;
             default -> false;
         };
+    }
+
+    private static boolean transactionBoundToFirstRecruitmentSlot(
+            JourneyState state, RecruitmentTransaction transaction) {
+        // A terminal first recruit may still be current until the next server
+        // recruitment tick. Its globally keyed events cannot fill both slots.
+        return transactionBoundToStep(state,
+                JourneyIds.FJ_440_RECRUITMENT_WINDOW_STARTS, transaction)
+            || transactionBoundToStep(state,
+                JourneyIds.FJ_450_TRAVELER_ARRIVES, transaction)
+            || transactionBoundToStep(state,
+                JourneyIds.FJ_460_ADMIT_TRAVELER, transaction);
     }
 
     private static boolean transactionBoundToStep(
@@ -1544,6 +1648,7 @@ public final class JourneyServerHooks {
         return profession == Profession.LUMBERER && type == BuildingType.LUMBER_CAMP
             || profession == Profession.COURIER && type == BuildingType.WAREHOUSE
             || profession == Profession.FARMER && type == BuildingType.FARMHOUSE
+            || profession == Profession.FISHER && type == BuildingType.FISHERY
             || profession == Profession.GUARD && type == BuildingType.BARRACKS
             || profession == Profession.ARCHER && type == BuildingType.WATCHTOWER;
     }
@@ -1573,7 +1678,8 @@ public final class JourneyServerHooks {
             }
             int inBuilding = 0;
             for (BlockPos pos : building.beds) {
-                if (inBuilding >= building.type.residentCapacity()
+                if (inBuilding >= com.hearthstead.settlement.techtree.effects.CommonsEffects
+                        .houseCapacity(level, settlement, building.type)
                     || pos == null || !globalBeds.add(pos)
                     || !building.contains(pos) || !level.hasChunkAt(pos)) {
                     continue;
@@ -1696,7 +1802,7 @@ public final class JourneyServerHooks {
         return switch (node) {
             case TIMBER_RIGHTS -> JourneyIds.FJ_100_UNLOCK_LUMBER_CAMP;
             case STORES_AND_ROADS -> JourneyIds.FJ_200_UNLOCK_WAREHOUSE;
-            case CULTIVATED_GROUND -> JourneyIds.FJ_300_UNLOCK_FARMHOUSE;
+            case CULTIVATED_GROUND, SHORE_PROVISIONS -> JourneyIds.FJ_300_UNLOCK_FARMHOUSE;
             case HOME -> JourneyIds.FJ_400_UNLOCK_HOME;
             case HOSPITALITY -> JourneyIds.FJ_420_UNLOCK_TAVERN;
             case FIRST_WATCH -> JourneyIds.FJ_500_UNLOCK_FIRST_WATCH;
@@ -1712,7 +1818,7 @@ public final class JourneyServerHooks {
         return switch (type) {
             case LUMBER_CAMP -> JourneyIds.FJ_110_LINK_LUMBER_CAMP;
             case WAREHOUSE -> JourneyIds.FJ_210_LINK_WAREHOUSE;
-            case FARMHOUSE -> JourneyIds.FJ_310_LINK_FARMHOUSE;
+            case FARMHOUSE, FISHERY -> JourneyIds.FJ_310_LINK_FARMHOUSE;
             case HOUSE, LODGING -> JourneyIds.FJ_410_LINK_FIRST_HOME;
             case TAVERN -> JourneyIds.FJ_430_LINK_TAVERN;
             case BARRACKS -> JourneyIds.FJ_510_LINK_BARRACKS;
@@ -1728,7 +1834,7 @@ public final class JourneyServerHooks {
         return switch (profession) {
             case LUMBERER -> JourneyIds.FJ_120_STAFF_LUMBER_CAMP;
             case COURIER -> JourneyIds.FJ_220_STAFF_WAREHOUSE;
-            case FARMER -> JourneyIds.FJ_320_STAFF_FARMHOUSE;
+            case FARMER, FISHER -> JourneyIds.FJ_320_STAFF_FARMHOUSE;
             case GUARD -> JourneyIds.FJ_520_STAFF_BARRACKS;
             case ARCHER -> JourneyIds.FJ_557_STAFF_WATCHTOWER;
             default -> null;
@@ -1744,7 +1850,7 @@ public final class JourneyServerHooks {
             case LUMBERER -> satisfied
                 ? JourneyIds.FJ_160_GIVE_LUMBERER_AXE
                 : JourneyIds.FJ_150_LUMBERER_REQUESTS_AXE;
-            case FARMER -> satisfied
+            case FARMER, FISHER -> satisfied
                 ? JourneyIds.FJ_350_EQUIP_FARMER
                 : JourneyIds.FJ_340_FARMER_REQUESTS_HOE;
             case GUARD -> satisfied

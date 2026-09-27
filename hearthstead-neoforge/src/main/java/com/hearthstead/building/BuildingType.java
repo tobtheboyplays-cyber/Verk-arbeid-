@@ -116,8 +116,10 @@ public enum BuildingType {
         Requirement.floorSpace(16)),
 
     FISHERY("fishery", 0, 1, Items.FISHING_ROD,
-        Requirement.blocks("water", 2, Blocks.WATER),
-        Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
+        Requirement.blocks("fishing_water", 20, Blocks.WATER),
+        new Requirement("fishing_chair", 1, r -> r.blockCounts().getOrDefault(com.hearthstead.registry.ModBlocks.FISHERS_CHAIR.get(), 0)),
+        new Requirement("fish_rack", 1, r -> r.blockCounts().getOrDefault(com.hearthstead.registry.ModBlocks.FISH_RACK.get(), 0)),
+        Requirement.blocks("rod_barrel", 1, Blocks.BARREL),
         Requirement.doors(1),
         Requirement.lights(1),
         Requirement.floorSpace(16)),
@@ -140,6 +142,7 @@ public enum BuildingType {
     TAVERN("tavern", 0, 2, Items.BELL,
         Requirement.blocks("bell", 1, Blocks.BELL),
         Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
+        Requirement.aleTap(1),
         Requirement.doors(1),
         Requirement.lights(3),
         Requirement.floorSpace(36)),
@@ -210,7 +213,10 @@ public enum BuildingType {
     // still looks and feels like a hearthside infirmary, and the "cauldron"
     // requirement id is the same vocabulary KITCHEN/BREWERY/WEAVER already
     // use, so no new lang key is needed.
-    INFIRMARY("infirmary", 0, 0, Items.GOLDEN_APPLE,
+    // BATTLE-ROLES: the Healer is the Infirmary's trade now, so the post
+    // it advertises is real (the note above says to restore the number
+    // "the day the matching trade exists").
+    INFIRMARY("infirmary", 0, 2, Items.GOLDEN_APPLE,
         Requirement.blocks("cauldron", 1, Blocks.CAULDRON, Blocks.WATER_CAULDRON),
         Requirement.beds(2),
         Requirement.blocks("storage", 1, Blocks.CHEST, Blocks.BARREL),
@@ -219,7 +225,7 @@ public enum BuildingType {
         Requirement.floorSpace(20)),
 
     BARRACKS("barracks", 0, 4, Items.IRON_SWORD,
-        Requirement.beds(4),
+        Requirement.beds(2),
         Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
         Requirement.doors(1),
         Requirement.lights(2),
@@ -292,7 +298,49 @@ public enum BuildingType {
         Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
         Requirement.doors(1),
         Requirement.lights(2),
-        Requirement.floorSpace(36));
+        Requirement.floorSpace(36)),
+
+    TRADING_POST("trading_post", 0, 1, Items.GOLD_NUGGET,
+        // A counter is scaffolding (bamboo) OR a cartography table (paper +
+        // planks): bamboo only grows in jungles, so a scaffolding-only counter
+        // was a seed-dependent wall in front of the Trader (survival audit 2026-09-25).
+        Requirement.blocks("counter", 1, Blocks.SCAFFOLDING, Blocks.CARTOGRAPHY_TABLE),
+        Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
+        Requirement.doors(1), Requirement.lights(1), Requirement.floorSpace(16)),
+
+    // BUILDER lane (plan/BUILDER.md): the bootstrap. Buildable by hand the
+    // first evening -- a workbench, two chests the couriers deliver building
+    // materials into, a door and a light -- and then it can build the rest.
+    // No hut levels (owner, 26 Sep): the tech tree decides what the Builder
+    // may raise, the checklist decides what any building's level is.
+    BUILDERS_HUT("builders_hut", 0, 1, Items.SCAFFOLDING,
+        Requirement.blocks("workbench", 1, Blocks.CRAFTING_TABLE),
+        Requirement.blocks("storage", 2, Blocks.CHEST, Blocks.BARREL),
+        Requirement.doors(1), Requirement.lights(1), Requirement.floorSpace(16)),
+
+    // BATTLE-ROLES (plan/BATTLE-ROLES.md): the building decides the trade
+    // (D-011), so each battlefield role gets its own hall. Persisted by id.
+    // Pike Yard: hay bales are the spearmen's drill targets.
+    PIKE_YARD("pike_yard", 0, 3, Items.TRIDENT,
+        Requirement.beds(2),
+        Requirement.blocks("drill_target", 2, Blocks.HAY_BLOCK),
+        Requirement.blocks("storage", 1, Blocks.CHEST, Blocks.BARREL),
+        Requirement.doors(1), Requirement.lights(2), Requirement.floorSpace(30)),
+    // Sword Hall: an anvil and a grindstone keep two-handed blades true --
+    // the anvil is what makes this a Town-priced hall.
+    SWORD_HALL("sword_hall", 0, 2, Items.GRINDSTONE,
+        Requirement.beds(2),
+        Requirement.blocks("anvil", 1, Blocks.ANVIL, Blocks.CHIPPED_ANVIL, Blocks.DAMAGED_ANVIL),
+        Requirement.blocks("whetstone", 1, Blocks.GRINDSTONE),
+        Requirement.blocks("storage", 1, Blocks.CHEST, Blocks.BARREL),
+        Requirement.doors(1), Requirement.lights(2), Requirement.floorSpace(30)),
+    // Rune Hall: late by its materials (enchanting table, amethyst); the
+    // mage cap (RoleHiring) applies on top of its two slots.
+    RUNE_HALL("rune_hall", 0, 2, Items.ENCHANTING_TABLE,
+        Requirement.blocks("rune_table", 1, Blocks.ENCHANTING_TABLE),
+        Requirement.blocks("amethyst", 4, Blocks.AMETHYST_BLOCK),
+        Requirement.blocks("bookshelf", 4, Blocks.BOOKSHELF, Blocks.CHISELED_BOOKSHELF),
+        Requirement.doors(1), Requirement.lights(3), Requirement.floorSpace(25));
 
     private final String id;
     private final int residentCapacity;
@@ -360,6 +408,25 @@ public enum BuildingType {
 
     public List<Requirement> requirements() {
         return requirements;
+    }
+
+    /**
+     * How the plaque may survey this type. ROOM: an enclosed, roofed room
+     * (RoomScanner). YARD_OR_ROOM: the open-air trades (owner, 26 Sep: "they
+     * don't even need a roof, like a lumberjack camp") may ALSO register as a
+     * bounded work yard with a covered tool shelter (settlement.YardScanner).
+     * Rooms are always tried first, so a building of these types that already
+     * registers as a room keeps registering exactly as before.
+     */
+    public enum ValidationMode { ROOM, YARD_OR_ROOM }
+
+    public ValidationMode validationMode() {
+        return switch (this) {
+            case LUMBER_CAMP, SAWMILL, MINE, MASON, SMITHY, SMELTER, TANNERY, BUILDERS_HUT, WELL, MARKET,
+                 TRADING_POST ->
+                ValidationMode.YARD_OR_ROOM;
+            default -> ValidationMode.ROOM;
+        };
     }
 
     public boolean housesResidents() {

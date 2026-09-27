@@ -2,6 +2,7 @@ package com.hearthstead.network;
 
 import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.entity.Profession;
 import com.hearthstead.menu.HearthMenu;
 import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Building;
@@ -16,6 +17,10 @@ import com.hearthstead.settlement.journey.JourneyServerHooks;
 import com.hearthstead.settlement.raid.FirstRaidReadinessService;
 import com.hearthstead.settlement.raid.RaidDirector;
 import com.hearthstead.settlement.raid.RaidLogEntry;
+import com.hearthstead.settlement.raid.RaidPlan;
+import com.hearthstead.settlement.state.FirstRaidState;
+import com.hearthstead.settlement.state.RaidLifecycle;
+import com.hearthstead.settlement.state.RecurringRaidRun;
 import com.hearthstead.settlement.request.RequestLedgerService;
 import com.hearthstead.settlement.request.RequestLedgerSnapshot;
 import com.hearthstead.util.AuthorityTelemetry;
@@ -82,7 +87,7 @@ public final class HearthNetwork {
             return; // closed, copied, stale or otherwise unauthorised packet
         }
         switch (action.kind()) {
-            case REFRESH -> send(player, snapshot(level, settlement));
+            case REFRESH -> send(player, snapshot(level, settlement, player));
             case APPOINT -> {
                 if (action.revision() != revisionOf(settlement)) {
                     int revision = revisionOf(settlement);
@@ -98,7 +103,7 @@ public final class HearthNetwork {
                 } else {
                     appoint(player, level, settlement, action.target());
                 }
-                send(player, snapshot(level, settlement));
+                send(player, snapshot(level, settlement, player));
             }
             case SKIP_JOURNEY -> skipJourney(player, level, settlement, action);
             case OPEN_DEVELOPMENT -> {
@@ -120,7 +125,7 @@ public final class HearthNetwork {
                 // only then allow the existing hook to commit the view event.
                 // A missing/malformed newest entry leaves FJ-620 blocked
                 // instead of completing a report the client never received.
-                HearthMayorSnapshot opened = snapshot(level, settlement);
+                HearthMayorSnapshot opened = snapshot(level, settlement, player);
                 send(player, opened);
                 boolean raidResolved = settlement.journeyState.isCompleted(
                     JourneyIds.FJ_610_FIRST_RAID_RESOLVED);
@@ -136,6 +141,27 @@ public final class HearthNetwork {
                 action);
             case CONFIRM_RAID_READINESS -> confirmRaidReadiness(player,
                 settlement, action);
+            case OPEN_PEOPLE -> {
+                if (HearthMayorAction.NO_ID.equals(action.target())) {
+                    send(player, snapshot(level, settlement, player));
+                }
+            }
+            case VIEW_SETTLER -> {
+                if (HearthMayorAction.NO_ID.equals(action.target())) {
+                    return;
+                }
+                boolean recordedMember = settlement.settlers.stream()
+                    .anyMatch(record -> record.entityId.equals(action.target()));
+                if (recordedMember
+                    && level.getEntity(action.target()) instanceof SettlerEntity settler
+                    && settler.isAlive() && !settler.isRemoved()
+                    && player.distanceToSqr(settler) <= 64.0D
+                    && settlement.id.equals(settler.getSettlementId())) {
+                    com.hearthstead.network.PayloadSend.toPlayer(player,
+                        new OpenSettlerScreenPayload(settler.getId()));
+                    SettlerNetwork.openFor(player, settler);
+                }
+            }
             case UNKNOWN -> {
                 // Rejected before settlement resolution; retained for an
                 // exhaustive switch if another enum value lands later.
@@ -184,7 +210,7 @@ public final class HearthNetwork {
                     "committed admission cannot be refused");
             });
         }
-        send(player, snapshot(player.serverLevel(), settlement));
+        send(player, snapshot(player.serverLevel(), settlement, player));
     }
 
     private static void rejectTraveler(ServerPlayer player,
@@ -206,7 +232,7 @@ public final class HearthNetwork {
                     "committed rejection cannot be refused");
             });
         }
-        send(player, snapshot(player.serverLevel(), settlement));
+        send(player, snapshot(player.serverLevel(), settlement, player));
     }
 
     /**
@@ -227,7 +253,7 @@ public final class HearthNetwork {
             deny(player, "hearthstead.request.ledger.unavailable");
             return;
         }
-        HearthMayorSnapshot base = snapshot(player.serverLevel(), settlement);
+        HearthMayorSnapshot base = snapshot(player.serverLevel(), settlement, player);
         HearthMayorSnapshot.RequestView view = requestView(settlement, ledger,
             action.containerId());
         send(player, withRequests(base, view));
@@ -334,7 +360,7 @@ public final class HearthNetwork {
             ServerPlayer player, Settlement settlement,
             FirstRaidReadinessService.Report execution) {
         ServerLevel level = player.serverLevel();
-        send(player, withReadiness(snapshot(level, settlement),
+        send(player, withReadiness(snapshot(level, settlement, player),
             readinessView(nextReadinessGeneration(level, player.getUUID()),
                 execution, HearthMayorAction.NO_ID, 0, true)));
     }
@@ -367,7 +393,7 @@ public final class HearthNetwork {
             player.containerMenu.containerId);
         sessions.put(sessionId, new ReadinessLease(proof,
             player.containerMenu.containerId, actionRevision));
-        send(player, withReadiness(snapshot(level, settlement),
+        send(player, withReadiness(snapshot(level, settlement, player),
             readinessView(nextReadinessGeneration(level, player.getUUID()),
                 report, sessionId, actionRevision, false)));
     }
@@ -427,7 +453,30 @@ public final class HearthNetwork {
      * production projection instead of duplicating its ordering logic.
      */
     static HearthMayorSnapshot snapshot(ServerLevel level, Settlement settlement) {
+        return snapshot(level, settlement, null);
+    }
+
+    static HearthMayorSnapshot snapshot(ServerLevel level, Settlement settlement, ServerPlayer player) {
         SettlerEntity mayor = Mayor.find(level, settlement);
+        List<HearthMayorSnapshot.Resident> residents = new ArrayList<>();
+        for (Settlement.SettlerRecord record : settlement.settlers) {
+            if (residents.size() >= HearthMayorSnapshot.MAX_RESIDENTS) {
+                break;
+            }
+            if (level.getEntity(record.entityId) instanceof SettlerEntity settler
+                && settler.isAlive() && !settler.isRemoved()
+                && settlement.id.equals(settler.getSettlementId())) {
+                residents.add(new HearthMayorSnapshot.Resident(record.entityId, settler.getId(),
+                    settler.getSettlerName(), settler.getProfession().name(),
+                    settler.getActivity().key(), true));
+            } else {
+                Profession profession = record.profession == null ? Profession.NONE
+                    : record.profession;
+                residents.add(new HearthMayorSnapshot.Resident(record.entityId, -1,
+                    record.name == null ? "" : record.name, profession.name(),
+                    "unloaded", false));
+            }
+        }
         List<HearthMayorSnapshot.Candidate> candidates = new ArrayList<>();
         for (SettlerEntity settler : Mayor.candidates(level, settlement)) {
             Mayor.Boon boon = Mayor.boonOf(settler);
@@ -445,9 +494,11 @@ public final class HearthNetwork {
             mayor != null ? Mayor.boonOf(mayor).key() : "",
             settlement.mayorSince,
             Mayor.mourning(level, settlement), settlement.mourningUntil,
-            List.copyOf(candidates), true, recruitmentCard(level, settlement),
+            List.copyOf(candidates), List.copyOf(residents), settlement.settlers.size(), true,
+            recruitmentCard(level, settlement, player),
             HearthMayorSnapshot.RequestView.closed(),
             HearthMayorSnapshot.ReadinessView.closed(),
+            recurringStatusView(level, settlement),
             aftermathView(settlement));
     }
 
@@ -456,8 +507,8 @@ public final class HearthNetwork {
         return new HearthMayorSnapshot(base.revision(), base.hasMayor(),
             base.mayorId(), base.mayorName(), base.boonKey(), base.mayorSince(),
             base.mourning(), base.mourningUntil(), base.candidates(),
-            base.mayManage(), base.recruitment(), requests, base.readiness(),
-            base.aftermath());
+            base.residents(), base.residentTotal(), base.mayManage(), base.recruitment(), requests, base.readiness(),
+            base.recurringStatus(), base.aftermath());
     }
 
     private static HearthMayorSnapshot withReadiness(
@@ -466,8 +517,70 @@ public final class HearthNetwork {
         return new HearthMayorSnapshot(base.revision(), base.hasMayor(),
             base.mayorId(), base.mayorName(), base.boonKey(), base.mayorSince(),
             base.mourning(), base.mourningUntil(), base.candidates(),
-            base.mayManage(), base.recruitment(), base.requests(), readiness,
-            base.aftermath());
+            base.residents(), base.residentTotal(), base.mayManage(), base.recruitment(), base.requests(), readiness,
+            base.recurringStatus(), base.aftermath());
+    }
+
+    /** One server-tick projection of the persisted recurring raid authority. */
+    static HearthMayorSnapshot.RecurringStatusView recurringStatusView(
+            ServerLevel level, Settlement settlement) {
+        return recurringStatusFor(settlement == null ? null
+            : settlement.raidLifecycle, settlement == null ? null
+                : settlement.recurringRaidRun, level == null ? -1L
+                    : level.getGameTime());
+    }
+
+    /**
+     * Uses only the lifecycle and recurring-run records. Callers provide the
+     * server game time exactly once so the transmitted cooldown is a measured
+     * remaining value, never a client-side countdown.
+     */
+    static HearthMayorSnapshot.RecurringStatusView recurringStatusFor(
+            RaidLifecycle lifecycle, RecurringRaidRun run, long gameTime) {
+        if (lifecycle == null || run == null || gameTime < 0L
+            || lifecycle.firstState() != FirstRaidState.COMPLETED) {
+            return HearthMayorSnapshot.RecurringStatusView.closed();
+        }
+        if (run.isActive() || run.isLegacyBridgeActive()) {
+            return recurringPlanStatus(
+                HearthMayorSnapshot.RecurringStatusView.Status.ACTIVE,
+                run.plan().orElse(null));
+        }
+        if (run.isQueued()) {
+            return recurringPlanStatus(
+                HearthMayorSnapshot.RecurringStatusView.Status.QUEUED,
+                run.plan().orElse(null));
+        }
+        if (run.isBlocked() || lifecycle.recurringScheduleBlocked()) {
+            return new HearthMayorSnapshot.RecurringStatusView(
+                HearthMayorSnapshot.RecurringStatusView.Status.BLOCKED.wireId(),
+                -1L, 0L);
+        }
+        RaidPlan warned = lifecycle.recurringWarnedPlan().orElse(null);
+        if (warned != null) {
+            return recurringPlanStatus(
+                HearthMayorSnapshot.RecurringStatusView.Status.WARNED, warned);
+        }
+        if (lifecycle.recurringCoolingDown(gameTime)) {
+            long remaining = lifecycle.recurringCooldownUntilGameTime()
+                - gameTime;
+            return new HearthMayorSnapshot.RecurringStatusView(
+                HearthMayorSnapshot.RecurringStatusView.Status.RECOVERING.wireId(),
+                -1L, remaining);
+        }
+        return HearthMayorSnapshot.RecurringStatusView.closed();
+    }
+
+    private static HearthMayorSnapshot.RecurringStatusView recurringPlanStatus(
+            HearthMayorSnapshot.RecurringStatusView.Status status,
+            RaidPlan plan) {
+        if (!RaidPlan.isValid(plan)) {
+            return new HearthMayorSnapshot.RecurringStatusView(
+                HearthMayorSnapshot.RecurringStatusView.Status.BLOCKED.wireId(),
+                -1L, 0L);
+        }
+        return new HearthMayorSnapshot.RecurringStatusView(status.wireId(),
+            plan.night(), 0L);
     }
 
     /**
@@ -534,7 +647,8 @@ public final class HearthNetwork {
                 row.ageTicks(), row.blocker().wireId(),
                 row.physicalOwner().ordinal(), row.stockAvailable(),
                 row.targetExact(), row.fullTransportTrace(),
-                row.equipmentAdapter()));
+                row.equipmentAdapter(), row.equipmentReason() == null ? -1
+                    : row.equipmentReason().ordinal(), row.awaitingSource()));
         }
         return new HearthMayorSnapshot.RequestView(true, settlement.id,
             containerId, snapshot.generatedTick(), snapshot.typedRevision(),
@@ -598,7 +712,8 @@ public final class HearthNetwork {
     }
 
     private static HearthMayorSnapshot.RecruitmentCard recruitmentCard(
-            ServerLevel level, Settlement settlement) {
+            ServerLevel level, Settlement settlement, ServerPlayer player) {
+        SettlementManager.recruitPrice(level, settlement); // Persist legacy quote before projecting its identity.
         RecruitmentTransaction transaction = settlement.recruitment;
         if (transaction == null || !transaction.hasCandidate()
             || (transaction.status() != RecruitmentTransaction.Status.TRAVELING
@@ -612,9 +727,9 @@ public final class HearthNetwork {
                 ? RecruitmentPolicy.Stage.WAITING_ADMISSION
                 : RecruitmentPolicy.Stage.TRAVELING;
         RecruitmentPolicy.Assessment assessment = RecruitmentPolicy.assess(
-            level, settlement, stage);
+            level, settlement, stage, player);
         RecruitmentPolicy.Blocker blocker = SettlementManager.candidateBlocker(
-            level, settlement);
+            level, settlement, player);
         List<HearthMayorSnapshot.CostLine> costs = new ArrayList<>();
         for (Costs.Line line : assessment.price().lines()) {
             String key;
@@ -627,6 +742,18 @@ public final class HearthNetwork {
             }
             costs.add(new HearthMayorSnapshot.CostLine(key, line.count()));
         }
+        int firstAttribute = transaction.quote().firstAttribute(), firstValue = transaction.quote().firstValue();
+        int secondAttribute = transaction.quote().secondAttribute(), secondValue = transaction.quote().secondValue();
+        if (transaction.quote().version() == 0
+                && level.getEntity(transaction.travelerId()) instanceof SettlerEntity existingGuest) {
+            // Legacy price never uses these stats; show the actual living guest without inventing a starting basis.
+            var strongest = java.util.Arrays.stream(com.hearthstead.entity.Attribute.ALL)
+                .sorted(java.util.Comparator.<com.hearthstead.entity.Attribute>comparingInt(
+                    attribute -> existingGuest.attributes().get(attribute)).reversed()
+                    .thenComparingInt(Enum::ordinal)).limit(2).toList();
+            firstAttribute = strongest.get(0).ordinal(); firstValue = existingGuest.attributes().get(strongest.get(0));
+            secondAttribute = strongest.get(1).ordinal(); secondValue = existingGuest.attributes().get(strongest.get(1));
+        }
         return new HearthMayorSnapshot.RecruitmentCard(true,
             transaction.travelerId(), transaction.travelerName(),
             transaction.revision(), transaction.status().wireId(),
@@ -635,8 +762,10 @@ public final class HearthNetwork {
             assessment.readyFoodAfterPrice(), assessment.requiredReadyFood(),
             SettlementManager.candidatePatienceUntil(level, settlement),
             List.copyOf(costs),
-            SettlementManager.candidateMayAdmit(level, settlement),
-            SettlementManager.candidateMayDismiss(level, settlement));
+            SettlementManager.candidateMayAdmit(level, settlement, player),
+            SettlementManager.candidateMayDismiss(level, settlement),
+            transaction.quote().version(), firstAttribute, firstValue,
+            secondAttribute, secondValue, transaction.quote().premium(), transaction.quote().discountPercent());
     }
 
     private static SettlerEntity findSettler(ServerLevel level, Settlement settlement, UUID id) {
@@ -715,7 +844,7 @@ public final class HearthNetwork {
     }
 
     private static void send(ServerPlayer player, HearthMayorSnapshot snapshot) {
-        PacketDistributor.sendToPlayer(player, snapshot);
+        com.hearthstead.network.PayloadSend.toPlayer(player, snapshot);
     }
 
     private record ReadinessLease(

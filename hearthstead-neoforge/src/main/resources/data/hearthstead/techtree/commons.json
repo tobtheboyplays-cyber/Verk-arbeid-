@@ -1,0 +1,983 @@
+{
+  "branch": "commons",
+  "nodes": [
+    {
+      "id": "home",
+      "tier": 1,
+      "type": "unlock",
+      "x": 0,
+      "y": 170,
+      "size": "S",
+      "coins": 1,
+      "goods": [
+        {
+          "count": 12,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:cobblestone"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "foundation_ready",
+          "target": 1
+        }
+      ],
+      "gate_text": "Foundation ready",
+      "legacy": "node:home",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Houses & Lodging",
+      "offers": "Build Houses and a Lodging; every bed beyond the 4 founders lets one more settler live here.",
+      "details": [
+        "House (up to 4 beds) and Lodging (up to 8 beds) plans",
+        "Population = beds (minimum 4 founders)",
+        "Every House plaque names its home tier: Hut (level 1), Cottage (level 2, with Cottages), Townhouse (level 3, with Townhouses) or Manor (level 4, with Manors), with the next tier's goal and a 'next level: add X' checklist. Tiers come from what is built in the room, never from a blueprint",
+        "Well House plan: while a valid Well House stands, every settler with a bed gets +2 morale"
+      ],
+      "flavor": "Four walls, a door and a fire: now it is home.",
+      "depends_on": []
+    },
+    {
+      "id": "warm_hearth",
+      "tier": 1,
+      "type": "bonus",
+      "x": 133,
+      "y": 229,
+      "size": "M",
+      "coins": 3,
+      "goods": [
+        {
+          "count": 16,
+          "item": "minecraft:cobblestone"
+        },
+        {
+          "count": 8,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "home"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "housed_settlers",
+          "target": 2
+        }
+      ],
+      "gate_text": "2 settlers housed",
+      "legacy": "upgrade:warm_hearth",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Banner Fires",
+      "offers": "Warm homes keep hunger down at night, and an evening by the Banner fire lifts everyone's spirits.",
+      "details": [
+        "Night-time hunger drain -10%",
+        "Idle settlers walk to the Banner fire more often (+20% chance)",
+        "In the evening, a settler warming at the fire gains +3 morale (a heart shows), once per day"
+      ],
+      "flavor": "A banked fire, a full belly and someone to talk to.",
+      "depends_on": [
+        "Evening gathering (FreeTimeGoal extension)",
+        "Thought/speech bubbles (roadmap phase 1)"
+      ]
+    },
+    {
+      "id": "hospitality",
+      "tier": 1,
+      "type": "unlock",
+      "x": 46,
+      "y": 261,
+      "size": "-",
+      "coins": 4,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:bread"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:leather"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "home"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "population",
+          "target": 3
+        }
+      ],
+      "gate_text": "3 living settlers",
+      "legacy": "node:hospitality",
+      "design_status": "existing",
+      "impl": "A",
+      "name": "Tavern & Inn",
+      "offers": "Build a Tavern; an Innkeeper serves meals and ale and draws recruits.",
+      "details": [
+        "Tavern plan (a bell, which can be copper) + Innkeeper emblem: meals, ale, recruitment and the evening bard",
+        "Market plan: while a valid Market stands, visiting merchants carry 6 more Coins",
+        "Recruits cost 25% less with an Innkeeper",
+        "First step of the Tavern ladder: Bard's Stage, then Rooms to Let, then Hall of Revels"
+      ],
+      "flavor": "Every road ends at a tavern door.",
+      "depends_on": []
+    },
+    {
+      "id": "sturdy_beds",
+      "tier": 1,
+      "type": "unlock",
+      "x": -46,
+      "y": 261,
+      "size": "M",
+      "coins": 4,
+      "goods": [
+        {
+          "count": 3,
+          "tag": "minecraft:wool"
+        },
+        {
+          "count": 12,
+          "tag": "minecraft:planks"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "warm_hearth"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "housed_settlers",
+          "target": 3
+        }
+      ],
+      "gate_text": "3 settlers housed",
+      "legacy": "upgrade:sturdy_beds",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Cottages",
+      "offers": "Better beds: settlers with a claimed bed get +2 morale, and +2 more in a well-kept home.",
+      "details": [
+        "Residents with a claimed bed: +2 morale",
+        "Residents of a level-2 House or Lodging: +2 more morale. The plaque lists what the next level needs (more lights, a chest, a solid floor)",
+        "A level-2 House is named a Cottage on its plaque"
+      ],
+      "flavor": "Straw is for horses. Flowers are for the sill.",
+      "depends_on": [
+        "Home-tier checklist on HOUSE (Requirement tiers + plaque 'next level' line)",
+        "Builder Upgrade Orders (optional helper)",
+        "Idle morning animation"
+      ]
+    },
+    {
+      "id": "feather_quilts",
+      "tier": 2,
+      "type": "bonus",
+      "x": 241,
+      "y": 332,
+      "size": "S",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:feather"
+        },
+        {
+          "count": 4,
+          "tag": "minecraft:wool"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "sturdy_beds",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "upgrade:feather_quilts",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Feather Quilts",
+      "offers": "Settlers who sleep a calm night in a bed wake Well Rested and can do 10% more work that day.",
+      "details": [
+        "Sleep energy regain +20%",
+        "Well Rested: waking from a night in a bed refills the daily work pool to 110% (green sparkles on waking)",
+        "Not while the village is alarmed or a raid threatens, so a night raid costs you the bonus"
+      ],
+      "flavor": "Goose down: a lord's luxury, now a peasant's right.",
+      "depends_on": [
+        "Thought bubbles (roadmap phase 1)"
+      ]
+    },
+    {
+      "id": "hearth_doctrine",
+      "tier": 2,
+      "type": "unlock",
+      "x": 127,
+      "y": 390,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:book"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:bread"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [
+        {
+          "kind": "objective",
+          "objective": "all_housed_ticks",
+          "target": 24000
+        },
+        {
+          "kind": "objective",
+          "objective": "equipment_requests_served",
+          "target": 5
+        }
+      ],
+      "gate_text": "Everyone housed for 1 day + 5 equipment requests served (existing gate)",
+      "legacy": "node:hearth_doctrine",
+      "design_status": "existing_changed",
+      "impl": "B",
+      "name": "Scholar's Study & Library",
+      "offers": "A Scholar researches upgrades you choose, a Library makes every project cheaper, and study goes faster.",
+      "details": [
+        "Architect's Study plan + Scholar emblem",
+        "Library plan (moved here): research goods -25%",
+        "Every tech tree study timer (Town, Castle and Kingdom nodes) runs 25% faster"
+      ],
+      "flavor": "Ink is cheaper than blood.",
+      "depends_on": []
+    },
+    {
+      "id": "bards_songbook",
+      "tier": 2,
+      "type": "unlock",
+      "x": 0,
+      "y": 410,
+      "size": "M",
+      "coins": 5,
+      "goods": [
+        {
+          "count": 2,
+          "item": "minecraft:note_block"
+        },
+        {
+          "count": 16,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:bread"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Bard's Stage",
+      "offers": "The bard plays to a crowd: evening morale lifts higher, and visiting travellers tip Coins.",
+      "details": [
+        "Evening bard morale lift 5 -> 8 (once per settler per day, with a meal or ale at the Tavern while the bard plays)",
+        "Travellers (never your own settlers) who eat or drink while the bard plays tip 1 of their Coins into the Banner or a Warehouse, at most 3 per Tavern per evening"
+      ],
+      "flavor": "A song for the living, a song for the dead, and one more for the road.",
+      "depends_on": [
+        "Stage block + dance animation",
+        "TavernBard (exists)"
+      ]
+    },
+    {
+      "id": "kitchen_and_hall",
+      "tier": 2,
+      "type": "unlock",
+      "x": -127,
+      "y": 390,
+      "size": "M",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 1,
+          "item": "minecraft:smoker"
+        },
+        {
+          "count": 16,
+          "tag": "minecraft:planks"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "existing_changed",
+      "impl": "C",
+      "name": "Kitchen & Long Table",
+      "offers": "Build a Kitchen and a Dining Hall, and hire a Cook to feed the village.",
+      "details": [
+        "Kitchen and Dining Hall plans + Cook emblem",
+        "Dining Hall: recruit price -25% (with the Innkeeper, the cap is -50%)",
+        "Villages that owned the old Hall and Learning keep these plans"
+      ],
+      "flavor": "Everyone eats at the long table, and everyone has an opinion about the stew.",
+      "depends_on": [
+        "Cook emblem + release GameTests",
+        "Per-settler meal history (roadmap phase 4)",
+        "Thought bubbles"
+      ]
+    },
+    {
+      "id": "war_feast",
+      "tier": 2,
+      "type": "unlock",
+      "x": -241,
+      "y": 332,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 16,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:bread"
+        },
+        {
+          "count": 4,
+          "item": "hearthstead:ale"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "alehouse"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "War Feast",
+      "offers": "When a raid is warned and the stores hold 12 meals and 4 ale, the village feasts: guards fight 10% harder and hold their nerve that night.",
+      "details": [
+        "Automatic at the raid warning: 12 meals + 4 ale are taken from the Banner and Warehouses (all or nothing) and a war horn sounds",
+        "Until the dawn after the raid: guards and soldiers deal +10% damage",
+        "Feasted guards only fall back to eat below 15% health (normally 30%)",
+        "Short of food? A message tells you what is missing"
+      ],
+      "flavor": "Eat, drink, and let them hear us singing from the treeline.",
+      "depends_on": [
+        "Feast gathering event at the Banner",
+        "Courage flag for guards and civilians",
+        "Raid warning hook (RaidTelegraph exists)"
+      ]
+    },
+    {
+      "id": "two_storey_houses",
+      "tier": 2,
+      "type": "unlock",
+      "x": 253,
+      "y": 437,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 32,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:glass"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "sturdy_beds",
+        "first_raid_aftermath"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Townhouses",
+      "offers": "Townhouses: every House may hold two more settlers (bed cap 4 -> 6), and a House furnished to level 3 is a Townhouse.",
+      "details": [
+        "House bed cap 4 -> 6: up to 6 beds per House count for housing and recruitment",
+        "Without it, beds beyond the 4th in a House stay empty (nobody already living there is moved out)",
+        "Lodgings are unchanged (all their beds count)",
+        "A level-3 House is named a Townhouse on its plaque"
+      ],
+      "flavor": "Build up, not out, and put a window box on every sill.",
+      "depends_on": [
+        "Home-tier checklist (Requirement tiers)",
+        "Builder Upgrade Orders (optional helper)",
+        "Traveller skill roll by home tier"
+      ]
+    },
+    {
+      "id": "wayside_shrine",
+      "tier": 2,
+      "type": "choice",
+      "x": 88,
+      "y": 497,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 16,
+          "item": "minecraft:cobblestone"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:gold_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:candle"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath"
+      ],
+      "excludes": [
+        "alehouse"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Wayside Chapel",
+      "offers": "A small chapel: after every raid you hold, the village gives thanks and everyone's morale lifts.",
+      "details": [
+        "After every raid held: +5 morale for everyone, and the bells ring",
+        "Pick one: Chapel or Alehouse. The Chapel path leads to the Cathedral"
+      ],
+      "flavor": "Leave a coin, say a name, and the road is kinder.",
+      "depends_on": [
+        "Roguelike Blessings expansion (today 3 blessings: Warden's Oath, Hearthward, Thorned Roads)"
+      ]
+    },
+    {
+      "id": "alehouse",
+      "tier": 2,
+      "type": "choice",
+      "x": -88,
+      "y": 497,
+      "size": "M",
+      "coins": 6,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:barrel"
+        },
+        {
+          "count": 24,
+          "item": "minecraft:wheat"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "hospitality",
+        "first_raid_aftermath"
+      ],
+      "excludes": [
+        "wayside_shrine"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Alehouse",
+      "offers": "A proper alehouse: build a Brewery, hire a Brewer, and a pint lifts spirits more than ever.",
+      "details": [
+        "Brewery plan + Brewer emblem",
+        "A pint at the Tavern: morale 3 -> 5",
+        "Pick one: Chapel or Alehouse. The Alehouse path leads to the Hall of Revels"
+      ],
+      "flavor": "Brewed on Tuesday, gone by Thursday.",
+      "depends_on": [
+        "After-work Tavern visit (TavernVisitGoal extension)"
+      ]
+    },
+    {
+      "id": "infirmary",
+      "tier": 2,
+      "type": "unlock",
+      "x": -205,
+      "y": 461,
+      "size": "L",
+      "coins": 8,
+      "goods": [
+        {
+          "count": 8,
+          "tag": "minecraft:wool"
+        },
+        {
+          "count": 1,
+          "item": "minecraft:cauldron"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:bread"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "first_raid_aftermath",
+        "home"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "existing_changed",
+      "impl": "C",
+      "name": "Infirmary",
+      "offers": "Build an Infirmary: wounded settlers inside heal steadily.",
+      "details": [
+        "Infirmary plan",
+        "Wounded settlers inside a valid Infirmary heal 1 HP every 2 seconds (hearts show)",
+        "Healers are hired with Battle Healers"
+      ],
+      "flavor": "Boil the water, and fetch the priest only if I say so.",
+      "depends_on": [
+        "Downed state + permanent death (roadmap phase 3)",
+        "Carry animation"
+      ]
+    },
+    {
+      "id": "manors",
+      "tier": 3,
+      "type": "unlock",
+      "x": 344,
+      "y": 551,
+      "size": "M",
+      "coins": 14,
+      "goods": [
+        {
+          "count": 32,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:glass"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:bookshelf"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "two_storey_houses"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Manors",
+      "offers": "Manors: every House may hold two more settlers again, and a House furnished to level 4 becomes a Manor whose residents are happier.",
+      "details": [
+        "House bed cap 6 -> 8",
+        "Manor = House level 4: 5 lights, 2 storage, a solid floor, furnishing 6, a workbench and 25 floor space",
+        "Residents of a Manor or of a level-3 Lodging: +2 more morale"
+      ],
+      "flavor": "The oak panelling came from the lord's own forest.",
+      "depends_on": [
+        "Home-tier checklist (Requirement tiers)",
+        "Builder Upgrade Orders (optional helper)",
+        "Traveller skill roll by home tier"
+      ]
+    },
+    {
+      "id": "great_tavern",
+      "tier": 3,
+      "type": "unlock",
+      "x": 113,
+      "y": 640,
+      "size": "M",
+      "coins": 14,
+      "goods": [
+        {
+          "count": 32,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 6,
+          "tag": "minecraft:wool"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:bread"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "bards_songbook"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Rooms to Let",
+      "offers": "Your Tavern becomes a famous inn: minstrels and trade caravans visit twice as often.",
+      "details": [
+        "On an event day, the Minstrels and the trade Caravan are twice as likely to come"
+      ],
+      "flavor": "The best beds between here and the capital, and the loudest common room.",
+      "depends_on": [
+        "Event engine (roadmap phase 2)",
+        "Guest-room claims (TavernSeating extension)"
+      ]
+    },
+    {
+      "id": "harvest_feast",
+      "tier": 3,
+      "type": "unlock",
+      "x": -113,
+      "y": 640,
+      "size": "M",
+      "coins": 14,
+      "goods": [
+        {
+          "count": 48,
+          "item": "minecraft:bread"
+        },
+        {
+          "count": 16,
+          "item": "hearthstead:ale"
+        },
+        {
+          "count": 8,
+          "tag": "minecraft:wool"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "kitchen_and_hall",
+        "alehouse"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Harvest & Midsummer Festivals",
+      "offers": "Every 4 days at dawn the village holds a Harvest Feast: +15 morale and faster workshops for a day.",
+      "details": [
+        "Automatic at dawn every 4 days when the Banner and Warehouses hold 48 bread + 16 ale (all or nothing)",
+        "Everyone gains +15 morale",
+        "Until the next dawn every workshop crafts 10% faster",
+        "Short of food? A message says what is missing, and the feast tries again next dawn"
+      ],
+      "flavor": "Tables in the square, pipes in the lane, and nobody works till noon.",
+      "depends_on": [
+        "Festival event (event engine, roadmap phase 2)",
+        "Temporary decoration placement and cleanup"
+      ]
+    },
+    {
+      "id": "hall_of_heroes",
+      "tier": 3,
+      "type": "unlock",
+      "x": -344,
+      "y": 551,
+      "size": "M",
+      "coins": 14,
+      "goods": [
+        {
+          "count": 32,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:gold_ingot"
+        },
+        {
+          "count": 4,
+          "item": "minecraft:white_banner"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "infirmary"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Hall of Heroes",
+      "offers": "Honour the fallen: the village grieves half as much, and newcomers arrive in better spirits.",
+      "details": [
+        "Morale lost when a settler dies (-15) is halved",
+        "New recruits arrive with +5 morale"
+      ],
+      "flavor": "Read their names aloud. Then pick up your spear.",
+      "depends_on": [
+        "Named heroes + death records (roadmap phase 3)",
+        "Nemesis captains (RaidCaptain exists)",
+        "Memorial plaque block"
+      ]
+    },
+    {
+      "id": "hall_and_learning",
+      "tier": 3,
+      "type": "unlock",
+      "x": 279,
+      "y": 691,
+      "size": "L",
+      "coins": 14,
+      "goods": [
+        {
+          "count": 4,
+          "item": "minecraft:bookshelf"
+        },
+        {
+          "count": 8,
+          "tag": "minecraft:wool"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:bread"
+        }
+      ],
+      "study_days": 1,
+      "requires": [
+        "town_charter",
+        "hearth_doctrine"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:hall_and_learning",
+      "design_status": "existing_changed",
+      "impl": "C",
+      "name": "Families & School",
+      "offers": "School: new settlers arrive already trained, one level ahead in every trade.",
+      "details": [
+        "New recruits start at trade level 2 in every trade (instead of level 1)",
+        "School plan: while a valid School stands, new recruits start at trade level 3",
+        "Library plan (also with the Hearth Doctrine)"
+      ],
+      "flavor": "Her father was a smith. She will be a better one.",
+      "depends_on": [
+        "Relationships, families and children (roadmap phase 5)",
+        "Child model"
+      ]
+    },
+    {
+      "id": "cathedral",
+      "tier": 4,
+      "type": "capstone",
+      "x": 185,
+      "y": 871,
+      "size": "L",
+      "coins": 40,
+      "goods": [
+        {
+          "count": 96,
+          "item": "minecraft:stone_bricks"
+        },
+        {
+          "count": 16,
+          "item": "minecraft:gold_ingot"
+        },
+        {
+          "count": 8,
+          "item": "minecraft:book"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "wayside_shrine"
+      ],
+      "excludes": [
+        "hall_of_revels"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Cathedral",
+      "offers": "A cathedral rises over the town: after every raid you hold, the whole village's morale soars.",
+      "details": [
+        "After every raid held: +10 morale for everyone, on top of the Chapel's +5",
+        "Pick one: Cathedral (Chapel path) or Hall of Revels (Alehouse path)"
+      ],
+      "flavor": "Bells for the living, candles for the fallen.",
+      "depends_on": [
+        "Roguelike Blessings expansion"
+      ]
+    },
+    {
+      "id": "hall_of_revels",
+      "tier": 4,
+      "type": "capstone",
+      "x": -185,
+      "y": 871,
+      "size": "L",
+      "coins": 40,
+      "goods": [
+        {
+          "count": 64,
+          "tag": "minecraft:planks"
+        },
+        {
+          "count": 16,
+          "item": "hearthstead:wool_bolt"
+        },
+        {
+          "count": 32,
+          "item": "hearthstead:ale"
+        }
+      ],
+      "study_days": 2,
+      "requires": [
+        "castle_charter",
+        "alehouse",
+        "great_tavern"
+      ],
+      "excludes": [
+        "cathedral"
+      ],
+      "gates": [],
+      "gate_text": "",
+      "design_status": "new",
+      "impl": "C",
+      "name": "Hall of Revels",
+      "offers": "The greatest hall in the land: the house matches every Coin travellers pay for meals, and the bard lifts spirits twice as high.",
+      "details": [
+        "Every Coin a traveller pays for a Tavern meal earns 1 more Coin into the Banner or a Warehouse",
+        "The bard's evening morale lift is doubled (8 -> 16 with the Songbook)",
+        "Pick one: Hall of Revels (Alehouse path) or Cathedral (Chapel path)"
+      ],
+      "flavor": "Ale, song, and a joust at noon.",
+      "depends_on": [
+        "Event engine",
+        "Guard sparring"
+      ]
+    },
+    {
+      "id": "shore_provisions",
+      "tier": 1,
+      "type": "unlock",
+      "x": -261,
+      "y": -46,
+      "size": "S",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 4,
+          "tag": "minecraft:logs"
+        },
+        {
+          "count": 2,
+          "item": "minecraft:string"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:shore_provisions",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Fishery",
+      "offers": "Build a Fishery; a Fisher lands food from day one, and rare catches for trade.",
+      "details": [
+        "Fishery plan + Fisher emblem (2 Coins, 2 string)",
+        "Rare fish (perch, trout, pike, golden char) sell to merchants",
+        "Carry the catch home yourself until a Warehouse and a Courier exist"
+      ],
+      "flavor": "The river pays in silver scales.",
+      "depends_on": [],
+      "founding": true
+    },
+    {
+      "id": "cultivated_ground",
+      "tier": 1,
+      "type": "unlock",
+      "x": -261,
+      "y": 46,
+      "size": "S",
+      "coins": 2,
+      "goods": [
+        {
+          "count": 8,
+          "item": "minecraft:wheat_seeds"
+        },
+        {
+          "count": 4,
+          "tag": "minecraft:logs"
+        }
+      ],
+      "study_days": 0,
+      "requires": [
+        "settlement_charter"
+      ],
+      "excludes": [],
+      "gates": [],
+      "gate_text": "",
+      "legacy": "node:cultivated_ground",
+      "design_status": "existing_changed",
+      "impl": "A",
+      "name": "Fields & Farmer",
+      "offers": "Build a Farmhouse and hire a Farmer who sows, reaps and stores wheat.",
+      "details": [
+        "Farmhouse plan + Farmer emblem (2 Coins, 8 seeds, 1 leather)",
+        "Crop Rotation research: +15% crop growth"
+      ],
+      "flavor": "Bread starts in the mud.",
+      "depends_on": [],
+      "founding": true
+    }
+  ]
+}

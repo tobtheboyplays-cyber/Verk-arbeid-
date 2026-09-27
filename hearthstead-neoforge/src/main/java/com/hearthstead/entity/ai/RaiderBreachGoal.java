@@ -1,16 +1,21 @@
 package com.hearthstead.entity.ai;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.registry.ModSounds;
+import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.raid.RaidDirector;
+import com.hearthstead.settlement.warehouse.WarehouseIndex;
+import com.hearthstead.settlement.work.ContainerApproach;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
+import net.minecraft.world.Container;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ai.goal.Goal;
 import net.minecraft.world.item.Items;
@@ -202,7 +207,8 @@ public class RaiderBreachGoal extends Goal {
             return false;
         }
         BlockPos here = raider.blockPosition();
-        if (here.distSqr(destination) <= REACH_SQR) {
+        if (here.distSqr(destination) <= REACH_SQR
+            && !needsPhysicalStoreAccess(level, settlement)) {
             stuckAnchor = null; // already there; nothing to breach
             return false;
         }
@@ -256,6 +262,53 @@ public class RaiderBreachGoal extends Goal {
             return liveTarget.blockPosition();
         }
         return raider.objectivePos();
+    }
+
+    /**
+     * KORN may stand inside the old destination radius while a solid wall
+     * still separates it from its actual, nonempty warehouse container.
+     * Scan only the settlement's existing bounded warehouse indices; this
+     * lets the normal stationary breach path run without granting loot.
+     */
+    private boolean needsPhysicalStoreAccess(ServerLevel level,
+                                             Settlement settlement) {
+        if (raider.objective() != com.hearthstead.settlement.raid.RaidObjective.KORN) {
+            return false;
+        }
+        Entity liveTarget = raider.getTarget();
+        if ((liveTarget != null && liveTarget.isAlive()) || raider.lootCount() > 0) {
+            return false;
+        }
+        BlockPos here = raider.blockPosition();
+        for (Building building : settlement.buildings) {
+            if (!building.valid || building.type != BuildingType.WAREHOUSE
+                || building.bounds == null) {
+                continue;
+            }
+            for (BlockPos storePos : WarehouseIndex.containers(level, building)) {
+                if (!building.bounds.isInside(storePos)
+                    || here.distSqr(storePos) > ContainerApproach.CONTACT_DISTANCE_SQR) {
+                    continue;
+                }
+                if (hasContents(level, storePos)
+                    && !ContainerApproach.hasPhysicalContact(level, raider, storePos)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasContents(ServerLevel level, BlockPos pos) {
+        if (!(level.getBlockEntity(pos) instanceof Container container)) {
+            return false;
+        }
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            if (!container.getItem(slot).isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -400,7 +453,9 @@ public class RaiderBreachGoal extends Goal {
             return;
         }
         hitsLanded++;
-        int maxHits = isDoor ? DOOR_HITS : WALL_HITS;
+        // Tech tree: Palisade (x2) / Stone Walls (x3) on the Builder's lines.
+        int maxHits = isDoor ? DOOR_HITS : com.hearthstead.settlement.techtree.effects.WatchEffects
+            .wallHits(level, raider.settlement(), target, WALL_HITS);
         int stage = Mth.clamp(Math.round(hitsLanded / (float) maxHits * 9.0F), 0, 9);
         level.destroyBlockProgress(raider.getId(), target, stage);
         level.playSound(null, target, soundFor(state), SoundSource.HOSTILE, 1.0F,

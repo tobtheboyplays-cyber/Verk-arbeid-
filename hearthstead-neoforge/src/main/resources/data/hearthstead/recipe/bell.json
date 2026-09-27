@@ -7,9 +7,14 @@
     " I "
   ],
   "key": {
-    "G": {
-      "item": "minecraft:gold_ingot"
-    },
+    "G": [
+      {
+        "item": "minecraft:gold_ingot"
+      },
+      {
+        "item": "minecraft:copper_ingot"
+      }
+    ],
     "S": {
       "item": "minecraft:stick"
     },

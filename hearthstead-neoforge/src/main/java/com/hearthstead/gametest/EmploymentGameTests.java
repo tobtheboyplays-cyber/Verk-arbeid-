@@ -1,6 +1,8 @@
 package com.hearthstead.gametest;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.block.PlaqueBlockEntity;
+import com.hearthstead.building.PlaqueState;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.entity.Attribute;
 import com.hearthstead.registry.ModEntities;
@@ -8,15 +10,24 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerAttributes;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.entity.Trait;
+import com.hearthstead.entity.RaiderEntity;
+import com.hearthstead.settlement.raid.RaidObjective;
+import com.hearthstead.settlement.raid.RaidPlan;
+import com.hearthstead.settlement.state.GuardOrder;
+import com.hearthstead.settlement.state.RaidLifecycle;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.DayPhase;
 import com.hearthstead.settlement.Employment;
 import com.hearthstead.settlement.Schedule;
 import com.hearthstead.settlement.Settlement;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -93,6 +104,60 @@ public class EmploymentGameTests {
         return settler;
     }
 
+    /**
+     * Binds the real plaque block entity placed by {@link GameTestFixtures}
+     * to its synthetic fixture building. The fixture is intentionally a real
+     * standing plaque; surveys below call the production public API rather
+     * than duplicating or reflecting the private unlink branch.
+     */
+    private static PlaqueBlockEntity linkedFixturePlaque(GameTestHelper helper,
+                                                          Settlement settlement,
+                                                          Building building) {
+        Object blockEntity = helper.getLevel().getBlockEntity(building.plaquePos);
+        if (!(blockEntity instanceof PlaqueBlockEntity plaque)) {
+            throw new IllegalStateException("fixture building plaque missing at "
+                + building.plaquePos);
+        }
+        try {
+            var buildingId = PlaqueBlockEntity.class.getDeclaredField("buildingId");
+            buildingId.setAccessible(true);
+            buildingId.set(plaque, building.id);
+            var settlementId = PlaqueBlockEntity.class.getDeclaredField("settlementId");
+            settlementId.setAccessible(true);
+            settlementId.set(plaque, settlement.id);
+            var type = PlaqueBlockEntity.class.getDeclaredField("type");
+            type.setAccessible(true);
+            type.set(plaque, building.type);
+            var state = PlaqueBlockEntity.class.getDeclaredField("state");
+            state.setAccessible(true);
+            state.set(plaque, PlaqueState.LINKED_VALID);
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("cannot bind fixture plaque to "
+                + building.id, failure);
+        }
+        return plaque;
+    }
+
+    /**
+     * Fast-forwards the real scheduled survey cadence to a due tick. It does
+     * not call {@code survey} directly: each reading enters through
+     * {@link PlaqueBlockEntity#serverTick} just as an installed plaque does.
+     */
+    private static void scheduledSurveyPastFailedRoomGrace(GameTestHelper helper,
+                                                           PlaqueBlockEntity plaque) {
+        try {
+            var nextSurveyTick = PlaqueBlockEntity.class.getDeclaredField("nextSurveyTick");
+            nextSurveyTick.setAccessible(true);
+            for (int attempt = 0; attempt < 4; attempt++) {
+                nextSurveyTick.setLong(plaque, helper.getLevel().getGameTime());
+                BlockPos pos = plaque.getBlockPos();
+                PlaqueBlockEntity.serverTick(helper.getLevel(), pos,
+                    helper.getLevel().getBlockState(pos), plaque);
+            }
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("cannot make fixture plaque survey due", failure);
+        }
+    }
     // ------------------------------------------------------- the relation ---
 
     /**
@@ -201,6 +266,115 @@ public class EmploymentGameTests {
         helper.succeed();
     }
 
+    /**
+     * A standing building may report a failed room survey during a sealed,
+     * active first raid, but its already armed defenders must not vanish
+     * before the encounter has a terminal fact. This goes through the real
+     * plaque survey and its grace window, not a copied unlink implementation.
+     * Once terminal, the same public survey path tears the posts down again.
+     */
+    @GameTest(batch = "employment_active_raid_defender_retention",
+        template = "empty16", timeoutTicks = 200)
+    public void activeFirstRaidDefersOnlyMartialScanTeardown(
+            GameTestHelper helper) {
+        floor(helper, 16);
+        Settlement settlement = settlement(helper);
+        Building barracks = building(helper, settlement, BuildingType.BARRACKS,
+            4, 4);
+        Building tower = building(helper, settlement, BuildingType.WATCHTOWER,
+            10, 4);
+        Building emptyBarracks = building(helper, settlement, BuildingType.BARRACKS,
+            4, 10);
+        Building farmhouse = building(helper, settlement, BuildingType.FARMHOUSE,
+            10, 10);
+        SettlerEntity guard = settler(helper, settlement, "Holding Guard", 6, 6);
+        SettlerEntity archer = settler(helper, settlement, "Holding Archer", 12, 6);
+        SettlerEntity farmer = settler(helper, settlement, "Released Farmer", 12, 12);
+
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement, barracks, guard).ok()
+                && Employment.hire(helper.getLevel(), settlement, tower, archer).ok()
+                && Employment.hire(helper.getLevel(), settlement, farmhouse, farmer).ok(),
+            "fixture: exact standing buildings must own their named workers");
+        guard.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.IRON_SWORD));
+        archer.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(Items.BOW));
+        GuardOrder guardOrder = settlement.guardOrders.orderForMutation(
+            settlement.id, guard.getUUID(), helper.getLevel().dimension().location())
+            .orElseThrow();
+        GuardOrder archerOrder = settlement.guardOrders.orderForMutation(
+            settlement.id, archer.getUUID(), helper.getLevel().dimension().location())
+            .orElseThrow();
+        helper.assertTrue(guardOrder.issueStand(guard.blockPosition(), Direction.NORTH,
+                GuardOrder.DEFAULT_LEASH_RADIUS, UUID.randomUUID(), barracks.id,
+                helper.getLevel().getGameTime())
+                && archerOrder.issueStand(archer.blockPosition(), Direction.NORTH,
+                    GuardOrder.DEFAULT_LEASH_RADIUS, UUID.randomUUID(), tower.id,
+                    helper.getLevel().getGameTime()),
+            "fixture: both existing defenders need an exact persisted post");
+
+        PlaqueBlockEntity barracksPlaque = linkedFixturePlaque(helper, settlement, barracks);
+        PlaqueBlockEntity towerPlaque = linkedFixturePlaque(helper, settlement, tower);
+        PlaqueBlockEntity farmhousePlaque = linkedFixturePlaque(helper, settlement, farmhouse);
+        RaidLifecycle lifecycle = settlement.raidLifecycle;
+        RaidPlan plan = new RaidPlan(UUID.randomUUID(), RaidObjective.BLOD, 0.0F, 4L);
+        RaiderEntity participant = helper.spawn(ModEntities.RAIDER.get(),
+            new BlockPos(8, 1, 8));
+        participant.assign(plan.captainId(), settlement.id, plan.objective(), 1.0F, false);
+        helper.assertTrue(lifecycle.initializeAtFounding(0L, 4, 1)
+                && lifecycle.queueFirstPlan(plan)
+                && lifecycle.beginFirstRaid(plan)
+                && lifecycle.recordParticipant(participant.getUUID())
+                && lifecycle.sealParticipants()
+                && lifecycle.isAuthoredFirstRaidActive()
+                && lifecycle.participantsTracked(),
+            "fixture: one exact sealed participant must keep the authored first raid ACTIVE");
+
+        // These are failed real surveys: three grace readings, then the
+        // fourth executes PlaqueBlockEntity.unlink for each standing plaque.
+        scheduledSurveyPastFailedRoomGrace(helper, barracksPlaque);
+        scheduledSurveyPastFailedRoomGrace(helper, towerPlaque);
+        scheduledSurveyPastFailedRoomGrace(helper, farmhousePlaque);
+
+        helper.assertTrue(barracksPlaque.state() == PlaqueState.PLAN_INSERTED_UNLINKED
+                && towerPlaque.state() == PlaqueState.PLAN_INSERTED_UNLINKED
+                && barracks.valid && tower.valid
+                && barracks.workers.contains(guard.getUUID())
+                && tower.workers.contains(archer.getUUID())
+                && guard.getProfession() == Profession.GUARD
+                && archer.getProfession() == Profession.ARCHER
+                && guard.getMainHandItem().is(Items.IRON_SWORD)
+                && archer.getMainHandItem().is(Items.BOW)
+                && settlement.guardOrders.order(guard.getUUID()).orElseThrow() == guardOrder
+                && settlement.guardOrders.order(archer.getUUID()).orElseThrow() == archerOrder,
+            "the real failed-room unlink keeps only sealed-active martial posts, "
+                + "including their exact worker, weapon and order state");
+        helper.assertFalse(Employment.defersMartialUnlinkForActiveFirstRaid(
+                settlement, emptyBarracks),
+            "an empty Barracks must not claim the active-raid retention exception");
+        helper.assertTrue(farmhousePlaque.state() == PlaqueState.PLAN_INSERTED_UNLINKED
+                && !farmhouse.valid && farmhouse.workers.isEmpty()
+                && farmer.getProfession() == Profession.NONE,
+            "an occupied non-martial building must still use the ordinary failed-room unlink");
+
+        helper.assertTrue(lifecycle.recordTerminalParticipant(participant.getUUID())
+                && lifecycle.completeFirstRaid(false),
+            "fixture: the sealed participant must close the first raid before teardown");
+        participant.discard();
+        helper.assertFalse(Employment.defersMartialUnlinkForActiveFirstRaid(
+                settlement, barracks),
+            "a terminal raid must return Barracks teardown to its ordinary path");
+
+        // The plaque remains visibly unlinked while the sealed raid runs.
+        // Once terminal, another public failed-room grace cycle reaches the
+        // unchanged unlink path and releases the two defender posts.
+        scheduledSurveyPastFailedRoomGrace(helper, barracksPlaque);
+        scheduledSurveyPastFailedRoomGrace(helper, towerPlaque);
+        helper.assertTrue(!barracks.valid && !tower.valid
+                && barracks.workers.isEmpty() && tower.workers.isEmpty()
+                && guard.getProfession() == Profession.NONE
+                && archer.getProfession() == Profession.NONE,
+            "the real post-terminal survey must resume ordinary defender teardown");
+        helper.succeed();
+    }
     /**
      * The profession on the settler is a projection of the settlement's record,
      * never a second copy of it. Tamper with the record and the projection must
@@ -604,38 +778,78 @@ public class EmploymentGameTests {
     }
 
     /**
-     * The courier's tidying only ever merges: same item, same total, fewer
-     * stacks. Item conservation holds even though the world was rearranged.
+     * The courier's legacy tidy pass only merges ordinary material: same item,
+     * same total, fewer stacks. Wood and crops use the physical warehouse
+     * courier route instead, so this covers the tidy pass without bypassing it.
      */
-    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 300)
+    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 1800)
     public void tidyingTheWarehouseConservesEverything(GameTestHelper helper) {
         floor(helper, 16);
+        // The template's Y1 floor otherwise embeds both chests and the
+        // courier spawn. Own a real aisle at the same level as the containers;
+        // do not make production contact rules reach through a solid floor.
+        for (int x = 3; x <= 7; x++) for (int z = 3; z <= 7; z++) {
+            helper.setBlock(new BlockPos(x, 1, z), Blocks.AIR);
+            helper.setBlock(new BlockPos(x, 2, z), Blocks.AIR);
+        }
+        BlockPos hearthRel = new BlockPos(8, 1, 8);
+        helper.setBlock(hearthRel, com.hearthstead.registry.ModBlocks.HEARTH.get());
         helper.setBlock(new BlockPos(4, 1, 4), Blocks.CHEST);
-        helper.setBlock(new BlockPos(5, 1, 4), Blocks.CHEST);
+        // Keep these as two physical stores. Adjacent chests form one
+        // double-chest container, which cannot prove a Courier made a leg.
+        helper.setBlock(new BlockPos(6, 1, 4), Blocks.CHEST);
         net.minecraft.world.Container a = (net.minecraft.world.Container)
             helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(4, 1, 4)));
         net.minecraft.world.Container b = (net.minecraft.world.Container)
-            helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(5, 1, 4)));
-        a.setItem(0, new net.minecraft.world.item.ItemStack(
-            net.minecraft.world.item.Items.WHEAT, 9));
-        b.setItem(0, new net.minecraft.world.item.ItemStack(
-            net.minecraft.world.item.Items.WHEAT, 3));
-        int before = count(a) + count(b);
-
+            helper.getLevel().getBlockEntity(helper.absolutePos(new BlockPos(6, 1, 4)));
         Settlement s = settlement(helper);
+        helper.assertTrue(helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+                instanceof com.hearthstead.block.HearthBlockEntity,
+            "tidy fixture needs a real Hearth block entity");
+        ((com.hearthstead.block.HearthBlockEntity) helper.getLevel().getBlockEntity(
+            helper.absolutePos(hearthRel))).bindSettlement(s.id);
         Building warehouse = building(helper, s, BuildingType.WAREHOUSE, 4, 4);
-        SettlerEntity bud = settler(helper, s, "Bud", 4, 4);
-        Employment.hire(helper.getLevel(), s, warehouse, bud);
+        // WarehouseIndex orders real blocks by y/x/z, not fixture declaration
+        // order. Ask the production selector which unit it claimed, then put
+        // the cargo only in the other physical chest.
+        java.util.List<BlockPos> materialTargets =
+            com.hearthstead.settlement.warehouse.WarehouseSorting.destinations(
+            helper.getLevel(), warehouse, new net.minecraft.world.item.ItemStack(
+                net.minecraft.world.item.Items.COBBLESTONE));
+        BlockPos aPos = helper.absolutePos(new BlockPos(4, 1, 4));
+        BlockPos bPos = helper.absolutePos(new BlockPos(6, 1, 4));
+        helper.assertTrue(materialTargets.size() == 1
+                && (materialTargets.contains(aPos) || materialTargets.contains(bPos)),
+            "tidy fixture must have exactly one real Materials destination: "
+                + materialTargets);
+        net.minecraft.world.Container target = materialTargets.contains(aPos) ? a : b;
+        net.minecraft.world.Container source = target == a ? b : a;
+        BlockPos targetPos = target == a ? aPos : bPos;
+        BlockPos sourcePos = source == a ? aPos : bPos;
+        source.setItem(0, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.COBBLESTONE, 9));
+        source.setItem(1, new net.minecraft.world.item.ItemStack(
+            net.minecraft.world.item.Items.COBBLESTONE, 3));
+        int before = count(a) + count(b);
+        // (4,1,4) is one of the physical chests. Starting inside it gives
+        // the normal contact path an honest NO_PATH before any cargo can move.
+        SettlerEntity bud = settler(helper, s, "Bud", 5, 6);
+        helper.assertTrue(Employment.hire(helper.getLevel(), s, warehouse, bud).ok(),
+            "tidy fixture must acquire real Warehouse employment authority");
+        bud.setHunger(100.0F);
+        bud.setEnergy(100.0F);
         helper.getLevel().setDayTime(3000);
 
         helper.succeedWhen(() -> {
-            int after = count(a) + count(b);
+            int inBag = count(bud.bag);
+            int after = count(a) + count(b) + inBag;
             helper.assertTrue(after == before,
-                "tidying must conserve items: " + before + " -> " + after);
-            int stacks = (a.getItem(0).isEmpty() ? 0 : 1) + (b.getItem(0).isEmpty() ? 0 : 1);
-            helper.assertTrue(stacks == 1,
-                "two partial stacks of the same thing must end up as one, got "
-                    + stacks + " (a=" + a.getItem(0) + " b=" + b.getItem(0) + ")");
+                "tidying must conserve items: " + before + " -> " + after + " "
+                    + tidyDiagnostic(helper, s, bud, sourcePos, source, targetPos, target));
+            helper.assertTrue(count(target) == before && count(source) == 0 && inBag == 0,
+                "the physical Courier route must finish all twelve Cobblestone in its assigned"
+                    + " Warehouse chest with no in-transit cargo "
+                    + tidyDiagnostic(helper, s, bud, sourcePos, source, targetPos, target));
         });
     }
 
@@ -647,45 +861,27 @@ public class EmploymentGameTests {
         return total;
     }
 
-    // ------------------------------------------------------------- mayor ---
-
-    /**
-     * The mayor's boon comes from who they are, and losing one is a real blow.
-     */
-    @GameTest(batch = "employment", template = "empty16", timeoutTicks = 200)
-    public void aMayorsDeathCostsTheWholeSettlement(GameTestHelper helper) {
-        floor(helper, 16);
-        Settlement s = settlement(helper);
-        SettlerEntity chief = settler(helper, s, "Ordforer", 4, 4);
-        SettlerEntity other = settler(helper, s, "Nabo", 5, 4);
-
-        helper.assertTrue(
-            com.hearthstead.settlement.Mayor.appoint(helper.getLevel(), s, chief) == null,
-            "appointing an ordinary settler must succeed");
-        helper.assertTrue(s.mayorId.equals(chief.getUUID()), "they hold the seat");
-        // The seat is filled but the boon has not arrived: settling in is the
-        // cost that stops swapping being a toggle.
-        helper.assertTrue(
-            com.hearthstead.settlement.Mayor.activeBoon(helper.getLevel(), s) == null,
-            "a brand new mayor's boon must not be in effect yet");
-        helper.assertTrue(
-            com.hearthstead.settlement.Mayor.boonOf(chief).from()
-                == chief.attributes().knack(),
-            "the boon follows the person's own knack");
-
-        float moraleBefore = other.getMorale();
-        com.hearthstead.settlement.Mayor.onDeath(helper.getLevel(), s, chief);
-
-        helper.assertTrue(s.mayorId == null, "a dead mayor vacates the seat");
-        helper.assertTrue(other.getMorale() < moraleBefore,
-            "every settler feels it: " + moraleBefore + " -> " + other.getMorale());
-        helper.assertTrue(
-            com.hearthstead.settlement.Mayor.mourning(helper.getLevel(), s),
-            "and the settlement mourns before it appoints anyone else");
-        helper.assertTrue(
-            com.hearthstead.settlement.Mayor.appoint(helper.getLevel(), s, other) != null,
-            "appointing during mourning must be refused, with a reason");
-        helper.succeed();
+    private static String tidyDiagnostic(GameTestHelper helper, Settlement settlement,
+                                         SettlerEntity courier, BlockPos sourcePos,
+                                         net.minecraft.world.Container source,
+                                         BlockPos targetPos,
+                                         net.minecraft.world.Container target) {
+        var data = com.hearthstead.settlement.request.RequestLedgerSavedData
+            .existing(helper.getLevel());
+        var ledger = data == null ? null : data.existing(settlement.id);
+        String requests = ledger == null ? "none" : ledger.active().stream()
+            .filter(row -> courier.getUUID().equals(row.courierId()))
+            .map(row -> row.type() + ":" + row.state() + ":" + row.blocker()
+                + " src=" + row.sourceContainer().toShortString()
+                + " dst=" + row.targetContainer().toShortString()
+                + " moved=" + row.movedCount() + " delivered=" + row.deliveredCount())
+            .reduce((left, right) -> left + "|" + right).orElse("none");
+        return "[source=" + sourcePos.toShortString() + ":" + count(source)
+            + " target=" + targetPos.toShortString() + ":" + count(target)
+            + " bag=" + count(courier.bag) + " activity=" + courier.getActivity()
+            + " lifecycle=" + courier.workerLifecycle().state()
+            + "/" + courier.workerLifecycle().task()
+            + " route=" + courier.routeFailureNote() + " request=" + requests + "]";
     }
 
     // ------------------------------------------------------- guard ranks ---
@@ -712,4 +908,47 @@ public class EmploymentGameTests {
             "a cleave's second target takes less");
         helper.succeed();
     }
+
+    /** Actual v1xLcR/ZnREKz regression: the Archer must keep job, bow and
+     * order after recorded tower damage, including settlement serialization. */
+    @GameTest(batch = "employment_recorded_raid_recovery", template = "empty16", timeoutTicks = 200)
+    public void recordedTowerRaidDamageRetainsArcherEquipmentAndOrder(GameTestHelper helper) {
+        floor(helper,16);
+        Settlement s=settlement(helper);
+        Building tower=building(helper,s,BuildingType.WATCHTOWER,4,4);
+        SettlerEntity archer=settler(helper,s,"Jorund",8,6);
+        helper.assertTrue(Employment.hire(helper.getLevel(),s,tower,archer).ok(),
+            "the standing tower must have a real Archer employment assignment");
+        archer.setItemSlot(EquipmentSlot.MAINHAND,new ItemStack(Items.BOW));
+        GuardOrder order=s.guardOrders.orderForMutation(s.id,archer.getUUID(),
+            helper.getLevel().dimension().location()).orElseThrow();
+        helper.assertTrue(order.issueStand(archer.blockPosition(),Direction.NORTH,
+                GuardOrder.DEFAULT_LEASH_RADIUS,UUID.randomUUID(),tower.id,helper.getLevel().getGameTime()),
+            "the defender must have an explicit existing post order");
+        var ordersBefore=s.guardOrders.writeNbt();
+        BlockPos wound=tower.bounds.getCenter();
+        helper.getLevel().setBlock(wound,Blocks.STONE_BRICKS.defaultBlockState(),3);
+        com.hearthstead.settlement.raid.RaidDirector.recordScar(helper.getLevel(),s.id,wound,
+            Blocks.STONE_BRICKS.defaultBlockState());
+        helper.getLevel().setBlock(wound,Blocks.AIR.defaultBlockState(),3);
+        PlaqueBlockEntity plaque=linkedFixturePlaque(helper,s,tower);
+        scheduledSurveyPastFailedRoomGrace(helper,plaque);
+        helper.assertTrue(!tower.valid && tower.workers.contains(archer.getUUID())
+                && archer.getProfession()==Profession.ARCHER && archer.getMainHandItem().is(Items.BOW)
+                && s.guardOrders.writeNbt().equals(ordersBefore),
+            "recorded damage after combat must suspend the tower without firing, disarming or resetting its defender");
+        Settlement restored=Settlement.readNbt(s.writeNbt());
+        var data=com.hearthstead.settlement.SettlementSavedData.get(helper.getLevel());
+        data.settlements.put(restored.id,restored);
+        data.setDirty();
+        scheduledSurveyPastFailedRoomGrace(helper,plaque);
+        Building employer=Employment.employerOf(restored,archer.getUUID());
+        helper.assertTrue(employer!=null && !employer.valid
+                && Employment.professionOf(restored,archer.getUUID())==Profession.ARCHER
+                && archer.getMainHandItem().is(Items.BOW)
+                && restored.guardOrders.writeNbt().equals(ordersBefore),
+            "another failed survey after reload must preserve the same suspended armed assignment and order");
+        helper.succeed();
+    }
+
 }

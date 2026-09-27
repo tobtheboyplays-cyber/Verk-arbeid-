@@ -33,13 +33,18 @@ public record EquipmentRequestListPayload(int courierEntityId,
     public record Row(UUID requestId, UUID requesterId, String requesterName,
                       UUID destinationBuildingId, String destinationType,
                       int queuePosition, int priorityWireId, int statusWireId,
-                      ItemStack item, int count, int reasonWireId) {
+                      ItemStack item, int count, int reasonWireId,
+                      int requestStateWireId, int blockerWireId,
+                      int physicalOwnerWireId, long ageTicks,
+                      String courierName, boolean fullTransportTrace) {
         public Row {
             requesterName = requesterName == null ? "" : requesterName;
             destinationType = destinationType == null ? "" : destinationType;
+            courierName = courierName == null ? "" : courierName;
             item = item == null ? ItemStack.EMPTY : item.copy();
             count = Math.max(1, count);
             queuePosition = Math.max(1, queuePosition);
+            ageTicks = Math.max(-1L, ageTicks);
         }
     }
 
@@ -85,6 +90,12 @@ public record EquipmentRequestListPayload(int courierEntityId,
             ItemStack.STREAM_CODEC.encode(buf, row.item);
             buf.writeVarInt(row.count);
             buf.writeVarInt(row.reasonWireId);
+            buf.writeVarInt(row.requestStateWireId);
+            buf.writeVarInt(row.blockerWireId);
+            buf.writeVarInt(row.physicalOwnerWireId);
+            buf.writeVarLong(row.ageTicks);
+            buf.writeUtf(row.courierName, 64);
+            buf.writeBoolean(row.fullTransportTrace);
         }
         UUIDUtil.STREAM_CODEC.encode(buf, snapshot.nextRequestId);
     }
@@ -110,7 +121,9 @@ public record EquipmentRequestListPayload(int courierEntityId,
                 UUIDUtil.STREAM_CODEC.decode(buf), buf.readUtf(64),
                 buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
                 ItemStack.STREAM_CODEC.decode(buf),
-                Math.max(1, buf.readVarInt()), buf.readVarInt()));
+                Math.max(1, buf.readVarInt()), buf.readVarInt(),
+                buf.readVarInt(), buf.readVarInt(), buf.readVarInt(),
+                buf.readVarLong(), buf.readUtf(64), buf.readBoolean()));
         }
         UUID nextRequestId = UUIDUtil.STREAM_CODEC.decode(buf);
         return new EquipmentRequestListPayload(courierEntityId, courierId,

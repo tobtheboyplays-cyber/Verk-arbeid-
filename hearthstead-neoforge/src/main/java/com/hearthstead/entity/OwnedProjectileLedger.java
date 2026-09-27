@@ -38,6 +38,17 @@ public final class OwnedProjectileLedger {
                                 long countBefore, long countAfter) {
     }
 
+    /**
+     * Read-only authority carried by the projectile itself.  Unlike a contact
+     * commit, this inspection does not require the owner entity to be loaded:
+     * incoming-damage policy needs to recognize an owned arrow precisely when
+     * that owner cannot be resolved and fail closed instead of treating it as
+     * an ordinary vanilla projectile.
+     */
+    public record Inspection(UUID projectileId, UUID ownerId,
+                             long committedContacts) {
+    }
+
     /** Issues ownership once; existing or malformed data is never overwritten. */
     public static boolean issue(AbstractArrow arrow, SettlerEntity archer) {
         if (arrow == null || archer == null
@@ -103,12 +114,40 @@ public final class OwnedProjectileLedger {
     }
 
     public static long committedCount(AbstractArrow arrow) {
-        if (arrow == null || !(arrow.getOwner() instanceof SettlerEntity archer)) {
-            return -1L;
+        Inspection inspection = inspect(arrow);
+        return inspection == null ? -1L : inspection.committedContacts();
+    }
+
+    /** True for any projectile which contains the Hearthstead authority key. */
+    public static boolean claimsOwnership(AbstractArrow arrow) {
+        return arrow != null && arrow.getPersistentData().contains(ROOT_KEY);
+    }
+
+    /**
+     * Strictly validates the self-contained projectile ledger without
+     * consulting {@link AbstractArrow#getOwner()}.  A null result means the
+     * claim is malformed or copied and must never grant gameplay authority.
+     */
+    @Nullable
+    public static Inspection inspect(AbstractArrow arrow) {
+        return arrow == null ? null
+            : inspect(arrow.getPersistentData(), arrow.getUUID());
+    }
+
+    @Nullable
+    static Inspection inspect(CompoundTag persistentData, UUID projectileId) {
+        if (persistentData == null || !validId(projectileId)
+            || !persistentData.contains(ROOT_KEY, Tag.TAG_COMPOUND)) {
+            return null;
         }
-        State state = read(arrow.getPersistentData(), arrow.getUUID(),
-            archer.getUUID());
-        return state == null ? -1L : state.count;
+        CompoundTag tag = persistentData.getCompound(ROOT_KEY);
+        if (!tag.hasUUID(KEY_OWNER)) {
+            return null;
+        }
+        UUID ownerId = tag.getUUID(KEY_OWNER);
+        State state = read(persistentData, projectileId, ownerId);
+        return state == null ? null : new Inspection(state.projectileId,
+            state.ownerId, state.count);
     }
 
     @Nullable

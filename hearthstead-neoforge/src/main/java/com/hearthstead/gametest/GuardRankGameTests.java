@@ -170,7 +170,7 @@ public class GuardRankGameTests {
      * reached" record, so armor tracks whatever {@link GuardRank#of} reads
      * off <i>current</i> Strength. Proven here by forcing Strength down after
      * it earned CAPTAIN's full iron, and watching the kit follow it back down
-     * to VETERAN's -- never staying stuck one tier above what the guard
+     * to SPEARMAN's -- never staying stuck one tier above what the guard
      * currently measures up to.
      */
     @GameTest(batch = "guard_rank", template = "empty16", timeoutTicks = 400)
@@ -196,25 +196,29 @@ public class GuardRankGameTests {
                 "a Captain must be in full iron before this test can mean anything, head="
                     + guard.getItemBySlot(EquipmentSlot.HEAD) + " chest="
                     + guard.getItemBySlot(EquipmentSlot.CHEST));
-            // Land exactly on 50 (VETERAN's band: 40 <= v < 60), whatever the
-            // training loop's own overshoot past 80 happened to leave.
+            // Land exactly on 30 (SPEARMAN's band: 20 <= v < 40), whatever the
+            // training loop's own overshoot past 80 happened to leave. Gear
+            // Tiers (GearTier): a Veteran may keep iron plate when the
+            // settlement has an Armoury, so the demotion must go below
+            // Veteran for the iron to be handed back.
             int current = guard.attribute(Attribute.STRENGTH);
-            guard.attributes().penalise(current - 50);
-            helper.assertTrue(guard.attribute(Attribute.STRENGTH) == 50,
+            guard.attributes().penalise(current - 30);
+            helper.assertTrue(guard.attribute(Attribute.STRENGTH) == 30,
                 "penalise must land exactly on the target, got "
                     + guard.attribute(Attribute.STRENGTH));
         });
 
         helper.succeedWhen(() -> {
-            helper.assertTrue(GuardRank.of(guard) == GuardRank.VETERAN,
-                "50 Strength must read back as Veteran, not the old Captain rank");
+            helper.assertTrue(GuardRank.of(guard) == GuardRank.SPEARMAN,
+                "30 Strength must read back as Spearman, not the old Captain rank");
             helper.assertTrue(!guard.getItemBySlot(EquipmentSlot.CHEST).is(Items.IRON_CHESTPLATE),
                 "the iron chestplate must not survive the demotion, found "
                     + guard.getItemBySlot(EquipmentSlot.CHEST));
             helper.assertTrue(guard.getItemBySlot(EquipmentSlot.CHEST).is(Items.LEATHER_CHESTPLATE),
-                "VETERAN wears leather, found " + guard.getItemBySlot(EquipmentSlot.CHEST));
-            helper.assertTrue(guard.getItemBySlot(EquipmentSlot.HEAD).is(Items.LEATHER_HELMET),
-                "VETERAN's helmet is leather too, found " + guard.getItemBySlot(EquipmentSlot.HEAD));
+                "SPEARMAN wears leather, found " + guard.getItemBySlot(EquipmentSlot.CHEST));
+            helper.assertTrue(guard.getItemBySlot(EquipmentSlot.HEAD).isEmpty(),
+                "SPEARMAN may not keep the iron helmet (Plate tier), found "
+                    + guard.getItemBySlot(EquipmentSlot.HEAD));
         });
     }
 

@@ -60,6 +60,12 @@ public class MinerDropsGameTests {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.OAK_PLANKS);
+                // BH-25: the template leaves solid stone at y=1 (W8a diag: the block
+                // over the rock was STONE), so every MineShaft column read as
+                // closed and the Miner never found a cut. Clear the working space.
+                for (int y = 1; y <= 4; y++) {
+                    helper.setBlock(new BlockPos(x, y, z), Blocks.AIR);
+                }
             }
         }
     }
@@ -147,7 +153,10 @@ public class MinerDropsGameTests {
     @GameTest(batch = "miner_drops", template = "empty16", timeoutTicks = 400)
     public void aMinedIronOreArrivesAsRawIron(GameTestHelper helper) {
         plankFloor(helper, 16);
-        BlockPos oreRel = new BlockPos(4, 0, 4);
+        BlockPos oreRel = new BlockPos(6, 0, 6);
+        // The staircase search (MineShaft) only cuts columns whose two blocks
+        // above the surface are open; the fixture plaque hangs over the anchor
+        // column, so the rock sits beside it, inside the dig area.
         helper.setBlock(oreRel, Blocks.IRON_ORE);
 
         // Deterministic half: the drop computation itself, for both ore
@@ -168,6 +177,9 @@ public class MinerDropsGameTests {
         SettlerEntity berg = settler(helper, s, "Berg", 4, 4);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, mine, berg).ok(),
             "a mine entrance must be able to take a miner");
+        // QA-JOBS J-10: a Miner only digs with a real pickaxe in hand.
+        berg.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
         helper.assertTrue(berg.getProfession() == Profession.MINER,
             "hired into a mine, they mine");
         helper.getLevel().setDayTime(3000); // mid-morning: working hours
@@ -175,7 +187,7 @@ public class MinerDropsGameTests {
         helper.succeedWhen(() -> {
             helper.assertTrue(countOf(chest, Items.RAW_IRON) >= 1,
                 "a mined iron ore block must bank RAW_IRON in the mine's "
-                    + "chest (act=" + berg.getActivity() + ")");
+                    + "chest (act=" + berg.getActivity() + " stop=" + berg.logisticsStopReason() + " hand=" + berg.getMainHandItem() + " rock=" + helper.getBlockState(oreRel) + " pos=" + helper.relativePos(berg.blockPosition()) + ")");
             helper.assertTrue(countOf(chest, Items.IRON_ORE) == 0,
                 "the placeable iron_ore block item must never reach the chest");
             helper.assertItemEntityNotPresent(Items.IRON_ORE, oreRel, 12.0);
@@ -190,7 +202,10 @@ public class MinerDropsGameTests {
     @GameTest(batch = "miner_drops", template = "empty16", timeoutTicks = 400)
     public void aMinedStoneArrivesAsCobblestone(GameTestHelper helper) {
         plankFloor(helper, 16);
-        BlockPos stoneRel = new BlockPos(4, 0, 4);
+        BlockPos stoneRel = new BlockPos(6, 0, 6);
+        // The staircase search (MineShaft) only cuts columns whose two blocks
+        // above the surface are open; the fixture plaque hangs over the anchor
+        // column, so the rock sits beside it, inside the dig area.
         helper.setBlock(stoneRel, Blocks.STONE);
 
         assertDrops(helper, stoneRel, Blocks.STONE,
@@ -205,12 +220,15 @@ public class MinerDropsGameTests {
         SettlerEntity stein = settler(helper, s, "Stein", 4, 4);
         helper.assertTrue(Employment.hire(helper.getLevel(), s, mine, stein).ok(),
             "a mine entrance must be able to take a miner");
+        // QA-JOBS J-10: a Miner only digs with a real pickaxe in hand.
+        stein.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND,
+            new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
         helper.getLevel().setDayTime(3000); // mid-morning: working hours
 
         helper.succeedWhen(() -> {
             helper.assertTrue(countOf(chest, Items.COBBLESTONE) >= 1,
                 "mined stone must bank COBBLESTONE in the mine's chest "
-                    + "(act=" + stein.getActivity() + ")");
+                    + "(act=" + stein.getActivity() + " stop=" + stein.logisticsStopReason() + " hand=" + stein.getMainHandItem() + " rock=" + helper.getBlockState(stoneRel) + " pos=" + helper.relativePos(stein.blockPosition()) + ")");
             helper.assertTrue(countOf(chest, Items.STONE) == 0,
                 "the placeable stone item must never reach the chest");
             helper.assertItemEntityNotPresent(Items.STONE, stoneRel, 12.0);

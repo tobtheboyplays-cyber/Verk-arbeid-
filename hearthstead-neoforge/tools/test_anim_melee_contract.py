@@ -96,8 +96,14 @@ class MeleeTransitionContractTest(unittest.TestCase):
 
     def test_same_side_fake_overshoot_is_rejected(self):
         definitions = copy.deepcopy(source_definitions())
+        # Same side as the 0.25s anchor, whichever sign the authored strike
+        # uses (the MELEE data flipped the axis-0 sign; a fixed +0.5 became a
+        # REAL crossing and the mutation stopped testing anything).
+        anchor = next(frame[2][0] for frame in channel_frames(
+            definitions["MELEE"], "right_arm", "ROTATION")
+            if abs(frame[0] - 0.25) <= 1.0e-6)
         replace_key(definitions["MELEE"], "right_arm", "ROTATION",
-                    0.40, (0.5, 0.4, 0.15))
+                    0.40, (0.5 if anchor > 0 else -0.5, 0.4, 0.15))
         errors = self.checked(definitions)
         self.assertTrue(any("recovery must cross rest" in error
                             for error in errors), errors)
@@ -143,8 +149,12 @@ class MeleeRuntimeCompositionMutationTest(unittest.TestCase):
         branch_end = model.index("else if (entity.carryState.isStarted()",
                                  branch_start)
         branch = model[branch_start:branch_end]
-        self.assertIn("rightArm.resetPose();", branch)
-        mutated_branch = branch.replace("rightArm.resetPose();", "", 1)
+        # SettlerModel resets limbs via resetLimb(bone) (the motion engine), or
+        # the older bone.resetPose(); anim_check.reset_index accepts both.
+        reset = next((r for r in ("resetLimb(rightArm);", "rightArm.resetPose();")
+                      if r in branch), None)
+        self.assertIsNotNone(reset, "no rightArm reset in the martial branch")
+        mutated_branch = branch.replace(reset, "", 1)
         mutated = model[:branch_start] + mutated_branch + model[branch_end:]
         errors = self.checked(entity, mutated)
         self.assertTrue(any("gait-arm contamination" in error

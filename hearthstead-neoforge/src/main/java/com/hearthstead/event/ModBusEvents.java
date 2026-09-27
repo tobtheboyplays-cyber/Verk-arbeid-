@@ -32,11 +32,15 @@ public final class ModBusEvents {
      * Generation 10 adds the Mayor's runtime entity id to Development
      * snapshots and appends the explicit Inspect Mayor action.
      * Generation 11 adds strict Work Scepter action/snapshot payloads.
+     * Generation 12 adds equipment need reasons and unsourced proof to Hearth request rows.
+     * Generation 17 adds physical Coin availability, the bounded resident
+     * roster and component-aware Warehouse locations to UI snapshots.
      * Advertising an older generation would
      * let mismatched peers accept one another and decode those fields at the
      * wrong offsets.
      */
-    public static final String NETWORK_PROTOCOL = "11";
+    // Generation 18 adds the exact employment revision to Staff snapshots/actions.
+    public static final String NETWORK_PROTOCOL = "20";
 
     @SubscribeEvent
     public static void onAttributeCreation(EntityAttributeCreationEvent event) {
@@ -54,6 +58,16 @@ public final class ModBusEvents {
     @SubscribeEvent
     public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar(NETWORK_PROTOCOL);
+        registrar.playToClient(com.hearthstead.network.MerchantPursePayload.TYPE,
+            com.hearthstead.network.MerchantPursePayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> runClientOnly(FMLEnvironment.dist,
+                    () -> () -> com.hearthstead.client.CoinMerchantScreenAdapter.acceptPurse(payload))));
+        registrar.playToClient(com.hearthstead.network.BedMarkersPayload.TYPE,
+            com.hearthstead.network.BedMarkersPayload.CODEC,
+            (payload, context) -> context.enqueueWork(
+                () -> runClientOnly(FMLEnvironment.dist,
+                    () -> () -> com.hearthstead.client.BedMarkerRenderer.accept(payload))));
         registrar.playToClient(OpenSettlerScreenPayload.TYPE, OpenSettlerScreenPayload.CODEC,
             (payload, context) -> context.enqueueWork(
                 () -> runClientOnly(FMLEnvironment.dist,
@@ -187,6 +201,14 @@ public final class ModBusEvents {
             (payload, context) -> context.enqueueWork(() -> {
                 if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
                     com.hearthstead.settlement.workzone.WorkZoneService.handle(
+                        player, payload);
+                }
+            }));
+        registrar.playToServer(com.hearthstead.network.WorkZoneSelectionPayload.TYPE,
+            com.hearthstead.network.WorkZoneSelectionPayload.CODEC,
+            (payload, context) -> context.enqueueWork(() -> {
+                if (context.player() instanceof net.minecraft.server.level.ServerPlayer player) {
+                    com.hearthstead.settlement.workzone.WorkZoneService.handleSelection(
                         player, payload);
                 }
             }));

@@ -4,12 +4,14 @@ import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.RaiderEntity;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Settlement;
-import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.equipment.EquipmentRequests;
+import com.hearthstead.settlement.raid.RaidThreatBoard;
+import com.hearthstead.settlement.state.GuardOrder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 
@@ -81,26 +83,48 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
     private static final int REEVALUATE_INTERVAL = 10;
 
     private final SettlerEntity settler;
+    /** Same authority/range contract as initial acquisition, but without the
+     * line-of-sight requirement. It is used only for a target that was
+     * already acquired visibly, so pathing goals get vanilla's bounded
+     * unseen-memory window to move around cover rather than losing the target
+     * on the first blocked tick. */
+    private final TargetingConditions pursuitConditions;
     private int reevaluateTimer;
 
     public SettlerDefenseTargetGoal(SettlerEntity settler) {
-        super(settler, Monster.class, 10, true, false, target -> {
-            Settlement s = settler.settlement();
-            if (s == null) {
-                return false;
-            }
-            if (target instanceof RaiderEntity raider
-                && raider.settlementId() != null
-                && !s.id.equals(raider.settlementId())) {
-                // A neighbouring settlement's raid is not ours. Guard melee
-                // already rejects it at contact; acquisition must reject it
-                // too so Guards do not chase and Archers cannot shoot it.
-                return false;
-            }
-            double range = s.radius + 8;
-            return target.blockPosition().distSqr(s.center) <= range * range;
-        });
+        super(settler, Monster.class, 10, true, false,
+            target -> withinDefendedSettlement(settler, target));
         this.settler = settler;
+        this.pursuitConditions = TargetingConditions.forCombat()
+            .range(getFollowDistance())
+            .ignoreLineOfSight()
+            .selector(target -> withinDefendedSettlement(settler, target));
+    }
+
+    private static boolean withinDefendedSettlement(SettlerEntity settler,
+                                                     LivingEntity target) {
+        if (com.hearthstead.settlement.guard.BannerTeams.active(settler) != null)
+            return com.hearthstead.settlement.guard.BannerTeams.allowsTarget(settler, target);
+        Settlement settlement = settler.settlement();
+        if (settlement == null) {
+            return false;
+        }
+        if (target instanceof RaiderEntity raider
+            && raider.settlementId() != null
+            && !settlement.id.equals(raider.settlementId())) {
+            // A neighbouring settlement's raid is not ours. Guard melee
+            // already rejects it at contact; acquisition and pursuit must
+            // reject it too so Guards do not chase and Archers cannot shoot.
+            return false;
+        }
+        double range = settlement.radius + 8;
+        if (target instanceof RaiderEntity raider && raider.lootCount() > 0) {
+            // A raider carrying loot only counts as escaped at
+            // RaiderLootGoal.ESCAPE_MARGIN past the edge; keep chasing it that
+            // far, or the band between the two rings is a free getaway.
+            range = settlement.radius + RaiderLootGoal.ESCAPE_MARGIN;
+        }
+        return target.blockPosition().distSqr(settlement.center) <= range * range;
     }
 
     @Override
@@ -115,11 +139,49 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
     @Override
     public void start() {
         super.start();
+        if (settler.level() instanceof ServerLevel level) {
+            RaidThreatBoard.claim(level, settler.settlement(), settler,
+                mob.getTarget() instanceof Monster monster ? monster : null);
+            raiseRaidSightingAlarm(level, mob.getTarget());
+        }
         reevaluateTimer = REEVALUATE_INTERVAL;
+    }
+
+    /**
+     * Civilian-safety pass (26 Sep): a defender sighting a raider of this
+     * settlement's own war raises the ALARM at once, so the village shelters
+     * when the first Guard or Archer sees the band -- not only after a
+     * civilian is hurt or reaches a Guard. Shared by initial acquisition and
+     * by re-evaluation (a Guard busy with a zombie that switches to a raider
+     * must also sound it). Raised once: an active ALARM is left alone.
+     */
+    private void raiseRaidSightingAlarm(ServerLevel level, @Nullable LivingEntity sighted) {
+        Settlement settlement = settler.settlement();
+        if (CivilianSafety.enabled && settlement != null
+            && sighted instanceof RaiderEntity raider
+            && settlement.id.equals(raider.settlementId())
+            && !raider.isGoblinThiefDemo() && !raider.isScout()
+            && !settlement.alertActive(level.getGameTime())) {
+            com.hearthstead.settlement.SettlementManager.raiseAlert(level, settlement,
+                raider.blockPosition());
+        }
+    }
+
+    @Override
+    public void stop() {
+        if (settler.level() instanceof ServerLevel level) {
+            RaidThreatBoard.release(level, settler.settlement(), settler);
+        }
+        super.stop();
     }
 
     @Override
     public boolean canContinueToUse() {
+        if (com.hearthstead.settlement.guard.BannerTeams.active(settler) != null
+            && !com.hearthstead.settlement.guard.BannerTeams.allowsTarget(settler, mob.getTarget())) {
+            mob.setTarget(null);
+            return false;
+        }
         Profession profession = settler.getProfession();
         if (!profession.martial()
             || !(settler.level() instanceof ServerLevel level)
@@ -129,22 +191,33 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
         }
         if (--reevaluateTimer <= 0) {
             reevaluateTimer = REEVALUATE_INTERVAL;
+            LivingEntity incumbent = mob.getTarget();
             findTarget();
             if (target == null) {
-                // TargetGoal#canContinueToUse does not re-run this subclass'
-                // settlement/foreign-raider predicate. Clear stale authority
-                // explicitly so a Guard cannot remain combat-locked and an
-                // Archer cannot keep firing at a target this coordinator now
-                // rejects.
-                mob.setTarget(null);
-                return false;
+                if (acceptsForPursuit(incumbent)) {
+                    // No NEW visible target outranks the incumbent. Preserve
+                    // the already-seen target and let TargetGoal's bounded
+                    // unseen-memory timer decide how long pursuit may last.
+                    // This does not grant wall vision to initial acquisition.
+                    target = (Monster) incumbent;
+                } else {
+                    // TargetGoal#canContinueToUse does not re-run this
+                    // subclass' settlement/foreign-raider predicate. Clear
+                    // stale authority explicitly so a Guard cannot remain
+                    // combat-locked and an Archer cannot keep firing at it.
+                    mob.setTarget(null);
+                    return false;
+                }
             }
             if (target != mob.getTarget()) {
                 // A strictly higher tier appeared (or the old target
                 // stopped qualifying) -- switch now rather than finishing
                 // the old engagement. See the class doc's second section.
                 mob.setTarget(target);
+                raiseRaidSightingAlarm(level, target);
             }
+            RaidThreatBoard.claim(level, settler.settlement(), settler,
+                target instanceof Monster monster ? monster : null);
         }
         return super.canContinueToUse();
     }
@@ -152,52 +225,43 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
     /**
      * Three urgency tiers with bounded garrison load-balancing -- see the
      * class doc. Every
-     * candidate still passes the exact same {@link #targetConditions} the
-     * plain nearest-search would have (range, line of sight, the
-     * settlement-radius predicate, alive/attackable/not-allied): this only
-     * changes which of the entities that already qualify gets picked.
+     * ordinary candidate still passes the exact same {@link #targetConditions}
+     * the plain nearest-search would have (range, line of sight, the
+     * settlement-radius predicate, alive/attackable/not-allied). The one
+     * narrow exception is a sealed active-raid participant assigned to a
+     * Guard: it may be acquired through temporary building cover so the
+     * Guard can physically route to a breach. Combat contact still has its
+     * own fresh range and line-of-sight gate.
      */
     @Override
     protected void findTarget() {
-        List<Monster> candidates = mob.level().getEntitiesOfClass(targetType,
-            getTargetSearchArea(getFollowDistance()), c -> true);
         Settlement settlement = settler.settlement();
         if (settlement == null || !(settler.level() instanceof ServerLevel level)) {
             target = null;
             return;
         }
-        // The settlement roster is already bounded and authoritative. This
-        // runs only on the existing 10-tick acquisition/re-evaluation cadence,
-        // never every render or AI tick and never as a global entity scan.
-        List<SettlerEntity> garrison = SettlementManager.loadedMembers(level,
-            settlement).stream().filter(member -> member.isAlive()
-                && member.getProfession().martial()).toList();
-
-        Monster bestAvailable = null;
-        Monster bestFallback = null;
-        for (Monster candidate : candidates) {
-            if (!targetConditions.test(mob, candidate)) {
-                continue;
-            }
-            int load = assignedDefenders(garrison, candidate);
-            int capacity = defenderCapacity(candidate);
-            if (load < capacity
-                && better(candidate, load, capacity, bestAvailable,
-                    bestAvailable == null ? 0
-                        : assignedDefenders(garrison, bestAvailable),
-                    bestAvailable == null ? 1
-                        : defenderCapacity(bestAvailable))) {
-                bestAvailable = candidate;
-            }
-            if (better(candidate, load, capacity, bestFallback,
-                bestFallback == null ? 0
-                    : assignedDefenders(garrison, bestFallback),
-                bestFallback == null ? 1
-                    : defenderCapacity(bestFallback))) {
-                bestFallback = candidate;
+        var banner = com.hearthstead.settlement.guard.BannerTeams.active(settler);
+        if (banner != null && com.hearthstead.settlement.guard.FieldOrders.engaging(settler)) {
+            // A focus order whose mark fell mid-raid: keep attacking, and let the
+            // coordinator (protect-civilians-first, load balanced) pick the next raider.
+            Monster assigned = RaidThreatBoard.assignedTarget(level, settlement, settler);
+            if (assigned != null && targetConditions.test(mob, assigned)) {
+                target = assigned;
+                return;
             }
         }
-        target = bestAvailable != null ? bestAvailable : bestFallback;
+        if (banner != null) {
+            target = level.getEntitiesOfClass(Monster.class, settler.getBoundingBox().inflate(getFollowDistance()),
+                enemy -> targetConditions.test(mob, enemy)).stream()
+                .min(java.util.Comparator.<Monster>comparingInt(enemy -> enemy.getUUID().equals(banner.enemy()) ? 0 : 1)
+                    .thenComparingDouble(settler::distanceToSqr)).orElse(null);
+            return;
+        }
+        Monster assigned = RaidThreatBoard.assignedTarget(level, settlement,
+            settler);
+        target = assigned != null && (targetConditions.test(mob, assigned)
+            || RaidThreatBoard.mayAcquireSealedRaidThreatThroughCover(level,
+                settlement, settler, assigned)) ? assigned : null;
     }
 
     /**
@@ -210,7 +274,11 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
     @Nullable
     Monster acquireNow() {
         findTarget();
-        return target instanceof Monster monster ? monster : null;
+        Monster acquired = target instanceof Monster monster ? monster : null;
+        if (settler.level() instanceof ServerLevel level) {
+            RaidThreatBoard.claim(level, settler.settlement(), settler, acquired);
+        }
+        return acquired;
     }
 
     /**
@@ -224,18 +292,23 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
             && targetConditions.test(mob, monster);
     }
 
+    /**
+     * Revalidates an already-visible target for bounded movement around
+     * cover. Unlike {@link #accepts(LivingEntity)}, this deliberately ignores
+     * line of sight; all combat, alliance, range and settlement authority
+     * checks remain active through {@link #pursuitConditions}.
+     */
+    boolean acceptsForPursuit(@Nullable LivingEntity value) {
+        Settlement settlement = settler.settlement();
+        return settlement != null && value instanceof Monster monster
+            && pursuitConditions.test(mob, monster)
+            && withinAuthoredLeash(settlement, monster);
+    }
+
     /** Number of OTHER defenders already committed to this exact target. */
-    private int assignedDefenders(List<SettlerEntity> garrison,
+    private int assignedDefenders(ServerLevel level, Settlement settlement,
                                   Monster candidate) {
-        int count = 0;
-        for (SettlerEntity member : garrison) {
-            // Excluding self makes keeping the current target count as the
-            // same projected assignment as selecting it for the first time.
-            if (member != settler && member.getTarget() == candidate) {
-                count++;
-            }
-        }
-        return count;
+        return RaidThreatBoard.load(level, settlement, candidate, settler);
     }
 
     /**
@@ -244,14 +317,62 @@ public class SettlerDefenseTargetGoal extends NearestAttackableTargetGoal<Monste
      * three. If these are all full, {@link #findTarget()} still chooses a
      * fallback, so extra guards never stand idle beside a lone enemy.
      */
-    static int defenderCapacity(Monster candidate) {
-        int capacity = candidate instanceof RaiderEntity raider
-            && raider.isCaptain() ? 3 : 1;
+    private int defenderCapacity(Monster candidate) {
+        int capacity;
+        if (candidate instanceof RaiderEntity raider) {
+            capacity = raider.isCaptain()
+                ? 1 : raider.variant() == RaiderEntity.Variant.BRUTE ? 2 : 1;
+        } else {
+            capacity = 1;
+        }
+        // Ranged claims have their own cap: two on a captain, one otherwise.
+        if (settler.getProfession() == Profession.ARCHER) {
+            capacity = candidate instanceof RaiderEntity raider
+                && raider.isCaptain() ? 2 : 1;
+        }
         LivingEntity victim = candidate instanceof Mob m ? m.getTarget() : null;
         if (victim instanceof SettlerEntity || victim instanceof Player) {
-            capacity = Math.max(capacity, 2);
+            capacity++;
         }
         return capacity;
+    }
+
+    private boolean withinAuthoredLeash(Settlement settlement,
+                                        Monster candidate) {
+        if (com.hearthstead.settlement.guard.BannerTeams.active(settler) != null)
+            return com.hearthstead.settlement.guard.BannerTeams.allowsTarget(settler, candidate);
+        if (settler.level() instanceof ServerLevel level
+            && ArcherTowerPost.coversVisibleTarget(level, settlement, settler, candidate)) {
+            return true;
+        }
+        GuardOrder order = settlement.guardOrders.order(settler.getUUID())
+            .orElse(null);
+        if (order == null || !order.activeAt(settler.level().getGameTime())) {
+            return true;
+        }
+        java.util.List<net.minecraft.core.BlockPos> anchors =
+            order.mode() == GuardOrder.Mode.PATROL_ROUTE
+                ? order.patrolPoints()
+                : order.pos().map(java.util.List::of).orElse(java.util.List.of());
+        if (anchors.isEmpty()) {
+            return false;
+        }
+        double nearest = anchors.stream().mapToDouble(anchor ->
+            candidate.blockPosition().distSqr(anchor)).min()
+            .orElse(Double.POSITIVE_INFINITY);
+        double leash = order.leashRadius();
+        if (settler.level() instanceof ServerLevel level
+            && RaidThreatBoard.rangedReachAllows(level, settlement, settler,
+                candidate, nearest)) {
+            return true; // the leash bounds an Archer's feet, not his bow
+        }
+        LivingEntity victim = candidate instanceof Mob mob ? mob.getTarget() : null;
+        boolean urgent = victim == settler
+            || victim instanceof Player
+            || victim instanceof SettlerEntity other
+                && other.settlement() != null
+                && settlement.id.equals(other.settlement().id);
+        return RaidThreatBoard.leashAllows(nearest, leash, urgent);
     }
 
     private boolean better(Monster candidate, int load, int capacity,

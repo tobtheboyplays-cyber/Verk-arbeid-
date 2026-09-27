@@ -13,43 +13,9 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * The ONE table for every price in the mod, and the discount engine that
- * makes {@code docs/project/COSTS.md} real instead of aspirational.
- *
- * <p>COSTS.md is the pricing constitution and sets three laws. This class
- * exists to enforce all three in code, not just in prose:
- * <ol>
- *   <li><b>Pay in what the thing is made of.</b> Every {@link Price} is an
- *       ordered list of {@link Line}s, each a real item (or item tag) and a
- *       count -- never an abstract point cost.</li>
- *   <li><b>Bygda hjelper til.</b> {@link #discountsFor} returns the NAMED
- *       discount hooks a settlement has earned by building the right things
- *       (an innkeeper on shift, a dining hall, a library...), each carrying
- *       its own translate key so the UI can print exactly what COSTS.md's
- *       "UI rule" demands: "Bygdas pris: 2 brød + 4 planker (Vertshusholderen
- *       -25%, Spisesalen -25%)". {@link #afterDiscounts} sums them and caps
- *       the total at -50%, never deeper, regardless of how many hooks stack.</li>
- *   <li><b>First one cheap, the rest honest.</b> Not this class's job for any
- *       price defined here today (recruiting has no first-purchase hook in
- *       COSTS.md's own Recruiting table) -- noted so nobody assumes it is
- *       missing by accident.</li>
- * </ol>
- *
- * <p>Every price that exists in the mod is meant to be requested from here,
- * never hard-coded at the call site -- COSTS.md's own implementation map:
- * "No number may live hard-coded in a goal once Costs.java exists."
- * {@link SettlementManager} charges {@link #recruit()} (plus the
- * {@link PriceKey#RECRUIT} discount hooks); {@link Mayor#appoint} charges
- * {@link #mayorFeast()} (plus {@link PriceKey#MAYOR_FEAST}) on an actual
- * swap. {@link PriceKey#REPAIR}'s two hooks are real too, but not through
- * this table's usual {@code Price}/{@code Line} machinery -- see that key's
- * own doc for why a settlement-level price can't apply to a per-block dugnad,
- * and {@code RepairWorkGoal} for where the discount is actually spent.
- * {@link PriceKey#RESEARCH} still reserves its row for research's not-yet-built
- * slice, so it asks here on day one rather than inventing its own number the
- * way recruiting once did.
- */
+/** Physical purchase prices and earned discount hooks. New recruitment uses coins;
+ * immutable historical quotes retain their original barter lines. Crafting and repair
+ * material consumption remain physical material recipes, independent of purchase prices. */
 public final class Costs {
 
     /** Which priced thing this is -- COSTS.md's own price-table headings. */
@@ -148,34 +114,9 @@ public final class Costs {
 
     // ---------------------------------------------------------- prices ---
 
-    /**
-     * What joining a settlement costs, in village-grown goods (DESIGN.md
-     * system 8: "recruit by paying a price in village-grown goods"). Base
-     * price, before any discount -- see {@link #discountsFor} for what can
-     * lower it and {@link #afterDiscounts} for applying that.
-     *
-     * <p><b>Why bread and planks.</b> Bread is what every settlement has from
-     * its first harvest — three founders with a farmhouse can pay it before
-     * their first traveler even arrives. Oak planks are the one good stacked
-     * on top: cheap enough that an afternoon at the sawmill (or a player's
-     * own axe and crafting table) buries the cost completely, but a
-     * settlement with no production running yet has to genuinely wait and
-     * stock up first. Wool would have made the same point, but it needs a
-     * weaver AND sheep, which is a taller order than this slice's "young
-     * settlement can still just about afford it" is aiming for. Together the
-     * two items are a price a subsistence camp feels and a thriving
-     * settlement never notices — which is exactly the shape a "price" is
-     * supposed to have here.
-     *
-     * <p>ANY planks, not oak specifically: a settlement founded in a birch or
-     * spruce forest could literally never recruit under an exact-item match,
-     * which makes no sense to the player standing in it. Bread stays exact —
-     * bread is bread.
-     */
+    /** Base forecast for a new coin-priced guest; actual trips freeze their own aptitude/discount quote. */
     public static Price recruit() {
-        return of(PriceKey.RECRUIT,
-            Line.of(Items.BREAD, 4),
-            Line.ofTag(ItemTags.PLANKS, 8));
+        return coins(PriceKey.RECRUIT, 4);
     }
 
     /**
@@ -185,6 +126,15 @@ public final class Costs {
      * an empty seat is free per the same section of COSTS.md, so it never
      * calls here at all in that case.
      */
+    public static Price coins(PriceKey key, int count) {
+        return of(key, Line.of(com.hearthstead.registry.ModItems.GOLD_COIN.get(), count));
+    }
+
+    public static boolean isCoinPrice(Price price) {
+        return !price.lines().isEmpty() && price.lines().stream().allMatch(line ->
+            line.exact() == com.hearthstead.registry.ModItems.GOLD_COIN.get() && line.tag() == null);
+    }
+
     public static Price mayorFeast() {
         return of(PriceKey.MAYOR_FEAST, Line.of(Items.BREAD, 8));
     }
@@ -216,7 +166,7 @@ public final class Costs {
             case RECRUIT -> {
                 // Hospitality is the innkeeper's trade -- an employed
                 // innkeeper haggles the price down and extends a waiting
-                // guest's patience. The 2-4 day attraction clock itself is
+                // guest's patience. The ordinary attraction clock itself is
                 // deliberately never accelerated. Read straight off
                 // Building#workers, never a flag kept in step by hand.
                 Building tavern = firstValid(s, BuildingType.TAVERN);
@@ -348,8 +298,30 @@ public final class Costs {
      * {@link #canPay} said yes -- this does not check.
      */
     public static void pay(ItemStackHandler inventory, Price price) {
-        for (Line line : price.lines()) {
-            extractMatching(inventory, line, line.count());
+        if (!isCoinPrice(price)) {
+            for (Line line : price.lines()) extractMatching(inventory, line, line.count());
+            return;
+        }
+        List<ItemStack> before = CoinTreasury.snapshot(inventory);
+        try {
+            if (!canPay(inventory, price)) throw new IllegalStateException("Insufficient physical coins");
+            for (Line line : price.lines()) {
+                int left = line.count();
+                for (int slot=0;slot<inventory.getSlots() && left>0;slot++) {
+                    ItemStack stack=inventory.getStackInSlot(slot);
+                    if (!line.matches(stack)) continue;
+                    int take=Math.min(left,stack.getCount());
+                    ItemStack expected=stack.copyWithCount(take);
+                    ItemStack removed=inventory.extractItem(slot,take,false);
+                    if (removed.getCount()!=take || !ItemStack.isSameItemSameComponents(expected,removed))
+                        throw new IllegalStateException("Physical coin extraction refused");
+                    left-=take;
+                }
+                if(left!=0) throw new IllegalStateException("Coin payment changed");
+            }
+        } catch(RuntimeException failure) {
+            CoinTreasury.restore(inventory,before);
+            throw failure;
         }
     }
 

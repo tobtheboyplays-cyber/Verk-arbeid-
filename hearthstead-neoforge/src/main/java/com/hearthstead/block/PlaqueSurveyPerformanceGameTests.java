@@ -68,6 +68,8 @@ public final class PlaqueSurveyPerformanceGameTests {
                         + "the next cadence, got delta " + (due - now));
                 helper.assertTrue(plaque.scanAttempts() == 0,
                     "scale " + scale + ": load hydration must run zero RoomScanner scans");
+                helper.assertTrue(plaque.initialSurveyRetriesRemainingForTest() == 0,
+                    "scale " + scale + ": a loaded plaque must not inherit a new-plan retry");
                 helper.assertTrue(plaque.loadProjectionHydrationCountForTest() == 1
                         && !plaque.loadProjectionHydrationPendingForTest()
                         && plaque.loadProjectionPublishCountForTest() == 0
@@ -87,6 +89,99 @@ public final class PlaqueSurveyPerformanceGameTests {
                     + dueTicks.size());
         }
         helper.succeed();
+    }
+
+    /**
+     * A complete room must register from the plan action alone.  The room is
+     * fully built before its blank plaque receives a plan, and this test
+     * places no block after that action: a good synchronous reading registers
+     * immediately and returns to normal position phasing without retries.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "plaque_plan_prebuilt_room_registers_without_extra_block")
+    public void completePrebuiltRoomRegistersFromPlanWithoutExtraBlock(
+            GameTestHelper helper) {
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        Settlement settlement = new Settlement(UUID.randomUUID(), "Readyroom",
+            helper.absolutePos(new BlockPos(8, 1, 8)));
+        settlement.radius = 20;
+        data.settlements.put(settlement.id, settlement);
+
+        // Two rooms exist before either plan is fitted. The first is complete;
+        // the second intentionally lacks only its bed, so it exercises the
+        // incomplete-plan retry branch without changing any block afterward.
+        BlockPos incompleteHutOrigin = new BlockPos(1, 0, 1);
+        buildHut(helper, incompleteHutOrigin);
+        helper.setBlock(incompleteHutOrigin.offset(2, 1, 2), Blocks.AIR);
+        helper.setBlock(incompleteHutOrigin.offset(2, 1, 3), Blocks.AIR);
+        BlockPos incompletePlaqueRel = incompleteHutOrigin.offset(1, 2, -1);
+        helper.setBlock(incompletePlaqueRel, ModBlocks.PLAQUE.get().defaultBlockState()
+            .setValue(PlaqueBlock.FACING, Direction.NORTH));
+        BlockPos incompletePlaquePos = helper.absolutePos(incompletePlaqueRel);
+        if (!(helper.getLevel().getBlockEntity(incompletePlaquePos)
+            instanceof PlaqueBlockEntity incompletePlaque)) {
+            helper.fail("fixture: incomplete-room plaque block entity missing");
+            return;
+        }
+
+        BlockPos hutOrigin = new BlockPos(6, 0, 6);
+        buildHut(helper, hutOrigin);
+        BlockPos plaqueRel = hutOrigin.offset(1, 2, -1);
+        helper.setBlock(plaqueRel, ModBlocks.PLAQUE.get().defaultBlockState()
+            .setValue(PlaqueBlock.FACING, Direction.NORTH));
+        BlockPos plaquePos = helper.absolutePos(plaqueRel);
+        if (!(helper.getLevel().getBlockEntity(plaquePos)
+            instanceof PlaqueBlockEntity plaque)) {
+            helper.fail("fixture: prebuilt-room plaque block entity missing");
+            return;
+        }
+
+        long fittedAt = helper.getLevel().getGameTime();
+        helper.assertTrue(plaque.insertPlan(helper.getLevel(), PlaqueItemData.stamped(
+                new ItemStack(ModItems.BUILD_PLAN.get()), BuildingType.HOUSE)),
+            "a complete prebuilt room must accept one HOUSE plan");
+        int scansAfterFit = plaque.scanAttempts();
+        helper.assertTrue(scansAfterFit == 1
+                && plaque.state() == PlaqueState.LINKED_VALID
+                && plaque.initialSurveyRetriesRemainingForTest() == 0
+                && plaque.nextSurveyTickForTest() > fittedAt
+                && plaque.nextSurveyTickForTest()
+                    <= fittedAt + PlaqueBlockEntity.surveyIntervalForTest(),
+            "a complete prebuilt room must register on plan fit and resume phased surveys");
+
+        helper.assertTrue(incompletePlaque.insertPlan(helper.getLevel(), PlaqueItemData.stamped(
+                new ItemStack(ModItems.BUILD_PLAN.get()), BuildingType.HOUSE)),
+            "the prebuilt missing-bed room must accept one HOUSE plan");
+        int incompleteScansAfterFit = incompletePlaque.scanAttempts();
+        helper.assertTrue(incompleteScansAfterFit == 1
+                && incompletePlaque.state() == PlaqueState.LINKED_INCOMPLETE
+                && incompletePlaque.initialSurveyRetriesRemainingForTest()
+                    == PlaqueBlockEntity.initialSurveyRetriesForTest()
+                && incompletePlaque.nextSurveyTickForTest()
+                    == fittedAt + PlaqueBlockEntity.initialSurveyRetryDelayForTest(),
+            "only the incomplete first reading must arm short new-plan retries");
+
+        helper.runAfterDelay(5, () -> {
+            helper.assertTrue(plaque.state() == PlaqueState.LINKED_VALID,
+                "the complete room must register without an extra block; state="
+                    + plaque.state() + " scanAttempts=" + plaque.scanAttempts());
+            helper.assertTrue(plaque.initialSurveyRetriesRemainingForTest() == 0
+                    && plaque.nextSurveyTickForTest() > helper.getLevel().getGameTime(),
+                "a confirmed valid plan must not retain a new-plan retry schedule");
+            helper.assertTrue(incompletePlaque.scanAttempts() == incompleteScansAfterFit + 2
+                    && incompletePlaque.initialSurveyRetriesRemainingForTest() == 1,
+                "the incomplete plan must receive exactly the first two short retries by tick five");
+            helper.runAfterDelay(3, () -> {
+                long now = helper.getLevel().getGameTime();
+                helper.assertTrue(incompletePlaque.state() == PlaqueState.LINKED_INCOMPLETE
+                        && incompletePlaque.initialSurveyRetriesRemainingForTest() == 0
+                        && incompletePlaque.scanAttempts() >= incompleteScansAfterFit + 3
+                        && incompletePlaque.scanAttempts() <= incompleteScansAfterFit + 4
+                        && incompletePlaque.nextSurveyTickForTest() > now,
+                    "the third retry must stop and return the still-incomplete plan to phased scans");
+                helper.succeed();
+            });
+        });
     }
 
     /**
@@ -209,6 +304,8 @@ public final class PlaqueSurveyPerformanceGameTests {
                 && plaque.nextSurveyTickForTest()
                     <= now + PlaqueBlockEntity.surveyIntervalForTest(),
             "the real room scan must remain position-staggered after hydration");
+        helper.assertTrue(plaque.initialSurveyRetriesRemainingForTest() == 0,
+            "a reloaded existing plaque must remain on the phased path, not new-plan retries");
 
         PlaqueSheet sheet = PlaqueSheet.of(plaque.type(), plaque.state(),
             plaque.lastSurvey(), plaque.occupants(), plaque.capacity());

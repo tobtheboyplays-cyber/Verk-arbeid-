@@ -154,7 +154,7 @@ public class EquipmentRequestGameTests {
             }
         }
         Settlement settlement = settlement(helper);
-        GameTestFixtures.register(helper, settlement,
+        Building warehouseBuilding = GameTestFixtures.register(helper, settlement,
             BuildingType.WAREHOUSE, 2, 2);
         Container warehouse = chest(helper, new BlockPos(3, 1, 3));
         warehouse.setItem(0, new ItemStack(Items.IRON_HOE));
@@ -169,7 +169,9 @@ public class EquipmentRequestGameTests {
             "fixture must publish the farmer's real equipment request");
         SettlerEntity courier = settler(helper, settlement, "Bud");
         courier.setPos(helper.absolutePos(new BlockPos(6, 1, 6)).getCenter());
-        courier.assignProfession(Profession.COURIER);
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
+                warehouseBuilding, courier).ok(),
+            "fixture Courier must own the real Warehouse workplace required for delivery authority");
 
         final boolean[] sawClaim = {false};
         final boolean[] sawCourierBag = {false};
@@ -195,6 +197,75 @@ public class EquipmentRequestGameTests {
                     + "warehouse=" + atWarehouse + " bag=" + inCourierBag
                     + " workplace=" + atWorkplace + " hand=" + inWorkerHand);
             helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE)
+                    && atWarehouse == 0 && inCourierBag == 0
+                    && atWorkplace == 0,
+                "the route must finish warehouse -> Courier bag -> workplace -> hand"
+                    + " [courier=" + courier.getActivity()
+                    + " farmer=" + farmer.getActivity() + "]");
+            helper.assertTrue(sawClaim[0],
+                "the Courier goal must claim the persistent request before withdrawal");
+            helper.assertTrue(sawCourierBag[0],
+                "the physical hoe must be observed in the Courier's real bag");
+            helper.assertTrue(farm.equipmentRequests.isEmpty(),
+                "the worker's physical handoff must retire the delivered request");
+        });
+    }
+
+    @GameTest(template = "empty16", batch = "equipment", timeoutTicks = 2400)
+    public void courierDeliversFisherRodPastAnEmptyCatchRack(
+        GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
+            }
+        }
+        Settlement settlement = settlement(helper);
+        Building warehouseBuilding = GameTestFixtures.register(helper, settlement,
+            BuildingType.WAREHOUSE, 2, 2);
+        Container warehouse = chest(helper, new BlockPos(3, 1, 3));
+        warehouse.setItem(0, new ItemStack(com.hearthstead.registry.ModItems.FISHERS_ROD.get()));
+        Building farm = GameTestFixtures.register(helper, settlement,
+            BuildingType.FISHERY, 9, 9);
+        helper.setBlock(new BlockPos(10, 1, 10), Blocks.BARREL);
+        Container workplace = (Container) helper.getBlockEntity(new BlockPos(10, 1, 10));
+
+        helper.setBlock(new BlockPos(9,1,9), com.hearthstead.registry.ModBlocks.FISH_RACK.get());
+        SettlerEntity farmer = settler(helper, settlement, "Fisher");
+        farmer.setPos(helper.absolutePos(new BlockPos(11, 1, 10)).getCenter());
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
+                farm, farmer).ok(),
+            "fixture must publish the farmer's real equipment request");
+        SettlerEntity courier = settler(helper, settlement, "Bud");
+        courier.setPos(helper.absolutePos(new BlockPos(6, 1, 6)).getCenter());
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
+                warehouseBuilding, courier).ok(),
+            "fixture Courier must own the real Warehouse workplace required for delivery authority");
+
+        final boolean[] sawClaim = {false};
+        final boolean[] sawCourierBag = {false};
+        final boolean[] conservationBroken = {false};
+        helper.succeedWhen(() -> {
+            EquipmentRequest request = EquipmentRequests.requestFor(
+                farm, farmer.getUUID());
+            if (request != null
+                && request.status() == EquipmentRequest.Status.CLAIMED) {
+                sawClaim[0] = true;
+            }
+            int atWarehouse = countIn(warehouse, com.hearthstead.registry.ModItems.FISHERS_ROD.get());
+            int inCourierBag = countInBag(courier, com.hearthstead.registry.ModItems.FISHERS_ROD.get());
+            int atWorkplace = countIn(workplace, com.hearthstead.registry.ModItems.FISHERS_ROD.get());
+            int inWorkerHand = farmer.getMainHandItem().is(com.hearthstead.registry.ModItems.FISHERS_ROD.get()) ? 1 : 0;
+            if (inCourierBag > 0) {
+                sawCourierBag[0] = true;
+            }
+            int total = atWarehouse + inCourierBag + atWorkplace + inWorkerHand;
+            conservationBroken[0] |= total != 1;
+            helper.assertFalse(conservationBroken[0],
+                "the real hoe must be conserved on every observed route tick: "
+                    + "warehouse=" + atWarehouse + " bag=" + inCourierBag
+                    + " workplace=" + atWorkplace + " hand=" + inWorkerHand);
+            helper.assertTrue(farmer.getMainHandItem().is(com.hearthstead.registry.ModItems.FISHERS_ROD.get())
                     && atWarehouse == 0 && inCourierBag == 0
                     && atWorkplace == 0,
                 "the route must finish warehouse -> Courier bag -> workplace -> hand"
@@ -289,7 +360,9 @@ public class EquipmentRequestGameTests {
             helper.assertTrue(sawCourierBag[0],
                 "the Guard sword must be observed in the Courier's real bag");
             helper.assertTrue(credited == 1,
-                "exactly one strict Guard-to-Barracks Courier handoff must be credited");
+                "exactly one strict Guard-to-Barracks Courier handoff must be credited: credited=" + credited
+                    + " request=" + (liveRequest == null ? "none" : liveRequest.status())
+                    + " barracks=" + atBarracks + " hand=" + inGuardHand);
         });
     }
 
@@ -357,7 +430,7 @@ public class EquipmentRequestGameTests {
         helper.assertTrue(guard.getMainHandItem().isEmpty()
                 && barracks.equipmentRequests.size() == 1
                 && barracks.equipmentRequests.get(0).requirement()
-                    .preferredItem() == Items.IRON_SWORD,
+                    .preferredItem() == Items.WOODEN_SWORD,
             "a guard must request a sword instead of spawning with one");
         barracksRack.setItem(0, new ItemStack(Items.IRON_SWORD));
         guard.teleportTo(helper.absolutePos(new BlockPos(3, 1, 4)).getX() + 0.5D,

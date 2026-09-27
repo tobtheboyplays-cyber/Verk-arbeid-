@@ -13,25 +13,42 @@ class DevelopmentScreenZoomTest {
         DevelopmentScreen.NodeGeometry ultra = DevelopmentScreen.nodeGeometry(0.30F);
         DevelopmentScreen.NodeGeometry overview = DevelopmentScreen.nodeGeometry(0.42F);
 
-        assertEquals(44, ultra.width());
-        assertEquals(18, ultra.height());
+        assertEquals(48, ultra.width());
+        assertEquals(20, ultra.height());
         assertEquals(DevelopmentScreen.NodeVisualMode.OVERVIEW, ultra.mode());
-        assertEquals(61, overview.width());
-        assertEquals(23, overview.height());
+        assertEquals(68, overview.width());
+        assertEquals(34, overview.height());
         assertEquals(DevelopmentScreen.NodeVisualMode.OVERVIEW, overview.mode());
         assertTrue(ultra.width() < overview.width(),
             "30% overview must show more map than 42% overview");
     }
 
     @Test
+    void openingOverviewReservesAnItemIconAndOneUnbrokenShortName() {
+        DevelopmentScreen.NodeGeometry opening = DevelopmentScreen.nodeGeometry(0.42F);
+        assertTrue(opening.width() >= 16 + 4 + 42,
+            "42% opening cards need a 16px item icon and a short readable label");
+        assertTrue(opening.height() >= 34,
+            "42% opening cards need the full item silhouette without text overlap");
+    }
+
+    @Test
     void detailedGeometryBeginsAtFiftySixPercent() {
         DevelopmentScreen.NodeGeometry detailed = DevelopmentScreen.nodeGeometry(0.56F);
 
-        assertEquals(82, detailed.width());
-        assertEquals(36, detailed.height());
+        assertEquals(84, detailed.width());
+        assertEquals(41, detailed.height());
         assertEquals(DevelopmentScreen.NodeVisualMode.DETAILED, detailed.mode());
     }
 
+    @Test
+    void defaultCardsReserveTwoReadableNameLines() {
+        DevelopmentScreen.NodeGeometry defaultCard = DevelopmentScreen.nodeGeometry(0.86F);
+
+        assertEquals(129, defaultCard.width());
+        assertEquals(64, defaultCard.height());
+        assertEquals(DevelopmentScreen.NodeVisualMode.DETAILED, defaultCard.mode());
+    }
     @Test
     void overviewNodeRectanglesNeverOverlapAtSupportedLowZooms() {
         assertNoOverlap(0.30F);

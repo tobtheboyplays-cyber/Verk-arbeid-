@@ -1,17 +1,10 @@
 {
   "pack": {
-    "description": "Hearthstead resources",
+    "description": "Bannerhold resources",
     "pack_format": 34,
     "supported_formats": {
       "min_inclusive": 34,
       "max_inclusive": 48
-    }
-  },
-  "language": {
-    "nb_no": {
-      "name": "Norsk bokmål",
-      "region": "Norge",
-      "bidirectional": false
     }
   }
 }

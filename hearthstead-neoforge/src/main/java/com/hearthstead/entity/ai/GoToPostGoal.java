@@ -60,8 +60,18 @@ public class GoToPostGoal extends Goal {
         if (settlement == null) {
             return false;
         }
-        Schedule.Posting post = Schedule.postFor(settlement, settler,
-            DayPhase.of(settler.level().getDayTime()));
+        // The Mayor keeps the office, but a valid Mayor Courier Warehouse is
+        // the day's real workplace. This goal is registered before Courier
+        // and owns MOVE, so a generic post must yield to the first physical lift.
+        if (settler.getProfession() == com.hearthstead.entity.Profession.MAYOR
+            && settler.level() instanceof net.minecraft.server.level.ServerLevel level
+            && com.hearthstead.settlement.Employment.ensureMayorCourierWorkplace(level,
+                settlement, settler) != null) {
+            return false;
+        }
+        // The settler's own clock (EARLY_RISER / NIGHT_OWL, plan/ATTRIBUTES.md),
+        // the same phase every trade goal gates on; bug hunter review 26 Sep.
+        Schedule.Posting post = Schedule.postFor(settlement, settler, settler.dayPhase());
         if (post == null || post.where() == null) {
             return false;
         }
@@ -88,7 +98,10 @@ public class GoToPostGoal extends Goal {
      * true on every tick.
      */
     private boolean carryingSomething() {
-        return !settler.bag.isEmpty();
+        return !settler.bag.isEmpty()
+            || settler.getProfession() == com.hearthstead.entity.Profession.TRADER
+                && settler.getPersistentData().contains("HearthsteadTraderWork")
+            || com.hearthstead.settlement.work.TavernHostService.hasSession(settler);
     }
 
     @Override

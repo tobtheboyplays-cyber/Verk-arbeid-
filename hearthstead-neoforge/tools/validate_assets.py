@@ -30,6 +30,8 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
+from contextlib import ExitStack
 from collections import OrderedDict
 from decimal import Decimal
 from pathlib import Path, PurePath
@@ -74,11 +76,21 @@ TEXTURE_CONFIG = {
     # texture is another), and it wrongly rejects any entity whose rig is
     # legitimately a different size.
     "entity_default_size": (128, 64),
-    # Per-file overrides, keyed by path relative to textures/entity/,
-    # e.g. "settler/settler_child.png": (64, 32)
-    "entity_sizes": {},
+    # Per-file overrides, keyed by path relative to textures/entity/. The
+    # Goblin Thief renderer keeps its dedicated texture in the raider folder,
+    # while its dedicated GoblinThiefModel declares the authoritative 256x128
+    # atlas under the separate `goblin_thief` layer name.
+    "entity_sizes": {"raider/goblin_thief.png": (256, 128),
+                     # TavernTablewareMesh uses normalized UVs, not a ModelLayer atlas.
+                     "tavern/tableware.png": (64, 32)},
     # Maximum size for anything under textures/gui/
     "gui_max_size": (512, 512),
+    # One authored, static council-table illustration (about 6 MiB decoded).
+    # Exact path + exact size, not an exemption for arbitrary GUI artwork.
+    # Small repeatable atlas sprites retain the standard 512px limit.
+    # Shared four-quadrant material atlas; HearthMaterials addresses four 627px
+    # tiles. This is not a single GUI panel; all ordinary panels keep the 512 cap.
+    "gui_exact_sizes": {"materials/premium_atlas.png": (1254, 1254)},
     # Basenames exempt from all dimension rules (still must open).
     "any_size_basenames": {"hearthstead_logo.png"},
 }
@@ -129,8 +141,6 @@ LAYERED_ITEM_PARENTS = {
     "item/handheld_rod", "minecraft:item/handheld_rod",
     "builtin/generated",
 }
-
-NB_IDENTICAL_WARN_RATIO = 0.40  # check 14
 
 # --------------------------------------------------------------------------
 # Check framework
@@ -330,7 +340,7 @@ def scan_registrations():
 # Lang handling (used by several checks)
 # --------------------------------------------------------------------------
 
-LANG_FILES = ("en_us.json", "nb_no.json")
+LANG_FILES = ("en_us.json",)
 
 
 def load_langs() -> dict[str, dict | None]:
@@ -518,7 +528,7 @@ def check_json_integrity() -> None:
 
 
 # --------------------------------------------------------------------------
-# 6. Lang files (existence, parity, empty values)
+# 6. English language file (existence, empty values)
 # --------------------------------------------------------------------------
 
 def check_lang(langs: dict, any_keys_needed: bool) -> None:
@@ -536,43 +546,12 @@ def check_lang(langs: dict, any_keys_needed: bool) -> None:
             info("Lang", "no lang files yet and nothing registered needs keys — skipped")
         return
 
-    for n in missing:
-        # One lang exists, the other doesn't: parity is impossible.
-        check("Lang", False, f"lang file assets/{MODID}/lang/{n} is missing "
-                             f"(the other lang file exists)")
-
     for n, data in existing.items():
         empty = sorted(k for k, v in data.items() if str(v).strip() == "")
         check("Lang", not empty,
               f"{n}: no empty values" if not empty
               else f"{n}: empty values for keys: {', '.join(empty)}")
 
-    if len(existing) == len(LANG_FILES):
-        en = langs["en_us.json"]
-        nb = langs["nb_no.json"]
-        only_en = sorted(set(en) - set(nb))
-        only_nb = sorted(set(nb) - set(en))
-        check("Lang", not only_en,
-              "key parity: all en_us keys present in nb_no" if not only_en
-              else f"keys missing from nb_no.json: {', '.join(only_en)}")
-        check("Lang", not only_nb,
-              "key parity: all nb_no keys present in en_us" if not only_nb
-              else f"keys missing from en_us.json: {', '.join(only_nb)}")
-
-        # 14. Norwegian sanity (warn-only)
-        shared = sorted(set(en) & set(nb))
-        if shared:
-            identical = [k for k in shared if en[k] == nb[k]]
-            ratio = len(identical) / len(shared)
-            if ratio > NB_IDENTICAL_WARN_RATIO:
-                shown = ", ".join(identical[:25]) + (" …" if len(identical) > 25 else "")
-                warn("Lang", f"nb_no.json equals en_us.json for {len(identical)}/{len(shared)} "
-                             f"keys ({ratio:.0%} > {NB_IDENTICAL_WARN_RATIO:.0%}) — possible "
-                             f"copy-paste: {shown}")
-            else:
-                check("Lang", True,
-                      f"Norwegian sanity: {len(identical)}/{len(shared)} identical values "
-                      f"({ratio:.0%} ≤ {NB_IDENTICAL_WARN_RATIO:.0%})")
 
 
 # --------------------------------------------------------------------------
@@ -812,9 +791,18 @@ def check_textures() -> None:
                   f"{rel(png)} is {w}x{h} (expected {expected[0]}x{expected[1]}"
                   f" per {source})")
         elif category == "gui":
-            mw, mh = TEXTURE_CONFIG["gui_max_size"]
-            check("Textures", w <= mw and h <= mh,
-                  f"{rel(png)} is {w}x{h} (GUI limit {mw}x{mh})")
+            try:
+                gui_key = png.relative_to(MOD_ASSETS / "textures" / "gui").as_posix()
+            except ValueError:
+                gui_key = None  # Other namespaces retain the ordinary GUI limit.
+            exact = TEXTURE_CONFIG["gui_exact_sizes"].get(gui_key)
+            if exact is not None:
+                check("Textures", (w, h) == exact,
+                      f"{rel(png)} is {w}x{h} (authored GUI contract {exact[0]}x{exact[1]})")
+            else:
+                mw, mh = TEXTURE_CONFIG["gui_max_size"]
+                check("Textures", w <= mw and h <= mh,
+                      f"{rel(png)} is {w}x{h} (GUI limit {mw}x{mh})")
         # other categories: openability only
 
 
@@ -1349,6 +1337,7 @@ def check_structures() -> None:
 PIPELINE_GENERATORS = [
     "gen_settler.py",
     "gen_armor.py",
+    "gen_gear_armor.py",
     "gen_blocks_items.py",
     "gen_gui.py",
     "gen_plaque.py",
@@ -1358,6 +1347,20 @@ PIPELINE_GENERATORS = [
 ]
 
 
+def _record_pipeline_timing(phase: str, started: float, **details) -> None:
+    """Optional diagnostic sidecar; never changes validation/report outcomes."""
+    destination = os.environ.get("HSQA_ASSET_TIMINGS")
+    if not destination:
+        return
+    record = dict(phase=phase, seconds=time.perf_counter() - started, **details)
+    try:
+        with open(destination, "a", encoding="utf-8") as output:
+            output.write(json.dumps(record, sort_keys=True) + "\n")
+    except (OSError, ValueError):
+        # Timing is best-effort; asset/read/generator failures still propagate.
+        pass
+
+
 def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tuple[Path, str | None]:
     """Copy tools/ into a temp dir, run `script` there with PYTHONHASHSEED set,
     and return (dir-containing-generated-assets, error-or-None). The generator
@@ -1365,14 +1368,26 @@ def _run_generator_isolated(tools_src: Path, script: str, hashseed: str) -> tupl
     so the temp tree must mirror tools/ sitting next to src/."""
     tmp = Path(tempfile.mkdtemp(prefix="hearthstead_pipeline_"))
     tools_dst = tmp / "tools"
-    shutil.copytree(tools_src, tools_dst)
+    copied = time.perf_counter()
+    try:
+        shutil.copytree(tools_src, tools_dst)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
+    finally:
+        _record_pipeline_timing("private_tools_copy", copied,
+                                script=script, hashseed=hashseed)
     env = dict(os.environ, PYTHONHASHSEED=hashseed)
+    executed = time.perf_counter()
     try:
         proc = subprocess.run(
             [sys.executable, script], cwd=tools_dst, env=env,
             capture_output=True, text=True, timeout=120)
     except Exception as exc:  # pragma: no cover - defensive
         return tmp, str(exc)
+    finally:
+        _record_pipeline_timing("generator_process", executed,
+                                script=script, hashseed=hashseed)
     if proc.returncode != 0:
         return tmp, (proc.stderr or proc.stdout or "non-zero exit").strip()[:400]
     return tmp, None
@@ -1591,15 +1606,40 @@ def check_pipeline(*, tools_src: Path | None = None,
     tools_src = PROJECT_ROOT / "tools" if tools_src is None else Path(tools_src)
     generator_names = PIPELINE_GENERATORS if generators is None else tuple(generators)
 
+    started = time.perf_counter()
+    try:
+        with ExitStack() as snapshot_cleanup:
+            _check_pipeline_generators(tools_src, generator_names, snapshot_cleanup)
+    finally:
+        _record_pipeline_timing("pipeline_total", started)
+
+
+def _check_pipeline_generators(tools_src: Path, generator_names,
+                               snapshot_cleanup: ExitStack) -> None:
+    # Source is frozen for a controller run. Each generator still receives
+    # its own full writable copy; this fresh invocation-only snapshot avoids
+    # repeatedly traversing the mounted project filesystem.
+    tools_snapshot = None
     for script in generator_names:
         if not (tools_src / script).is_file():
             check("Pipeline", False,
                   f"{script}: listed pipeline generator is missing from {rel(tools_src)}")
             continue
 
-        tmp_a, err_a = _run_generator_isolated(tools_src, script, "0")
-        tmp_b, err_b = _run_generator_isolated(tools_src, script, "1")
+        if tools_snapshot is None:
+            snapshot_root = Path(tempfile.mkdtemp(prefix="hearthstead_pipeline_source_"))
+            snapshot_cleanup.callback(shutil.rmtree, snapshot_root, ignore_errors=True)
+            tools_snapshot = snapshot_root / "tools"
+            copied = time.perf_counter()
+            try:
+                shutil.copytree(tools_src, tools_snapshot)
+            finally:
+                _record_pipeline_timing("source_tools_snapshot", copied)
+
+        tmp_a = tmp_b = None
         try:
+            tmp_a, err_a = _run_generator_isolated(tools_snapshot, script, "0")
+            tmp_b, err_b = _run_generator_isolated(tools_snapshot, script, "1")
             if not check("Pipeline", not (err_a or err_b),
                          f"{script}: runs cleanly under PYTHONHASHSEED=0 and =1 "
                          f"(needed before its determinism can even be checked)"
@@ -1653,8 +1693,10 @@ def check_pipeline(*, tools_src: Path | None = None,
                    else f"{script}: committed assets are stale vs. the generator — re-run and commit: "
                         f"{_format_pipeline_mismatches(committed_mismatch)}")
         finally:
-            shutil.rmtree(tmp_a, ignore_errors=True)
-            shutil.rmtree(tmp_b, ignore_errors=True)
+            if tmp_a is not None:
+                shutil.rmtree(tmp_a, ignore_errors=True)
+            if tmp_b is not None:
+                shutil.rmtree(tmp_b, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------
@@ -1694,7 +1736,26 @@ def check_sibling_tool(script: str, args: list[str], what: str) -> None:
                           capture_output=True, text=True, timeout=120)
     ok = proc.returncode == 0
     detail = (proc.stdout or proc.stderr or "").strip().splitlines()
-    tail = " | ".join(line.strip() for line in detail[-4:]) if detail else ""
+    if ok or not detail:
+        diagnostic = detail[-4:]
+    else:
+        # A long clip catalogue used to hide the actual WARN block because
+        # only the final four summary lines survived here. Preserve every
+        # warning header and its indented reasons, plus the final summary, so
+        # the fail-closed asset gate tells the author what must be repaired.
+        diagnostic = []
+        capture_reason = False
+        for line in detail:
+            stripped = line.strip()
+            if stripped.startswith("WARN"):
+                diagnostic.append(stripped)
+                capture_reason = True
+            elif capture_reason and line[:1].isspace() and stripped:
+                diagnostic.append(stripped)
+            else:
+                capture_reason = False
+        diagnostic.extend(detail[-2:])
+    tail = " | ".join(line.strip() for line in diagnostic) if diagnostic else ""
     check("Standards", ok, what if ok else f"{what} -- {tail}")
 
 

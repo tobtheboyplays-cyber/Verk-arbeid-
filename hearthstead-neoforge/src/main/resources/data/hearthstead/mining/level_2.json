@@ -1,0 +1,13 @@
+{
+  "_comment": "MINE V2 face table, level 2 (needs the Deep Mine tech). Better finds, rare diamonds. Same rules as level_1.json.",
+  "entries": [
+    {"item": "minecraft:cobblestone", "block": "minecraft:stone", "weight": 92},
+    {"item": "minecraft:coal", "block": "minecraft:coal_ore", "weight": 20, "min": 1, "max": 2},
+    {"item": "minecraft:raw_copper", "block": "minecraft:copper_ore", "weight": 12, "min": 2, "max": 4},
+    {"item": "minecraft:raw_iron", "block": "minecraft:iron_ore", "weight": 32, "min": 1, "max": 2},
+    {"item": "minecraft:raw_gold", "block": "minecraft:gold_ore", "weight": 16},
+    {"item": "minecraft:redstone", "block": "minecraft:redstone_ore", "weight": 14, "min": 3, "max": 5},
+    {"item": "minecraft:lapis_lazuli", "block": "minecraft:lapis_ore", "weight": 12, "min": 3, "max": 6},
+    {"item": "minecraft:diamond", "block": "minecraft:diamond_ore", "weight": 2}
+  ]
+}

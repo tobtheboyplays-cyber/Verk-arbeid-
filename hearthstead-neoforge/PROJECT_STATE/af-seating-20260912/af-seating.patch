@@ -1,0 +1,44 @@
+diff --git a/src/main/java/com/hearthstead/entity/TavernSeatMotion.java b/src/main/java/com/hearthstead/entity/TavernSeatMotion.java
+index 17c412c..2dd07d8 100644
+--- a/src/main/java/com/hearthstead/entity/TavernSeatMotion.java
++++ b/src/main/java/com/hearthstead/entity/TavernSeatMotion.java
+@@ -14,6 +14,8 @@ public final class TavernSeatMotion {
+     private static final double ANOTHER_FURNITURE_SEAT_HEIGHT = 7.0 / 16.0;
+     /** At the finished lateral pose, the hips remain behind the table-facing chair edge. */
+     private static final double ANOTHER_FURNITURE_SETTLED_FRONT = .125 - Math.sqrt(5.0) / 12.0;
++    /** Side-aisle transit advances into the gap between the table edge and chair back before lateral seating. */
++    private static final double ANOTHER_FURNITURE_FRONT_LANE_ADVANCE = .25 - Math.sqrt(5.0) / 12.0;
+     public record Leg(float x, float y, float z, float shinX, float shinY, float shinZ, float bootX, float bootY, float bootZ) {}
+     public record Frame(Vec3 origin, float yaw, float bend, Vec3 rightFoot, Vec3 leftFoot, Leg right, Leg left) {}
+     private TavernSeatMotion() {}
+@@ -72,6 +74,15 @@ public final class TavernSeatMotion {
+         double forward = upperReach*Math.sin(angle), hip = .5+upperReach*Math.cos(angle);
+         Vec3 origin = start.subtract(side.scale(centerShift))
+             .subtract(f.scale(.125*bend+forward)).add(0, hip-.75 + furnitureSeatLift(site) * bend, 0);
++        if (site.furniture() == TavernSeating.Furniture.ANOTHER_FURNITURE) {
++            // Keep the entire articulated frame in the real front/side lane while the existing
++            // seven-sixteenths seat lift completes. Translating feet with the hips retains the
++            // solved leg links and reaches the saved vehicle anchor without a final snap.
++            Vec3 laneAdvance = f.scale(ANOTHER_FURNITURE_FRONT_LANE_ADVANCE * smooth(ticks / 8));
++            left = left.add(laneAdvance);
++            right = right.add(laneAdvance);
++            origin = origin.add(laneAdvance);
++        }
+         float yaw = site.dinerFacing().toYRot();
+         Leg r = solve(origin, yaw, (float)bend, right, -1);
+         Leg a = solve(origin, yaw, (float)bend, left, 1);
+diff --git a/src/main/java/com/hearthstead/gametest/TavernSeatingGameTests.java b/src/main/java/com/hearthstead/gametest/TavernSeatingGameTests.java
+index ef3910a..cd2c444 100644
+--- a/src/main/java/com/hearthstead/gametest/TavernSeatingGameTests.java
++++ b/src/main/java/com/hearthstead/gametest/TavernSeatingGameTests.java
+@@ -834,6 +834,10 @@ public class TavernSeatingGameTests {
+                 clearMotion = false; collision.insert(0, "tick=" + tick + " "); break;
+             }
+         }
++        var finalFrame = com.hearthstead.entity.TavernSeatMotion.sample(site, com.hearthstead.entity.TavernSeatMotion.TICKS);
++        h.assertTrue(finalFrame != null && finalFrame.origin().distanceToSqr(
++                com.hearthstead.entity.TavernSeatMotion.seatedAnchor(site)) < .00000001,
++            "the final articulated Another Furniture frame must meet the saved mount anchor exactly");
+         h.assertTrue(TavernSeating.valid(h.getLevel(), f.guest(), site) && clearMotion,
+             "installed furniture must retain live site validity and clear every physical entry frame: " + collision);
+         h.assertTrue(seat.beginEntry(f.guest()), "the complete physical entry motion must clear the installed chair, table and aisle");

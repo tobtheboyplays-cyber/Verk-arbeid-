@@ -1,0 +1,138 @@
+{
+  "id": "pike_yard_small",
+  "name": "Pike Yard",
+  "category": "military",
+  "kind": "building",
+  "building_type": "pike_yard",
+  "variant": "small",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "pike_yard",
+  "size": [
+    13,
+    11,
+    16
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      7,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 130
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 111
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 85
+    },
+    {
+      "item": "minecraft:oak_planks",
+      "count": 83
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 39
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 38
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 13
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 9
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 5
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 4
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 3
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lightning_rod",
+      "count": 3
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 3
+    },
+    {
+      "item": "minecraft:carved_pumpkin",
+      "count": 3
+    },
+    {
+      "item": "minecraft:white_bed",
+      "count": 2
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 2
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:poppy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 548,
+  "cells": 789
+}

@@ -11,7 +11,6 @@ import com.hearthstead.registry.ModEntities;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Costs;
 import com.hearthstead.settlement.Employment;
-import com.hearthstead.settlement.Mayor;
 import com.hearthstead.settlement.RecruitmentTransaction;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementManager;
@@ -19,7 +18,6 @@ import com.hearthstead.settlement.SettlementSavedData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
@@ -58,6 +56,16 @@ public class CostsGameTests {
         for (int x = 0; x < size; x++) {
             for (int z = 0; z < size; z++) {
                 helper.setBlock(new BlockPos(x, 0, z), Blocks.STONE_BRICKS);
+            }
+        }
+        // Keep every accepted exterior route inside this owned test arena.
+        // The separate long-route fixture is tracked at y+40, above this wall.
+        for (int edge = 0; edge < size; edge++) {
+            for (int y = 1; y <= 3; y++) {
+                helper.setBlock(new BlockPos(edge, y, 0), Blocks.STONE_BRICKS);
+                helper.setBlock(new BlockPos(edge, y, size - 1), Blocks.STONE_BRICKS);
+                helper.setBlock(new BlockPos(0, y, edge), Blocks.STONE_BRICKS);
+                helper.setBlock(new BlockPos(size - 1, y, edge), Blocks.STONE_BRICKS);
             }
         }
     }
@@ -141,6 +149,43 @@ public class CostsGameTests {
         return traveler;
     }
 
+    /** Controlled payment stock derived from the real already-frozen guest quote. */
+    private static void stockQuotedAdmission(GameTestHelper helper, Settlement settlement,
+                                               HearthBlockEntity hearth, Item planks) {
+        admissionBed(helper, settlement);
+        var quote = settlement.recruitment.quote();
+        helper.assertTrue(quote != null && !quote.legacyPending(),
+            "the real spawned guest must own a frozen quote before stock is prepared");
+        if (quote.version() == 2) {
+            int reserve = com.hearthstead.settlement.RecruitmentPolicy.requiredReserve(settlement.population() + 1);
+            int missingMeals = Math.max(0, reserve - countInHearth(hearth, Items.BREAD));
+            if (missingMeals > 0) helper.assertTrue(hearth.insertGoods(new ItemStack(Items.BREAD, missingMeals)).isEmpty(), "seed missing reserve meals");
+            int missingCoins = quote.coins() - countInHearth(hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get());
+            helper.assertTrue(missingCoins >= 0, "controlled fixture must not contain excess payment coins");
+            if (missingCoins > 0) helper.assertTrue(hearth.insertGoods(new ItemStack(com.hearthstead.registry.ModItems.GOLD_COIN.get(), missingCoins)).isEmpty(), "stock actual frozen coins");
+            helper.assertTrue(countInHearth(hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == quote.coins(), "exact v2 coins are funded; unrelated goods are retained");
+            return;
+        }
+        int breadTarget = quote.bread()
+            + com.hearthstead.settlement.RecruitmentPolicy.requiredReserve(settlement.population() + 1);
+        int breadMissing = breadTarget - countInHearth(hearth, Items.BREAD);
+        int planksMissing = quote.planks() - countInHearth(hearth, planks);
+        // Fixture setup only: qualification uses the base price before the
+        // guest exists; a frozen discount can leave excess seeded payment goods.
+        for (int slot = 0; slot < hearth.getInventory().getSlots(); slot++) {
+            ItemStack existing = hearth.getInventory().getStackInSlot(slot);
+            if (breadMissing < 0 && existing.is(Items.BREAD)) {
+                breadMissing += hearth.getInventory().extractItem(slot, -breadMissing, false).getCount();
+            } else if (planksMissing < 0 && existing.is(planks)) {
+                planksMissing += hearth.getInventory().extractItem(slot, -planksMissing, false).getCount();
+            }
+        }
+        if (breadMissing > 0) hearth.insertGoods(new ItemStack(Items.BREAD, breadMissing));
+        if (planksMissing > 0) hearth.insertGoods(new ItemStack(planks, planksMissing));
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == breadTarget
+                && countInHearth(hearth, planks) == quote.planks(),
+            "fixture must hold exactly the frozen price plus the unchanged meal reserve");
+    }
     private static int countInHearth(HearthBlockEntity hearth, Item item) {
         int total = 0;
         for (int i = 0; i < hearth.getInventory().getSlots(); i++) {
@@ -162,9 +207,9 @@ public class CostsGameTests {
      * re-proven here through {@link Costs} so the refactor is verified, not
      * assumed.
      */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty32", timeoutTicks = 200)
     public void noDiscountBuildingsMeansFullPriceCharged(GameTestHelper helper) {
-        floor(helper, 16);
+        floor(helper, 32);
         ServerLevel level = helper.getLevel();
         BlockPos hearthRel = new BlockPos(6, 1, 6);
         Settlement s = settlement(helper, hearthRel);
@@ -175,12 +220,8 @@ public class CostsGameTests {
             "an undecorated settlement must earn no discount, found " + discounts.size());
 
         Costs.Price price = SettlementManager.recruitPrice(level, s);
-        helper.assertTrue(price.lines().get(0).exact() == Items.BREAD
-                && price.lines().get(0).count() == 4,
-            "the full price's bread line must be exactly 4, found " + price.lines().get(0));
-        helper.assertTrue(price.lines().get(1).tag() == ItemTags.PLANKS
-                && price.lines().get(1).count() == 8,
-            "the full price's planks line must be exactly 8, found " + price.lines().get(1));
+        helper.assertTrue(price.lines().size() == 1 && price.lines().get(0).exact() == com.hearthstead.registry.ModItems.GOLD_COIN.get()
+                && price.lines().get(0).count() == 4, "new guest forecast must be exactly four Coins");
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
@@ -189,6 +230,7 @@ public class CostsGameTests {
         hearth.insertGoods(new ItemStack(Items.IRON_INGOT, 5));
 
         SettlerEntity guest = waitingTraveler(helper, s, "Gjest");
+        stockQuotedAdmission(helper, s, hearth, Items.OAK_PLANKS);
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
                 guest.getUUID(), s.recruitment.revision())
@@ -196,13 +238,15 @@ public class CostsGameTests {
             "the full price must commit through explicit admission");
 
         helper.assertFalse(guest.isTraveler(), "the full price must be payable and admit them");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 8,
-            "the full price must leave eight reserve meals, found "
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 12,
+            "coin payment must retain twelve seeded meals, found "
                 + countInHearth(hearth, Items.BREAD));
-        helper.assertTrue(countInHearth(hearth, Items.OAK_PLANKS) == 0,
-            "the full planks price must be gone, found " + countInHearth(hearth, Items.OAK_PLANKS));
+        helper.assertTrue(countInHearth(hearth, Items.OAK_PLANKS) == 8,
+            "coin payment must retain unrelated planks, found " + countInHearth(hearth, Items.OAK_PLANKS));
         helper.assertTrue(countInHearth(hearth, Items.IRON_INGOT) == 5,
             "an unrelated good must be untouched, found " + countInHearth(hearth, Items.IRON_INGOT));
+        helper.assertTrue(countInHearth(hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == 0
+                && s.recruitment.admissionReceipt().removedItemCount() == s.recruitment.quote().coins(), "exact frozen coins consumed once");
         helper.succeed();
     }
 
@@ -210,13 +254,12 @@ public class CostsGameTests {
 
     /**
      * An employed innkeeper earns the NAMED "hearthstead.discount.innkeeper"
-     * hook, and exactly the discounted amount (3 bread + 6 planks, COSTS.md's
-     * -25% on 4 bread + 8 planks) leaves the hearth -- not the full price,
-     * and not some other number.
+     * hook, and the actual frozen aptitude-adjusted Coin amount leaves the
+     * Hearth exactly once, including after dismissal of the discount source.
      */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty32", timeoutTicks = 200)
     public void employedInnkeeperAppliesTheNamedDiscount(GameTestHelper helper) {
-        floor(helper, 16);
+        floor(helper, 32);
         ServerLevel level = helper.getLevel();
         BlockPos hearthRel = new BlockPos(6, 1, 6);
         BlockPos tavernRel = new BlockPos(10, 1, 10);
@@ -235,13 +278,28 @@ public class CostsGameTests {
 
         HearthBlockEntity hearth = (HearthBlockEntity) level
             .getBlockEntity(helper.absolutePos(hearthRel));
-        // Discounted price plus sixteen meals for the existing innkeeper and
-        // incoming guest. If the full price were still charged, only fifteen
-        // would remain and admission would fail at the reserve gate.
-        hearth.insertGoods(new ItemStack(Items.BREAD, 19));
-        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 6));
+        // Base qualification stock plus sixteen meals for both residents.
+        // After the real guest spawns, stock the exact frozen quote below.
+        hearth.insertGoods(new ItemStack(Items.BREAD, 20));
+        hearth.insertGoods(new ItemStack(Items.OAK_PLANKS, 8));
 
         SettlerEntity guest = waitingTraveler(helper, s, "Gjest");
+        stockQuotedAdmission(helper, s, hearth, Items.OAK_PLANKS);
+        var frozenQuote = s.recruitment.quote();
+        helper.assertTrue(frozenQuote.discountPercent() == 25
+                && frozenQuote.coins() == Costs.discounted(4 + 2 * frozenQuote.premium(), 25),
+            "the actual aptitude-adjusted offer must freeze the named 25 percent discount");
+        int residentsBeforeDismissal = s.population();
+        helper.assertTrue(Employment.dismiss(level, s, keeper) == tavern
+                && s.population() == residentsBeforeDismissal
+                && Employment.employerOf(s, keeper.getUUID()) == null,
+            "remove only the discount source while preserving the same resident reserve");
+        var assessment = com.hearthstead.settlement.RecruitmentPolicy.assess(level, s,
+            com.hearthstead.settlement.RecruitmentPolicy.Stage.WAITING_ADMISSION);
+        helper.assertTrue(s.recruitment.quote().equals(frozenQuote)
+                && SettlementManager.recruitPrice(level, s).lines().get(0).count() == frozenQuote.coins()
+                && assessment.price().lines().get(0).count() == frozenQuote.coins(),
+            "shared reserve and payment assessment must retain the frozen quote after dismissal");
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
                 guest.getUUID(), s.recruitment.revision())
@@ -250,11 +308,13 @@ public class CostsGameTests {
 
         helper.assertFalse(guest.isTraveler(),
             "the discounted price alone must be enough to admit them");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 16
-                && countInHearth(hearth, Items.OAK_PLANKS) == 0,
-            "exactly the discounted price must be spent above the reserve, found "
+        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 20
+                && countInHearth(hearth, Items.OAK_PLANKS) == 8,
+            "only the discounted Coins are spent; meals and planks remain unchanged, found "
                 + countInHearth(hearth, Items.BREAD) + " bread, "
                 + countInHearth(hearth, Items.OAK_PLANKS) + " planks left");
+        helper.assertTrue(countInHearth(hearth, com.hearthstead.registry.ModItems.GOLD_COIN.get()) == 0
+                && s.recruitment.admissionReceipt().removedItemCount() == frozenQuote.coins(), "frozen discounted coins charged exactly once");
         helper.succeed();
     }
 
@@ -275,7 +335,7 @@ public class CostsGameTests {
      * the two above -- so the third hook here is added directly to prove
      * the engine's own ceiling, not to claim a third real-world source.)
      */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty32", timeoutTicks = 200)
     public void stackingCapsAtFiftyPercentNeverDeeper(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         Settlement s = new Settlement(UUID.randomUUID(), "Fullstappet",
@@ -291,18 +351,18 @@ public class CostsGameTests {
 
         Costs.Price twoHooks = Costs.afterDiscounts(Costs.recruit(), real);
         helper.assertTrue(twoHooks.lines().get(0).count() == 2
-                && twoHooks.lines().get(1).count() == 4,
+                && twoHooks.lines().size() == 1,
             "innkeeper + dining hall alone must land exactly on COSTS.md's floor "
-                + "(2 bread + 4 planks), found " + twoHooks.lines());
+                + "(2 Coins), found " + twoHooks.lines());
 
         List<Costs.Discount> three = new ArrayList<>(real);
         three.add(new Costs.Discount("hearthstead.discount.library", 25,
             "test-only third hook, proving the cap clips rather than coincides"));
         Costs.Price threeHooks = Costs.afterDiscounts(Costs.recruit(), three);
         helper.assertTrue(threeHooks.lines().get(0).count() == 2
-                && threeHooks.lines().get(1).count() == 4,
+                && threeHooks.lines().size() == 1,
             "a third stacked hook must NOT push past -50% (uncapped would be "
-                + "1 bread + 2 planks), found " + threeHooks.lines());
+                + "1 Coin), found " + threeHooks.lines());
         helper.succeed();
     }
 
@@ -314,7 +374,7 @@ public class CostsGameTests {
      * directly against {@link Costs#afterDiscounts}, independent of
      * recruiting's own (always comfortably above 1) numbers.
      */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty32", timeoutTicks = 200)
     public void aDiscountNeverTakesALineBelowOne(GameTestHelper helper) {
         Costs.Price oneBread = Costs.of(Costs.PriceKey.RECRUIT, Costs.Line.of(Items.BREAD, 1));
         List<Costs.Discount> half = List.of(
@@ -336,9 +396,9 @@ public class CostsGameTests {
      * grows must still be able to pay the planks line with birch planks,
      * not just oak.
      */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
+    @GameTest(batch = "costs", template = "empty32", timeoutTicks = 200)
     public void recruitPriceStillAcceptsAnyPlanks(GameTestHelper helper) {
-        floor(helper, 16);
+        floor(helper, 32);
         ServerLevel level = helper.getLevel();
         BlockPos hearthRel = new BlockPos(6, 1, 6);
         Settlement s = settlement(helper, hearthRel);
@@ -351,6 +411,16 @@ public class CostsGameTests {
         hearth.insertGoods(new ItemStack(Items.BIRCH_PLANKS, 8));
 
         SettlerEntity guest = waitingTraveler(helper, s, "Gjest");
+        // Author an actual old-format saved transaction: schema1 had no Quote.
+        var old = s.recruitment.writeNbt();
+        old.putInt("SchemaVersion", 1); old.remove("Quote");
+        // Use an exact timing target that existed in schema v1; new ordinary ranges did not.
+        old.remove("TimingProfileWireId");
+        old.putInt("LockedTarget", com.hearthstead.settlement.RecruitmentPolicy.callToArmsTargetFor(s.id, old.getInt("Cycle")));
+        s.applyRecruitment(RecruitmentTransaction.readOrQuarantine(old, s.id));
+        SettlementManager.recruitPrice(level, s); // Freeze the historical base barter once.
+        helper.assertTrue(s.recruitment.quote().version() == 0, "loaded schema1 guest retains legacy barter");
+        stockQuotedAdmission(helper, s, hearth, Items.BIRCH_PLANKS);
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
         helper.assertTrue(SettlementManager.admitWaitingTraveler(player, s,
                 guest.getUUID(), s.recruitment.revision())
@@ -365,158 +435,20 @@ public class CostsGameTests {
         helper.succeed();
     }
 
-    // ---------------------------------------------- COSTS-2: the feast ---
-
-    /**
-     * The FIRST appointment to an empty seat is free (COSTS.md "Mayor swap:
-     * the feast"), and a SECOND appointment while one already sits charges
-     * the full, undiscounted 8-bread feast -- exactly that amount leaves the
-     * hearth, chest-true.
-     */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
-    public void appointingASecondMayorChargesTheFullFeastFromTheHearth(GameTestHelper helper) {
-        floor(helper, 16);
-        ServerLevel level = helper.getLevel();
-        BlockPos hearthRel = new BlockPos(6, 1, 6);
-        Settlement s = settlement(helper, hearthRel);
-        HearthBlockEntity hearth = (HearthBlockEntity) level
-            .getBlockEntity(helper.absolutePos(hearthRel));
-
-        SettlerEntity first = settler(helper, s, "Forste", 8, 8);
-        helper.assertTrue(Mayor.appoint(level, s, first) == null,
-            "the first appointment to an empty seat must be free");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "an empty seat's appointment must not touch the hearth at all");
-
-        hearth.insertGoods(new ItemStack(Items.BREAD, 8));
-        SettlerEntity second = settler(helper, s, "Andre", 9, 8);
-        Component refusal = Mayor.appoint(level, s, second);
-
-        helper.assertTrue(refusal == null, "the full feast is payable and the swap must succeed");
-        helper.assertTrue(s.mayorId.equals(second.getUUID()), "the new mayor must hold the seat");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "the full 8-bread feast must be entirely gone, found "
-                + countInHearth(hearth, Items.BREAD));
-        helper.succeed();
-    }
-
-    /**
-     * A mayor who is not currently loaded must still be charged for -- the
-     * KF-025 shape, now with a price attached (2026-08-26 raid-night audit).
-     * {@code Mayor.find} resolves the incumbent through {@code
-     * level.getEntity}, a LOADING fact, so appointing a successor while the
-     * incumbent's chunk happened to be unloaded used to skip the whole swap
-     * branch: no feast charged, no stand-down morale hit, yet the seat still
-     * changed hands -- a swap that silently succeeded free. Simulated here
-     * as an incumbent id with no entity in the level at all: {@code
-     * level.getEntity} returns null either way, so it is the exact
-     * observable state {@code Mayor.find} sees for a genuinely unloaded
-     * mayor. {@code settlement.mayorId} alone -- a SETTLEMENT fact -- now
-     * decides whether this is a swap, so the feast is charged regardless.
-     */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
-    public void anUnloadedIncumbentMayorStillChargesTheFeast(GameTestHelper helper) {
-        floor(helper, 16);
-        ServerLevel level = helper.getLevel();
-        BlockPos hearthRel = new BlockPos(6, 1, 6);
-        Settlement s = settlement(helper, hearthRel);
-        HearthBlockEntity hearth = (HearthBlockEntity) level
-            .getBlockEntity(helper.absolutePos(hearthRel));
-
-        // On record as mayor, but no entity by that id exists in this level
-        // at all -- Mayor.find returns null for this exactly the way it
-        // would for a mayor asleep in an unloaded chunk.
-        s.mayorId = UUID.randomUUID();
-        s.mayorSince = level.getGameTime();
-
-        hearth.insertGoods(new ItemStack(Items.BREAD, 8));
-        SettlerEntity successor = settler(helper, s, "Etterfolger", 9, 8);
-        Component refusal = Mayor.appoint(level, s, successor);
-
-        helper.assertTrue(refusal == null,
-            "an unloaded incumbent must not silently block a payable swap");
-        helper.assertTrue(s.mayorId.equals(successor.getUUID()),
-            "the successor must hold the seat");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "the full feast must still be charged for an unloaded incumbent, "
-                + "found " + countInHearth(hearth, Items.BREAD));
-        helper.succeed();
-    }
-
-    /**
-     * A village that cannot afford the feast does not get a new mayor: the
-     * swap is refused with a reason, the old mayor keeps the seat, and the
-     * hearth is left exactly as it was -- a swap that silently succeeded
-     * without the goods is exactly the value mint FLOWS.md forbids.
-     */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
-    public void aVillageThatCannotAffordTheFeastKeepsItsMayor(GameTestHelper helper) {
-        floor(helper, 16);
-        ServerLevel level = helper.getLevel();
-        BlockPos hearthRel = new BlockPos(6, 1, 6);
-        Settlement s = settlement(helper, hearthRel);
-        HearthBlockEntity hearth = (HearthBlockEntity) level
-            .getBlockEntity(helper.absolutePos(hearthRel));
-
-        SettlerEntity first = settler(helper, s, "Forste", 8, 8);
-        helper.assertTrue(Mayor.appoint(level, s, first) == null,
-            "the first appointment to an empty seat must be free");
-
-        hearth.insertGoods(new ItemStack(Items.BREAD, 3)); // short of the 8-bread feast
-        SettlerEntity second = settler(helper, s, "Andre", 9, 8);
-        Component refusal = Mayor.appoint(level, s, second);
-
-        helper.assertTrue(refusal != null,
-            "a village that cannot pay the feast must be refused, with a reason");
-        helper.assertTrue(s.mayorId.equals(first.getUUID()),
-            "the old mayor must keep the seat -- a refused swap changes nothing");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 3,
-            "a refused feast must not touch the hearth at all, found "
-                + countInHearth(hearth, Items.BREAD));
-        helper.succeed();
-    }
-
-    /**
-     * A registered dining hall earns the NAMED
-     * "hearthstead.discount.mayor_feast_dining_hall" hook at -50% (COSTS.md:
-     * "the feast is cheaper where feasts are normal"), and exactly the
-     * discounted amount (4 bread, half of 8) leaves the hearth for the swap
-     * to succeed -- not the full price.
-     */
-    @GameTest(batch = "costs", template = "empty16", timeoutTicks = 200)
-    public void diningHallHalvesTheFeastAndOnlyTheDiscountedAmountLeavesTheChest(
-            GameTestHelper helper) {
-        floor(helper, 16);
-        ServerLevel level = helper.getLevel();
-        BlockPos hearthRel = new BlockPos(6, 1, 6);
-        BlockPos hallRel = new BlockPos(10, 1, 10);
-        Settlement s = settlement(helper, hearthRel);
-        building(helper, s, BuildingType.DINING_HALL, hallRel.getX(), hallRel.getZ());
-        HearthBlockEntity hearth = (HearthBlockEntity) level
-            .getBlockEntity(helper.absolutePos(hearthRel));
-
-        SettlerEntity first = settler(helper, s, "Forste", 8, 8);
-        helper.assertTrue(Mayor.appoint(level, s, first) == null,
-            "the first appointment to an empty seat must be free");
-
-        List<Costs.Discount> discounts =
-            Costs.discountsFor(level, s, Costs.PriceKey.MAYOR_FEAST);
-        helper.assertTrue(discounts.size() == 1
-                && discounts.get(0).translationKey()
-                    .equals("hearthstead.discount.mayor_feast_dining_hall")
-                && discounts.get(0).percent() == 50,
-            "a dining hall must earn exactly the named -50% feast hook, found " + discounts);
-
-        hearth.insertGoods(new ItemStack(Items.BREAD, 4)); // exactly the discounted price
-        SettlerEntity second = settler(helper, s, "Andre", 9, 8);
-        Component refusal = Mayor.appoint(level, s, second);
-
-        helper.assertTrue(refusal == null,
-            "the discounted feast alone must be enough for the swap to succeed");
-        helper.assertTrue(s.mayorId.equals(second.getUUID()), "the new mayor must hold the seat");
-        helper.assertTrue(countInHearth(hearth, Items.BREAD) == 0,
-            "exactly the discounted 4-bread feast must be spent, found "
-                + countInHearth(hearth, Items.BREAD));
-        helper.succeed();
+    /** Payment tests still require a real, free bed; abstract founder capacity is insufficient. */
+    private static void admissionBed(GameTestHelper helper, Settlement settlement) {
+        if (com.hearthstead.settlement.BuildingManager.findFreeBed(helper.getLevel(), settlement) != null) return;
+        Building home = GameTestFixtures.register(helper, settlement, BuildingType.HOUSE, 2, 7);
+        BlockPos foot = new BlockPos(3, 1, 8);
+        BlockPos head = foot.south();
+        var state = Blocks.RED_BED.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.BedBlock.FACING, net.minecraft.core.Direction.SOUTH);
+        helper.setBlock(foot, state.setValue(net.minecraft.world.level.block.BedBlock.PART,
+            net.minecraft.world.level.block.state.properties.BedPart.FOOT));
+        helper.setBlock(head, state.setValue(net.minecraft.world.level.block.BedBlock.PART,
+            net.minecraft.world.level.block.state.properties.BedPart.HEAD));
+        home.beds.add(helper.absolutePos(head));
+        helper.assertTrue(com.hearthstead.settlement.BuildingManager.findFreeBed(helper.getLevel(), settlement)
+            .equals(helper.absolutePos(head)), "payment fixture must expose the real unclaimed bed head");
     }
 }

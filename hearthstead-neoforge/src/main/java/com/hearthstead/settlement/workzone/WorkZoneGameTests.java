@@ -167,6 +167,44 @@ public final class WorkZoneGameTests {
         helper.succeed();
     }
 
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "work_zone_height_retry")
+    public void rejectedFarmHeightRetainsRetryStageThenValidHeightCommits(
+            GameTestHelper helper) {
+        Settlement settlement = settlement(helper, new BlockPos(7, 2, 7),
+            "Height Retry");
+        Building farm = building(settlement, BuildingType.FARMHOUSE,
+            helper.absolutePos(new BlockPos(2, 1, 2)));
+        SettlerEntity farmer = worker(helper, settlement, farm, Profession.FARMER,
+            new BlockPos(3, 1, 3));
+        helper.setBlock(new BlockPos(4, 1, 4), Blocks.FARMLAND);
+
+        WorkZone invalidHeight = zone(helper, settlement, farm, WorkZone.Type.FARM,
+            new BlockPos(3, 1, 3), new BlockPos(6, 1, 6), 1);
+        WorkZone validHeight = zone(helper, settlement, farm, WorkZone.Type.FARM,
+            new BlockPos(3, 1, 3), new BlockPos(6, 2, 6), 1);
+
+        helper.assertTrue(WorkZoneService.validateCandidate(helper.getLevel(),
+                settlement, farm, invalidHeight) == WorkZoneService.Result.FARM_HEIGHT_REQUIRED
+                && WorkZoneService.rejectionStage(false, true, true)
+                    == com.hearthstead.network.WorkZoneSnapshotPayload.Stage.CORNER_TWO,
+            "a rejected height must retain both corners and return the client to the height step");
+        WorkZoneService.Result preview = WorkZoneService.validateCandidate(helper.getLevel(),
+            settlement, farm, validHeight);
+        WorkZoneService.Result commit = preview == WorkZoneService.Result.APPLIED
+            ? WorkZoneService.commitValidated(helper.getLevel(), settlement, farm,
+                farmer, validHeight)
+            : null;
+        helper.assertTrue(preview == WorkZoneService.Result.APPLIED
+                && commit == WorkZoneService.Result.APPLIED
+                && validHeight.equals(farm.workZone().orElse(null))
+                && farm.workZoneRevision() == 1,
+            "the next valid height must preview/commit normally without replacing either corner"
+                + " (preview=" + preview + ", commit=" + commit + ", revision="
+                + farm.workZoneRevision() + ")");
+        helper.succeed();
+    }
+
     @GameTest(template = "empty5", timeoutTicks = 100,
         batch = "work_zone_no_mutation")
     public void staleCandidateFailsWithoutMutation(GameTestHelper helper) {
@@ -217,23 +255,27 @@ public final class WorkZoneGameTests {
             WorkZoneService.Result.WRONG_DIMENSION);
     }
 
-    @GameTest(template = "empty5", timeoutTicks = 100,
+    @GameTest(template = "empty16", timeoutTicks = 100,
         batch = "work_zone_bounds")
-    public void mixedCornerOutsideSettlementFailsWithoutMutation(
+    public void linkedOutlyingWorkZonePassesWithoutWideningItsLimits(
             GameTestHelper helper) {
         BlockPos center = helper.absolutePos(new BlockPos(2, 2, 2));
-        Settlement s = settlementAt(helper, center, "Mixed Corner", 48);
-        Building farm = building(s, BuildingType.FARMHOUSE, center);
-        WorkZone diagonalEscape = WorkZone.between(s.id, farm.id,
-            WorkZone.Type.FARM, helper.getLevel().dimension().location(),
-            center.offset(-40, 0, 0), center.offset(0, 0, 40), 1);
+        Settlement s = settlementAt(helper, center, "Outlying", 1);
+        BlockPos outlying = center.offset(4, 0, 0);
+        Building farm = building(s, BuildingType.FARMHOUSE, outlying);
+        helper.getLevel().setBlockAndUpdate(outlying, Blocks.FARMLAND.defaultBlockState());
+        helper.getLevel().setBlockAndUpdate(outlying.above(), Blocks.WHEAT.defaultBlockState());
+        WorkZone zone = WorkZone.between(s.id, farm.id, WorkZone.Type.FARM,
+            helper.getLevel().dimension().location(), outlying,
+            outlying.offset(1, 1, 1), 1);
 
-        helper.assertTrue(s.inside(diagonalEscape.min())
-                && s.inside(diagonalEscape.max())
-                && !s.insideBox(diagonalEscape.min(), diagonalEscape.max()),
-            "fixture must expose the two-corner spherical-boundary bypass");
-        assertRejectedWithoutState(helper, s, farm, diagonalEscape,
-            WorkZoneService.Result.OUTSIDE_SETTLEMENT);
+        helper.assertTrue(!s.insideBox(zone.min(), zone.max()),
+            "fixture: the bounded farm zone must sit outside the city radius");
+        helper.assertTrue(zone.withinPersistentLimits()
+                && WorkZoneService.validateCandidate(helper.getLevel(), s, farm, zone)
+                    == WorkZoneService.Result.APPLIED,
+            "an exact linked building may keep its bounded work zone outside the city radius");
+        helper.succeed();
     }
 
     @GameTest(template = "empty5", timeoutTicks = 100,

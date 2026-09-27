@@ -5,8 +5,11 @@ import com.hearthstead.client.QaClientObserver;
 import com.hearthstead.client.screen.SettlerScreen;
 import com.hearthstead.client.screen.WorkZoneConfirmScreen;
 import com.hearthstead.network.WorkZoneActionPayload;
+import com.hearthstead.network.WorkZoneSelectionPayload;
 import com.hearthstead.network.WorkZoneSnapshotPayload;
 import com.hearthstead.registry.ModItems;
+import com.hearthstead.block.PlaqueBlockEntity;
+import com.hearthstead.entity.SettlerEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -16,12 +19,14 @@ import net.minecraft.client.renderer.debug.DebugRenderer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
@@ -29,10 +34,25 @@ import net.neoforged.neoforge.network.PacketDistributor;
 @EventBusSubscriber(modid = Hearthstead.MODID, value = Dist.CLIENT)
 public final class WorkZoneClient {
     private static WorkZoneSnapshotPayload current;
+    /** One physical press may advance at most one server-authoritative stage. */
+    private static boolean rightClickArmed = true;
 
     enum AttackDecision {
         PASS,
-        CAPTURE_AND_CANCEL_BLOCK_DAMAGE
+        CONSUME,
+        SELECT_SETTLER,
+        SELECT_WORKPLACE,
+        SET_FIRST_CORNER,
+        SET_SECOND_CORNER,
+        SET_HEIGHT
+    }
+
+    enum WorldTarget {
+        BLOCK,
+        WORKPLACE,
+        SETTLER,
+        ENTITY,
+        MISS
     }
 
     public static void accept(WorkZoneSnapshotPayload snapshot) {
@@ -123,32 +143,61 @@ public final class WorkZoneClient {
         }
     }
 
-    /**
-     * Left-click chooses corner two and consumes the attack before vanilla can
-     * damage the pointed block. The server independently ray-checks the same
-     * physical block before accepting it.
-     */
+    /** Right-click owns the entire Scepter world flow before vanilla use can run. */
     @SubscribeEvent
     public static void onInteraction(InputEvent.InteractionKeyMappingTriggered event) {
         Minecraft mc = Minecraft.getInstance();
+        boolean mainHandScepter = mc.player != null && mc.player.getMainHandItem()
+            .is(ModItems.WORK_SCEPTER.get());
+        if (event.isUseItem() && !rightClickArmed) {
+            event.setCanceled(true);
+            event.setSwingHand(false);
+            return;
+        }
         BlockHitResult hit = mc.hitResult instanceof BlockHitResult blockHit
             && blockHit.getType() == HitResult.Type.BLOCK ? blockHit : null;
         WorkZoneSnapshotPayload.Stage stage = current == null
             ? WorkZoneSnapshotPayload.Stage.UNKNOWN : current.stage();
-        if (decideAttack(event.isAttack(), stage, mc.screen != null,
+        WorldTarget target = target(mc, hit);
+        AttackDecision decision = decideUse(event.isUseItem(), stage, mc.screen != null,
                 mc.player != null && mc.getConnection() != null,
-                mc.player != null && mc.player.getMainHandItem()
-                    .is(ModItems.WORK_SCEPTER.get()), hit != null)
-            != AttackDecision.CAPTURE_AND_CANCEL_BLOCK_DAMAGE) {
+                mainHandScepter, target);
+        if (decision == AttackDecision.PASS) {
             return;
         }
+        rightClickArmed = false;
         event.setCanceled(true);
         event.setSwingHand(false);
-        WorkZoneActionPayload.Kind kind = stage
-            == WorkZoneSnapshotPayload.Stage.CORNER_ONE
-                ? WorkZoneActionPayload.Kind.SET_SECOND_CORNER
-                : WorkZoneActionPayload.Kind.SET_HEIGHT;
-        PacketDistributor.sendToServer(action(kind, hit.getBlockPos()));
+        switch (decision) {
+            case SELECT_SETTLER -> {
+                if (mc.hitResult instanceof EntityHitResult entityHit) {
+                    PacketDistributor.sendToServer(WorkZoneSelectionPayload.settler(
+                        entityHit.getEntity().getUUID()));
+                }
+            }
+            case SELECT_WORKPLACE -> {
+                if (hit != null) PacketDistributor.sendToServer(
+                    WorkZoneSelectionPayload.workplace(hit.getBlockPos()));
+            }
+            case SET_FIRST_CORNER, SET_SECOND_CORNER, SET_HEIGHT -> {
+                if (hit == null) return;
+                WorkZoneActionPayload.Kind kind = decision == AttackDecision.SET_FIRST_CORNER
+                    ? WorkZoneActionPayload.Kind.SET_FIRST_CORNER
+                    : decision == AttackDecision.SET_SECOND_CORNER
+                        ? WorkZoneActionPayload.Kind.SET_SECOND_CORNER
+                        : WorkZoneActionPayload.Kind.SET_HEIGHT;
+                PacketDistributor.sendToServer(action(kind, hit.getBlockPos()));
+            }
+            case PASS, CONSUME -> { }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onClientTick(ClientTickEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.options == null || !mc.options.keyUse.isDown()) {
+            rightClickArmed = true;
+        }
     }
 
     @SubscribeEvent
@@ -205,18 +254,41 @@ public final class WorkZoneClient {
             java.util.Optional.ofNullable(corner));
     }
 
-    static AttackDecision decideAttack(boolean attack,
+    static AttackDecision decideUse(boolean useItem,
                                        WorkZoneSnapshotPayload.Stage stage,
                                        boolean screenOpen,
                                        boolean connectedPlayer,
                                        boolean mainHandScepter,
-                                       boolean physicalBlockHit) {
-        return attack && (stage == WorkZoneSnapshotPayload.Stage.CORNER_ONE
-            || stage == WorkZoneSnapshotPayload.Stage.CORNER_TWO)
-            && !screenOpen && connectedPlayer && mainHandScepter
-            && physicalBlockHit
-            ? AttackDecision.CAPTURE_AND_CANCEL_BLOCK_DAMAGE
-            : AttackDecision.PASS;
+                                       WorldTarget target) {
+        if (!useItem || screenOpen || !mainHandScepter) return AttackDecision.PASS;
+        if (!connectedPlayer) return AttackDecision.CONSUME;
+        if (stage == WorkZoneSnapshotPayload.Stage.TARGET_SELECTED
+            && (target == WorldTarget.BLOCK || target == WorldTarget.WORKPLACE)) {
+            return AttackDecision.SET_FIRST_CORNER;
+        }
+        if (stage == WorkZoneSnapshotPayload.Stage.CORNER_ONE
+            && (target == WorldTarget.BLOCK || target == WorldTarget.WORKPLACE)) {
+            return AttackDecision.SET_SECOND_CORNER;
+        }
+        if (stage == WorkZoneSnapshotPayload.Stage.CORNER_TWO
+            && (target == WorldTarget.BLOCK || target == WorldTarget.WORKPLACE)) {
+            return AttackDecision.SET_HEIGHT;
+        }
+        if (stage == WorkZoneSnapshotPayload.Stage.UNKNOWN) {
+            if (target == WorldTarget.SETTLER) return AttackDecision.SELECT_SETTLER;
+            if (target == WorldTarget.WORKPLACE) return AttackDecision.SELECT_WORKPLACE;
+        }
+        return AttackDecision.CONSUME;
+    }
+
+    private static WorldTarget target(Minecraft mc, BlockHitResult blockHit) {
+        if (mc.hitResult instanceof EntityHitResult entityHit) {
+            return entityHit.getEntity() instanceof SettlerEntity
+                ? WorldTarget.SETTLER : WorldTarget.ENTITY;
+        }
+        if (blockHit == null) return WorldTarget.MISS;
+        return mc.level != null && mc.level.getBlockEntity(blockHit.getBlockPos())
+            instanceof PlaqueBlockEntity ? WorldTarget.WORKPLACE : WorldTarget.BLOCK;
     }
 
     static boolean dimensionsMatch(String clientDimension,

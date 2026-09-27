@@ -1,0 +1,136 @@
+{
+  "id": "butcher_rustic",
+  "name": "Butchery (Rustic Log)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "butcher",
+  "variant": "small",
+  "style": "rustic",
+  "preset": "Rustic Log",
+  "requires": "builders_hut",
+  "group": "butcher",
+  "size": [
+    15,
+    10,
+    9
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      5,
+      2,
+      5
+    ],
+    "facing": "north"
+  },
+  "work": [
+    [
+      2,
+      1,
+      3
+    ]
+  ],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:dirt",
+      "count": 92
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 82
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 43
+    },
+    {
+      "item": "minecraft:dark_oak_stairs",
+      "count": 29
+    },
+    {
+      "item": "minecraft:stripped_spruce_log",
+      "count": 27
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 20
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 20
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 19
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 12
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 11
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 7
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 2
+    },
+    {
+      "item": "minecraft:smoker",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cauldron",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 1
+    },
+    {
+      "item": "minecraft:campfire",
+      "count": 1
+    }
+  ],
+  "block_count": 379,
+  "cells": 484
+}

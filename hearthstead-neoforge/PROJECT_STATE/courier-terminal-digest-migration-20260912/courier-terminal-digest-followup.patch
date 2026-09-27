@@ -1,0 +1,30 @@
+--- a/hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestRecord.java
++++ b/hearthstead-neoforge/src/main/java/com/hearthstead/settlement/request/RequestRecord.java
+@@ -570,7 +570,26 @@
+             || RequestItemFingerprint.readNbt(fingerprintTag, registries) != null
+             || RequestItemFingerprint.readLegacyZeroCargoOutputNbt(
+                 fingerprintTag, registries) == null) return null;
+-        RequestRecord row = readNbt(tag, registries, expectedSettlementId, true);
++        CompoundTag normalized = tag;
++        // Older blocked-to-expired saves retained BlockedFrom even though the
++        // terminal edge has closed it. Repair only that fully evidenced,
++        // zero-cargo terminal shape before the normal constructor verifies it.
++        ListTag transitions = tag.getList("Transitions", Tag.TAG_COMPOUND);
++        if (tag.getInt("State") == RequestState.EXPIRED.wireId()
++            && tag.contains("BlockedFrom", Tag.TAG_INT)
++            && tag.getInt("BlockedFrom") == RequestState.RESERVED.wireId()
++            && tag.getInt("Moved") == 0 && tag.getInt("Delivered") == 0
++            && !transitions.isEmpty()) {
++            CompoundTag last = transitions.getCompound(transitions.size() - 1);
++            if (last.getInt("From") == RequestState.BLOCKED.wireId()
++                && last.getInt("To") == RequestState.EXPIRED.wireId()
++                && last.getInt("Moved") == 0 && last.getInt("Delivered") == 0
++                && last.getInt("Blocker") == RequestBlocker.NONE.wireId()) {
++                normalized = tag.copy();
++                normalized.remove("BlockedFrom");
++            }
++        }
++        RequestRecord row = readNbt(normalized, registries, expectedSettlementId, true);
+         return row != null && row.state().terminal() ? row : null;
+     }
+ 

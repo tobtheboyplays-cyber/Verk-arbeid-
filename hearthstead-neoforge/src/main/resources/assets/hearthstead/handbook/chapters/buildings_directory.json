@@ -1,0 +1,281 @@
+{
+  "id": "buildings_directory",
+  "title": "hearthstead.guide.buildings_directory.title",
+  "icon": "hearthstead:plaque",
+  "pages": [
+    {
+      "id": "buildings_directory.list1",
+      "title": "hearthstead.guide.buildings_directory.list1.title",
+      "bullets": [
+        "hearthstead.guide.buildings_directory.list1.b1"
+      ],
+      "tip": "hearthstead.guide.buildings_directory.list1.tip",
+      "entries": [
+        {
+          "ref": "building:HOUSE",
+          "name": "hearthstead.guide.ref.buildings_directory.house.name",
+          "icon": "minecraft:red_bed",
+          "text": "hearthstead.guide.ref.buildings_directory.house.text"
+        },
+        {
+          "ref": "building:LODGING",
+          "name": "hearthstead.guide.ref.buildings_directory.lodging.name",
+          "icon": "minecraft:white_bed",
+          "text": "hearthstead.guide.ref.buildings_directory.lodging.text"
+        },
+        {
+          "ref": "building:WAREHOUSE",
+          "name": "hearthstead.guide.ref.buildings_directory.warehouse.name",
+          "icon": "minecraft:chest",
+          "text": "hearthstead.guide.ref.buildings_directory.warehouse.text"
+        },
+        {
+          "ref": "building:ARCHITECTS_STUDY",
+          "name": "hearthstead.guide.ref.buildings_directory.architects_study.name",
+          "icon": "minecraft:lectern",
+          "text": "hearthstead.guide.ref.buildings_directory.architects_study.text"
+        },
+        {
+          "ref": "building:SCHOOL",
+          "name": "hearthstead.guide.ref.buildings_directory.school.name",
+          "icon": "minecraft:writable_book",
+          "text": "hearthstead.guide.ref.buildings_directory.school.text"
+        },
+        {
+          "ref": "building:FARMHOUSE",
+          "name": "hearthstead.guide.ref.buildings_directory.farmhouse.name",
+          "icon": "minecraft:wheat",
+          "text": "hearthstead.guide.ref.buildings_directory.farmhouse.text"
+        },
+        {
+          "ref": "building:MILL",
+          "name": "hearthstead.guide.ref.buildings_directory.mill.name",
+          "icon": "minecraft:hay_block",
+          "text": "hearthstead.guide.ref.buildings_directory.mill.text"
+        },
+        {
+          "ref": "building:BAKERY",
+          "name": "hearthstead.guide.ref.buildings_directory.bakery.name",
+          "icon": "minecraft:bread",
+          "text": "hearthstead.guide.ref.buildings_directory.bakery.text"
+        }
+      ]
+    },
+    {
+      "id": "buildings_directory.list2",
+      "title": "hearthstead.guide.buildings_directory.list2.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "building:KITCHEN",
+          "name": "hearthstead.guide.ref.buildings_directory.kitchen.name",
+          "icon": "minecraft:cooked_beef",
+          "text": "hearthstead.guide.ref.buildings_directory.kitchen.text"
+        },
+        {
+          "ref": "building:DINING_HALL",
+          "name": "hearthstead.guide.ref.buildings_directory.dining_hall.name",
+          "icon": "minecraft:cake",
+          "text": "hearthstead.guide.ref.buildings_directory.dining_hall.text"
+        },
+        {
+          "ref": "building:PASTURE",
+          "name": "hearthstead.guide.ref.buildings_directory.pasture.name",
+          "icon": "minecraft:white_wool",
+          "text": "hearthstead.guide.ref.buildings_directory.pasture.text"
+        },
+        {
+          "ref": "building:BUTCHER",
+          "name": "hearthstead.guide.ref.buildings_directory.butcher.name",
+          "icon": "minecraft:porkchop",
+          "text": "hearthstead.guide.ref.buildings_directory.butcher.text"
+        },
+        {
+          "ref": "building:FISHERY",
+          "name": "hearthstead.guide.ref.buildings_directory.fishery.name",
+          "icon": "minecraft:fishing_rod",
+          "text": "hearthstead.guide.ref.buildings_directory.fishery.text"
+        },
+        {
+          "ref": "building:HUNTERS_LODGE",
+          "name": "hearthstead.guide.ref.buildings_directory.hunters_lodge.name",
+          "icon": "minecraft:bow",
+          "text": "hearthstead.guide.ref.buildings_directory.hunters_lodge.text"
+        },
+        {
+          "ref": "building:BREWERY",
+          "name": "hearthstead.guide.ref.buildings_directory.brewery.name",
+          "icon": "minecraft:barrel",
+          "text": "hearthstead.guide.ref.buildings_directory.brewery.text"
+        },
+        {
+          "ref": "building:TAVERN",
+          "name": "hearthstead.guide.ref.buildings_directory.tavern.name",
+          "icon": "minecraft:bell",
+          "text": "hearthstead.guide.ref.buildings_directory.tavern.text"
+        }
+      ]
+    },
+    {
+      "id": "buildings_directory.list3",
+      "title": "hearthstead.guide.buildings_directory.list3.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "building:WELL",
+          "name": "hearthstead.guide.ref.buildings_directory.well.name",
+          "icon": "minecraft:bucket",
+          "text": "hearthstead.guide.ref.buildings_directory.well.text"
+        },
+        {
+          "ref": "building:LUMBER_CAMP",
+          "name": "hearthstead.guide.ref.buildings_directory.lumber_camp.name",
+          "icon": "minecraft:iron_axe",
+          "text": "hearthstead.guide.ref.buildings_directory.lumber_camp.text"
+        },
+        {
+          "ref": "building:SAWMILL",
+          "name": "hearthstead.guide.ref.buildings_directory.sawmill.name",
+          "icon": "minecraft:oak_planks",
+          "text": "hearthstead.guide.ref.buildings_directory.sawmill.text"
+        },
+        {
+          "ref": "building:CARPENTER",
+          "name": "hearthstead.guide.ref.buildings_directory.carpenter.name",
+          "icon": "minecraft:crafting_table",
+          "text": "hearthstead.guide.ref.buildings_directory.carpenter.text"
+        },
+        {
+          "ref": "building:MINE",
+          "name": "hearthstead.guide.ref.buildings_directory.mine.name",
+          "icon": "minecraft:iron_pickaxe",
+          "text": "hearthstead.guide.ref.buildings_directory.mine.text"
+        },
+        {
+          "ref": "building:SMELTER",
+          "name": "hearthstead.guide.ref.buildings_directory.smelter.name",
+          "icon": "minecraft:furnace",
+          "text": "hearthstead.guide.ref.buildings_directory.smelter.text"
+        },
+        {
+          "ref": "building:SMITHY",
+          "name": "hearthstead.guide.ref.buildings_directory.smithy.name",
+          "icon": "minecraft:anvil",
+          "text": "hearthstead.guide.ref.buildings_directory.smithy.text"
+        },
+        {
+          "ref": "building:WEAVER",
+          "name": "hearthstead.guide.ref.buildings_directory.weaver.name",
+          "icon": "minecraft:loom",
+          "text": "hearthstead.guide.ref.buildings_directory.weaver.text"
+        }
+      ]
+    },
+    {
+      "id": "buildings_directory.list4",
+      "title": "hearthstead.guide.buildings_directory.list4.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "building:INFIRMARY",
+          "name": "hearthstead.guide.ref.buildings_directory.infirmary.name",
+          "icon": "minecraft:golden_apple",
+          "text": "hearthstead.guide.ref.buildings_directory.infirmary.text"
+        },
+        {
+          "ref": "building:BARRACKS",
+          "name": "hearthstead.guide.ref.buildings_directory.barracks.name",
+          "icon": "minecraft:iron_sword",
+          "text": "hearthstead.guide.ref.buildings_directory.barracks.text"
+        },
+        {
+          "ref": "building:WATCHTOWER",
+          "name": "hearthstead.guide.ref.buildings_directory.watchtower.name",
+          "icon": "minecraft:spyglass",
+          "text": "hearthstead.guide.ref.buildings_directory.watchtower.text"
+        },
+        {
+          "ref": "building:TANNERY",
+          "name": "hearthstead.guide.ref.buildings_directory.tannery.name",
+          "icon": "minecraft:leather",
+          "text": "hearthstead.guide.ref.buildings_directory.tannery.text"
+        },
+        {
+          "ref": "building:FLETCHER",
+          "name": "hearthstead.guide.ref.buildings_directory.fletcher.name",
+          "icon": "minecraft:arrow",
+          "text": "hearthstead.guide.ref.buildings_directory.fletcher.text"
+        },
+        {
+          "ref": "building:ARMOURY",
+          "name": "hearthstead.guide.ref.buildings_directory.armoury.name",
+          "icon": "minecraft:iron_chestplate",
+          "text": "hearthstead.guide.ref.buildings_directory.armoury.text"
+        },
+        {
+          "ref": "building:MASON",
+          "name": "hearthstead.guide.ref.buildings_directory.mason.name",
+          "icon": "minecraft:bricks",
+          "text": "hearthstead.guide.ref.buildings_directory.mason.text"
+        },
+        {
+          "ref": "building:LIBRARY",
+          "name": "hearthstead.guide.ref.buildings_directory.library.name",
+          "icon": "minecraft:bookshelf",
+          "text": "hearthstead.guide.ref.buildings_directory.library.text"
+        }
+      ]
+    },
+    {
+      "id": "buildings_directory.list5",
+      "title": "hearthstead.guide.buildings_directory.list5.title",
+      "bullets": [
+        "hearthstead.guide.ref.more"
+      ],
+      "entries": [
+        {
+          "ref": "building:MARKET",
+          "name": "hearthstead.guide.ref.buildings_directory.market.name",
+          "icon": "minecraft:emerald",
+          "text": "hearthstead.guide.ref.buildings_directory.market.text"
+        },
+        {
+          "ref": "building:TRADING_POST",
+          "name": "hearthstead.guide.ref.buildings_directory.trading_post.name",
+          "icon": "minecraft:gold_nugget",
+          "text": "hearthstead.guide.ref.buildings_directory.trading_post.text"
+        },
+        {
+          "ref": "building:BUILDERS_HUT",
+          "name": "hearthstead.guide.ref.buildings_directory.builders_hut.name",
+          "icon": "minecraft:scaffolding",
+          "text": "hearthstead.guide.ref.buildings_directory.builders_hut.text"
+        },
+        {
+          "ref": "building:PIKE_YARD",
+          "name": "hearthstead.guide.ref.buildings_directory.pike_yard.name",
+          "icon": "minecraft:trident",
+          "text": "hearthstead.guide.ref.buildings_directory.pike_yard.text"
+        },
+        {
+          "ref": "building:SWORD_HALL",
+          "name": "hearthstead.guide.ref.buildings_directory.sword_hall.name",
+          "icon": "minecraft:grindstone",
+          "text": "hearthstead.guide.ref.buildings_directory.sword_hall.text"
+        },
+        {
+          "ref": "building:RUNE_HALL",
+          "name": "hearthstead.guide.ref.buildings_directory.rune_hall.name",
+          "icon": "minecraft:enchanting_table",
+          "text": "hearthstead.guide.ref.buildings_directory.rune_hall.text"
+        }
+      ]
+    }
+  ]
+}

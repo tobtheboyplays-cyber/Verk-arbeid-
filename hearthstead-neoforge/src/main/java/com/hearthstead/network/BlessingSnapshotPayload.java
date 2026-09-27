@@ -24,18 +24,46 @@ public record BlessingSnapshotPayload(UUID settlementId, UUID sessionId,
                                       int wardenOathIssued, int hearthwardIssued,
                                       int thornedRoadsIssued, Delivery delivery,
                                       Feedback feedback,
-                                      int feedbackBlessingWireId)
+                                      int feedbackBlessingWireId, BlessingReceipt receipt,
+                                      int wardenOathUnits, int hearthwardUnits, int thornedRoadsUnits)
     implements CustomPacketPayload {
 
     public static final int MAX_SETTLEMENT_NAME_LENGTH = 64;
     private static final UUID NIL_UUID = new UUID(0L, 0L);
 
+    public BlessingSnapshotPayload(UUID settlementId, UUID sessionId, String settlementName,
+            int revision, int offerSerial, int wardenOathIssued, int hearthwardIssued,
+            int thornedRoadsIssued, Delivery delivery, Feedback feedback, int feedbackBlessingWireId,
+            BlessingReceipt receipt) {
+        this(settlementId, sessionId, settlementName, revision, offerSerial, wardenOathIssued,
+            hearthwardIssued, thornedRoadsIssued, delivery, feedback, feedbackBlessingWireId, receipt, 1, 1, 1);
+    }
+
+    /** Source-compatible constructor for snapshots that carry no physical receipt. */
+    public BlessingSnapshotPayload(UUID settlementId, UUID sessionId, String settlementName,
+            int revision, int offerSerial, int wardenOathIssued, int hearthwardIssued,
+            int thornedRoadsIssued, Delivery delivery, Feedback feedback, int feedbackBlessingWireId) {
+        this(settlementId, sessionId, settlementName, revision, offerSerial, wardenOathIssued,
+            hearthwardIssued, thornedRoadsIssued, delivery, feedback, feedbackBlessingWireId, null);
+    }
+
     public BlessingSnapshotPayload {
+        if (wardenOathUnits < 1 || wardenOathUnits > 2 || hearthwardUnits < 1 || hearthwardUnits > 2
+                || thornedRoadsUnits < 1 || thornedRoadsUnits > 2) {
+            throw new IllegalArgumentException("invalid blessing offer quality");
+        }
         settlementId = settlementId == null ? NIL_UUID : settlementId;
         sessionId = sessionId == null ? NIL_UUID : sessionId;
         settlementName = settlementName == null ? "" : settlementName;
         delivery = delivery == null ? Delivery.RESULT : delivery;
         feedback = feedback == null ? Feedback.UNAVAILABLE : feedback;
+        if (receipt != null && (feedback != Feedback.ACCEPTED || delivery == Delivery.OPEN
+                || NIL_UUID.equals(settlementId) || NIL_UUID.equals(sessionId)
+                || receipt.blessingWireId() != feedbackBlessingWireId
+                || receipt.consumedRevision() + 1 != revision
+                || offerSerial != 0 && offerSerial != receipt.consumedOfferSerial() + 1)) {
+            throw new IllegalArgumentException("receipt contradicts blessing snapshot");
+        }
     }
 
     /**
@@ -117,6 +145,15 @@ public record BlessingSnapshotPayload(UUID settlementId, UUID sessionId,
     public static final StreamCodec<RegistryFriendlyByteBuf, BlessingSnapshotPayload> CODEC =
         StreamCodec.of(BlessingSnapshotPayload::write, BlessingSnapshotPayload::read);
 
+    /** Potency of this exact offered seal, distinct from target rank and issued count. */
+    public int rankUnits(BlessingId blessing) {
+        return switch (blessing) {
+            case WARDEN_OATH -> wardenOathUnits;
+            case HEARTHWARD -> hearthwardUnits;
+            case THORNED_ROADS -> thornedRoadsUnits;
+        };
+    }
+
     /** Audit count only; permanent effect ranks live on physical targets. */
     public int issuedCount(BlessingId blessing) {
         if (blessing == null) {
@@ -171,7 +208,8 @@ public record BlessingSnapshotPayload(UUID settlementId, UUID sessionId,
         }
         return new BlessingSnapshotPayload(settlementId, sessionId, settlementName,
             revision, offerSerial, wardenOathIssued, hearthwardIssued,
-            thornedRoadsIssued, Delivery.UPDATE, Feedback.NONE, -1);
+            thornedRoadsIssued, Delivery.UPDATE, Feedback.NONE, -1, null,
+            wardenOathUnits, hearthwardUnits, thornedRoadsUnits);
     }
 
     private static int boundedCount(int count) {
@@ -190,6 +228,11 @@ public record BlessingSnapshotPayload(UUID settlementId, UUID sessionId,
         buf.writeVarInt(payload.delivery.wireId());
         buf.writeVarInt(payload.feedback.wireId());
         buf.writeVarInt(payload.feedbackBlessingWireId);
+        buf.writeBoolean(payload.receipt != null);
+        if (payload.receipt != null) BlessingReceipt.CODEC.encode(buf, payload.receipt);
+        buf.writeVarInt(payload.wardenOathUnits);
+        buf.writeVarInt(payload.hearthwardUnits);
+        buf.writeVarInt(payload.thornedRoadsUnits);
     }
 
     private static BlessingSnapshotPayload read(RegistryFriendlyByteBuf buf) {
@@ -204,9 +247,11 @@ public record BlessingSnapshotPayload(UUID settlementId, UUID sessionId,
         Delivery delivery = Delivery.fromWireId(buf.readVarInt());
         Feedback feedback = Feedback.fromWireId(buf.readVarInt());
         int feedbackBlessingWireId = buf.readVarInt();
+        BlessingReceipt receipt = buf.readBoolean() ? BlessingReceipt.CODEC.decode(buf) : null;
         return new BlessingSnapshotPayload(settlementId, sessionId, settlementName,
             revision, offerSerial, wardenOathIssued, hearthwardIssued,
-            thornedRoadsIssued, delivery, feedback, feedbackBlessingWireId);
+            thornedRoadsIssued, delivery, feedback, feedbackBlessingWireId, receipt,
+            buf.readVarInt(), buf.readVarInt(), buf.readVarInt());
     }
 
     @Override

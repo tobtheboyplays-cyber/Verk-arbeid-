@@ -1,0 +1,102 @@
+{
+  "meta": {
+    "format_version": "4.10",
+    "model_format": "free",
+    "box_uv": false
+  },
+  "name": "Hearthstead Bag-to-Chest Candidate 1552b251780ab706",
+  "resolution": {
+    "width": 16,
+    "height": 16
+  },
+  "elements": [
+    {
+      "name": "worker_torso_reference",
+      "from": [
+        -3,
+        -2,
+        0
+      ],
+      "to": [
+        3,
+        2,
+        8
+      ],
+      "uuid": "47f36e88cfdd1fcb9d72c872",
+      "faces": {}
+    },
+    {
+      "name": "world_bag_reference",
+      "from": [
+        -10,
+        -8,
+        0
+      ],
+      "to": [
+        -4,
+        -4,
+        6
+      ],
+      "uuid": "4dae2fa48618ba57eae4af38",
+      "faces": {}
+    },
+    {
+      "name": "oak_log_bark_reference",
+      "from": [
+        -3,
+        -2,
+        9
+      ],
+      "to": [
+        3,
+        2,
+        12
+      ],
+      "uuid": "918481a06fd33f3acf42214d",
+      "faces": {}
+    },
+    {
+      "name": "oak_log_endgrain_reference",
+      "from": [
+        -3.4,
+        -2,
+        9
+      ],
+      "to": [
+        -3.0,
+        2,
+        12
+      ],
+      "uuid": "bcc92eb34f6670b7a71af04d",
+      "faces": {}
+    },
+    {
+      "name": "chest_reference",
+      "from": [
+        -7,
+        -12,
+        0
+      ],
+      "to": [
+        7,
+        -3,
+        7
+      ],
+      "uuid": "d792e6f505e63c47532b4fd6",
+      "faces": {}
+    }
+  ],
+  "outliner": [
+    "47f36e88cfdd1fcb9d72c872",
+    "4dae2fa48618ba57eae4af38",
+    "918481a06fd33f3acf42214d",
+    "bcc92eb34f6670b7a71af04d",
+    "d792e6f505e63c47532b4fd6"
+  ],
+  "animations": [],
+  "hearthsteadEvidence": {
+    "candidateHash": "1552b251780ab706",
+    "purpose": "offline Blender evidence only; not a runtime asset",
+    "stateContract": "BAG_TO_CHEST_STATE_CONTRACT.md"
+  }
+}

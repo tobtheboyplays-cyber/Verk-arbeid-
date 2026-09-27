@@ -16,6 +16,7 @@ import com.hearthstead.settlement.SettlementManager;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.RecruitmentPolicy;
 import com.hearthstead.settlement.RecruitmentTransaction;
+import com.hearthstead.settlement.work.ContainerApproach;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -28,6 +29,7 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
@@ -37,6 +39,7 @@ import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.EnumMap;
 import java.util.List;
 import java.util.UUID;
 
@@ -134,11 +137,11 @@ public class HearthsteadGameTests {
         helper.succeedWhen(() -> {
             Settlement s = SettlementManager.at(helper.getLevel(), hearthAbs);
             helper.assertTrue(s != null, "settlement should be founded at the hearth");
-            helper.assertTrue(s.population() == 3,
-                "expected 3 initial settlers, got " + (s == null ? -1 : s.population()));
+            helper.assertTrue(s.population() == 4,
+                "expected 4 initial settlers, got " + (s == null ? -1 : s.population()));
             List<SettlerEntity> loaded = SettlementManager.loadedMembers(helper.getLevel(), s);
-            helper.assertTrue(loaded.size() == 3,
-                "expected 3 live settler entities, got " + loaded.size());
+            helper.assertTrue(loaded.size() == 4,
+                "expected 4 live settler entities, got " + loaded.size());
         });
     }
 
@@ -156,6 +159,131 @@ public class HearthsteadGameTests {
             helper.assertTrue(record != null && record.profession == Profession.FARMER,
                 "settlement record should show FARMER");
             helper.assertTrue(s.employed() == 1, "employed count should be 1");
+        });
+    }
+
+    /** A nearer sealed matching chest must not starve a farther usable one. */
+    @GameTest(template = "empty16", timeoutTicks = 700,
+        batch = "equipment_alternative_sources")
+    public void farmerSkipsNearerUnreachableWorkplaceTool(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16, 16);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement settlement = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+                instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(settlement.id);
+        }
+        Building farmhouse = GameTestFixtures.register(helper, settlement,
+            BuildingType.FARMHOUSE, 8, 4);
+        BlockPos sealedRel = new BlockPos(9, 1, 5);
+        BlockPos usableRel = new BlockPos(11, 1, 7);
+        helper.setBlock(sealedRel, Blocks.CHEST);
+        helper.setBlock(usableRel, Blocks.CHEST);
+        Container sealed = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(sealedRel));
+        Container usable = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(usableRel));
+        helper.assertTrue(sealed != null && usable != null,
+            "fixture needs two exact loaded Farmhouse tool containers");
+        sealed.setItem(0, new ItemStack(Items.IRON_HOE));
+        usable.setItem(0, new ItemStack(Items.IRON_HOE));
+        for (BlockPos wall : List.of(sealedRel.west(), sealedRel.east(),
+                sealedRel.north(), sealedRel.south(), sealedRel.above())) {
+            helper.setBlock(wall, Blocks.STONE_BRICKS);
+        }
+        SettlerEntity farmer = boundSettler(helper, settlement,
+            new BlockPos(3, 1, 5));
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
+                farmhouse, farmer).ok(),
+            "fixture must hire the Farmer through the real Farmhouse");
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE),
+                "Farmer must acquire the farther reachable hoe [route="
+                    + farmer.routeFailureNote() + ", pos="
+                    + farmer.blockPosition() + "]");
+            helper.assertTrue(countItem(sealed, Items.IRON_HOE) == 1,
+                "the nearer sealed source must remain untouched");
+            helper.assertTrue(countItem(usable, Items.IRON_HOE) == 0,
+                "the farther reachable source must supply the exact hoe");
+            helper.assertTrue(farmer.routeFailureNote().startsWith(
+                    "equipment:workplace_no_standable_side@"),
+                "the oracle must prove the nearer sealed chest was attempted "
+                    + "and yielded before fallback, got "
+                    + farmer.routeFailureNote());
+        });
+    }
+
+    /** An unreachable world drop must yield to valid workplace authority. */
+    @GameTest(template = "empty16", timeoutTicks = 700,
+        batch = "equipment_alternative_sources")
+    public void farmerSkipsUnreachableGroundToolForWorkplaceTool(
+            GameTestHelper helper) {
+        helper.getLevel().setDayTime(2000);
+        buildArena(helper, 16, 16);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement settlement = makeSettlement(helper, hearthRel, 12);
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(hearthRel))
+                instanceof HearthBlockEntity hearth) {
+            hearth.bindSettlement(settlement.id);
+        }
+        Building farmhouse = GameTestFixtures.register(helper, settlement,
+            BuildingType.FARMHOUSE, 9, 3);
+        BlockPos storageRel = new BlockPos(11, 1, 5);
+        helper.setBlock(storageRel, Blocks.CHEST);
+        Container storage = (Container) helper.getLevel().getBlockEntity(
+            helper.absolutePos(storageRel));
+        helper.assertTrue(storage != null,
+            "fixture needs exact loaded Farmhouse tool storage");
+        storage.setItem(0, new ItemStack(Items.IRON_HOE));
+
+        BlockPos trappedRel = new BlockPos(6, 1, 5);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx != 0 || dz != 0) {
+                    helper.setBlock(trappedRel.offset(dx, 0, dz),
+                        Blocks.STONE_BRICKS);
+                }
+            }
+        }
+        helper.setBlock(trappedRel.above(), Blocks.STONE_BRICKS);
+        BlockPos trappedAbs = helper.absolutePos(trappedRel);
+        ItemEntity trappedHoe = new ItemEntity(helper.getLevel(),
+            trappedAbs.getX() + 0.5D, trappedAbs.getY() + 0.25D,
+            trappedAbs.getZ() + 0.5D, new ItemStack(Items.IRON_HOE));
+        trappedHoe.setNoGravity(true);
+        trappedHoe.setDeltaMovement(0.0D, 0.0D, 0.0D);
+        helper.assertTrue(helper.getLevel().addFreshEntity(trappedHoe),
+            "fixture must materialize the exact trapped ground hoe");
+
+        SettlerEntity farmer = boundSettler(helper, settlement,
+            new BlockPos(3, 1, 5));
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
+                farmhouse, farmer).ok(),
+            "fixture must hire the Farmer through the real Farmhouse");
+
+        helper.succeedWhen(() -> {
+            helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE),
+                "Farmer must fall through to workplace storage [route="
+                    + farmer.routeFailureNote() + ", pos="
+                    + farmer.blockPosition() + "]");
+            helper.assertTrue(trappedHoe.isAlive()
+                    && trappedHoe.getItem().is(Items.IRON_HOE)
+                    && trappedHoe.getItem().getCount() == 1,
+                "the excluded unreachable ground source must remain physical");
+            helper.assertTrue(countItem(storage, Items.IRON_HOE) == 0,
+                "the reachable workplace chest must supply the exact hoe");
+            String route = farmer.routeFailureNote();
+            helper.assertTrue(route.startsWith("equipment:no_path@")
+                    || route.startsWith("equipment:ground_occluded@")
+                    || route.startsWith("equipment:ground_stalled@")
+                    || route.startsWith("equipment:ground_route_budget@"),
+                "the oracle must prove the unreachable ground source yielded "
+                    + "before workplace fallback, got " + route);
         });
     }
 
@@ -246,7 +374,7 @@ public class HearthsteadGameTests {
             hearth.bindSettlement(s.id);
         }
         Building farmhouse = GameTestFixtures.register(helper, s,
-            BuildingType.FARMHOUSE, 5, 0);
+            BuildingType.FARMHOUSE, 4, 0);
         BlockPos storageRel = new BlockPos(6, 1, 1);
         helper.setBlock(storageRel, Blocks.CHEST);
         Container storage = (Container) helper.getLevel().getBlockEntity(
@@ -255,6 +383,22 @@ public class HearthsteadGameTests {
             "fixture needs exact loaded Farmhouse storage");
         storage.setItem(0, new ItemStack(Items.IRON_HOE));
         storage.setItem(1, new ItemStack(Items.WHEAT_SEEDS, 2));
+
+        // Adversarial route geometry: the west contact cell is clear and is
+        // the Euclidean-nearest side from the spawn, but a two-high pocket
+        // makes it unreachable. The south side remains reachable around the
+        // wall. The former bespoke approach selector accepted the trapped
+        // side and could own MOVE forever; production must prove a reachable
+        // contact side rather than merely accepting a partial path.
+        helper.setBlock(new BlockPos(4, 1, 1), Blocks.STONE_BRICKS);
+        // (4,2,1) is already the plaque's required stone support.
+        helper.setBlock(new BlockPos(5, 1, 2), Blocks.STONE_BRICKS);
+        helper.setBlock(new BlockPos(5, 2, 2), Blocks.STONE_BRICKS);
+        helper.setBlock(new BlockPos(6, 1, 2), Blocks.STONE_BRICKS);
+        helper.setBlock(new BlockPos(6, 2, 2), Blocks.STONE_BRICKS);
+        // Exclude the top-of-chest candidate without obscuring the readable
+        // east face. East (7,1,1) is now the sole reachable direct approach.
+        helper.setBlock(new BlockPos(6, 2, 1), Blocks.GLASS);
         helper.setBlock(new BlockPos(2, 1, 2),
             Blocks.WHEAT.defaultBlockState().setValue(CropBlock.AGE, 7));
         SettlerEntity farmer = boundSettler(helper, s, new BlockPos(4, 1, 2));
@@ -264,18 +408,127 @@ public class HearthsteadGameTests {
 
         final boolean[] sawHarvest = {false};
         final boolean[] sawPlant = {false};
-        helper.succeedWhen(() -> {
-            if (farmer.getActivity() == SettlerActivity.WORK_HARVEST) {
-                sawHarvest[0] = true;
+        final long[] firstHarvestTick = {-1L};
+        final long[] firstPlantTick = {-1L};
+        final boolean[] toolContactProven = {false};
+        final boolean[] hadHoe = {false};
+        final BlockPos[] firstHoeFeet = {null};
+        final long startedAt = helper.getLevel().getGameTime();
+        final EnumMap<SettlerActivity, Integer> activityTicks =
+            new EnumMap<>(SettlerActivity.class);
+        final BlockPos storageAbs = helper.absolutePos(storageRel);
+        final BlockPos cropRel = new BlockPos(2, 1, 2);
+        final BlockPos[] previousFeet = {farmer.blockPosition()};
+        final int[] movedBlockSamples = {0};
+        final double[] closestStorageDistance = {Double.POSITIVE_INFINITY};
+        helper.onEachTick(() -> {
+            SettlerActivity activity = farmer.getActivity();
+            activityTicks.merge(activity, 1, Integer::sum);
+            sawHarvest[0] |= activity == SettlerActivity.WORK_HARVEST;
+            sawPlant[0] |= activity == SettlerActivity.WORK_SOW;
+            if (activity == SettlerActivity.WORK_HARVEST
+                && firstHarvestTick[0] < 0L) {
+                firstHarvestTick[0] = helper.getLevel().getGameTime();
             }
-            if (farmer.getActivity() == SettlerActivity.WORK_SOW) {
-                sawPlant[0] = true;
+            if (activity == SettlerActivity.WORK_SOW
+                && firstPlantTick[0] < 0L) {
+                firstPlantTick[0] = helper.getLevel().getGameTime();
             }
-            helper.assertTrue(sawHarvest[0], "farmer should pass through WORK_HARVEST "
-                + "(act=" + farmer.getActivity() + " planted=" + sawPlant[0] + ")");
-            helper.assertTrue(sawPlant[0], "farmer should pass through WORK_SOW after "
-                + "harvesting (act=" + farmer.getActivity() + ")");
+            boolean hasHoe = farmer.getMainHandItem().is(Items.IRON_HOE);
+            if (hasHoe && !hadHoe[0]) {
+                firstHoeFeet[0] = farmer.blockPosition();
+                toolContactProven[0] = ContainerApproach.inspect(
+                    helper.getLevel(), farmer, storageAbs).canInteract();
+            }
+            hadHoe[0] = hasHoe;
+            BlockPos feet = farmer.blockPosition();
+            if (!feet.equals(previousFeet[0])) {
+                movedBlockSamples[0]++;
+                previousFeet[0] = feet;
+            }
+            closestStorageDistance[0] = Math.min(closestStorageDistance[0],
+                feet.distSqr(storageAbs));
         });
+        helper.succeedWhen(() -> {
+            String evidence = " [elapsed="
+                + (helper.getLevel().getGameTime() - startedAt)
+                + " activity=" + farmer.getActivity()
+                + " activityTicks=" + activityTicks
+                + " feet=" + farmer.blockPosition()
+                + " movedBlockSamples=" + movedBlockSamples[0]
+                + " closestStorageDistanceSqr=" + closestStorageDistance[0]
+                + " navDone=" + farmer.getNavigation().isDone()
+                + " navTarget=" + farmer.getNavigation().getTargetPos()
+                + " mainhand=" + farmer.getMainHandItem()
+                + " request=" + farmer.requestedEquipmentIcon()
+                + " toolContactProven=" + toolContactProven[0]
+                + " firstHoeFeet=" + firstHoeFeet[0]
+                + " firstHarvestTick=" + firstHarvestTick[0]
+                + " firstPlantTick=" + firstPlantTick[0]
+                + " storage=" + containerContents(storage)
+                + " bag=" + containerContents(farmer.bag)
+                + " crop=" + helper.getBlockState(cropRel)
+                + " stop=" + farmer.logisticsStopReason()
+                + " route=" + farmer.routeFailureNote() + "]";
+            helper.assertTrue(sawHarvest[0],
+                "farmer should pass through WORK_HARVEST" + evidence);
+            helper.assertTrue(sawPlant[0] && firstPlantTick[0] > firstHarvestTick[0],
+                "farmer should pass through WORK_SOW after harvesting" + evidence);
+            helper.assertTrue(activityTicks.getOrDefault(
+                    SettlerActivity.WORK_HARVEST, 0) >= 9,
+                "farmer must visibly perform harvest through its contact beat"
+                    + evidence);
+            helper.assertTrue(toolContactProven[0],
+                "iron hoe may transfer only at visible physical chest contact"
+                    + evidence);
+            helper.assertTrue(firstHoeFeet[0] != null
+                    && firstHoeFeet[0].getX() >= storageAbs.getX() + 1,
+                "tool route must reject the nearer sealed west pocket and reach "
+                    + "the open east side" + evidence);
+            helper.assertTrue(farmer.getMainHandItem().is(Items.IRON_HOE)
+                    && farmer.getMainHandItem().getCount() == 1,
+                "farmer must hold exactly the one supplied iron hoe" + evidence);
+            helper.assertTrue(countItem(storage, Items.IRON_HOE) == 0,
+                "the supplied iron hoe must leave Farmhouse storage" + evidence);
+            helper.assertTrue(countItem(storage, Items.WHEAT_SEEDS) == 1,
+                "exactly one of the two input seeds must be consumed by replant"
+                    + evidence);
+            helper.assertTrue(farmer.requestedEquipmentIcon().isEmpty(),
+                "the satisfied equipment request must close" + evidence);
+            BlockState crop = helper.getBlockState(cropRel);
+            helper.assertTrue(crop.is(Blocks.WHEAT)
+                    && crop.getValue(CropBlock.AGE) < 7,
+                "the mature crop must be physically harvested and replanted"
+                    + evidence);
+        });
+    }
+
+    private static int countItem(Container container, Item item) {
+        int count = 0;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.is(item)) {
+                count += stack.getCount();
+            }
+        }
+        return count;
+    }
+
+    private static String containerContents(Container container) {
+        StringBuilder contents = new StringBuilder("{");
+        boolean first = true;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (!first) {
+                contents.append(", ");
+            }
+            contents.append(slot).append('=').append(stack);
+            first = false;
+        }
+        return contents.append('}').toString();
     }
 
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "hearthstead_day")
@@ -1112,7 +1365,7 @@ public class HearthsteadGameTests {
             helper.assertTrue(s.validBedCount() == 1,
                 "expected 1 bed, got " + s.validBedCount());
             helper.assertTrue(s.capacity() == 4,
-                "capacity should be 3 founders + 1 bed, got " + s.capacity());
+                "one bed does not add room beyond the 4 founder places (max(4, beds)), got " + s.capacity());
         });
     }
 
@@ -1398,6 +1651,141 @@ public class HearthsteadGameTests {
         });
     }
 
+    /** A valid but unreachable bed must not keep an exhausted worker idle forever. */
+    @GameTest(template = "empty16", timeoutTicks = 1300, batch = "rest_liveness")
+    public void unreachableClaimedBedFallsBackToPhysicalHearth(GameTestHelper helper) {
+        buildArena(helper, 16, 16);
+        BlockPos hearthRel = new BlockPos(2, 1, 2);
+        helper.setBlock(hearthRel, ModBlocks.HEARTH.get());
+        Settlement settlement = makeSettlement(helper, hearthRel, 12);
+        BlockPos hearthPos = helper.absolutePos(hearthRel);
+        helper.assertTrue(helper.getLevel().getBlockEntity(hearthPos)
+                instanceof HearthBlockEntity,
+            "fixture: a real nearby Hearth must exist");
+        ((HearthBlockEntity) helper.getLevel().getBlockEntity(hearthPos))
+            .bindSettlement(settlement.id);
+        Building camp = GameTestFixtures.register(helper, settlement,
+            BuildingType.LUMBER_CAMP, 2, 10);
+        helper.setBlock(new BlockPos(4, 1, 11), Blocks.CHEST);
+        BlockPos treeBase = new BlockPos(3, 1, 13);
+        helper.setBlock(treeBase.below(), Blocks.DIRT);
+        for (int i = 0; i < 4; i++) {
+            helper.setBlock(treeBase.above(i), Blocks.OAK_LOG);
+        }
+        for (int dx = -2; dx <= 2; dx++) {
+            for (int dz = -2; dz <= 2; dz++) {
+                helper.setBlock(treeBase.above(4).offset(dx, 0, dz),
+                    Blocks.OAK_LEAVES);
+            }
+        }
+
+        BlockPos headRel = new BlockPos(9, 1, 9);
+        BlockPos footRel = headRel.south();
+        helper.setBlock(headRel, Blocks.WHITE_BED.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.HEAD)
+            .setValue(net.minecraft.world.level.block.BedBlock.FACING,
+                net.minecraft.core.Direction.NORTH));
+        helper.setBlock(footRel, Blocks.WHITE_BED.defaultBlockState()
+            .setValue(net.minecraft.world.level.block.BedBlock.PART,
+                net.minecraft.world.level.block.state.properties.BedPart.FOOT)
+            .setValue(net.minecraft.world.level.block.BedBlock.FACING,
+                net.minecraft.core.Direction.NORTH));
+        for (int y = 1; y <= 3; y++) {
+            for (int x = 7; x <= 11; x++) {
+                for (int z = 7; z <= 12; z++) {
+                    if (x == 7 || x == 11 || z == 7 || z == 12) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.STONE_BRICKS);
+                    }
+                }
+            }
+        }
+        BlockPos claimedBed = helper.absolutePos(headRel);
+        helper.assertTrue(helper.getLevel().getBlockState(claimedBed).getBlock()
+                instanceof net.minecraft.world.level.block.BedBlock,
+            "fixture: claimed bed must remain a real bed behind the wall");
+
+        // The shared GameTest level has a mutable global clock. Only this
+        // actor reads a fixed work phase; its registered AI runs normally.
+        SettlerEntity settler = new SettlerEntity(ModEntities.SETTLER.get(),
+                helper.getLevel()) {
+            @Override
+            public com.hearthstead.settlement.DayPhase dayPhase() {
+                return com.hearthstead.settlement.DayPhase.MORNING_WORK;
+            }
+        };
+        BlockPos spawn = helper.absolutePos(new BlockPos(4, 1, 9));
+        settler.setPos(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D);
+        helper.assertTrue(helper.getLevel().addFreshEntity(settler),
+            "fixture: exhausted settler must enter the server level");
+        settler.setSettlerName("Rest route worker");
+        settler.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(settler.getUUID(), settler.getSettlerName(),
+            Profession.NONE);
+        helper.assertTrue(Employment.hire(helper.getLevel(), settlement, camp,
+                settler).ok() && settler.getProfession() == Profession.LUMBERER,
+            "fixture: the rested actor must have a real Lumberer job");
+        settler.setItemSlot(EquipmentSlot.MAINHAND,
+            new ItemStack(Items.IRON_AXE));
+        settler.claimBed(claimedBed);
+        settler.setEnergy(10.0F);
+        helper.assertTrue(new RestAtNightGoal(settler).canUse(),
+            "fixture: low energy must select the registered rest goal");
+        net.minecraft.world.phys.Vec3 start = settler.position();
+        long started = helper.getLevel().getGameTime();
+        boolean[] restedAtHearth = {false};
+        boolean[] energyRose = {false};
+        boolean[] lumberWorkResumed = {false};
+        float[] firstRestEnergy = {-1.0F};
+
+        helper.onEachTick(() -> {
+            helper.assertTrue(claimedBed.equals(settler.getClaimedBed()),
+                "fallback must preserve the exact bed claim");
+            helper.assertTrue(!settler.isSleeping(),
+                "an enclosed bed cannot be entered remotely");
+            if (settler.getActivity() == SettlerActivity.RESTING) {
+                helper.assertTrue(helper.getLevel().getBlockEntity(hearthPos)
+                        instanceof HearthBlockEntity
+                        && settler.blockPosition().distSqr(hearthPos) <= 20
+                        && settler.position().distanceToSqr(start) > 0.25D,
+                    "rough rest requires physical movement to the real Hearth");
+                helper.assertTrue(settler.routeFailureNote().contains(
+                        "rest:bed_unreachable_hearth_fallback"),
+                    "bounded bed-route failure must explain fallback; got "
+                        + settler.routeFailureNote());
+                restedAtHearth[0] = true;
+                if (firstRestEnergy[0] < 0.0F) {
+                    firstRestEnergy[0] = settler.getEnergy();
+                } else if (settler.getEnergy() > firstRestEnergy[0] + 5.0F) {
+                    energyRose[0] = true;
+                }
+            }
+            if (settler.getEnergy() >= 60.0F
+                && settler.getActivity() == SettlerActivity.WORK_CHOP) {
+                helper.assertTrue(settler.blockPosition().distSqr(
+                        helper.absolutePos(treeBase)) <= 16,
+                    "Lumberer must resume at the real tree, not change state at Hearth");
+                lumberWorkResumed[0] = true;
+            }
+            helper.assertTrue(helper.getLevel().getGameTime() - started < 180
+                    || restedAtHearth[0],
+                "bed route must release to physical Hearth rest in bounded time; "
+                    + settler.routeFailureNote());
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(restedAtHearth[0] && energyRose[0],
+                "real Hearth rest must begin and raise energy by at least five");
+            helper.assertTrue(settler.getEnergy() >= 60.0F,
+                "ordinary needs ticks must reach the work-phase recovery threshold");
+            helper.assertTrue(settler.getActivity() != SettlerActivity.RESTING
+                    && settler.dayPhase().work()
+                    && settler.getProfession() == Profession.LUMBERER
+                    && !new RestAtNightGoal(settler).canContinueToUse(),
+                "rest must release MOVE so work goals can run in MORNING_WORK");
+            helper.assertTrue(lumberWorkResumed[0],
+                "registered Lumberer AI must reach and begin chopping the real tree");
+        });
+    }
     /** ANIM-1: LumbererWorkGoal now inserts a WORK_LIMB beat between the
      *  last strike and the trip home, and hauls logs under HAULING_LOG. */
     @GameTest(template = "empty16", timeoutTicks = 1600, batch = "hearthstead_day")
@@ -1503,8 +1891,8 @@ public class HearthsteadGameTests {
             helper.assertTrue(s.validHomeCount() == 0,
                 "home should invalidate after roof breach, homes="
                     + s.validHomeCount());
-            helper.assertTrue(s.capacity() == 3,
-                "capacity should fall back to founders, got " + s.capacity());
+            helper.assertTrue(s.capacity() == Settlement.FOUNDER_PLACES,
+                "capacity should fall back to the 4 founder places, got " + s.capacity());
         });
     }
 

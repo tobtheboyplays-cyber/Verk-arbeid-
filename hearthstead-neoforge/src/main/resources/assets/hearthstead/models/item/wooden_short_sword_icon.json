@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "hearthstead:item/wooden_short_sword"
+  }
+}

@@ -52,6 +52,10 @@ public record HearthMayorAction(BlockPos hearthPos, UUID settlementId,
         OPEN_RAID_READINESS(8),
         /** Consumes one exact readiness session and declares the Hearth ready. */
         CONFIRM_RAID_READINESS(9),
+        /** Opens a bounded read-only projection of the recorded settlement members. */
+        OPEN_PEOPLE(10),
+        /** Opens one exact loaded resident through the existing inspection route. */
+        VIEW_SETTLER(11),
         /** Unknown future/corrupt wire value. Always inert. */
         UNKNOWN(-1);
 
@@ -77,6 +81,8 @@ public record HearthMayorAction(BlockPos hearthPos, UUID settlementId,
                 case 7 -> REJECT_TRAVELER;
                 case 8 -> OPEN_RAID_READINESS;
                 case 9 -> CONFIRM_RAID_READINESS;
+                case 10 -> OPEN_PEOPLE;
+                case 11 -> VIEW_SETTLER;
                 default -> UNKNOWN;
             };
         }

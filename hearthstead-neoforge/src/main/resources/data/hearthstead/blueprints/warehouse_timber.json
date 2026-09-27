@@ -1,0 +1,118 @@
+{
+  "id": "warehouse_timber",
+  "name": "Storehouse (Whitewashed Timber)",
+  "category": "work",
+  "kind": "building",
+  "building_type": "warehouse",
+  "variant": "small",
+  "style": "timber",
+  "preset": "Whitewashed Timber",
+  "requires": "builders_hut",
+  "group": "warehouse",
+  "size": [
+    14,
+    9,
+    10
+  ],
+  "ground_level": 0,
+  "eave_y": 4,
+  "plaque": {
+    "pos": [
+      6,
+      2,
+      6
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [],
+  "materials": [
+    {
+      "item": "minecraft:spruce_stairs",
+      "count": 96
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 77
+    },
+    {
+      "item": "minecraft:spruce_log",
+      "count": 36
+    },
+    {
+      "item": "minecraft:spruce_planks",
+      "count": 35
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 31
+    },
+    {
+      "item": "minecraft:white_concrete",
+      "count": 30
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 28
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 15
+    },
+    {
+      "item": "minecraft:barrel",
+      "count": 11
+    },
+    {
+      "item": "minecraft:spruce_slab",
+      "count": 6
+    },
+    {
+      "item": "minecraft:spruce_trapdoor",
+      "count": 4
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_fence",
+      "count": 2
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 2
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 2
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 2
+    },
+    {
+      "item": "minecraft:spruce_door",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oxeye_daisy",
+      "count": 1
+    },
+    {
+      "item": "minecraft:chain",
+      "count": 1
+    }
+  ],
+  "block_count": 384,
+  "cells": 570
+}

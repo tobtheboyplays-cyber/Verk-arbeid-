@@ -9,17 +9,18 @@ package com.hearthstead.client.ui;
  */
 public final class HsUiTokens {
 
-    public static final int ACCENT = 0xFFB8912F;
-    public static final int BAD = 0xFF8A3A35;
-    public static final int FIELD = 0xFF1A1A1A;
-    public static final int GOOD = 0xFF5FA860;
-    public static final int ROW_ODD = 0xFF212121;
+    public static final int ACCENT = 0xFFE9C66B;
+    public static final int BAD = 0xFFFFBCAE;
+    public static final int FIELD = 0xFF162522;
+    public static final int GOOD = 0xFF9CD89D;
+    public static final int ROW_ODD = 0xFF1E302B;
     public static final int SHADOW = 0x66000000;
     public static final int TEXT = 0xFFE8E0D0;
-    public static final int TEXT_MUTED = 0xFF8A8578;
+    public static final int TEXT_DISABLED = 0xFF8A8578;
+    public static final int TEXT_MUTED = 0xFFD3CAB8;
     public static final int TEXT_ON_LIGHT = 0xFF241A0E;
     public static final int TEXT_STRONG = 0xFFF2ECDC;
-    public static final int WARN = 0xFFC98A2E;
+    public static final int WARN = 0xFFF2C477;
 
     public static final int BUTTON_H = 20;
     public static final int CARD_H = 36;

@@ -271,6 +271,8 @@ public class GuardTrainingGameTests {
         helper.assertTrue(hired.ok(),
             "the barracks must be able to hire a guard, refused with "
                 + hired.refusal());
+        // QA-ready health isolates autonomous targeting/contact after real employment.
+        guard.setHealth(guard.getMaxHealth());
         helper.assertTrue(guard.getProfession() == Profession.GUARD,
             "hired into the barracks, they take up the trade");
         helper.assertTrue(EquipmentRequests.equipFromWorkplace(

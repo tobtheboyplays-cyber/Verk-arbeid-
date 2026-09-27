@@ -26,19 +26,51 @@ public final class ModCreativeTabs {
                 // The tab is the mod's own index; an item missing here reads
                 // as an item that does not exist.
                 output.accept(ModItems.HEARTH.get());
+                output.accept(ModItems.GOLD_COIN.get());
+                output.accept(ModItems.POOP_STICK.get());
+                output.accept(ModItems.TROLL_TOENAIL.get());
                 output.accept(ModItems.PLAQUE.get());
+                output.accept(ModItems.ALE_TAP.get());
+                output.accept(ModItems.FISH_RACK.get());
+                output.accept(ModItems.FISHERS_CHAIR.get());
+                output.accept(ModItems.BUTCHERING_TABLE.get());
+                output.accept(ModItems.FISHERS_ROD.get());
+                output.accept(ModItems.FISH_PORTION.get());
+                output.accept(ModItems.FISHER_EMBLEM.get());
+                output.accept(ModItems.RIVER_PERCH.get());
+                output.accept(ModItems.BROWN_TROUT.get());
+                output.accept(ModItems.SILVER_PIKE.get());
+                output.accept(ModItems.GOLDEN_CHAR.get());
+                // A sample hunted carcass (a bare one carries no yield and is inert).
+                output.accept(com.hearthstead.item.CarcassItem.create(com.hearthstead.item.CarcassData.of(
+                    net.minecraft.world.entity.EntityType.COW, java.util.List.of(
+                        new ItemStack(net.minecraft.world.item.Items.BEEF, 3),
+                        new ItemStack(net.minecraft.world.item.Items.LEATHER, 1)))));
                 output.accept(ModItems.BUILD_PLAN.get());
                 output.accept(ModItems.HANDBOOK.get());
                 output.accept(ModItems.WORK_SCEPTER.get());
+                output.accept(ModItems.PATROL_MAP.get());
                 output.accept(ModItems.SETTLER_SPAWN_EGG.get());
                 output.accept(ModItems.LUMBERER_EMBLEM.get());
                 output.accept(ModItems.FARMER_EMBLEM.get());
                 output.accept(ModItems.COURIER_EMBLEM.get());
                 output.accept(ModItems.INNKEEPER_EMBLEM.get());
+                output.accept(ModItems.TRADER_EMBLEM.get());
                 output.accept(ModItems.GUARD_EMBLEM.get());
                 output.accept(ModItems.ARCHER_EMBLEM.get());
+                output.accept(ModItems.HUNTER_EMBLEM.get());
                 output.accept(ModItems.SAWYER_EMBLEM.get());
                 output.accept(ModItems.SCHOLAR_EMBLEM.get());
+                output.accept(ModItems.BUILDER_EMBLEM.get());
+                // The 15 extended-trade emblems (TradeEmblemItems, own register).
+                for (com.hearthstead.entity.Profession profession
+                        : com.hearthstead.entity.Profession.values()) {
+                    ItemStack emblem = TradeEmblemItems.stackFor(profession);
+                    if (!emblem.isEmpty()) output.accept(emblem);
+                }
+                output.accept(ModItems.BUILDERS_PLAN.get());
+                output.accept(ModItems.SURVEY_ROD.get());
+                output.accept(ModItems.RESOURCE_SCROLL.get());
                 output.accept(ModItems.WARDEN_OATH_SEAL.get());
                 output.accept(ModItems.HEARTHWARD_SEAL.get());
                 output.accept(ModItems.THORNED_ROADS_SEAL.get());
@@ -58,6 +90,9 @@ public final class ModCreativeTabs {
                         : com.hearthstead.building.BuildingType.values()) {
                     output.accept(com.hearthstead.block.PlaqueItemData.stamped(
                         new ItemStack(ModItems.BUILD_PLAN.get()), type));
+                }
+                for (com.hearthstead.building.BuildingType type : com.hearthstead.item.BuildingPlans.types()) {
+                    output.accept(com.hearthstead.item.BuildingPlanItem.of(type));
                 }
             })
             .build());

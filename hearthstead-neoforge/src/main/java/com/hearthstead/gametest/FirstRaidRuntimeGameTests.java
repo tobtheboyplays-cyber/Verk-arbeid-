@@ -244,7 +244,9 @@ public class FirstRaidRuntimeGameTests {
         helper.assertTrue(RaidDirector.resolveIfOver(helper.getLevel(), settlement),
             "all definitive outcomes should close the authored first raid");
         helper.assertTrue(settlement.raidLifecycle.firstState() == FirstRaidState.COMPLETED
-                && !settlement.raidLifecycle.mayGrantReward(),
+                && !settlement.raidLifecycle.mayGrantReward()
+                && settlement.raidCoinRewards.pending()
+                    == com.hearthstead.settlement.raid.RaidCoinRewards.FIRST_VICTORY_COINS,
             "completion should consume its one reward eligibility marker");
         helper.assertTrue(settlement.blessingState.earned() == 1
                 && settlement.blessingState.spent() == 0
@@ -268,8 +270,10 @@ public class FirstRaidRuntimeGameTests {
                 && !loaded.raidLifecycle.mayGrantReward()
                 && loaded.blessingState.earned() == 1
                 && loaded.blessingState.offerSerial() == 1
+                && loaded.raidCoinRewards.pending()
+                    == com.hearthstead.settlement.raid.RaidCoinRewards.FIRST_VICTORY_COINS
                 && loaded.raidLog.size() == 1,
-            "reload must preserve exactly one offer and one aftermath record");
+            "reload must preserve the first 8-Coin debt, one offer and one aftermath record");
         helper.succeed();
     }
 
@@ -365,9 +369,12 @@ public class FirstRaidRuntimeGameTests {
         helper.assertTrue(!RaidDirector.resolveIfOver(helper.getLevel(), settlement),
             "the public resolver must stop before reading a corrupt pending mirror");
         RaidDirector.tick(helper.getLevel(), settlement);
-        helper.assertTrue(settlement.pendingRaid != null
+        // 26 Sep: failing closed now also drops the quarantined mirror, so
+        // civilians stop hiding; it still never resolves, logs or rewards.
+        helper.assertTrue(settlement.pendingRaid == null
                 && settlement.raidLog.isEmpty()
-                && settlement.blessingState.earned() == 0,
+                && settlement.blessingState.earned() == 0
+                && settlement.raidLifecycle.integrityLost(),
             "tick must fail closed before generic recurring/AABB resolution");
         helper.succeed();
     }

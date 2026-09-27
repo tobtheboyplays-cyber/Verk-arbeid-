@@ -1,0 +1,168 @@
+{
+  "id": "pike_yard_large",
+  "name": "Pike Hall",
+  "category": "military",
+  "kind": "building",
+  "building_type": "pike_yard",
+  "variant": "large",
+  "style": "elmfield",
+  "preset": "Elmfield Timber",
+  "requires": "builders_hut",
+  "group": "pike_yard",
+  "size": [
+    15,
+    14,
+    18
+  ],
+  "ground_level": 0,
+  "eave_y": 8,
+  "plaque": {
+    "pos": [
+      8,
+      2,
+      8
+    ],
+    "facing": "north"
+  },
+  "work": [],
+  "segment": null,
+  "furniture": [
+    {
+      "pos": [
+        7,
+        1,
+        5
+      ],
+      "to": "another_furniture:oak_table[facing=north,leg_1=true,leg_2=true,leg_3=true,leg_4=true]"
+    },
+    {
+      "pos": [
+        7,
+        2,
+        5
+      ],
+      "to": "minecraft:air",
+      "mod": "another_furniture"
+    },
+    {
+      "pos": [
+        6,
+        1,
+        5
+      ],
+      "to": "another_furniture:oak_chair[facing=east,tucked=false,variant=1]"
+    },
+    {
+      "pos": [
+        8,
+        1,
+        5
+      ],
+      "to": "another_furniture:oak_chair[facing=west,tucked=false,variant=1]"
+    }
+  ],
+  "materials": [
+    {
+      "item": "minecraft:oak_planks",
+      "count": 309
+    },
+    {
+      "item": "minecraft:oak_stairs",
+      "count": 156
+    },
+    {
+      "item": "minecraft:dirt",
+      "count": 153
+    },
+    {
+      "item": "minecraft:oak_log",
+      "count": 141
+    },
+    {
+      "item": "minecraft:cobblestone",
+      "count": 128
+    },
+    {
+      "item": "minecraft:oak_fence",
+      "count": 51
+    },
+    {
+      "item": "minecraft:glass_pane",
+      "count": 50
+    },
+    {
+      "item": "minecraft:oak_slab",
+      "count": 21
+    },
+    {
+      "item": "minecraft:mossy_cobblestone",
+      "count": 7
+    },
+    {
+      "item": "minecraft:hay_block",
+      "count": 7
+    },
+    {
+      "item": "minecraft:flower_pot",
+      "count": 6
+    },
+    {
+      "item": "minecraft:lantern",
+      "count": 5
+    },
+    {
+      "item": "minecraft:oak_trapdoor",
+      "count": 5
+    },
+    {
+      "item": "minecraft:carved_pumpkin",
+      "count": 4
+    },
+    {
+      "item": "minecraft:white_bed",
+      "count": 4
+    },
+    {
+      "item": "minecraft:dandelion",
+      "count": 3
+    },
+    {
+      "item": "minecraft:chest",
+      "count": 2
+    },
+    {
+      "item": "minecraft:azure_bluet",
+      "count": 2
+    },
+    {
+      "item": "minecraft:oak_door",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_fence_gate",
+      "count": 1
+    },
+    {
+      "item": "minecraft:oak_pressure_plate",
+      "count": 1
+    },
+    {
+      "item": "hearthstead:plaque",
+      "count": 1
+    },
+    {
+      "item": "minecraft:cornflower",
+      "count": 1
+    },
+    {
+      "item": "minecraft:blue_banner",
+      "count": 1
+    },
+    {
+      "item": "minecraft:torch",
+      "count": 1
+    }
+  ],
+  "block_count": 1060,
+  "cells": 1667
+}

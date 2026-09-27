@@ -9,16 +9,16 @@ class FarmerWorkZoneProgressionTest {
 
     @Test
     void sideLengthGrowsByFourBlocksPerTier() {
-        assertEquals(5, WorkZoneService.farmerSideLimit(1));
-        assertEquals(9, WorkZoneService.farmerSideLimit(2));
-        assertEquals(13, WorkZoneService.farmerSideLimit(3));
-        assertEquals(17, WorkZoneService.farmerSideLimit(4));
-        assertEquals(25, WorkZoneService.farmerSideLimit(5));
+        assertEquals(12, WorkZoneService.farmerSideLimit(1));
+        assertEquals(16, WorkZoneService.farmerSideLimit(2));
+        assertEquals(20, WorkZoneService.farmerSideLimit(3));
+        assertEquals(24, WorkZoneService.farmerSideLimit(4));
+        assertEquals(28, WorkZoneService.farmerSideLimit(5));
     }
 
     @Test
     void malformedTiersClampFailClosed() {
-        assertEquals(5, WorkZoneService.farmerSideLimit(Integer.MIN_VALUE));
-        assertEquals(25, WorkZoneService.farmerSideLimit(Integer.MAX_VALUE));
+        assertEquals(12, WorkZoneService.farmerSideLimit(Integer.MIN_VALUE));
+        assertEquals(28, WorkZoneService.farmerSideLimit(Integer.MAX_VALUE));
     }
 }

@@ -15,21 +15,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JourneyLanguageContractTest {
 
     @Test
-    void englishAndNorwegianCoverEveryFrozenStepAndUiKey() throws Exception {
+    void englishCoversEveryFrozenStepAndUiKey() throws Exception {
         JsonObject english = language("en_us");
-        JsonObject norwegian = language("nb_no");
         for (JourneyStep step : JourneyDefinition.V2.orderedSteps()) {
             assertText(english, step.titleKey());
             assertText(english, step.descriptionKey());
-            assertText(norwegian, step.titleKey());
-            assertText(norwegian, step.descriptionKey());
         }
         for (var chapter : JourneyDefinition.V2.chapters()) {
             String leaf = chapter.getPath().substring(
                 chapter.getPath().lastIndexOf('/') + 1);
             String key = "journey.hearthstead.chapter." + leaf + ".title";
             assertText(english, key);
-            assertText(norwegian, key);
         }
         Set<String> sharedUi = Set.of("journey.hearthstead.progress",
             "journey.hearthstead.active_bounded",
@@ -39,11 +35,9 @@ class JourneyLanguageContractTest {
             "journey.hearthstead.complete.settlement_lost");
         sharedUi.forEach(key -> {
             assertText(english, key);
-            assertText(norwegian, key);
         });
 
         assertEquals(125, countJourneyKeys(english));
-        assertEquals(125, countJourneyKeys(norwegian));
     }
 
     private static JsonObject language(String locale) throws Exception {

@@ -15,8 +15,13 @@ class SettlerScreenLanguageContractTest {
 
     private static final List<String> COMPACT_KEYS = List.of(
         "hearthstead.settler.compact.right_now",
+        "hearthstead.settler.compact.current_task",
+        "hearthstead.settler.compact.blocker",
         "hearthstead.settler.compact.pace",
         "hearthstead.settler.compact.attributes",
+        "hearthstead.settler.compact.job_focus",
+        "hearthstead.settler.compact.job_effects",
+        "hearthstead.settler.compact.attribute_toggle.tip",
         "hearthstead.settler.compact.role_workplace",
         "hearthstead.settler.compact.request",
         "hearthstead.settler.compact.traits",
@@ -75,12 +80,10 @@ class SettlerScreenLanguageContractTest {
     );
 
     @Test
-    void compactCitizenDossierHasEnglishAndNorwegianCopy() throws Exception {
+    void compactCitizenDossierHasEnglishCopy() throws Exception {
         JsonObject english = language("en_us");
-        JsonObject norwegian = language("nb_no");
         for (String key : COMPACT_KEYS) {
             assertText(english, key);
-            assertText(norwegian, key);
         }
     }
 

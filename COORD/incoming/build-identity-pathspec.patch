@@ -1,0 +1,13 @@
+--- a/hearthstead-neoforge/build.gradle
++++ b/hearthstead-neoforge/build.gradle
+@@ -87,8 +87,8 @@
+     ':(top)hearthstead-neoforge/settings.gradle',
+     ':(top)hearthstead-neoforge/gradlew',
+     ':(top)hearthstead-neoforge/gradlew.bat',
+-    ':(top)hearthstead-neoforge/gradle/wrapper',
+-    ':(top)hearthstead-neoforge/src'
++    ':(top)hearthstead-neoforge/gradle/wrapper/',
++    ':(top)hearthstead-neoforge/src/'
+ ]
+ def hearthsteadRepositoryRootText = decodeGitUtf8(
+     gitRequired('rev-parse', '--show-toplevel'), 'repository root').trim()

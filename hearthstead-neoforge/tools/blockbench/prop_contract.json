@@ -232,12 +232,75 @@
     "ARCHER_STANCE", "ARCHER_PATROL", "IDLE_ARCHER", "SHIELD_BLOCK",
     "HERDER_SHEAR", "FISHER_CAST", "HUNTER_LOOSE"
   ],
+  "suppressedHeldItemPresentationClips": ["HAUL_LOG", "HAUL_LOG_HEAVY"],
+  "twoHandFrameGripPostureContracts": {
+    "HAUL_LOG": {
+      "activity": "HAULING_LOG",
+      "runtimeMainHand": "axe",
+      "heldItemPresentation": "suppressed",
+      "attachedLoadGroup": "lumber_frame",
+      "exactOverlayBones": ["left_arm", "right_arm"],
+      "safeArmXBoundsDegrees": {
+        "left_arm": [-50, -30],
+        "right_arm": [-50, -30]
+      }
+    },
+    "HAUL_LOG_HEAVY": {
+      "activity": "HAULING_LOG",
+      "runtimeMainHand": "axe",
+      "heldItemPresentation": "suppressed",
+      "attachedLoadGroup": "lumber_frame",
+      "exactOverlayBones": ["left_arm", "right_arm"],
+      "safeArmXBoundsDegrees": {
+        "left_arm": [-50, -30],
+        "right_arm": [-50, -30]
+      }
+    }
+  },
+  "transitionHeldItemPresentation": {
+    "WORK_CONTAINER_DOWN": {
+      "suppressedBeforeSeconds": 1.20,
+      "restoredAtOrAfterSeconds": 1.20
+    },
+    "WORK_CONTAINER_UP": {
+      "visibleBeforeSeconds": 0.60,
+      "suppressedAtOrAfterSeconds": 0.60
+    }
+  },
+  "workContainerTransitionGripAnchors": {
+    "javaModelPixels": {
+      "negativeXUpperSideRail": [-4.0, 0.5, 0.5],
+      "positiveXUpperSideRail": [4.0, 0.5, 0.5]
+    },
+    "blockbenchModelPixels": {
+      "negativeXUpperSideRail": [-4.0, -0.5, 0.5],
+      "positiveXUpperSideRail": [4.0, -0.5, 0.5]
+    },
+    "maximumHandCenterDistanceModelPixels": 8.0,
+    "downGroundContactSeconds": 1.0,
+    "upGroundContactSeconds": 0.6,
+    "ownership": "Hands migrate from lower backpack grips to the existing upper side rails before ground contact; pickup reverses that path."
+  },
   "conditionalRuntimeOffhandClips": {
     "SHIELD_BLOCK": "shield"
   },
   "conceptualProxyClips": ["HAMMER_ANVIL", "MASON_CHISEL"],
+  "hunterPhysicalShot": {
+    "clip": "HUNTER_LOOSE",
+    "activity": "WORK_HUNT",
+    "mainHandItem": "bow",
+    "bowArm": "right_arm",
+    "stringArm": "left_arm",
+    "drawClock": "synced_vanilla_mainhand_item_use",
+    "durationTicks": 24,
+    "releaseTick": 14,
+    "releaseEvent": "EV_ARCHER_LOOSE",
+    "releaseRequiresSpawnedProjectile": true,
+    "activityClockStartsImmediately": true,
+    "clipOwnsArms": false,
+    "visualQualification": "offline_multiview_and_native_pending"
+  },
   "knownVisualNoGoClips": {
-    "CLEAVE": "The clip has no truthful universal prop: BUTCHER runtime is empty-handed despite the catalogue cleaver, while HERDER cull carries shears; BB_CONTEXT is mandatory.",
-    "HUNTER_LOOSE": "Runtime BOW is MAINHAND/right_arm, but this clip authors left_arm as the bow arm; runtime also never enters the vanilla pulling item state."
+    "CLEAVE": "The clip has no truthful universal prop: BUTCHER runtime is empty-handed despite the catalogue cleaver, while HERDER cull carries shears; BB_CONTEXT is mandatory."
   }
 }

@@ -210,6 +210,66 @@ public final class HsUi {
         g.blitSprite(selected ? TAB_SELECTED : TAB_UNSELECTED, x, y, w, h);
     }
 
+    /** Original paper kit, opt-in while screens migrate; no atlas/global-style change. */
+    public static void paperWindow(GuiGraphics g, int x, int y, int w, int h) {
+        HearthMaterials.frame(g, x, y, w, h);
+    }
+
+    /** Actual current task/requirement; attention changes emphasis, not its meaning. */
+    public static void taskPaper(GuiGraphics g, int x, int y, int w, int h,
+                                 boolean attention, boolean hovered) {
+        HearthMaterials.panel(g, x, y, w, h);
+        if (attention) HearthMaterials.header(g, x, y, 3, h);
+        if (hovered) g.fill(x, y, x + w, y + h, 0x18FFF6E0);
+    }
+
+    /**
+     * A factual status surface in the shared wood-and-parchment kit. The
+     * caller still supplies the exact label, check/minus or tooltip, so green,
+     * amber and red never become the only way to understand a server result.
+     */
+    public static void statusPaper(GuiGraphics g, int x, int y, int w, int h,
+                                   Tone tone, boolean hovered) {
+        taskPaper(g, x, y, w, h, false, hovered);
+        int ink = switch (tone) {
+            case GOOD -> 0xFF355D35;
+            case WARN -> 0xFF805914;
+            case BAD -> 0xFF943E35;
+            case ACCENT -> 0xFF845A31;
+        };
+        g.fill(x, y, x + 2, y + h, ink);
+        g.fill(x + 2, y, x + w, y + 1, ink);
+    }
+    /** Shared textured action surface for standard Minecraft button widgets. */
+    public static void actionButton(GuiGraphics g, int x, int y, int w, int h,
+                                    boolean danger, boolean active, boolean hovered,
+                                    boolean pressed) {
+        HearthMaterials.button(g, x, y, w, h, !danger, danger,
+            active && (hovered || pressed), active);
+    }
+    /** Check or minus remains distinguishable without depending on green/amber. */
+    public static void requirementMark(GuiGraphics g, int x, int y, boolean met) {
+        int ink = met ? 0xFF355D35 : 0xFF805914;
+        g.fill(x, y, x + 11, y + 11, 0xFFDED5BD);
+        if (met) {
+            g.fill(x + 2, y + 5, x + 4, y + 7, ink);
+            g.fill(x + 4, y + 7, x + 6, y + 9, ink);
+            g.fill(x + 6, y + 5, x + 8, y + 7, ink);
+            g.fill(x + 8, y + 3, x + 10, y + 5, ink);
+        } else {
+            g.fill(x + 3, y + 5, x + 9, y + 7, ink);
+        }
+    }
+
+    /** Keyboard focus has a complete inner outline, distinct from pointer hover. */
+    public static void keyboardFocus(GuiGraphics g, int x, int y, int w, int h) {
+        int ink = 0xFFFFE0A0;
+        g.fill(x + 2, y + 2, x + w - 2, y + 3, ink);
+        g.fill(x + 2, y + h - 3, x + w - 2, y + h - 2, ink);
+        g.fill(x + 2, y + 3, x + 3, y + h - 3, ink);
+        g.fill(x + w - 3, y + 3, x + w - 2, y + h - 3, ink);
+    }
+
     // -- values -----------------------------------------------------------
 
     /**

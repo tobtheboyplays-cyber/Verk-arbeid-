@@ -6,7 +6,6 @@ import com.hearthstead.registry.ModSounds;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -77,7 +76,7 @@ public final class Summons {
         UUID id = settler.getUUID();
         ACTIVE.put(id, new Summon(where.immutable(), level.getGameTime() + DURATION_TICKS));
         settler.setGlowingTag(true);
-        level.playSound(null, where, SoundEvents.BELL_BLOCK, SoundSource.BLOCKS, 0.8F, 1.4F);
+        level.playSound(null, where, ModSounds.VILLAGE_BELL.get(), SoundSource.BLOCKS, 0.8F, 1.1F);
         level.playSound(null, settler.blockPosition(), ModSounds.SETTLER_HM.get(),
             SoundSource.NEUTRAL, 0.9F, 0.95F + settler.getRandom().nextFloat() * 0.1F);
     }

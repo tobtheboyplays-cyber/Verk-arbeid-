@@ -1,330 +1,396 @@
 {
+  "captain.windup": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/windup1", "volume": 0.29 },
+      { "name": "hearthstead:el/combat/windup2", "volume": 0.29 },
+      { "name": "hearthstead:el/combat/windup3", "volume": 0.29 }
+    ],
+    "subtitle": "subtitles.hearthstead.captain.windup"
+  },
+  "captain.impact": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/impact1", "volume": 0.29, "attenuation_distance": 20 },
+      { "name": "hearthstead:el/combat/impact2", "volume": 0.29, "attenuation_distance": 20 },
+      { "name": "hearthstead:el/combat/impact3", "volume": 0.29, "attenuation_distance": 20 }
+    ],
+    "subtitle": "subtitles.hearthstead.captain.impact"
+  },
+  "captain.rally": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/rally1", "volume": 0.7 },
+      { "name": "hearthstead:el/raid/rally2", "volume": 0.7 }
+    ],
+    "subtitle": "subtitles.hearthstead.captain.rally"
+  },
+  "captain.promoted": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/promoted1", "volume": 0.7 },
+      { "name": "hearthstead:el/ui/promoted2", "volume": 0.7 }
+    ],
+    "subtitle": "subtitles.hearthstead.captain.promoted"
+  },
+  "role.spear_thrust": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/spear_thrust1", "volume": 0.8, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/spear_thrust2", "volume": 0.8, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/spear_thrust3", "volume": 0.8, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.spear_thrust"
+  },
+  "role.longsword_cleave": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/longsword_cleave1", "volume": 0.44, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/longsword_cleave2", "volume": 0.44, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.longsword_cleave"
+  },
+  "role.rune_cast": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/rune_cast1", "volume": 0.21 },
+      { "name": "hearthstead:el/combat/rune_cast2", "volume": 0.21 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.rune_cast"
+  },
+  "role.firebolt_impact": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/firebolt_impact1", "volume": 0.92 },
+      { "name": "hearthstead:el/combat/firebolt_impact2", "volume": 0.92 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.firebolt_impact"
+  },
+  "role.ward_up": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/ward_up1", "volume": 0.15 },
+      { "name": "hearthstead:el/combat/ward_up2", "volume": 0.15 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.ward_up"
+  },
+  "role.frost_rune": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/frost_rune1", "volume": 0.12 },
+      { "name": "hearthstead:el/combat/frost_rune2", "volume": 0.12 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.frost_rune"
+  },
+  "role.bandage": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/bandage1", "volume": 0.31 },
+      { "name": "hearthstead:el/combat/bandage2", "volume": 0.31 }
+    ],
+    "subtitle": "subtitles.hearthstead.role.bandage"
+  },
   "settlement_founded": {
     "sounds": [
-      {
-        "name": "hearthstead:hearth_founded",
-        "volume": 1.0
-      }
+      { "name": "hearthstead:el/ui/settlement_founded1", "volume": 0.37, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/ui/settlement_founded2", "volume": 0.37, "attenuation_distance": 24 }
     ],
     "subtitle": "subtitles.hearthstead.settlement_founded"
   },
   "profession_assigned": {
     "sounds": [
-      {
-        "name": "hearthstead:profession_assigned",
-        "volume": 0.9
-      }
+      { "name": "hearthstead:el/ui/profession_assigned1", "volume": 0.17 },
+      { "name": "hearthstead:el/ui/profession_assigned2", "volume": 0.17 },
+      { "name": "hearthstead:el/ui/profession_assigned3", "volume": 0.17 }
     ],
     "subtitle": "subtitles.hearthstead.profession_assigned"
   },
   "settler_recruited": {
     "sounds": [
-      {
-        "name": "hearthstead:settler_recruited",
-        "volume": 0.9
-      }
+      { "name": "hearthstead:el/ui/settler_recruited1", "volume": 0.32 },
+      { "name": "hearthstead:el/ui/settler_recruited2", "volume": 0.32 }
     ],
     "subtitle": "subtitles.hearthstead.settler_recruited"
   },
   "ui_open": {
     "sounds": [
-      {
-        "name": "hearthstead:ui_open",
-        "volume": 0.45
-      }
+      { "name": "hearthstead:el/ui/ui_open1", "volume": 0.21, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/ui/ui_open2", "volume": 0.21, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/ui/ui_open3", "volume": 0.21, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.ui_open"
   },
   "ui_close": {
     "sounds": [
-      {
-        "name": "hearthstead:ui_close",
-        "volume": 0.4
-      }
+      { "name": "hearthstead:el/ui/ui_close1", "volume": 0.21, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/ui/ui_close2", "volume": 0.21, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.ui_close"
   },
   "ui_confirm": {
     "sounds": [
-      {
-        "name": "hearthstead:ui_confirm",
-        "volume": 0.35
-      }
+      { "name": "hearthstead:el/ui/ui_confirm1", "volume": 0.15, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/ui/ui_confirm2", "volume": 0.15, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/ui/ui_confirm3", "volume": 0.15, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.ui_confirm"
   },
   "ui_error": {
     "sounds": [
-      {
-        "name": "hearthstead:ui_error",
-        "volume": 0.4
-      }
+      { "name": "hearthstead:el/ui/ui_error1", "volume": 0.23, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/ui/ui_error2", "volume": 0.23, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.ui_error"
   },
   "farmer_work": {
     "sounds": [
-      {
-        "name": "hearthstead:farmer_work",
-        "volume": 0.85
-      },
-      {
-        "name": "hearthstead:farmer_work2",
-        "volume": 0.85
-      },
-      {
-        "name": "hearthstead:farmer_work3",
-        "volume": 0.85
-      }
+      { "name": "hearthstead:el/work/farmer_work1", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/farmer_work2", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/farmer_work3", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/farmer_work4", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/farmer_work5", "volume": 0.22, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.farmer_work"
   },
   "chop": {
     "sounds": [
-      {
-        "name": "hearthstead:chop",
-        "volume": 0.9
-      },
-      {
-        "name": "hearthstead:chop2",
-        "volume": 0.9
-      },
-      {
-        "name": "hearthstead:chop3",
-        "volume": 0.9
-      }
+      { "name": "hearthstead:el/work/chop1", "volume": 0.2, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chop2", "volume": 0.2, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chop3", "volume": 0.2, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chop4", "volume": 0.2, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chop5", "volume": 0.2, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.chop"
   },
   "guard_alert": {
     "sounds": [
-      {
-        "name": "hearthstead:guard_alert",
-        "volume": 0.95
-      }
+      { "name": "hearthstead:el/raid/guard_alert1", "volume": 0.36, "attenuation_distance": 32 },
+      { "name": "hearthstead:el/raid/guard_alert2", "volume": 0.36, "attenuation_distance": 32 },
+      { "name": "hearthstead:el/raid/guard_alert3", "volume": 0.36, "attenuation_distance": 32 }
     ],
     "subtitle": "subtitles.hearthstead.guard_alert"
   },
   "guard_experience": {
     "sounds": [
-      {
-        "name": "hearthstead:guard_experience",
-        "volume": 0.72
-      }
+      { "name": "hearthstead:el/ui/guard_experience1", "volume": 0.16 },
+      { "name": "hearthstead:el/ui/guard_experience2", "volume": 0.16 },
+      { "name": "hearthstead:el/ui/guard_experience3", "volume": 0.16 }
     ],
     "subtitle": "subtitles.hearthstead.guard_experience"
   },
   "leap_slam": {
     "sounds": [
-      {
-        "name": "hearthstead:leap_slam",
-        "volume": 1.0
-      }
+      { "name": "hearthstead:el/combat/leap_slam1", "volume": 0.45, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/leap_slam2", "volume": 0.45, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/leap_slam3", "volume": 0.45, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.leap_slam"
   },
   "armour_clink": {
     "sounds": [
-      {
-        "name": "hearthstead:armour_clink",
-        "volume": 0.7
-      },
-      {
-        "name": "hearthstead:armour_clink2",
-        "volume": 0.7
-      }
+      { "name": "hearthstead:el/combat/armour_clink1", "volume": 0.25, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/combat/armour_clink2", "volume": 0.25, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/combat/armour_clink3", "volume": 0.25, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/combat/armour_clink4", "volume": 0.25, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.armour_clink"
   },
   "pick_strike": {
     "sounds": [
-      {
-        "name": "hearthstead:pick_strike",
-        "volume": 0.9
-      },
-      {
-        "name": "hearthstead:pick_strike2",
-        "volume": 0.9
-      }
+      { "name": "hearthstead:el/work/pick_strike1", "volume": 0.17, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/pick_strike2", "volume": 0.17, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/pick_strike3", "volume": 0.17, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/pick_strike4", "volume": 0.17, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/pick_strike5", "volume": 0.17, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.pick_strike"
   },
   "anvil_ring": {
     "sounds": [
-      {
-        "name": "hearthstead:anvil_ring",
-        "volume": 0.85
-      },
-      {
-        "name": "hearthstead:anvil_ring2",
-        "volume": 0.85
-      }
+      { "name": "hearthstead:el/work/anvil_ring1", "volume": 0.26, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/anvil_ring2", "volume": 0.26, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/anvil_ring3", "volume": 0.26, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/anvil_ring4", "volume": 0.26, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/anvil_ring5", "volume": 0.26, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/anvil_ring6", "volume": 0.26, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.anvil_ring"
   },
   "bellows_puff": {
     "sounds": [
-      {
-        "name": "hearthstead:bellows_puff",
-        "volume": 0.8
-      }
+      { "name": "hearthstead:el/work/bellows_puff1", "volume": 0.16, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/bellows_puff2", "volume": 0.16, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/bellows_puff3", "volume": 0.16, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.bellows_puff"
   },
   "saw_stroke": {
     "sounds": [
-      {
-        "name": "hearthstead:saw_stroke",
-        "volume": 0.8
-      },
-      {
-        "name": "hearthstead:saw_stroke2",
-        "volume": 0.8
-      }
+      { "name": "hearthstead:el/work/saw_stroke1", "volume": 0.21, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/saw_stroke2", "volume": 0.21, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/saw_stroke3", "volume": 0.21, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/saw_stroke4", "volume": 0.21, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.saw_stroke"
   },
   "oven_slide": {
     "sounds": [
-      {
-        "name": "hearthstead:oven_slide",
-        "volume": 0.85
-      }
+      { "name": "hearthstead:el/work/oven_slide1", "volume": 0.12, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/oven_slide2", "volume": 0.12, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/oven_slide3", "volume": 0.12, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.oven_slide"
   },
   "knead_press": {
     "sounds": [
-      {
-        "name": "hearthstead:knead_press",
-        "volume": 0.8
-      }
+      { "name": "hearthstead:el/work/knead_press1", "volume": 0.24, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/knead_press2", "volume": 0.24, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/knead_press3", "volume": 0.24, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.knead_press"
   },
   "cleaver_chop": {
     "sounds": [
-      {
-        "name": "hearthstead:cleaver_chop",
-        "volume": 0.9
-      },
-      {
-        "name": "hearthstead:cleaver_chop2",
-        "volume": 0.9
-      }
+      { "name": "hearthstead:el/work/cleaver_chop1", "volume": 0.21, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/cleaver_chop2", "volume": 0.21, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/cleaver_chop3", "volume": 0.21, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/cleaver_chop4", "volume": 0.21, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.cleaver_chop"
   },
   "loom_clack": {
     "sounds": [
-      {
-        "name": "hearthstead:loom_clack",
-        "volume": 0.75
-      }
+      { "name": "hearthstead:el/work/loom_clack1", "volume": 0.13, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/loom_clack2", "volume": 0.13, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/loom_clack3", "volume": 0.13, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/loom_clack4", "volume": 0.13, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.loom_clack"
   },
   "pot_stir": {
     "sounds": [
-      {
-        "name": "hearthstead:pot_stir",
-        "volume": 0.8
-      },
-      {
-        "name": "hearthstead:pot_stir2",
-        "volume": 0.8
-      }
+      { "name": "hearthstead:el/work/pot_stir1", "volume": 0.27, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/pot_stir2", "volume": 0.27, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/pot_stir3", "volume": 0.27, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.pot_stir"
   },
   "plane_shave": {
     "sounds": [
-      {
-        "name": "hearthstead:plane_shave",
-        "volume": 0.8
-      },
-      {
-        "name": "hearthstead:plane_shave2",
-        "volume": 0.8
-      }
+      { "name": "hearthstead:el/work/plane_shave1", "volume": 0.14, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/plane_shave2", "volume": 0.14, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/plane_shave3", "volume": 0.14, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/plane_shave4", "volume": 0.14, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.plane_shave"
   },
   "chisel_tap": {
     "sounds": [
-      {
-        "name": "hearthstead:chisel_tap",
-        "volume": 0.85
-      },
-      {
-        "name": "hearthstead:chisel_tap2",
-        "volume": 0.85
-      }
+      { "name": "hearthstead:el/work/chisel_tap1", "volume": 0.16, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chisel_tap2", "volume": 0.16, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chisel_tap3", "volume": 0.16, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chisel_tap4", "volume": 0.16, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/chisel_tap5", "volume": 0.16, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.chisel_tap"
   },
+  "nail_tap": {
+    "sounds": [
+      { "name": "hearthstead:el/builder/nail_tap1", "volume": 0.19, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/builder/nail_tap2", "volume": 0.19, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/builder/nail_tap3", "volume": 0.19, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/builder/nail_tap4", "volume": 0.19, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/builder/nail_tap5", "volume": 0.19, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.nail_tap"
+  },
   "feather_pinch": {
     "sounds": [
-      {
-        "name": "hearthstead:feather_pinch",
-        "volume": 0.7
-      },
-      {
-        "name": "hearthstead:feather_pinch2",
-        "volume": 0.7
-      }
+      { "name": "hearthstead:el/work/feather_pinch1", "volume": 0.27, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/feather_pinch2", "volume": 0.27, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/feather_pinch3", "volume": 0.27, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.feather_pinch"
   },
   "hide_scrape": {
     "sounds": [
-      {
-        "name": "hearthstead:hide_scrape",
-        "volume": 0.85
-      },
-      {
-        "name": "hearthstead:hide_scrape2",
-        "volume": 0.85
-      }
+      { "name": "hearthstead:el/work/hide_scrape1", "volume": 0.23, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/hide_scrape2", "volume": 0.23, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/hide_scrape3", "volume": 0.23, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.hide_scrape"
   },
   "settler_hm": {
     "sounds": [
       {
-        "name": "hearthstead:settler_hm",
-        "volume": 0.6
+        "name": "hearthstead:voice/settler_hm1",
+        "volume": 0.22
       },
       {
-        "name": "hearthstead:settler_hm2",
-        "volume": 0.6
+        "name": "hearthstead:voice/settler_hm2",
+        "volume": 0.22
+      },
+      {
+        "name": "hearthstead:voice/settler_hm3",
+        "volume": 0.22
+      },
+      {
+        "name": "hearthstead:voice/settler_hm4",
+        "volume": 0.22
+      },
+      {
+        "name": "hearthstead:voice/settler_hm5",
+        "volume": 0.18
       }
     ],
     "subtitle": "subtitles.hearthstead.settler_hm"
   },
-  "seed_press": {
+  "innkeeper_hum": {
     "sounds": [
       {
-        "name": "hearthstead:seed_press",
-        "volume": 0.6
+        "name": "hearthstead:voice/innkeeper_hum1",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:voice/innkeeper_hum2",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:voice/innkeeper_hum3",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:voice/innkeeper_hum4",
+        "volume": 0.35
       }
+    ],
+    "subtitle": "subtitles.hearthstead.innkeeper_hum"
+  },
+  "seed_press": {
+    "sounds": [
+      { "name": "hearthstead:el/work/seed_press1", "volume": 0.33, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/seed_press2", "volume": 0.33, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/seed_press3", "volume": 0.33, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.seed_press"
   },
   "crop_pull": {
     "sounds": [
-      {
-        "name": "hearthstead:crop_pull",
-        "volume": 0.65
-      }
+      { "name": "hearthstead:el/work/crop_pull1", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/crop_pull2", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/crop_pull3", "volume": 0.22, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/crop_pull4", "volume": 0.22, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.crop_pull"
   },
   "bag_stow": {
     "sounds": [
       {
-        "name": "hearthstead:bag_stow",
-        "volume": 0.6
+        "name": "minecraft:item/bundle/insert1",
+        "volume": 0.45,
+        "pitch": 0.9,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/insert2",
+        "volume": 1.0,
+        "pitch": 0.9,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/insert3",
+        "volume": 1.0,
+        "pitch": 0.9,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.bag_stow"
@@ -332,8 +398,46 @@
   "bag_down": {
     "sounds": [
       {
-        "name": "hearthstead:bag_down",
-        "volume": 0.55
+        "name": "minecraft:item/bundle/drop_contents1",
+        "volume": 0.52,
+        "pitch": 0.75,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/drop_contents2",
+        "volume": 0.47,
+        "pitch": 0.75,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/drop_contents3",
+        "volume": 0.32,
+        "pitch": 0.75,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/cloth1",
+        "volume": 0.35,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/cloth2",
+        "volume": 0.77,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/cloth3",
+        "volume": 0.69,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/cloth4",
+        "volume": 0.57,
+        "pitch": 0.7,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.bag_down"
@@ -341,39 +445,81 @@
   "bag_up": {
     "sounds": [
       {
-        "name": "hearthstead:bag_up",
-        "volume": 0.5
+        "name": "minecraft:item/armor/equip_leather1",
+        "volume": 0.35,
+        "pitch": 0.95,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/armor/equip_leather2",
+        "volume": 0.37,
+        "pitch": 0.95,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/armor/equip_leather3",
+        "volume": 0.61,
+        "pitch": 0.95,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/armor/equip_leather4",
+        "volume": 0.52,
+        "pitch": 0.95,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/armor/equip_leather5",
+        "volume": 0.52,
+        "pitch": 0.95,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/armor/equip_leather6",
+        "volume": 0.7,
+        "pitch": 0.95,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.bag_up"
   },
   "water_pour": {
     "sounds": [
-      {
-        "name": "hearthstead:water_pour",
-        "volume": 0.5
-      }
+      { "name": "hearthstead:el/work/water_pour1", "volume": 0.3, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/water_pour2", "volume": 0.3, "attenuation_distance": 12 },
+      { "name": "hearthstead:el/work/water_pour3", "volume": 0.3, "attenuation_distance": 12 }
     ],
     "subtitle": "subtitles.hearthstead.water_pour"
   },
   "blade_hit": {
     "sounds": [
-      {
-        "name": "hearthstead:blade_hit",
-        "volume": 0.7
-      },
-      {
-        "name": "hearthstead:blade_hit2",
-        "volume": 0.7
-      }
+      { "name": "hearthstead:el/combat/blade_hit1", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/blade_hit2", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/blade_hit3", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/blade_hit4", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/blade_hit5", "volume": 0.37, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.blade_hit"
   },
   "yawn": {
     "sounds": [
       {
-        "name": "hearthstead:yawn",
-        "volume": 0.45
+        "name": "hearthstead:voice/yawn1",
+        "volume": 0.2
+      },
+      {
+        "name": "hearthstead:voice/yawn1",
+        "volume": 0.2,
+        "pitch": 0.84
+      },
+      {
+        "name": "hearthstead:voice/yawn2",
+        "volume": 0.2
+      },
+      {
+        "name": "hearthstead:voice/yawn2",
+        "volume": 0.2,
+        "pitch": 0.86
       }
     ],
     "subtitle": "subtitles.hearthstead.yawn"
@@ -381,8 +527,29 @@
   "ladder_creak": {
     "sounds": [
       {
-        "name": "hearthstead:ladder_creak",
-        "volume": 0.45
+        "name": "minecraft:step/ladder1",
+        "volume": 1.0,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder2",
+        "volume": 0.19,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder3",
+        "volume": 0.19,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder4",
+        "volume": 0.19,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder5",
+        "volume": 0.2,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.ladder_creak"
@@ -390,8 +557,19 @@
   "settler_eat": {
     "sounds": [
       {
-        "name": "hearthstead:settler_eat",
-        "volume": 0.6
+        "name": "minecraft:random/eat1",
+        "volume": 0.69,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:random/eat2",
+        "volume": 0.88,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:random/eat3",
+        "volume": 0.3,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.settler_eat"
@@ -399,63 +577,68 @@
   "settler_panic": {
     "sounds": [
       {
-        "name": "hearthstead:settler_panic",
-        "volume": 0.6
+        "name": "hearthstead:voice/m_panic1",
+        "volume": 0.35
       },
       {
-        "name": "hearthstead:settler_panic2",
-        "volume": 0.6
+        "name": "hearthstead:voice/m_panic2",
+        "volume": 0.35
       },
       {
-        "name": "hearthstead:settler_panic3",
-        "volume": 0.6
+        "name": "hearthstead:voice/m_panic3",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:voice/f_panic1",
+        "volume": 0.31
+      },
+      {
+        "name": "hearthstead:voice/f_panic2",
+        "volume": 0.28
       }
     ],
     "subtitle": "subtitles.hearthstead.settler_panic"
   },
   "shield_thud": {
     "sounds": [
-      {
-        "name": "hearthstead:shield_thud",
-        "volume": 0.8
-      },
-      {
-        "name": "hearthstead:shield_thud2",
-        "volume": 0.8
-      }
+      { "name": "hearthstead:el/combat/shield_thud1", "volume": 0.31, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/shield_thud2", "volume": 0.31, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/shield_thud3", "volume": 0.31, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/shield_thud4", "volume": 0.31, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/shield_thud5", "volume": 0.31, "attenuation_distance": 16 }
     ],
     "subtitle": "subtitles.hearthstead.shield_thud"
   },
   "cheer": {
     "sounds": [
-      {
-        "name": "hearthstead:cheer",
-        "volume": 0.6
-      },
-      {
-        "name": "hearthstead:cheer2",
-        "volume": 0.6
-      },
-      {
-        "name": "hearthstead:cheer3",
-        "volume": 0.6
-      }
+      { "name": "hearthstead:el/voice/cheer1", "volume": 0.25 },
+      { "name": "hearthstead:el/voice/cheer2", "volume": 0.25 },
+      { "name": "hearthstead:el/voice/cheer3", "volume": 0.25 },
+      { "name": "hearthstead:el/voice/cheer4", "volume": 0.25 }
     ],
     "subtitle": "subtitles.hearthstead.cheer"
   },
   "haul_step": {
     "sounds": [
       {
-        "name": "hearthstead:haul_step",
-        "volume": 0.7
+        "name": "hearthstead:work/haul_step1",
+        "volume": 0.11,
+        "attenuation_distance": 12
       },
       {
-        "name": "hearthstead:haul_step2",
-        "volume": 0.7
+        "name": "hearthstead:work/haul_step2",
+        "volume": 0.11,
+        "attenuation_distance": 12
       },
       {
-        "name": "hearthstead:haul_step3",
-        "volume": 0.7
+        "name": "hearthstead:work/haul_step3",
+        "volume": 0.11,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "hearthstead:work/haul_step4",
+        "volume": 0.11,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.haul_step"
@@ -463,8 +646,40 @@
   "crate_grip": {
     "sounds": [
       {
-        "name": "hearthstead:crate_grip",
-        "volume": 0.6
+        "name": "minecraft:step/wood1",
+        "volume": 0.28,
+        "pitch": 1.15,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood2",
+        "volume": 0.34,
+        "pitch": 1.15,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood3",
+        "volume": 0.25,
+        "pitch": 1.15,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood4",
+        "volume": 0.24,
+        "pitch": 1.15,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood5",
+        "volume": 0.28,
+        "pitch": 1.15,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood6",
+        "volume": 0.18,
+        "pitch": 1.15,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.crate_grip"
@@ -472,8 +687,34 @@
   "haul_strain": {
     "sounds": [
       {
-        "name": "hearthstead:haul_strain",
-        "volume": 0.6
+        "name": "minecraft:step/ladder1",
+        "volume": 0.51,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder2",
+        "volume": 0.1,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder3",
+        "volume": 0.1,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder4",
+        "volume": 0.1,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder5",
+        "volume": 0.1,
+        "pitch": 0.7,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.haul_strain"
@@ -481,8 +722,34 @@
   "crate_creak": {
     "sounds": [
       {
-        "name": "hearthstead:crate_creak",
-        "volume": 0.5
+        "name": "minecraft:step/ladder1",
+        "volume": 0.8,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder2",
+        "volume": 0.15,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder3",
+        "volume": 0.16,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder4",
+        "volume": 0.15,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/ladder5",
+        "volume": 0.16,
+        "pitch": 0.85,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.crate_creak"
@@ -490,8 +757,64 @@
   "crate_down": {
     "sounds": [
       {
-        "name": "hearthstead:crate_down",
-        "volume": 0.8
+        "name": "minecraft:step/wood1",
+        "volume": 0.4,
+        "pitch": 0.65,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood2",
+        "volume": 0.47,
+        "pitch": 0.65,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood3",
+        "volume": 0.35,
+        "pitch": 0.65,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood4",
+        "volume": 0.34,
+        "pitch": 0.65,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood5",
+        "volume": 0.39,
+        "pitch": 0.65,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:step/wood6",
+        "volume": 0.26,
+        "pitch": 0.65,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:dig/wood1",
+        "volume": 0.23,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:dig/wood2",
+        "volume": 0.34,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:dig/wood3",
+        "volume": 0.33,
+        "pitch": 0.7,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:dig/wood4",
+        "volume": 0.37,
+        "pitch": 0.7,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.crate_down"
@@ -499,8 +822,26 @@
   "item_pickup": {
     "sounds": [
       {
-        "name": "hearthstead:item_pickup",
-        "volume": 0.55
+        "name": "minecraft:random/pop",
+        "volume": 0.18,
+        "pitch": 1.25,
+        "weight": 3,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/remove_one1",
+        "volume": 0.8,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/remove_one2",
+        "volume": 1.0,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/remove_one3",
+        "volume": 1.0,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.item_pickup"
@@ -508,10 +849,1738 @@
   "chest_stow": {
     "sounds": [
       {
-        "name": "hearthstead:chest_stow",
-        "volume": 0.65
+        "name": "minecraft:item/bundle/insert1",
+        "volume": 0.35,
+        "pitch": 0.8,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/insert2",
+        "volume": 1.0,
+        "pitch": 0.8,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:item/bundle/insert3",
+        "volume": 0.96,
+        "pitch": 0.8,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/itemframe/add_item1",
+        "volume": 0.2,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/itemframe/add_item2",
+        "volume": 0.27,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/itemframe/add_item3",
+        "volume": 0.29,
+        "pitch": 0.85,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/itemframe/add_item4",
+        "volume": 0.24,
+        "pitch": 0.85,
+        "attenuation_distance": 12
       }
     ],
     "subtitle": "subtitles.hearthstead.chest_stow"
+  },
+  "goblin_notice": {
+    "sounds": [
+      {
+        "name": "hearthstead:goblin/notice1",
+        "volume": 0.31
+      },
+      {
+        "name": "hearthstead:goblin/notice2",
+        "volume": 0.31
+      },
+      {
+        "name": "hearthstead:goblin/notice3",
+        "volume": 0.31
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.goblin_notice"
+  },
+  "goblin_sneak": {
+    "sounds": [
+      {
+        "name": "hearthstead:goblin/sneak1",
+        "volume": 0.17
+      },
+      {
+        "name": "hearthstead:goblin/sneak2",
+        "volume": 0.17
+      },
+      {
+        "name": "hearthstead:goblin/sneak3",
+        "volume": 0.17
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.goblin_sneak"
+  },
+  "goblin_steal": {
+    "sounds": [
+      {
+        "name": "hearthstead:goblin/steal1",
+        "volume": 0.31
+      },
+      {
+        "name": "hearthstead:goblin/steal2",
+        "volume": 0.31
+      },
+      {
+        "name": "hearthstead:goblin/steal3",
+        "volume": 0.31
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.goblin_steal"
+  },
+  "goblin_spotted": {
+    "sounds": [
+      {
+        "name": "hearthstead:goblin/spotted1",
+        "volume": 0.4
+      },
+      {
+        "name": "hearthstead:goblin/spotted2",
+        "volume": 0.4
+      },
+      {
+        "name": "hearthstead:goblin/spotted3",
+        "volume": 0.4
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.goblin_spotted"
+  },
+  "goblin_flee": {
+    "sounds": [
+      {
+        "name": "hearthstead:goblin/flee1",
+        "volume": 0.34
+      },
+      {
+        "name": "hearthstead:goblin/flee2",
+        "volume": 0.34
+      },
+      {
+        "name": "hearthstead:goblin/flee3",
+        "volume": 0.34
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.goblin_flee"
+  },
+  "goblin_hurt": {
+    "sounds": [
+      {
+        "name": "hearthstead:goblin/hurt1",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:goblin/hurt2",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:goblin/hurt3",
+        "volume": 0.35
+      },
+      {
+        "name": "hearthstead:goblin/hurt4",
+        "volume": 0.35
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.goblin_hurt"
+  },
+  "fisher_whistle": {
+    "sounds": [
+      {
+        "name": "minecraft:entity/fish/swim1",
+        "volume": 0.41,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/fish/swim2",
+        "volume": 0.2,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/fish/swim3",
+        "volume": 0.24,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/fish/swim4",
+        "volume": 0.18,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/fish/swim5",
+        "volume": 0.35,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/fish/swim6",
+        "volume": 0.28,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "minecraft:entity/fish/swim7",
+        "volume": 0.19,
+        "attenuation_distance": 12
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.fisher_whistle"
+  },
+  "tree_fall": {
+    "sounds": [
+      {
+        "name": "hearthstead:ambient/tree_fall1",
+        "volume": 0.23,
+        "attenuation_distance": 40
+      },
+      {
+        "name": "hearthstead:ambient/tree_fall1",
+        "volume": 0.23,
+        "pitch": 0.92,
+        "attenuation_distance": 40
+      },
+      {
+        "name": "hearthstead:ambient/tree_fall2",
+        "volume": 0.23,
+        "attenuation_distance": 40
+      },
+      {
+        "name": "hearthstead:ambient/tree_fall2",
+        "volume": 0.23,
+        "pitch": 1.05,
+        "attenuation_distance": 40
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.tree_fall"
+  },
+  "village_bell": {
+    "sounds": [
+      { "name": "hearthstead:el/world/village_bell1", "volume": 0.25, "attenuation_distance": 48 },
+      { "name": "hearthstead:el/world/village_bell2", "volume": 0.25, "attenuation_distance": 48 },
+      { "name": "hearthstead:el/world/village_bell3", "volume": 0.25, "attenuation_distance": 48 }
+    ],
+    "subtitle": "subtitles.hearthstead.village_bell"
+  },
+  "raid_horn": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/raid_horn1", "volume": 0.21, "attenuation_distance": 64 },
+      { "name": "hearthstead:el/raid/raid_horn2", "volume": 0.21, "attenuation_distance": 64 }
+    ],
+    "subtitle": "subtitles.hearthstead.raid_horn"
+  },
+  "tavern_ambience": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/tavern_ambience1", "volume": 0.24, "attenuation_distance": 16, "stream": true },
+      { "name": "hearthstead:el/tavern/tavern_ambience2", "volume": 0.24, "attenuation_distance": 16, "stream": true }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern_ambience"
+  },
+  "tavern_laugh": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/tavern_laugh1", "volume": 0.29, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/tavern/tavern_laugh2", "volume": 0.29, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/tavern/tavern_laugh3", "volume": 0.29, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/tavern/tavern_laugh4", "volume": 0.29, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern_laugh"
+  },
+  "mug_set": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/mug_set1", "volume": 0.15, "attenuation_distance": 10 },
+      { "name": "hearthstead:el/tavern/mug_set2", "volume": 0.15, "attenuation_distance": 10 },
+      { "name": "hearthstead:el/tavern/mug_set3", "volume": 0.15, "attenuation_distance": 10 },
+      { "name": "hearthstead:el/tavern/mug_set4", "volume": 0.15, "attenuation_distance": 10 }
+    ],
+    "subtitle": "subtitles.hearthstead.mug_set"
+  },
+  "tavern_fire": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/tavern_fire1", "volume": 0.61, "attenuation_distance": 10 },
+      { "name": "hearthstead:el/tavern/tavern_fire2", "volume": 0.61, "attenuation_distance": 10 },
+      { "name": "hearthstead:el/tavern/tavern_fire3", "volume": 0.61, "attenuation_distance": 10 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern_fire"
+  },
+  "cart_roll": {
+    "sounds": [
+      {
+        "name": "hearthstead:ambient/cart_roll1",
+        "volume": 0.17,
+        "attenuation_distance": 14
+      },
+      {
+        "name": "hearthstead:ambient/cart_roll1",
+        "volume": 0.17,
+        "pitch": 0.85,
+        "attenuation_distance": 14
+      },
+      {
+        "name": "hearthstead:ambient/cart_roll1",
+        "volume": 0.17,
+        "pitch": 0.93,
+        "attenuation_distance": 14
+      },
+      {
+        "name": "hearthstead:ambient/cart_roll2",
+        "volume": 0.17,
+        "attenuation_distance": 14
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.cart_roll"
+  },
+  "banner_raise": {
+    "sounds": [
+      {
+        "name": "hearthstead:banner/banner_raise1",
+        "volume": 0.2
+      },
+      {
+        "name": "hearthstead:banner/banner_raise2",
+        "volume": 0.2
+      },
+      {
+        "name": "hearthstead:banner/banner_raise3",
+        "volume": 0.2
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.banner_raise"
+  },
+  "banner_flutter": {
+    "sounds": [
+      {
+        "name": "hearthstead:banner/banner_flutter1",
+        "volume": 0.12,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "hearthstead:banner/banner_flutter2",
+        "volume": 0.12,
+        "attenuation_distance": 12
+      },
+      {
+        "name": "hearthstead:banner/banner_flutter3",
+        "volume": 0.12,
+        "attenuation_distance": 12
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.banner_flutter"
+  },
+  "tree_creak": {
+    "sounds": [
+      {
+        "name": "hearthstead:ambient/tree_creak1",
+        "volume": 0.18,
+        "attenuation_distance": 24
+      },
+      {
+        "name": "hearthstead:ambient/tree_creak1",
+        "volume": 0.18,
+        "pitch": 1.1,
+        "attenuation_distance": 24
+      },
+      {
+        "name": "hearthstead:ambient/tree_creak2",
+        "volume": 0.18,
+        "attenuation_distance": 24
+      },
+      {
+        "name": "hearthstead:ambient/tree_creak2",
+        "volume": 0.18,
+        "pitch": 1.1,
+        "attenuation_distance": 24
+      }
+    ],
+    "subtitle": "subtitles.hearthstead.tree_creak"
+  },
+  "combat.swing_light": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/swing_light1", "volume": 0.97, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/swing_light2", "volume": 0.97, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/swing_light3", "volume": 0.97, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/swing_light4", "volume": 0.97, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.swing_light"
+  },
+  "combat.swing_heavy": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/swing_heavy1", "volume": 0.45, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/swing_heavy2", "volume": 0.45, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/swing_heavy3", "volume": 0.45, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/swing_heavy4", "volume": 0.45, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.swing_heavy"
+  },
+  "combat.heavy_impact": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/heavy_impact1", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/heavy_impact2", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/heavy_impact3", "volume": 0.37, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/heavy_impact4", "volume": 0.37, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.heavy_impact"
+  },
+  "combat.bash_swing": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/bash_swing1", "volume": 0.4, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/bash_swing2", "volume": 0.4, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/bash_swing3", "volume": 0.4, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.bash_swing"
+  },
+  "whetstone_scrape": {
+    "sounds": [
+      { "name": "hearthstead:el/work/whetstone_scrape1", "volume": 0.33, "attenuation_distance": 8 },
+      { "name": "hearthstead:el/work/whetstone_scrape2", "volume": 0.33, "attenuation_distance": 8 },
+      { "name": "hearthstead:el/work/whetstone_scrape3", "volume": 0.33, "attenuation_distance": 8 },
+      { "name": "hearthstead:el/work/whetstone_scrape4", "volume": 0.33, "attenuation_distance": 8 }
+    ],
+    "subtitle": "subtitles.hearthstead.whetstone_scrape"
+  },
+  "command_shout": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/command_shout1", "volume": 0.33, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/voice/command_shout2", "volume": 0.33, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/voice/command_shout3", "volume": 0.33, "attenuation_distance": 24 }
+    ],
+    "subtitle": "subtitles.hearthstead.command_shout"
+  },
+  "command_ack": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/command_ack1", "volume": 0.1, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/voice/command_ack2", "volume": 0.1, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/voice/command_ack3", "volume": 0.1, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.command_ack"
+  },
+  "downed_heartbeat": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/downed_heartbeat1", "volume": 0.25 },
+      { "name": "hearthstead:el/combat/downed_heartbeat2", "volume": 0.25 },
+      { "name": "hearthstead:el/combat/downed_heartbeat3", "volume": 0.25 },
+      { "name": "hearthstead:el/combat/downed_heartbeat4", "volume": 0.25 }
+    ],
+    "subtitle": "subtitles.hearthstead.downed_heartbeat"
+  },
+  "downed_revived": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/downed_revived1", "volume": 0.21 },
+      { "name": "hearthstead:el/combat/downed_revived2", "volume": 0.21 }
+    ],
+    "subtitle": "subtitles.hearthstead.downed_revived"
+  },
+  "downed_alert": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/downed_alert1", "volume": 0.32 },
+      { "name": "hearthstead:el/combat/downed_alert2", "volume": 0.32 },
+      { "name": "hearthstead:el/combat/downed_alert3", "volume": 0.32 }
+    ],
+    "subtitle": "subtitles.hearthstead.downed_alert"
+  },
+  "combat.execution_stinger": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/execution_stinger1", "volume": 0.43, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/combat/execution_stinger2", "volume": 0.43, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/combat/execution_stinger3", "volume": 0.43, "attenuation_distance": 24 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_stinger"
+  },
+  "combat.execution_windup": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/execution_windup1", "volume": 0.28, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/execution_windup2", "volume": 0.28, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/execution_windup3", "volume": 0.28, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_windup"
+  },
+  "combat.execution_double": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/execution_double1", "volume": 0.64, "attenuation_distance": 28 },
+      { "name": "hearthstead:el/combat/execution_double2", "volume": 0.64, "attenuation_distance": 28 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_double"
+  },
+  "combat.execution_body_fall": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/execution_body_fall1", "volume": 0.36, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/execution_body_fall2", "volume": 0.36, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/combat/execution_body_fall3", "volume": 0.36, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_body_fall"
+  },
+  "combat.guard_cheer": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/guard_cheer1", "volume": 0.32, "attenuation_distance": 20 },
+      { "name": "hearthstead:el/voice/guard_cheer2", "volume": 0.32, "attenuation_distance": 20 },
+      { "name": "hearthstead:el/voice/guard_cheer3", "volume": 0.32, "attenuation_distance": 20 },
+      { "name": "hearthstead:el/voice/guard_cheer4", "volume": 0.32, "attenuation_distance": 20 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.guard_cheer"
+  },
+  "raider.brute_roar": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/brute_roar1", "volume": 1.0, "attenuation_distance": 48 },
+      { "name": "hearthstead:el/raid/brute_roar2", "volume": 1.0, "attenuation_distance": 48 },
+      { "name": "hearthstead:el/raid/brute_roar3", "volume": 1.0, "attenuation_distance": 48 }
+    ],
+    "subtitle": "subtitles.hearthstead.raider.brute_roar"
+  },
+  "raider.brute_slam": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/brute_slam1", "volume": 0.29, "attenuation_distance": 32 },
+      { "name": "hearthstead:el/raid/brute_slam2", "volume": 0.29, "attenuation_distance": 32 },
+      { "name": "hearthstead:el/raid/brute_slam3", "volume": 0.29, "attenuation_distance": 32 }
+    ],
+    "subtitle": "subtitles.hearthstead.raider.brute_slam"
+  },
+  "raider.bark": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/bark1", "volume": 0.97, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/raid/bark2", "volume": 0.97, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/raid/bark3", "volume": 0.97, "attenuation_distance": 24 },
+      { "name": "hearthstead:el/raid/bark4", "volume": 0.97, "attenuation_distance": 24 }
+    ],
+    "subtitle": "subtitles.hearthstead.raider.bark"
+  },
+  "raider.hurt": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/hurt1", "volume": 1.0 },
+      { "name": "hearthstead:el/raid/hurt2", "volume": 1.0 },
+      { "name": "hearthstead:el/raid/hurt3", "volume": 1.0 },
+      { "name": "hearthstead:el/raid/hurt4", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.raider.hurt"
+  },
+  "raider.death": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/death1", "volume": 1.0 },
+      { "name": "hearthstead:el/raid/death2", "volume": 1.0 },
+      { "name": "hearthstead:el/raid/death3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.raider.death"
+  },
+  "settler.hurt": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/hurt1", "volume": 0.93 },
+      { "name": "hearthstead:el/voice/hurt2", "volume": 0.93 },
+      { "name": "hearthstead:el/voice/hurt3", "volume": 0.93 },
+      { "name": "hearthstead:el/voice/hurt4", "volume": 0.93 }
+    ],
+    "subtitle": "subtitles.hearthstead.settler.hurt"
+  },
+  "settler.death": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/death1", "volume": 0.91 },
+      { "name": "hearthstead:el/voice/death2", "volume": 0.91 }
+    ],
+    "subtitle": "subtitles.hearthstead.settler.death"
+  },
+  "tavern.clink": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/clink1", "volume": 0.22 },
+      { "name": "hearthstead:el/tavern/clink2", "volume": 0.22 },
+      { "name": "hearthstead:el/tavern/clink3", "volume": 0.22 },
+      { "name": "hearthstead:el/tavern/clink4", "volume": 0.22 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.clink"
+  },
+  "tavern.pour": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/pour1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/pour2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/pour3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.pour"
+  },
+  "tavern.drink": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/drink1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/drink2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/drink3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.drink"
+  },
+  "builder.place": {
+    "sounds": [
+      { "name": "hearthstead:el/builder/place1", "volume": 0.44 },
+      { "name": "hearthstead:el/builder/place2", "volume": 0.44 },
+      { "name": "hearthstead:el/builder/place3", "volume": 0.44 },
+      { "name": "hearthstead:el/builder/place4", "volume": 0.44 }
+    ],
+    "subtitle": "subtitles.hearthstead.builder.place"
+  },
+  "builder.ladder_rung": {
+    "sounds": [
+      { "name": "hearthstead:el/builder/ladder_rung1", "volume": 0.18 },
+      { "name": "hearthstead:el/builder/ladder_rung2", "volume": 0.18 },
+      { "name": "hearthstead:el/builder/ladder_rung3", "volume": 0.18 }
+    ],
+    "subtitle": "subtitles.hearthstead.builder.ladder_rung"
+  },
+  "event.dog_bark": {
+    "sounds": [
+      { "name": "hearthstead:el/world/dog_bark1", "volume": 0.94 },
+      { "name": "hearthstead:el/world/dog_bark2", "volume": 0.94 },
+      { "name": "hearthstead:el/world/dog_bark3", "volume": 0.94 },
+      { "name": "hearthstead:el/world/dog_bark4", "volume": 0.94 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.dog_bark"
+  },
+  "event.dog_whine": {
+    "sounds": [
+      { "name": "hearthstead:el/world/dog_whine1", "volume": 1.0 },
+      { "name": "hearthstead:el/world/dog_whine2", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.dog_whine"
+  },
+  "event.caravan_arrive": {
+    "sounds": [
+      { "name": "hearthstead:el/world/caravan_arrive1", "volume": 0.95 },
+      { "name": "hearthstead:el/world/caravan_arrive2", "volume": 0.95 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.caravan_arrive"
+  },
+  "event.wolf_howl": {
+    "sounds": [
+      { "name": "hearthstead:el/world/wolf_howl1", "volume": 1.0 },
+      { "name": "hearthstead:el/world/wolf_howl2", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.wolf_howl"
+  },
+  "event.boar_grunt": {
+    "sounds": [
+      { "name": "hearthstead:el/world/boar_grunt1", "volume": 0.26 },
+      { "name": "hearthstead:el/world/boar_grunt2", "volume": 0.26 },
+      { "name": "hearthstead:el/world/boar_grunt3", "volume": 0.26 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.boar_grunt"
+  },
+  "event.boar_charge": {
+    "sounds": [
+      { "name": "hearthstead:el/world/boar_charge1", "volume": 1.0 },
+      { "name": "hearthstead:el/world/boar_charge2", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.boar_charge"
+  },
+  "event.envoy_fanfare": {
+    "sounds": [
+      { "name": "hearthstead:el/world/envoy_fanfare1", "volume": 0.28 },
+      { "name": "hearthstead:el/world/envoy_fanfare2", "volume": 0.28 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.envoy_fanfare"
+  },
+  "event.brute_grunt": {
+    "sounds": [
+      { "name": "hearthstead:el/world/brute_grunt1", "volume": 1.0 },
+      { "name": "hearthstead:el/world/brute_grunt2", "volume": 1.0 },
+      { "name": "hearthstead:el/world/brute_grunt3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.brute_grunt"
+  },
+  "event.brute_demand": {
+    "sounds": [
+      { "name": "hearthstead:el/world/brute_demand1", "volume": 1.0 },
+      { "name": "hearthstead:el/world/brute_demand2", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.brute_demand"
+  },
+  "event.fox_yip": {
+    "sounds": [
+      { "name": "hearthstead:el/world/fox_yip1", "volume": 0.37 },
+      { "name": "hearthstead:el/world/fox_yip2", "volume": 0.37 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.fox_yip"
+  },
+  "event.peddler_bells": {
+    "sounds": [
+      { "name": "hearthstead:el/world/peddler_bells1", "volume": 0.74 },
+      { "name": "hearthstead:el/world/peddler_bells2", "volume": 0.74 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.peddler_bells"
+  },
+  "raid.won_fanfare": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/won_fanfare1", "volume": 0.49 },
+      { "name": "hearthstead:el/raid/won_fanfare2", "volume": 0.49 }
+    ],
+    "subtitle": "subtitles.hearthstead.raid.won_fanfare"
+  },
+  "raid.lost_toll": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/lost_toll1", "volume": 0.28 },
+      { "name": "hearthstead:el/raid/lost_toll2", "volume": 0.28 }
+    ],
+    "subtitle": "subtitles.hearthstead.raid.lost_toll"
+  },
+  "summon.horn": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/horn1", "volume": 0.24 },
+      { "name": "hearthstead:el/raid/horn2", "volume": 0.24 }
+    ],
+    "subtitle": "subtitles.hearthstead.summon.horn"
+  },
+  "patrol.march": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/march1", "volume": 0.2 },
+      { "name": "hearthstead:el/combat/march2", "volume": 0.2 },
+      { "name": "hearthstead:el/combat/march3", "volume": 0.2 }
+    ],
+    "subtitle": "subtitles.hearthstead.patrol.march"
+  },
+  "patrol.halt": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/halt1", "volume": 0.18 },
+      { "name": "hearthstead:el/combat/halt2", "volume": 0.18 }
+    ],
+    "subtitle": "subtitles.hearthstead.patrol.halt"
+  },
+  "command_ack.spear": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/spear1", "volume": 0.1 },
+      { "name": "hearthstead:el/voice/spear2", "volume": 0.1 }
+    ],
+    "subtitle": "subtitles.hearthstead.command_ack.spear"
+  },
+  "command_ack.archer": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/archer1", "volume": 0.11 },
+      { "name": "hearthstead:el/voice/archer2", "volume": 0.11 }
+    ],
+    "subtitle": "subtitles.hearthstead.command_ack.archer"
+  },
+  "command_ack.mage": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/mage1", "volume": 0.12 },
+      { "name": "hearthstead:el/voice/mage2", "volume": 0.12 }
+    ],
+    "subtitle": "subtitles.hearthstead.command_ack.mage"
+  },
+  "combat.execution_stinger.axe": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/axe1", "volume": 0.44 },
+      { "name": "hearthstead:el/combat/axe2", "volume": 0.44 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_stinger.axe"
+  },
+  "combat.execution_stinger.mace": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/mace1", "volume": 0.39 },
+      { "name": "hearthstead:el/combat/mace2", "volume": 0.39 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_stinger.mace"
+  },
+  "combat.execution_stinger.spear": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/spear1", "volume": 0.45 },
+      { "name": "hearthstead:el/combat/spear2", "volume": 0.45 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_stinger.spear"
+  },
+  "combat.execution_stinger.bare": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/bare1", "volume": 0.45 },
+      { "name": "hearthstead:el/combat/bare2", "volume": 0.45 }
+    ],
+    "subtitle": "subtitles.hearthstead.combat.execution_stinger.bare"
+  },
+  "work.plate_hammer": {
+    "sounds": [
+      { "name": "hearthstead:el/work/plate_hammer1", "volume": 0.29 },
+      { "name": "hearthstead:el/work/plate_hammer2", "volume": 0.29 },
+      { "name": "hearthstead:el/work/plate_hammer3", "volume": 0.29 },
+      { "name": "hearthstead:el/work/plate_hammer4", "volume": 0.29 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.plate_hammer"
+  },
+  "work.quern_grind": {
+    "sounds": [
+      { "name": "hearthstead:el/work/quern_grind1", "volume": 0.2 },
+      { "name": "hearthstead:el/work/quern_grind2", "volume": 0.2 },
+      { "name": "hearthstead:el/work/quern_grind3", "volume": 0.2 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.quern_grind"
+  },
+  "work.mash_stir": {
+    "sounds": [
+      { "name": "hearthstead:el/work/mash_stir1", "volume": 0.16 },
+      { "name": "hearthstead:el/work/mash_stir2", "volume": 0.16 },
+      { "name": "hearthstead:el/work/mash_stir3", "volume": 0.16 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.mash_stir"
+  },
+  "work.quill_scratch": {
+    "sounds": [
+      { "name": "hearthstead:el/work/quill_scratch1", "volume": 0.29 },
+      { "name": "hearthstead:el/work/quill_scratch2", "volume": 0.29 },
+      { "name": "hearthstead:el/work/quill_scratch3", "volume": 0.29 },
+      { "name": "hearthstead:el/work/quill_scratch4", "volume": 0.29 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.quill_scratch"
+  },
+  "work.pestle_grind": {
+    "sounds": [
+      { "name": "hearthstead:el/work/pestle_grind1", "volume": 0.14 },
+      { "name": "hearthstead:el/work/pestle_grind2", "volume": 0.14 },
+      { "name": "hearthstead:el/work/pestle_grind3", "volume": 0.14 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.pestle_grind"
+  },
+  "work.shear_snip": {
+    "sounds": [
+      { "name": "hearthstead:el/work/shear_snip1", "volume": 0.23 },
+      { "name": "hearthstead:el/work/shear_snip2", "volume": 0.23 },
+      { "name": "hearthstead:el/work/shear_snip3", "volume": 0.23 },
+      { "name": "hearthstead:el/work/shear_snip4", "volume": 0.23 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.shear_snip"
+  },
+  "work.fish_splash": {
+    "sounds": [
+      { "name": "hearthstead:el/work/fish_splash1", "volume": 0.29 },
+      { "name": "hearthstead:el/work/fish_splash2", "volume": 0.29 },
+      { "name": "hearthstead:el/work/fish_splash3", "volume": 0.29 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.fish_splash"
+  },
+  "work.bow_loose": {
+    "sounds": [
+      { "name": "hearthstead:el/work/bow_loose1", "volume": 0.87 },
+      { "name": "hearthstead:el/work/bow_loose2", "volume": 0.87 },
+      { "name": "hearthstead:el/work/bow_loose3", "volume": 0.87 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.bow_loose"
+  },
+  "work.bow_draw": {
+    "sounds": [
+      { "name": "minecraft:item/crossbow/loading_middle1", "volume": 0.35, "pitch": 1.25 },
+      { "name": "minecraft:item/crossbow/loading_middle2", "volume": 0.35, "pitch": 1.25 },
+      { "name": "minecraft:item/crossbow/loading_middle3", "volume": 0.35, "pitch": 1.25 },
+      { "name": "minecraft:item/crossbow/loading_middle4", "volume": 0.35, "pitch": 1.25 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.bow_draw"
+  },
+  "work.quiver_rustle": {
+    "sounds": [
+      { "name": "minecraft:item/bundle/insert1", "volume": 0.5 },
+      { "name": "minecraft:item/bundle/insert2", "volume": 0.5 },
+      { "name": "minecraft:item/bundle/insert3", "volume": 0.5 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.quiver_rustle"
+  },
+  "work.ledger_tally": {
+    "sounds": [
+      { "name": "hearthstead:el/work/ledger_tally1", "volume": 0.16 },
+      { "name": "hearthstead:el/work/ledger_tally2", "volume": 0.16 },
+      { "name": "hearthstead:el/work/ledger_tally3", "volume": 0.16 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.ledger_tally"
+  },
+  "work.bar_wipe": {
+    "sounds": [
+      { "name": "hearthstead:el/work/bar_wipe1", "volume": 0.18 },
+      { "name": "hearthstead:el/work/bar_wipe2", "volume": 0.18 },
+      { "name": "hearthstead:el/work/bar_wipe3", "volume": 0.18 }
+    ],
+    "subtitle": "subtitles.hearthstead.work.bar_wipe"
+  },
+  "ui.click": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/click1", "volume": 0.99 },
+      { "name": "hearthstead:el/ui/click2", "volume": 0.99 },
+      { "name": "hearthstead:el/ui/click3", "volume": 0.99 }
+    ]
+  },
+  "fx.skill_level_up": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/skill_level_up1", "volume": 0.46 },
+      { "name": "hearthstead:el/ui/skill_level_up2", "volume": 0.46 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.skill_level_up"
+  },
+  "fx.tech_learned": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/tech_learned1", "volume": 0.39 },
+      { "name": "hearthstead:el/ui/tech_learned2", "volume": 0.39 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.tech_learned"
+  },
+  "fx.building_level_up": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/building_level_up1", "volume": 0.31 },
+      { "name": "hearthstead:el/ui/building_level_up2", "volume": 0.31 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.building_level_up"
+  },
+  "fx.journey_chapter": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/journey_chapter1", "volume": 0.55 },
+      { "name": "hearthstead:el/ui/journey_chapter2", "volume": 0.55 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.journey_chapter"
+  },
+  "fx.craft_glint": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/craft_glint1", "volume": 0.3 },
+      { "name": "hearthstead:el/ui/craft_glint2", "volume": 0.3 },
+      { "name": "hearthstead:el/ui/craft_glint3", "volume": 0.3 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.craft_glint"
+  },
+  "fx.craft_legendary": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/craft_legendary1", "volume": 0.12 },
+      { "name": "hearthstead:el/ui/craft_legendary2", "volume": 0.12 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.craft_legendary"
+  },
+  "fx.coin_sale": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/coin_sale1", "volume": 0.29 },
+      { "name": "hearthstead:el/ui/coin_sale2", "volume": 0.29 },
+      { "name": "hearthstead:el/ui/coin_sale3", "volume": 0.29 },
+      { "name": "hearthstead:el/ui/coin_sale4", "volume": 0.29 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.coin_sale"
+  },
+  "fx.build_done": {
+    "sounds": [
+      { "name": "hearthstead:el/builder/build_done1", "volume": 1.0 },
+      { "name": "hearthstead:el/builder/build_done2", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.build_done"
+  },
+  "fx.raid_won": {
+    "sounds": [
+      { "name": "hearthstead:el/raid/raid_won1", "volume": 0.51 },
+      { "name": "hearthstead:el/raid/raid_won2", "volume": 0.51 },
+      { "name": "hearthstead:el/raid/raid_won3", "volume": 0.51 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.raid_won"
+  },
+  "ui.page_turn": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/page_turn1", "volume": 0.42 },
+      { "name": "hearthstead:el/ui/page_turn2", "volume": 0.42 },
+      { "name": "hearthstead:el/ui/page_turn3", "volume": 0.42 },
+      { "name": "hearthstead:el/ui/page_turn4", "volume": 0.42 }
+    ],
+    "subtitle": "subtitles.hearthstead.ui.page_turn"
+  },
+  "ui.conversation_open": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/conversation_open1", "volume": 0.19 },
+      { "name": "hearthstead:el/ui/conversation_open2", "volume": 0.19 },
+      { "name": "hearthstead:el/ui/conversation_open3", "volume": 0.19 }
+    ]
+  },
+  "convo.pull_in": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/pull_in1", "volume": 0.21 },
+      { "name": "hearthstead:el/ui/pull_in2", "volume": 0.21 }
+    ]
+  },
+  "convo.name_card": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/name_card1", "volume": 0.21 },
+      { "name": "hearthstead:el/ui/name_card2", "volume": 0.21 }
+    ]
+  },
+  "convo.persuade_ok": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/persuade_ok1", "volume": 0.19 },
+      { "name": "hearthstead:el/ui/persuade_ok2", "volume": 0.19 }
+    ],
+    "subtitle": "subtitles.hearthstead.convo.persuade_ok"
+  },
+  "convo.persuade_fail": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/persuade_fail1", "volume": 0.21 },
+      { "name": "hearthstead:el/ui/persuade_fail2", "volume": 0.21 }
+    ],
+    "subtitle": "subtitles.hearthstead.convo.persuade_fail"
+  },
+  "convo.deal": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/deal1", "volume": 0.21 },
+      { "name": "hearthstead:el/ui/deal2", "volume": 0.21 }
+    ],
+    "subtitle": "subtitles.hearthstead.convo.deal"
+  },
+  "voice.npc.ambient": {
+    "sounds": [
+      { "name": "minecraft:mob/villager/idle1", "volume": 1.0, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/idle2", "volume": 1.0, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/idle3", "volume": 1.0, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.npc.ambient"
+  },
+  "voice.npc.yes": {
+    "sounds": [
+      { "name": "minecraft:mob/villager/yes1", "volume": 0.59, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/yes2", "volume": 0.59, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/yes3", "volume": 0.59, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.npc.yes"
+  },
+  "voice.npc.no": {
+    "sounds": [
+      { "name": "minecraft:mob/villager/no1", "volume": 0.65, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/no2", "volume": 0.65, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/no3", "volume": 0.65, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.npc.no"
+  },
+  "voice.npc.trade": {
+    "sounds": [
+      { "name": "minecraft:mob/villager/haggle1", "volume": 0.75, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/haggle2", "volume": 0.75, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/haggle3", "volume": 0.75, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.npc.trade"
+  },
+  "voice.npc.celebrate": {
+    "sounds": [
+      { "name": "minecraft:mob/villager/yes1", "volume": 0.59, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/yes2", "volume": 0.59, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/villager/yes3", "volume": 0.59, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.npc.celebrate"
+  },
+  "voice.trader.ambient": {
+    "sounds": [
+      { "name": "minecraft:mob/wandering_trader/idle1", "volume": 0.5, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/idle2", "volume": 0.5, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/idle3", "volume": 0.5, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/idle4", "volume": 0.5, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/idle5", "volume": 0.5, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.trader.ambient"
+  },
+  "voice.trader.yes": {
+    "sounds": [
+      { "name": "minecraft:mob/wandering_trader/yes1", "volume": 0.31, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/yes2", "volume": 0.31, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/yes3", "volume": 0.31, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/yes4", "volume": 0.31, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.trader.yes"
+  },
+  "voice.trader.no": {
+    "sounds": [
+      { "name": "minecraft:mob/wandering_trader/no1", "volume": 0.4, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/no2", "volume": 0.4, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/no3", "volume": 0.4, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/no4", "volume": 0.4, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/no5", "volume": 0.4, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.trader.no"
+  },
+  "voice.trader.trade": {
+    "sounds": [
+      { "name": "minecraft:mob/wandering_trader/haggle1", "volume": 0.53, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/haggle2", "volume": 0.53, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/haggle3", "volume": 0.53, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.trader.trade"
+  },
+  "voice.trader.celebrate": {
+    "sounds": [
+      { "name": "minecraft:mob/wandering_trader/yes1", "volume": 0.31, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/yes2", "volume": 0.31, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/yes3", "volume": 0.31, "attenuation_distance": 12 },
+      { "name": "minecraft:mob/wandering_trader/yes4", "volume": 0.31, "attenuation_distance": 12 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.trader.celebrate"
+  },
+  "voice.brute.grunt": {
+    "sounds": [
+      { "name": "hearthstead:el/voice_brute/grunt1", "volume": 1.0, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/voice_brute/grunt2", "volume": 1.0, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/voice_brute/grunt3", "volume": 1.0, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/voice_brute/grunt4", "volume": 1.0, "attenuation_distance": 16 },
+      { "name": "hearthstead:el/voice_brute/grunt5", "volume": 1.0, "attenuation_distance": 16 }
+    ],
+    "subtitle": "subtitles.hearthstead.voice.brute.grunt"
+  },
+  "fx.warehouse_level_up": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/warehouse_level_up1", "volume": 0.31 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.warehouse_level_up"
+  },
+  "fx.summon_arrival": {
+    "sounds": [
+      { "name": "hearthstead:el/combat/summon_arrival1", "volume": 0.31 },
+      { "name": "hearthstead:el/combat/summon_arrival2", "volume": 0.31 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.summon_arrival"
+  },
+  "fx.patrol_waypoint": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/patrol_waypoint1", "volume": 0.26 },
+      { "name": "hearthstead:el/ui/patrol_waypoint2", "volume": 0.26 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.patrol_waypoint"
+  },
+  "fx.order_confirmed": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/order_confirmed1", "volume": 0.15 },
+      { "name": "hearthstead:el/ui/order_confirmed2", "volume": 0.15 }
+    ],
+    "subtitle": "subtitles.hearthstead.fx.order_confirmed"
+  },
+  "ui.map_ping": {
+    "sounds": [
+      { "name": "hearthstead:el/ui/map_ping1", "volume": 0.19 },
+      { "name": "hearthstead:el/ui/map_ping2", "volume": 0.19 }
+    ]
+  },
+  "ambient.village_murmur": {
+    "sounds": [
+      { "name": "hearthstead:el/ambience/village_murmur1", "volume": 0.48, "stream": true },
+      { "name": "hearthstead:el/ambience/village_murmur2", "volume": 0.48, "stream": true }
+    ]
+  },
+  "ambient.workshop_smithy": {
+    "sounds": [
+      { "name": "hearthstead:el/ambience/workshop_smithy1", "volume": 0.71, "stream": true }
+    ]
+  },
+  "event.minstrel_sting": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/minstrel_sting1", "volume": 0.4 },
+      { "name": "hearthstead:el/tavern/minstrel_sting2", "volume": 0.4 },
+      { "name": "hearthstead:el/tavern/minstrel_sting3", "volume": 0.4 }
+    ],
+    "subtitle": "subtitles.hearthstead.event.minstrel_sting"
+  },
+  "ambient.night_crickets": {
+    "sounds": [
+      { "name": "hearthstead:el/ambience/night_crickets1", "volume": 0.72, "stream": true }
+    ]
+  },
+  "ambient.market_bustle": {
+    "sounds": [
+      { "name": "hearthstead:el/ambience/market_bustle1", "volume": 0.48, "stream": true }
+    ]
+  },
+  "ambient.rain_roof": {
+    "sounds": [
+      { "name": "hearthstead:el/ambience/rain_roof1", "volume": 0.72, "stream": true }
+    ]
+  },
+  "ambient.workshop_wood": {
+    "sounds": [
+      { "name": "hearthstead:el/ambience/workshop_wood1", "volume": 0.79, "stream": true }
+    ]
+  },
+  "voice.line.refugees.line1": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/refugees_line1", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.refugees.line2": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/refugees_line2", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.refugees.work": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/refugees_work", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.minstrels.line1": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/minstrels_line1", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.minstrels.line2": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/minstrels_line2", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.brute_toll.demand": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/brute_toll_demand", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.brute_toll.demand2": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/brute_toll_demand2", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.brute_toll.talk": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/brute_toll_talk", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.peddler.line1": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/peddler_line1", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.barter.greet": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/barter_greet", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.intro": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_intro", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.demand": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_demand", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.tribute": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_tribute", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_yes": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_yes", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_no": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_no", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.duel": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_duel", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.refuse": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_refuse", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.traveller.intro": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/traveller_intro", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.traveller.greet": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/traveller_greet", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.traveller.thanks": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/traveller_thanks", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.traveller.shrug": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/traveller_shrug", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.traveller.news": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/traveller_news", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.traveller.bye": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/traveller_bye", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.demo_peddler.intro": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/demo_peddler_intro", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.demo_peddler.greet": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/demo_peddler_greet", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.demo_peddler.haggle_yes": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/demo_peddler_haggle_yes", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.demo_peddler.haggle_no": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/demo_peddler_haggle_no", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.caravan.line1": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/caravan_line1", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.caravan.line2": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/caravan_line2", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.rival_envoy.line1": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/rival_envoy_line1", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.rival_envoy.line2": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/rival_envoy_line2", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.tribute": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_tribute", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.truce": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_truce", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.duel": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_duel", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "tavern.chuckle": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/chuckle1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/chuckle2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/chuckle3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.chuckle"
+  },
+  "tavern.heh": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/heh1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/heh2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/heh3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.heh"
+  },
+  "tavern.table_slap": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/table_slap1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/table_slap2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/table_slap3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.table_slap"
+  },
+  "tavern.seat_creak": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/seat_creak1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/seat_creak2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/seat_creak3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.seat_creak"
+  },
+  "tavern.cloth_rustle": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/cloth_rustle1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/cloth_rustle2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/cloth_rustle3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.cloth_rustle"
+  },
+  "tavern.tap_valve": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/tap_valve1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/tap_valve2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/tap_valve3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.tap_valve"
+  },
+  "tavern.bar_creak": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/bar_creak1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/bar_creak2", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.bar_creak"
+  },
+  "tavern.jig_step": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/jig_step1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/jig_step2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/jig_step3", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/jig_step4", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.jig_step"
+  },
+  "brawl.punch_hit": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/punch_hit1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/punch_hit2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/punch_hit3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.brawl.punch_hit"
+  },
+  "brawl.grunt": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/grunt1", "volume": 1.0 },
+      { "name": "hearthstead:el/voice/grunt2", "volume": 1.0 },
+      { "name": "hearthstead:el/voice/grunt3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.brawl.grunt"
+  },
+  "tavern.hiccup": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/hiccup1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/hiccup2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/hiccup3", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/hiccup4", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.hiccup"
+  },
+  "tavern.burp": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/burp1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/burp2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/burp3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.tavern.burp"
+  },
+  "drunk.scuff": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/scuff1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/scuff2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/scuff3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.drunk.scuff"
+  },
+  "drunk.thud": {
+    "sounds": [
+      { "name": "hearthstead:el/tavern/thud1", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/thud2", "volume": 1.0 },
+      { "name": "hearthstead:el/tavern/thud3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.drunk.thud"
+  },
+  "drunk.groan": {
+    "sounds": [
+      { "name": "hearthstead:el/voice/groan1", "volume": 1.0 },
+      { "name": "hearthstead:el/voice/groan2", "volume": 1.0 },
+      { "name": "hearthstead:el/voice/groan3", "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.drunk.groan"
+  },
+  "music.village_day": {
+    "sounds": [
+      { "name": "hearthstead:el/music/day_meadow", "stream": true, "volume": 1.0 },
+      { "name": "hearthstead:el/music/day_harvest", "stream": true, "volume": 1.0 },
+      { "name": "hearthstead:el/music/day_hearth", "stream": true, "volume": 1.0 },
+      { "name": "hearthstead:el/music/day_banner", "stream": true, "volume": 1.0 }
+    ]
+  },
+  "music.village_night": {
+    "sounds": [
+      { "name": "hearthstead:el/music/night_embers", "stream": true, "volume": 1.0 },
+      { "name": "hearthstead:el/music/night_watch", "stream": true, "volume": 1.0 }
+    ]
+  },
+  "music.tavern": {
+    "sounds": [
+      { "name": "hearthstead:el/music/tavern_jig", "stream": true, "volume": 1.0 }
+    ]
+  },
+  "music.raid": {
+    "sounds": [
+      { "name": "hearthstead:el/music/raid", "stream": true, "volume": 1.0 }
+    ]
+  },
+  "music.raid_victory": {
+    "sounds": [
+      { "name": "hearthstead:el/music/raid_victory", "stream": false, "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.music.raid_victory"
+  },
+  "music.raid_defeat": {
+    "sounds": [
+      { "name": "hearthstead:el/music/raid_defeat", "stream": false, "volume": 1.0 }
+    ],
+    "subtitle": "subtitles.hearthstead.music.raid_defeat"
+  },
+  "music.title": {
+    "sounds": [
+      { "name": "hearthstead:el/music/title", "stream": true, "volume": 1.0 }
+    ]
+  },
+  "voice.line.parley.intro.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_intro_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.intro.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_intro_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.intro.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_intro_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.demand.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_demand_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.demand.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_demand_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.demand.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_demand_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.tribute.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_tribute_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.tribute.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_tribute_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.tribute.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_tribute_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_yes.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_yes_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_yes.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_yes_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_yes.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_yes_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_no.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_no_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_no.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_no_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.truce_no.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_truce_no_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.duel.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_duel_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.duel.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_duel_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.duel.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_duel_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.refuse.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_refuse_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.refuse.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_refuse_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.refuse.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_refuse_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.rival_envoy.intro": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/rival_envoy_intro", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.tribute.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_tribute_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.tribute.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_tribute_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.tribute.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_tribute_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.truce.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_truce_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.truce.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_truce_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.truce.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_truce_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.duel.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_duel_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.duel.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_duel_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.farewell.duel.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_farewell_duel_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_yes": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_yes", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_yes.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_yes_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_yes.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_yes_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_yes.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_yes_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_no": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_no", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_no.red": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_no_red", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_no.torch": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_no_torch", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.reply.warn_no.reaper": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_reply_warn_no_reaper", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.brute_toll.talk_walls": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/brute_toll_talk_walls", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.brute_toll.talk_honest": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/brute_toll_talk_honest", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.intro": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_intro", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.tribute": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_tribute", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.truce_yes": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_truce_yes", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.truce_no": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_truce_no", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.warn_yes": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_warn_yes", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.warn_no": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_warn_no", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.duel": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_duel", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.reply.refuse": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_reply_refuse", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.demand": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_demand", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.farewell.tribute": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_farewell_tribute", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.farewell.truce": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_farewell_truce", "volume": 1.0, "attenuation_distance": 16 }
+    ]
+  },
+  "voice.line.parley.bandit.farewell.duel": {
+    "sounds": [
+      { "name": "hearthstead:el/dialogue/parley_bandit_farewell_duel", "volume": 1.0, "attenuation_distance": 16 }
+    ]
   }
 }

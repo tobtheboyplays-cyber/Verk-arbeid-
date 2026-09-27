@@ -1,0 +1,36 @@
+--- a/hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/TavernVisitGoal.java
++++ b/hearthstead-neoforge/src/main/java/com/hearthstead/entity/ai/TavernVisitGoal.java
+@@ -26,6 +26,7 @@
+     private String lastEntryPath = "none";
+     private TavernSeating.MealCandidate mealCandidate;
+     private String firstMealSearch = "not_searched";
++    private boolean firstRetryPending;
+     private long offerUntil;
+     private boolean mealAttempt;
+     private TavernServingEntity order;
+@@ -64,17 +65,18 @@
+             return TavernSeating.mealCandidateValid(actor, mealCandidate, null);
+         }
+         mealCandidate = null;
+-        // The meal search has its own short cadence; sharing the 200-tick
+-        // social-visit cooldown turned one transient miss into a whole
+-        // evening at the Hearth. A miss still yields to the Hearth at once.
+-        if (now < nextMealSearch) return false;
++        // The first empty offer gets one short retry before the higher-priority
++        // Hearth goal takes MOVE; later misses yield to the Hearth immediately.
++        if (now < nextMealSearch) return firstRetryPending;
++        boolean firstAttempt = "not_searched".equals(firstMealSearch);
+         nextMealSearch = now + MEAL_RETRY_TICKS;
+         TavernSeating.MealSearch search = TavernSeating.findReachableMealDiagnostic(actor);
+         mealCandidate = search.candidate();
+-        if ("not_searched".equals(firstMealSearch))
+-            firstMealSearch = "tick=" + now + "," + search.diagnostic();
++        if (firstAttempt) firstMealSearch = "tick=" + now + "," + search.diagnostic();
++        firstRetryPending = firstAttempt && mealCandidate == null;
++        if (firstRetryPending) nextMealSearch = now + 20;
+         offerUntil = now + 20;
+-        return mealCandidate != null;
++        return mealCandidate != null || firstRetryPending;
+     }
+     /**
+      * Read-only failure seam for the registered visit goal. It never searches,

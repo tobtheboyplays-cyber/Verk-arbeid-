@@ -15,8 +15,21 @@ import net.neoforged.neoforge.items.ItemStackHandler;
 public final class ReadyFood {
 
     /** The same NeoForge-aware query used when a settler actually eats. */
+    /**
+     * Edible items that are never settler food: the Troll Toenail is an
+     * always-edible joke trophy (it leaves a player at half a heart), not a
+     * meal the Hearth should silently feed away. Datapacks may add more.
+     */
+    public static final net.minecraft.tags.TagKey<net.minecraft.world.item.Item> NOT_SETTLER_FOOD =
+        net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM,
+            com.hearthstead.Hearthstead.id("not_settler_food"));
+
     public static boolean isReadyMeal(ItemStack stack) {
-        return !stack.isEmpty() && stack.getFoodProperties(null) != null;
+        return !stack.isEmpty() && stack.getFoodProperties(null) != null
+            && !stack.is(NOT_SETTLER_FOOD)
+            && !com.hearthstead.settlement.work.FishMeals.isWholeCatch(stack)
+            && !(stack.is(net.minecraft.tags.ItemTags.FISHES)
+                && com.hearthstead.settlement.work.GoodsQuality.of(stack) > 0);
     }
 
     /** One edible item is one ready meal, regardless of nutrition value. */
@@ -52,7 +65,7 @@ public final class ReadyFood {
         int bestNutrition = -1;
         for (int slot = 0; slot < inventory.getSlots(); slot++) {
             ItemStack stack = inventory.getStackInSlot(slot);
-            FoodProperties food = stack.isEmpty() ? null : stack.getFoodProperties(null);
+            FoodProperties food = isReadyMeal(stack) ? stack.getFoodProperties(null) : null;
             if (food != null && food.nutrition() > bestNutrition) {
                 bestSlot = slot;
                 bestNutrition = food.nutrition();

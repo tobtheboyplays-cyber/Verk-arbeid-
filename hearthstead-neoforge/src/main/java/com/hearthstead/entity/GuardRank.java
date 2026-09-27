@@ -4,6 +4,8 @@ import com.hearthstead.block.HearthBlockEntity;
 import com.hearthstead.building.BuildingType;
 import com.hearthstead.settlement.Building;
 import com.hearthstead.settlement.Settlement;
+import com.hearthstead.settlement.gear.GearGate;
+import com.hearthstead.settlement.gear.GearTiers;
 import com.hearthstead.settlement.warehouse.WarehouseIndex;
 import com.hearthstead.settlement.warehouse.WarehouseStorage;
 import net.minecraft.core.BlockPos;
@@ -51,6 +53,16 @@ import java.util.function.Supplier;
  *   <tr><td>SERGEANT</td><td>60</td><td><b>Leap Strike</b> — leaps a gap and lands on everyone at once</td><td>iron chest and legs over a leather cap and boots</td></tr>
  *   <tr><td>CAPTAIN</td><td>80</td><td><b>Rally</b> — a kill lifts every guard nearby</td><td>full iron</td></tr>
  * </table>
+ *
+ * <h2>Gear Tiers (26 Sep 2026)</h2>
+ *
+ * <p>The kit below is the armoury's standard ISSUE. What a guard may wear at
+ * all is decided by {@link com.hearthstead.settlement.gear.GearTier}: rank AND
+ * settlement knowledge per tier (mail needs the Village Charter, plate an
+ * Armoury, Smithy or the Iron Arms Drill, ...). A kit piece the settlement
+ * does not know yet is simply not issued, and a better piece the guard may
+ * wear (handed over through their pack) is never swapped back for the
+ * standard issue; see {@code satisfied}.
  *
  * <h2>Armor is earned too</h2>
  *
@@ -257,6 +269,19 @@ public enum GuardRank {
 
     // ---------------------------------------------------------- equipment ---
 
+    /**
+     * The rank whose armour kit this guard is dressed in: their earned rank,
+     * or one step higher from Veteran up when the settlement owns the paid
+     * Iron Arms Drill ({@code GuardArms}). Client side it is the earned rank.
+     */
+    public static GuardRank kitRank(SettlerEntity settler) {
+        GuardRank earned = of(settler);
+        return settler.level() instanceof ServerLevel level
+            ? com.hearthstead.settlement.development.GuardArms.kitRank(level,
+                settler.settlement(), earned)
+            : earned;
+    }
+
     private static final EquipmentSlot[] ARMOR_SLOTS = {
         EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET,
     };
@@ -317,14 +342,21 @@ public enum GuardRank {
      * modified here; it belongs to the physical request/delivery loop.
      */
     public static void applyEquipment(SettlerEntity settler) {
-        GuardRank rank = of(settler);
+        GuardRank rank = kitRank(settler);
         if (settler.level() instanceof ServerLevel level) {
             Settlement settlement = settler.settlement();
+            GearGate.Clearance clearance = GearGate.compute(level, settler);
             for (EquipmentSlot slot : ARMOR_SLOTS) {
                 ItemStack target = rank.targetPiece(slot);
                 ItemStack worn = settler.getItemBySlot(slot);
-                if (matches(worn, target)) {
-                    continue; // already dressed correctly for this slot
+                if (satisfied(clearance, worn, target)) {
+                    continue; // dressed correctly, or in something better the guard may wear
+                }
+                if (!target.isEmpty() && !clearance.allows(GearTiers.tierOf(target))) {
+                    // Gear Tier gate: the settlement does not yet know this
+                    // material (e.g. iron plate before an Armoury, Smithy or
+                    // the Iron Arms Drill). The slot keeps what it holds.
+                    continue;
                 }
                 ItemStack acquired = target.isEmpty() ? ItemStack.EMPTY
                     : withdrawOne(level, settlement, settler, target.getItem());
@@ -370,13 +402,38 @@ public enum GuardRank {
      * see the fix-worker's report.
      */
     public static boolean isFullyEquipped(SettlerEntity settler) {
-        GuardRank rank = of(settler);
+        GuardRank rank = kitRank(settler);
+        GearGate.Clearance clearance = GearGate.clearance(settler);
         for (EquipmentSlot slot : ARMOR_SLOTS) {
-            if (!matches(settler.getItemBySlot(slot), rank.targetPiece(slot))) {
+            ItemStack target = rank.targetPiece(slot);
+            if (!satisfied(clearance, settler.getItemBySlot(slot), target)
+                && (target.isEmpty() || clearance.allows(GearTiers.tierOf(target)))) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * A slot needs no kit change when it already holds the rank's piece, or a
+     * piece at least as good (by Gear Tier) that this guard may wear: a
+     * player-given chain coif or diamond breastplate is never swapped back
+     * for the armoury's standard issue. A piece the guard may no longer wear
+     * (demotion below its tier) is not satisfied and goes back to the stores.
+     */
+    static boolean satisfied(GearGate.Clearance clearance, ItemStack worn, ItemStack target) {
+        if (!GearGate.enabled()) {
+            return matches(worn, target); // pre-tier rules: the fixed rank kit
+        }
+        if (matches(worn, target)) {
+            return true;
+        }
+        if (worn.isEmpty()) {
+            return false;
+        }
+        int wornTier = GearTiers.tierOf(worn);
+        return clearance.allows(wornTier)
+            && (target.isEmpty() || wornTier >= GearTiers.tierOf(target));
     }
 
     /** Strips the four armor slots bare — a settler who has stopped being a
@@ -536,7 +593,7 @@ public enum GuardRank {
         }
         if (!remaining.isEmpty()) {
             BlockPos dropAt = !armouries.isEmpty() ? armouries.get(0).anchor : settler.blockPosition();
-            Block.popResource(level, dropAt, remaining);
+            com.hearthstead.util.ItemSpill.conserve(level, dropAt, remaining);
         }
     }
 

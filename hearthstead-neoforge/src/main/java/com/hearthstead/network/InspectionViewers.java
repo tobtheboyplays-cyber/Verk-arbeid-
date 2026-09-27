@@ -206,7 +206,7 @@ public final class InspectionViewers {
                 || settler.getId() != session.entityId()
                 || session.targetIdentity() != System.identityHashCode(settler)
                 || viewer.serverLevel() != level
-                || viewer.distanceToSqr(settler) > REACH_SQUARED) {
+                || viewer.distanceToSqr(settler) > SettlerNetwork.SHEET_REACH_SQUARED) {
                 remove(server, entry.getKey());
                 continue;
             }

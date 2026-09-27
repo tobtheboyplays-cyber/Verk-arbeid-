@@ -1,0 +1,132 @@
+[time]
+	#How many times longer an Overworld day/night cycle lasts than vanilla.
+	#1.0 = vanilla (20 real minutes), 2.0 = 40 real minutes.
+	#Only ordinary daylight ticks are slowed: sleeping, /time set and
+	#the doDaylightCycle gamerule behave exactly as in vanilla.
+	# Default: 2.0
+	# Range: 1.0 ~ 4.0
+	dayLengthMultiplier = 2.0
+
+[debug]
+	#Read-only worker watchdog: samples every settler once per second and
+	#reports stalls (STUCK, IDLE_IN_WORK, LOOP, PATH_FAIL, ORPHANED_ITEMS) to the
+	#server log and <world>/hearthstead-watchdog/. Never changes behaviour.
+	#Can also be toggled at runtime with /hearthstead watchdog on|off.
+	workerWatchdog = false
+
+[hunting]
+	#While a Hunter is employed at a Hunter's Lodge, wild game slowly
+	#returns to natural open ground inside the Lodge's 28-block hunting radius,
+	#outside the village core and every building, out of players' sight.
+	huntingGrounds = true
+	#Hunting grounds stop spawning once this many wild game animals
+	#(cow, pig, sheep, chicken, rabbit) are alive in a Lodge's hunting radius.
+	# Default: 8
+	# Range: 0 ~ 32
+	gameCap = 8
+	#At most one animal returns per Lodge per this many seconds.
+	# Default: 150
+	# Range: 20 ~ 3600
+	spawnIntervalSeconds = 150
+	#Game never appears closer than this many blocks to any player.
+	# Default: 24
+	# Range: 0 ~ 128
+	minPlayerDistance = 24
+	#No game spawns within this many blocks of the Banner (the village core).
+	#Every building's bounds (plus a 4-block margin) are always excluded too.
+	# Default: 16
+	# Range: 0 ~ 64
+	villageCoreRadius = 16
+	#Seconds a level-1 Hunter spends butchering one carcass at a Butchering Table.
+	#Trade level shortens it like every other work clip (max -18%).
+	# Default: 5
+	# Range: 1 ~ 60
+	butcherTableSeconds = 5
+	#Seconds to butcher on the Lodge floor when it has no Butchering Table.
+	# Default: 12
+	# Range: 1 ~ 120
+	fieldDressingSeconds = 12
+
+[raids]
+	#After the first raid, recurring raids come every few in-game days.
+	#When a raid ends, the next one is set for a day drawn once between
+	#recurringRaidMinDays and recurringRaidMaxDays after it (inclusive).
+	#The warning always comes at dusk the evening before the attack.
+	#Default 3..4 days = about 2-2.7 hours of play at 2x day length.
+	#A raid never comes earlier than the minimum; it only comes later
+	#when something blocks it (no player nearby, or the band cannot form up).
+	# Default: 3
+	# Range: 1 ~ 30
+	recurringRaidMinDays = 3
+	#Latest day after the previous raid on which the next raid is set.
+	#Values below recurringRaidMinDays are treated as equal to it.
+	# Default: 4
+	# Range: 1 ~ 30
+	recurringRaidMaxDays = 4
+
+[combat]
+	#Guard light slash (and the two light combo links): multiplier on the
+	#guard's normal attack damage (sword, rank edge, training, Brute counter).
+	# Default: 1.0
+	# Range: 0.1 ~ 5.0
+	guardLightDamageMultiplier = 1.0
+	#Guard heavy overhead chop damage multiplier. The heavy also staggers.
+	# Default: 1.8
+	# Range: 0.1 ~ 5.0
+	guardHeavyDamageMultiplier = 1.8
+	#Guard combo finisher (third link of light, light, finisher).
+	# Default: 1.5
+	# Range: 0.1 ~ 5.0
+	guardFinisherDamageMultiplier = 1.5
+	#Guard shield bash damage multiplier (it mostly exists to interrupt).
+	# Default: 0.35
+	# Range: 0.0 ~ 5.0
+	guardShieldBashDamageMultiplier = 0.35
+	#Ticks from the start of a guard heavy to its contact (20 ticks = 1 s).
+	#The authored animation lands its impact at 11; other values keep the
+	#server authoritative but the clip's impact frame will no longer line up.
+	# Default: 11
+	# Range: 8 ~ 16
+	guardHeavyWindupTicks = 11
+	#Ticks after a single light slash ends before the next opener.
+	#Default keeps the historical 20-tick guard cadence (10 swing + 10 rest).
+	# Default: 10
+	# Range: 0 ~ 100
+	guardLightCooldownTicks = 10
+	#Ticks after a heavy ends before the next opener.
+	# Default: 14
+	# Range: 0 ~ 100
+	guardHeavyCooldownTicks = 14
+	#Ticks after a combo finisher ends before the next opener.
+	# Default: 20
+	# Range: 0 ~ 100
+	guardFinisherCooldownTicks = 20
+	#Ticks between two shield bashes by the same guard.
+	# Default: 80
+	# Range: 20 ~ 400
+	guardShieldBashCooldownTicks = 80
+	#After a landed combo link, ticks the guard has to bring the target
+	#back into reach before the combo breaks.
+	# Default: 6
+	# Range: 2 ~ 20
+	guardComboWindowTicks = 6
+	#Raider light slash and Brute club damage multiplier.
+	# Default: 1.0
+	# Range: 0.1 ~ 5.0
+	raiderLightDamageMultiplier = 1.0
+	#Raider heavy smash damage multiplier. A landed heavy staggers a guard.
+	# Default: 1.6
+	# Range: 0.1 ~ 5.0
+	raiderHeavyDamageMultiplier = 1.6
+	#Ticks from the start of a raider heavy to its contact (authored at 12).
+	# Default: 12
+	# Range: 8 ~ 18
+	raiderHeavyWindupTicks = 12
+	#Ticks after a raider heavy ends before its next swing.
+	# Default: 16
+	# Range: 0 ~ 100
+	raiderHeavyCooldownTicks = 16
+	#Chance a Brute raider swings its heavy instead of its quick club.
+	# Default: 0.7
+	# Range: 0.0 ~ 1.0
+	bruteHeavyChance = 0.7

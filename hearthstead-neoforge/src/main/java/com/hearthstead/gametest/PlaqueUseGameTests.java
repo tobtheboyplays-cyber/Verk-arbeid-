@@ -12,13 +12,13 @@ import com.hearthstead.registry.ModItems;
 import com.hearthstead.entity.Profession;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.settlement.Building;
-import com.hearthstead.settlement.Mayor;
 import com.hearthstead.settlement.Settlement;
 import com.hearthstead.settlement.SettlementSavedData;
 import com.hearthstead.settlement.development.Development;
 import com.hearthstead.settlement.development.DevelopmentNode;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -102,11 +102,11 @@ public class PlaqueUseGameTests {
         helper.setBlock(secondBed, Blocks.BLUE_BED);
         house.beds.add(helper.absolutePos(firstBed));
         house.beds.add(helper.absolutePos(secondBed));
-        SettlerEntity mayor = helper.spawn(ModEntities.SETTLER.get(),
+        SettlerEntity elder = helper.spawn(ModEntities.SETTLER.get(),
             new BlockPos(7, 1, 7));
-        mayor.setSettlerName("Plan Mayor");
-        mayor.bindTo(settlement.id, settlement.center);
-        settlement.putRecord(mayor.getUUID(), mayor.getSettlerName(), Profession.NONE);
+        elder.setSettlerName("Plan Elder");
+        elder.bindTo(settlement.id, settlement.center);
+        settlement.putRecord(elder.getUUID(), elder.getSettlerName(), Profession.NONE);
         SettlerEntity resident = helper.spawn(ModEntities.SETTLER.get(),
             new BlockPos(6, 1, 7));
         resident.setSettlerName("Plan Resident");
@@ -118,8 +118,8 @@ public class PlaqueUseGameTests {
         thirdFounder.bindTo(settlement.id, settlement.center);
         settlement.putRecord(thirdFounder.getUUID(), thirdFounder.getSettlerName(),
             Profession.NONE);
-        helper.assertTrue(Mayor.appoint(helper.getLevel(), settlement, mayor) == null,
-            "fixture needs one living appointed Mayor for the Shelter quest");
+        // The Shelter quest needs a valid Banner and three live settlers;
+        // the Mayor office is retired.
         return new KnowledgeFixture(plaqueRel, settlement, hearth);
     }
 
@@ -226,6 +226,60 @@ public class PlaqueUseGameTests {
         helper.succeed();
     }
 
+    /**
+     * A city radius remains a local simulation boundary, not a limit on
+     * where the player may physically declare the next building. The live
+     * click must bind the closest same-dimension city even when the plaque is
+     * outside its radius, persist that identity, and retain it after a later
+     * nearer city appears and the plaque reloads.
+     */
+    @GameTest(template = "empty16", timeoutTicks = 200,
+        batch = "plaque_use_outside_city_radius_binds_the_nearest_city")
+    public void outsideCityRadiusBindsTheNearestCity(GameTestHelper helper) {
+        KnowledgeFixture fixture = settlementAround(helper, new BlockPos(2, 2, 2));
+        fixture.settlement.radius = 1;
+        learnLumberCamp(helper, fixture);
+        BlockPos plaquePos = helper.absolutePos(fixture.plaqueRel);
+        helper.assertTrue(!fixture.settlement.inside(plaquePos),
+            "fixture: the plaque must be outside the deliberately tiny city radius");
+        SettlementSavedData data = SettlementSavedData.get(helper.getLevel());
+        Settlement fartherCity = new Settlement(UUID.randomUUID(), "Farther",
+            plaquePos.offset(8, 0, 0));
+        fartherCity.radius = 1;
+        data.settlements.put(fartherCity.id, fartherCity);
+        data.setDirty();
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        player.getAbilities().instabuild = false;
+        player.onUpdateAbilities();
+        player.setItemInHand(InteractionHand.MAIN_HAND, PlaqueItemData.stamped(
+            new ItemStack(ModItems.BUILD_PLAN.get()), BuildingType.LUMBER_CAMP));
+
+        rightClick(helper, player, fixture.plaqueRel);
+
+        if (!(helper.getLevel().getBlockEntity(plaquePos)
+            instanceof PlaqueBlockEntity plaque)) {
+            helper.fail("fixture: the clicked outside-radius plaque disappeared");
+            return;
+        }
+        helper.assertTrue(plaque.state() != PlaqueState.EMPTY
+                && plaque.settlementFor(helper.getLevel()) == fixture.settlement,
+            "an outside-radius Build Plan must bind the nearest city rather than be refused");
+        CompoundTag disk = plaque.saveWithoutMetadata(helper.getLevel().registryAccess());
+        helper.assertTrue(disk.hasUUID("Settlement")
+                && fixture.settlement.id.equals(disk.getUUID("Settlement")),
+            "the chosen city UUID must persist before a later nearer city exists");
+        Settlement laterNearerCity = new Settlement(UUID.randomUUID(), "LaterNearer",
+            plaquePos.offset(1, 0, 0));
+        laterNearerCity.radius = 1;
+        data.settlements.put(laterNearerCity.id, laterNearerCity);
+        data.setDirty();
+        plaque.loadCustomOnly(disk, helper.getLevel().registryAccess());
+        helper.assertTrue(plaque.settlementFor(helper.getLevel()) == fixture.settlement,
+            "a reload must retain the fitted city instead of transferring to a later nearer city");
+        helper.assertTrue(player.getMainHandItem().isEmpty(),
+            "the same successful outside-radius click must still consume exactly one plan");
+        helper.succeed();
+    }
     /**
      * The plan must be a real cost: fitting it takes the item out of the
      * player's hand. A plaque that accepts a plan and hands it back would let
