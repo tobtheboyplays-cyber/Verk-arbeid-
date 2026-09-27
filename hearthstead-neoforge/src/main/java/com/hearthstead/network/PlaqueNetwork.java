@@ -42,10 +42,32 @@ public final class PlaqueNetwork {
     private static final double REACH_SQUARED = 8.0 * 8.0;
 
     public static UUID openFor(ServerPlayer player, PlaqueBlockEntity plaque) {
+        noteWorkplaceSelection(player, plaque);
         UUID sessionId = InspectionViewers.openPlaque(player, plaque);
         send(player, snapshot(player, plaque, sessionId,
             PlaqueSnapshot.Delivery.OPEN));
         return sessionId;
+    }
+
+    /**
+     * Playtest 27 Sep #4: opening a workplace plaque selects that workplace.
+     * The next matching Job Emblem given to a settler goes to exactly this
+     * post (or is refused with this post's reason), and a settler already in
+     * the same trade elsewhere is moved here.
+     */
+    private static void noteWorkplaceSelection(ServerPlayer player, PlaqueBlockEntity plaque) {
+        if (player == null || plaque == null || !(player.level() instanceof ServerLevel level)) {
+            return;
+        }
+        Building building = plaque.building(level);
+        if (building == null || !plaque.type().employsWorkers()
+            || plaque.type().housesResidents() || !Employment.teaches(building.type)) {
+            return;
+        }
+        Employment.selectWorkplace(player, building);
+        player.displayClientMessage(Component.translatable(
+            "hearthstead.employ.selected", building.type.displayName(),
+            Employment.tradeOf(building.type).displayName()), true);
     }
 
     public static void handle(ServerPlayer player, PlaqueAction action) {

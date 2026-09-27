@@ -118,7 +118,11 @@ public final class JobEmblemItem extends Item {
             level, settlement, settler, serverPlayer);
         if (!result.ok() || result.workplace() == null) {
             if (result.refusal() != null) {
-                player.displayClientMessage(result.refusal(), true);
+                // Playtest 27 Sep #4: a refusal must be readable, not a
+                // one-second action-bar flash. Chat, plus the settler sheet's
+                // "Right now" line for the next minute.
+                player.displayClientMessage(result.refusal(), false);
+                settler.noteWorkRefusal(result.refusal());
             }
             return InteractionResult.sidedSuccess(false);
         }

@@ -59,7 +59,8 @@ public final class SettlerNetwork {
 
     public static UUID openFor(ServerPlayer player, SettlerEntity settler) {
         UUID sessionId = InspectionViewers.openSettler(player, settler);
-        send(player, snapshot(player, settler, sessionId, Optional.empty(),
+        send(player, snapshot(player, settler, sessionId,
+            Optional.ofNullable(settler.recentWorkRefusal()),
             SettlerSnapshotPayload.Delivery.OPEN));
         return sessionId;
     }

@@ -41,6 +41,13 @@
       ]
     },
     {
+      "id": "jobs.attributes",
+      "title": "hearthstead.guide.jobs.attributes.title",
+      "text": [
+        "hearthstead.guide.jobs.attributes.body"
+      ]
+    },
+    {
       "id": "jobs.stuck",
       "title": "hearthstead.guide.jobs.stuck.title",
       "bullets": [

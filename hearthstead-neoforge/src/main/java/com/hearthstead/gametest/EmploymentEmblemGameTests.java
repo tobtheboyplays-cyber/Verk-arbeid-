@@ -281,6 +281,113 @@ public class EmploymentEmblemGameTests {
         helper.succeed();
     }
 
+    /** Playtest 27 Sep #5: Shift + right-click with an ordinary tool opens the inventory. */
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "settler_interaction_shift_tool_opens_inventory")
+    public void shiftRightClickWithPickaxeOpensInventory(GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        f.player.setItemInHand(InteractionHand.MAIN_HAND,
+            new ItemStack(net.minecraft.world.item.Items.IRON_PICKAXE));
+        f.player.setItemInHand(InteractionHand.OFF_HAND,
+            new ItemStack(net.minecraft.world.item.Items.BREAD));
+        f.player.setShiftKeyDown(true);
+        boolean opened;
+        try {
+            InteractionResult result = f.candidate.interact(f.player, InteractionHand.MAIN_HAND);
+            opened = result.consumesAction()
+                && f.player.containerMenu instanceof com.hearthstead.menu.SettlerInventoryMenu;
+        } catch (RuntimeException sent) {
+            // The mock player has no client channel for NeoForge's extended
+            // open-screen packet; reaching that send proves openMenu ran.
+            opened = String.valueOf(sent.getMessage()).contains("open_screen");
+        }
+        f.player.setShiftKeyDown(false);
+        helper.assertTrue(opened,
+            "Shift + right-click with a pickaxe must open the settler inventory");
+        f.player.closeContainer();
+        // A held emblem keeps its own action: sneaking with it opens nothing.
+        f.player.setItemInHand(InteractionHand.MAIN_HAND,
+            new ItemStack(ModItems.FARMER_EMBLEM.get()));
+        f.player.setShiftKeyDown(true);
+        f.candidate.interact(f.player, InteractionHand.MAIN_HAND);
+        f.player.setShiftKeyDown(false);
+        helper.assertFalse(f.player.containerMenu instanceof com.hearthstead.menu.SettlerInventoryMenu,
+            "a held Job Emblem must keep its own interaction");
+        helper.succeed();
+    }
+
+    /** Playtest 27 Sep #4: the player's explicit workplace choice wins over the nearest post. */
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "employment_emblem_selected_workplace_is_authoritative")
+    public void selectedWorkplaceIsAuthoritative(GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        Building nearest = GameTestFixtures.register(helper, f.settlement,
+            BuildingType.FARMHOUSE, 11, 10);
+        f.player.setItemInHand(InteractionHand.MAIN_HAND,
+            new ItemStack(ModItems.FARMER_EMBLEM.get(), 2));
+        Employment.selectWorkplace(f.player, f.workplace);
+
+        giveHeldEmblem(f);
+
+        helper.assertTrue(f.workplace.workers.contains(f.candidate.getUUID())
+                && Employment.employerOf(f.settlement, f.candidate.getUUID()) == f.workplace,
+            "the explicitly selected compatible workplace must be used");
+        helper.assertFalse(nearest.workers.contains(f.candidate.getUUID()),
+            "the nearer, unselected workplace must stay untouched");
+        helper.assertTrue(f.candidate.getProfession() == Profession.FARMER,
+            "the settler must take up the selected trade");
+        helper.assertTrue(f.player.getMainHandItem().getCount() == 1,
+            "the selected hire consumes exactly one emblem");
+
+        // Same trade, other post: re-select the nearer farmhouse and give the
+        // emblem again. The worker moves; no second emblem is spent.
+        Employment.selectWorkplace(f.player, nearest);
+        giveHeldEmblem(f);
+        helper.assertTrue(Employment.employerOf(f.settlement, f.candidate.getUUID()) == nearest
+                && count(nearest, f.candidate.getUUID()) == 1
+                && !f.workplace.workers.contains(f.candidate.getUUID()),
+            "a same-trade worker must move to the newly selected workplace");
+        helper.assertTrue(f.player.getMainHandItem().getCount() == 1,
+            "moving a worker inside the same trade must not spend an emblem");
+        Employment.clearSelectedWorkplace(f.player);
+        // The job goal reads exactly this roster entry, so he works there.
+        helper.succeedWhen(() -> helper.assertTrue(
+            Employment.employerOf(f.settlement, f.candidate.getUUID()) == nearest,
+            "the worker must still belong to the selected workplace"));
+    }
+
+    /** A selected but unusable workplace refuses with its reason and keeps the emblem. */
+    @GameTest(template = "empty16", timeoutTicks = 100,
+        batch = "employment_emblem_selected_workplace_refuses_clearly")
+    public void selectedFullWorkplaceRefusesInsteadOfSwapping(GameTestHelper helper) {
+        Fixture f = fixture(helper);
+        Building nearest = GameTestFixtures.register(helper, f.settlement,
+            BuildingType.FARMHOUSE, 11, 10);
+        SettlerEntity other = settler(helper, f.settlement, "Bran", 12, 12);
+        helper.assertTrue(Employment.hire(helper.getLevel(), f.settlement,
+                f.workplace, other).ok() || !Employment.hasVacancy(f.settlement, f.workplace),
+            "fixture: occupy the selected farmhouse");
+        while (Employment.hasVacancy(f.settlement, f.workplace)) {
+            SettlerEntity filler = settler(helper, f.settlement, "Filler", 13, 13);
+            helper.assertTrue(Employment.hire(helper.getLevel(), f.settlement,
+                f.workplace, filler).ok(), "fixture: fill the selected farmhouse");
+        }
+        f.player.setItemInHand(InteractionHand.MAIN_HAND,
+            new ItemStack(ModItems.FARMER_EMBLEM.get(), 2));
+        Employment.selectWorkplace(f.player, f.workplace);
+
+        giveHeldEmblem(f);
+
+        helper.assertFalse(nearest.workers.contains(f.candidate.getUUID()),
+            "a full selected workplace must not be silently swapped for another");
+        helper.assertTrue(f.player.getMainHandItem().getCount() == 2,
+            "a refused selection must keep the emblem");
+        helper.assertTrue(f.candidate.recentWorkRefusal() != null,
+            "the refusal must be kept for the settler sheet's Right now line");
+        Employment.clearSelectedWorkplace(f.player);
+        helper.succeed();
+    }
+
     private static void giveHeldEmblem(Fixture fixture) {
         ItemStack held = fixture.player.getMainHandItem();
         ((JobEmblemItem) held.getItem()).interactLivingEntity(held,

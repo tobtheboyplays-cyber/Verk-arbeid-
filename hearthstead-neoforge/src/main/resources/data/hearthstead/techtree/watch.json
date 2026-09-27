@@ -38,7 +38,7 @@
       "name": "Barracks & Guard",
       "offers": "Build a Barracks and hire Guards who patrol, answer the alarm and fight beside you.",
       "details": [
-        "Barracks plan (2 beds) + Guard emblem (3 Coins, 2 iron, 1 leather)",
+        "Barracks plan (2 beds) + Guard emblem (3 Coins, 2 iron)",
         "Every guard already uses the full moveset: light, telegraphed heavy, 3-hit combo and shield bash",
         "Well-fed guards regenerate health"
       ],
@@ -120,7 +120,7 @@
       "name": "Watchtower & Archers",
       "offers": "Build a Watchtower, hire Archers, and post Guards on the tower.",
       "details": [
-        "Watchtower plan (banner, 4 ladders) + Archer emblem (3 Coins, 4 arrows, 1 leather)",
+        "Watchtower plan (banner, 4 ladders) + Archer emblem (3 Coins, 4 arrows)",
         "Tower Post orders for Guards",
         "Couriers keep tower archers stocked with real arrows"
       ],

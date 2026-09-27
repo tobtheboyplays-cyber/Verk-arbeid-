@@ -44,7 +44,8 @@ public enum DevelopmentNode {
     STORES_AND_ROADS(4, "stores_and_roads", Stage.TRUNK, Branch.COMMON, true,
         requires("timber_rights"), quests(
             objective(DevelopmentObjective.LUMBER_LOGS_STORED, 1)),
-        costs(logCost(8), cost(Items.LEATHER, 2)),
+        // Playtest 27 Sep #2: no leather before the Hunter brings hides.
+        costs(logCost(8), cost(Items.COBBLESTONE, 8)),
         buildings(BuildingType.WAREHOUSE), professions(Profession.COURIER)),
 
     CULTIVATED_GROUND(3, "cultivated_ground", Stage.TRUNK, Branch.COMMON, true,
@@ -72,7 +73,8 @@ public enum DevelopmentNode {
         // Survival audit 2026-09-25: 4 bread (12 wheat), not 8. Hospitality opens
         // the Tavern, which gates recruitment and first-raid readiness; every
         // bread spent here is also a ready meal the 8-per-settler reserve needs.
-        costs(cost(Items.BREAD, 4), cost(Items.LEATHER, 2)),
+        // Playtest 27 Sep #2: leather dropped (no early hide source).
+        costs(cost(Items.BREAD, 4)),
         buildings(BuildingType.TAVERN),
         professions(Profession.INNKEEPER)),
 

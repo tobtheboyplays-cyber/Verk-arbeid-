@@ -841,6 +841,7 @@ public final class EmblemShopScreen extends Screen implements QaUiInspectable {
             Component workplace = Component.translatable("hearthstead.guildmaster.workplace",
                 workplaces(entry.profession()));
             Component tool = toolLine(entry.profession());
+            Component attributes = attributeLine(entry.profession());
 
             // Requirements always stay visible (GUI scale 4 included); the
             // description takes only the lines left above them.
@@ -851,6 +852,9 @@ public final class EmblemShopScreen extends Screen implements QaUiInspectable {
             header(req, useHeader);
             text(req, font, workplace, width, Ui2Palette.INK_SOFT);
             text(req, font, tool, width, Ui2Palette.INK_SOFT);
+            if (attributes != null) {
+                text(req, font, attributes, width, Ui2Palette.INK_SOFT);
+            }
             ArrayList<DetailLine> intro = new ArrayList<>();
             for (FormattedCharSequence seq : font.split(desc, width)) {
                 intro.add(new DetailLine(desc, seq, Ui2Palette.INK, false, false));
@@ -864,6 +868,9 @@ public final class EmblemShopScreen extends Screen implements QaUiInspectable {
             tip.append(emblem.emblemName).append("\n").append(desc).append("\n").append(give)
                 .append("\n\n").append(buyHeader).append("\n").append(research).append("\n").append(price)
                 .append("\n\n").append(useHeader).append("\n").append(workplace).append("\n").append(tool);
+            if (attributes != null) {
+                tip.append("\n").append(attributes);
+            }
             Component total = Component.translatable("hearthstead.guildmaster.total", priceLine(entry, quantity));
             return new DetailLines(List.copyOf(out), total, font.split(tip, 240));
         }
@@ -879,6 +886,39 @@ public final class EmblemShopScreen extends Screen implements QaUiInspectable {
         private static FormattedCharSequence fit(Font font, Component text, int width) {
             return HsUi.fitLabel(font, text, Math.max(1, width)).text().getVisualOrderText();
         }
+    }
+
+    /**
+     * Playtest 27 Sep #3: the job's PRIMARY / SECONDARY (core) attributes as
+     * green / gold chips plus its support attribute, from JobAttributeProfile.
+     */
+    @org.jetbrains.annotations.Nullable
+    static Component attributeLine(Profession profession) {
+        var profile = com.hearthstead.entity.JobAttributeProfile.find(profession).orElse(null);
+        if (profile == null) {
+            return null;
+        }
+        MutableComponent chips = Component.empty();
+        int core = 0;
+        Component support = null;
+        for (var slot : profile.slots()) {
+            if (slot.importance() == com.hearthstead.entity.JobAttributeProfile.Importance.CORE) {
+                if (core > 0) {
+                    chips.append(Component.literal("  "));
+                }
+                chips.append(Component.literal("\u25CF ").append(slot.attribute().displayName())
+                    .withStyle(core == 0 ? net.minecraft.ChatFormatting.DARK_GREEN
+                        : net.minecraft.ChatFormatting.GOLD));
+                core++;
+            } else {
+                support = slot.attribute().displayName();
+            }
+        }
+        if (support != null) {
+            chips.append(Component.literal("  \u25CB ").append(support)
+                .withStyle(net.minecraft.ChatFormatting.GRAY));
+        }
+        return Component.translatable("hearthstead.guildmaster.attributes", chips);
     }
 
     /** Short role description; falls back to a generic line if a trade has none yet. */

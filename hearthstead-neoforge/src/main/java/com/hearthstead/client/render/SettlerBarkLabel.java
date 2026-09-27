@@ -3,14 +3,17 @@ package com.hearthstead.client.render;
 import com.hearthstead.client.ambient.AmbientClient;
 import com.hearthstead.entity.SettlerEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import java.util.List;
 import net.minecraft.ChatFormatting;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRenderDispatcher;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
@@ -56,8 +59,18 @@ public final class SettlerBarkLabel {
             return true;
         }
         Component text = bark.text().copy().withStyle(ChatFormatting.ITALIC);
+        // Playtest 27 Sep #6: never draw a plate without words. A line whose
+        // key did not resolve (the raw key comes back) or resolves blank is
+        // dropped instead of leaving an empty linen box over the head.
+        if (!hasReadableText(bark.text())) {
+            return false;
+        }
         List<FormattedCharSequence> lines = font.split(text, WRAP);
-        if (lines.isEmpty()) {
+        int widest = 0;
+        for (FormattedCharSequence line : lines) {
+            widest = Math.max(widest, font.width(line));
+        }
+        if (lines.isEmpty() || widest <= 0) {
             return false;
         }
         // A small rise as it appears, like a word leaving the mouth.
@@ -67,19 +80,57 @@ public final class SettlerBarkLabel {
         pose.mulPose(dispatcher.cameraOrientation());
         float scale = 0.022F * SettlerRenderer.nearLabelScale(distance);
         pose.scale(scale, -scale, scale);
-        Matrix4f matrix = pose.last().pose();
         int textColor = argb(WALNUT, fade * 255.0F);
-        int plate = argb(LINEN, fade * 225.0F);
         int lineHeight = font.lineHeight + 1;
         float top = -lineHeight * lines.size();
+        // One plate sized to the widest line, drawn first; the words sit a
+        // hair in front of it (towards the camera) so the plate can never
+        // cover them, whatever order the batches flush in.
+        float half = widest / 2.0F;
+        VertexConsumer plate = buffers.getBuffer(RenderType.textBackground());
+        quad(plate, pose, -half - 4.0F, half + 4.0F, top - 3.0F, 1.0F, 0.0F,
+            argb(WALNUT, fade * 200.0F), light);
+        quad(plate, pose, -half - 3.0F, half + 3.0F, top - 2.0F, 0.0F, -0.001F,
+            argb(LINEN, fade * 235.0F), light);
+        pose.translate(0.0D, 0.0D, -0.003D);
+        Matrix4f matrix = pose.last().pose();
         for (int i = 0; i < lines.size(); i++) {
             FormattedCharSequence line = lines.get(i);
             float x = -font.width(line) / 2.0F;
             font.drawInBatch(line, x, top + i * lineHeight, textColor, false, matrix, buffers,
-                Font.DisplayMode.NORMAL, plate, light);
+                Font.DisplayMode.NORMAL, 0, light);
         }
         pose.popPose();
         return true;
+    }
+
+    /** True when the bark resolves to real words (not blank, not its raw key). */
+    static boolean hasReadableText(Component text) {
+        if (text == null) {
+            return false;
+        }
+        String shown = text.getString();
+        if (shown == null || shown.isBlank()) {
+            return false;
+        }
+        if (text.getContents() instanceof TranslatableContents translatable
+            && shown.equals(translatable.getKey())) {
+            return false;
+        }
+        return true;
+    }
+
+    private static void quad(VertexConsumer buffer, PoseStack pose, float x0, float x1,
+                             float y0, float y1, float z, int argb, int light) {
+        int a = argb >>> 24;
+        int r = argb >> 16 & 0xFF;
+        int g = argb >> 8 & 0xFF;
+        int b = argb & 0xFF;
+        PoseStack.Pose last = pose.last();
+        buffer.addVertex(last, x0, y0, z).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x1, y0, z).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x1, y1, z).setColor(r, g, b, a).setLight(light);
+        buffer.addVertex(last, x0, y1, z).setColor(r, g, b, a).setLight(light);
     }
 
     private static int argb(int rgb, float alpha) {

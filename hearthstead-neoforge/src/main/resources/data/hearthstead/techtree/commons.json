@@ -105,10 +105,6 @@
         {
           "count": 4,
           "item": "minecraft:bread"
-        },
-        {
-          "count": 2,
-          "item": "minecraft:leather"
         }
       ],
       "study_days": 0,
@@ -972,7 +968,7 @@
       "name": "Fields & Farmer",
       "offers": "Build a Farmhouse and hire a Farmer who sows, reaps and stores wheat.",
       "details": [
-        "Farmhouse plan + Farmer emblem (2 Coins, 8 seeds, 1 leather)",
+        "Farmhouse plan + Farmer emblem (2 Coins, 8 seeds)",
         "Crop Rotation research: +15% crop growth"
       ],
       "flavor": "Bread starts in the mud.",

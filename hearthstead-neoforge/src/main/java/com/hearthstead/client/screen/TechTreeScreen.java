@@ -53,7 +53,9 @@ public class TechTreeScreen extends Screen {
     private static final float MIN_ZOOM = 0.08F;
     private static final float MAX_ZOOM = 2.4F;
     private static final int GOLD = Ui2Palette.GOLD;
-    private static final int READY = Ui2Palette.FOREST;
+    // Playtest 27 Sep #1: learned = green (frame, check, path); ready = gold.
+    private static final int LEARNED_GREEN = 0xFF4C9A50;
+    private static final int READY = Ui2Palette.GOLD;
     private static final int AVAILABLE = Ui2Palette.AMBER;
     private static final int LOCKED = Ui2Palette.INK_DISABLED;
     private static final int LOCKED_FILL = Ui2Palette.DISABLED_FILL;
@@ -598,25 +600,30 @@ public class TechTreeScreen extends Screen {
                     continue; // cross-branch needs: chip + highlight, never a line
                 }
                 boolean strong = path.contains(def.id()) && path.contains(reqId);
-                if (!strong && d < 0.05F) {
-                    continue;
-                }
                 boolean fromLearned = status(reqId) == TechTree.Status.LEARNED;
                 boolean both = fromLearned && status(def.id()) == TechTree.Status.LEARNED;
+                if (!strong && !both && d < 0.05F) {
+                    continue;
+                }
+                TechTree.Status to = status(def.id());
+                boolean opening = fromLearned && !both && (to == TechTree.Status.READY
+                    || to == TechTree.Status.AVAILABLE || to == TechTree.Status.STUDYING);
                 int color;
                 if (strong) {
-                    color = fromLearned ? PATH_INK : branchColor(def);
+                    color = both ? LEARNED_GREEN : fromLearned ? GOLD : branchColor(def);
                 } else {
-                    int base = both ? PATH_INK : EDGE_IDLE;
-                    int alpha = both ? 0xB0 : 0x55;
+                    // Learned path green, the next open step gold, the rest grey.
+                    int base = both ? LEARNED_GREEN : opening ? GOLD : EDGE_IDLE;
+                    int alpha = both ? 0xD0 : opening ? 0x90 : 0x55;
                     if (both) {
-                        alpha += Math.round(0x18 * Mth.sin(now / 900.0F + def.id().hashCode()));
+                        alpha += Math.round(0x14 * Mth.sin(now / 900.0F + def.id().hashCode()));
                     }
-                    color = withAlpha(base, Math.round(Mth.clamp(alpha, 0, 255) * Math.min(1, d)
+                    float detailFade = both ? Math.max(0.6F, Math.min(1, d)) : Math.min(1, d);
+                    color = withAlpha(base, Math.round(Mth.clamp(alpha, 0, 255) * detailFade
                         * (faded(def.branch()) ? 0.35F : 1.0F)));
                 }
                 List<TechTreeRadialLayout.Polar> pts = layout.edge(reqId, def.id());
-                float thick = strong ? 2.0F : 1.0F;
+                float thick = strong ? 2.0F : both ? 1.5F : 1.0F;
                 for (int i = 1; i < pts.size(); i++) {
                     TechTreeRadialLayout.Polar a = pts.get(i - 1);
                     TechTreeRadialLayout.Polar b = pts.get(i);
@@ -747,6 +754,9 @@ public class TechTreeScreen extends Screen {
                 R = phys / (2.0F * guiScale);
                 x = Math.round(x * guiScale) / (float) guiScale;
                 ly = Math.round(ly * guiScale) / (float) guiScale;
+            }
+            if (status == TechTree.Status.LEARNED) {
+                disc(g, x, ly, R + 3.0F, withAlpha(LEARNED_GREEN, Math.round(al * 0.55F)));
             }
             disc(g, x, ly, R + 1.5F, withAlpha(ring, al));
             if (roundel == null) {
@@ -954,7 +964,7 @@ public class TechTreeScreen extends Screen {
         int color;
         String glyph;
         switch (status) {
-            case LEARNED -> { color = GOLD; glyph = "✔"; }
+            case LEARNED -> { color = LEARNED_GREEN; glyph = "✔"; }
             case READY -> { color = READY; glyph = "!"; }
             case BLOCKED -> { color = BLOCKED; glyph = "x"; }
             case PLANNED -> { color = PLANNED; glyph = "?"; }
@@ -1392,7 +1402,9 @@ public class TechTreeScreen extends Screen {
 
     private void renderMiniLegend(GuiGraphics g) {
         Object[][] keys = {
-            {"learned", "Learned", GOLD}, {"ready", "Ready to research", READY},
+            {"learned", "Learned (green frame, check)", LEARNED_GREEN},
+            {"path", "Green line: learned path; gold: next step", LEARNED_GREEN},
+            {"ready", "Ready to research", READY},
             {"available", "Needs more (see panel)", AVAILABLE}, {"locked", "Locked", LOCKED},
             {"blocked", "Closed: other choice taken", BLOCKED}, {"planned", "Planned: not in game yet", PLANNED},
             {"studying", "Being studied", STUDYING}};
@@ -1976,7 +1988,7 @@ public class TechTreeScreen extends Screen {
 
     private int ringColor(TechTree.Status status) {
         return switch (status) {
-            case LEARNED -> GOLD;
+            case LEARNED -> LEARNED_GREEN;
             case READY -> READY;
             case AVAILABLE -> AVAILABLE;
             case BLOCKED -> BLOCKED;
@@ -1988,8 +2000,8 @@ public class TechTreeScreen extends Screen {
 
     private int statusColor(TechTree.Status status) {
         return switch (status) {
-            case LEARNED -> Ui2Palette.GOLD;
-            case READY -> Ui2Palette.FOREST;
+            case LEARNED -> LEARNED_GREEN;
+            case READY -> Ui2Palette.GOLD;
             case AVAILABLE, STUDYING -> Ui2Palette.AMBER;
             case BLOCKED, QUARANTINED -> Ui2Palette.DANGER;
             default -> Ui2Palette.INK_MUTED;

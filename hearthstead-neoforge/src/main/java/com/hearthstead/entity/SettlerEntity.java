@@ -3736,13 +3736,13 @@ public class SettlerEntity extends PathfinderMob {
             return InteractionResult.PASS;
         }
 
-        // Inventory access is deliberately narrower than "sneaking": only
-        // an actually empty MAIN_HAND can open it. A held Job Emblem or any
-        // future item therefore keeps NeoForge's normal interactLivingEntity
-        // dispatch instead of being swallowed by this entity first.
+        // Playtest 27 Sep #5: players nearly always hold a tool, so Shift +
+        // right-click opens the inventory with ANY ordinary item in hand.
+        // Only the special settler items (Job Emblem, Blessing Seal, Work
+        // Sceptre, Blueprint/Builder's Plan) keep their own interaction.
         if (player.isShiftKeyDown() && hand == InteractionHand.MAIN_HAND
-            && player.getMainHandItem().isEmpty()
-            && player.getOffhandItem().isEmpty()) {
+            && !isSpecialSettlerItem(player.getMainHandItem())
+            && !isSpecialSettlerItem(player.getOffhandItem())) {
             if (!level().isClientSide && player instanceof ServerPlayer serverPlayer) {
                 if (getProfession() == Profession.BUILDER) {
                     com.hearthstead.network.BuilderNeedsNetwork.open(serverPlayer, this);
@@ -3796,6 +3796,43 @@ public class SettlerEntity extends PathfinderMob {
             com.hearthstead.network.SettlerNetwork.openFor(serverPlayer, this);
         }
         return InteractionResult.sidedSuccess(level().isClientSide);
+    }
+
+    @Nullable
+    private Component lastWorkRefusal;
+    private long lastWorkRefusalTime = Long.MIN_VALUE;
+
+    /** Remembers why the player's last job/workplace choice was refused. */
+    public void noteWorkRefusal(@Nullable Component reason) {
+        lastWorkRefusal = reason;
+        lastWorkRefusalTime = level().getGameTime();
+    }
+
+    /** The refusal from the last minute, shown in the sheet's "Right now". */
+    @Nullable
+    public Component recentWorkRefusal() {
+        if (lastWorkRefusal == null) {
+            return null;
+        }
+        long age = level().getGameTime() - lastWorkRefusalTime;
+        return age >= 0 && age <= 1200L ? lastWorkRefusal : null;
+    }
+
+    /**
+     * Items that own a Shift+right-click action on a settler themselves and
+     * must therefore never be swallowed by the inventory shortcut.
+     */
+    public static boolean isSpecialSettlerItem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        net.minecraft.world.item.Item item = stack.getItem();
+        return item instanceof BlessingSealItem
+            || item instanceof com.hearthstead.item.JobEmblemItem
+            || item instanceof com.hearthstead.item.WorkScepterItem
+            || item instanceof com.hearthstead.item.BuildPlanItem
+            || item instanceof com.hearthstead.item.BuildersPlanItem
+            || item instanceof com.hearthstead.item.BuildingPlanItem;
     }
 
     // ------------------------------------------------------------ combat ---

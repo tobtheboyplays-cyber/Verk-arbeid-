@@ -63,23 +63,26 @@ public final class JobEmblemCatalog {
     // Guard's iron and the Archer's arrows sit on top of First Watch's 4 iron
     // and the Archer's own 8-arrow kit; the Innkeeper's bread competes with
     // the 48-meal reserve. Post-raid emblems keep their original goods.
+    // Playtest 27 Sep #2: pre-first-raid emblems carry no leather at all
+    // (Farmer, Courier, Innkeeper, Guard, Archer): hides only arrive with
+    // the Hunter, so a leather line this early was a hidden gate.
     public static final List<Entry> RELEASE_CATALOG = List.of(
         entry(Profession.LUMBERER, DevelopmentNode.TIMBER_RIGHTS,
             Items.FLINT, 2),
         entry(Profession.FARMER, DevelopmentNode.CULTIVATED_GROUND,
-            Items.WHEAT_SEEDS, 8, Items.LEATHER, 1),
+            Items.WHEAT_SEEDS, 8),
         // Early jobs (day one): no leather before the Hunter brings hides.
         entry(Profession.FISHER, DevelopmentNode.SHORE_PROVISIONS,
             Items.STRING, 2),
         entry(Profession.COURIER, DevelopmentNode.STORES_AND_ROADS,
-            Items.CHEST, 1, Items.LEATHER, 2),
+            Items.CHEST, 1),
         entry(Profession.TRADER, DevelopmentNode.TRADING_POST, Items.CHEST, 1, Items.STICK, 4),
         entry(Profession.INNKEEPER, DevelopmentNode.HOSPITALITY,
-            Items.BREAD, 2, Items.LEATHER, 2),
+            Items.BREAD, 2),
         entry(Profession.GUARD, DevelopmentNode.FIRST_WATCH,
-            Items.IRON_INGOT, 2, Items.LEATHER, 1),
+            Items.IRON_INGOT, 2),
         entry(Profession.ARCHER, DevelopmentNode.ARM_THE_WATCH,
-            Items.ARROW, 4, Items.LEATHER, 1),
+            Items.ARROW, 4),
         entry(Profession.HUNTER, DevelopmentNode.BORDER_WARDENS,
             Items.FLINT, 4, Items.STICK, 8),
         entry(Profession.SAWYER, DevelopmentNode.GUILD_DOCTRINE,

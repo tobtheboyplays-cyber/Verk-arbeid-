@@ -940,17 +940,29 @@ public class SettlerScreen extends Screen implements QaUiInspectable {
             g.drawString(font, view.loading.text(), rx, oy + R_ATTR_CELLS, Ui2Palette.INK_MUTED, false);
         } else {
             int cellW = (colW - 8) / 2;
+            // Playtest 27 Sep #3: with a job, the attributes that job never
+            // reads are dimmed so the ones that matter stand out.
+            boolean hasJobFocus = false;
+            for (AttributeView a : view.attributes) {
+                if (a != null && a.highlight() != JobAttributeHighlight.NONE) {
+                    hasJobFocus = true;
+                    break;
+                }
+            }
             for (int i = 0; i < view.attributes.length; i++) {
                 AttributeView a = view.attributes[i];
                 int cx = rx + (i % 2) * (cellW + 8);
                 int cy = oy + R_ATTR_CELLS + (i / 2) * ATTR_ROW_H;
                 if (cy + 9 > oy + ph) break;
+                boolean dim = hasJobFocus && a.highlight() == JobAttributeHighlight.NONE;
                 int labelColour = a.highlight() == JobAttributeHighlight.PRIMARY ? Ui2Palette.FOREST
-                    : a.highlight() == JobAttributeHighlight.SECONDARY ? Ui2Palette.GOLD : Ui2Palette.INK;
+                    : a.highlight() == JobAttributeHighlight.SECONDARY ? Ui2Palette.GOLD
+                    : dim ? Ui2Palette.INK_MUTED : Ui2Palette.INK;
                 g.fill(cx, cy, cx + 1, cy + 8, a.highlight().isJobFocus() ? a.highlight().colour() : Ui2Palette.RULE);
                 g.drawString(font, a.label().text(), cx + 3, cy, labelColour, false);
                 if (a.knack()) Ui2Surface.alertGlyph(g, cx + cellW - a.value().width() - 6, cy + 2, Ui2Palette.GOLD);
-                g.drawString(font, a.value().text(), cx + cellW - a.value().width(), cy, Ui2Palette.INK, false);
+                g.drawString(font, a.value().text(), cx + cellW - a.value().width(), cy,
+                    dim ? Ui2Palette.INK_MUTED : Ui2Palette.INK, false);
                 if (hover(mx, my, cx, cy - 1, cellW, ATTR_ROW_H)) pendingTooltip = a.tooltip();
             }
         }

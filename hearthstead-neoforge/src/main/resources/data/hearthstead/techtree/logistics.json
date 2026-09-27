@@ -15,8 +15,8 @@
           "tag": "minecraft:logs"
         },
         {
-          "count": 2,
-          "item": "minecraft:leather"
+          "count": 8,
+          "item": "minecraft:cobblestone"
         }
       ],
       "study_days": 0,
@@ -38,7 +38,7 @@
       "name": "Warehouse & Courier",
       "offers": "Build a Warehouse and hire Couriers who carry goods to one shared store.",
       "details": [
-        "Warehouse plan + Courier emblem (2 Coins, 1 chest, 2 leather)",
+        "Warehouse plan + Courier emblem (2 Coins, 1 chest)",
         "Warehouse levels come from the plaque checklist, never a blueprint. L1 Storeroom manages 16 containers (4 storage, 1 door, 2 lights, 25 floor); L2 Stockroom manages 32 (16 storage, a ledger desk, 4 lights, solid floor). Higher levels need Storehouse, Great Storehouse and Royal Storehouse",
         "Containers beyond the cap show as 'not managed (warehouse full)'; nothing breaks",
         "Base Courier load: 8 items per trip",

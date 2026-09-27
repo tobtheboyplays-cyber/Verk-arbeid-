@@ -893,7 +893,33 @@ public final class Employment {
         }
 
         Building current = employerOf(settlement, settler.getUUID());
-        if (current != null && tradeOf(current.type) == intended) {
+        // Playtest 27 Sep #4: the workplace the player explicitly selected
+        // (the last compatible workplace plaque they opened) is authoritative.
+        // It is either used, or refused with a reason naming that workplace;
+        // it is never silently swapped for the nearest other post.
+        Building chosen = selectedWorkplace(player, settlement, intended);
+        if (chosen != null) {
+            if (current == chosen) {
+                return AutoHired.refused(Component.translatable(
+                    "hearthstead.employ.refused.already_at",
+                    settler.getDisplayName(), current.type.displayName()));
+            }
+            Hired chosenRefusal = validateCoreHire(settlement, chosen, settler);
+            if (chosenRefusal != null) {
+                return AutoHired.refused(Component.translatable(
+                    "hearthstead.employ.refused.selected",
+                    chosen.type.displayName(), chosenRefusal.refusal()));
+            }
+            if (current != null && tradeOf(current.type) == intended) {
+                // Same trade, other post: a move, not a new job. The
+                // settler already holds this trade, so no emblem is spent.
+                Hired moved = commitHire(level, settlement, chosen, settler, false);
+                if (!moved.ok()) {
+                    return AutoHired.refused(moved);
+                }
+                return new AutoHired(true, chosen, moved.cost(), null);
+            }
+        } else if (current != null && tradeOf(current.type) == intended) {
             return AutoHired.refused(Component.translatable(
                 "hearthstead.employ.refused.already_at",
                 settler.getDisplayName(), current.type.displayName()));
@@ -931,7 +957,7 @@ public final class Employment {
             .thenComparingInt(building -> building.plaquePos.getY())
             .thenComparingInt(building -> building.plaquePos.getZ())
             .thenComparing(building -> building.id));
-        Building selected = ready.getFirst();
+        Building selected = chosen != null ? chosen : ready.getFirst();
 
         ItemStack emblemBefore = held.copy();
         int workersBefore = selected.workers.size();
@@ -949,6 +975,54 @@ public final class Employment {
                 emblemBefore.getCount(), player.getMainHandItem().getCount(),
                 -1, "settler:" + settler.getUUID()));
         return new AutoHired(true, selected, hired.cost(), null);
+    }
+
+    // ------------------------------------------------ selected workplace --
+
+    /** How long an opened workplace plaque stays the player's explicit choice. */
+    public static final long SELECTION_TICKS = 20L * 60L * 10L;
+    private static final java.util.Map<UUID, Selection> SELECTED = new java.util.HashMap<>();
+
+    private record Selection(UUID buildingId, long gameTime) {
+    }
+
+    /** Remembers the workplace a player just picked by opening its plaque. */
+    public static void selectWorkplace(ServerPlayer player, Building building) {
+        if (player == null || building == null || !teaches(building.type)) {
+            return;
+        }
+        SELECTED.put(player.getUUID(), new Selection(building.id,
+            player.serverLevel().getGameTime()));
+    }
+
+    public static void clearSelectedWorkplace(ServerPlayer player) {
+        if (player != null) {
+            SELECTED.remove(player.getUUID());
+        }
+    }
+
+    /** The player's live explicit choice for this trade, or null. */
+    @Nullable
+    public static Building selectedWorkplace(ServerPlayer player, Settlement settlement,
+                                             Profession trade) {
+        if (player == null || settlement == null || trade == null) {
+            return null;
+        }
+        Selection selection = SELECTED.get(player.getUUID());
+        if (selection == null) {
+            return null;
+        }
+        long age = player.serverLevel().getGameTime() - selection.gameTime();
+        if (age < 0 || age > SELECTION_TICKS) {
+            SELECTED.remove(player.getUUID());
+            return null;
+        }
+        for (Building building : settlement.buildings) {
+            if (building.id.equals(selection.buildingId())) {
+                return tradeOf(building.type) == trade ? building : null;
+            }
+        }
+        return null;
     }
 
     /** Pure validation shared by the free admin seam and charged player path. */
