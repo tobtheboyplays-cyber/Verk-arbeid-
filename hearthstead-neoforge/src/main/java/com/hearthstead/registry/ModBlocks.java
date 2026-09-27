@@ -22,6 +22,7 @@ public final class ModBlocks {
             // the old hearth's light level 13 for anything that relies on it.
             .mapColor(MapColor.WOOD)
             .strength(3.5F)
+            .explosionResistance(3_600_000.0F)
             .requiresCorrectToolForDrops()
             .sound(SoundType.WOOD)
             .lightLevel(state -> 13)

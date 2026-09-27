@@ -19,6 +19,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Mirror;
@@ -239,6 +240,18 @@ public class HearthBlock extends BaseEntityBlock {
         });
     }
 
+    /** Explosions must neither duplicate the Banner item nor remove its saved state. */
+    @Override
+    public boolean canDropFromExplosion(BlockState state, BlockGetter level, BlockPos pos, Explosion explosion) {
+        return false;
+    }
+
+    @Override
+    public void onBlockExploded(BlockState state, Level level, BlockPos pos, Explosion explosion) {
+        // Do not call the default: it replaces the block with air, triggering disbandAt.
+        // Keep the original block entity rather than recreating it after its NBT is lost.
+        com.hearthstead.Hearthstead.LOGGER.debug("Banner at {} resisted explosion", pos);
+    }
     @Override
     protected void onRemove(BlockState state, Level level, BlockPos pos, BlockState newState,
                             boolean isMoving) {
