@@ -4,6 +4,7 @@ import com.hearthstead.client.motion.MotionOverrides;
 import com.hearthstead.client.render.SettlerRenderer;
 import com.hearthstead.entity.SettlerEntity;
 import com.hearthstead.client.ui2.BannerChrome;
+import com.hearthstead.client.ui2.BannerSheetLayout.Rect;
 import com.hearthstead.client.ui2.Ui2Palette;
 import com.hearthstead.client.ui2.Ui2Serif;
 import com.hearthstead.client.ui2.Ui2Surface;
@@ -18,6 +19,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -25,10 +27,14 @@ import net.minecraft.world.entity.LivingEntity;
 import org.lwjgl.glfw.GLFW;
 
 /**
- * The conversation bar (Banner screen style): a walnut board along the bottom
- * with the speaker's portrait, serif name, title and relation on the left
- * over a parchment text panel, and numbered replies on the right. The world
- * stays visible (no blur): the camera frames the speaker above it.
+ * The talk panel (27 Sep, owner: "prettier and sized to the space it needs"):
+ * a compact walnut-and-brass frame bottom-centre above the hotbar, dark ink on
+ * parchment inside, its width fitted to the content (260-440 GUI px) and its
+ * height to the text (at most three speech lines, paged with a small "▸").
+ * A 32x32 portrait sits in a brass-rimmed square with the serif name and the
+ * role under it; replies are stacked full-width framed buttons numbered 1-9;
+ * shared-talk notices go in a thin strip on top. No dimming: the camera
+ * frames the speaker above it. Layout only lives here ({@link #layoutFor}).
  *
  * <p>Owner rules: lines type out at ~55 chars/s with a Sims-style babble
  * voice and a talking head ({@link ConversationVoice}, {@link TalkingHead});
@@ -38,13 +44,17 @@ import org.lwjgl.glfw.GLFW;
  *
  * <p>The first meeting opens with a short name card (about 1.2 s; a raid
  * captain 1.5 s) that shrinks into the header as the first line starts; any
- * key or click skips it. Repeat talks skip the card.
+ * key or click skips it. Repeat talks skip the card. The Guildmaster's founding
+ * welcome after Raise banner holds its name banner about 3.5 s while the camera
+ * turns to him (Esc, a click or any key skips it), then the panel comes in.
  */
 public final class ConversationScreen extends Screen {
     private static final float CHARS_PER_SECOND = 55.0F;
     private static final float CARD_IN = 0.25F;
     private static final float CARD_OUT = 0.3F;
-    private static final int OPTION_LINE = 9;
+    /** The Guildmaster's founding welcome: a longer intro (never more than 4 s of held input). */
+    static final float WELCOME_SECONDS = 3.5F;
+    static final String SHARED_PREFIX = "conversation.hearthstead.shared.";
 
     private ConvStatePayload state;
     private long typingStartNanos;
@@ -68,6 +78,9 @@ public final class ConversationScreen extends Screen {
     private final List<int[]> optionRects = new ArrayList<>();
     private List<String> plainLines = List.of();
     private List<String> lineKeys = List.of();
+    /** Per line: a shared-talk notice shown in the strip at the top instead of the speech. */
+    private boolean[] stripFlags = new boolean[0];
+    private final boolean welcome;
     /** Reveal time per line (ms): the recording's length for voiced lines, else the typing speed. */
     private int[] lineMillis = new int[0];
 
@@ -76,11 +89,25 @@ public final class ConversationScreen extends Screen {
     }
 
     public ConversationScreen(ConvStatePayload state, boolean nameCard) {
+        this(state, nameCard, false);
+    }
+
+    /**
+     * @param welcome the founding welcome after Raise banner: the name banner holds
+     *                about 3.5 s while the camera turns to the Guildmaster, with a soft
+     *                chime; Esc, a click or any key skips it.
+     */
+    public ConversationScreen(ConvStatePayload state, boolean nameCard, boolean welcome) {
         super(Component.translatable("conversation.hearthstead.screen"));
-        this.card = nameCard && com.hearthstead.HearthsteadClientConfig.encounterCinematics();
-        this.cardTotal = state.style() == 1 ? 1.5F : 1.2F;
+        this.card = (nameCard || welcome) && com.hearthstead.HearthsteadClientConfig.encounterCinematics();
+        this.welcome = welcome && card;
+        this.cardTotal = this.welcome ? WELCOME_SECONDS : state.style() == 1 ? 1.5F : 1.2F;
         this.cardStartNanos = System.nanoTime();
         if (card) com.hearthstead.client.sound.HsSound.ui("convo.name_card", null, 0.55F, 1.0F);
+        if (this.welcome) {
+            Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance
+                .forUI(net.minecraft.sounds.SoundEvents.NOTE_BLOCK_CHIME.value(), 0.9F, 0.35F));
+        }
         update(state);
     }
 
@@ -93,6 +120,8 @@ public final class ConversationScreen extends Screen {
         state = next;
         List<String> plain = new ArrayList<>();
         List<String> keys = new ArrayList<>();
+        stripFlags = new boolean[next.lines().size()];
+        for (int i = 0; i < next.lines().size(); i++) stripFlags[i] = stripLine(next.lines().get(i));
         for (Component line : next.lines()) {
             plain.add(ConversationVoice.stripTone(line.getString()));
             keys.add(VoiceLines.keyOf(line));
@@ -137,12 +166,7 @@ public final class ConversationScreen extends Screen {
 
     @Override
     public void renderBackground(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        // No blur: the framed speaker is the point. Only a soft shade under the bar.
-        int h = height;
-        for (int i = 0; i < 24; i++) {
-            int alpha = (int) (i * 3.2F);
-            g.fill(0, h - 24 * 7 + i * 7, width, h - 24 * 7 + (i + 1) * 7, alpha << 24);
-        }
+        // No dimming or blur: the framed speaker stays in full view above the compact panel.
     }
 
     @Override
@@ -183,8 +207,10 @@ public final class ConversationScreen extends Screen {
         if (!card || cardOutNanos >= 0) return;
         cardOutNanos = System.nanoTime();
         ConversationCamera.introDone();
-        typingStartNanos = System.nanoTime();
-        openNanos = System.nanoTime();
+        // The panel comes in once the card has faded, so the two never overlap.
+        long outNanos = (long) (CARD_OUT * 1.0e9F);
+        typingStartNanos = System.nanoTime() + outNanos;
+        openNanos = System.nanoTime() + outNanos;
         Entity npc = speaker();
         if (npc != null) ConversationVoice.begin(npc);
     }
@@ -242,19 +268,92 @@ public final class ConversationScreen extends Screen {
 
     // ------------------------------------------------------------- layout ---
 
-    private int optionColumnWidth(int w) {
-        return w - Math.round(w * 0.5F) - 18;
+    /** Talk panel width limits (GUI px): the panel is fitted to its content between these. */
+    static final int MIN_W = 260;
+    static final int MAX_W = 440;
+    /** Walnut frame (5) plus parchment padding (6) on each side. */
+    static final int INSET = 11;
+    static final int STRIP_LINE = 9;
+    static final int HEADER_H = 36;
+    static final int PORTRAIT = 32;
+    static final int BODY_LINE = 10;
+    static final int BODY_LINES = 3;
+    static final int BUTTON_H = 14;
+    static final int BUTTON_LINE = 9;
+    static final int GAP = 3;
+    static final int RELATION_W = 58;
+    /** Clearance kept free above the hotbar, hearts and XP bar. */
+    static final int HOTBAR_CLEAR = 42;
+
+    /** Where every part of the talk panel goes. Pure, so the layout test checks it without a window. */
+    record PanelLayout(Rect panel, Rect strip, Rect portrait, Rect header, Rect relation, Rect body, int bodyLines,
+                       List<Rect> options) {
     }
 
-    private List<List<FormattedCharSequence>> wrappedOptions(Font font, int columnW) {
+    static int panelWidth(int screenW, int contentW) {
+        int max = Math.min(MAX_W, screenW - 16);
+        return Math.max(Math.min(MIN_W, max), Math.min(max, contentW + 2 * INSET));
+    }
+
+    /** Wrap width of the speech inside a panel of width {@code panelW} (room kept for the page arrow). */
+    static int wrapWidth(int panelW) {
+        return panelW - 2 * INSET - 10;
+    }
+
+    static int buttonHeight(int lines) {
+        return BUTTON_H + Math.max(0, lines - 1) * BUTTON_LINE;
+    }
+
+    /**
+     * @param contentW    the widest part without insets (name block, a reply, a speech line)
+     * @param bodyRows    wrapped rows of the whole speech at {@link #wrapWidth}; at most 3 show at once
+     * @param optionLines 1 or 2 per reply (a reply never loses a word)
+     * @param stripLines  0-2 rows of the shared-talk strip
+     */
+    static PanelLayout layoutFor(int screenW, int screenH, int contentW, int bodyRows, int[] optionLines, int stripLines) {
+        int w = panelWidth(screenW, contentW);
+        int innerW = w - 2 * INSET;
+        int bodyLines = Math.max(1, Math.min(BODY_LINES, bodyRows));
+        int stripH = stripLines > 0 ? Math.min(2, stripLines) * STRIP_LINE + 3 : 0;
+        int bodyH = bodyLines * BODY_LINE + 4;
+        int optionsH = 0;
+        for (int lines : optionLines) optionsH += GAP + buttonHeight(lines);
+        int top = stripH > 0 ? 6 + stripH + GAP : INSET - 2;
+        int h = top + HEADER_H + GAP + bodyH + optionsH + INSET - 2;
+        int x = (screenW - w) / 2;
+        int y = Math.max(4, screenH - HOTBAR_CLEAR - h);
+        int cx = x + INSET;
+        int cy = y + top;
+        Rect strip = new Rect(x + 6, y + 6, w - 12, stripH);
+        Rect portrait = new Rect(cx, cy, PORTRAIT + 4, PORTRAIT + 4);
+        Rect relation = new Rect(cx + innerW - RELATION_W, cy + 1, RELATION_W, 18);
+        Rect header = new Rect(portrait.right() + 6, cy, relation.x() - portrait.right() - 10, HEADER_H);
+        cy += HEADER_H + GAP;
+        Rect body = new Rect(cx, cy, innerW, bodyH);
+        cy += bodyH;
+        List<Rect> options = new ArrayList<>();
+        for (int lines : optionLines) {
+            cy += GAP;
+            int bh = buttonHeight(lines);
+            options.add(new Rect(cx, cy, innerW, bh));
+            cy += bh;
+        }
+        return new PanelLayout(new Rect(x, y, w, h), strip, portrait, header, relation, body, bodyLines, options);
+    }
+
+    private static int costWidth(Font font, OptionView option) {
+        int costW = 0;
+        for (ConvStatePayload.CostView cost : option.costs()) costW += font.width(String.valueOf(cost.amount())) + 18;
+        return costW;
+    }
+
+    private List<List<FormattedCharSequence>> wrappedOptions(Font font, int innerW) {
         List<List<FormattedCharSequence>> out = new ArrayList<>();
         for (OptionView option : state.options()) {
-            int costW = 0;
-            for (ConvStatePayload.CostView cost : option.costs()) costW += font.width(String.valueOf(cost.amount())) + 18;
-            int textW = columnW - 20 - costW - 14 - (option.enabled() ? 0 : 10);
+            int textW = innerW - 20 - costWidth(font, option) - 14 - (option.enabled() ? 0 : 10);
             List<FormattedCharSequence> lines = font.split(optionText(option), Math.max(40, textW));
             if (lines.size() > 2) {
-                // Never cut a word: a third line is folded into the second by shrinking the wrap once more.
+                // Never cut a word: a third line is folded into the second by widening the wrap once more.
                 lines = font.split(optionText(option), Math.max(40, textW + 12));
                 if (lines.size() > 2) lines = List.of(lines.get(0), lines.get(1));
             }
@@ -271,99 +370,132 @@ public final class ConversationScreen extends Screen {
         return text;
     }
 
-    private int barHeight(Font font, int w) {
-        int optionsH = 0;
-        for (List<FormattedCharSequence> lines : wrappedOptions(font, optionColumnWidth(w))) {
-            optionsH += rowHeight(lines.size()) + 3;
-        }
-        int wanted = Math.max(Math.min(Math.round(height * 0.44F), 200), optionsH + 20);
-        int cap = Math.min(Math.round(height * 0.6F), com.hearthstead.client.ui2.BannerSheetLayout.MAX_HEIGHT);
-        return Mth.clamp(wanted, 120, Math.max(120, cap));
+    /** Shared-talk notices ("Waiting for …", "… chose: …") go in the strip, not the speech. */
+    static boolean stripLine(Component line) {
+        return line.getContents() instanceof TranslatableContents t && t.getKey().startsWith(SHARED_PREFIX);
     }
 
-    private static int rowHeight(int lines) {
-        return lines <= 1 ? 17 : 8 + lines * OPTION_LINE + 1;
+    /** The widest part of the panel's content: name block, a reply, or a speech line. */
+    private int contentWidth(Font font) {
+        int info = nameText.width();
+        if (distinctTitle()) info = Math.max(info, font.width(state.title()));
+        if (!state.memory().getString().isEmpty()) info = Math.max(info, Math.min(200, font.width(state.memory())));
+        int best = PORTRAIT + 4 + 6 + info + 10 + RELATION_W;
+        for (OptionView option : state.options()) {
+            best = Math.max(best, 20 + font.width(optionText(option)) + costWidth(font, option) + 16);
+        }
+        for (int i = 0; i < plainLines.size(); i++) {
+            if (!stripFlags[i]) best = Math.max(best, font.width(plainLines.get(i)) + 10);
+        }
+        return best;
+    }
+
+    private int bodyRowCount(Font font, int wrapW) {
+        int rows = 0;
+        for (int i = 0; i < plainLines.size(); i++) {
+            if (!stripFlags[i]) rows += font.split(Component.literal(plainLines.get(i)), wrapW).size();
+        }
+        return rows;
     }
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
-        renderBackground(g, mouseX, mouseY, partialTick);
-        boolean showingCard = cardShowing();
-        if (!cardOnly()) {
-            Font font = Minecraft.getInstance().font;
-            float slide = Mth.clamp((System.nanoTime() - openNanos) / 1.0e9F / 0.25F, 0.0F, 1.0F);
-            slide = 1.0F - (1.0F - slide) * (1.0F - slide);
-            // Size check (27 Sep): the talk bar keeps the Banner's footprint on big
-            // windows instead of spanning the whole screen.
-            int w = Math.min(width - 16, com.hearthstead.client.ui2.BannerSheetLayout.MAX_WIDTH);
-            int x = (width - w) / 2;
-            int barH = barHeight(font, w);
-            int y = height - barH - 6 + Math.round((1.0F - slide) * (barH + 12));
-            BannerChrome.panel(g, x, y, w, barH);
-            int leftW = Math.round(w * 0.5F);
-            renderSpeaker(g, x + 10, y + 9, leftW - 16, barH - 18);
-            g.fill(x + leftW, y + 8, x + leftW + 1, y + barH - 8, BannerChrome.PLATE_SHADOW);
-            g.fill(x + leftW + 1, y + 8, x + leftW + 2, y + barH - 8, BannerChrome.PLATE_HIGHLIGHT);
-            renderOptions(g, x + leftW + 8, y + 10, optionColumnWidth(w), barH - 20, mouseX, mouseY);
+        // No dimming and no overlap: the intro card and the panel never show together.
+        if (cardShowing()) {
+            optionRects.clear();
+            renderCard(g);
+            return;
         }
-        if (showingCard) renderCard(g);
+        Font font = Minecraft.getInstance().font;
+        nameText.set(font, state.name().getString());
+        int contentW = contentWidth(font);
+        int panelW = panelWidth(width, contentW);
+        int innerW = panelW - 2 * INSET;
+        List<List<FormattedCharSequence>> wrapped = wrappedOptions(font, innerW);
+        int[] optionLines = new int[wrapped.size()];
+        for (int i = 0; i < optionLines.length; i++) optionLines[i] = wrapped.get(i).size();
+        List<FormattedCharSequence> stripRows = new ArrayList<>();
+        for (int i = 0; i < plainLines.size(); i++) {
+            if (stripFlags[i]) stripRows.addAll(font.split(state.lines().get(i), panelW - 20));
+        }
+        if (stripRows.size() > 2) stripRows = stripRows.subList(0, 2);
+        PanelLayout l = layoutFor(width, height, contentW, bodyRowCount(font, wrapWidth(panelW)), optionLines,
+            stripRows.size());
+
+        float slide = Mth.clamp((System.nanoTime() - openNanos) / 1.0e9F / 0.25F, 0.0F, 1.0F);
+        slide = 1.0F - (1.0F - slide) * (1.0F - slide);
+        int dy = Math.round((1.0F - slide) * (l.panel().height() + HOTBAR_CLEAR));
+        g.pose().pushPose();
+        g.pose().translate(0, dy, 0);
+        Rect p = l.panel();
+        BannerChrome.panel(g, p.x(), p.y(), p.width(), p.height());
+        BannerChrome.parchment(g, p.x() + 5, p.y() + 5, p.width() - 10, p.height() - 10);
+        if (!stripRows.isEmpty()) {
+            Rect s = l.strip();
+            g.fill(s.x(), s.y(), s.right(), s.bottom(), Ui2Palette.WALNUT_DARK);
+            g.fill(s.x(), s.bottom() - 1, s.right(), s.bottom(), BannerChrome.GOLD_EDGE);
+            for (int i = 0; i < stripRows.size(); i++) {
+                FormattedCharSequence row = stripRows.get(i);
+                g.drawString(font, row, s.x() + (s.width() - font.width(row)) / 2, s.y() + 2 + i * STRIP_LINE,
+                    Ui2Palette.GOLD_SOFT, false);
+            }
+        }
+        renderSpeaker(g, font, l);
+        renderBody(g, font, l.body(), l.bodyLines());
+        renderFlourish(g, font, l.relation().x() - 36, l.header().y() + 2);
+        renderOptions(g, font, l, wrapped, mouseX, mouseY - dy);
+        g.pose().popPose();
     }
 
-    private void renderSpeaker(GuiGraphics g, int x, int y, int w, int h) {
-        Font font = Minecraft.getInstance().font;
-        int ps = 40;
-        g.fill(x, y, x + ps + 4, y + ps + 4, BannerChrome.PLATE_SHADOW);
-        BannerChrome.outline(g, x + 1, y + 1, ps + 2, ps + 2, BannerChrome.GOLD_EDGE);
-        g.fill(x + 2, y + 2, x + ps + 2, y + ps + 2, BannerChrome.INSET_DARK);
+    /** A 32x32 portrait in a brass-rimmed square; the name in the title font, the role small below. */
+    private void renderSpeaker(GuiGraphics g, Font font, PanelLayout l) {
+        Rect pr = l.portrait();
+        g.fill(pr.x(), pr.y(), pr.right(), pr.bottom(), BannerChrome.PLATE_SHADOW);
+        BannerChrome.outline(g, pr.x() + 1, pr.y() + 1, pr.width() - 2, pr.height() - 2, BannerChrome.GOLD_EDGE);
+        g.fill(pr.x() + 2, pr.y() + 2, pr.right() - 2, pr.bottom() - 2, BannerChrome.INSET_DARK);
         Entity npc = speaker();
         if (npc instanceof LivingEntity living) {
             float offset = living.getEyeHeight() - living.getBbHeight() / 2.0F + 0.08F;
             Runnable drawPortrait = () -> InventoryScreen.renderEntityInInventoryFollowsAngle(g,
-                x + 2, y + 2, x + ps + 2, y + ps + 2, 30, offset, 0.18F, -0.05F, living);
+                pr.x() + 2, pr.y() + 2, pr.right() - 2, pr.bottom() - 2, 24, offset, 0.18F, -0.05F, living);
             if (living instanceof SettlerEntity settler) {
                 SettlerRenderer.withoutPortraitLabels(settler, drawPortrait);
             } else {
                 drawPortrait.run();
             }
         }
-        int tx = x + ps + 10;
-        int relationW = 64;
-        int nameW = w - ps - 10 - relationW - 6;
+        Rect hd = l.header();
         String name = state.name().getString();
         // Names never cut: the title size, then the heading size, then (rarely) the heading fitted.
-        nameText.set(font, name);
-        if (nameText.width() <= nameW) {
-            nameText.draw(g, font, tx, y + 3, BannerChrome.TEXT_ON_WOOD);
+        if (nameText.width() <= hd.width()) {
+            nameText.draw(g, font, hd.x(), hd.y() + 2, Ui2Palette.INK);
         } else {
             nameSmall.set(font, name);
-            if (nameSmall.width() > nameW) nameSmall.fit(font, name, nameW);
-            nameSmall.draw(g, font, tx, y + 5, BannerChrome.TEXT_ON_WOOD);
+            if (nameSmall.width() > hd.width()) nameSmall.fit(font, name, hd.width());
+            nameSmall.draw(g, font, hd.x(), hd.y() + 3, Ui2Palette.INK);
         }
-        int infoW = w - ps - 12;
+        int ry = hd.y() + 17;
         if (distinctTitle()) {
-            List<FormattedCharSequence> title = font.split(state.title(), infoW - relationW + 60);
-            if (!title.isEmpty()) g.drawString(font, title.get(0), tx, y + 20, BannerChrome.TEXT_ON_WOOD_MUTED, false);
+            List<FormattedCharSequence> title = font.split(state.title(), hd.width());
+            if (!title.isEmpty()) g.drawString(font, title.get(0), hd.x(), ry, Ui2Palette.INK_SOFT, false);
+            ry += 9;
         }
-        if (!state.memory().getString().isEmpty()) {
-            List<FormattedCharSequence> memory = font.split(state.memory(), infoW);
-            for (int i = 0; i < Math.min(2, memory.size()); i++) {
-                g.drawString(font, memory.get(i), tx, y + 31 + i * 9, Ui2Palette.GOLD_SOFT, false);
-            }
+        if (!state.memory().getString().isEmpty() && ry + 8 <= hd.bottom()) {
+            List<FormattedCharSequence> memory = font.split(state.memory(), hd.width());
+            if (!memory.isEmpty()) g.drawString(font, memory.get(0), hd.x(), ry, Ui2Palette.INK_MUTED, false);
         }
-        renderRelation(g, font, x + w - relationW, y + 2, relationW);
-        int py = y + ps + 10;
-        int ph = h - ps - 10;
-        BannerChrome.parchment(g, x, py, w, ph);
-        renderBody(g, font, x, py, w, ph);
-        renderFlourish(g, font, x + w - 40, py + 4);
+        renderRelation(g, font, l.relation());
     }
 
-    /** Typed body text: wraps at word boundaries, follows the typing, scrolls back with the wheel. */
-    private void renderBody(GuiGraphics g, Font font, int x, int py, int w, int ph) {
-        int budget = cardOnly() ? 0 : shownChars();
+    /**
+     * Typed speech, at most three lines at once: it wraps at word boundaries, pages
+     * with the typing (a small "▸" says more follows), and the wheel pages back.
+     */
+    private void renderBody(GuiGraphics g, Font font, Rect body, int capacity) {
+        int budget = Math.max(0, shownChars());
         List<FormattedCharSequence> rows = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
         Entity npc = speaker();
+        int wrapW = body.width() - 10;
         for (int i = 0; i < plainLines.size(); i++) {
             String text = plainLines.get(i);
             if (budget <= 0) break;
@@ -372,13 +504,12 @@ public final class ConversationScreen extends Screen {
                 String tone = ConversationVoice.toneTag(state.lines().get(i).getString());
                 if (tone != null) ConversationVoice.tone(npc, i, tone);
             }
-            String shown = budget >= text.length() ? text : text.substring(0, budget);
-            if (budget < text.length()) current.append(shown);
+            int typed = Math.min(budget, text.length());
             budget -= text.length();
+            if (stripFlags[i]) continue;
             // Wrap the whole line, then keep only the typed part, so words never jump between rows.
-            int typed = shown.length();
             int used = 0;
-            for (FormattedCharSequence part : font.split(Component.literal(text), w - 14)) {
+            for (FormattedCharSequence part : font.split(Component.literal(text), wrapW)) {
                 StringBuilder sb = new StringBuilder();
                 part.accept((index, style, cp) -> {
                     sb.appendCodePoint(cp);
@@ -394,24 +525,27 @@ public final class ConversationScreen extends Screen {
         }
         // Voice follows the characters being revealed.
         if (npc != null && !typingDone()) {
-            ConversationVoice.reveal(npc, plainLines, lineKeys, Math.min(shownChars(), totalChars()));
+            ConversationVoice.reveal(npc, plainLines, lineKeys, Math.max(0, Math.min(shownChars(), totalChars())));
         }
-        int capacity = Math.max(1, (ph - 8) / 10);
-        int maxBack = Math.max(0, rows.size() - capacity);
+        int lastPage = Math.max(0, (rows.size() - 1) / capacity);
         if (!typingDone()) scrollBack = 0;
-        scrollBack = Mth.clamp(scrollBack, 0, maxBack);
-        int first = Math.max(0, rows.size() - capacity - scrollBack);
-        int ly = py + 5;
+        scrollBack = Mth.clamp(scrollBack, 0, lastPage);
+        int page = lastPage - scrollBack;
+        int first = page * capacity;
+        int ly = body.y() + 3;
         for (int i = first; i < Math.min(rows.size(), first + capacity); i++) {
-            g.drawString(font, rows.get(i), x + 7, ly, Ui2Palette.INK, false);
-            ly += 10;
+            g.drawString(font, rows.get(i), body.x(), ly, Ui2Palette.INK, false);
+            ly += BODY_LINE;
         }
-        if (first > 0) g.drawString(font, "▴", x + w - 10, py + 3, Ui2Palette.INK_MUTED, false);
-        if (first + capacity < rows.size()) g.drawString(font, "▾", x + w - 10, py + ph - 11, Ui2Palette.INK_MUTED, false);
-        else if (!typingDone() && (System.nanoTime() / 400_000_000L) % 2 == 0) {
-            g.drawString(font, "▸", x + w - 10, py + ph - 11, Ui2Palette.INK_MUTED, false);
+        int ax = body.right() - 7;
+        if (page > 0) g.drawString(font, "▴", ax, body.y() + 1, Ui2Palette.INK_MUTED, false);
+        if (page < lastPage) {
+            g.drawString(font, "▸", ax, body.bottom() - 10, Ui2Palette.INK_SOFT, false);
+        } else if (!typingDone() && (System.nanoTime() / 400_000_000L) % 2 == 0) {
+            g.drawString(font, "▸", ax, body.bottom() - 10, Ui2Palette.INK_MUTED, false);
         }
     }
+
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
@@ -420,25 +554,26 @@ public final class ConversationScreen extends Screen {
         return true;
     }
 
-    private void renderRelation(GuiGraphics g, Font font, int x, int y, int w) {
+    /** The relation on the parchment: its tier in ink and a thin bar from the centre. */
+    private void renderRelation(GuiGraphics g, Font font, Rect r) {
         Relations.Tier tier = Relations.tier(state.relation());
         Component label = Component.translatable(tier.langKey());
         int color = switch (tier) {
-            case HOSTILE -> Ui2Palette.DANGER_HIGHLIGHT;
-            case WARY -> Ui2Palette.AMBER;
-            case NEUTRAL -> BannerChrome.TEXT_ON_WOOD_MUTED;
-            case FRIENDLY, LOYAL -> com.hearthstead.client.ui2.Ui2Hud.GOOD;
+            case HOSTILE -> Ui2Palette.BURGUNDY;
+            case WARY -> 0xFF8A5A14;
+            case NEUTRAL -> Ui2Palette.INK_MUTED;
+            case FRIENDLY, LOYAL -> Ui2Palette.FOREST;
         };
-        BannerChrome.counterBox(g, x, y, w, 20);
-        g.drawString(font, label, x + (w - font.width(label)) / 2, y + 3, color, false);
-        int barX = x + 5;
-        int barW = w - 10;
-        g.fill(barX, y + 14, barX + barW, y + 16, Ui2Palette.IRON_DARK);
+        g.drawString(font, label, r.x() + (r.width() - font.width(label)) / 2, r.y() + 1, color, false);
+        int barX = r.x() + 4;
+        int barW = r.width() - 8;
+        g.fill(barX, r.y() + 12, barX + barW, r.y() + 14, Ui2Palette.INK_MUTED);
         int mid = barX + barW / 2;
         int pos = barX + Math.round(Relations.barFraction(state.relation()) * barW);
-        g.fill(Math.min(mid, pos), y + 14, Math.max(mid, pos), y + 16, color);
-        g.fill(mid, y + 13, mid + 1, y + 17, BannerChrome.TEXT_ON_WOOD_MUTED);
+        g.fill(Math.min(mid, pos), r.y() + 12, Math.max(mid, pos), r.y() + 14, color);
+        g.fill(mid, r.y() + 11, mid + 1, r.y() + 15, Ui2Palette.INK);
     }
+
 
     /** The persuasion seal: a wax disc stamps in, green check or red cross, with the rolled chance. */
     private void renderFlourish(GuiGraphics g, Font font, int x, int y) {
@@ -472,25 +607,27 @@ public final class ConversationScreen extends Screen {
         g.pose().popPose();
     }
 
-    private void renderOptions(GuiGraphics g, int x, int y, int w, int h, int mouseX, int mouseY) {
+    /** Replies: stacked full-width framed buttons (14 px a line), numbered 1-9 for the number keys. */
+    private void renderOptions(GuiGraphics g, Font font, PanelLayout l, List<List<FormattedCharSequence>> wrapped,
+                               int mouseX, int mouseY) {
         optionRects.clear();
         if (!optionsVisible()) return;
-        Font font = Minecraft.getInstance().font;
         List<OptionView> options = state.options();
-        List<List<FormattedCharSequence>> wrapped = wrappedOptions(font, w);
-        int gap = 3;
         Component tooltip = null;
-        int ry = y;
-        for (int i = 0; i < options.size(); i++) {
+        for (int i = 0; i < options.size() && i < l.options().size(); i++) {
             OptionView option = options.get(i);
             List<FormattedCharSequence> lines = wrapped.get(i);
-            int rowH = rowHeight(lines.size());
+            Rect r = l.options().get(i);
+            int x = r.x();
+            int ry = r.y();
+            int w = r.width();
+            int rowH = r.height();
             boolean hover = mouseX >= x && mouseX < x + w && mouseY >= ry && mouseY < ry + rowH;
             if (hover) focus = i;
             boolean selected = i == focus && option.enabled();
             BannerChrome.navPlate(g, x, ry, w, rowH, selected, hover ? 1.0F : 0.0F);
             int textColor = option.enabled() ? BannerChrome.TEXT_ON_WOOD : Ui2Palette.INK_DISABLED;
-            int ty = ry + (rowH - lines.size() * OPTION_LINE) / 2 + 1;
+            int ty = ry + (rowH - lines.size() * BUTTON_LINE) / 2 + 1;
             g.drawString(font, (i + 1) + ".", x + 6, ty, option.enabled() ? Ui2Palette.GOLD_SOFT : Ui2Palette.INK_DISABLED, false);
             int right = x + w - 6;
             int midY = ry + rowH / 2;
@@ -513,8 +650,8 @@ public final class ConversationScreen extends Screen {
                 right -= 16;
             }
             if (!option.enabled()) Ui2Surface.lockGlyph(g, right - 7, midY - 3, Ui2Palette.INK_DISABLED);
-            for (int l = 0; l < lines.size(); l++) {
-                g.drawString(font, lines.get(l), x + 20, ty + l * OPTION_LINE, textColor, false);
+            for (int k = 0; k < lines.size(); k++) {
+                g.drawString(font, lines.get(k), x + 20, ty + k * BUTTON_LINE, textColor, false);
             }
             optionRects.add(new int[] {x, ry, w, rowH});
             if (hover && !option.enabled()) {
@@ -525,10 +662,10 @@ public final class ConversationScreen extends Screen {
                         cost.icon().getHoverName(), cost.have());
                 }
             }
-            ry += rowH + gap;
         }
         if (tooltip != null) g.renderTooltip(font, tooltip, mouseX, mouseY);
     }
+
 
     // --------------------------------------------------------------- card ---
 
@@ -737,7 +874,12 @@ public final class ConversationScreen extends Screen {
     @Override
     public boolean keyPressed(int key, int scan, int modifiers) {
         if (cardOnly()) {
-            if (key == GLFW.GLFW_KEY_ESCAPE) return super.keyPressed(key, scan, modifiers);
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                // Esc skips the Guildmaster's intro into his welcome; elsewhere it leaves as before.
+                if (!welcome) return super.keyPressed(key, scan, modifiers);
+                endCard();
+                return true;
+            }
             // Keys still held from walking up never skip the card, and nothing skips it in its first 0.3 s.
             boolean movement = key == GLFW.GLFW_KEY_W || key == GLFW.GLFW_KEY_A || key == GLFW.GLFW_KEY_S
                 || key == GLFW.GLFW_KEY_D || key == GLFW.GLFW_KEY_SPACE || key == GLFW.GLFW_KEY_LEFT_SHIFT

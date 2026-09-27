@@ -47,6 +47,7 @@ public final class ConversationClient {
     public static void state(ConvStatePayload payload) {
         Minecraft mc = Minecraft.getInstance();
         boolean fresh = payload.session() != session;
+        boolean welcome = fresh && foundingWelcome(payload);
         state = payload;
         session = payload.session();
         npcId = payload.npcId();
@@ -54,7 +55,8 @@ public final class ConversationClient {
             // Owner: the big card only on the first meeting this session; repeats get a quick 0.4 s ease.
             net.minecraft.world.entity.Entity npc = mc.level == null ? null : mc.level.getEntity(payload.npcId());
             boolean firstMeeting = npc == null || MET.add(npc.getUUID());
-            cinematic = payload.mode() == 1 && firstMeeting;
+            // The founding welcome always gets its intro: the camera turns to the Guildmaster first.
+            cinematic = (payload.mode() == 1 && firstMeeting) || welcome;
             ConversationCamera.begin(payload.npcId(), cinematic, payload.style() == 1);
             com.hearthstead.client.sound.HsSound.ui("ui.conversation_open", net.minecraft.sounds.SoundEvents.BOOK_PAGE_TURN,
                 0.5F, 1.0F);
@@ -62,9 +64,20 @@ public final class ConversationClient {
         if (mc.screen instanceof ConversationScreen screen && screen.session() == payload.session()) {
             screen.update(payload);
         } else {
-            mc.setScreen(new ConversationScreen(payload, fresh && cinematic));
+            mc.setScreen(new ConversationScreen(payload, fresh && cinematic, welcome));
         }
     }
+
+    /**
+     * The Guildmaster's welcome after Raise banner (settlement/guildmaster/GuildmasterWelcome):
+     * recognised by its speaker title, so no payload changes are needed.
+     */
+    static boolean foundingWelcome(ConvStatePayload payload) {
+        return payload.title().getContents() instanceof net.minecraft.network.chat.contents.TranslatableContents t
+            && WELCOME_TITLE.equals(t.getKey());
+    }
+
+    static final String WELCOME_TITLE = "conversation.hearthstead.gm_welcome.title";
 
     public static void barter(ConvBarterPayload payload) {
         Minecraft mc = Minecraft.getInstance();
