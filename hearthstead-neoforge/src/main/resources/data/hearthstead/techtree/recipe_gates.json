@@ -77,6 +77,9 @@
       "hearthstead:iron_warhammer",
       "hearthstead:golden_warhammer",
       "hearthstead:golden_longsword"
+    ],
+    "arm_the_watch": [
+      "hearthstead:arrow_barrel"
     ]
   },
   "_doc_weapons": "Weapons lane (26 Sep): wooden/stone tiers -> first_watch (Barracks & Guard, day-one guards), iron/golden -> fortification (Armoury), diamond/netherite -> master_armoury. Move to watch.json unlocks_recipes when the watch lane takes them over."

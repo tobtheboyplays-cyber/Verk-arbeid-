@@ -28,6 +28,8 @@ public final class ModMenus {
 
     public static final DeferredHolder<MenuType<?>, MenuType<com.hearthstead.menu.FishRackMenu>> FISH_RACK =
         MENUS.register("fish_rack", () -> IMenuTypeExtension.create(com.hearthstead.menu.FishRackMenu::new));
+    public static final DeferredHolder<MenuType<?>, MenuType<com.hearthstead.menu.ArrowBarrelMenu>> ARROW_BARREL =
+        MENUS.register("arrow_barrel", () -> IMenuTypeExtension.create(com.hearthstead.menu.ArrowBarrelMenu::new));
 
     public static void register(IEventBus bus) {
         MENUS.register(bus);

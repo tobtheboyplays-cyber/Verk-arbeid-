@@ -25,42 +25,91 @@ public final class CommandClientState {
     private static FieldOrderStatePayload state;
     private static ClientLevel boundLevel;
     private static long receivedAt;
-    private static long changedAt;
-    private static final Map<Integer, Integer> SEEN_ORDER_IDS = new HashMap<>();
+    private static final OrderMarkerVisibility MARKERS = new OrderMarkerVisibility();
+    private static List<FieldOrderStatePayload.SlotEntry> issuedMarkers = List.of();
+    private static long issuedAt = Long.MIN_VALUE;
+    private static long now() { return System.nanoTime() / 1_000_000L; }
 
     public static void accept(FieldOrderStatePayload payload) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return;
-        boolean changed = state == null || payload.revision() != state.revision()
-            || !payload.slots().equals(state.slots());
+        if (boundLevel != mc.level) clear();
+        Map<Integer, OrderMarkerVisibility.Order> orders = new HashMap<>();
         for (FieldOrderStatePayload.GroupLine line : payload.groups()) {
-            Integer previous = SEEN_ORDER_IDS.put(line.group(), line.orderId());
-            if (previous == null || previous != line.orderId()) changed = true;
+            orders.put(line.group(), new OrderMarkerVisibility.Order(line.orderId(), line.holdFire()));
         }
+        MARKERS.snapshot(orders, now());
         state = payload;
         boundLevel = mc.level;
         receivedAt = System.currentTimeMillis();
-        if (changed) changedAt = receivedAt;
     }
 
     @SubscribeEvent
     public static void logout(ClientPlayerNetworkEvent.LoggingOut event) {
+        clear();
+    }
+
+    private static void clear() {
         state = null;
         boundLevel = null;
-        SEEN_ORDER_IDS.clear();
+        receivedAt = 0;
+        MARKERS.clear();
+        issuedMarkers = List.of();
+        issuedAt = Long.MIN_VALUE;
+    }
+
+    /** Local dispatch feedback, not a claim that the server accepted the order. */
+    public static void issued(Group group, FieldOrderRules.Kind kind) {
+        if (state() == null) return;
+        long time = now();
+        MARKERS.issued(time);
+        issuedAt = time;
+        List<FieldOrderStatePayload.SlotEntry> hints = new ArrayList<>();
+        if (kind == FieldOrderRules.Kind.RETURN || kind == FieldOrderRules.Kind.RESUPPLY) {
+            for (SettlerEntity soldier : inEarshot(group)) {
+                Group role = roleOf(soldier.getId());
+                if (role != null && (kind != FieldOrderRules.Kind.RESUPPLY || role == Group.ARCHERS)) {
+                    hints.add(new FieldOrderStatePayload.SlotEntry(soldier.getId(), role.wireId(),
+                        kind.wireId(), soldier.blockPosition(), true, false));
+                }
+            }
+        }
+        issuedMarkers = List.copyOf(hints);
+    }
+
+    public static List<FieldOrderStatePayload.SlotEntry> markerSlots() {
+        FieldOrderStatePayload current = state();
+        if (current == null) return List.of();
+        Map<Integer, FieldOrderStatePayload.SlotEntry> result = new java.util.LinkedHashMap<>();
+        for (var roster : current.roster()) {
+            result.put(roster.entityId(), new FieldOrderStatePayload.SlotEntry(roster.entityId(), roster.group(),
+                FieldOrderRules.Kind.LINE.wireId(), net.minecraft.core.BlockPos.ZERO, true, false));
+        }
+        for (var slot : current.slots()) result.put(slot.entityId(), slot);
+        long time = now();
+        if (issuedAt != Long.MIN_VALUE && time >= issuedAt && time - issuedAt < OrderMarkerVisibility.DISPLAY_MS) {
+            for (var slot : issuedMarkers) {
+                Group role = roleOf(slot.entityId());
+                if (role != null && role.wireId() == slot.group()) result.put(slot.entityId(), slot);
+            }
+        } else {
+            issuedMarkers = List.of();
+        }
+        return List.copyOf(result.values());
     }
 
     @Nullable
     public static FieldOrderStatePayload state() {
         Minecraft mc = Minecraft.getInstance();
-        if (state == null || mc.level != boundLevel) return null;
+        if (mc.level != boundLevel) { clear(); return null; }
+        if (state == null) return null;
         if (System.currentTimeMillis() - receivedAt > 10_000L) return null; // stale: server stopped syncing
         return state;
     }
 
     /** Milliseconds since the orders last changed (for the brief post-order dot display). */
     public static long millisSinceChange() {
-        return System.currentTimeMillis() - changedAt;
+        return MARKERS.age(now());
     }
 
     /** Role of a roster soldier by network id, or null if not a commandable soldier. */

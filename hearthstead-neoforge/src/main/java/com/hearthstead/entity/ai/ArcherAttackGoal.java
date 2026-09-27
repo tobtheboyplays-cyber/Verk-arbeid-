@@ -96,12 +96,25 @@ public class ArcherAttackGoal extends Goal {
 
     public static final double COUNTER_DAMAGE_MULTIPLIER = 1.25D;
 
-    /** Arrows the archer carries at once. Small on purpose: the quiver is a
-     *  handful borrowed from the tower rack, not a second warehouse. */
-    public static final int QUIVER_SIZE = SettlerEntity.ARCHER_QUIVER_CAPACITY;
+    /** Arrows a RECRUIT carries at once (owner, 27 Sep: six). Small on
+     *  purpose: the quiver is a handful borrowed from the tower rack, not a
+     *  second warehouse. Rank and a bigger Watchtower raise it -- see
+     *  {@link #quiverCapacity(SettlerEntity)}. SettlerEntity's
+     *  ARCHER_QUIVER_CAPACITY (16) stays the hard persisted ceiling and the
+     *  tower stock target the Courier/Hunter deliveries aim for. */
+    public static final int QUIVER_SIZE = ArcherRank.QUIVER_BASE;
     /** How far from the tower's room a restock (or return) still counts as
      *  "at the rack". */
     private static final int RESTOCK_REACH = 8;
+    /** Owner, 27 Sep: dry archers hold the line in battle; only the player's
+     *  RESUPPLY field order sends them to the rack. false = the old walk-back. */
+    static final boolean HOLD_THE_LINE = true;
+
+    /** This archer's quiver: rank ladder 6/8/10/12, +2 at a level-2+ tower. */
+    public static int quiverCapacity(SettlerEntity settler) {
+        Building tower = towerOf(settler);
+        return ArcherRank.of(settler).quiverCapacity(tower == null ? 1 : tower.level);
+    }
 
     /** The preferred fighting ring, in blocks. */
     public static final double PREFER_MIN = 8.0;
@@ -296,18 +309,41 @@ public class ArcherAttackGoal extends Goal {
             if (QaTrace.ENABLED) qaDecision("WRONG_QUIVER", target);
             return;
         }
-        if (quiverCount() <= 0 && !restock(level)) {
-            // Only a failed scan AT the assigned tower proves its rack empty.
-            // Distance and invalid employment are not evidence of missing stock.
-            Building employer = tower();
-            if (employer != null && nearTower(employer)) {
-                reportOutOfAmmo(level);
-            } else {
-                settler.setActivity(SettlerActivity.OUT_OF_AMMO);
+        if (ArcherResupplyGoal.returning(settler)) {
+            // Back from a player-called RESUPPLY, even if its source ran dry: rejoin the slot
+            // before loosing again, so the call never dissolves the formation.
+            // Guard/tower orders already return via RETURN_TO_ORDER below.
+            BlockPos slot = com.hearthstead.settlement.guard.BannerTeams.active(settler) != null
+                ? com.hearthstead.settlement.guard.BannerTeams.anchor(settler)
+                : movementOrder == null ? null : movementOrder.pos().orElse(null);
+            if (slot != null && settler.blockPosition().distSqr(slot) > 16.0D) {
+                if (settler.getNavigation().isDone() || level.getGameTime() % 20L == 0L) {
+                    settler.getNavigation().moveTo(slot.getX() + 0.5D, slot.getY(),
+                        slot.getZ() + 0.5D, 1.3D);
+                }
+                cancelDraw();
+                if (QaTrace.ENABLED) qaDecision("RETURN_AFTER_RESUPPLY", target);
+                return;
             }
-            walkTowardsTower(level);
+            ArcherResupplyGoal.arrived(settler);
+        }
+
+
+        if (quiverCount() <= 0 && !restock(level)) {
+            // Owner, 27 Sep: a dry archer HOLDS THE LINE. He does not leave
+            // his post or formation mid-fight to run for arrows; he stands,
+            // shows the arrow bubble over his head (OUT_OF_AMMO is synced
+            // and drawn by SettlerThoughtBubble) and waits. Out of combat
+            // ArcherResupplyGoal refills him at the rack. An archer whose
+            // post is AT the tower still restocks in place above.
+            reportOutOfAmmo(level);
+            if (HOLD_THE_LINE) {
+                settler.getNavigation().stop();
+            } else {
+                walkTowardsTower(level);
+            }
             cancelDraw();
-            if (QaTrace.ENABLED) qaDecision("RESTOCK_OR_RETURN", target);
+            if (QaTrace.ENABLED) qaDecision("DRY_HOLD", target);
             return;
         }
         if (outOfAmmoAnnounced) {
@@ -319,6 +355,7 @@ public class ArcherAttackGoal extends Goal {
             outOfAmmoAnnounced = false;
         }
         settler.setActivity(SettlerActivity.COMBAT);
+
 
         boolean summonsActive = Summons.active(settler);
         boolean activeTowerOrder = movementOrder != null
@@ -871,6 +908,12 @@ public class ArcherAttackGoal extends Goal {
      *  (D-011): employment lives on the building, never cached here. */
     @Nullable
     private Building tower() {
+        return towerOf(settler);
+    }
+
+    /** The WATCHTOWER that employs {@code settler}, or null (derived per call). */
+    @Nullable
+    public static Building towerOf(SettlerEntity settler) {
         Settlement settlement = settler.settlement();
         if (settlement == null) {
             return null;
@@ -886,6 +929,11 @@ public class ArcherAttackGoal extends Goal {
     }
 
     private boolean nearTower(Building tower) {
+        return nearTower(settler, tower);
+    }
+
+    /** Whether {@code settler} stands within reach of {@code tower}'s rack. */
+    public static boolean nearTower(SettlerEntity settler, Building tower) {
         if (tower.bounds != null
             && tower.bounds.inflatedBy(RESTOCK_REACH).isInside(settler.blockPosition())) {
             return true;
@@ -1070,17 +1118,11 @@ public class ArcherAttackGoal extends Goal {
      * </ul>
      */
     private void reportOutOfAmmo(ServerLevel level) {
+        // Owner, 27 Sep: no chat line, a bubble over his head instead. The
+        // cue is the arrow bubble SettlerThoughtBubble draws for the synced
+        // OUT_OF_AMMO activity. The episode flag stays as the test seam.
         settler.setActivity(SettlerActivity.OUT_OF_AMMO);
-        if (outOfAmmoAnnounced) {
-            return;
-        }
         outOfAmmoAnnounced = true;
-        Component message = Component.translatable("hearthstead.archer.no_arrows");
-        for (ServerPlayer player : level.players()) {
-            if (player.distanceToSqr(settler) <= ANNOUNCE_RANGE * ANNOUNCE_RANGE) {
-                player.displayClientMessage(message, false);
-            }
-        }
     }
 
     /**
@@ -1103,7 +1145,22 @@ public class ArcherAttackGoal extends Goal {
         if (quiverCount() > 0) {
             return settler.archerQuiverOwnedBy(tower.id);
         }
-        int need = QUIVER_SIZE - quiverCount();
+        return refillFromRack(level, settler, tower) >= 0
+            && settler.archerQuiverOwnedBy(tower.id);
+    }
+
+    /**
+     * Tops the quiver up to {@link #quiverCapacity(SettlerEntity)} from the
+     * tower's own chests, arrow for arrow (exact custody: every accepted
+     * arrow is removed from the chest in the same step). The caller must
+     * already have checked reach. Returns how many arrows moved.
+     */
+    public static int refillFromRack(ServerLevel level, SettlerEntity settler, Building tower) {
+        if (settler.archerQuiverCount() > 0 && !settler.archerQuiverOwnedBy(tower.id)) {
+            return 0;
+        }
+        int need = quiverCapacity(settler) - settler.archerQuiverCount();
+        int moved = 0;
         for (BlockPos pos : WarehouseIndex.containers(level, tower)) {
             if (need <= 0) {
                 break;
@@ -1119,7 +1176,7 @@ public class ArcherAttackGoal extends Goal {
                 int n = Math.min(need, stack.getCount());
                 int accepted = settler.storeArcherQuiverArrows(tower.id, n);
                 if (accepted <= 0) {
-                    return settler.archerQuiverOwnedBy(tower.id);
+                    return moved;
                 }
                 stack.shrink(accepted);
                 if (stack.isEmpty()) {
@@ -1127,9 +1184,27 @@ public class ArcherAttackGoal extends Goal {
                 }
                 chest.setChanged();
                 need -= accepted;
+                moved += accepted;
             }
         }
-        return settler.archerQuiverOwnedBy(tower.id);
+        return moved;
+    }
+
+    /** Plain arrows currently in {@code tower}'s rack (bounded container walk). */
+    public static int rackArrows(ServerLevel level, Building tower) {
+        int total = 0;
+        for (BlockPos pos : WarehouseIndex.containers(level, tower)) {
+            if (!(level.getBlockEntity(pos) instanceof Container chest)) {
+                continue;
+            }
+            for (int slot = 0; slot < chest.getContainerSize(); slot++) {
+                ItemStack stack = chest.getItem(slot);
+                if (stack.is(Items.ARROW)) {
+                    total += stack.getCount();
+                }
+            }
+        }
+        return total;
     }
 
     /**
@@ -1142,7 +1217,7 @@ public class ArcherAttackGoal extends Goal {
      */
     private void loadSuppliedBagArrows(Building tower) {
         if (quiverCount() != 0) return;
-        int need = QUIVER_SIZE;
+        int need = quiverCapacity(settler);
         for (int slot = 0; slot < settler.bag.getContainerSize() && need > 0; slot++) {
             ItemStack stack = settler.bag.getItem(slot);
             if (!stack.is(Items.ARROW) || !stack.getComponentsPatch().isEmpty()) continue;

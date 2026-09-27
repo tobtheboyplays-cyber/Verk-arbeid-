@@ -213,6 +213,15 @@
         "hearthstead.howto.fishers_chair.s2"
       ]
     },
+    "arrow_barrel": {
+      "page": "watch.quiver",
+      "use": "hearthstead.howto.arrow_barrel.use",
+      "steps": [
+        "hearthstead.howto.arrow_barrel.s1",
+        "hearthstead.howto.arrow_barrel.s2",
+        "hearthstead.howto.arrow_barrel.s3"
+      ]
+    },
     "fish_rack": {
       "page": "items.fishery",
       "use": "hearthstead.howto.fish_rack.use",
@@ -382,6 +391,7 @@
     "hearthstead:fishers_rod": "fishers_rod",
     "hearthstead:fishers_chair": "fishers_chair",
     "hearthstead:fish_rack": "fish_rack",
+    "hearthstead:arrow_barrel": "arrow_barrel",
     "hearthstead:ale_tap": "ale_tap",
     "hearthstead:butchering_table": "butchering_table",
     "hearthstead:flour": "goods",

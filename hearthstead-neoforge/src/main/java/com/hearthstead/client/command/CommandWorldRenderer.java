@@ -1,6 +1,9 @@
 package com.hearthstead.client.command;
 
 import com.hearthstead.Hearthstead;
+import com.hearthstead.HearthsteadClientConfig;
+import com.hearthstead.entity.SettlerEntity;
+import com.hearthstead.entity.SettlerActivity;
 import com.hearthstead.network.FieldOrderStatePayload;
 import com.hearthstead.settlement.guard.FieldOrderRules.Group;
 import com.hearthstead.settlement.guard.FieldOrderRules.Kind;
@@ -30,13 +33,13 @@ import java.util.List;
  * slot at the aimed spot (steel for knights, green for archers, red where a
  * soldier cannot stand), plus a chevron for the facing. After an order, and
  * while commanding, faint dots mark each soldier's assigned spot. A small
- * order icon floats over every soldier holding an order.
+ * order icon appears contextually while commanding, after orders, or for attention.
  */
 @EventBusSubscriber(modid = Hearthstead.MODID, value = Dist.CLIENT)
 public final class CommandWorldRenderer {
     private static final int INVALID_RGB = CommandStyle.INVALID_RGB;
     private static final int ENEMY_RGB = 0xF08A3C;
-    private static final long ACTIVE_DOTS_AFTER_ORDER_MS = 4000L;
+    private static final long ACTIVE_DOTS_AFTER_ORDER_MS = OrderMarkerVisibility.DISPLAY_MS;
     private static final double ICON_RANGE_SQR = 40.0D * 40.0D;
 
     @SubscribeEvent
@@ -73,7 +76,7 @@ public final class CommandWorldRenderer {
         }
         buffers.endBatch(RenderType.debugQuads());
 
-        if (state != null && !state.slots().isEmpty()) {
+        if (state != null) {
             drawIcons(mc, pose, buffers, cam, state, partial);
         }
     }
@@ -106,11 +109,16 @@ public final class CommandWorldRenderer {
 
     private static void drawIcons(Minecraft mc, PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam,
                                   FieldOrderStatePayload state, float partial) {
-        for (FieldOrderStatePayload.SlotEntry slot : state.slots()) {
+        for (FieldOrderStatePayload.SlotEntry slot : CommandClientState.markerSlots()) {
             Entity soldier = mc.level.getEntity(slot.entityId());
-            if (soldier == null || soldier.distanceToSqr(mc.player) > ICON_RANGE_SQR || soldier.isInvisible()) {
+            if (!(soldier instanceof SettlerEntity settler) || !soldier.isAlive() || soldier.distanceToSqr(mc.player) > ICON_RANGE_SQR || soldier.isInvisible()) {
                 continue;
             }
+            boolean attention = OrderMarkerVisibility.needsAttention(
+                settler.getActivity() == SettlerActivity.OUT_OF_AMMO, settler.getHealth(), settler.getMaxHealth());
+            if (!OrderMarkerVisibility.visible(HearthsteadClientConfig.alwaysShowOrderMarkers(),
+                    CommandKeys.commanding(), CommandClientState.millisSinceChange() < OrderMarkerVisibility.DISPLAY_MS,
+                    attention)) continue;
             Group arm = Group.fromWire(slot.group()).orElse(Group.KNIGHTS);
             Kind kind = slot.holdFire() ? Kind.HOLD_FIRE : Kind.fromWire(slot.kind()).orElse(Kind.LINE);
             Vec3 at = soldier.getPosition(partial);

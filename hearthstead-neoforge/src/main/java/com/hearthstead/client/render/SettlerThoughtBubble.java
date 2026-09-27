@@ -56,6 +56,12 @@ public final class SettlerThoughtBubble {
     private static final long FADE_IN_MS = 150L;
     private static final double NEAR_SQ = 6.0D * 6.0D;
     private static final double TARGETED_SQ = 12.0D * 12.0D;
+    /** Out-of-arrows bubble: readable across a battlefield (owner, 27 Sep). */
+    private static final double DRY_RANGE = 24.0D;
+    private static final float DRY_SCALE = 1.6F;
+    private static final long DRY_KEY = 2_000_000L;
+    /** Our own prop arrow icon; created lazily, after registries are frozen. */
+    private static ItemStack dryArrow;
 
     private static final int LINEN = 0xF1E6CF;
     private static final int WALNUT = 0x5A3E2B;
@@ -121,7 +127,11 @@ public final class SettlerThoughtBubble {
         float appear = Mth.clamp((now - state[0]) / (float) FADE_IN_MS, 0.0F, 1.0F);
         appear = appear * appear * (3.0F - 2.0F * appear);
         double distance = Math.sqrt(dispatcher.distanceToSqr(entity));
-        float fade = appear * Mth.clamp((float) ((12.0D - distance) / 2.0D), 0.0F, 1.0F);
+        boolean dry = thought.key() == DRY_KEY;
+        // The larger dry bubble sits a little higher, clear of the name plate.
+        double lift = dry ? 0.2D : 0.0D;
+        float fade = appear * Mth.clamp((float) (((dry ? DRY_RANGE : 12.0D) - distance) / 2.0D),
+            0.0F, 1.0F);
         if (fade <= 0.02F) {
             return true;
         }
@@ -138,14 +148,14 @@ public final class SettlerThoughtBubble {
         // row of blocked workers does not breathe in unison.
         float t = entity.tickCount + partialTick + (entity.getId() & 63) * 3.0F;
         double bob = Mth.sin(t * 0.07F) * 0.5F * PX;
-        float grow = 0.9F + 0.1F * appear;
+        float grow = (0.9F + 0.1F * appear) * (dry ? DRY_SCALE : 1.0F);
 
         pose.pushPose();
-        pose.translate(0.0D, entity.getBbHeight() + BASE_HEIGHT + bob, 0.0D);
+        pose.translate(0.0D, entity.getBbHeight() + BASE_HEIGHT + lift + bob, 0.0D);
         pose.mulPose(dispatcher.cameraOrientation());
         // Same near-distance cap as the name plate (QA gate: huge up close).
         float near = SettlerRenderer.nearLabelScale(entity.getPosition(partialTick)
-            .add(0.0, entity.getBbHeight() + BASE_HEIGHT + bob, 0.0)
+            .add(0.0, entity.getBbHeight() + BASE_HEIGHT + lift + bob, 0.0)
             .distanceTo(dispatcher.camera.getPosition()));
         pose.scale(PX * grow * near, -PX * grow * near, PX * grow * near);
 
@@ -203,6 +213,11 @@ public final class SettlerThoughtBubble {
             return false;
         }
         SettlerActivity activity = entity.getActivity();
+        if (activity == SettlerActivity.OUT_OF_AMMO) {
+            // A dry archer holding the line: an arrow bubble over his head,
+            // visible from across the field, no crosshair needed.
+            return dispatcher.distanceToSqr(entity) <= DRY_RANGE * DRY_RANGE;
+        }
         if (activity == SettlerActivity.SLEEPING
             || activity == SettlerActivity.COMBAT
             || activity == SettlerActivity.FLEEING) {
@@ -223,6 +238,12 @@ public final class SettlerThoughtBubble {
      * pressing need, so at most one bubble is ever drawn.
      */
     private static Thought thoughtFor(SettlerEntity entity) {
+        if (entity.getActivity() == SettlerActivity.OUT_OF_AMMO) {
+            if (dryArrow == null) {
+                dryArrow = new ItemStack(com.hearthstead.registry.PropItems.ARROW.get());
+            }
+            return new Thought(DRY_KEY, dryArrow);
+        }
         ItemStack tool = entity.requestedEquipmentIcon();
         if (!tool.isEmpty()) {
             return new Thought(1000L + BuiltInRegistries.ITEM.getId(tool.getItem()), tool);

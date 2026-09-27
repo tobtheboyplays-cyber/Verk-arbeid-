@@ -48,6 +48,10 @@ public final class ModBlocks {
     public static final DeferredHolder<Block, com.hearthstead.block.FishRackBlock> FISH_RACK = BLOCKS.register("fish_rack",
         () -> new com.hearthstead.block.FishRackBlock(BlockBehaviour.Properties.of()
             .mapColor(MapColor.WOOD).strength(1.5F).sound(SoundType.WOOD).noOcclusion()));
+    /** Arrows-only barrel archers refill from (owner, 27 Sep: "piltonna"). */
+    public static final DeferredHolder<Block, com.hearthstead.block.ArrowBarrelBlock> ARROW_BARREL = BLOCKS.register("arrow_barrel",
+        () -> new com.hearthstead.block.ArrowBarrelBlock(BlockBehaviour.Properties.of()
+            .mapColor(MapColor.WOOD).strength(2.5F).sound(SoundType.WOOD)));
     public static final DeferredHolder<Block, com.hearthstead.block.FishersChairBlock> FISHERS_CHAIR = BLOCKS.register("fishers_chair",
         () -> new com.hearthstead.block.FishersChairBlock(BlockBehaviour.Properties.of()
             .mapColor(MapColor.WOOD).strength(1.5F).sound(SoundType.WOOD).noOcclusion()));

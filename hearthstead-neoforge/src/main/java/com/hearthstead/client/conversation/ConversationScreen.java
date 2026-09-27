@@ -393,9 +393,10 @@ public final class ConversationScreen extends Screen {
         return text;
     }
 
-    /** Shared-talk notices ("Waiting for …", "… chose: …") go in the strip, not the speech. */
+    /** Short shared status stays in the strip; the full waiting instruction uses the paged body. */
     static boolean stripLine(Component line) {
-        return line.getContents() instanceof TranslatableContents t && t.getKey().startsWith(SHARED_PREFIX);
+        return line.getContents() instanceof TranslatableContents t && t.getKey().startsWith(SHARED_PREFIX)
+            && !t.getKey().equals(SHARED_PREFIX + "waiting_hint");
     }
 
     /** The widest part of the panel's content: name block, a reply, or a speech line. */
@@ -514,11 +515,13 @@ public final class ConversationScreen extends Screen {
             float offset = living.getEyeHeight() - living.getBbHeight() / 2.0F + 0.08F;
             Runnable drawPortrait = () -> InventoryScreen.renderEntityInInventoryFollowsAngle(g,
                 pr.x() + 2, pr.y() + 2, pr.right() - 2, pr.bottom() - 2, 24, offset, 0.18F, -0.05F, living);
-            if (living instanceof SettlerEntity settler) {
-                SettlerRenderer.withoutPortraitLabels(settler, drawPortrait);
-            } else {
-                drawPortrait.run();
-            }
+            com.hearthstead.client.render.PortraitLabels.withoutLabels(living, () -> {
+                if (living instanceof SettlerEntity settler) {
+                    SettlerRenderer.withoutPortraitLabels(settler, drawPortrait);
+                } else {
+                    drawPortrait.run();
+                }
+            });
         }
         Rect hd = l.header();
         String name = state.name().getString();

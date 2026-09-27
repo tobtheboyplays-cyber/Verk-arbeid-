@@ -54,6 +54,25 @@
       ]
     },
     {
+      "id": "watch.quiver",
+      "title": "hearthstead.guide.watch.quiver.title",
+      "bullets": [
+        "hearthstead.guide.watch.quiver.b1",
+        "hearthstead.guide.watch.quiver.b2",
+        "hearthstead.guide.watch.quiver.b3",
+        "hearthstead.guide.watch.quiver.b4"
+      ],
+      "items": [
+        "hearthstead:arrow_barrel",
+        "minecraft:arrow",
+        "hearthstead:archer_emblem"
+      ],
+      "tip": "hearthstead.guide.watch.quiver.tip",
+      "recipes": [
+        "hearthstead:arrow_barrel"
+      ]
+    },
+    {
       "id": "watch.colours",
       "title": "hearthstead.guide.watch.colours.title",
       "bullets": [

@@ -1068,6 +1068,10 @@ public class SettlerEntity extends PathfinderMob {
         // An Archer with no order holds its own tower by default; every real
         // order, field order, summons or alert outranks it (reliability soak).
         goalSelector.addGoal(6, new com.hearthstead.entity.ai.ArcherDefaultPostGoal(this));
+        // Peacetime quiver top-up at the Watchtower rack (owner, 27 Sep: 6 arrows).
+        goalSelector.addGoal(3, new com.hearthstead.entity.ai.ArcherResupplyGoal(this));
+        // The player's RESUPPLY field order: the only thing that pulls a dry archer out of the line.
+        goalSelector.addGoal(1, new com.hearthstead.entity.ai.ArcherResupplyGoal(this, true));
         goalSelector.addGoal(7, new ReturnToSettlementGoal(this));
         // Modest, and lower than every trade: greeting the captain is what a
         // settler does between real things, never instead of them.

@@ -32,6 +32,7 @@ public final class ModCreativeTabs {
                 output.accept(ModItems.PLAQUE.get());
                 output.accept(ModItems.ALE_TAP.get());
                 output.accept(ModItems.FISH_RACK.get());
+                output.accept(ModItems.ARROW_BARREL.get());
                 output.accept(ModItems.FISHERS_CHAIR.get());
                 output.accept(ModItems.BUTCHERING_TABLE.get());
                 output.accept(ModItems.FISHERS_ROD.get());

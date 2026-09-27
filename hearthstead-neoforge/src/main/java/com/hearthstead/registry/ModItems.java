@@ -84,6 +84,8 @@ public final class ModItems {
 
     public static final DeferredHolder<Item, BlockItem> FISH_RACK = ITEMS.register("fish_rack",
         () -> new BlockItem(ModBlocks.FISH_RACK.get(), new Item.Properties()));
+    public static final DeferredHolder<Item, BlockItem> ARROW_BARREL = ITEMS.register("arrow_barrel",
+        () -> new BlockItem(ModBlocks.ARROW_BARREL.get(), new Item.Properties()));
     public static final DeferredHolder<Item, BlockItem> FISHERS_CHAIR = ITEMS.register("fishers_chair",
         () -> new BlockItem(ModBlocks.FISHERS_CHAIR.get(), new Item.Properties()));
 

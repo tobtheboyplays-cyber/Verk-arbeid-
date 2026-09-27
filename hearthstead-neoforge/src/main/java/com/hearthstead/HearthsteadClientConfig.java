@@ -24,6 +24,7 @@ public final class HearthsteadClientConfig {
     public static final ModConfigSpec.BooleanValue MOTION_SECONDARY;
     public static final boolean DEFAULT_COMBAT_CAMERA_SHAKE = true;
     public static final ModConfigSpec.BooleanValue COMBAT_CAMERA_SHAKE;
+    public static final ModConfigSpec.BooleanValue ALWAYS_SHOW_ORDER_MARKERS;
     public static final ModConfigSpec.BooleanValue FINISHER_GLOW_PARTICLES;
     public static final ModConfigSpec.BooleanValue FINISHER_FIRST_PERSON;
     public static final ModConfigSpec.BooleanValue CONVERSATION_CAMERA;
@@ -69,6 +70,9 @@ public final class HearthsteadClientConfig {
             .define("secondaryMotion", true);
         builder.pop();
         builder.comment("Combat presentation.").push("combat");
+        ALWAYS_SHOW_ORDER_MARKERS = builder
+            .comment("Always show soldier order icons; otherwise show while commanding, briefly after orders, or when attention is needed.")
+            .define("alwaysShowOrderMarkers", false);
         COMBAT_CAMERA_SHAKE = builder
             .comment("Short camera shake when a Brute's club slams the ground near you.",
                 "Also scaled by the vanilla Distortion Effects accessibility slider.")
@@ -169,6 +173,10 @@ public final class HearthsteadClientConfig {
     }
 
     /** Safe before the client config has loaded (falls back to the default). */
+    public static boolean alwaysShowOrderMarkers() {
+        return read(ALWAYS_SHOW_ORDER_MARKERS, false);
+    }
+
     public static boolean combatCameraShake() {
         return read(COMBAT_CAMERA_SHAKE, DEFAULT_COMBAT_CAMERA_SHAKE);
     }

@@ -489,6 +489,7 @@ public final class FieldOrders {
                 continue;
             }
             if (armKind == Kind.RESUPPLY) {
+                com.hearthstead.entity.ai.ArcherResupplyGoal.call(roster.heard, now);
                 // The archer quiver lane owns the resupply trip; it never replaces the standing order.
                 heard += roster.heard.size();
                 if (!roster.heard.isEmpty()) outcome = Refusal.NONE;

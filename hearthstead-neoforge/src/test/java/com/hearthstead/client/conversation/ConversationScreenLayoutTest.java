@@ -112,4 +112,20 @@ class ConversationScreenLayoutTest {
         assertTrue(ConversationScreen.WELCOME_SECONDS > 2.5F && ConversationScreen.WELCOME_SECONDS <= 4.0F);
         assertEquals("conversation.hearthstead.gm_welcome.title", ConversationClient.WELCOME_TITLE);
     }
+    @org.junit.jupiter.api.Test
+    void waitingDistanceInstructionUsesTheUntruncatedPagedBody() {
+        var status = net.minecraft.network.chat.Component.translatable(
+            "conversation.hearthstead.shared.waiting", "Partner", 1, 2);
+        var instruction = net.minecraft.network.chat.Component.translatable(
+            "conversation.hearthstead.shared.waiting_hint", 12);
+        org.junit.jupiter.api.Assertions.assertTrue(ConversationScreen.stripLine(status));
+        org.junit.jupiter.api.Assertions.assertFalse(ConversationScreen.stripLine(instruction));
+        org.junit.jupiter.api.Assertions.assertFalse(ConversationScreen.stripLine(
+            net.minecraft.network.chat.Component.literal("Ordinary dialogue")));
+        // Any wrapped instruction length still gets at most the approved three body rows.
+        var shortBody = ConversationScreen.layoutFor(640, 360, 400, 3, new int[]{1}, 1);
+        var longBody = ConversationScreen.layoutFor(640, 360, 400, 12, new int[]{1}, 1);
+        org.junit.jupiter.api.Assertions.assertEquals(shortBody.panel(), longBody.panel());
+        org.junit.jupiter.api.Assertions.assertEquals(3, longBody.bodyLines());
+    }
 }

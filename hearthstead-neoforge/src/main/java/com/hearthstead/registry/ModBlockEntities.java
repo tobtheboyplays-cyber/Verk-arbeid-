@@ -27,6 +27,10 @@ public final class ModBlockEntities {
         FISH_RACK = BLOCK_ENTITIES.register("fish_rack", () -> BlockEntityType.Builder.of(
             com.hearthstead.block.FishRackBlockEntity::new, ModBlocks.FISH_RACK.get()).build(null));
 
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.hearthstead.block.ArrowBarrelBlockEntity>>
+        ARROW_BARREL = BLOCK_ENTITIES.register("arrow_barrel", () -> BlockEntityType.Builder.of(
+            com.hearthstead.block.ArrowBarrelBlockEntity::new, ModBlocks.ARROW_BARREL.get()).build(null));
+
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<com.hearthstead.block.ButcheringTableBlockEntity>>
         BUTCHERING_TABLE = BLOCK_ENTITIES.register("butchering_table", () -> BlockEntityType.Builder.of(
             com.hearthstead.block.ButcheringTableBlockEntity::new, ModBlocks.BUTCHERING_TABLE.get()).build(null));

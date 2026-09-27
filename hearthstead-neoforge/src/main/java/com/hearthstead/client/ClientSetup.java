@@ -23,6 +23,7 @@ public final class ClientSetup {
         event.register(ModMenus.HEARTH.get(), HearthScreen::new);
         event.register(ModMenus.SETTLER_INVENTORY.get(), SettlerInventoryScreen::new);
         event.register(ModMenus.FISH_RACK.get(), com.hearthstead.client.screen.FishRackScreen::new);
+        event.register(ModMenus.ARROW_BARREL.get(), com.hearthstead.client.screen.ArrowBarrelScreen::new);
     }
 
     @SubscribeEvent

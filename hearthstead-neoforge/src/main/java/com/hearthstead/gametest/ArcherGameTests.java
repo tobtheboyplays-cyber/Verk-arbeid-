@@ -304,7 +304,7 @@ public class ArcherGameTests {
             helper.assertTrue(ItemStack.matches(named,archer.bag.getItem(0)),"unsupported named arrows remain exact and unconsumed");
             if (goal.shotsFired()>0 && target.getHealth()<originalHealth) {
                 helper.assertTrue(goal.quiverCount()>0 && archer.archerQuiverOwnedBy(tower.id),"actual supplied arrows bind to current employer");
-                helper.assertTrue(countOf(archer.bag,Items.ARROW)==131-ArcherAttackGoal.QUIVER_SIZE,
+                helper.assertTrue(countOf(archer.bag,Items.ARROW)==131-ArcherAttackGoal.quiverCapacity(archer),
                     "only the bounded quiver load leaves the full bag; all excess stays carried");
                 CompoundTag saved=new CompoundTag(); archer.saveWithoutId(saved);
                 SettlerEntity loaded=ModEntities.SETTLER.get().create(helper.getLevel());
@@ -386,7 +386,8 @@ public class ArcherGameTests {
         Settlement settlement = settlement(helper);
         Building watchtower = tower(helper, settlement, 2, 2);
         Container rack = chestAt(helper, new BlockPos(3, 1, 3));
-        stockArcherRack(rack, ArcherAttackGoal.QUIVER_SIZE);
+        int initialStock = SettlerEntity.ARCHER_QUIVER_CAPACITY;
+        stockArcherRack(rack, initialStock);
 
         SettlerEntity archer = settler(helper, settlement, "Lagerfast", 4, 4);
         helper.assertTrue(
@@ -441,18 +442,18 @@ public class ArcherGameTests {
             helper.assertTrue(loaded.archerQuiverOwnedBy(watchtower.id),
                 "reload must retain exact source-tower ownership");
             helper.assertTrue(inRack + loadedGoal.quiverCount()
-                    + goal.shotsFired() == ArcherAttackGoal.QUIVER_SIZE,
+                    + goal.shotsFired() == initialStock,
                 "reload broke conservation: rack " + inRack + " + quiver "
                     + loadedGoal.quiverCount() + " + loosed "
                     + goal.shotsFired());
 
             CompoundTag overflow = save.copy();
             overflow.putInt(SettlerEntity.ARCHER_QUIVER_NBT_KEY,
-                ArcherAttackGoal.QUIVER_SIZE + 99);
+                SettlerEntity.ARCHER_QUIVER_CAPACITY + 99);
             loaded.readAdditionalSaveData(overflow);
             helper.assertTrue(loaded.archerQuiverCount()
-                    == ArcherAttackGoal.QUIVER_SIZE,
-                "malformed reload must clamp quiver ownership to its bound");
+                    == SettlerEntity.ARCHER_QUIVER_CAPACITY,
+                "malformed reload must clamp quiver ownership to its persisted bound");
 
             Building towerB = tower(helper, settlement, 9, 2);
             chestAt(helper, new BlockPos(10, 1, 3));
@@ -466,7 +467,7 @@ public class ArcherGameTests {
                 "a normal reassignment must settle Tower A's quiver first");
             helper.assertTrue(archer.archerQuiverCount() == 0
                     && archer.archerQuiverSourceBuildingId() == null
-                    && countOf(rack, Items.ARROW) == ArcherAttackGoal.QUIVER_SIZE,
+                    && countOf(rack, Items.ARROW) == initialStock,
                 "A->B reassignment must return every borrowed shaft to A and clear provenance");
 
             helper.assertTrue(Employment.hire(helper.getLevel(), settlement,
@@ -834,7 +835,7 @@ public class ArcherGameTests {
      * above, and the pressure that makes the fletcher worth hiring: the
      * archer stands the post empty-handed rather than conjuring ammunition.
      */
-    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 600)
+    @GameTest(batch = "archer", template = "empty16", timeoutTicks = 1000)
     public void anEmptyTowerMeansNoShots(GameTestHelper helper) {
         floor(helper, 16);
         Settlement s = settlement(helper);
@@ -857,20 +858,39 @@ public class ArcherGameTests {
         archer.setTarget(pell);
 
         boolean[] returning = {false};
+        boolean[] fightOver = {false};
+        net.minecraft.world.phys.Vec3[] heldAt = {null};
         // Register observers before ticking starts: adding scheduled callbacks
         // inside a scheduled callback mutates GameTest's active iterator.
         helper.onEachTick(() -> {
             if (!returning[0]) return;
-            helper.assertTrue(!goal.outOfAmmoAnnounced(),
-                "returning to stocked storage must not announce empty storage");
             helper.assertTrue(countOf(rack, Items.ARROW) + goal.quiverCount()
                     + goal.shotsFired() == 16,
-                "return/refill/fire must conserve the same sixteen arrows");
+                "hold/refill must conserve the same sixteen arrows");
+            if (fightOver[0]) return;
+            // Owner, 27 Sep: a dry archer holds the line mid-fight; he does
+            // not leave his place to run for the rack.
+            helper.assertTrue(goal.shotsFired() == 0,
+                "a dry archer away from the rack looses nothing");
+            helper.assertTrue(archer.position().distanceTo(heldAt[0]) < 2.5D,
+                "a dry archer holds his place in battle, moved to " + archer.position());
+            if (helper.getTick() > 330) {
+                helper.assertTrue(goal.outOfAmmoAnnounced()
+                        && archer.getActivity() == com.hearthstead.entity.SettlerActivity.OUT_OF_AMMO,
+                    "the dry archer shows the out-of-arrows bubble");
+                fightOver[0] = true;
+                pell.discard();
+                archer.setTarget(null);
+            }
         });
         helper.succeedWhen(() -> {
-            helper.assertTrue(returning[0] && goal.shotsFired() > 0
-                    && pell.getHealth() < pellMax,
-                "normal AI must return, physically refill and hit the hostile");
+            int cap = ArcherAttackGoal.quiverCapacity(archer);
+            helper.assertTrue(fightOver[0] && goal.quiverCount() == cap
+                    && archer.archerQuiverOwnedBy(tower.id)
+                    && countOf(rack, Items.ARROW) == 16 - cap,
+                "after the fight normal AI must walk to the rack and refill to " + cap
+                    + " (quiver " + goal.quiverCount() + ", rack " + countOf(rack, Items.ARROW) + ") "
+                    + diag(archer));
         });
         helper.runAfterDelay(250, () -> {
             helper.assertTrue(goal.shotsFired() == 0,
@@ -886,24 +906,30 @@ public class ArcherGameTests {
             goal.stop();
             goal.start();
             helper.assertTrue(goal.outOfAmmoAnnounced(),
-                "goal restart must not announce the same empty rack again");
+                "goal restart must keep the same dry episode");
             rack.setItem(0, new ItemStack(Items.ARROW, 16));
             archer.setTarget(pell);
             goal.tick();
-            helper.assertTrue(!goal.outOfAmmoAnnounced() && goal.quiverCount() == 16,
-                "physical restock must end the starvation episode");
+            int cap = ArcherAttackGoal.quiverCapacity(archer);
+            helper.assertTrue(!goal.outOfAmmoAnnounced() && goal.quiverCount() == cap
+                    && countOf(rack, Items.ARROW) == 16 - cap,
+                "physical restock fills the quiver to its capacity (" + cap
+                    + ") and ends the starvation episode, got " + goal.quiverCount());
             // Move the SAME physical ammunition back to the rack and put the
-            // archer outside refill reach. Normal AI must return and fire;
-            // no test tick, teleport or navigation command drives the recovery.
-            int returned = archer.takeArcherQuiverArrows(16);
-            rack.setItem(0, new ItemStack(Items.ARROW, returned));
+            // archer outside refill reach, target still alive. He must hold
+            // the line dry; after the fight normal AI refills him.
+            int returned = archer.takeArcherQuiverArrows(cap);
+            rack.setItem(0, new ItemStack(Items.ARROW, countOf(rack, Items.ARROW) + returned));
+            rack.setItem(1, ItemStack.EMPTY);
             tower.bounds = BoundingBox.fromCorners(
                 helper.absolutePos(new BlockPos(1, 1, 1)),
                 helper.absolutePos(new BlockPos(3, 4, 3)));
             BlockPos away = helper.absolutePos(new BlockPos(15, 1, 14));
             archer.moveTo(away.getX() + 0.5, away.getY(), away.getZ() + 0.5);
-            helper.assertTrue(goal.quiverCount() == 0 && !goal.outOfAmmoAnnounced(),
-                "fixture must begin the return with an empty quiver and no warning");
+            helper.assertTrue(goal.quiverCount() == 0 && !goal.outOfAmmoAnnounced()
+                    && countOf(rack, Items.ARROW) == 16,
+                "fixture must begin the hold with an empty quiver, no warning, 16 in the rack");
+            heldAt[0] = archer.position();
             returning[0] = true;
         });
     }

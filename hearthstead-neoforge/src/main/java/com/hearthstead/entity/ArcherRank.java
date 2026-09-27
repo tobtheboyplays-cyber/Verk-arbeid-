@@ -184,6 +184,29 @@ public enum ArcherRank {
         return of(settler.attribute(Attribute.DEXTERITY));
     }
 
+    // ------------------------------------------------------------ quiver ---
+
+    /** Arrows a RECRUIT carries: owner, 27 Sep -- "archers kan baere 6 piler". */
+    public static final int QUIVER_BASE = 6;
+    /** A Watchtower upgraded to level 2+ lets each of its archers carry this many more. */
+    public static final int TOWER_LEVEL_QUIVER_BONUS = 2;
+    /** Hard ceiling: the persisted carried-arrow authority on SettlerEntity. */
+    public static final int QUIVER_CEILING = 16;
+
+    /**
+     * How many arrows an archer of this rank carries at once. The rank is
+     * what the player sees grow, so the quiver grows with it:
+     * Recruit 6, Marksman 8, Sharpshooter 10, Master Archer 12, +2 for a
+     * level-2+ Watchtower, never above {@link #QUIVER_CEILING}.
+     */
+    public int quiverCapacity(int towerLevel) {
+        int carried = QUIVER_BASE + 2 * ordinal();
+        if (towerLevel >= 2) {
+            carried += TOWER_LEVEL_QUIVER_BONUS;
+        }
+        return Math.min(QUIVER_CEILING, carried);
+    }
+
     public boolean atLeast(ArcherRank other) {
         return ordinal() >= other.ordinal();
     }

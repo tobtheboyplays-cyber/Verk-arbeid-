@@ -105,12 +105,10 @@ public final class CommandKeys {
         }
     }
 
-    /** The strip for each key: R follow / posts; G hold fire / follow / posts.
-     *  RESUPPLY stays in the enum and on the wire, but is off the strip until
-     *  the archer resupply behaviour ships (a chip that does nothing lies). */
+    /** The strip: R follow / posts; G hold fire / follow / posts / resupply. */
     public static List<MenuItem> menuItems(Group group) {
         return group == Group.RANGED
-            ? List.of(MenuItem.HOLD_FIRE, MenuItem.FOLLOW, MenuItem.RETURN)
+            ? List.of(MenuItem.HOLD_FIRE, MenuItem.FOLLOW, MenuItem.RETURN, MenuItem.RESUPPLY)
             : List.of(MenuItem.FOLLOW, MenuItem.RETURN);
     }
 
@@ -283,6 +281,7 @@ public final class CommandKeys {
         PacketDistributor.sendToServer(new FieldOrderRequestPayload(group.wireId(), kind.wireId(),
             pos == null ? FieldOrderRequestPayload.NO_POS : pos, octant,
             Math.max(FormationMath.MIN_WIDTH, Math.min(FormationMath.MAX_WIDTH, width)), enemyId));
+        CommandClientState.issued(group, kind);
     }
 
     private static void pickMenu(Minecraft mc, int index) {
