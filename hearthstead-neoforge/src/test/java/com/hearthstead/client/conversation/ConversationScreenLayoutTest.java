@@ -12,7 +12,8 @@ import org.junit.jupiter.api.Test;
 /**
  * The compact talk panel (27 Sep): bottom-centre above the hotbar, fitted to its
  * content between 260 and 440 GUI px, at most three speech lines, and nothing in
- * it overlaps, from 427x240 up to 1920x1080 at GUI 2-4.
+ * it overlaps, from 427x240 up to 1920x1080 at GUI 2-4, in three
+ * zones (header bar, text box, answer area) that never overlap.
  */
 class ConversationScreenLayoutTest {
     private static final int[][] VIEWPORTS = {{960, 540}, {640, 360}, {480, 270}, {427, 240}};
@@ -23,15 +24,38 @@ class ConversationScreenLayoutTest {
         assertTrue(p.width() >= Math.min(ConversationScreen.MIN_W, vw - 16) && p.width() <= ConversationScreen.MAX_W,
             at + ": width " + p.width());
         assertEquals(vw / 2, p.x() + p.width() / 2, 1, at + ": centred");
-        List<Rect> parts = new ArrayList<>();
-        if (l.strip().height() > 0) parts.add(l.strip());
-        parts.add(l.portrait());
-        parts.add(l.header());
-        parts.add(l.relation());
-        parts.add(l.body());
-        parts.addAll(l.options());
-        for (Rect r : parts) Ui2LayoutAssert.inside(p, r, at);
-        Ui2LayoutAssert.disjoint(parts, at);
+        // Three clear zones (owner, round 2): header bar, text box, answer area; plus the shared strip on top.
+        List<Rect> zones = new ArrayList<>();
+        if (l.strip().height() > 0) zones.add(l.strip());
+        zones.add(l.headerBar());
+        zones.add(l.body());
+        zones.add(l.answers());
+        for (Rect r : zones) Ui2LayoutAssert.inside(p, r, at);
+        Ui2LayoutAssert.disjoint(zones, at + " zones");
+        if (l.strip().height() > 0) assertTrue(l.strip().bottom() <= l.headerBar().y(), at + ": strip at the very top");
+        assertTrue(l.headerBar().bottom() < l.body().y(), at + ": text box below the header bar");
+        assertEquals(ConversationScreen.GUTTER, l.body().y() - l.headerBar().bottom(), at + ": 4 px gutter");
+        assertEquals(ConversationScreen.GUTTER, l.answers().y() - 1 - l.body().bottom(), at + ": 4 px gutter + divider");
+        assertTrue(l.body().bottom() < l.answers().y(), at + ": answers below the text box");
+        assertTrue(l.headerBar().height() >= ConversationScreen.PORTRAIT + 4, at + ": header holds the portrait");
+        // Header bar content: portrait left, name block, relation badge right; none overlap.
+        List<Rect> head = List.of(l.portrait(), l.header(), l.relation());
+        for (Rect r : head) Ui2LayoutAssert.inside(l.headerBar(), r, at + " header");
+        Ui2LayoutAssert.disjoint(head, at + " header");
+        assertTrue(l.portrait().x() < l.header().x() && l.header().right() <= l.relation().x(), at + ": header order");
+        assertTrue(l.header().width() >= 60, at + ": room for the name");
+        // Text box: three lines plus padding.
+        assertTrue(l.body().height() >= l.bodyLines() * ConversationScreen.BODY_LINE + 2 * ConversationScreen.TEXT_PAD - 2,
+            at + ": text box padding");
+        // Answers: inside their area, same width, even spacing, no overlap.
+        for (Rect r : l.options()) Ui2LayoutAssert.inside(l.answers(), r, at + " answers");
+        Ui2LayoutAssert.disjoint(l.options(), at + " answers");
+        for (int i = 1; i < l.options().size(); i++) {
+            Rect prev = l.options().get(i - 1);
+            Rect cur = l.options().get(i);
+            assertEquals(prev.width(), cur.width(), at + ": same button width");
+            assertEquals(ConversationScreen.GAP, cur.y() - prev.bottom(), at + ": even spacing");
+        }
         assertTrue(l.bodyLines() >= 1 && l.bodyLines() <= ConversationScreen.BODY_LINES, at + ": body lines");
         assertTrue(l.portrait().width() >= ConversationScreen.PORTRAIT && l.portrait().height() >= ConversationScreen.PORTRAIT,
             at + ": 32x32 portrait");
@@ -68,11 +92,19 @@ class ConversationScreenLayoutTest {
             ConversationScreen.PanelLayout l = ConversationScreen.layoutFor(v[0], v[1], 2000, 20, new int[] {2, 2, 2, 2}, 2);
             check(v[0], v[1], l, at);
             assertEquals(Math.min(ConversationScreen.MAX_W, v[0] - 16), l.panel().width(), at + ": capped width");
-            assertTrue(l.strip().bottom() <= l.portrait().y(), at + ": strip on top");
+            assertTrue(l.strip().bottom() <= l.headerBar().y(), at + ": strip on top");
             ConversationScreen.PanelLayout waiting = ConversationScreen.layoutFor(v[0], v[1], 200, 1, new int[] {1}, 1);
             check(v[0], v[1], waiting, at + " waiting");
             assertTrue(waiting.panel().bottom() <= v[1] - ConversationScreen.HOTBAR_CLEAR, at + ": waiting above the hotbar");
         }
+    }
+
+    @Test
+    void relationPillShowsASignedStanding() {
+        assertEquals("+12", ConversationScreen.relationNumber(12));
+        assertEquals("-40", ConversationScreen.relationNumber(-40));
+        assertEquals("", ConversationScreen.relationNumber(0));
+        assertEquals("+100", ConversationScreen.relationNumber(500));
     }
 
     @Test

@@ -271,23 +271,40 @@ public final class ConversationScreen extends Screen {
     /** Talk panel width limits (GUI px): the panel is fitted to its content between these. */
     static final int MIN_W = 260;
     static final int MAX_W = 440;
-    /** Walnut frame (5) plus parchment padding (6) on each side. */
-    static final int INSET = 11;
+    /** The walnut frame around the whole panel. */
+    static final int FRAME = 5;
+    /** The even gutter used everywhere inside the panel (zones, padding, button spacing). */
+    static final int GUTTER = 4;
+    /** Walnut frame (5) plus one gutter on each side. */
+    static final int INSET = FRAME + GUTTER;
     static final int STRIP_LINE = 9;
-    static final int HEADER_H = 36;
+    /** Zone 1: the dark walnut header bar (portrait, name and role, relation badge). */
+    static final int HEADER_H = 32 + 4 + 2 * GUTTER;
     static final int PORTRAIT = 32;
+    /** Zone 2: the parchment text box: inset border, padding, dark ink, at most three lines. */
+    static final int TEXT_PAD = GUTTER;
     static final int BODY_LINE = 10;
     static final int BODY_LINES = 3;
+    /** Zone 3: the answer area under a thin divider, buttons stacked at an even spacing. */
+    static final int ANSWER_PAD = GUTTER;
     static final int BUTTON_H = 14;
     static final int BUTTON_LINE = 9;
-    static final int GAP = 3;
-    static final int RELATION_W = 58;
+    static final int GAP = GUTTER;
+    /** Space between the zones. */
+    static final int ZONE_GAP = GUTTER;
+    /** The relation pill: icon, tier word and the signed standing ("Friendly +12"). */
+    static final int RELATION_W = 84;
+    static final int BADGE_H = 13;
     /** Clearance kept free above the hotbar, hearts and XP bar. */
     static final int HOTBAR_CLEAR = 42;
 
-    /** Where every part of the talk panel goes. Pure, so the layout test checks it without a window. */
-    record PanelLayout(Rect panel, Rect strip, Rect portrait, Rect header, Rect relation, Rect body, int bodyLines,
-                       List<Rect> options) {
+    /**
+     * Where every part of the talk panel goes. Pure, so the layout test checks it without a window.
+     * The three zones are {@code headerBar}, {@code body} (the text box) and {@code answers}; the
+     * portrait, name block and relation badge sit inside the header bar, the buttons inside answers.
+     */
+    record PanelLayout(Rect panel, Rect strip, Rect headerBar, Rect portrait, Rect header, Rect relation, Rect body,
+                       int bodyLines, Rect answers, List<Rect> options) {
     }
 
     static int panelWidth(int screenW, int contentW) {
@@ -295,9 +312,9 @@ public final class ConversationScreen extends Screen {
         return Math.max(Math.min(MIN_W, max), Math.min(max, contentW + 2 * INSET));
     }
 
-    /** Wrap width of the speech inside a panel of width {@code panelW} (room kept for the page arrow). */
+    /** Wrap width of the speech inside a panel of width {@code panelW} (padding and room for the page arrow). */
     static int wrapWidth(int panelW) {
-        return panelW - 2 * INSET - 10;
+        return panelW - 2 * INSET - 2 * TEXT_PAD - 9;
     }
 
     static int buttonHeight(int lines) {
@@ -315,30 +332,36 @@ public final class ConversationScreen extends Screen {
         int innerW = w - 2 * INSET;
         int bodyLines = Math.max(1, Math.min(BODY_LINES, bodyRows));
         int stripH = stripLines > 0 ? Math.min(2, stripLines) * STRIP_LINE + 3 : 0;
-        int bodyH = bodyLines * BODY_LINE + 4;
-        int optionsH = 0;
-        for (int lines : optionLines) optionsH += GAP + buttonHeight(lines);
-        int top = stripH > 0 ? 6 + stripH + GAP : INSET - 2;
-        int h = top + HEADER_H + GAP + bodyH + optionsH + INSET - 2;
+        int bodyH = bodyLines * BODY_LINE + 2 * TEXT_PAD - 2;
+        int buttonsH = 0;
+        for (int i = 0; i < optionLines.length; i++) buttonsH += (i > 0 ? GAP : 0) + buttonHeight(optionLines[i]);
+        int answersH = optionLines.length > 0 ? buttonsH + 2 * ANSWER_PAD : 0;
+        int top = FRAME + (stripH > 0 ? 1 + stripH + 2 : 0);
+        int h = top + HEADER_H + ZONE_GAP + bodyH + ZONE_GAP + (answersH > 0 ? 1 + answersH : 0) + FRAME;
         int x = (screenW - w) / 2;
         int y = Math.max(4, screenH - HOTBAR_CLEAR - h);
+        int fx = x + FRAME;
+        int fw = w - 2 * FRAME;
         int cx = x + INSET;
+        Rect strip = new Rect(fx + 1, y + FRAME + 1, fw - 2, stripH);
         int cy = y + top;
-        Rect strip = new Rect(x + 6, y + 6, w - 12, stripH);
-        Rect portrait = new Rect(cx, cy, PORTRAIT + 4, PORTRAIT + 4);
-        Rect relation = new Rect(cx + innerW - RELATION_W, cy + 1, RELATION_W, 18);
-        Rect header = new Rect(portrait.right() + 6, cy, relation.x() - portrait.right() - 10, HEADER_H);
-        cy += HEADER_H + GAP;
+        Rect headerBar = new Rect(fx, cy, fw, HEADER_H);
+        Rect portrait = new Rect(cx, cy + (HEADER_H - PORTRAIT - 4) / 2, PORTRAIT + 4, PORTRAIT + 4);
+        Rect relation = new Rect(cx + innerW - RELATION_W, cy + (HEADER_H - BADGE_H - 5) / 2, RELATION_W, BADGE_H + 5);
+        Rect header = new Rect(portrait.right() + 6, cy + 3, relation.x() - portrait.right() - 12, HEADER_H - 6);
+        cy += HEADER_H + ZONE_GAP;
         Rect body = new Rect(cx, cy, innerW, bodyH);
-        cy += bodyH;
+        cy += bodyH + ZONE_GAP;
+        Rect answers = new Rect(fx, cy + 1, fw, answersH);
         List<Rect> options = new ArrayList<>();
+        int oy = answers.y() + ANSWER_PAD;
         for (int lines : optionLines) {
-            cy += GAP;
             int bh = buttonHeight(lines);
-            options.add(new Rect(cx, cy, innerW, bh));
-            cy += bh;
+            options.add(new Rect(cx, oy, innerW, bh));
+            oy += bh + GAP;
         }
-        return new PanelLayout(new Rect(x, y, w, h), strip, portrait, header, relation, body, bodyLines, options);
+        return new PanelLayout(new Rect(x, y, w, h), strip, headerBar, portrait, header, relation, body, bodyLines,
+            answers, options);
     }
 
     private static int costWidth(Font font, OptionView option) {
@@ -380,7 +403,7 @@ public final class ConversationScreen extends Screen {
         int info = nameText.width();
         if (distinctTitle()) info = Math.max(info, font.width(state.title()));
         if (!state.memory().getString().isEmpty()) info = Math.max(info, Math.min(200, font.width(state.memory())));
-        int best = PORTRAIT + 4 + 6 + info + 10 + RELATION_W;
+        int best = PORTRAIT + 4 + 6 + info + 12 + RELATION_W;
         for (OptionView option : state.options()) {
             best = Math.max(best, 20 + font.width(optionText(option)) + costWidth(font, option) + 16);
         }
@@ -429,7 +452,8 @@ public final class ConversationScreen extends Screen {
         g.pose().translate(0, dy, 0);
         Rect p = l.panel();
         BannerChrome.panel(g, p.x(), p.y(), p.width(), p.height());
-        BannerChrome.parchment(g, p.x() + 5, p.y() + 5, p.width() - 10, p.height() - 10);
+        BannerChrome.parchment(g, p.x() + FRAME, p.y() + FRAME, p.width() - 2 * FRAME, p.height() - 2 * FRAME);
+        renderZones(g, l);
         if (!stripRows.isEmpty()) {
             Rect s = l.strip();
             g.fill(s.x(), s.y(), s.right(), s.bottom(), Ui2Palette.WALNUT_DARK);
@@ -445,6 +469,38 @@ public final class ConversationScreen extends Screen {
         renderFlourish(g, font, l.relation().x() - 36, l.header().y() + 2);
         renderOptions(g, font, l, wrapped, mouseX, mouseY - dy);
         g.pose().popPose();
+    }
+
+    /**
+     * The three zones, drawn before their content so each reads as its own place: a dark walnut
+     * header bar with a brass rule under it, an inset parchment text box, and a tinted answer
+     * area under a thin divider.
+     */
+    private static void renderZones(GuiGraphics g, PanelLayout l) {
+        Rect hb = l.headerBar();
+        g.fill(hb.x(), hb.y(), hb.right(), hb.bottom(), Ui2Palette.WALNUT_DARK);
+        g.fill(hb.x(), hb.y(), hb.right(), hb.y() + 1, Ui2Palette.WALNUT);
+        for (int gx = hb.x() + 3; gx < hb.right() - 3; gx += 7) {
+            int gy = hb.y() + 5 + ((gx * 31) & 7) * 4;
+            if (gy < hb.bottom() - 3) g.fill(gx, gy, gx + 4, gy + 1, Ui2Palette.WALNUT_GRAIN);
+        }
+        g.fill(hb.x(), hb.bottom() - 2, hb.right(), hb.bottom() - 1, BannerChrome.PLATE_SHADOW);
+        g.fill(hb.x(), hb.bottom() - 1, hb.right(), hb.bottom(), BannerChrome.GOLD_EDGE);
+
+        Rect b = l.body();
+        g.fill(b.x(), b.y(), b.right(), b.bottom(), Ui2Palette.FRAME_INNER);
+        g.fill(b.x(), b.y(), b.right(), b.y() + 1, Ui2Palette.INK_MUTED);
+        g.fill(b.x(), b.y(), b.x() + 1, b.bottom(), Ui2Palette.INK_MUTED);
+        g.fill(b.x() + 1, b.y() + 1, b.right() - 1, b.y() + 2, Ui2Palette.RULE_STRONG);
+        g.fill(b.x() + 1, b.y() + 1, b.x() + 2, b.bottom() - 1, Ui2Palette.RULE_STRONG);
+        g.fill(b.x(), b.bottom() - 1, b.right(), b.bottom(), Ui2Palette.RULE);
+        g.fill(b.right() - 1, b.y(), b.right(), b.bottom(), Ui2Palette.RULE);
+
+        Rect a = l.answers();
+        if (a.height() <= 0) return;
+        g.fill(a.x(), a.y() - 1, a.right(), a.y(), Ui2Palette.RULE_STRONG);
+        g.fill(a.x(), a.y(), a.right(), a.bottom(), 0x2A6E4B32);
+        g.fill(a.x(), a.y(), a.right(), a.y() + 1, 0x33FFFFFF);
     }
 
     /** A 32x32 portrait in a brass-rimmed square; the name in the title font, the role small below. */
@@ -468,21 +524,21 @@ public final class ConversationScreen extends Screen {
         String name = state.name().getString();
         // Names never cut: the title size, then the heading size, then (rarely) the heading fitted.
         if (nameText.width() <= hd.width()) {
-            nameText.draw(g, font, hd.x(), hd.y() + 2, Ui2Palette.INK);
+            nameText.draw(g, font, hd.x(), hd.y() + 2, BannerChrome.TEXT_ON_WOOD);
         } else {
             nameSmall.set(font, name);
             if (nameSmall.width() > hd.width()) nameSmall.fit(font, name, hd.width());
-            nameSmall.draw(g, font, hd.x(), hd.y() + 3, Ui2Palette.INK);
+            nameSmall.draw(g, font, hd.x(), hd.y() + 3, BannerChrome.TEXT_ON_WOOD);
         }
-        int ry = hd.y() + 17;
+        int ry = hd.y() + 16;
         if (distinctTitle()) {
             List<FormattedCharSequence> title = font.split(state.title(), hd.width());
-            if (!title.isEmpty()) g.drawString(font, title.get(0), hd.x(), ry, Ui2Palette.INK_SOFT, false);
+            if (!title.isEmpty()) g.drawString(font, title.get(0), hd.x(), ry, Ui2Palette.GOLD_SOFT, false);
             ry += 9;
         }
         if (!state.memory().getString().isEmpty() && ry + 8 <= hd.bottom()) {
             List<FormattedCharSequence> memory = font.split(state.memory(), hd.width());
-            if (!memory.isEmpty()) g.drawString(font, memory.get(0), hd.x(), ry, Ui2Palette.INK_MUTED, false);
+            if (!memory.isEmpty()) g.drawString(font, memory.get(0), hd.x(), ry, BannerChrome.TEXT_ON_WOOD_MUTED, false);
         }
         renderRelation(g, font, l.relation());
     }
@@ -495,7 +551,7 @@ public final class ConversationScreen extends Screen {
         int budget = Math.max(0, shownChars());
         List<FormattedCharSequence> rows = new ArrayList<>();
         Entity npc = speaker();
-        int wrapW = body.width() - 10;
+        int wrapW = body.width() - 2 * TEXT_PAD - 9;
         for (int i = 0; i < plainLines.size(); i++) {
             String text = plainLines.get(i);
             if (budget <= 0) break;
@@ -532,17 +588,17 @@ public final class ConversationScreen extends Screen {
         scrollBack = Mth.clamp(scrollBack, 0, lastPage);
         int page = lastPage - scrollBack;
         int first = page * capacity;
-        int ly = body.y() + 3;
+        int ly = body.y() + TEXT_PAD;
         for (int i = first; i < Math.min(rows.size(), first + capacity); i++) {
-            g.drawString(font, rows.get(i), body.x(), ly, Ui2Palette.INK, false);
+            g.drawString(font, rows.get(i), body.x() + TEXT_PAD + 1, ly, Ui2Palette.INK, false);
             ly += BODY_LINE;
         }
-        int ax = body.right() - 7;
-        if (page > 0) g.drawString(font, "▴", ax, body.y() + 1, Ui2Palette.INK_MUTED, false);
+        int ax = body.right() - TEXT_PAD - 6;
+        if (page > 0) g.drawString(font, "▴", ax, body.y() + 3, Ui2Palette.INK_MUTED, false);
         if (page < lastPage) {
-            g.drawString(font, "▸", ax, body.bottom() - 10, Ui2Palette.INK_SOFT, false);
+            g.drawString(font, "▸", ax, body.bottom() - 11, Ui2Palette.INK_SOFT, false);
         } else if (!typingDone() && (System.nanoTime() / 400_000_000L) % 2 == 0) {
-            g.drawString(font, "▸", ax, body.bottom() - 10, Ui2Palette.INK_MUTED, false);
+            g.drawString(font, "▸", ax, body.bottom() - 11, Ui2Palette.INK_MUTED, false);
         }
     }
 
@@ -554,24 +610,86 @@ public final class ConversationScreen extends Screen {
         return true;
     }
 
-    /** The relation on the parchment: its tier in ink and a thin bar from the centre. */
+    /** Badge colour per relation tier: green friendly, amber-grey neutral, red hostile. */
+    static int relationColor(Relations.Tier tier) {
+        return switch (tier) {
+            case HOSTILE -> Ui2Palette.BURGUNDY;
+            case WARY -> 0xFF8A5A14;
+            case NEUTRAL -> 0xFF7A6C52;
+            case FRIENDLY -> Ui2Palette.FOREST;
+            case LOYAL -> Ui2Palette.FOREST_DARK;
+        };
+    }
+
+    /**
+     * The relation badge on the right of the header bar: a pill with a small icon and the tier
+     * (Hostile, Wary, Neutral, Friendly, Loyal) and a thin bar under it from the centre.
+     */
     private void renderRelation(GuiGraphics g, Font font, Rect r) {
         Relations.Tier tier = Relations.tier(state.relation());
         Component label = Component.translatable(tier.langKey());
-        int color = switch (tier) {
-            case HOSTILE -> Ui2Palette.BURGUNDY;
-            case WARY -> 0xFF8A5A14;
-            case NEUTRAL -> Ui2Palette.INK_MUTED;
-            case FRIENDLY, LOYAL -> Ui2Palette.FOREST;
-        };
-        g.drawString(font, label, r.x() + (r.width() - font.width(label)) / 2, r.y() + 1, color, false);
-        int barX = r.x() + 4;
+        int color = relationColor(tier);
+        int edge = tier == Relations.Tier.LOYAL ? BannerChrome.GOLD_EDGE : shadeArgb(color, 1.35F);
+        int x0 = r.x();
+        int x1 = r.right();
+        int y0 = r.y();
+        int y1 = r.y() + BADGE_H;
+        g.fill(x0 + 1, y0, x1 - 1, y1, edge);
+        g.fill(x0, y0 + 1, x1, y1 - 1, edge);
+        g.fill(x0 + 1, y0 + 1, x1 - 1, y1 - 1, color);
+        g.fill(x0 + 2, y0 + 1, x1 - 2, y0 + 2, shadeArgb(color, 1.18F));
+        String number = relationNumber(state.relation());
+        int numberW = number.isEmpty() ? 0 : font.width(number) + 4;
+        int textW = font.width(label) + numberW;
+        int ix = x0 + (r.width() - textW - 10) / 2;
+        relationIcon(g, tier, ix, y0 + 3, Ui2Palette.ON_BURGUNDY);
+        int tx = g.drawString(font, label, ix + 10, y0 + 3, Ui2Palette.ON_BURGUNDY, false);
+        if (!number.isEmpty()) g.drawString(font, number, tx + 3, y0 + 3, 0xFFE2D3B4, false);
+        int barX = x0 + 4;
         int barW = r.width() - 8;
-        g.fill(barX, r.y() + 12, barX + barW, r.y() + 14, Ui2Palette.INK_MUTED);
+        int by = y1 + 2;
+        g.fill(barX, by, barX + barW, by + 2, Ui2Palette.WALNUT_LIGHT);
         int mid = barX + barW / 2;
         int pos = barX + Math.round(Relations.barFraction(state.relation()) * barW);
-        g.fill(Math.min(mid, pos), r.y() + 12, Math.max(mid, pos), r.y() + 14, color);
-        g.fill(mid, r.y() + 11, mid + 1, r.y() + 15, Ui2Palette.INK);
+        g.fill(Math.min(mid, pos), by, Math.max(mid, pos), by + 2,
+            tier == Relations.Tier.NEUTRAL ? Ui2Palette.GOLD_SOFT : shadeArgb(color, 1.5F));
+        g.fill(mid, by - 1, mid + 1, by + 3, BannerChrome.GOLD_EDGE);
+    }
+
+    /** The signed standing shown next to the tier word ("+12", "-40"); nothing at exactly 0. */
+    static String relationNumber(int relation) {
+        int r = Relations.clamp(relation);
+        return r == 0 ? "" : (r > 0 ? "+" : "") + r;
+    }
+
+    /** 7x7 pixel icons: heart (friendly), heart with a gold dot (loyal), a level bar (neutral), "!" (wary), a cross (hostile). */
+    private static void relationIcon(GuiGraphics g, Relations.Tier tier, int x, int y, int c) {
+        switch (tier) {
+            case FRIENDLY, LOYAL -> {
+                g.fill(x + 1, y, x + 3, y + 1, c);
+                g.fill(x + 4, y, x + 6, y + 1, c);
+                g.fill(x, y + 1, x + 7, y + 3, c);
+                g.fill(x + 1, y + 3, x + 6, y + 4, c);
+                g.fill(x + 2, y + 4, x + 5, y + 5, c);
+                g.fill(x + 3, y + 5, x + 4, y + 6, c);
+                if (tier == Relations.Tier.LOYAL) g.fill(x + 3, y + 1, x + 4, y + 2, BannerChrome.GOLD_EDGE);
+            }
+            case NEUTRAL -> g.fill(x, y + 3, x + 7, y + 5, c);
+            case WARY -> {
+                g.fill(x + 3, y, x + 5, y + 4, c);
+                g.fill(x + 3, y + 5, x + 5, y + 7, c);
+            }
+            case HOSTILE -> {
+                for (int i = 0; i < 6; i++) {
+                    g.fill(x + i, y + i, x + i + 2, y + i + 1, c);
+                    g.fill(x + 5 - i, y + i, x + 7 - i, y + i + 1, c);
+                }
+            }
+        }
+    }
+
+    private static int shadeArgb(int argb, float f) {
+        return (argb & 0xFF000000) | shade(argb & 0xFFFFFF, f);
     }
 
 
@@ -628,11 +746,12 @@ public final class ConversationScreen extends Screen {
             BannerChrome.navPlate(g, x, ry, w, rowH, selected, hover ? 1.0F : 0.0F);
             int textColor = option.enabled() ? BannerChrome.TEXT_ON_WOOD : Ui2Palette.INK_DISABLED;
             int ty = ry + (rowH - lines.size() * BUTTON_LINE) / 2 + 1;
-            g.drawString(font, (i + 1) + ".", x + 6, ty, option.enabled() ? Ui2Palette.GOLD_SOFT : Ui2Palette.INK_DISABLED, false);
+            numberChip(g, font, i + 1, x + 3, ry + (rowH - 11) / 2, option.enabled(), selected);
             int right = x + w - 6;
             int midY = ry + rowH / 2;
             if (selected) {
-                g.drawString(font, ">", right - 5, midY - 4, BannerChrome.GOLD_EDGE, false);
+                // The arrow marker on the hovered or selected answer.
+                for (int k = 0; k < 4; k++) g.fill(right - 4 + k, midY - 3 + k, right - 3 + k, midY + 4 - k, BannerChrome.GOLD_EDGE);
                 right -= 10;
             }
             for (int c = option.costs().size() - 1; c >= 0; c--) {
@@ -666,6 +785,17 @@ public final class ConversationScreen extends Screen {
         if (tooltip != null) g.renderTooltip(font, tooltip, mouseX, mouseY);
     }
 
+
+    /** A small inset chip with the answer's number key (1-9). */
+    private static void numberChip(GuiGraphics g, Font font, int n, int x, int y, boolean enabled, boolean selected) {
+        int w = 13;
+        int h = 11;
+        g.fill(x, y, x + w, y + h, selected ? BannerChrome.GOLD_EDGE : BannerChrome.PLATE_SHADOW);
+        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, selected ? Ui2Palette.BURGUNDY_DARK : BannerChrome.INSET_DARK);
+        String label = String.valueOf(n);
+        g.drawString(font, label, x + (w - font.width(label) + 1) / 2, y + 2,
+            enabled ? (selected ? BannerChrome.GOLD_EDGE : Ui2Palette.GOLD_SOFT) : Ui2Palette.INK_DISABLED, false);
+    }
 
     // --------------------------------------------------------------- card ---
 
